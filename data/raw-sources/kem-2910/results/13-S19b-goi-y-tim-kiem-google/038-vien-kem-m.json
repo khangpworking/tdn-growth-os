@@ -1,0 +1,96 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm m» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[37]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "a4cca76ef7ab7972012a2bb51a77063a862d0437bca1c25d8fc261b9aa4f045e"
+ },
+ "result": {
+  "prefix": "viên kẽm m",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:09Z",
+  "suggestions": [
+   "viên kẽm magie sắt",
+   "viên kẽm mua ở đâu",
+   "viên kẽm multi b+",
+   "viên kẽm magie canxi",
+   "viên kẽm mỹ",
+   "viên kẽm magie",
+   "viên kẽm multi b+ có tốt không",
+   "viên kẽm multi",
+   "viên kẽm mọc tóc",
+   "viên kẽm mega"
+  ],
+  "raw": [
+   "viên kẽm m",
+   [
+    "viên kẽm magie sắt",
+    "viên kẽm mua ở đâu",
+    "viên kẽm multi b+",
+    "viên kẽm magie canxi",
+    "viên kẽm mỹ",
+    "viên kẽm magie",
+    "viên kẽm multi b+ có tốt không",
+    "viên kẽm multi",
+    "viên kẽm mọc tóc",
+    "viên kẽm mega"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

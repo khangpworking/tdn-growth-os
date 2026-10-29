@@ -1,0 +1,403 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "describe": "Kết quả Google cho câu «báo cáo thị trường viên uống kẽm filetype:pdf -site:studocu.vn -site:scribd.com»",
+  "parentFile": "07-S19-google-tim-kiem.json",
+  "parentLocation": "records[7]",
+  "sourceCode": "S19 (gồm S13, S26)",
+  "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "provider": "SerpApi engine=google",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Kết quả Google lúc thu"
+  },
+  "limits": [
+   "App chỉ đọc organic_results; các khối khác giữ trong bản gốc",
+   "ai_overview có thể chỉ là page_token (xem file 14)"
+  ],
+  "resultSha256": "24d4efd6725c2c0b2372cfef6b5d3f033e217127977b972cf6d4cb03ac0107d7"
+ },
+ "result": {
+  "captureId": "serpapi-expanded-1-serpapi-0001",
+  "operation": "serpapi.google.search",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "engine": "google",
+   "gl": "vn",
+   "hl": "vi",
+   "num": 10,
+   "q": "báo cáo thị trường viên uống kẽm filetype:pdf -site:studocu.vn -site:scribd.com"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:05:01.423Z",
+  "completedAt": "2026-10-26T02:05:02.429Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb54da4e3cf35350c9016",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "136886f11d764ec720b8ad1a9a5d4094f23b22335077ff4d5c1318b055f3d173",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb54da4e3cf35350c9016",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/5xPSkk6BzU38TBIdhpEjEShzESbrlLbEzWdR9dBjnCc/6adeb54da4e3cf35350c9016.json",
+    "markdown_endpoint": "https://serpapi.com/searches/5xPSkk6BzU38TBIdhpEjEShzESbrlLbEzWdR9dBjnCc/6adeb54da4e3cf35350c9016.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/5xPSkk6BzU38TBIdhpEjEShzESbrlLbEzWdR9dBjnCc/6adeb54da4e3cf35350c9016.json_with_pixel_position",
+    "created_at": "2026-10-26 02:05:01 UTC",
+    "processed_at": "2026-10-26 02:05:01 UTC",
+    "google_url": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&oq=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&hl=vi&gl=vn&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/5xPSkk6BzU38TBIdhpEjEShzESbrlLbEzWdR9dBjnCc/6adeb54da4e3cf35350c9016.html",
+    "total_time_taken": 0.38
+   },
+   "search_parameters": {
+    "engine": "google",
+    "q": "báo cáo thị trường viên uống kẽm filetype:pdf -site:studocu.vn -site:scribd.com",
+    "google_domain": "google.com",
+    "hl": "vi",
+    "gl": "vn",
+    "device": "desktop"
+   },
+   "search_information": {
+    "query_displayed": "báo cáo thị trường viên uống kẽm filetype:pdf -site:studocu.vn -site:scribd.com",
+    "total_results": 9010,
+    "time_taken_displayed": 0.24,
+    "organic_results_state": "Results for exact spelling"
+   },
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "XU HƯỚNG NGHIÊN CỨU VÀ ỨNG DỤNG CÁC HOẠT CHẤT ...",
+     "link": "https://thongke.cesti.gov.vn/images/BCPTXHCN/OVERVIEW/201801301022297533Tongquan%20_Ky%2008%20-%20cong%20nghe%20nano%20trong%20thao%20duoc%20-27.10.2017%20Final.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAES4AEB6zswFXnYiWzUHCXrReTRlDKUWCmVpIz4FOLhxrhqHtMok--IpbI8k3QyHQieuYG89tvDjqm6QTvGorfEybRcNmHH1UQUbPhE2dZ1R745IVvv150LC7EdbVQbp8iXruF5Y5GnlcvUGO601h-4H7l-siIYEyr8TeA0dKYIWnn56C4BpRYz9_Bt9XjGAguijN8MTU7NievFf4ZrLqNGoQXxkMg79NDSS7zmpa3RcuhxrZSH_eLc_iVpUrH4PFdwAWdl7HEu9WOS20NwBm7ow2ex_QatRTgyUUjYh2mTovsEDQ&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBQQAQ&uoh=1",
+     "displayed_link": "https://thongke.cesti.gov.vn › images › OVERVIEW",
+     "favicon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc0iS5AE8rBr4aQZ0jHEIxlE.png",
+     "author": "viết bởi TSNTL Thủy",
+     "snippet": "trưởng 3%/năm. Báo cáo nghiên cứu thị trường năm 2011 cho thấy giá trị thương mại của lycopen có thể đạt 84 triệu USD năm 2018 từ mức 66 triệu USD năm 2010 ...",
+     "snippet_highlighted_words": [
+      "Báo cáo",
+      "thị trường"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "trưởng 3%/năm. Báo cáo nghiên cứu thị trường năm 2011 cho thấy giá trị thương mại của lycopen có thể đạt 84 triệu USD năm 2018 từ mức 66 triệu USD năm 2010 ...",
+       "source_info_link": "https://thongke.cesti.gov.vn/images/BCPTXHCN/OVERVIEW/201801301022297533Tongquan%20_Ky%2008%20-%20cong%20nghe%20nano%20trong%20thao%20duoc%20-27.10.2017%20Final.pdf",
+       "icon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc70uGjCgsqBWFlTISgZ9dp6HfpTCNsvYyVSCZ6N2k5w_.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CrwCL2dvdG8_dXJsPUNBRVM0QUVCNnpzd0ZkMVpTVlFmQVNic214SlBTWDIxMFA2SVlIY2dKa0VaNHlxbjBsYlcyMzVqWmZVdHNBM3ZYdWlETWNZWDN2ajJzS18zUVVDbUlpYVl6WkVGNmV1V25QTlpQNTc4ekRoUGZHdkExYzFJU1RYeTFmMVdtcno0TklQWXNTckN5S1NiZEZPZVVDcjg1RmV5cUVDRmJ2c2ExdXNRLXBZWERKN2lSYTlMQjhldDJLTUJzTTZjenpweXVHREZKRnozbzBhUm1ockl2dGFOcDJ4NWFjdmNWeE5maTZaYXhDTUxNYmktcjNCWF9qcjFDS19xd2FFQ3prb0RxNU1NWXlHSjAtOG5fUUxxSkota05qSU1YMTNYeXplbWVXRXZBaTVralVqVG1iZWtOURIEGgIIABqEBxICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQN4GCEIQABgAIAAqHwoEYsOhbxVlCk0_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxVlCk0_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sVd8iNPxoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxWiF34_Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4V_QWtPxoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVsoKYPxoLdmnDqm514buRbmcqEgoFa-G6vW0VAjaqPRoEemluYzK8Ai9nb3RvP3VybD1DQUVTNEFFQjZ6c3dGZDFaU1ZRZkFTYnNteEpQU1gyMTBQNklZSGNnSmtFWjR5cW4wbGJXMjM1alpmVXRzQTN2WHVpRE1jWVgzdmoyc0tfM1FVQ21JaWFZelpFRjZldVduUE5aUDU3OHpEaFBmR3ZBMWMxSVNUWHkxZjFXbXJ6NE5JUFlzU3JDeUtTYmRGT2VVQ3I4NUZleXFFQ0ZidnNhMXVzUS1wWVhESjdpUmE5TEI4ZXQyS01Cc002Y3p6cHl1R0RGSkZ6M28wYVJtaHJJdnRhTnAyeDVhY3ZjVnhOZmk2WmF4Q01MTWJpLXIzQlhfanIxQ0tfcXdhRUN6a29EcTVNTVl5R0owLThuX1FMcUpKLWtOaklNWDEzWHl6ZW1lV0V2QWk1a2pValRtYmVrTlE6QVhVIEjGr-G7mk5HIE5HSEnDik4gQ-G7qFUgVsOAIOG7qE5HIEThu6RORyBDw4FDIEhP4bqgVCBDSOG6pFQgLi4uQtwBdHLGsOG7n25nIDMlL27Eg20uIDxiPkLDoW8gY8OhbzwvYj4gbmdoacOqbiBj4bupdSA8Yj50aOG7iyB0csaw4budbmc8L2I-IG7Eg20gMjAxMSBjaG8gdGjhuqV5IGdpw6EgdHLhu4sgdGjGsMahbmcgbeG6oWkgY-G7p2EgbHljb3BlbiBjw7MgdGjhu4MgxJHhuqF0IDg0IHRyaeG7h3UgVVNEIG7Eg20gMjAxOCB04burIG3hu6ljIDY2IHRyaeG7h3UgVVNEIG7Eg20gMjAxMCZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CrwCL2dvdG8_dXJsPUNBRVM0QUVCNnpzd0ZkMVpTVlFmQVNic214SlBTWDIxMFA2SVlIY2dKa0VaNHlxbjBsYlcyMzVqWmZVdHNBM3ZYdWlETWNZWDN2ajJzS18zUVVDbUlpYVl6WkVGNmV1V25QTlpQNTc4ekRoUGZHdkExYzFJU1RYeTFmMVdtcno0TklQWXNTckN5S1NiZEZPZVVDcjg1RmV5cUVDRmJ2c2ExdXNRLXBZWERKN2lSYTlMQjhldDJLTUJzTTZjenpweXVHREZKRnozbzBhUm1ockl2dGFOcDJ4NWFjdmNWeE5maTZaYXhDTUxNYmktcjNCWF9qcjFDS19xd2FFQ3prb0RxNU1NWXlHSjAtOG5fUUxxSkota05qSU1YMTNYeXplbWVXRXZBaTVralVqVG1iZWtOURIEGgIIABqEBxICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQN4GCEIQABgAIAAqHwoEYsOhbxVlCk0_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxVlCk0_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sVd8iNPxoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxWiF34_Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4V_QWtPxoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVsoKYPxoLdmnDqm514buRbmcqEgoFa-G6vW0VAjaqPRoEemluYzK8Ai9nb3RvP3VybD1DQUVTNEFFQjZ6c3dGZDFaU1ZRZkFTYnNteEpQU1gyMTBQNklZSGNnSmtFWjR5cW4wbGJXMjM1alpmVXRzQTN2WHVpRE1jWVgzdmoyc0tfM1FVQ21JaWFZelpFRjZldVduUE5aUDU3OHpEaFBmR3ZBMWMxSVNUWHkxZjFXbXJ6NE5JUFlzU3JDeUtTYmRGT2VVQ3I4NUZleXFFQ0ZidnNhMXVzUS1wWVhESjdpUmE5TEI4ZXQyS01Cc002Y3p6cHl1R0RGSkZ6M28wYVJtaHJJdnRhTnAyeDVhY3ZjVnhOZmk2WmF4Q01MTWJpLXIzQlhfanIxQ0tfcXdhRUN6a29EcTVNTVl5R0owLThuX1FMcUpKLWtOaklNWDEzWHl6ZW1lV0V2QWk1a2pValRtYmVrTlE6QVhVIEjGr-G7mk5HIE5HSEnDik4gQ-G7qFUgVsOAIOG7qE5HIEThu6RORyBDw4FDIEhP4bqgVCBDSOG6pFQgLi4uQtwBdHLGsOG7n25nIDMlL27Eg20uIDxiPkLDoW8gY8OhbzwvYj4gbmdoacOqbiBj4bupdSA8Yj50aOG7iyB0csaw4budbmc8L2I-IG7Eg20gMjAxMSBjaG8gdGjhuqV5IGdpw6EgdHLhu4sgdGjGsMahbmcgbeG6oWkgY-G7p2EgbHljb3BlbiBjw7MgdGjhu4MgxJHhuqF0IDg0IHRyaeG7h3UgVVNEIG7Eg20gMjAxOCB04burIG3hu6ljIDY2IHRyaeG7h3UgVVNEIG7Eg20gMjAxMCZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "cesti.gov.vn"
+    },
+    {
+     "position": 2,
+     "title": "BÁO CÁO ĐÁNH GIÁ 05 NĂM THỰC HIỆN NGHỊ ĐỊNH SỐ 09 ...",
+     "link": "https://qppl.dienbien.gov.vn/qlvb/vbpq.nsf/3d0f058120469ad34725726600365420/E8020D675458354E4725881A0001D4B3/$file/B%C3%81O%20C%C3%81O%20%C4%90%C3%81NH%20GI%C3%81%205%20N%C4%82M%20THI%20H%C3%80NH%20NGH%E1%BB%8A%20%C4%90%E1%BB%8ANH%2009%20-%2031.3.2022.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESuwIB6zswFTGXGm8_LxjTzX9A2rNcppP870wIPyEzjNRfFx7s7xsRMIQHQGfhibQBMmPzLdsIsLrPqwJEmpmZcTFJcWaWztX3WPUXBmSVY6Qfm2PrKlYfEP9AxU-hMYcCU6dXmjCoW26SjggYA1Y0GTwZyv44JLTSD5SLxv7RegboMQgvE_PhsvTOaiGv-NLJW9UQ0pkhY0YbvtZ9jder_Zvr0cEma1Jl7QiV5RUvmKPQOPmFm9sr0cMKfM1maWocDwix5hvJoFdtY0raeC6zuvEQdP9RvBKJATk0AhLK1xj7EhIZcQGGKCyMd0qokCHHl0QvhVUIVgVT24VxKciC2H-Mf_tJf_OvsDtQF9tHAoopNCF8oew1CBbrDZ8r4oj2J8z0481PHxe4TdrPc06_3IInYm4q2DbPRVlI6OM&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBEQAQ&uoh=1",
+     "displayed_link": "https://qppl.dienbien.gov.vn › qlvb › vbpq.nsf",
+     "date": "28 thg 1, 2021",
+     "snippet": "BÁO CÁO. ĐÁNH GIÁ 05 NĂM THỰC HIỆN NGHỊ ĐỊNH SỐ 09/2016/NĐ-CP. NGÀY 28/01/2021 CỦA CHÍNH PHỦ VỀ TĂNG CƯỜNG VI CHẤT.",
+     "snippet_highlighted_words": [
+      "BÁO CÁO"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "BÁO CÁO. ĐÁNH GIÁ 05 NĂM THỰC HIỆN NGHỊ ĐỊNH SỐ 09/2016/NĐ-CP. NGÀY 28/01/2021 CỦA CHÍNH PHỦ VỀ TĂNG CƯỜNG VI CHẤT.",
+       "source_info_link": "https://qppl.dienbien.gov.vn/qlvb/vbpq.nsf/3d0f058120469ad34725726600365420/E8020D675458354E4725881A0001D4B3/$file/B%C3%81O%20C%C3%81O%20%C4%90%C3%81NH%20GI%C3%81%205%20N%C4%82M%20THI%20H%C3%80NH%20NGH%E1%BB%8A%20%C4%90%E1%BB%8ANH%2009%20-%2031.3.2022.pdf"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CrUDL2dvdG8_dXJsPUNBRVN1d0lCNnpzd0ZSRHN6bjhvVkswaFgzenBsVjB6UkJhVnhRUzYzT1VSbXBzTWFXbEJDekd6NDB4dU40OHl6TEJCSWV6RFl3ZDE1SXdKdld3ck1vekFpSGdqeEhkVzltRGVxekViMndDLVdpUU5iZ0NURDdJdEpzMGhmSUU4a05kZ25JNVh6Mk1KVl9fRWxZdTRJTUJYMVc1TUJPdkI5VnM2djhtamVQMU1oZ0pjNjNYQlB4WjlxWEdOS25nX2pJZmlyRm01T2xKNkprWHZHamRVdEdRYTdtcXAyYzlnUENWUjExRV9VOGs3OWhsZm9pM2lkekV5bTNwcmtnOUVVMVpXS0VNV0FGOW9UWUQ5STkyaWtrYTZzRHhRaVJaaENkZS1WcUpoZVZXTFlYRU9kdFVGSDJibXN0MlpzYVFMMmRxQjJWMl92d2dybHBBdzhUMWtldkxrWl9mUTVDdWJ4eG1uMVZlaWt0akc4RW5PcHk5a0xjQ2lWYXdCcUx2SXdaSmJjUDBzQVd0MzhEWHpQb0xvdUEzR0U2ek83WVA0ZExCWEI1bzlaRjQSBBoCCAAaxQcSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAoQcIQhAAGAAgACofCgRiw6FvFbi6L0AaCGLDoW9jw6FvGghpdjtkO2JhbyofCgRjw6FvFZSBMEAaCGLDoW9jw6FvGghpdjtkO2NhbyomCgV0aOG7ixWSqyI_Gg50aOG7i3RyxrDhu51uZxoIaXY7ZDt0aGkqLQoJdHLGsOG7nW5nFVQUTT8aDnRo4buLdHLGsOG7nW5nGgtpdjtkO3RydW9uZyoqCgV2acOqbhXAYno-GgR2aWVuGgt2acOqbnXhu5FuZxoJaXY7ZDt2aWVuKhoKBnXhu5FuZxV_u_Q9Ggt2acOqbnXhu5FuZyoSCgVr4bq9bRXZV5E-GgR6aW5jMrUDL2dvdG8_dXJsPUNBRVN1d0lCNnpzd0ZSRHN6bjhvVkswaFgzenBsVjB6UkJhVnhRUzYzT1VSbXBzTWFXbEJDekd6NDB4dU40OHl6TEJCSWV6RFl3ZDE1SXdKdld3ck1vekFpSGdqeEhkVzltRGVxekViMndDLVdpUU5iZ0NURDdJdEpzMGhmSUU4a05kZ25JNVh6Mk1KVl9fRWxZdTRJTUJYMVc1TUJPdkI5VnM2djhtamVQMU1oZ0pjNjNYQlB4WjlxWEdOS25nX2pJZmlyRm01T2xKNkprWHZHamRVdEdRYTdtcXAyYzlnUENWUjExRV9VOGs3OWhsZm9pM2lkekV5bTNwcmtnOUVVMVpXS0VNV0FGOW9UWUQ5STkyaWtrYTZzRHhRaVJaaENkZS1WcUpoZVZXTFlYRU9kdFVGSDJibXN0MlpzYVFMMmRxQjJWMl92d2dybHBBdzhUMWtldkxrWl9mUTVDdWJ4eG1uMVZlaWt0akc4RW5PcHk5a0xjQ2lWYXdCcUx2SXdaSmJjUDBzQVd0MzhEWHpQb0xvdUEzR0U2ek83WVA0ZExCWEI1bzlaRjQ6TTxiPkLDgU8gQ8OBTzwvYj4gxJDDgU5IIEdJw4EgMDUgTsSCTSBUSOG7sEMgSEnhu4ZOIE5HSOG7iiDEkOG7ik5IIFPhu5AgMDkgLi4uQpoBPGI-QsOBTyBDw4FPPC9iPi4gxJDDgU5IIEdJw4EgMDUgTsSCTSBUSOG7sEMgSEnhu4ZOIE5HSOG7iiDEkOG7ik5IIFPhu5AgMDkvMjAxNi9OxJAtQ1AuIE5Hw4BZIDI4LzAxLzIwMjEgQ-G7pkEgQ0jDjU5IIFBI4bumIFbhu4AgVMSCTkcgQ8av4bucTkcgVkkgQ0jhuqRULiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CrUDL2dvdG8_dXJsPUNBRVN1d0lCNnpzd0ZSRHN6bjhvVkswaFgzenBsVjB6UkJhVnhRUzYzT1VSbXBzTWFXbEJDekd6NDB4dU40OHl6TEJCSWV6RFl3ZDE1SXdKdld3ck1vekFpSGdqeEhkVzltRGVxekViMndDLVdpUU5iZ0NURDdJdEpzMGhmSUU4a05kZ25JNVh6Mk1KVl9fRWxZdTRJTUJYMVc1TUJPdkI5VnM2djhtamVQMU1oZ0pjNjNYQlB4WjlxWEdOS25nX2pJZmlyRm01T2xKNkprWHZHamRVdEdRYTdtcXAyYzlnUENWUjExRV9VOGs3OWhsZm9pM2lkekV5bTNwcmtnOUVVMVpXS0VNV0FGOW9UWUQ5STkyaWtrYTZzRHhRaVJaaENkZS1WcUpoZVZXTFlYRU9kdFVGSDJibXN0MlpzYVFMMmRxQjJWMl92d2dybHBBdzhUMWtldkxrWl9mUTVDdWJ4eG1uMVZlaWt0akc4RW5PcHk5a0xjQ2lWYXdCcUx2SXdaSmJjUDBzQVd0MzhEWHpQb0xvdUEzR0U2ek83WVA0ZExCWEI1bzlaRjQSBBoCCAAaxQcSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAoQcIQhAAGAAgACofCgRiw6FvFbi6L0AaCGLDoW9jw6FvGghpdjtkO2JhbyofCgRjw6FvFZSBMEAaCGLDoW9jw6FvGghpdjtkO2NhbyomCgV0aOG7ixWSqyI_Gg50aOG7i3RyxrDhu51uZxoIaXY7ZDt0aGkqLQoJdHLGsOG7nW5nFVQUTT8aDnRo4buLdHLGsOG7nW5nGgtpdjtkO3RydW9uZyoqCgV2acOqbhXAYno-GgR2aWVuGgt2acOqbnXhu5FuZxoJaXY7ZDt2aWVuKhoKBnXhu5FuZxV_u_Q9Ggt2acOqbnXhu5FuZyoSCgVr4bq9bRXZV5E-GgR6aW5jMrUDL2dvdG8_dXJsPUNBRVN1d0lCNnpzd0ZSRHN6bjhvVkswaFgzenBsVjB6UkJhVnhRUzYzT1VSbXBzTWFXbEJDekd6NDB4dU40OHl6TEJCSWV6RFl3ZDE1SXdKdld3ck1vekFpSGdqeEhkVzltRGVxekViMndDLVdpUU5iZ0NURDdJdEpzMGhmSUU4a05kZ25JNVh6Mk1KVl9fRWxZdTRJTUJYMVc1TUJPdkI5VnM2djhtamVQMU1oZ0pjNjNYQlB4WjlxWEdOS25nX2pJZmlyRm01T2xKNkprWHZHamRVdEdRYTdtcXAyYzlnUENWUjExRV9VOGs3OWhsZm9pM2lkekV5bTNwcmtnOUVVMVpXS0VNV0FGOW9UWUQ5STkyaWtrYTZzRHhRaVJaaENkZS1WcUpoZVZXTFlYRU9kdFVGSDJibXN0MlpzYVFMMmRxQjJWMl92d2dybHBBdzhUMWtldkxrWl9mUTVDdWJ4eG1uMVZlaWt0akc4RW5PcHk5a0xjQ2lWYXdCcUx2SXdaSmJjUDBzQVd0MzhEWHpQb0xvdUEzR0U2ek83WVA0ZExCWEI1bzlaRjQ6TTxiPkLDgU8gQ8OBTzwvYj4gxJDDgU5IIEdJw4EgMDUgTsSCTSBUSOG7sEMgSEnhu4ZOIE5HSOG7iiDEkOG7ik5IIFPhu5AgMDkgLi4uQpoBPGI-QsOBTyBDw4FPPC9iPi4gxJDDgU5IIEdJw4EgMDUgTsSCTSBUSOG7sEMgSEnhu4ZOIE5HSOG7iiDEkOG7ik5IIFPhu5AgMDkvMjAxNi9OxJAtQ1AuIE5Hw4BZIDI4LzAxLzIwMjEgQ-G7pkEgQ0jDjU5IIFBI4bumIFbhu4AgVMSCTkcgQ8av4bucTkcgVkkgQ0jhuqRULiICEAFIAFgAaAA",
+     "source": "dienbien.gov.vn"
+    },
+    {
+     "position": 3,
+     "title": "Xác định nồng độ kẽm, đồng, canxi trong huyết thanh và ...",
+     "link": "https://tcydls108.benhvien108.vn/index.php/YDLS/article/download/922/582",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESgwEB6zswFSCK0NJDp1s7LCcJQtUwQbTio48cekDRfXeNEiP1-N90ljRkT3GfITSV9HnmW_t-ZEpxTZZySoPwlTPdXHfqPmZVrYSILM-_-ZFWdYckpss8Me8_N3AZ5q2ejUOlybLgsDNcOUOtwBE2dHWAOSUsgxjOEiWx6YowNMaot0-Tvw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBcQAQ&uoh=1",
+     "displayed_link": "https://tcydls108.benhvien108.vn › download",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAArlBMVEVHcEz________H2dDG2dDU4tva5uDB1szY5d_Q4dnE2tCvzL_L3tTH2tHS4tqUvKrb6OKdwbCkxba1z8P-_f3o8Oz89_eGs5_u9PKvzL________9zp5H0zc_XWV7UP0fWT1Xxw8a71MnQMDnKCRTaZWrecXbOICnuuLr87_D65-jfe3_qq6333N3hhIjjjZD109Tmmp3219jSNh7iio7ooKPM3dXusArcZhexzcGmuqr-AAAAOnRSTlMABw49WYSWotz-__-vZev_____uRv_____zS7___________________________________9z___PY0hhuwAAAZpJREFUeAGNktdCwzAMRemu7SZ2nHiAaMjeXabz_38Mh73hPupoS1f_1mA4HHxPhqPxZDqdjEfDr2w8myNMEMbzhfMpfDhzMaGUMo9y7PrBexb4DFHOhJCCEUX09c27OF9YCzzL-onrt9gZuyUAy_DOKooBPI_5w5de3IQKgDjN8iIrK7CUu85LMyhhUMsqzZu6LTtZg1bJ4inxaM4TWK03ebjtdiYPN-sYEuKOnrIiiiDOyrDalff7Kk-zAwiOn_IeyS2zcF136elU7uq9hdojk4FlgwlRwnazbPLsfM4iY-4spHw6fISISYhDqOwcaZR2EB76aS3s07IeRtCt47aK152MLBTIprUaM4_JQ7uKi32-2bWVaTe1SLDzMgqv80426zLN0qKRVdhg_jSKXUJCtDl0hyKMojA_dLul5ngRvKwPUaibruyVHZoaVIKct8UTDlCvjNkaUwN4SvjDt5NpZWeFql1XYBdA2SV4f2yBOWZCCM0E8djl5tOb2NSKc04xQ37w6Sv7ByNJkmB34Qx_ek1nFPz91H_qAYlqMBIHiDEIAAAAAElFTkSuQmCC.png",
+     "author": "viết bởi NTQ Trang",
+     "snippet": "đã báo cáo một trường hợp bệnh nhân sau phẫu thuật suy tuyến cận giáp, tình trạng vảy nến mụn mủ Von Zumbusch gây nên bởi tình trạng hạ canxi máu [9]. Theo ...",
+     "snippet_highlighted_words": [
+      "báo cáo",
+      "trường"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "đã báo cáo một trường hợp bệnh nhân sau phẫu thuật suy tuyến cận giáp, tình trạng vảy nến mụn mủ Von Zumbusch gây nên bởi tình trạng hạ canxi máu [9]. Theo ...",
+       "source_info_link": "https://tcydls108.benhvien108.vn/index.php/YDLS/article/download/922/582",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAArlBMVEVHcEz________H2dDG2dDU4tva5uDB1szY5d_Q4dnE2tCvzL_L3tTH2tHS4tqUvKrb6OKdwbCkxba1z8P-_f3o8Oz89_eGs5_u9PKvzL________9zp5H0zc_XWV7UP0fWT1Xxw8a71MnQMDnKCRTaZWrecXbOICnuuLr87_D65-jfe3_qq6333N3hhIjjjZD109Tmmp3219jSNh7iio7ooKPM3dXusArcZhexzcGmuqr-AAAAOnRSTlMABw49WYSWotz-__-vZev_____uRv_____zS7___________________________________9z___PY0hhuwAAAZpJREFUeAGNktdCwzAMRemu7SZ2nHiAaMjeXabz_38Mh73hPupoS1f_1mA4HHxPhqPxZDqdjEfDr2w8myNMEMbzhfMpfDhzMaGUMo9y7PrBexb4DFHOhJCCEUX09c27OF9YCzzL-onrt9gZuyUAy_DOKooBPI_5w5de3IQKgDjN8iIrK7CUu85LMyhhUMsqzZu6LTtZg1bJ4inxaM4TWK03ebjtdiYPN-sYEuKOnrIiiiDOyrDalff7Kk-zAwiOn_IeyS2zcF136elU7uq9hdojk4FlgwlRwnazbPLsfM4iY-4spHw6fISISYhDqOwcaZR2EB76aS3s07IeRtCt47aK152MLBTIprUaM4_JQ7uKi32-2bWVaTe1SLDzMgqv80426zLN0qKRVdhg_jSKXUJCtDl0hyKMojA_dLul5ngRvKwPUaibruyVHZoaVIKct8UTDlCvjNkaUwN4SvjDt5NpZWeFql1XYBdA2SV4f2yBOWZCCM0E8djl5tOb2NSKc04xQ37w6Sv7ByNJkmB34Qx_ek1nFPz91H_qAYlqMBIHiDEIAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsABL2dvdG8_dXJsPUNBRVNnd0VCNnpzd0ZmT2oyVk1aNmtIQU9PT1RVSG5YWkJpeG9GNEJOLXU0ZzRQcWUwRGd1N0VMY2NDQXJZb2wwbl9Ja0M2U3dCUEhCaVBVTHNvbDRsVWFmRFVCQ2x6ZW1JTzJ2R0FDSzVMUkozWFVrNUsxZXhHRHVTRzZ6OUhjSUVmR3BVbmVwZDRmM25GRkt3eDJFX2w4dmV0YVFOekRxUmlKUllFR0RyTC1sTlpmSzljRlFnEgQaAggAGp8GEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPsFCEIQABgAIAAqHwoEYsOhbxXPjwQ_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxXPjwQ_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sV2huVPRoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxWBKG0-Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4VAAAAABoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVAYX6PRoLdmnDqm514buRbmcqEgoFa-G6vW0VTr4yQBoEemluYzLAAS9nb3RvP3VybD1DQUVTZ3dFQjZ6c3dGZk9qMlZNWjZrSEFPT09UVUhuWFpCaXhvRjRCTi11NGc0UHFlMERndTdFTGNjQ0FyWW9sMG5fSWtDNlN3QlBIQmlQVUxzb2w0bFVhZkRVQkNsemVtSU8ydkdBQ0s1TFJKM1hVazVLMWV4R0R1U0c2ejlIY0lFZkdwVW5lcGQ0ZjNuRkZLd3gyRV9sOHZldGFRTnpEcVJpSlJZRUdEckwtbE5aZks5Y0ZRZzpYWMOhYyDEkeG7i25oIG7hu5NuZyDEkeG7mSA8Yj5r4bq9bTwvYj4sIMSR4buTbmcsIGNhbnhpIHRyb25nIGh1eeG6v3QgdGhhbmggdsOgIG3hu5FpIC4uLkLeAcSRw6MgPGI-YsOhbyBjw6FvPC9iPiBt4buZdCA8Yj50csaw4budbmc8L2I-IGjhu6NwIGLhu4duaCBuaMOibiBzYXUgcGjhuqt1IHRodeG6rXQgc3V5IHR1eeG6v24gY-G6rW4gZ2nDoXAsIHTDrG5oIHRy4bqhbmcgduG6o3kgbuG6v24gbeG7pW4gbeG7pyBWb24gWnVtYnVzY2ggZ8OieSBuw6puIGLhu59pIHTDrG5oIHRy4bqhbmcgaOG6oSBjYW54aSBtw6F1IFs5XS4gVGhlbyZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsABL2dvdG8_dXJsPUNBRVNnd0VCNnpzd0ZmT2oyVk1aNmtIQU9PT1RVSG5YWkJpeG9GNEJOLXU0ZzRQcWUwRGd1N0VMY2NDQXJZb2wwbl9Ja0M2U3dCUEhCaVBVTHNvbDRsVWFmRFVCQ2x6ZW1JTzJ2R0FDSzVMUkozWFVrNUsxZXhHRHVTRzZ6OUhjSUVmR3BVbmVwZDRmM25GRkt3eDJFX2w4dmV0YVFOekRxUmlKUllFR0RyTC1sTlpmSzljRlFnEgQaAggAGp8GEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPsFCEIQABgAIAAqHwoEYsOhbxXPjwQ_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxXPjwQ_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sV2huVPRoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxWBKG0-Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4VAAAAABoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVAYX6PRoLdmnDqm514buRbmcqEgoFa-G6vW0VTr4yQBoEemluYzLAAS9nb3RvP3VybD1DQUVTZ3dFQjZ6c3dGZk9qMlZNWjZrSEFPT09UVUhuWFpCaXhvRjRCTi11NGc0UHFlMERndTdFTGNjQ0FyWW9sMG5fSWtDNlN3QlBIQmlQVUxzb2w0bFVhZkRVQkNsemVtSU8ydkdBQ0s1TFJKM1hVazVLMWV4R0R1U0c2ejlIY0lFZkdwVW5lcGQ0ZjNuRkZLd3gyRV9sOHZldGFRTnpEcVJpSlJZRUdEckwtbE5aZks5Y0ZRZzpYWMOhYyDEkeG7i25oIG7hu5NuZyDEkeG7mSA8Yj5r4bq9bTwvYj4sIMSR4buTbmcsIGNhbnhpIHRyb25nIGh1eeG6v3QgdGhhbmggdsOgIG3hu5FpIC4uLkLeAcSRw6MgPGI-YsOhbyBjw6FvPC9iPiBt4buZdCA8Yj50csaw4budbmc8L2I-IGjhu6NwIGLhu4duaCBuaMOibiBzYXUgcGjhuqt1IHRodeG6rXQgc3V5IHR1eeG6v24gY-G6rW4gZ2nDoXAsIHTDrG5oIHRy4bqhbmcgduG6o3kgbuG6v24gbeG7pW4gbeG7pyBWb24gWnVtYnVzY2ggZ8OieSBuw6puIGLhu59pIHTDrG5oIHRy4bqhbmcgaOG6oSBjYW54aSBtw6F1IFs5XS4gVGhlbyZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "Tạp chí Y Dược lâm sàng 108"
+    },
+    {
+     "position": 4,
+     "title": "Báo cáo Xuất nhập khẩu Việt Nam 2024",
+     "link": "https://trungtamwto.vn/file/23903/bao-cao-xnk-vn-2024-1534_compressed.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEShAEB6zswFU9N0GEbGo5U5G_ERKzENDHrOq9vyZ5UFovedxtmo3ctj9vHv3LhwHh_6vg1AMPdxE0z3hII7xcBs2UcNAG85b-aysnm9o3NWRyQioIhb1hLouSRVAW9Gmip9OF4IAGYLCjR6-Pg7U3T1YVhOR7CkEp38Rk7g36iXRaXARKZu8M&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBUQAQ&uoh=1",
+     "displayed_link": "https://trungtamwto.vn › file › bao-cao-xnk-vn-20...",
+     "favicon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc78pqmKUrvpI13-tq3Z9gfA.png",
+     "date": "12 thg 5, 2025",
+     "snippet": "Trong đó, xuất khẩu của các doanh nghiệp trong nước năm 2024 đạt 116,3 tỷ USD, tăng 21,6%, cao hơn mức tăng trưởng của khu vực FDI (đạt 289,2 tỷ ...",
+     "snippet_highlighted_words": [
+      "trưởng"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Trong đó, xuất khẩu của các doanh nghiệp trong nước năm 2024 đạt 116,3 tỷ USD, tăng 21,6%, cao hơn mức tăng trưởng của khu vực FDI (đạt 289,2 tỷ ...",
+       "source_info_link": "https://trungtamwto.vn/file/23903/bao-cao-xnk-vn-2024-1534_compressed.pdf",
+       "icon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc9MqpSU34fxTnO1jqOeF4zt_Wq5w7iAAITbCa1BraWPw.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsEBL2dvdG8_dXJsPUNBRVNoQUVCNnpzd0ZacXVmOGhkbGlyQUl3WW9tQmdteGUtbjdzOFY3Vi1LM3h3azdsbjIwWkkwaVBxbUNudWxQemE5ckQ5alREcjVOd3hyVnJkN1kwQ29BblZiUHdBbGJ1TWJLM2FLNGtqNTk5Vkc4dG1NaV82Ti1hNmVoOU80bktpY2QxX2V4bEZ0OGJSOU1vRVV5T3ZKS3BUUFpxWDNxYkFXb1pJT0V2YWJyTkRBN1hfd1FBTRIEGgIIABrmBRICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQMAFCEIQABgAIAAqHwoEYsOhbxUxLDdAGghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxW8RylAGghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sVSu7SPhoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxVn0tM-Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4V2V48PhoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVqyVJPBoLdmnDqm514buRbmcqEgoFa-G6vW0VldHsOxoEemluYzLBAS9nb3RvP3VybD1DQUVTaEFFQjZ6c3dGWnF1ZjhoZGxpckFJd1lvbUJnbXhlLW43czhWN1YtSzN4d2s3bG4yMFpJMGlQcW1DbnVsUHphOXJEOWpURHI1Tnd4clZyZDdZMENvQW5WYlB3QWxidU1iSzNhSzRrajU5OVZHOHRtTWlfNk4tYTZlaDlPNG5LaWNkMV9leGxGdDhiUjlNb0VVeU92SktwVFBacVgzcWJBV29aSU9FdmFick5EQTdYX3dRQU06NTxiPkLDoW8gY8OhbzwvYj4gWHXhuqV0IG5o4bqtcCBraOG6qXUgVmnhu4d0IE5hbSAyMDI0QsUBVHJvbmcgxJHDsywgeHXhuqV0IGto4bqpdSBj4bunYSBjw6FjIGRvYW5oIG5naGnhu4dwIHRyb25nIG7GsOG7m2MgbsSDbSAyMDI0IMSR4bqhdCAxMTYsMyB04bu3IFVTRCwgdMSDbmcgMjEsNiUsIGNhbyBoxqFuIG3hu6ljIHTEg25nIDxiPnRyxrDhu59uZzwvYj4gY-G7p2Ega2h1IHbhu7FjIEZESSAoxJHhuqF0IDI4OSwyIHThu7cmbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsEBL2dvdG8_dXJsPUNBRVNoQUVCNnpzd0ZacXVmOGhkbGlyQUl3WW9tQmdteGUtbjdzOFY3Vi1LM3h3azdsbjIwWkkwaVBxbUNudWxQemE5ckQ5alREcjVOd3hyVnJkN1kwQ29BblZiUHdBbGJ1TWJLM2FLNGtqNTk5Vkc4dG1NaV82Ti1hNmVoOU80bktpY2QxX2V4bEZ0OGJSOU1vRVV5T3ZKS3BUUFpxWDNxYkFXb1pJT0V2YWJyTkRBN1hfd1FBTRIEGgIIABrmBRICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQMAFCEIQABgAIAAqHwoEYsOhbxUxLDdAGghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxW8RylAGghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sVSu7SPhoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxVn0tM-Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4V2V48PhoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVqyVJPBoLdmnDqm514buRbmcqEgoFa-G6vW0VldHsOxoEemluYzLBAS9nb3RvP3VybD1DQUVTaEFFQjZ6c3dGWnF1ZjhoZGxpckFJd1lvbUJnbXhlLW43czhWN1YtSzN4d2s3bG4yMFpJMGlQcW1DbnVsUHphOXJEOWpURHI1Tnd4clZyZDdZMENvQW5WYlB3QWxidU1iSzNhSzRrajU5OVZHOHRtTWlfNk4tYTZlaDlPNG5LaWNkMV9leGxGdDhiUjlNb0VVeU92SktwVFBacVgzcWJBV29aSU9FdmFick5EQTdYX3dRQU06NTxiPkLDoW8gY8OhbzwvYj4gWHXhuqV0IG5o4bqtcCBraOG6qXUgVmnhu4d0IE5hbSAyMDI0QsUBVHJvbmcgxJHDsywgeHXhuqV0IGto4bqpdSBj4bunYSBjw6FjIGRvYW5oIG5naGnhu4dwIHRyb25nIG7GsOG7m2MgbsSDbSAyMDI0IMSR4bqhdCAxMTYsMyB04bu3IFVTRCwgdMSDbmcgMjEsNiUsIGNhbyBoxqFuIG3hu6ljIHTEg25nIDxiPnRyxrDhu59uZzwvYj4gY-G7p2Ega2h1IHbhu7FjIEZESSAoxJHhuqF0IDI4OSwyIHThu7cmbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "Trung tâm WTO và Hội nhập"
+    },
+    {
+     "position": 5,
+     "title": "Tên đề tài: NGHIÊN CỨU VỀ THỊ TRƯỜNG SỮA BỘT CỦA ...",
+     "link": "https://siu.edu.vn/wp-content/uploads/2022/12/luu-minh-quoc.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESegHrOzAVef78sYT4Rh4m9NjaAoePMm2_qySh_k55kTdOLJKgP8i1sS8_lxGIS9cWjOKA6M1VCjTnfBTCtDWpis-Y3izF20GeDSDkbLRSarCcF8m8DIarUzG-8m9gwehiNHMA8WSyyD_LhWAidMLfn42lANYzM439WRFu&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECA4QAQ&uoh=1",
+     "displayed_link": "https://siu.edu.vn › 2022/12 › luu-minh-quoc",
+     "favicon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVcxHxYj0ACYFYm1BnUu1H8t0.png",
+     "snippet": "Theo báo cáo của Nielsen thì khối ngoại giành phần lớn ở thị trường sữa bột, do đó Abbott là ông lớn mà Mead Johnson đang cố gắng bắt kịp trong cuộc đua thị ...",
+     "snippet_highlighted_words": [
+      "báo cáo",
+      "thị trường"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Theo báo cáo của Nielsen thì khối ngoại giành phần lớn ở thị trường sữa bột, do đó Abbott là ông lớn mà Mead Johnson đang cố gắng bắt kịp trong cuộc đua thị ...",
+       "source_info_link": "https://siu.edu.vn/wp-content/uploads/2022/12/luu-minh-quoc.pdf",
+       "icon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc1ekGSv6kcCLcylCtg6q628gNUADjfV5rkVp_nQW5Iu1.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CrIBL2dvdG8_dXJsPUNBRVNlZ0hyT3pBVnpqZUYwWWdhMEQtOXRRQlA0UmxOSU1TYTVPZDcwXzNpYTZqZ2ZLdlU0ZVpLVU4wM3JpWndqbld0YV9MUHlBN1BNR2ZmOXNSTnV2SEdQbkZBTC12NmF4RkdKMDVLNUh0M3VvZjNKdzFTbU1ydzdjUEx4VzZ2OEloSS1KQ3VVYjFwSW5KTEFmZEdRd2pYV0lMc2NybzFZVENLdHJnYRIEGgIIABqMBhIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDoBQhCEAAYACAAKh8KBGLDoW8V4_SAPxoIYsOhb2PDoW8aCGl2O2Q7YmFvKh8KBGPDoW8V4_SAPxoIYsOhb2PDoW8aCGl2O2Q7Y2FvKiYKBXRo4buLFblFY0AaDnRo4buLdHLGsOG7nW5nGghpdjtkO3RoaSotCgl0csaw4budbmcV20hfQBoOdGjhu4t0csaw4budbmcaC2l2O2Q7dHJ1b25nKioKBXZpw6puFQLSDz8aBHZpZW4aC3Zpw6pudeG7kW5nGglpdjtkO3ZpZW4qGgoGdeG7kW5nFUB8yDwaC3Zpw6pudeG7kW5nKhIKBWvhur1tFagarzwaBHppbmMysgEvZ290bz91cmw9Q0FFU2VnSHJPekFWemplRjBZZ2EwRC05dFFCUDRSbE5JTVNhNU9kNzBfM2lhNmpnZkt2VTRlWktVTjAzcmlad2puV3RhX0xQeUE3UE1HZmY5c1JOdXZIR1BuRkFMLXY2YXhGR0owNUs1SHQzdW9mM0p3MVNtTXJ3N2NQTHhXNnY4SWhJLUpDdVViMXBJbkpMQWZkR1F3alhXSUxzY3JvMVlUQ0t0cmdhOlBUw6puIMSR4buBIHTDoGk6IE5HSEnDik4gQ-G7qFUgVuG7gCA8Yj5USOG7iiBUUsav4bucTkc8L2I-IFPhu65BIELhu5hUIEPhu6ZBIC4uLkLhAVRoZW8gPGI-YsOhbyBjw6FvPC9iPiBj4bunYSBOaWVsc2VuIHRow6wga2jhu5FpIG5nb-G6oWkgZ2nDoG5oIHBo4bqnbiBs4bubbiDhu58gPGI-dGjhu4sgdHLGsOG7nW5nPC9iPiBz4buvYSBi4buZdCwgZG8gxJHDsyBBYmJvdHQgbMOgIMO0bmcgbOG7m24gbcOgIE1lYWQgSm9obnNvbiDEkWFuZyBj4buRIGfhuq9uZyBi4bqvdCBr4buLcCB0cm9uZyBjdeG7mWMgxJF1YSB0aOG7iyZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CrIBL2dvdG8_dXJsPUNBRVNlZ0hyT3pBVnpqZUYwWWdhMEQtOXRRQlA0UmxOSU1TYTVPZDcwXzNpYTZqZ2ZLdlU0ZVpLVU4wM3JpWndqbld0YV9MUHlBN1BNR2ZmOXNSTnV2SEdQbkZBTC12NmF4RkdKMDVLNUh0M3VvZjNKdzFTbU1ydzdjUEx4VzZ2OEloSS1KQ3VVYjFwSW5KTEFmZEdRd2pYV0lMc2NybzFZVENLdHJnYRIEGgIIABqMBhIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDoBQhCEAAYACAAKh8KBGLDoW8V4_SAPxoIYsOhb2PDoW8aCGl2O2Q7YmFvKh8KBGPDoW8V4_SAPxoIYsOhb2PDoW8aCGl2O2Q7Y2FvKiYKBXRo4buLFblFY0AaDnRo4buLdHLGsOG7nW5nGghpdjtkO3RoaSotCgl0csaw4budbmcV20hfQBoOdGjhu4t0csaw4budbmcaC2l2O2Q7dHJ1b25nKioKBXZpw6puFQLSDz8aBHZpZW4aC3Zpw6pudeG7kW5nGglpdjtkO3ZpZW4qGgoGdeG7kW5nFUB8yDwaC3Zpw6pudeG7kW5nKhIKBWvhur1tFagarzwaBHppbmMysgEvZ290bz91cmw9Q0FFU2VnSHJPekFWemplRjBZZ2EwRC05dFFCUDRSbE5JTVNhNU9kNzBfM2lhNmpnZkt2VTRlWktVTjAzcmlad2puV3RhX0xQeUE3UE1HZmY5c1JOdXZIR1BuRkFMLXY2YXhGR0owNUs1SHQzdW9mM0p3MVNtTXJ3N2NQTHhXNnY4SWhJLUpDdVViMXBJbkpMQWZkR1F3alhXSUxzY3JvMVlUQ0t0cmdhOlBUw6puIMSR4buBIHTDoGk6IE5HSEnDik4gQ-G7qFUgVuG7gCA8Yj5USOG7iiBUUsav4bucTkc8L2I-IFPhu65BIELhu5hUIEPhu6ZBIC4uLkLhAVRoZW8gPGI-YsOhbyBjw6FvPC9iPiBj4bunYSBOaWVsc2VuIHRow6wga2jhu5FpIG5nb-G6oWkgZ2nDoG5oIHBo4bqnbiBs4bubbiDhu58gPGI-dGjhu4sgdHLGsOG7nW5nPC9iPiBz4buvYSBi4buZdCwgZG8gxJHDsyBBYmJvdHQgbMOgIMO0bmcgbOG7m24gbcOgIE1lYWQgSm9obnNvbiDEkWFuZyBj4buRIGfhuq9uZyBi4bqvdCBr4buLcCB0cm9uZyBjdeG7mWMgxJF1YSB0aOG7iyZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "Trường Đại học Quốc tế Sài Gòn - SIU"
+    },
+    {
+     "position": 6,
+     "title": "báo cáo phát triển bền vững",
+     "link": "https://traphaco.com.vn/upload/shareholder/attach/20200730_TRA_SR2019_nen.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESiAEB6zswFQezelkDwB5ZBftlWGENeLrxnUicJa0L62AcTcIRV-77vt10mzjIYGaHtiyqGEiwy9inWrnN3YvhtS6lt0lQuBieXOQKlR4GmEaBOq6tmg6za161x4bWRIyZpgHXUegHRdWiZpeCOWS_R1qgRE-y9Pko_IW7dkLJh6sjlwSHouPE0FAg&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBIQAQ&uoh=1",
+     "displayed_link": "https://traphaco.com.vn › shareholder › attach",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAgVBMVEX___9HcEw50XkTxlUmtFPP_u1IzHWm99MpsFkOpEcenUGS6706v24WqU0EjC0NlkARiCdiw4SO5L0zolCH4LBj0I5OunIZnD0GkzcPnkYBkCpHu3BCr2EAljE0t18NmUJLwHbi_vRe0ZXH_OM4w3pSunUPlTgSlTNs1ZYmmUaH36_X1Kz7AAAAK3RSTlMBAEdueRZeM939705T8P__-ocj3yt1hfn___-YqP-__6oPmycudvnYP8KM9lKI7gAAARpJREFUeAHE0FWChTAMQNGmuKU4TZHAc9j_AoeHjC5g7u-pRvxb8KdvKC3Llo5rrbmOtC1Lngrg-UEQRnESrCVxFAaB7wHs5oao0iwvUK1hUVapwtB9Kzh1o8m00BnaMh20hnRTOyDyrlekB7B63pF7GwZNqu9KMSCT9p080HSkqXR8TYyDGDecvqGictpwFFPbKzIjZOZEk8HFEJvWETDVvWJzvSXHVh3cHMPct9P7uXB_MCZwP17U3yFB1rVYbdNQYVYW21Zd3CrkRw2bHWN4Xm3FKyr7-sTwftimMsTOeyoifnotNu5hR7JI4_uD6FHLNIy_2darmL0nrxvnUP42gFdRL2gu9-L1yzb1xmieo0HCx_AlB4bBCwCzphvKHQfLkgAAAABJRU5ErkJggg.png",
+     "date": "30 thg 7, 2020",
+     "snippet": "Với 20 năm được tin dùng và đứng số 1 thị trường thuốc gan mật, Boganic tăng cường giải độc, bảo vệ gan trong các trường hợp: Viêm gan, suy giảm ...",
+     "snippet_highlighted_words": [
+      "thị trường",
+      "bảo",
+      "trường"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Với 20 năm được tin dùng và đứng số 1 thị trường thuốc gan mật, Boganic tăng cường giải độc, bảo vệ gan trong các trường hợp: Viêm gan, suy giảm ...",
+       "source_info_link": "https://traphaco.com.vn/upload/shareholder/attach/20200730_TRA_SR2019_nen.pdf",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAgVBMVEX___9HcEw50XkTxlUmtFPP_u1IzHWm99MpsFkOpEcenUGS6706v24WqU0EjC0NlkARiCdiw4SO5L0zolCH4LBj0I5OunIZnD0GkzcPnkYBkCpHu3BCr2EAljE0t18NmUJLwHbi_vRe0ZXH_OM4w3pSunUPlTgSlTNs1ZYmmUaH36_X1Kz7AAAAK3RSTlMBAEdueRZeM939705T8P__-ocj3yt1hfn___-YqP-__6oPmycudvnYP8KM9lKI7gAAARpJREFUeAHE0FWChTAMQNGmuKU4TZHAc9j_AoeHjC5g7u-pRvxb8KdvKC3Llo5rrbmOtC1Lngrg-UEQRnESrCVxFAaB7wHs5oao0iwvUK1hUVapwtB9Kzh1o8m00BnaMh20hnRTOyDyrlekB7B63pF7GwZNqu9KMSCT9p080HSkqXR8TYyDGDecvqGictpwFFPbKzIjZOZEk8HFEJvWETDVvWJzvSXHVh3cHMPct9P7uXB_MCZwP17U3yFB1rVYbdNQYVYW21Zd3CrkRw2bHWN4Xm3FKyr7-sTwftimMsTOeyoifnotNu5hR7JI4_uD6FHLNIy_2darmL0nrxvnUP42gFdRL2gu9-L1yzb1xmieo0HCx_AlB4bBCwCzphvKHQfLkgAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsYBL2dvdG8_dXJsPUNBRVNpQUVCNnpzd0ZhLUhGbzkwV0U2c19LaHBEYjVHaE9QeF9COW9SRFRIQzdvTlByTnVJaURHZU91VkJFOVVzYkxXRHZpaUg5a180VWw1NzY2OTdaVnYyak94djhOMm5HNjJqRzZhcVBMWWF6ZGt2ME93SXhGdndORWZZNVNGUUVFcjJUNFo5aUxXSC1KbnQ0R1NpU1lGUjRicksycmVIVmZRazdYc3R4QnlsaW5xVVJ0LUJKLXl3VVhrEgQaAggAGoAGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNwFCEIQABgAIAAqHwoEYsOhbxX78s4_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxVZ0s4_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sVg5aNPxoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxVCXc8_Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4VGkrFPhoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVetrAOxoLdmnDqm514buRbmcqEgoFa-G6vW0V4Tg4OxoEemluYzLGAS9nb3RvP3VybD1DQUVTaUFFQjZ6c3dGYS1IRm85MFdFNnNfS2hwRGI1R2hPUHhfQjlvUkRUSEM3b05Qck51SWlER2VPdVZCRTlVc2JMV0R2aWlIOWtfNFVsNTc2Njk3WlZ2MmpPeHY4TjJuRzYyakc2YXFQTFlhemRrdjBPd0l4RnZ3TkVmWTVTRlFFRXIyVDRaOWlMV0gtSm50NEdTaVNZRlI0YnJLMnJlSFZmUWs3WHN0eEJ5bGlucVVSdC1CSi15d1VYazo2PGI-YsOhbyBjw6FvPC9iPiBwaMOhdCB0cmnhu4NuIGLhu4FuIHbhu69uZyAtIFRyYXBoYWNvQtsBVuG7m2kgMjAgbsSDbSDEkcaw4bujYyB0aW4gZMO5bmcgdsOgIMSR4bupbmcgc-G7kSAxIDxiPnRo4buLIHRyxrDhu51uZzwvYj4gdGh14buRYyBnYW4gbeG6rXQsIEJvZ2FuaWMgdMSDbmcgY8aw4budbmcgZ2nhuqNpIMSR4buZYywgPGI-YuG6o288L2I-IHbhu4cgZ2FuIHRyb25nIGPDoWMgPGI-dHLGsOG7nW5nPC9iPiBo4bujcDogVmnDqm0gZ2FuLCBzdXkgZ2nhuqNtJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsYBL2dvdG8_dXJsPUNBRVNpQUVCNnpzd0ZhLUhGbzkwV0U2c19LaHBEYjVHaE9QeF9COW9SRFRIQzdvTlByTnVJaURHZU91VkJFOVVzYkxXRHZpaUg5a180VWw1NzY2OTdaVnYyak94djhOMm5HNjJqRzZhcVBMWWF6ZGt2ME93SXhGdndORWZZNVNGUUVFcjJUNFo5aUxXSC1KbnQ0R1NpU1lGUjRicksycmVIVmZRazdYc3R4QnlsaW5xVVJ0LUJKLXl3VVhrEgQaAggAGoAGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNwFCEIQABgAIAAqHwoEYsOhbxX78s4_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxVZ0s4_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sVg5aNPxoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxVCXc8_Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4VGkrFPhoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVetrAOxoLdmnDqm514buRbmcqEgoFa-G6vW0V4Tg4OxoEemluYzLGAS9nb3RvP3VybD1DQUVTaUFFQjZ6c3dGYS1IRm85MFdFNnNfS2hwRGI1R2hPUHhfQjlvUkRUSEM3b05Qck51SWlER2VPdVZCRTlVc2JMV0R2aWlIOWtfNFVsNTc2Njk3WlZ2MmpPeHY4TjJuRzYyakc2YXFQTFlhemRrdjBPd0l4RnZ3TkVmWTVTRlFFRXIyVDRaOWlMV0gtSm50NEdTaVNZRlI0YnJLMnJlSFZmUWs3WHN0eEJ5bGlucVVSdC1CSi15d1VYazo2PGI-YsOhbyBjw6FvPC9iPiBwaMOhdCB0cmnhu4NuIGLhu4FuIHbhu69uZyAtIFRyYXBoYWNvQtsBVuG7m2kgMjAgbsSDbSDEkcaw4bujYyB0aW4gZMO5bmcgdsOgIMSR4bupbmcgc-G7kSAxIDxiPnRo4buLIHRyxrDhu51uZzwvYj4gdGh14buRYyBnYW4gbeG6rXQsIEJvZ2FuaWMgdMSDbmcgY8aw4budbmcgZ2nhuqNpIMSR4buZYywgPGI-YuG6o288L2I-IHbhu4cgZ2FuIHRyb25nIGPDoWMgPGI-dHLGsOG7nW5nPC9iPiBo4bujcDogVmnDqm0gZ2FuLCBzdXkgZ2nhuqNtJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Traphaco"
+    },
+    {
+     "position": 7,
+     "title": "Báo cáo Hiện trạng môi trường quốc gia giai đoạn 2016",
+     "link": "https://moit.gov.vn/upload/2005517/fck/files/20211108_Bao_cao_HTMT_2016-2020_F_a4980.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESkwEB6zswFcbDI56YRNlh2iN2qXbZpblJiQfrWwpoTpqa3ib9nHRy6vL5T7b0n6am5qYvBfffgzSUoD56jRv7pamHb0yLFI3Q4PbjsVTi5K2EQj2BDK6nPpfVOKRTDfVw3UMJX5UFguyu0oH_F2Mz99qZLOdSzdPzhczMEuQHSc6Jj7X6lAamvi7HVo3oRADM4d5yVyE&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECA8QAQ&uoh=1",
+     "displayed_link": "https://moit.gov.vn › upload › fck › files › 20211...",
+     "favicon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc5pIwTwvjxS3eHlyCtjTjLg.png",
+     "snippet": "Nguồn: Viện Môi trường Nông nghiệp - Báo cáo kết quả quan trắc và phân tích môi trường đất các năm 2016 - 2020. Biểu đồ 6.4. Hàm lượng kim loại nặng trong ...",
+     "snippet_highlighted_words": [
+      "Viện",
+      "trường",
+      "Báo cáo",
+      "trường"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Nguồn: Viện Môi trường Nông nghiệp - Báo cáo kết quả quan trắc và phân tích môi trường đất các năm 2016 - 2020. Biểu đồ 6.4. Hàm lượng kim loại nặng trong ...",
+       "source_info_link": "https://moit.gov.vn/upload/2005517/fck/files/20211108_Bao_cao_HTMT_2016-2020_F_a4980.pdf",
+       "icon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVcw9ZY6xTw2F7Dp8CbbooT3g8io2qq8s3PIT7yRE4z49P.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtUBL2dvdG8_dXJsPUNBRVNrd0VCNnpzd0ZmX3g2cVhjVk50dEtQekJEVl9kN253NXRiWG5FX1pXN1Q4VlRmYjJxV1ZyOUlyWmFESWd2d3pBb25PdS1HRUtZYkxxSDhJdkpHSzFOVHpleVFKRGY1T09yRTBmRzNteDZRU3ZJWnNreWJILU5nMF9hX1Byc29nc3hzb2pMT08xcXZaUmFGektsN2xKY3hHMGpLakF1WkNrSFktUTZLUzFzRjB6SGRtQkF0UmotSTY3LWRncWtNVGlGLWxENGMwEgQaAggAGsQGEgIIABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAngYIQhAAGAAgACofCgRiw6FvFfUKmz8aCGLDoW9jw6FvGghpdjtkO2JhbyofCgRjw6FvFZLlmj8aCGLDoW9jw6FvGghpdjtkO2NhbyomCgV0aOG7ixXBXLA_Gg50aOG7i3RyxrDhu51uZxoIaXY7ZDt0aGkqLQoJdHLGsOG7nW5nFYTYJUAaDnRo4buLdHLGsOG7nW5nGgtpdjtkO3RydW9uZyoqCgV2acOqbhVywsY9GgR2aWVuGgt2acOqbnXhu5FuZxoJaXY7ZDt2aWVuKhoKBnXhu5FuZxVfWkg7Ggt2acOqbnXhu5FuZyoSCgVr4bq9bRXa0gs8GgR6aW5jMtUBL2dvdG8_dXJsPUNBRVNrd0VCNnpzd0ZmX3g2cVhjVk50dEtQekJEVl9kN253NXRiWG5FX1pXN1Q4VlRmYjJxV1ZyOUlyWmFESWd2d3pBb25PdS1HRUtZYkxxSDhJdkpHSzFOVHpleVFKRGY1T09yRTBmRzNteDZRU3ZJWnNreWJILU5nMF9hX1Byc29nc3hzb2pMT08xcXZaUmFGektsN2xKY3hHMGpLakF1WkNrSFktUTZLUzFzRjB6SGRtQkF0UmotSTY3LWRncWtNVGlGLWxENGMwOlk8Yj5Cw6FvIGPDoW88L2I-IEhp4buHbiB0cuG6oW5nIG3DtGkgPGI-dHLGsOG7nW5nPC9iPiBxdeG7kWMgZ2lhIGdpYWkgxJFv4bqhbiAyMDE2IC0gMjAyMELrAU5ndeG7k246IDxiPlZp4buHbjwvYj4gTcO0aSA8Yj50csaw4budbmc8L2I-IE7DtG5nIG5naGnhu4dwIC0gPGI-QsOhbyBjw6FvPC9iPiBr4bq_dCBxdeG6oyBxdWFuIHRy4bqvYyB2w6AgcGjDom4gdMOtY2ggbcO0aSA8Yj50csaw4budbmc8L2I-IMSR4bqldCBjw6FjIG7Eg20gMjAxNiAtIDIwMjAuIEJp4buDdSDEkeG7kyA2LjQuIEjDoG0gbMaw4bujbmcga2ltIGxv4bqhaSBu4bq3bmcgdHJvbmcmbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtUBL2dvdG8_dXJsPUNBRVNrd0VCNnpzd0ZmX3g2cVhjVk50dEtQekJEVl9kN253NXRiWG5FX1pXN1Q4VlRmYjJxV1ZyOUlyWmFESWd2d3pBb25PdS1HRUtZYkxxSDhJdkpHSzFOVHpleVFKRGY1T09yRTBmRzNteDZRU3ZJWnNreWJILU5nMF9hX1Byc29nc3hzb2pMT08xcXZaUmFGektsN2xKY3hHMGpLakF1WkNrSFktUTZLUzFzRjB6SGRtQkF0UmotSTY3LWRncWtNVGlGLWxENGMwEgQaAggAGsQGEgIIABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAngYIQhAAGAAgACofCgRiw6FvFfUKmz8aCGLDoW9jw6FvGghpdjtkO2JhbyofCgRjw6FvFZLlmj8aCGLDoW9jw6FvGghpdjtkO2NhbyomCgV0aOG7ixXBXLA_Gg50aOG7i3RyxrDhu51uZxoIaXY7ZDt0aGkqLQoJdHLGsOG7nW5nFYTYJUAaDnRo4buLdHLGsOG7nW5nGgtpdjtkO3RydW9uZyoqCgV2acOqbhVywsY9GgR2aWVuGgt2acOqbnXhu5FuZxoJaXY7ZDt2aWVuKhoKBnXhu5FuZxVfWkg7Ggt2acOqbnXhu5FuZyoSCgVr4bq9bRXa0gs8GgR6aW5jMtUBL2dvdG8_dXJsPUNBRVNrd0VCNnpzd0ZmX3g2cVhjVk50dEtQekJEVl9kN253NXRiWG5FX1pXN1Q4VlRmYjJxV1ZyOUlyWmFESWd2d3pBb25PdS1HRUtZYkxxSDhJdkpHSzFOVHpleVFKRGY1T09yRTBmRzNteDZRU3ZJWnNreWJILU5nMF9hX1Byc29nc3hzb2pMT08xcXZaUmFGektsN2xKY3hHMGpLakF1WkNrSFktUTZLUzFzRjB6SGRtQkF0UmotSTY3LWRncWtNVGlGLWxENGMwOlk8Yj5Cw6FvIGPDoW88L2I-IEhp4buHbiB0cuG6oW5nIG3DtGkgPGI-dHLGsOG7nW5nPC9iPiBxdeG7kWMgZ2lhIGdpYWkgxJFv4bqhbiAyMDE2IC0gMjAyMELrAU5ndeG7k246IDxiPlZp4buHbjwvYj4gTcO0aSA8Yj50csaw4budbmc8L2I-IE7DtG5nIG5naGnhu4dwIC0gPGI-QsOhbyBjw6FvPC9iPiBr4bq_dCBxdeG6oyBxdWFuIHRy4bqvYyB2w6AgcGjDom4gdMOtY2ggbcO0aSA8Yj50csaw4budbmc8L2I-IMSR4bqldCBjw6FjIG7Eg20gMjAxNiAtIDIwMjAuIEJp4buDdSDEkeG7kyA2LjQuIEjDoG0gbMaw4bujbmcga2ltIGxv4bqhaSBu4bq3bmcgdHJvbmcmbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "moit.gov.vn"
+    },
+    {
+     "position": 8,
+     "title": "Quy định về quản lý thực phẩm chức năng",
+     "link": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2023/11/11-vbhn-byt.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESfwHrOzAVw0HM0YS7oWdEzAfIf7lx3ICuMv0cTemFH6XHZ9MhnXInvR7QEGqozV1SH7X1MPZBi8CWuTmXzsAupk8Xw2bHO4HeuERjuHoz1ldf5jrbRckAGp7BALRIsAXAOI2bOJ-87rsczTJ9dXEkBUsIhQd3HKpAdgFbEuT4puU&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBkQAQ&uoh=1",
+     "displayed_link": "https://datafiles.chinhphu.vn › vbpq › 11-vbhn-byt",
+     "date": "11 thg 11, 2023",
+     "snippet": "Trường hợp phát sinh vấn đề mới nằm ngoài quy định của Thông tư này, cơ quan tiếp nhận có trách nhiệm báo cáo cơ quan cấp trên trực tiếp để có.",
+     "snippet_highlighted_words": [
+      "Trường",
+      "báo cáo"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Trường hợp phát sinh vấn đề mới nằm ngoài quy định của Thông tư này, cơ quan tiếp nhận có trách nhiệm báo cáo cơ quan cấp trên trực tiếp để có.",
+       "source_info_link": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2023/11/11-vbhn-byt.pdf"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CrkBL2dvdG8_dXJsPUNBRVNmd0hyT3pBVmNHZ2F3ZnlyQzkyMUVMOXBha2Fad0FrQm5DTU5VRWNwNVJ1SnVSbEdHRElJZUJtQzdSMEpCOUtBRHNuaTQ3R0lrLXVBUGZ3N3ZuRllkbThBSEVwVWdYUjY3X3dVbWw1blhzX2d2aW4tWnNhWEZvZWdIY0hJSnR0WkdnZGh5c25TOHNjSFA3ck9wSlN2d1hjTng0ZGhCbDBDcmcxZVNRRC1jUE0SBBoCCAAa9QUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDPBQhCEAAYACAAKh8KBGLDoW8VTgAwPxoIYsOhb2PDoW8aCGl2O2Q7YmFvKh8KBGPDoW8V1iNcPxoIYsOhb2PDoW8aCGl2O2Q7Y2FvKiYKBXRo4buLFdZXJD4aDnRo4buLdHLGsOG7nW5nGghpdjtkO3RoaSotCgl0csaw4budbmcVSbg1PxoOdGjhu4t0csaw4budbmcaC2l2O2Q7dHJ1b25nKioKBXZpw6puFeW2VjwaBHZpZW4aC3Zpw6pudeG7kW5nGglpdjtkO3ZpZW4qGgoGdeG7kW5nFQAAAAAaC3Zpw6pudeG7kW5nKhIKBWvhur1tFQLHsT0aBHppbmMyuQEvZ290bz91cmw9Q0FFU2Z3SHJPekFWY0dnYXdmeXJDOTIxRUw5cGFrYVp3QWtCbkNNTlVFY3A1UnVKdVJsR0dESUllQm1DN1IwSkI5S0FEc25pNDdHSWstdUFQZnc3dm5GWWRtOEFIRXBVZ1hSNjdfd1VtbDVuWHNfZ3Zpbi1ac2FYRm9lZ0hjSElKdHRaR2dkaHlzblM4c2NIUDdyT3BKU3Z3WGNOeDRkaEJsMENyZzFlU1FELWNQTTpFUXV5IMSR4buLbmggduG7gSBxdeG6o24gbMO9IHRo4buxYyBwaOG6qW0gY2jhu6ljIG7Eg25nIC0gQ2jDrW5oIHBo4bunQswBPGI-VHLGsOG7nW5nPC9iPiBo4bujcCBwaMOhdCBzaW5oIHbhuqVuIMSR4buBIG3hu5tpIG7hurFtIG5nb8OgaSBxdXkgxJHhu4tuaCBj4bunYSBUaMO0bmcgdMawIG7DoHksIGPGoSBxdWFuIHRp4bq_cCBuaOG6rW4gY8OzIHRyw6FjaCBuaGnhu4dtIDxiPmLDoW8gY8OhbzwvYj4gY8ahIHF1YW4gY-G6pXAgdHLDqm4gdHLhu7FjIHRp4bq_cCDEkeG7gyBjw7MuIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CrkBL2dvdG8_dXJsPUNBRVNmd0hyT3pBVmNHZ2F3ZnlyQzkyMUVMOXBha2Fad0FrQm5DTU5VRWNwNVJ1SnVSbEdHRElJZUJtQzdSMEpCOUtBRHNuaTQ3R0lrLXVBUGZ3N3ZuRllkbThBSEVwVWdYUjY3X3dVbWw1blhzX2d2aW4tWnNhWEZvZWdIY0hJSnR0WkdnZGh5c25TOHNjSFA3ck9wSlN2d1hjTng0ZGhCbDBDcmcxZVNRRC1jUE0SBBoCCAAa9QUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDPBQhCEAAYACAAKh8KBGLDoW8VTgAwPxoIYsOhb2PDoW8aCGl2O2Q7YmFvKh8KBGPDoW8V1iNcPxoIYsOhb2PDoW8aCGl2O2Q7Y2FvKiYKBXRo4buLFdZXJD4aDnRo4buLdHLGsOG7nW5nGghpdjtkO3RoaSotCgl0csaw4budbmcVSbg1PxoOdGjhu4t0csaw4budbmcaC2l2O2Q7dHJ1b25nKioKBXZpw6puFeW2VjwaBHZpZW4aC3Zpw6pudeG7kW5nGglpdjtkO3ZpZW4qGgoGdeG7kW5nFQAAAAAaC3Zpw6pudeG7kW5nKhIKBWvhur1tFQLHsT0aBHppbmMyuQEvZ290bz91cmw9Q0FFU2Z3SHJPekFWY0dnYXdmeXJDOTIxRUw5cGFrYVp3QWtCbkNNTlVFY3A1UnVKdVJsR0dESUllQm1DN1IwSkI5S0FEc25pNDdHSWstdUFQZnc3dm5GWWRtOEFIRXBVZ1hSNjdfd1VtbDVuWHNfZ3Zpbi1ac2FYRm9lZ0hjSElKdHRaR2dkaHlzblM4c2NIUDdyT3BKU3Z3WGNOeDRkaEJsMENyZzFlU1FELWNQTTpFUXV5IMSR4buLbmggduG7gSBxdeG6o24gbMO9IHRo4buxYyBwaOG6qW0gY2jhu6ljIG7Eg25nIC0gQ2jDrW5oIHBo4bunQswBPGI-VHLGsOG7nW5nPC9iPiBo4bujcCBwaMOhdCBzaW5oIHbhuqVuIMSR4buBIG3hu5tpIG7hurFtIG5nb8OgaSBxdXkgxJHhu4tuaCBj4bunYSBUaMO0bmcgdMawIG7DoHksIGPGoSBxdWFuIHRp4bq_cCBuaOG6rW4gY8OzIHRyw6FjaCBuaGnhu4dtIDxiPmLDoW8gY8OhbzwvYj4gY8ahIHF1YW4gY-G6pXAgdHLDqm4gdHLhu7FjIHRp4bq_cCDEkeG7gyBjw7MuIgIQAUgAWABoAA",
+     "source": "Cổng Thông tin điện tử Chính phủ"
+    },
+    {
+     "position": 9,
+     "title": "BỘ Y TẾ",
+     "link": "https://viendinhduong.vn/storage/app/uploads/public/2025/04/03/y2022m05d19_qd_1294_vv_ban_hanh_kh_thuc_hien_hd_qgdd_den_nam_2025.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESwAEB6zswFfcyQEDK4kkxmQpZ3gBKyPt562lzSf-aeT3F_X0k3EN8H9hIxBKwg60ikOh7srpUu1hH4VeptaHaQNQr9U79mT1I4Bb4vQd_5kVrmxhS6MrDcixIgxzuJrH82YnAG9SodQ5Oqb5zCYPb6YGFHtRRXfcmz2HfaFw5qIGDC87Dpf2TU3uZpU9DgZkA7qwfM8SoLfZo4M1WEp-_ofdTjkP7iXya_1QtjMJN-kKGfU6I2Sco9IdEUYxJPryNsrQ&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBAQAQ&uoh=1",
+     "displayed_link": "https://viendinhduong.vn › public › 2025/04/03",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAhFBMVEVHcEwvrkofo4swrkswrUowrkswrkswrkswrkswsEswrkvsGyTsHCTsHCTsGyPsGyTtGyTsHCTRNSftHCMwrkvtGiPuGCPsHCTsGyMQmrXsHCTtHCPsGyTsHCTxEhUAldoAk9gAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNlkUjMeAAAALHRSTlMAKwl1WIre_6ca70_D4s5ysP8Ei08dDvYrEz972uxeUx9jQjT_yHuH452z9ZEcInkAAAE0SURBVHgBfNEFloQwEEXR1xocPu77X-ZgoY3hHkFSdir8uFw5d7tz7vHk3M04nHKNeV7PexjjccgPwigGnKkGBxLNohQ8Y278yLSKIF9KFLwUUFba1DTGGGhbrDKDVlZMOvVoaBOs7COg4zoFQCwsRVDIarksQ0pYkg-JVhU4xoH-I0A1hFoU5FN-OUg9VrDkpVklJQX354VietWIVUvqUxZpnm8Td7x0kgIWV8DXJPtZc5_u4Z_5e0S4v37m74MqLKEIP_N3aS-pGuNt20dCWT6HymHf9SF741XBv4p5vyVnxpEjf0XKtxGAMADAQB1buHKS8_77QYW__hhjIuYnfgpQY8wxcVVNtM5whuUmaYnOW9iuNKHboDmCBrKTX9BZ_7CC5yF7uLYNWM6-z6DoWGcngBcRYh_qp7iLYQAAAABJRU5ErkJggg.png",
+     "date": "3 thg 4, 2025",
+     "snippet": "Tỷ lệ vitamin A trong sữa mẹ thấp là. 18,3%. Tỷ lệ thiếu kẽm đặc biệt rất cao ở trẻ dưới 5 tuổi là 58% năm 2020; phụ nữ có thai là 63,5% ...",
+     "snippet_highlighted_words": [
+      "kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Tỷ lệ vitamin A trong sữa mẹ thấp là. 18,3%. Tỷ lệ thiếu kẽm đặc biệt rất cao ở trẻ dưới 5 tuổi là 58% năm 2020; phụ nữ có thai là 63,5% ...",
+       "source_info_link": "https://viendinhduong.vn/storage/app/uploads/public/2025/04/03/y2022m05d19_qd_1294_vv_ban_hanh_kh_thuc_hien_hd_qgdd_den_nam_2025.pdf",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAhFBMVEVHcEwvrkofo4swrkswrUowrkswrkswrkswrkswsEswrkvsGyTsHCTsHCTsGyPsGyTtGyTsHCTRNSftHCMwrkvtGiPuGCPsHCTsGyMQmrXsHCTtHCPsGyTsHCTxEhUAldoAk9gAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNkAlNlkUjMeAAAALHRSTlMAKwl1WIre_6ca70_D4s5ysP8Ei08dDvYrEz972uxeUx9jQjT_yHuH452z9ZEcInkAAAE0SURBVHgBfNEFloQwEEXR1xocPu77X-ZgoY3hHkFSdir8uFw5d7tz7vHk3M04nHKNeV7PexjjccgPwigGnKkGBxLNohQ8Y278yLSKIF9KFLwUUFba1DTGGGhbrDKDVlZMOvVoaBOs7COg4zoFQCwsRVDIarksQ0pYkg-JVhU4xoH-I0A1hFoU5FN-OUg9VrDkpVklJQX354VietWIVUvqUxZpnm8Td7x0kgIWV8DXJPtZc5_u4Z_5e0S4v37m74MqLKEIP_N3aS-pGuNt20dCWT6HymHf9SF741XBv4p5vyVnxpEjf0XKtxGAMADAQB1buHKS8_77QYW__hhjIuYnfgpQY8wxcVVNtM5whuUmaYnOW9iuNKHboDmCBrKTX9BZ_7CC5yF7uLYNWM6-z6DoWGcngBcRYh_qp7iLYQAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpECL2dvdG8_dXJsPUNBRVN3QUVCNnpzd0ZmcmlrTFF3QllmVVdncVc2OW1SNHFDcnVTajhFVktEYUtUR29IYjlHeFhhWmRVVnU2WHQ3ZVNJYnR2bVIxVERfUUVHckEtR0NOWVA4TEh2T1Z6blpSbldWM0E4QlhXQUwxV0xSM05DT2Y5YXE3Zm0zRnJRTkdnZmtxYkh2Q3pTelhUYWVhQVlNS3JXYjZhWW05SkJuTTR2TEU4M3BLNHFPd0EtOHp5RERkalJyMEpWQy1lZVIzUndRQU1jSm9EY3Rqb29hRnJZRU5PS2trU2tGYkFzS3lkYU95RDJ6WGtXdDAyNWlSTlpxeUFSX19sLXJSRGZUb2pMT0xnEgQaAggAGp8GEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPsFCEIQABgAIAAqHwoEYsOhbxW22UA_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxWuiEU_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sV_3a4PRoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxXoDak-Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4VQ_NZPxoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVu54YPhoLdmnDqm514buRbmcqEgoFa-G6vW0VA6VNPRoEemluYzKRAi9nb3RvP3VybD1DQUVTd0FFQjZ6c3dGZnJpa0xRd0JZZlVXZ3FXNjltUjRxQ3J1U2o4RVZLRGFLVEdvSGI5R3hYYVpkVVZ1Nlh0N2VTSWJ0dm1SMVREX1FFR3JBLUdDTllQOExIdk9Wem5aUm5XVjNBOEJYV0FMMVdMUjNOQ09mOWFxN2ZtM0ZyUU5HZ2ZrcWJIdkN6U3pYVGFlYUFZTUtyV2I2YVltOUpCbk00dkxFODNwSzRxT3dBLTh6eUREZGpScjBKVkMtZWVSM1J3UUFNY0pvRGN0am9vYUZyWUVOT0tra1NrRmJBc0t5ZGFPeUQyelhrV3QwMjVpUk5acXlBUl9fbC1yUkRmVG9qTE9MZzoiQuG7mCBZIFThur4gLSBWaeG7h24gZGluaCBkxrDhu6FuZ0LDAVThu7cgbOG7hyB2aXRhbWluIEEgdHJvbmcgc-G7r2EgbeG6uSB0aOG6pXAgbMOgLiAxOCwzJS4gVOG7tyBs4buHIHRoaeG6v3UgPGI-a-G6vW08L2I-IMSR4bq3YyBiaeG7h3QgcuG6pXQgY2FvIOG7nyB0cuG6uyBkxrDhu5tpIDUgdHXhu5VpIGzDoCA1OCUgbsSDbSAyMDIwOyBwaOG7pSBu4buvIGPDsyB0aGFpIGzDoCA2Myw1JSZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpECL2dvdG8_dXJsPUNBRVN3QUVCNnpzd0ZmcmlrTFF3QllmVVdncVc2OW1SNHFDcnVTajhFVktEYUtUR29IYjlHeFhhWmRVVnU2WHQ3ZVNJYnR2bVIxVERfUUVHckEtR0NOWVA4TEh2T1Z6blpSbldWM0E4QlhXQUwxV0xSM05DT2Y5YXE3Zm0zRnJRTkdnZmtxYkh2Q3pTelhUYWVhQVlNS3JXYjZhWW05SkJuTTR2TEU4M3BLNHFPd0EtOHp5RERkalJyMEpWQy1lZVIzUndRQU1jSm9EY3Rqb29hRnJZRU5PS2trU2tGYkFzS3lkYU95RDJ6WGtXdDAyNWlSTlpxeUFSX19sLXJSRGZUb2pMT0xnEgQaAggAGp8GEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPsFCEIQABgAIAAqHwoEYsOhbxW22UA_Gghiw6FvY8OhbxoIaXY7ZDtiYW8qHwoEY8OhbxWuiEU_Gghiw6FvY8OhbxoIaXY7ZDtjYW8qJgoFdGjhu4sV_3a4PRoOdGjhu4t0csaw4budbmcaCGl2O2Q7dGhpKi0KCXRyxrDhu51uZxXoDak-Gg50aOG7i3RyxrDhu51uZxoLaXY7ZDt0cnVvbmcqKgoFdmnDqm4VQ_NZPxoEdmllbhoLdmnDqm514buRbmcaCWl2O2Q7dmllbioaCgZ14buRbmcVu54YPhoLdmnDqm514buRbmcqEgoFa-G6vW0VA6VNPRoEemluYzKRAi9nb3RvP3VybD1DQUVTd0FFQjZ6c3dGZnJpa0xRd0JZZlVXZ3FXNjltUjRxQ3J1U2o4RVZLRGFLVEdvSGI5R3hYYVpkVVZ1Nlh0N2VTSWJ0dm1SMVREX1FFR3JBLUdDTllQOExIdk9Wem5aUm5XVjNBOEJYV0FMMVdMUjNOQ09mOWFxN2ZtM0ZyUU5HZ2ZrcWJIdkN6U3pYVGFlYUFZTUtyV2I2YVltOUpCbk00dkxFODNwSzRxT3dBLTh6eUREZGpScjBKVkMtZWVSM1J3UUFNY0pvRGN0am9vYUZyWUVOT0tra1NrRmJBc0t5ZGFPeUQyelhrV3QwMjVpUk5acXlBUl9fbC1yUkRmVG9qTE9MZzoiQuG7mCBZIFThur4gLSBWaeG7h24gZGluaCBkxrDhu6FuZ0LDAVThu7cgbOG7hyB2aXRhbWluIEEgdHJvbmcgc-G7r2EgbeG6uSB0aOG6pXAgbMOgLiAxOCwzJS4gVOG7tyBs4buHIHRoaeG6v3UgPGI-a-G6vW08L2I-IMSR4bq3YyBiaeG7h3QgcuG6pXQgY2FvIOG7nyB0cuG6uyBkxrDhu5tpIDUgdHXhu5VpIGzDoCA1OCUgbsSDbSAyMDIwOyBwaOG7pSBu4buvIGPDsyB0aGFpIGzDoCA2Myw1JSZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "Viện dinh dưỡng"
+    },
+    {
+     "position": 10,
+     "title": "các báo cáo phân tích và dự báo thống kê năm 2023",
+     "link": "https://www.nso.gov.vn/wp-content/uploads/2024/05/Bao-cao-PTDB-nam-2023.pdf",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEShgEB6zswFVOYlQw7h6TPCaKgGjraJchX4QzqJZdDRlmf4r6TM0WnJkjLbeeTTBKVwIqdNbE2AVuNdBqXTnmGP_dd5fZVkiJVx2ke1HAUBTaFszuOFsCXFm39ERXXEi_Wh6kEjOrFl6LwraJYr61x-hHNoySxgYfptQHtTcH36DLL1xLdg0RMqw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8QFnoECBYQAQ&uoh=1",
+     "displayed_link": "https://www.nso.gov.vn › Bao-cao-PTDB-nam-2023",
+     "favicon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc9POexGLDKKygdIrUdMJ78U.png",
+     "snippet": "THAM GIA BIÊN SOẠN. TỔPHÂN TÍCH VÀDỰBÁO THỐNG KÊ. 1. Bà Đỗ Thị Ngọc, Vụ trưởng Vụ Thống kê Tổng hợp và Phổ biến thông tin thống kê, Tổ trưởng;.",
+     "snippet_highlighted_words": [
+      "Thị",
+      "trưởng",
+      "trưởng"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "THAM GIA BIÊN SOẠN. TỔPHÂN TÍCH VÀDỰBÁO THỐNG KÊ. 1. Bà Đỗ Thị Ngọc, Vụ trưởng Vụ Thống kê Tổng hợp và Phổ biến thông tin thống kê, Tổ trưởng;.",
+       "source_info_link": "https://www.nso.gov.vn/wp-content/uploads/2024/05/Bao-cao-PTDB-nam-2023.pdf",
+       "icon": "https://serpapi.com/searches/6adeb54da4e3cf35350c9016/images/dcTs9agWkjSbHLDg6NLVc5lzFoShIXF66YwfpXJNLM2WTw8gKg2ZMV0TAV1mcFJi.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsQBL2dvdG8_dXJsPUNBRVNoZ0VCNnpzd0ZhSG5XeVEtRkJGbUZCUzRLNnlXc3NHZ1ZhZ19xbHVfZzNtcmZxQjB4LXdpOGRHZFU0UDFyVGI0YUN0Yk9obnBQTzhuQU9sVG0tR2g4TmRoWGpyMnhDUHI4b2xSNXpuUjRqSEFXOVNIMFhkbXhUMlpvazR6RjJGNVVXRWFGNi1FemFKYWRqanQ1SXFKN2FONi1ReExsMGY1ekgtUjNfMjJlT011WkpITWZlS1RMdxIEGgIIABqIBhIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDkBQhCEAAYACAAKh8KBGLDoW8VZGiRPxoIYsOhb2PDoW8aCGl2O2Q7YmFvKh8KBGPDoW8VWRB7PxoIYsOhb2PDoW8aCGl2O2Q7Y2FvKiYKBXRo4buLFTGfDkAaDnRo4buLdHLGsOG7nW5nGghpdjtkO3RoaSotCgl0csaw4budbmcVeFyBPxoOdGjhu4t0csaw4budbmcaC2l2O2Q7dHJ1b25nKioKBXZpw6puFeIHAkAaBHZpZW4aC3Zpw6pudeG7kW5nGglpdjtkO3ZpZW4qGgoGdeG7kW5nFTfFRDwaC3Zpw6pudeG7kW5nKhIKBWvhur1tFfLmCDsaBHppbmMyxAEvZ290bz91cmw9Q0FFU2hnRUI2enN3RmFIbld5US1GQkZtRkJTNEs2eVdzc0dnVmFnX3FsdV9nM21yZnFCMHgtd2k4ZEdkVTRQMXJUYjRhQ3RiT2hucFBPOG5BT2xUbS1HaDhOZGhYanIyeENQcjhvbFI1em5SNGpIQVc5U0gwWGRteFQyWm9rNHpGMkY1VVdFYUY2LUV6YUphZGpqdDVJcUo3YU42LVF4TGwwZjV6SC1SM18yMmVPTXVaSkhNZmVLVEx3OkVjw6FjIDxiPmLDoW8gY8OhbzwvYj4gcGjDom4gdMOtY2ggdsOgIGThu7EgYsOhbyB0aOG7kW5nIGvDqiBuxINtIDIwMjNC1gFUSEFNIEdJQSBCScOKTiBTT-G6oE4uIFThu5RQSMOCTiBUw41DSCBWw4BE4buwQsOBTyBUSOG7kE5HIEvDii4gMS4gQsOgIMSQ4buXIDxiPlRo4buLPC9iPiBOZ-G7jWMsIFbhu6UgPGI-dHLGsOG7n25nPC9iPiBW4bulIFRo4buRbmcga8OqIFThu5VuZyBo4bujcCB2w6AgUGjhu5UgYmnhur9uIHRow7RuZyB0aW4gdGjhu5FuZyBrw6osIFThu5UgPGI-dHLGsOG7n25nPC9iPjsuIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsQBL2dvdG8_dXJsPUNBRVNoZ0VCNnpzd0ZhSG5XeVEtRkJGbUZCUzRLNnlXc3NHZ1ZhZ19xbHVfZzNtcmZxQjB4LXdpOGRHZFU0UDFyVGI0YUN0Yk9obnBQTzhuQU9sVG0tR2g4TmRoWGpyMnhDUHI4b2xSNXpuUjRqSEFXOVNIMFhkbXhUMlpvazR6RjJGNVVXRWFGNi1FemFKYWRqanQ1SXFKN2FONi1ReExsMGY1ekgtUjNfMjJlT011WkpITWZlS1RMdxIEGgIIABqIBhIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDkBQhCEAAYACAAKh8KBGLDoW8VZGiRPxoIYsOhb2PDoW8aCGl2O2Q7YmFvKh8KBGPDoW8VWRB7PxoIYsOhb2PDoW8aCGl2O2Q7Y2FvKiYKBXRo4buLFTGfDkAaDnRo4buLdHLGsOG7nW5nGghpdjtkO3RoaSotCgl0csaw4budbmcVeFyBPxoOdGjhu4t0csaw4budbmcaC2l2O2Q7dHJ1b25nKioKBXZpw6puFeIHAkAaBHZpZW4aC3Zpw6pudeG7kW5nGglpdjtkO3ZpZW4qGgoGdeG7kW5nFTfFRDwaC3Zpw6pudeG7kW5nKhIKBWvhur1tFfLmCDsaBHppbmMyxAEvZ290bz91cmw9Q0FFU2hnRUI2enN3RmFIbld5US1GQkZtRkJTNEs2eVdzc0dnVmFnX3FsdV9nM21yZnFCMHgtd2k4ZEdkVTRQMXJUYjRhQ3RiT2hucFBPOG5BT2xUbS1HaDhOZGhYanIyeENQcjhvbFI1em5SNGpIQVc5U0gwWGRteFQyWm9rNHpGMkY1VVdFYUY2LUV6YUphZGpqdDVJcUo3YU42LVF4TGwwZjV6SC1SM18yMmVPTXVaSkhNZmVLVEx3OkVjw6FjIDxiPmLDoW8gY8OhbzwvYj4gcGjDom4gdMOtY2ggdsOgIGThu7EgYsOhbyB0aOG7kW5nIGvDqiBuxINtIDIwMjNC1gFUSEFNIEdJQSBCScOKTiBTT-G6oE4uIFThu5RQSMOCTiBUw41DSCBWw4BE4buwQsOBTyBUSOG7kE5HIEvDii4gMS4gQsOgIMSQ4buXIDxiPlRo4buLPC9iPiBOZ-G7jWMsIFbhu6UgPGI-dHLGsOG7n25nPC9iPiBW4bulIFRo4buRbmcga8OqIFThu5VuZyBo4bujcCB2w6AgUGjhu5UgYmnhur9uIHRow7RuZyB0aW4gdGjhu5FuZyBrw6osIFThu5UgPGI-dHLGsOG7n25nPC9iPjsuIgIQAUgAWABoAA",
+     "source": "General Statistics Office of Vietnam"
+    }
+   ],
+   "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=10&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8NMDegQIQBAW",
+    "other_pages": {
+     "2": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=10&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAE",
+     "3": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=20&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAG",
+     "4": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=30&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAI",
+     "5": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=40&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAK",
+     "6": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=50&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAM",
+     "7": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=60&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAO",
+     "8": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=70&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAQ",
+     "9": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=80&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAS",
+     "10": "https://www.google.com/search?q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype:pdf+-site:studocu.vn+-site:scribd.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnujObx0vQGTt7wt9Ui4JRWQmXBYcw:1792980301834&ei=TbXeasjAMtKIptQPwfCn-QQ&start=90&sa=N&sstk=AS6-VmJbIRBiI-NPwkh-AT1H5PHGqAS0p-_fcMiWCfij9glzDJL_kk-Rr1UGOYg--Ae4L-ZKoauToV96aW96KSgR-A2M1lT586EGWw&ved=2ahUKEwiIm-uPzNaXAxVShIkEHUH4KU8Q8tMDegQIQBAU"
+    }
+   },
+   "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=10",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=10",
+    "other_pages": {
+     "2": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=10",
+     "3": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=20",
+     "4": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=30",
+     "5": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=40",
+     "6": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=50",
+     "7": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=60",
+     "8": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=70",
+     "9": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=80",
+     "10": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=b%C3%A1o+c%C3%A1o+th%E1%BB%8B+tr%C6%B0%E1%BB%9Dng+vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+filetype%3Apdf+-site%3Astudocu.vn+-site%3Ascribd.com&start=90"
+    }
+   }
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "b810b9687f35ad3858804001e439bc52dd9e65747876cff736214a0b49dd22e2"
+ }
+}

@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm n» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[38]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "ff462c10d00e5636ed7a7f8f58ef5b9df1556caf7bad221d2a77cca8f16fd684"
+ },
+ "result": {
+  "prefix": "viên kẽm n",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:10Z",
+  "suggestions": [
+   "viên kẽm nên uống lúc nào",
+   "viên kẽm nào tốt nhất",
+   "viên kẽm nào tốt cho nam giới",
+   "viên kẽm người lớn",
+   "viên kẽm nhai cho bé",
+   "viên kẽm nên uống trước hay sau ăn",
+   "viên kẽm nhật bản",
+   "viên kẽm nhật bản dhc",
+   "viên kẽm nên uông vào thời điểm nào trong ngày",
+   "viên kẽm ngày uống mấy viên"
+  ],
+  "raw": [
+   "viên kẽm n",
+   [
+    "viên kẽm nên uống lúc nào",
+    "viên kẽm nào tốt nhất",
+    "viên kẽm nào tốt cho nam giới",
+    "viên kẽm người lớn",
+    "viên kẽm nhai cho bé",
+    "viên kẽm nên uống trước hay sau ăn",
+    "viên kẽm nhật bản",
+    "viên kẽm nhật bản dhc",
+    "viên kẽm nên uông vào thời điểm nào trong ngày",
+    "viên kẽm ngày uống mấy viên"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

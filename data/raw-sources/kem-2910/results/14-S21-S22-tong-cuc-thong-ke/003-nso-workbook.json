@@ -1,0 +1,44 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "14 · S21 + S22 · Số liệu Cục Thống kê (bảng tháng + chỉ số giá CPI theo tỉnh)",
+  "describe": "nso.workbook nso.workbook",
+  "parentFile": "14-S21-S22-tong-cuc-thong-ke.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S21 + S22",
+  "sourceName": "Số liệu Cục Thống kê (bảng tháng + chỉ số giá CPI theo tỉnh)",
+  "provider": "nso.gov.vn (WordPress media API + tệp .xlsx)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Tệp tháng mới nhất trên trang tại lúc thu (tháng ghi trong tên tệp)"
+  },
+  "limits": [
+   "Không chia theo sản phẩm (nhóm hàng rộng)",
+   "Không cộng với số bán trên sàn",
+   "Tệp .xlsx không có trong kho; chỉ giữ url + sha256"
+  ],
+  "resultSha256": "6bfce3f4f6cc3ffdd388cbc6783652f9a95fc092cb870a6075f22df3ea0374d0"
+ },
+ "result": {
+  "operation": "nso.workbook",
+  "url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/So-lieu-CPI-thang-9-QIII-va-9-thang-nam-2026.xlsx",
+  "listingEntry": {
+   "id": 62470,
+   "date": "2026-10-02T16:02:20",
+   "title": {
+    "rendered": "So lieu CPI tháng 9, QIII va 9 thang nam 2026"
+   },
+   "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+   "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/So-lieu-CPI-thang-9-QIII-va-9-thang-nam-2026.xlsx"
+  },
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:59:21Z",
+  "byteSize": 38439,
+  "sha256": "89ed4a489fdb141c52b06650150d7808a35ca44940c6c0d41fa0dcb3f7d9b9cb",
+  "excludedFile": "files/nso-So-lieu-CPI-thang-9-QIII-va-9-thang-nam-2026.xlsx",
+  "excludedReason": "Tệp .xlsx gốc chứa đường dẫn máy và thông tin tài khoản của nơi phát hành: không đưa vào kho công khai; tải lại theo url và kiểm sha256"
+ }
+}

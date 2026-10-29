@@ -1,0 +1,28 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "18 · S17 · Thư viện quảng cáo trên công cụ tìm kiếm (Google Ads Transparency)",
+  "describe": "Không thu: Gói SerpApi miễn phí chỉ còn ít lượt trong tháng; lượt chạy 26/10 có 0 lần gọi (NO_BRANDS); nguồn này cho 0 quảng cáo trên 5/5 lần thử trước (tìm theo tên miền, không theo sản phẩm). Thu khi SerpApi có lượt mới (đầu tháng 11).",
+  "parentFile": "18-S17-google-quang-cao.json",
+  "parentLocation": "declare",
+  "sourceCode": "S17",
+  "sourceName": "Thư viện quảng cáo trên công cụ tìm kiếm (Google Ads Transparency)",
+  "provider": "SerpApi engine=google_ads_transparency_center",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": null,
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "—"
+  },
+  "limits": [
+   "Tối đa 3 thương hiệu, 6 lượt mỗi báo cáo"
+  ],
+  "resultSha256": "e66b8e1c37ed4b4c8ee1ff0cac43fb50e878993c7a51f624c9069485b5c0821e"
+ },
+ "result": {
+  "method": "NOT_COLLECTED",
+  "collectedOn": "2026-10-29",
+  "reason": "Gói SerpApi miễn phí chỉ còn ít lượt trong tháng; lượt chạy 26/10 có 0 lần gọi (NO_BRANDS); nguồn này cho 0 quảng cáo trên 5/5 lần thử trước (tìm theo tên miền, không theo sản phẩm). Thu khi SerpApi có lượt mới (đầu tháng 11)."
+ }
+}

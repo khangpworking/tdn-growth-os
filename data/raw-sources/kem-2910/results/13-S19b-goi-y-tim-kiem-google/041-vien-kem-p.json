@@ -1,0 +1,110 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm p» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[40]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "b3536c7e5b8dd4c8c9d9b7ce2d1182442cecbb3c87f02418123a48428d2b73b5"
+ },
+ "result": {
+  "prefix": "viên kẽm p",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:11Z",
+  "suggestions": [
+   "viên kẽm pharmacity",
+   "viên kẽm bổ sung gì",
+   "viên kẽm bao nhiêu tiền",
+   "viên kẽm bisglycinate traphaco",
+   "viên kẽm bổ sung cho nữ",
+   "viên kẽm biotrade",
+   "viên kẽm boss man có tác dụng gì",
+   "viên kẽm blackmores",
+   "viên kẽm boss man có tốt không",
+   "viên kẽm biotin"
+  ],
+  "raw": [
+   "viên kẽm p",
+   [
+    "viên kẽm pharmacity",
+    "viên kẽm bổ sung gì",
+    "viên kẽm bao nhiêu tiền",
+    "viên kẽm bisglycinate traphaco",
+    "viên kẽm bổ sung cho nữ",
+    "viên kẽm biotrade",
+    "viên kẽm boss man có tác dụng gì",
+    "viên kẽm blackmores",
+    "viên kẽm boss man có tốt không",
+    "viên kẽm biotin"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ],
+     [
+      512,
+      10,
+      11
+     ]
+    ]
+   }
+  ]
+ }
+}

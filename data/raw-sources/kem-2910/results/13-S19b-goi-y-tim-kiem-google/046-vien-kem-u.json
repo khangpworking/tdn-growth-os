@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm u» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[45]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "7b54886e1702e1e868d1386834aa4ea978200c35a2d2064b2d86b7f83a34c374"
+ },
+ "result": {
+  "prefix": "viên kẽm u",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:15Z",
+  "suggestions": [
+   "viên kẽm uống lúc nào là tốt nhất",
+   "viên kẽm uống cùng magie được không",
+   "viên kẽm uống cho nam",
+   "viên kẽm uống ngày mấy viên",
+   "viên kẽm uông vào thời điểm nào trong ngày",
+   "viên kẽm uống sáng hay tối",
+   "viên kẽm uống lúc nào tốt nhất",
+   "viên kẽm uống buổi tối được không",
+   "viên kẽm uống buổi chiều được không",
+   "viên kẽm uống lúc nào"
+  ],
+  "raw": [
+   "viên kẽm u",
+   [
+    "viên kẽm uống lúc nào là tốt nhất",
+    "viên kẽm uống cùng magie được không",
+    "viên kẽm uống cho nam",
+    "viên kẽm uống ngày mấy viên",
+    "viên kẽm uông vào thời điểm nào trong ngày",
+    "viên kẽm uống sáng hay tối",
+    "viên kẽm uống lúc nào tốt nhất",
+    "viên kẽm uống buổi tối được không",
+    "viên kẽm uống buổi chiều được không",
+    "viên kẽm uống lúc nào"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

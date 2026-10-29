@@ -1,0 +1,1729 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API POST /v2/market/analytics/products/ (thứ tự 414)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[414]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "3f9d0084a1e6681c58f20f219acfa17a17e8f705115b4cff31ddf01e8592dbbc"
+ },
+ "result": {
+  "urlPath": "/v2/market/analytics/products/",
+  "responseOrder": 414,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": {
+    "products": [
+     {
+      "product_base_id": "1__44504665764__380788082",
+      "platform_id": null,
+      "product_name": "  CHÍNH HÃNG  Viên Uống Bổ Sung Canxi Magie Kẽm CALCIUM ZINC MAGNESIUM BiotechUSA Hộp 100 Viên - KEYGYM ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mtdmh5tyydqeed",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__380788082",
+      "shop_username": null,
+      "price": 479000,
+      "order_count": 66,
+      "rating_avg": 4.947368621826172,
+      "rating_count": 19,
+      "revenue": 31787000,
+      "platform_created_at": "2[REDACTED_PHONE]:40:04",
+      "price_updated_at": "2[REDACTED_PHONE]:04:11",
+      "order_custom": 18,
+      "order_growth": null,
+      "previous_order_custom": 9,
+      "revenue_custom": 8622000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 4307000,
+      "bee_brand": "Biotechusa",
+      "final_brand": "Biotech Usa",
+      "price_min": 421520,
+      "price_max": 550000,
+      "shop_name": "KeyGym",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/chinh-hang-vien-uong-bo-sung-canxi-magie-kem-calcium-zinc-magnesium-biotechusa-hop-100-vien-keygym-i.38[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/380788082"
+     },
+     {
+      "product_base_id": "8__1731951699101649125",
+      "platform_id": null,
+      "product_name": " JARROW Zinc Balance Viên Uống Bổ Sung Kẽm Hỗ Trợ Sức Đề Kháng - Hộp 100 Viên 15mg tại WheySinhVien Vn ",
+      "url_thumbnail": "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/[REDACTED_TOKEN]~tplv-o3syd03w52-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my2&from=1432613627&from_p=3004324551",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "8__7494755[REDACTED_PHONE]",
+      "shop_username": null,
+      "price": 720970,
+      "order_count": 157,
+      "rating_avg": 4.599999904632568,
+      "rating_count": 11,
+      "revenue": 119529101,
+      "platform_created_at": "2[REDACTED_PHONE]:00:00",
+      "price_updated_at": "2[REDACTED_PHONE]:58:16",
+      "order_custom": 11,
+      "order_growth": null,
+      "previous_order_custom": 8,
+      "revenue_custom": 8396470,
+      "revenue_growth": null,
+      "previous_revenue_custom": 6310614,
+      "bee_brand": "Whey Sinh Viên",
+      "final_brand": "Whey Sinh Viên",
+      "price_min": 450000,
+      "price_max": 899121,
+      "shop_name": "WheySinhVienVn",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/1731951699101649125",
+      "shop_url": "https://short.metric.vn/shop/8__7494755[REDACTED_PHONE]"
+     },
+     {
+      "product_base_id": "1__28040637195__1346558822",
+      "platform_id": null,
+      "product_name": " Viên uống bổ sung kẽm NOW Zinc Glycinate 30 mg Albion TRAACS Zinc giúp tăng cường sức đề kháng ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mp96w1svu7f3d9",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__1346558822",
+      "shop_username": null,
+      "price": 566000,
+      "order_count": 120,
+      "rating_avg": 4.849999904632568,
+      "rating_count": 20,
+      "revenue": 61722690,
+      "platform_created_at": "2[REDACTED_PHONE]:48:43",
+      "price_updated_at": "2[REDACTED_PHONE]:21:51",
+      "order_custom": 15,
+      "order_growth": null,
+      "previous_order_custom": 2,
+      "revenue_custom": 8299680,
+      "revenue_growth": null,
+      "previous_revenue_custom": 1132000,
+      "bee_brand": "Now Foods",
+      "final_brand": "Now Foods",
+      "price_min": 464995,
+      "price_max": 621000,
+      "shop_name": "Sports Nutrition",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/[REDACTED_TOKEN]",
+      "shop_url": "https://shopee.vn/shop/1346558822"
+     },
+     {
+      "product_base_id": "8__1732145881862801561",
+      "platform_id": null,
+      "product_name": " Viên uống kẽm Zinc GBB Premium+ bổ sung kẽm magie vit B6 hỗ trợ giảm mụn mọc tóc năng sức khỏe  1H 30v  ",
+      "url_thumbnail": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/[REDACTED_TOKEN]~tplv-aphluv4xwc-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my&from=1432613627&from_p=3004324551",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "8__7494834968438737049",
+      "shop_username": null,
+      "price": 119985,
+      "order_count": 697,
+      "rating_avg": 4.900000095367432,
+      "rating_count": 46,
+      "revenue": 75082694,
+      "platform_created_at": "2[REDACTED_PHONE]:07:46",
+      "price_updated_at": "2[REDACTED_PHONE]:57:09",
+      "order_custom": 67,
+      "order_growth": null,
+      "previous_order_custom": 51,
+      "revenue_custom": 8070767,
+      "revenue_growth": null,
+      "previous_revenue_custom": 5823627,
+      "bee_brand": "Gbb",
+      "final_brand": "Gbb",
+      "price_min": 97,
+      "price_max": 123793,
+      "shop_name": "GIABAOPHARMA",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/1732145881862801561",
+      "shop_url": "https://short.metric.vn/shop/8__7494834968438737049"
+     },
+     {
+      "product_base_id": "1__25030421565__360555799",
+      "platform_id": null,
+      "product_name": " Viên uống bổ sung kẽm Best Life Kẽm Biotin Giúp tóc chắc khỏe ngăn gãy rụng làm sáng đẹp làn da hộp 60 viên ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mrkfeddtbeo1ab",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__360555799",
+      "shop_username": null,
+      "price": 163076,
+      "order_count": 527,
+      "rating_avg": 4.984848499298096,
+      "rating_count": 132,
+      "revenue": 98723368,
+      "platform_created_at": "2[REDACTED_PHONE]:14:45",
+      "price_updated_at": "2[REDACTED_PHONE]:07:53",
+      "order_custom": 45,
+      "order_growth": null,
+      "previous_order_custom": 13,
+      "revenue_custom": 8060368,
+      "revenue_growth": null,
+      "previous_revenue_custom": 2135000,
+      "bee_brand": "Best Life",
+      "final_brand": "",
+      "price_min": 81000,
+      "price_max": 540000,
+      "shop_name": "Dược Phẩm VNTech",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/vien-uong-bo-sung-kem-best-life-kem-biotin-giup-toc-chac-khoe-ngan-gay-rung-lam-sang-dep-lan-da-hop--i.36[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/360555799"
+     },
+     {
+      "product_base_id": "1__24825712911__970902528",
+      "platform_id": null,
+      "product_name": " Viên uống Kẽm Zinc Bis Glycinnate Canprev 25mg120 viên ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-7ras8-mbm2ssj59r2c03",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__970902528",
+      "shop_username": null,
+      "price": 459000,
+      "order_count": 132,
+      "rating_avg": 5,
+      "rating_count": 31,
+      "revenue": 53187000,
+      "platform_created_at": "2[REDACTED_PHONE]:44:00",
+      "price_updated_at": "2[REDACTED_PHONE]:55:32",
+      "order_custom": 17,
+      "order_growth": null,
+      "previous_order_custom": 8,
+      "revenue_custom": 7803000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 3632000,
+      "bee_brand": "Canprev",
+      "final_brand": "Canprev",
+      "price_min": 318000,
+      "price_max": 459000,
+      "shop_name": "Vivian_Hàng nội địa Canada",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/vien-uong-kem-zinc-bis-glycinnate-canprev-25mg120-vien-i.97[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/970902528"
+     },
+     {
+      "product_base_id": "1__24922057603__44806875",
+      "platform_id": null,
+      "product_name": "  Live  Combo Viên uống DHC Biotin & Kẽm  60 Ngày  giúp cơ thể khỏe mạnh tốt cho da và tóc - TPBVSK DHC Biotin & ZinC ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-moi3synrv4lrc2",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__44806875",
+      "shop_username": null,
+      "price": 770000,
+      "order_count": 591,
+      "rating_avg": 4.920529842376709,
+      "rating_count": 151,
+      "revenue": 344211840,
+      "platform_created_at": "2[REDACTED_PHONE]:48:30",
+      "price_updated_at": "2[REDACTED_PHONE]:31:26",
+      "order_custom": 10,
+      "order_growth": null,
+      "previous_order_custom": 13,
+      "revenue_custom": 7632000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 9394840,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 530000,
+      "price_max": 790000,
+      "shop_name": "DHC Vietnam Official",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/live-combo-vien-uong-dhc-biotin-kem-60-ngay-giup-co-the-khoe-manh-tot-cho-da-va-toc-tpbvsk-dhc-bioti-i.448[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/44806875"
+     },
+     {
+      "product_base_id": "8__173[REDACTED_PHONE]",
+      "platform_id": null,
+      "product_name": " Viên Uống DHC Zn Bổ Sung Kẽm Cho Cơ Thể Gói 30 viên ",
+      "url_thumbnail": "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/[REDACTED_TOKEN]~tplv-o3syd03w52-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my2&from=1432613627&from_p=3004324551",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "8__74946[REDACTED_PHONE]",
+      "shop_username": null,
+      "price": 131990,
+      "order_count": 108,
+      "rating_avg": 4.199999809265137,
+      "rating_count": 5,
+      "revenue": 12966098,
+      "platform_created_at": "2[REDACTED_PHONE]:24:40",
+      "price_updated_at": "2[REDACTED_PHONE]:19:07",
+      "order_custom": 62,
+      "order_growth": null,
+      "previous_order_custom": 7,
+      "revenue_custom": 7601028,
+      "revenue_growth": null,
+      "previous_revenue_custom": 785609,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 40000,
+      "price_max": 167963,
+      "shop_name": "medicare.vn",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/173[REDACTED_PHONE]",
+      "shop_url": "https://short.metric.vn/shop/8__74946[REDACTED_PHONE]"
+     },
+     {
+      "product_base_id": "8__173154641[REDACTED_PHONE]",
+      "platform_id": null,
+      "product_name": " Viên uống bổ sung vitamin C và kẽm Bbeeaauu 120 viên hỗ trợ hệ miễn dịch và hỗ trợ phục hồi tế bào trắng da vitaminc ",
+      "url_thumbnail": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/[REDACTED_TOKEN]~tplv-aphluv4xwc-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my&from=1432613627&from_p=3004324551",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       }
+      ],
+      "shop_base_id": "8__7496[REDACTED_PHONE]",
+      "shop_username": null,
+      "price": 216096,
+      "order_count": 371,
+      "rating_avg": 4.800000190734863,
+      "rating_count": 43,
+      "revenue": 79946660,
+      "platform_created_at": "2[REDACTED_PHONE]:00:00",
+      "price_updated_at": "2[REDACTED_PHONE]:59:42",
+      "order_custom": 32,
+      "order_growth": null,
+      "previous_order_custom": 6,
+      "revenue_custom": 7044491,
+      "revenue_growth": null,
+      "previous_revenue_custom": 1201970,
+      "bee_brand": "Bbeeaauu",
+      "final_brand": "Bbeeaauu",
+      "price_min": 184838,
+      "price_max": 251938,
+      "shop_name": "Bbeeaauu Việt Nam",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/173154641[REDACTED_PHONE]",
+      "shop_url": "https://short.metric.vn/shop/8__7496[REDACTED_PHONE]"
+     },
+     {
+      "product_base_id": "1__29560176294__408960220",
+      "platform_id": null,
+      "product_name": " Viên uống Kẽm ACNACARE Mega We Care Giúp Giảm Mụn Giảm Nhờn Hộp 30 viên DR KHOA ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mm46018qeqkja9",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__408960220",
+      "shop_username": null,
+      "price": 155000,
+      "order_count": 601,
+      "rating_avg": 4.978723526000977,
+      "rating_count": 94,
+      "revenue": 81202600,
+      "platform_created_at": "2[REDACTED_PHONE]:15:05",
+      "price_updated_at": "2[REDACTED_PHONE]:19:43",
+      "order_custom": 52,
+      "order_growth": null,
+      "previous_order_custom": 77,
+      "revenue_custom": 6960000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 9531500,
+      "bee_brand": "Mega We Care",
+      "final_brand": "Acnacare",
+      "price_min": 97750,
+      "price_max": 175000,
+      "shop_name": "Dr Khoa Cosmetic",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/vien-uong-kem-acnacare-mega-we-care-giup-giam-mun-giam-nhon-hop-30-vien-dr-khoa-i.4[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/408960220"
+     },
+     {
+      "product_base_id": "1__25075129280__225686740",
+      "platform_id": null,
+      "product_name": " BIOTIN mọc tóc,KẼM BIOTIN viên uống mọc tóc hỗ trợ giảm gẫy rụng tóc rụng tóc sau sinh  giảm nám   HỘP 30 VIÊN   ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mtkyq3xlb6ru4d",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__225686740",
+      "shop_username": null,
+      "price": 159000,
+      "order_count": 806,
+      "rating_avg": 4.946859836578369,
+      "rating_count": 207,
+      "revenue": 91170671,
+      "platform_created_at": "2[REDACTED_PHONE]:55:34",
+      "price_updated_at": "2[REDACTED_PHONE]:51:55",
+      "order_custom": 41,
+      "order_growth": null,
+      "previous_order_custom": 19,
+      "revenue_custom": 6870300,
+      "revenue_growth": null,
+      "previous_revenue_custom": 5775000,
+      "bee_brand": "Goldwings",
+      "final_brand": "Goldwings",
+      "price_min": 65000,
+      "price_max": 510300,
+      "shop_name": "PHARMACY HÀ NỘI",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/biotin-moc-tockem-biotin-vien-uong-moc-toc-ho-tro-giam-gay-rung-toc-rung-toc-sau-sinh-giam-nam-hop-3-i.225686740.25075129280",
+      "shop_url": "https://shopee.vn/shop/225686740"
+     },
+     {
+      "product_base_id": "1__27026468429__929898155",
+      "platform_id": null,
+      "product_name": " Viên uống kẽm tăng cường sức đề kháng hỗ trợ tăng cơ bắp giảm mụn viêm Thorne Picolinate và Bisglycinate Mỹ  BILL US  ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-7ras8-md70yt23dfh878",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__929898155",
+      "shop_username": null,
+      "price": 850000,
+      "order_count": 186,
+      "rating_avg": 4.9259257316589355,
+      "rating_count": 27,
+      "revenue": 144594451,
+      "platform_created_at": "2[REDACTED_PHONE]:32:02",
+      "price_updated_at": "2[REDACTED_PHONE]:39:28",
+      "order_custom": 8,
+      "order_growth": null,
+      "previous_order_custom": 22,
+      "revenue_custom": 6800000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 18700000,
+      "bee_brand": "Throne",
+      "final_brand": "Thorne",
+      "price_min": 0,
+      "price_max": 1020000,
+      "shop_name": "Bơ Baby Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/vien-uong-kem-tang-cuong-suc-de-khang-ho-tro-tang-co-bap-giam-mun-viem-thorne-picolinate-va-bisglyci-i.929898155.27026468429",
+      "shop_url": "https://shopee.vn/shop/929898155"
+     },
+     {
+      "product_base_id": "8__173[REDACTED_PHONE]",
+      "platform_id": null,
+      "product_name": " DHC Combo DHC Kẽm & DHC Biotin Tóc Chắc Khoẻ - Giảm Gãy Rụng Viên Uống 30 Ngày Uống  Hàng công ty - Đầy đủ tem phụ  ",
+      "url_thumbnail": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/[REDACTED_TOKEN]~tplv-aphluv4xwc-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my3&from=1432613627&from_p=3004324551",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "8__7495[REDACTED_PHONE]",
+      "shop_username": null,
+      "price": 335240,
+      "order_count": 411,
+      "rating_avg": 4.699999809265137,
+      "rating_count": 12,
+      "revenue": 112535600,
+      "platform_created_at": "2[REDACTED_PHONE]:00:00",
+      "price_updated_at": "2[REDACTED_PHONE]:05:59",
+      "order_custom": 20,
+      "order_growth": null,
+      "previous_order_custom": 17,
+      "revenue_custom": 6773070,
+      "revenue_growth": null,
+      "previous_revenue_custom": 5591555,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 240,
+      "price_max": 355379,
+      "shop_name": "Trâm Đức",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/173[REDACTED_PHONE]",
+      "shop_url": "https://short.metric.vn/shop/8__7495[REDACTED_PHONE]"
+     },
+     {
+      "product_base_id": "1__16293238934__31897126",
+      "platform_id": null,
+      "product_name": "  HÀNG NHẬP KHẨU  Viên uống DHC Kẽm ZinC 15 ngày 30 ngày ",
+      "url_thumbnail": "https://cf.shopee.vn/file/sg-11134201-8260u-mk7rfh0fuk1zd7",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__31897126",
+      "shop_username": null,
+      "price": 30000,
+      "order_count": 2305,
+      "rating_avg": 4.967811107635498,
+      "rating_count": 466,
+      "revenue": 145430000,
+      "platform_created_at": "2[REDACTED_PHONE]:46:21",
+      "price_updated_at": "2[REDACTED_PHONE]:43:25",
+      "order_custom": 91,
+      "order_growth": null,
+      "previous_order_custom": 186,
+      "revenue_custom": 6608000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 12733000,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 30000,
+      "price_max": 120000,
+      "shop_name": "Toptotoes.vn",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/hang-nhap-khau-vien-uong-dhc-kem-zinc-15-ngay-30-ngay-i.31897126.16293238934",
+      "shop_url": "https://shopee.vn/shop/31897126"
+     },
+     {
+      "product_base_id": "1__41753441483__1492044599",
+      "platform_id": null,
+      "product_name": " Viên Uống DHC Vitamin C & Kẽm ZinC - Chọn Combo 15 30 Ngày - Vitamin C Hard Capsule ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134201-81ztc-mtun8bceb11e62",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       }
+      ],
+      "shop_base_id": "1__1492044599",
+      "shop_username": null,
+      "price": 248999,
+      "order_count": 812,
+      "rating_avg": 4.958333492279053,
+      "rating_count": 120,
+      "revenue": 194840552,
+      "platform_created_at": "2[REDACTED_PHONE]:27:04",
+      "price_updated_at": "2[REDACTED_PHONE]:26:52",
+      "order_custom": 24,
+      "order_growth": null,
+      "previous_order_custom": 109,
+      "revenue_custom": 6485976,
+      "revenue_growth": null,
+      "previous_revenue_custom": 31859891,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 185000,
+      "price_max": 299999,
+      "shop_name": "GENKIWA",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/[REDACTED_TOKEN]",
+      "shop_url": "https://shopee.vn/shop/1492044599"
+     },
+     {
+      "product_base_id": "1__22544002333__146111983",
+      "platform_id": null,
+      "product_name": " Viên uống kẽm giảm mụn tăng sức đề kháng Zinc Gluconate 50mg Puritan's Pride ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-7qukw-lheumcyf4z2dc9",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__146111983",
+      "shop_username": null,
+      "price": 245000,
+      "order_count": 193,
+      "rating_avg": 4.981818199157715,
+      "rating_count": 55,
+      "revenue": 41695000,
+      "platform_created_at": "2[REDACTED_PHONE]:21:54",
+      "price_updated_at": "2[REDACTED_PHONE]:50:31",
+      "order_custom": 23,
+      "order_growth": null,
+      "previous_order_custom": 29,
+      "revenue_custom": 6371000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 9239000,
+      "bee_brand": "Puritan'S Pride",
+      "final_brand": "Puritan'S Pride",
+      "price_min": 145000,
+      "price_max": 429000,
+      "shop_name": "BONBY STORE",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/vien-uong-kem-giam-mun-tang-suc-de-khang-zinc-gluconate-50mg-puritans-pride-i.146111983.22544002333",
+      "shop_url": "https://shopee.vn/shop/146111983"
+     },
+     {
+      "product_base_id": "8__173[REDACTED_PHONE]",
+      "platform_id": null,
+      "product_name": " DHC Viên uống bổ sung Kẽm ZinC DHC ZinC 15 ngày 30 ngày vienuong dhc ",
+      "url_thumbnail": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/[REDACTED_TOKEN]~tplv-aphluv4xwc-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my&from=1432613627&from_p=3004324551",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "8__7495[REDACTED_PHONE]",
+      "shop_username": null,
+      "price": 93221,
+      "order_count": 3465,
+      "rating_avg": 4.900000095367432,
+      "rating_count": 193,
+      "revenue": 225269897,
+      "platform_created_at": "2[REDACTED_PHONE]:00:00",
+      "price_updated_at": "2[REDACTED_PHONE]:06:04",
+      "order_custom": 68,
+      "order_growth": null,
+      "previous_order_custom": 35,
+      "revenue_custom": 6291508,
+      "revenue_growth": null,
+      "previous_revenue_custom": 3262019,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 70,
+      "price_max": 104897,
+      "shop_name": "Trâm Đức",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/173[REDACTED_PHONE]",
+      "shop_url": "https://short.metric.vn/shop/8__7495[REDACTED_PHONE]"
+     },
+     {
+      "product_base_id": "8__1737782788567893494",
+      "platform_id": null,
+      "product_name": "  COMBO vitamin C + D Canxi  Viên Nhai Bổ Sung Vitamin Wonderplus  60 viên hộp  - Giúp Làn Da Rạng Rỡ - Tăng Cường Đề Kháng - Giúp Xương Chăc Khỏe bột uống và sủi mộc cốm kẽm boss man ",
+      "url_thumbnail": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/[REDACTED_TOKEN]~tplv-aphluv4xwc-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my&from=1432613627&from_p=3004324551",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100006",
+        "level": 2,
+        "name": "Hỗ trợ sức khỏe",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "8__74945139[REDACTED_PHONE]",
+      "shop_username": null,
+      "price": 60162,
+      "order_count": 119,
+      "rating_avg": 4.599999904632568,
+      "rating_count": 5,
+      "revenue": 7159278,
+      "platform_created_at": "1970-01-01 00:00:00",
+      "price_updated_at": "2[REDACTED_PHONE]:53:56",
+      "order_custom": 102,
+      "order_growth": null,
+      "previous_order_custom": 0,
+      "revenue_custom": 6136524,
+      "revenue_growth": null,
+      "previous_revenue_custom": 0,
+      "bee_brand": "",
+      "final_brand": "",
+      "price_min": 60162,
+      "price_max": 60162,
+      "shop_name": "KHUAT THI HONG",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/1737782788567893494",
+      "shop_url": "https://short.metric.vn/shop/8__74945139[REDACTED_PHONE]"
+     },
+     {
+      "product_base_id": "8__1735126365751510556",
+      "platform_id": null,
+      "product_name": "  FS   ĐQ  Combo Viên uống DHC Biotin  & Kẽm  - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC - Combo 60 ngày & Combo 120 ngày ",
+      "url_thumbnail": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/[REDACTED_TOKEN]~tplv-aphluv4xwc-origin-image.image?dr=15570&t=555f072d&ps=933b5bde&shp=5563f2fb&shcp=b3125ac7&idc=my&from=1432613627&from_p=3004324551",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "8__700645",
+        "level": 0,
+        "name": "Sức khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "8__700646",
+        "level": 1,
+        "name": "Thực phẩm bổ sung",
+        "parent_id": "8__700646"
+       },
+       {
+        "id": "8__700650",
+        "level": 2,
+        "name": "Thực phẩm bổ sung sức khỏe",
+        "parent_id": "8__700650"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "8__7494612855194094108",
+      "shop_username": null,
+      "price": 757470,
+      "order_count": 37,
+      "rating_avg": 5,
+      "rating_count": 1,
+      "revenue": 28530303,
+      "platform_created_at": "2[REDACTED_PHONE]:51:52",
+      "price_updated_at": "2[REDACTED_PHONE]:19:29",
+      "order_custom": 8,
+      "order_growth": null,
+      "previous_order_custom": 1,
+      "revenue_custom": 6059760,
+      "revenue_growth": null,
+      "previous_revenue_custom": 843336,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 630000,
+      "price_max": 872853,
+      "shop_name": "DHC Vietnam",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shop-vn.tiktok.com/pdp/1735126365751510556",
+      "shop_url": "https://short.metric.vn/shop/8__7494612855194094108"
+     },
+     {
+      "product_base_id": "1__19184100161__329282252",
+      "platform_id": null,
+      "product_name": " Combo Viên uống DHC Kẽm và DHC Vitamin C 30 ngày dùng hỗ trợ ngừa mụn mờ thâm shop Cosin Store ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mu0xv0ymklj472",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c2035652732",
+        "level": 0,
+        "name": "Sức Khoẻ",
+        "parent_id": ""
+       },
+       {
+        "id": "c2140822537",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "c2035652732"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100001",
+        "level": 0,
+        "name": "Sức Khỏe",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100002",
+        "level": 1,
+        "name": "Thực phẩm chức năng",
+        "parent_id": "1__100001"
+       },
+       {
+        "id": "1__100004",
+        "level": 2,
+        "name": "Hỗ trợ làm đẹp",
+        "parent_id": "1__100002"
+       }
+      ],
+      "shop_base_id": "1__329282252",
+      "shop_username": null,
+      "price": 285000,
+      "order_count": 7428,
+      "rating_avg": 4.948183536529541,
+      "rating_count": 1679,
+      "revenue": 1318689400,
+      "platform_created_at": "2[REDACTED_PHONE]:24:45",
+      "price_updated_at": "2[REDACTED_PHONE]:51:50",
+      "order_custom": 21,
+      "order_growth": null,
+      "previous_order_custom": 33,
+      "revenue_custom": 5982000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 8414400,
+      "bee_brand": "Dhc",
+      "final_brand": "Dhc",
+      "price_min": 152000,
+      "price_max": 285000,
+      "shop_name": "Cosin  Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/combo-vien-uong-dhc-kem-va-dhc-vitamin-c-30-ngay-dung-ho-tro-ngua-mun-mo-tham-shop-cosin-store-i.329282252.19184100161",
+      "shop_url": "https://shopee.vn/shop/329282252"
+     }
+    ]
+   },
+   "code": "SUCCESS"
+  },
+  "method": "POST",
+  "timestamp": 1792979777558,
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"viên uống kẽm\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":true,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":6,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\",\"fields\":null}"
+ }
+}

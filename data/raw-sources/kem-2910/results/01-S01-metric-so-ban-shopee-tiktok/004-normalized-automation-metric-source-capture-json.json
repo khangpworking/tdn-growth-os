@@ -1,0 +1,37 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric: normalized/automation-metric-source-capture.json",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[3].content",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "40eac0e9d083e14fd73acb87de9c683f9ce13657ff07e89f76bca46efac1cfb3"
+ },
+ "result": {
+  "captureId": "metric-1792979721488",
+  "contractVersion": "automation-metric-source-capture-v1",
+  "keyword": "viên uống kẽm",
+  "manifestPath": "capture/manifest.json",
+  "runBindingSha256": "6157ba325a1b08bc8adb135df3ff571fbb60cfae91813ffcc089349a18670cb1",
+  "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+  "snapshotPath": "capture/snapshot.json",
+  "sourceContextPath": "capture/context.json",
+  "specDigest": "05cc40fe9598d051d420ee0a31f0bae98f3f441d44fa357c67b4bae89e82f693",
+  "workspaceId": "bc412bc5-5693-48b1-a949-85215b5cc414"
+ }
+}

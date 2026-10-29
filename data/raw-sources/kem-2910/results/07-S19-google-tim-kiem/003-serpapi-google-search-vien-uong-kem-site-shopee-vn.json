@@ -1,0 +1,462 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "describe": "Kết quả Google cho câu «viên uống kẽm site:shopee.vn»",
+  "parentFile": "07-S19-google-tim-kiem.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S19 (gồm S13, S26)",
+  "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "provider": "SerpApi engine=google",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Kết quả Google lúc thu"
+  },
+  "limits": [
+   "App chỉ đọc organic_results; các khối khác giữ trong bản gốc",
+   "ai_overview có thể chỉ là page_token (xem file 14)"
+  ],
+  "resultSha256": "941ab595ff77f9c926d68b25fcc3855fdfbea0363dfff83898b5ed1f4e6647c7"
+ },
+ "result": {
+  "captureId": "serpapi-expanded-2-serpapi-0001",
+  "operation": "serpapi.google.search",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "engine": "google",
+   "gl": "vn",
+   "hl": "vi",
+   "num": 10,
+   "q": "viên uống kẽm site:shopee.vn"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:22.992Z",
+  "completedAt": "2026-10-26T02:02:23.809Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb4af8ffee1ab13cd3b40",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "4a31604510de67abc94c842529f0915e0139c01a181937be44dd0e9aeac79aa5",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb4af8ffee1ab13cd3b40",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/q0rNKTXQBpNd1HryvOj2XSjpwrmtVBkkK_s_jkj_6-E/6adeb4af8ffee1ab13cd3b40.json",
+    "markdown_endpoint": "https://serpapi.com/searches/q0rNKTXQBpNd1HryvOj2XSjpwrmtVBkkK_s_jkj_6-E/6adeb4af8ffee1ab13cd3b40.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/q0rNKTXQBpNd1HryvOj2XSjpwrmtVBkkK_s_jkj_6-E/6adeb4af8ffee1ab13cd3b40.json_with_pixel_position",
+    "created_at": "2026-10-26 02:02:23 UTC",
+    "processed_at": "2026-10-26 02:02:23 UTC",
+    "google_url": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&oq=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&hl=vi&gl=vn&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/q0rNKTXQBpNd1HryvOj2XSjpwrmtVBkkK_s_jkj_6-E/6adeb4af8ffee1ab13cd3b40.html",
+    "total_time_taken": 0.41
+   },
+   "search_parameters": {
+    "engine": "google",
+    "q": "viên uống kẽm site:shopee.vn",
+    "google_domain": "google.com",
+    "hl": "vi",
+    "gl": "vn",
+    "device": "desktop"
+   },
+   "search_information": {
+    "query_displayed": "viên uống kẽm site:shopee.vn",
+    "total_results": 11100,
+    "time_taken_displayed": 0.24,
+    "organic_results_state": "Results for exact spelling"
+   },
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "Viên uống DHC Kẽm Zinc (20 Ngày & 60 Ngày)",
+     "link": "https://shopee.vn/Vi%C3%AAn-u%E1%BB%91ng-DHC-K%E1%BA%BDm-Zinc-(20-Ng%C3%A0y-60-Ng%C3%A0y)-Th%E1%BB%B1c-ph%E1%BA%A9m-b%E1%BA%A3o-v%E1%BB%87-s%E1%BB%A9c-kho%E1%BA%BB-DHC-ZinC-i.44806875.2308735412",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAES_gEB6zswFQcv0-QE_b9LxY3IVPTfyjyowaEP68Hfxg2xgR_go_FZ8QmQO8iA1g2-V7R-RyH4tp2HUriAaLkUH2k-ZQgHud70-g11YWuOc2NV-Pwli3vgHeU5NpUX7o6BnwLTlE0rG2GWw0L5cozDXaDS7_SpmKt2NFkKvWywAFhs0Y8z04qeOppwa3Ar-KMsHWbNVQ-9GLVs8sGSJpl359me1zBbz0IWPiVu2qrZzptE5_LMbOM-1bfARVGeV7Z11hih2g47XpoLA8K_g4VyU9BVpaI1_nVhWjpl1W6dd1sedy5Kmb_yB2jA-IpX-X6YTM5eoTHPUjQXzkRDf8QFYA&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECAoQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › ... › Hỗ trợ sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNctBtAy2pKEdjJrMRO-SdE1c.png",
+     "snippet": "Mua Viên uống DHC Kẽm Zinc (20 Ngày & 60 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC ZinC giá tốt. Mua hàng qua mạng uy tín, tiện lợi. Shopee đảm bảo nhận hàng, ...",
+     "snippet_highlighted_words": [
+      "Viên uống DHC Kẽm Zinc (20 Ngày & 60 Ngày"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 4.9,
+        "reviews": 59249,
+        "price": 128000,
+        "currency": "₫"
+       },
+       "extensions": [
+        "4,9(59.249)",
+        "128.000 ₫",
+        "Còn hàng"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Mua Viên uống DHC Kẽm Zinc (20 Ngày & 60 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC ZinC giá tốt. Mua hàng qua mạng uy tín, tiện lợi. Shopee đảm bảo nhận hàng, ...",
+       "source_info_link": "https://shopee.vn/Vi%C3%AAn-u%E1%BB%91ng-DHC-K%E1%BA%BDm-Zinc-(20-Ng%C3%A0y-60-Ng%C3%A0y)-Th%E1%BB%B1c-ph%E1%BA%A9m-b%E1%BA%A3o-v%E1%BB%87-s%E1%BB%A9c-kho%E1%BA%BB-DHC-ZinC-i.44806875.2308735412",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcpqSwMLzOvCzdoCqaIhz_gjrapS0As1VWGjmC-9Ra1eA.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CuQCL2dvdG8_dXJsPUNBRVNfZ0VCNnpzd0ZZNDAzWF8tN0IzclNqZklLY0ZIdHN2bWFpaEdkZS1aWWUzc3JrUTJWRGNQSHZYXzZHMGtXYWFBQW5qcjBMUHlQNUZqT3FLV0UyU2JRSktoS08tdmVTQ2x5YXNDeFBhcmx2eGVyNS1ULVZ3cVJ1eWdCNkFkcGJ1UWQwSTRUa011Zl9YSVhiWVR1THZObXhRaThaZmFPTUkyU0RJOWQtWmRiQzBlU01wbmRKR1RGV09tWkl5dHFuMW9OemphdExBNk9WLWF0Z21CZVpPSzJfRXRJR0RkOWZmaFg2TUQ3czVIbDJacVRTY1ZSbS1PbzdnRXpDb2tPdFQ3cVJnRWJlUnJDc1V4MHVkSEpUUzB6aTctMm1wUWlUNnF0NkMxazZBNzZkNWQ5TFlpYy12QUtnazAyVE1XRjB4QWZacEYxTEJZWEcxT0lSTWpfaTVDSUESBBoCCAAajAYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWg0IARIJc2hvcGVlLnZucgB6AIJA2QUIQhAAGAAgACoZCgV2acOqbhUgRopAGgt2acOqbnXhu5FuZyoaCgZ14buRbmcVIEaKQBoLdmnDqm514buRbmcqDAoFa-G6vW0VHEuHQDLkAi9nb3RvP3VybD1DQUVTX2dFQjZ6c3dGWTQwM1hfLTdCM3JTamZJS2NGSHRzdm1haWhHZGUtWlllM3Nya1EyVkRjUEh2WF82RzBrV2FhQUFuanIwTFB5UDVGak9xS1dFMlNiUUpLaEtPLXZlU0NseWFzQ3hQYXJsdnhlcjUtVC1Wd3FSdXlnQjZBZHBidVFkMEk0VGtNdWZfWElYYllUdUx2Tm14UWk4WmZhT01JMlNESTlkLVpkYkMwZVNNcG5kSkdURldPbVpJeXRxbjFvTnpqYXRMQTZPVi1hdGdtQmVaT0syX0V0SUdEZDlmZmhYNk1EN3M1SGwyWnFUU2NWUm0tT283Z0V6Q29rT3RUN3FSZ0ViZVJyQ3NVeDB1ZEhKVFMwemk3LTJtcFFpVDZxdDZDMWs2QTc2ZDVkOUxZaWMtdkFLZ2swMlRNV0YweEFmWnBGMUxCWVhHMU9JUk1qX2k1Q0lBOkw8Yj5WacOqbiB14buRbmc8L2I-IERIQyA8Yj5L4bq9bTwvYj4gWmluYyAoMjAgTmfDoHkgJmFtcDsgNjAgTmfDoHkpIC0gU2hvcGVlQtQBTXVhIDxiPlZpw6puIHXhu5FuZyBESEMgS-G6vW0gWmluYyAoMjAgTmfDoHkgJmFtcDsgNjAgTmfDoHk8L2I-KSAtIFRo4buxYyBwaOG6qW0gYuG6o28gduG7hyBz4bupYyBraG_hursgREhDIFppbkMgZ2nDoSB04buRdC4gTXVhIGjDoG5nIHF1YSBt4bqhbmcgdXkgdMOtbiwgdGnhu4duIGzhu6NpLiBTaG9wZWUgxJHhuqNtIGLhuqNvIG5o4bqtbiBow6BuZywmbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CuQCL2dvdG8_dXJsPUNBRVNfZ0VCNnpzd0ZZNDAzWF8tN0IzclNqZklLY0ZIdHN2bWFpaEdkZS1aWWUzc3JrUTJWRGNQSHZYXzZHMGtXYWFBQW5qcjBMUHlQNUZqT3FLV0UyU2JRSktoS08tdmVTQ2x5YXNDeFBhcmx2eGVyNS1ULVZ3cVJ1eWdCNkFkcGJ1UWQwSTRUa011Zl9YSVhiWVR1THZObXhRaThaZmFPTUkyU0RJOWQtWmRiQzBlU01wbmRKR1RGV09tWkl5dHFuMW9OemphdExBNk9WLWF0Z21CZVpPSzJfRXRJR0RkOWZmaFg2TUQ3czVIbDJacVRTY1ZSbS1PbzdnRXpDb2tPdFQ3cVJnRWJlUnJDc1V4MHVkSEpUUzB6aTctMm1wUWlUNnF0NkMxazZBNzZkNWQ5TFlpYy12QUtnazAyVE1XRjB4QWZacEYxTEJZWEcxT0lSTWpfaTVDSUESBBoCCAAajAYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWg0IARIJc2hvcGVlLnZucgB6AIJA2QUIQhAAGAAgACoZCgV2acOqbhUgRopAGgt2acOqbnXhu5FuZyoaCgZ14buRbmcVIEaKQBoLdmnDqm514buRbmcqDAoFa-G6vW0VHEuHQDLkAi9nb3RvP3VybD1DQUVTX2dFQjZ6c3dGWTQwM1hfLTdCM3JTamZJS2NGSHRzdm1haWhHZGUtWlllM3Nya1EyVkRjUEh2WF82RzBrV2FhQUFuanIwTFB5UDVGak9xS1dFMlNiUUpLaEtPLXZlU0NseWFzQ3hQYXJsdnhlcjUtVC1Wd3FSdXlnQjZBZHBidVFkMEk0VGtNdWZfWElYYllUdUx2Tm14UWk4WmZhT01JMlNESTlkLVpkYkMwZVNNcG5kSkdURldPbVpJeXRxbjFvTnpqYXRMQTZPVi1hdGdtQmVaT0syX0V0SUdEZDlmZmhYNk1EN3M1SGwyWnFUU2NWUm0tT283Z0V6Q29rT3RUN3FSZ0ViZVJyQ3NVeDB1ZEhKVFMwemk3LTJtcFFpVDZxdDZDMWs2QTc2ZDVkOUxZaWMtdkFLZ2swMlRNV0YweEFmWnBGMUxCWVhHMU9JUk1qX2k1Q0lBOkw8Yj5WacOqbiB14buRbmc8L2I-IERIQyA8Yj5L4bq9bTwvYj4gWmluYyAoMjAgTmfDoHkgJmFtcDsgNjAgTmfDoHkpIC0gU2hvcGVlQtQBTXVhIDxiPlZpw6puIHXhu5FuZyBESEMgS-G6vW0gWmluYyAoMjAgTmfDoHkgJmFtcDsgNjAgTmfDoHk8L2I-KSAtIFRo4buxYyBwaOG6qW0gYuG6o28gduG7hyBz4bupYyBraG_hursgREhDIFppbkMgZ2nDoSB04buRdC4gTXVhIGjDoG5nIHF1YSBt4bqhbmcgdXkgdMOtbiwgdGnhu4duIGzhu6NpLiBTaG9wZWUgxJHhuqNtIGLhuqNvIG5o4bqtbiBow6BuZywmbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 2,
+     "title": "Viên uống DHC Kẽm Zinc (20 Ngày) - Thực phẩm bảo vệ ...",
+     "link": "https://shopee.vn/Vi%C3%AAn-u%E1%BB%91ng-DHC-K%E1%BA%BDm-Zinc-(20-Ng%C3%A0y)-Th%E1%BB%B1c-ph%E1%BA%A9m-b%E1%BA%A3o-v%E1%BB%87-s%E1%BB%A9c-kho%E1%BA%BB-DHC-ZinC-i.44806875.3161285844",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAES8QEB6zswFVUqh8kYQ_TmrmpUjOy7CDyEhWHx8SiwUfIiqUBhGLQwfKooMHYcQH4eZhlElhNWsjnxf5bz-XwoP2ku7UIKGzCogeeYBwryfjTlD2cv4g5Tmy2PmS0-6K-0Ddv_wdaPle72jJa4oM03qr35LoKT5YQxBfsz7SZIw-l-AVBZgPJ3UUN28auIwySeWw-16Ckog1kXOnP94qndttlrm1MwVcvV-umKXEDhaIQuxoqN86a7Uzk7C3xcwSToQSli5gXs2jg17oW-BpaPda7qZSrY5iqqjibtDTYZne3vTU5X1O_gtmuaufVm5zwHd4JV&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECAsQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › ... › Hỗ trợ sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcpqEpmZfIQYsw3wIoa59kok.png",
+     "snippet": "Viên uống DHC Kẽm Zinc (20 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC ZinC. icon video play. button back to video. 1/10. 128.000₫. 130.000₫. -2%. Mua để nhận quà.",
+     "snippet_highlighted_words": [
+      "Viên uống DHC Kẽm Zinc (20 Ngày"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 4.9,
+        "reviews": 5899,
+        "price": 128000,
+        "currency": "₫"
+       },
+       "extensions": [
+        "4,9(5.899)",
+        "128.000 ₫",
+        "Còn hàng"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống DHC Kẽm Zinc (20 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC ZinC. icon video play. button back to video. 1/10. 128.000₫. 130.000₫. -2%. Mua để nhận quà.",
+       "source_info_link": "https://shopee.vn/Vi%C3%AAn-u%E1%BB%91ng-DHC-K%E1%BA%BDm-Zinc-(20-Ng%C3%A0y)-Th%E1%BB%B1c-ph%E1%BA%A9m-b%E1%BA%A3o-v%E1%BB%87-s%E1%BB%A9c-kho%E1%BA%BB-DHC-ZinC-i.44806875.3161285844",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcrM0tJmoHtAld0Hb2xY8xyt9tHaQzIoeXyGpLmkVIa9M.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtICL2dvdG8_dXJsPUNBRVM4UUVCNnpzd0ZXSXhoaFlSbDBYMTZ0Z04zS1ZWVzVOWGVpYUtfanpSUnBTVkFzMmF1M0JWYURjeGxjMkx3SWdDSHg1YjNWN1RXM3M2V2NfNFh6cFh3ZDhBMG9uOVI0WEJRWER2aGZhdkVLTW5OeklkLWt3cUZMb3dtX3BGUmNWQjVMTEI4aW90aUpXVFlVTy1HMGlNemIyQXRTOEJhMUZzd1Bmc3kyTXR5MlVKNFcwdTNGNVd4b1NWRUZrOWNOTHhlUFVfcTlELWpfZHNYVGg0M1g2OWx1N1FXWmN3MnY0Q0hTRTE4el9jaU01Mmo3XzZiNmc3clpuR0hxVm9pTXI4ckZrQjd6cmVWMU5haFprZS1wRFlJMW1MSkczamswWTEySm1hRXVIY2pLMEdXZWNkdHMzR0huYndSdnQ3ODIzNWFEbk0SBBoCCAAa8QUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoNCAESCXNob3BlZS52bnIAegCCQMAFCEIQABgAIAAqGQoFdmnDqm4VCICOQBoLdmnDqm514buRbmcqGgoGdeG7kW5nFQiAjkAaC3Zpw6pudeG7kW5nKgwKBWvhur1tFZGvi0Ay0gIvZ290bz91cmw9Q0FFUzhRRUI2enN3RldJeGhoWVJsMFgxNnRnTjNLVlZXNU5YZWlhS19qelJScFNWQXMyYXUzQlZhRGN4bGMyTHdJZ0NIeDViM1Y3VFczczZXY180WHpwWHdkOEEwb245UjRYQlFYRHZoZmF2RUtNbk56SWQta3dxRkxvd21fcEZSY1ZCNUxMQjhpb3RpSldUWVVPLUcwaU16YjJBdFM4QmExRnN3UGZzeTJNdHkyVUo0VzB1M0Y1V3hvU1ZFRms5Y05MeGVQVV9xOUQtal9kc1hUaDQzWDY5bHU3UVdaY3cydjRDSFNFMTh6X2NpTTUyajdfNmI2ZzdyWm5HSHFWb2lNcjhyRmtCN3pyZVYxTmFoWmtlLXBEWUkxbUxKRzNqazBZMTJKbWFFdUhjakswR1dlY2R0czNHSG5id1J2dDc4MjM1YURuTTpZPGI-VmnDqm4gdeG7kW5nPC9iPiBESEMgPGI-S-G6vW08L2I-IFppbmMgKDIwIE5nw6B5KSAtIFRo4buxYyBwaOG6qW0gYuG6o28gduG7hyBz4bupYyAuLi5CwAE8Yj5WacOqbiB14buRbmcgREhDIEvhur1tIFppbmMgKDIwIE5nw6B5PC9iPikgLSBUaOG7sWMgcGjhuqltIGLhuqNvIHbhu4cgc-G7qWMga2hv4bq7IERIQyBaaW5DLiBpY29uIHZpZGVvIHBsYXkuIGJ1dHRvbiBiYWNrIHRvIHZpZGVvLiAxLzEwLiAxMjguMDAw4oKrLiAxMzAuMDAw4oKrLiAtMiUuIE11YSDEkeG7gyBuaOG6rW4gcXXDoC4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtICL2dvdG8_dXJsPUNBRVM4UUVCNnpzd0ZXSXhoaFlSbDBYMTZ0Z04zS1ZWVzVOWGVpYUtfanpSUnBTVkFzMmF1M0JWYURjeGxjMkx3SWdDSHg1YjNWN1RXM3M2V2NfNFh6cFh3ZDhBMG9uOVI0WEJRWER2aGZhdkVLTW5OeklkLWt3cUZMb3dtX3BGUmNWQjVMTEI4aW90aUpXVFlVTy1HMGlNemIyQXRTOEJhMUZzd1Bmc3kyTXR5MlVKNFcwdTNGNVd4b1NWRUZrOWNOTHhlUFVfcTlELWpfZHNYVGg0M1g2OWx1N1FXWmN3MnY0Q0hTRTE4el9jaU01Mmo3XzZiNmc3clpuR0hxVm9pTXI4ckZrQjd6cmVWMU5haFprZS1wRFlJMW1MSkczamswWTEySm1hRXVIY2pLMEdXZWNkdHMzR0huYndSdnQ3ODIzNWFEbk0SBBoCCAAa8QUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoNCAESCXNob3BlZS52bnIAegCCQMAFCEIQABgAIAAqGQoFdmnDqm4VCICOQBoLdmnDqm514buRbmcqGgoGdeG7kW5nFQiAjkAaC3Zpw6pudeG7kW5nKgwKBWvhur1tFZGvi0Ay0gIvZ290bz91cmw9Q0FFUzhRRUI2enN3RldJeGhoWVJsMFgxNnRnTjNLVlZXNU5YZWlhS19qelJScFNWQXMyYXUzQlZhRGN4bGMyTHdJZ0NIeDViM1Y3VFczczZXY180WHpwWHdkOEEwb245UjRYQlFYRHZoZmF2RUtNbk56SWQta3dxRkxvd21fcEZSY1ZCNUxMQjhpb3RpSldUWVVPLUcwaU16YjJBdFM4QmExRnN3UGZzeTJNdHkyVUo0VzB1M0Y1V3hvU1ZFRms5Y05MeGVQVV9xOUQtal9kc1hUaDQzWDY5bHU3UVdaY3cydjRDSFNFMTh6X2NpTTUyajdfNmI2ZzdyWm5HSHFWb2lNcjhyRmtCN3pyZVYxTmFoWmtlLXBEWUkxbUxKRzNqazBZMTJKbWFFdUhjakswR1dlY2R0czNHSG5id1J2dDc4MjM1YURuTTpZPGI-VmnDqm4gdeG7kW5nPC9iPiBESEMgPGI-S-G6vW08L2I-IFppbmMgKDIwIE5nw6B5KSAtIFRo4buxYyBwaOG6qW0gYuG6o28gduG7hyBz4bupYyAuLi5CwAE8Yj5WacOqbiB14buRbmcgREhDIEvhur1tIFppbmMgKDIwIE5nw6B5PC9iPikgLSBUaOG7sWMgcGjhuqltIGLhuqNvIHbhu4cgc-G7qWMga2hv4bq7IERIQyBaaW5DLiBpY29uIHZpZGVvIHBsYXkuIGJ1dHRvbiBiYWNrIHRvIHZpZGVvLiAxLzEwLiAxMjguMDAw4oKrLiAxMzAuMDAw4oKrLiAtMiUuIE11YSDEkeG7gyBuaOG6rW4gcXXDoC4iAhABSABYAGgA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 3,
+     "title": "Viên kẽm hấp thu tốt, đa dạng lựa chọn",
+     "link": "https://shopee.vn/list/vi%C3%AAn%20k%E1%BA%BDm",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESaQHrOzAVLOLRu8swO72GAHvGfihgUdJULYIVg5vneXrOSAOqn_4OThGYY-15ykFSTVWRivRPmgJS5uM3wjcjeJPclIH-_cwZdFi_SZxqa2-QspXzPf1sog1VVtgbSXJPNznP6AqXxgcJMA&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECAgQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › list › viên kẽm",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNctVoAsEB121lyf9GM1c5DAY.png",
+     "snippet": "Uống viên kẽm vào lúc nào trong ngày là tốt nhất? Thời điểm lý tưởng để uống viên kẽm là sau bữa ăn từ 1 đến 2 giờ. Uống kẽm khi bụng đói có thể gây ra cảm giác ...",
+     "snippet_highlighted_words": [
+      "sau bữa ăn từ 1 đến 2 giờ"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 4.5,
+        "điểm_xếp_hạng_của_cửa_hàng": 625
+       },
+       "extensions": [
+        "4,5",
+        "điểm xếp hạng của cửa hàng (625)"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Uống viên kẽm vào lúc nào trong ngày là tốt nhất? Thời điểm lý tưởng để uống viên kẽm là sau bữa ăn từ 1 đến 2 giờ. Uống kẽm khi bụng đói có thể gây ra cảm giác ...",
+       "source_info_link": "https://shopee.vn/list/vi%C3%AAn%20k%E1%BA%BDm",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcgT3GChEga9NyoXs8S2tGFs9iXT2P_oXZ2l-UCcIYq5_.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpwBL2dvdG8_dXJsPUNBRVNhUUhyT3pBVlFlUVBDellrdTJWeU1HbVcteW9ORm9wVDBMNVY5ZFI5aUZnaGdBWjVDcm5JMWFQd2lTWm5JZXptTEtudnJsU1oxeURXWmhUcVFGWFlwQTEwVi14WUF1X2RCNUpRUDlyVXZNUzV5dWRveDZITEpBWXlITEp3dXc0TkM1MTVTRHlDdEN3NlJBEgQaAggAGtIEEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkChBAhCEAAYACAAKhkKBXZpw6puFcXZs0AaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVRKCxAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRXN-rpAMpwBL2dvdG8_dXJsPUNBRVNhUUhyT3pBVlFlUVBDellrdTJWeU1HbVcteW9ORm9wVDBMNVY5ZFI5aUZnaGdBWjVDcm5JMWFQd2lTWm5JZXptTEtudnJsU1oxeURXWmhUcVFGWFlwQTEwVi14WUF1X2RCNUpRUDlyVXZNUzV5dWRveDZITEpBWXlITEp3dXc0TkM1MTVTRHlDdEN3NlJBOkc8Yj5WacOqbiBr4bq9bTwvYj4gaOG6pXAgdGh1IHThu5F0LCDEkWEgZOG6oW5nIGzhu7FhIGNo4buNbiB8IFNob3BlZSBWTkLpAVXhu5FuZyB2acOqbiBr4bq9bSB2w6BvIGzDumMgbsOgbyB0cm9uZyBuZ8OgeSBsw6AgdOG7kXQgbmjhuqV0PyBUaOG7nWkgxJFp4buDbSBsw70gdMaw4bufbmcgxJHhu4MgdeG7kW5nIHZpw6puIGvhur1tIGzDoCA8Yj5zYXUgYuG7r2EgxINuIHThu6sgMSDEkeG6v24gMiBnaeG7nTwvYj4uIFXhu5FuZyBr4bq9bSBraGkgYuG7pW5nIMSRw7NpIGPDsyB0aOG7gyBnw6J5IHJhIGPhuqNtIGdpw6FjJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpwBL2dvdG8_dXJsPUNBRVNhUUhyT3pBVlFlUVBDellrdTJWeU1HbVcteW9ORm9wVDBMNVY5ZFI5aUZnaGdBWjVDcm5JMWFQd2lTWm5JZXptTEtudnJsU1oxeURXWmhUcVFGWFlwQTEwVi14WUF1X2RCNUpRUDlyVXZNUzV5dWRveDZITEpBWXlITEp3dXc0TkM1MTVTRHlDdEN3NlJBEgQaAggAGtIEEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkChBAhCEAAYACAAKhkKBXZpw6puFcXZs0AaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVRKCxAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRXN-rpAMpwBL2dvdG8_dXJsPUNBRVNhUUhyT3pBVlFlUVBDellrdTJWeU1HbVcteW9ORm9wVDBMNVY5ZFI5aUZnaGdBWjVDcm5JMWFQd2lTWm5JZXptTEtudnJsU1oxeURXWmhUcVFGWFlwQTEwVi14WUF1X2RCNUpRUDlyVXZNUzV5dWRveDZITEpBWXlITEp3dXc0TkM1MTVTRHlDdEN3NlJBOkc8Yj5WacOqbiBr4bq9bTwvYj4gaOG6pXAgdGh1IHThu5F0LCDEkWEgZOG6oW5nIGzhu7FhIGNo4buNbiB8IFNob3BlZSBWTkLpAVXhu5FuZyB2acOqbiBr4bq9bSB2w6BvIGzDumMgbsOgbyB0cm9uZyBuZ8OgeSBsw6AgdOG7kXQgbmjhuqV0PyBUaOG7nWkgxJFp4buDbSBsw70gdMaw4bufbmcgxJHhu4MgdeG7kW5nIHZpw6puIGvhur1tIGzDoCA8Yj5zYXUgYuG7r2EgxINuIHThu6sgMSDEkeG6v24gMiBnaeG7nTwvYj4uIFXhu5FuZyBr4bq9bSBraGkgYuG7pW5nIMSRw7NpIGPDsyB0aOG7gyBnw6J5IHJhIGPhuqNtIGdpw6FjJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 4,
+     "title": "viên uống bổ sung kẽm hấp thu tốt, đề kháng mạnh",
+     "link": "https://shopee.vn/list/vi%C3%AAn%20u%E1%BB%91ng%20b%E1%BB%95%20sung%20k%E1%BA%BDm",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESjAEB6zswFQnYGhI7llcd1FDvMsmSpaJOUW7Er-fC3CqrCQaHe1ITBK4Uv_s0FJgPHaaYlH8U8RF5OAjcZ4QTOjEvcKRItJz2_jsiaXBwgFCuhFMJFdV67G425_SDAyFIsCkhtqPaRFcYc9jUp1T3pdmWgJWcvavdk78gNg2awgDxAbLBrGLxz0Ta3lUnPQ&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECAwQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › list › viên uống bổ sung kẽm",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNchVMU3VI3SYTRJ_S8d-1teo.png",
+     "snippet": "viên uống bổ sung kẽm hỗ trợ miễn dịch, da tóc móng khỏe. Hàm lượng 15–30 mg/viên, lọ 60–120 viên trên Shopee Việt Nam. Thêm vào giỏ để nhận ưu đãi.",
+     "snippet_highlighted_words": [
+      "viên uống bổ sung kẽm hỗ trợ miễn dịch, da tóc móng khỏe"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "viên uống bổ sung kẽm hỗ trợ miễn dịch, da tóc móng khỏe. Hàm lượng 15–30 mg/viên, lọ 60–120 viên trên Shopee Việt Nam. Thêm vào giỏ để nhận ưu đãi.",
+       "source_info_link": "https://shopee.vn/list/vi%C3%AAn%20u%E1%BB%91ng%20b%E1%BB%95%20sung%20k%E1%BA%BDm",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcvCJfvqUjbQji99koSZC_T0K3QoqkjeS9ctrRP5CK-N2.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CswBL2dvdG8_dXJsPUNBRVNqQUVCNnpzd0ZUTk51N3hqTDJkSk9Ma1BSdWs5Q084NFR5UE5pekQ3NlZ3UDRwQl93M3EwZzBrc0dUa25DZzJZeUpaLWZ6bmhSNXNYak44dzc0X2VlTzVFYk5Qbk1aUG01NWR4MG5GTlFHN2V0d2RzQ1RLRERycEN1d01RUlMtQ1BwSmc0WDYySkdEVGpRLVRpcUMxYjhwNm9sRzVrQlZRNDVyTUszNnhtLUlEQlVMS1cxWkx3SFQ3ekdlRk5BEgQaAggAGvMEEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkDCBAhCEAAYACAAKhkKBXZpw6puFYobvkAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVi77FAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRU3ksdAMswBL2dvdG8_dXJsPUNBRVNqQUVCNnpzd0ZUTk51N3hqTDJkSk9Ma1BSdWs5Q084NFR5UE5pekQ3NlZ3UDRwQl93M3EwZzBrc0dUa25DZzJZeUpaLWZ6bmhSNXNYak44dzc0X2VlTzVFYk5Qbk1aUG01NWR4MG5GTlFHN2V0d2RzQ1RLRERycEN1d01RUlMtQ1BwSmc0WDYySkdEVGpRLVRpcUMxYjhwNm9sRzVrQlZRNDVyTUszNnhtLUlEQlVMS1cxWkx3SFQ3ekdlRk5BOlg8Yj52acOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gaOG6pXAgdGh1IHThu5F0LCDEkeG7gSBraMOhbmcgbeG6oW5oIC0gU2hvcGVlQskBPGI-dmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBr4bq9bSBo4buXIHRy4bujIG1p4buFbiBk4buLY2gsIGRhIHTDs2MgbcOzbmcga2jhu49lPC9iPi4gSMOgbSBsxrDhu6NuZyAxNeKAkzMwIG1nL3Zpw6puLCBs4buNIDYw4oCTMTIwIHZpw6puIHRyw6puIFNob3BlZSBWaeG7h3QgTmFtLiBUaMOqbSB2w6BvIGdp4buPIMSR4buDIG5o4bqtbiDGsHUgxJHDo2kuIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CswBL2dvdG8_dXJsPUNBRVNqQUVCNnpzd0ZUTk51N3hqTDJkSk9Ma1BSdWs5Q084NFR5UE5pekQ3NlZ3UDRwQl93M3EwZzBrc0dUa25DZzJZeUpaLWZ6bmhSNXNYak44dzc0X2VlTzVFYk5Qbk1aUG01NWR4MG5GTlFHN2V0d2RzQ1RLRERycEN1d01RUlMtQ1BwSmc0WDYySkdEVGpRLVRpcUMxYjhwNm9sRzVrQlZRNDVyTUszNnhtLUlEQlVMS1cxWkx3SFQ3ekdlRk5BEgQaAggAGvMEEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkDCBAhCEAAYACAAKhkKBXZpw6puFYobvkAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVi77FAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRU3ksdAMswBL2dvdG8_dXJsPUNBRVNqQUVCNnpzd0ZUTk51N3hqTDJkSk9Ma1BSdWs5Q084NFR5UE5pekQ3NlZ3UDRwQl93M3EwZzBrc0dUa25DZzJZeUpaLWZ6bmhSNXNYak44dzc0X2VlTzVFYk5Qbk1aUG01NWR4MG5GTlFHN2V0d2RzQ1RLRERycEN1d01RUlMtQ1BwSmc0WDYySkdEVGpRLVRpcUMxYjhwNm9sRzVrQlZRNDVyTUszNnhtLUlEQlVMS1cxWkx3SFQ3ekdlRk5BOlg8Yj52acOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gaOG6pXAgdGh1IHThu5F0LCDEkeG7gSBraMOhbmcgbeG6oW5oIC0gU2hvcGVlQskBPGI-dmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBr4bq9bSBo4buXIHRy4bujIG1p4buFbiBk4buLY2gsIGRhIHTDs2MgbcOzbmcga2jhu49lPC9iPi4gSMOgbSBsxrDhu6NuZyAxNeKAkzMwIG1nL3Zpw6puLCBs4buNIDYw4oCTMTIwIHZpw6puIHRyw6puIFNob3BlZSBWaeG7h3QgTmFtLiBUaMOqbSB2w6BvIGdp4buPIMSR4buDIG5o4bqtbiDGsHUgxJHDo2kuIgIQAUgAWABoAA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 5,
+     "title": "Viên Uống Kẽm DHC Zinc Hỗ Trợ Làm Đẹp Da, Khỏe Tóc ...",
+     "link": "https://shopee.vn/Vi%C3%AAn-U%E1%BB%91ng-K%E1%BA%BDm-DHC-Zinc-H%E1%BB%97-Tr%E1%BB%A3-L%C3%A0m-%C4%90%E1%BA%B9p-Da-Kh%E1%BB%8Fe-T%C3%B3c-T%E1%BB%91t-Cho-Tr%C3%AD-N%C3%A3o-30-Ng%C3%A0y-i.1093906936.24951105459",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESiwIB6zswFSAKWZC4jdbhrSLTorvi-EtmwYTYDjKTGu9DgaBP_0Dk6s5auLgB4VM_iRR2gaFtIRrlb0n3hfoRXmbEQfXrc1ezJQVf-ymbTV3JfHvxg9kEz04mN1eRfmZ8O2i6FJo_X6072qZEb395UptM8qlKNMcu8qrl87g19VGS9zoKJYagMRXrqapEXb_Do0lp_scLgzFlJn7XJuDYbCnv7xUYXGH7NNLYyXMD_WXjBAnorXdgGjNO-iDHy8aag_VHFJC39OAAMlwD4HsSziowBj0zxGQnAjpW8NSvzB02rhUjpMj2z-agJv1E-kfnEKFDDUTDs1EMoUlbK7TblOlVsqZEG7qdPikmt6Q&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECA0QAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › Sức Khỏe › Hỗ trợ làm đẹp",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNct4-HlWr4edthPEXLCJ5IQ8.png",
+     "snippet": "Mua Viên Uống Kẽm DHC Zinc Hỗ Trợ Làm Đẹp Da, Khỏe Tóc, Tốt Cho Trí Não 30 Ngày giá tốt. Mua hàng qua mạng uy tín, tiện lợi. Shopee đảm bảo nhận hàng, ...",
+     "snippet_highlighted_words": [
+      "Viên Uống Kẽm DHC Zinc Hỗ Trợ Làm Đẹp Da, Khỏe Tóc, Tốt Cho Trí Não 30 Ngày"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 4.9,
+        "reviews": 296,
+        "price": 127400,
+        "currency": "₫"
+       },
+       "extensions": [
+        "4,9(296)",
+        "127.400 ₫",
+        "Còn hàng"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Mua Viên Uống Kẽm DHC Zinc Hỗ Trợ Làm Đẹp Da, Khỏe Tóc, Tốt Cho Trí Não 30 Ngày giá tốt. Mua hàng qua mạng uy tín, tiện lợi. Shopee đảm bảo nhận hàng, ...",
+       "source_info_link": "https://shopee.vn/Vi%C3%AAn-U%E1%BB%91ng-K%E1%BA%BDm-DHC-Zinc-H%E1%BB%97-Tr%E1%BB%A3-L%C3%A0m-%C4%90%E1%BA%B9p-Da-Kh%E1%BB%8Fe-T%C3%B3c-T%E1%BB%91t-Cho-Tr%C3%AD-N%C3%A3o-30-Ng%C3%A0y-i.1093906936.24951105459",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcpM25t_6EHvvdQ26ZKzAQ_5PXBdfYuZ-A7qwQnxkyCgQ.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvUCL2dvdG8_dXJsPUNBRVNpd0lCNnpzd0ZjSUZEMmlZWTN4T0VDVktXbDU5clhreHAzZnVQeDByZGxZVlQ5QUFJMW5CWHlmM3NaT0RHazQtVXllaEdkamVvQzJzRm90V2tNRXdHYkZfRHpiLU8wUmlQYzFKNmtOOVFHY1lpVlA3eHlMVW04Tm9MOWMza1d4bXdJNzVHbU9GNUROMGo4a3UwaDZQbVNwVEI4bnlabHpDaE95c01oaGN3QVVvRGVRWVdUM3ZqZ0xDZkdoSjEyLXdlT1VDQVE1NW1VQUFpSU9VMEdvVnBjcHpaRzNab1JLY0pPSXI4bTNtTmVlbE9YV0J2N1g1RFp1c002bkg5d1J4RXJGLWVrVWJvNmFyTG9jNU11ZkwwLWJsaGd3enNqNkl5SVkzT3RpRi1tWnhaRlpJajZWaHRxMUVmZ2tfOS1QTU1hbDR1dlJTR3d4eHJjT2djZ1BFci1BTWxSSklnb05ZVlJTWFM0YxIEGgIIABqdBhIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWg0IARIJc2hvcGVlLnZucgB6AIJA7AUIQhAAGAAgACoZCgV2acOqbhXe23RAGgt2acOqbnXhu5FuZyoaCgZ14buRbmcV3tt0QBoLdmnDqm514buRbmcqDAoFa-G6vW0V3tt0QDL1Ai9nb3RvP3VybD1DQUVTaXdJQjZ6c3dGY0lGRDJpWVkzeE9FQ1ZLV2w1OXJYa3hwM2Z1UHgwcmRsWVZUOUFBSTFuQlh5ZjNzWk9ER2s0LVV5ZWhHZGplb0Myc0ZvdFdrTUV3R2JGX0R6Yi1PMFJpUGMxSjZrTjlRR2NZaVZQN3h5TFVtOE5vTDljM2tXeG13STc1R21PRjVETjBqOGt1MGg2UG1TcFRCOG55Wmx6Q2hPeXNNaGhjd0FVb0RlUVlXVDN2amdMQ2ZHaEoxMi13ZU9VQ0FRNTVtVUFBaUlPVTBHb1ZwY3B6WkczWm9SS2NKT0lyOG0zbU5lZWxPWFdCdjdYNURadXNNNm5IOXdSeEVyRi1la1VibzZhckxvYzVNdWZMMC1ibGhnd3pzajZJeUlZM090aUYtbVp4WkZaSWo2Vmh0cTFFZmdrXzktUE1NYWw0dXZSU0d3eHhyY09nY2dQRXItQU1sUkpJZ29OWVZSU1hTNGM6VDxiPlZpw6puIFXhu5FuZyBL4bq9bTwvYj4gREhDIFppbmMgSOG7lyBUcuG7oyBMw6BtIMSQ4bq5cCBEYSwgS2jhu49lIFTDs2MsIFThu5F0IC4uLkLOAU11YSA8Yj5WacOqbiBV4buRbmcgS-G6vW0gREhDIFppbmMgSOG7lyBUcuG7oyBMw6BtIMSQ4bq5cCBEYSwgS2jhu49lIFTDs2MsIFThu5F0IENobyBUcsOtIE7Do28gMzAgTmfDoHk8L2I-IGdpw6EgdOG7kXQuIE11YSBow6BuZyBxdWEgbeG6oW5nIHV5IHTDrW4sIHRp4buHbiBs4bujaS4gU2hvcGVlIMSR4bqjbSBi4bqjbyBuaOG6rW4gaMOgbmcsJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvUCL2dvdG8_dXJsPUNBRVNpd0lCNnpzd0ZjSUZEMmlZWTN4T0VDVktXbDU5clhreHAzZnVQeDByZGxZVlQ5QUFJMW5CWHlmM3NaT0RHazQtVXllaEdkamVvQzJzRm90V2tNRXdHYkZfRHpiLU8wUmlQYzFKNmtOOVFHY1lpVlA3eHlMVW04Tm9MOWMza1d4bXdJNzVHbU9GNUROMGo4a3UwaDZQbVNwVEI4bnlabHpDaE95c01oaGN3QVVvRGVRWVdUM3ZqZ0xDZkdoSjEyLXdlT1VDQVE1NW1VQUFpSU9VMEdvVnBjcHpaRzNab1JLY0pPSXI4bTNtTmVlbE9YV0J2N1g1RFp1c002bkg5d1J4RXJGLWVrVWJvNmFyTG9jNU11ZkwwLWJsaGd3enNqNkl5SVkzT3RpRi1tWnhaRlpJajZWaHRxMUVmZ2tfOS1QTU1hbDR1dlJTR3d4eHJjT2djZ1BFci1BTWxSSklnb05ZVlJTWFM0YxIEGgIIABqdBhIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWg0IARIJc2hvcGVlLnZucgB6AIJA7AUIQhAAGAAgACoZCgV2acOqbhXe23RAGgt2acOqbnXhu5FuZyoaCgZ14buRbmcV3tt0QBoLdmnDqm514buRbmcqDAoFa-G6vW0V3tt0QDL1Ai9nb3RvP3VybD1DQUVTaXdJQjZ6c3dGY0lGRDJpWVkzeE9FQ1ZLV2w1OXJYa3hwM2Z1UHgwcmRsWVZUOUFBSTFuQlh5ZjNzWk9ER2s0LVV5ZWhHZGplb0Myc0ZvdFdrTUV3R2JGX0R6Yi1PMFJpUGMxSjZrTjlRR2NZaVZQN3h5TFVtOE5vTDljM2tXeG13STc1R21PRjVETjBqOGt1MGg2UG1TcFRCOG55Wmx6Q2hPeXNNaGhjd0FVb0RlUVlXVDN2amdMQ2ZHaEoxMi13ZU9VQ0FRNTVtVUFBaUlPVTBHb1ZwY3B6WkczWm9SS2NKT0lyOG0zbU5lZWxPWFdCdjdYNURadXNNNm5IOXdSeEVyRi1la1VibzZhckxvYzVNdWZMMC1ibGhnd3pzajZJeUlZM090aUYtbVp4WkZaSWo2Vmh0cTFFZmdrXzktUE1NYWw0dXZSU0d3eHhyY09nY2dQRXItQU1sUkpJZ29OWVZSU1hTNGM6VDxiPlZpw6puIFXhu5FuZyBL4bq9bTwvYj4gREhDIFppbmMgSOG7lyBUcuG7oyBMw6BtIMSQ4bq5cCBEYSwgS2jhu49lIFTDs2MsIFThu5F0IC4uLkLOAU11YSA8Yj5WacOqbiBV4buRbmcgS-G6vW0gREhDIFppbmMgSOG7lyBUcuG7oyBMw6BtIMSQ4bq5cCBEYSwgS2jhu49lIFTDs2MsIFThu5F0IENobyBUcsOtIE7Do28gMzAgTmfDoHk8L2I-IGdpw6EgdOG7kXQuIE11YSBow6BuZyBxdWEgbeG6oW5nIHV5IHTDrW4sIHRp4buHbiBs4bujaS4gU2hvcGVlIMSR4bqjbSBi4bqjbyBuaOG6rW4gaMOgbmcsJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 6,
+     "title": "[Live] Combo Viên uống DHC Vitamin C + Kẽm (60 Ngày) ...",
+     "link": "https://shopee.vn/-Live-Combo-Vi%C3%AAn-u%E1%BB%91ng-DHC-Vitamin-C-K%E1%BA%BDm-(60-Ng%C3%A0y)-h%E1%BB%97-tr%E1%BB%A3-duy-tr%C3%AC-s%E1%BB%A9c-kh%E1%BB%8Fe-gi%C3%BAp-da-s%C3%A1ng-m%E1%BB%8Bn-TPBVSK-DHC-Vitamin-C-Zinc-i.44806875.25315193813",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESqgIB6zswFXqQPOcsPYL2DZimfj-Waxj1vUm5Xats3KE5lPovDL6kk5ma7JUXwQDsWU3Cz1ZISUgzyDS8F-Fd0mxnTVxxcfaUAUx203JuUDNzYkbxn-jqKvBE8YI1IdwfwKSf_ZAQgVGBSsuo273uuffeeBr-9WNvON3Rwb915WWvo_ZOBv7iwRIJf1kpe_tOAnpEO1zI2Rf9vAOzgwoDwtv-0oxrcQOZtEfBSFXrqVDYn0k3O1RMGVeioIPC2F8TuurZ4wKjHnSdu1udR7erWwQsSltHqm11qupwU7A_W5Kjyaqr-x17-bsI79BEHUVVpIiVENKIO-elv-PodY4pWOoXroDUXlwyNuc_jnfTNaXIG06k12av-RzopSw_xgyUUNEmRFDgQEZRzD8B&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECA4QAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › ... › Hỗ trợ sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcqOP76BH2n1jfb-oTEZPods.png",
+     "snippet": "Mua [Live] Combo Viên uống DHC Vitamin C + Kẽm (60 Ngày) hỗ trợ duy trì sức khỏe, giúp da sáng mịn-TPBVSK DHC Vitamin C+Zinc giá tốt.",
+     "snippet_highlighted_words": [
+      "Viên uống",
+      "Kẽm"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 5.0,
+        "reviews": 680,
+        "price": 580000,
+        "currency": "₫"
+       },
+       "extensions": [
+        "5,0(680)",
+        "580.000 ₫",
+        "Còn hàng"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Mua [Live] Combo Viên uống DHC Vitamin C + Kẽm (60 Ngày) hỗ trợ duy trì sức khỏe, giúp da sáng mịn-TPBVSK DHC Vitamin C+Zinc giá tốt.",
+       "source_info_link": "https://shopee.vn/-Live-Combo-Vi%C3%AAn-u%E1%BB%91ng-DHC-Vitamin-C-K%E1%BA%BDm-(60-Ng%C3%A0y)-h%E1%BB%97-tr%E1%BB%A3-duy-tr%C3%AC-s%E1%BB%A9c-kh%E1%BB%8Fe-gi%C3%BAp-da-s%C3%A1ng-m%E1%BB%8Bn-TPBVSK-DHC-Vitamin-C-Zinc-i.44806875.25315193813",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcjCY-bw36YGw3H6HWggz0B2sRLQpvgJEGgmfEkA4VMqi.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cp4DL2dvdG8_dXJsPUNBRVNxZ0lCNnpzd0ZURU1Sd0Myb0lmdm9xNzR1RXRZc04xRGNha1FaR0EzSjFYSEVZbTh5bnlzUE9OVkh3X1lfWFNZR3hKSUp3Tzh6cEFPLUlFNVBodE91ZjZpXzRDVWdWaHZSYU1YWkgyVVdoUFQyc2tXSWtDUFVCaXRxZHRJTlFocTVDNWRNZTgyMXVwYVdaUXV5R1ZxS25tMGxoY09ZU2V5VmplQmxJYlJFWmFEMWcyWjduMnMzNnhXUWRiUEs4OVBYbnFzRXJhcFZFa2lfQzNrWng1WHFlb0d0OEJYVjBLYk8tMGgxWm1iR1JFS0p0MHYzcW9zMXRaVGNfRjhyU2RDTnVUbGpadkNJdTRDWUpqR3NJVTJ1VDF5QlZEVFExN1dibWR3UkJKUWN3cFdwbmZFRDZfOGEwRkhnSFU3bjIxdUVuVlplYkUwSl9rb2lZVlR5NmNrcGVEeUs3TmJpc0QwNjA0QXpQMU1GWUY4NHg4ZGIxLUwxeDgtZW5yTFNTTlJmRGNYS0JTc09PaEdtVVZSEgQaAggAGp4GEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkDtBQhCEAAYACAAKhkKBXZpw6puFdVKh0AaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxXVSodAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRW2X4FAMp4DL2dvdG8_dXJsPUNBRVNxZ0lCNnpzd0ZURU1Sd0Myb0lmdm9xNzR1RXRZc04xRGNha1FaR0EzSjFYSEVZbTh5bnlzUE9OVkh3X1lfWFNZR3hKSUp3Tzh6cEFPLUlFNVBodE91ZjZpXzRDVWdWaHZSYU1YWkgyVVdoUFQyc2tXSWtDUFVCaXRxZHRJTlFocTVDNWRNZTgyMXVwYVdaUXV5R1ZxS25tMGxoY09ZU2V5VmplQmxJYlJFWmFEMWcyWjduMnMzNnhXUWRiUEs4OVBYbnFzRXJhcFZFa2lfQzNrWng1WHFlb0d0OEJYVjBLYk8tMGgxWm1iR1JFS0p0MHYzcW9zMXRaVGNfRjhyU2RDTnVUbGpadkNJdTRDWUpqR3NJVTJ1VDF5QlZEVFExN1dibWR3UkJKUWN3cFdwbmZFRDZfOGEwRkhnSFU3bjIxdUVuVlplYkUwSl9rb2lZVlR5NmNrcGVEeUs3TmJpc0QwNjA0QXpQMU1GWUY4NHg4ZGIxLUwxeDgtZW5yTFNTTlJmRGNYS0JTc09PaEdtVVZSOlFbTGl2ZV0gQ29tYm8gPGI-VmnDqm4gdeG7kW5nPC9iPiBESEMgVml0YW1pbiBDICsgPGI-S-G6vW08L2I-ICg2MCBOZ8OgeSkgaOG7lyAuLi5CqQFNdWEgW0xpdmVdIENvbWJvIDxiPlZpw6puIHXhu5FuZzwvYj4gREhDIFZpdGFtaW4gQyArIDxiPkvhur1tPC9iPiAoNjAgTmfDoHkpIGjhu5cgdHLhu6MgZHV5IHRyw6wgc-G7qWMga2jhu49lLCBnacO6cCBkYSBzw6FuZyBt4buLbi1UUEJWU0sgREhDIFZpdGFtaW4gQytaaW5jIGdpw6EgdOG7kXQuIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cp4DL2dvdG8_dXJsPUNBRVNxZ0lCNnpzd0ZURU1Sd0Myb0lmdm9xNzR1RXRZc04xRGNha1FaR0EzSjFYSEVZbTh5bnlzUE9OVkh3X1lfWFNZR3hKSUp3Tzh6cEFPLUlFNVBodE91ZjZpXzRDVWdWaHZSYU1YWkgyVVdoUFQyc2tXSWtDUFVCaXRxZHRJTlFocTVDNWRNZTgyMXVwYVdaUXV5R1ZxS25tMGxoY09ZU2V5VmplQmxJYlJFWmFEMWcyWjduMnMzNnhXUWRiUEs4OVBYbnFzRXJhcFZFa2lfQzNrWng1WHFlb0d0OEJYVjBLYk8tMGgxWm1iR1JFS0p0MHYzcW9zMXRaVGNfRjhyU2RDTnVUbGpadkNJdTRDWUpqR3NJVTJ1VDF5QlZEVFExN1dibWR3UkJKUWN3cFdwbmZFRDZfOGEwRkhnSFU3bjIxdUVuVlplYkUwSl9rb2lZVlR5NmNrcGVEeUs3TmJpc0QwNjA0QXpQMU1GWUY4NHg4ZGIxLUwxeDgtZW5yTFNTTlJmRGNYS0JTc09PaEdtVVZSEgQaAggAGp4GEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkDtBQhCEAAYACAAKhkKBXZpw6puFdVKh0AaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxXVSodAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRW2X4FAMp4DL2dvdG8_dXJsPUNBRVNxZ0lCNnpzd0ZURU1Sd0Myb0lmdm9xNzR1RXRZc04xRGNha1FaR0EzSjFYSEVZbTh5bnlzUE9OVkh3X1lfWFNZR3hKSUp3Tzh6cEFPLUlFNVBodE91ZjZpXzRDVWdWaHZSYU1YWkgyVVdoUFQyc2tXSWtDUFVCaXRxZHRJTlFocTVDNWRNZTgyMXVwYVdaUXV5R1ZxS25tMGxoY09ZU2V5VmplQmxJYlJFWmFEMWcyWjduMnMzNnhXUWRiUEs4OVBYbnFzRXJhcFZFa2lfQzNrWng1WHFlb0d0OEJYVjBLYk8tMGgxWm1iR1JFS0p0MHYzcW9zMXRaVGNfRjhyU2RDTnVUbGpadkNJdTRDWUpqR3NJVTJ1VDF5QlZEVFExN1dibWR3UkJKUWN3cFdwbmZFRDZfOGEwRkhnSFU3bjIxdUVuVlplYkUwSl9rb2lZVlR5NmNrcGVEeUs3TmJpc0QwNjA0QXpQMU1GWUY4NHg4ZGIxLUwxeDgtZW5yTFNTTlJmRGNYS0JTc09PaEdtVVZSOlFbTGl2ZV0gQ29tYm8gPGI-VmnDqm4gdeG7kW5nPC9iPiBESEMgVml0YW1pbiBDICsgPGI-S-G6vW08L2I-ICg2MCBOZ8OgeSkgaOG7lyAuLi5CqQFNdWEgW0xpdmVdIENvbWJvIDxiPlZpw6puIHXhu5FuZzwvYj4gREhDIFZpdGFtaW4gQyArIDxiPkvhur1tPC9iPiAoNjAgTmfDoHkpIGjhu5cgdHLhu6MgZHV5IHRyw6wgc-G7qWMga2jhu49lLCBnacO6cCBkYSBzw6FuZyBt4buLbi1UUEJWU0sgREhDIFZpdGFtaW4gQytaaW5jIGdpw6EgdOG7kXQuIgIQAUgAWABoAA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 7,
+     "title": "Viên uống bổ sung Kẽm DHC ZinC (30 viên)",
+     "link": "https://shopee.vn/Vi%C3%AAn-u%E1%BB%91ng-b%E1%BB%95-sung-K%E1%BA%BDm-DHC-ZinC-(30-vi%C3%AAn)-i.27495839.51718954443",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESrgEB6zswFfiZP5_NYBDCWrO6VaAR4r2Dko2Hxj10SLydy_0M25WqcradrLIi-Ta93tR7bNl38yhMk29UGry6gMjnjumd9AU9B99Q5vATFrulRme-JPOaq7PQvlmnzZZZCrwjgqiPGDdEM_MYCbh_AS9BOwpjKOJvsNMAv_hACo8u_qyARL1MyhPbnG6oL-yyWt27XabevG8e7bRP-spN91KRrnSv3cFWAawP35Xl6dU&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECA8QAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › ... › Hỗ trợ sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcqXBh6stcEgDgmKAYG8SaJs.png",
+     "snippet": "Viên uống bổ sung Kẽm DHC ZinC (30 viên). 1/2. 144.500₫. 170.000₫. -15%. mall inline badge. Viên uống bổ sung Kẽm DHC ZinC (30 viên).",
+     "snippet_highlighted_words": [
+      "Viên uống bổ sung Kẽm DHC ZinC (30 viên"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống bổ sung Kẽm DHC ZinC (30 viên). 1/2. 144.500₫. 170.000₫. -15%. mall inline badge. Viên uống bổ sung Kẽm DHC ZinC (30 viên).",
+       "source_info_link": "https://shopee.vn/Vi%C3%AAn-u%E1%BB%91ng-b%E1%BB%95-sung-K%E1%BA%BDm-DHC-ZinC-(30-vi%C3%AAn)-i.27495839.51718954443",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNclmuzMeJOsL8blvHCVhvdq44QR4ORBCqnv4X4avRqBRy.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvkBL2dvdG8_dXJsPUNBRVNyZ0VCNnpzd0ZSdE5CR2s3NENVV0xaS0lvbkFDd3FXN3h5TUhoLWR4cWVEUk44RWhnSFB1YS1aSmFTSFh1d1QzcThrUmxWLTZYR2FneEp5bnRuUDI5UXNrZ0Q0YlZqZ0xfaHllckZ1dTBJbGFSaHFLOVZyMzQ5REoxTG5hQUd3UFQwdlhCOHdMemZRMkloUUNXR0h2ODFiUWYxdFltdEdFRVA2UHRnMVFldXJxbFZxTEV3eDhkQzl5bHVZcWEweUhPS3dNMmdGdXg2SEtqY1FwSkNCcWhLbDFvYU1saExpSFVUS0hZMzZGeEtJEgQaAggAGvEEEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkDABAhCEAAYACAAKhkKBXZpw6puFYY7pUAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVAKYtAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRU-g4ZAMvkBL2dvdG8_dXJsPUNBRVNyZ0VCNnpzd0ZSdE5CR2s3NENVV0xaS0lvbkFDd3FXN3h5TUhoLWR4cWVEUk44RWhnSFB1YS1aSmFTSFh1d1QzcThrUmxWLTZYR2FneEp5bnRuUDI5UXNrZ0Q0YlZqZ0xfaHllckZ1dTBJbGFSaHFLOVZyMzQ5REoxTG5hQUd3UFQwdlhCOHdMemZRMkloUUNXR0h2ODFiUWYxdFltdEdFRVA2UHRnMVFldXJxbFZxTEV3eDhkQzl5bHVZcWEweUhPS3dNMmdGdXg2SEtqY1FwSkNCcWhLbDFvYU1saExpSFVUS0hZMzZGeEtJOlI8Yj5WacOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5L4bq9bTwvYj4gREhDIFppbkMgKDMwIHZpw6puKSB8IFNob3BlZSBWaeG7h3QgTmFtQqABPGI-VmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBL4bq9bSBESEMgWmluQyAoMzAgdmnDqm48L2I-KS4gMS8yLiAxNDQuNTAw4oKrLiAxNzAuMDAw4oKrLiAtMTUlLiBtYWxsIGlubGluZSBiYWRnZS4gVmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBL4bq9bSBESEMgWmluQyAoMzAgdmnDqm4pLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvkBL2dvdG8_dXJsPUNBRVNyZ0VCNnpzd0ZSdE5CR2s3NENVV0xaS0lvbkFDd3FXN3h5TUhoLWR4cWVEUk44RWhnSFB1YS1aSmFTSFh1d1QzcThrUmxWLTZYR2FneEp5bnRuUDI5UXNrZ0Q0YlZqZ0xfaHllckZ1dTBJbGFSaHFLOVZyMzQ5REoxTG5hQUd3UFQwdlhCOHdMemZRMkloUUNXR0h2ODFiUWYxdFltdEdFRVA2UHRnMVFldXJxbFZxTEV3eDhkQzl5bHVZcWEweUhPS3dNMmdGdXg2SEtqY1FwSkNCcWhLbDFvYU1saExpSFVUS0hZMzZGeEtJEgQaAggAGvEEEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkDABAhCEAAYACAAKhkKBXZpw6puFYY7pUAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVAKYtAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRU-g4ZAMvkBL2dvdG8_dXJsPUNBRVNyZ0VCNnpzd0ZSdE5CR2s3NENVV0xaS0lvbkFDd3FXN3h5TUhoLWR4cWVEUk44RWhnSFB1YS1aSmFTSFh1d1QzcThrUmxWLTZYR2FneEp5bnRuUDI5UXNrZ0Q0YlZqZ0xfaHllckZ1dTBJbGFSaHFLOVZyMzQ5REoxTG5hQUd3UFQwdlhCOHdMemZRMkloUUNXR0h2ODFiUWYxdFltdEdFRVA2UHRnMVFldXJxbFZxTEV3eDhkQzl5bHVZcWEweUhPS3dNMmdGdXg2SEtqY1FwSkNCcWhLbDFvYU1saExpSFVUS0hZMzZGeEtJOlI8Yj5WacOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5L4bq9bTwvYj4gREhDIFppbkMgKDMwIHZpw6puKSB8IFNob3BlZSBWaeG7h3QgTmFtQqABPGI-VmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBL4bq9bSBESEMgWmluQyAoMzAgdmnDqm48L2I-KS4gMS8yLiAxNDQuNTAw4oKrLiAxNzAuMDAw4oKrLiAtMTUlLiBtYWxsIGlubGluZSBiYWRnZS4gVmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBL4bq9bSBESEMgWmluQyAoMzAgdmnDqm4pLiICEAFIAFgAaAA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 8,
+     "title": "Viên uống bổ sung kẽm Blackmores hỗ trợ da & miễn dịch",
+     "link": "https://shopee.vn/list/vi%C3%AAn%20u%E1%BB%91ng%20b%E1%BB%95%20sung%20k%E1%BA%BDm/blackmores",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESlwEB6zswFUwta3som742hYC4BWWE_gotbW9wyQm1tmHdn_AsCVaqwfpzUYNYpKwaF5G8efDMPoZsMcL2OSb0Wmegn4lq0dB_jBuDGdj9kXlVsj3-VNOweZ3oB6duNCbnCxb1VxboaeA5bvHK0ecL94hBRr-lrSvkRFJvuWVu4zPu5IynWmh9y1MogiFNjhb_1Bp9ynA5gY56&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECDMQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › viên uống bổ sung kẽm",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcvS4Cct7Fqbf90_Bdn0eBXo.png",
+     "snippet": "Viên uống bổ sung kẽm Blackmores hỗ trợ da khỏe, tăng miễn dịch. Công thức kẽm + Vitamin A, B6; 84/168 viên, liều 1 viên/ngày. Mua ngay trên Shopee.",
+     "snippet_highlighted_words": [
+      "Viên uống bổ sung kẽm Blackmores hỗ trợ da khỏe, tăng miễn dịch"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống bổ sung kẽm Blackmores hỗ trợ da khỏe, tăng miễn dịch. Công thức kẽm + Vitamin A, B6; 84/168 viên, liều 1 viên/ngày. Mua ngay trên Shopee.",
+       "source_info_link": "https://shopee.vn/list/vi%C3%AAn%20u%E1%BB%91ng%20b%E1%BB%95%20sung%20k%E1%BA%BDm/blackmores",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcst4a6XkotalAZHaJ6PuFfDfTTBlZtaq2nXzXPa9icPY.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtoBL2dvdG8_dXJsPUNBRVNsd0VCNnpzd0ZmVU5BR2hDWnA3eGpPYmVLZnBuS2x3UE4xaXRxT3BYZU90QlZkUV9XQ0p4TVdNT2VSeHVVd2szbUF4Z1lKRWVadU5NN0tUU0QwbURscmx6R1RwSG9OSG9hMVNrZkc0bVdCb2xZTk5za1I5eXFoQ2V1RUxSb0pLb0haaVZyczc2U3pJdThET1hZLXZpbG5CLW5tekZJcmxQN29LbzJYZGdrUjhBM1R0TjNxdzNjaFVWaHBqRkJRcXdoTEtGRGYtVk4wM0ISBBoCCAAa7wQSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoNCAESCXNob3BlZS52bnIAegCCQL4ECEIQABgAIAAqGQoFdmnDqm4Vu2LfQBoLdmnDqm514buRbmcqGgoGdeG7kW5nFT_L0UAaC3Zpw6pudeG7kW5nKgwKBWvhur1tFTg-1EAy2gEvZ290bz91cmw9Q0FFU2x3RUI2enN3RmZVTkFHaENacDd4ak9iZUtmcG5LbHdQTjFpdHFPcFhlT3RCVmRRX1dDSnhNV01PZVJ4dVV3azNtQXhnWUpFZVp1Tk03S1RTRDBtRGxybHpHVHBIb05Ib2ExU2tmRzRtV0JvbFlOTnNrUjl5cWhDZXVFTFJvSktvSFppVnJzNzZTekl1OERPWFktdmlsbkItbm16RklybFA3b0tvMlhkZ2tSOEEzVHROM3F3M2NoVVZocGpGQlFxd2hMS0ZEZi1WTjAzQjpXPGI-VmnDqm4gdeG7kW5nPC9iPiBi4buVIHN1bmcgPGI-a-G6vW08L2I-IEJsYWNrbW9yZXMgaOG7lyB0cuG7oyBkYSAmYW1wOyBtaeG7hW4gZOG7i2NoQrgBPGI-VmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBr4bq9bSBCbGFja21vcmVzIGjhu5cgdHLhu6MgZGEga2jhu49lLCB0xINuZyBtaeG7hW4gZOG7i2NoPC9iPi4gQ8O0bmcgdGjhu6ljIGvhur1tICsgVml0YW1pbiBBLCBCNjsgODQvMTY4IHZpw6puLCBsaeG7gXUgMSB2acOqbi9uZ8OgeS4gTXVhIG5nYXkgdHLDqm4gU2hvcGVlLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtoBL2dvdG8_dXJsPUNBRVNsd0VCNnpzd0ZmVU5BR2hDWnA3eGpPYmVLZnBuS2x3UE4xaXRxT3BYZU90QlZkUV9XQ0p4TVdNT2VSeHVVd2szbUF4Z1lKRWVadU5NN0tUU0QwbURscmx6R1RwSG9OSG9hMVNrZkc0bVdCb2xZTk5za1I5eXFoQ2V1RUxSb0pLb0haaVZyczc2U3pJdThET1hZLXZpbG5CLW5tekZJcmxQN29LbzJYZGdrUjhBM1R0TjNxdzNjaFVWaHBqRkJRcXdoTEtGRGYtVk4wM0ISBBoCCAAa7wQSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoNCAESCXNob3BlZS52bnIAegCCQL4ECEIQABgAIAAqGQoFdmnDqm4Vu2LfQBoLdmnDqm514buRbmcqGgoGdeG7kW5nFT_L0UAaC3Zpw6pudeG7kW5nKgwKBWvhur1tFTg-1EAy2gEvZ290bz91cmw9Q0FFU2x3RUI2enN3RmZVTkFHaENacDd4ak9iZUtmcG5LbHdQTjFpdHFPcFhlT3RCVmRRX1dDSnhNV01PZVJ4dVV3azNtQXhnWUpFZVp1Tk03S1RTRDBtRGxybHpHVHBIb05Ib2ExU2tmRzRtV0JvbFlOTnNrUjl5cWhDZXVFTFJvSktvSFppVnJzNzZTekl1OERPWFktdmlsbkItbm16RklybFA3b0tvMlhkZ2tSOEEzVHROM3F3M2NoVVZocGpGQlFxd2hMS0ZEZi1WTjAzQjpXPGI-VmnDqm4gdeG7kW5nPC9iPiBi4buVIHN1bmcgPGI-a-G6vW08L2I-IEJsYWNrbW9yZXMgaOG7lyB0cuG7oyBkYSAmYW1wOyBtaeG7hW4gZOG7i2NoQrgBPGI-VmnDqm4gdeG7kW5nIGLhu5Ugc3VuZyBr4bq9bSBCbGFja21vcmVzIGjhu5cgdHLhu6MgZGEga2jhu49lLCB0xINuZyBtaeG7hW4gZOG7i2NoPC9iPi4gQ8O0bmcgdGjhu6ljIGvhur1tICsgVml0YW1pbiBBLCBCNjsgODQvMTY4IHZpw6puLCBsaeG7gXUgMSB2acOqbi9uZ8OgeS4gTXVhIG5nYXkgdHLDqm4gU2hvcGVlLiICEAFIAFgAaAA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 9,
+     "title": "Combo Viên uống DHC Biotin & Kẽm (60 Ngày)",
+     "link": "https://shopee.vn/Combo-Vi%C3%AAn-u%E1%BB%91ng-DHC-Biotin-K%E1%BA%BDm-(60-Ng%C3%A0y)-Th%E1%BB%B1c-ph%E1%BA%A9m-b%E1%BA%A3o-v%E1%BB%87-s%E1%BB%A9c-kho%E1%BA%BB-DHC-Biotin-ZinC-i.44806875.13353576174",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESgQIB6zswFeTEoGZ414qjJpYsuX-_QzUfYIOTRotXXUlzGqRp2Jit8fGpR0xX_FUyTdDkSkNeBQlzp9d8jWvoc2qmepz52TEDVgXSU4zxGlH2RR935GwztMcAmUN87N3RLmZK-CF_CR0gHNBeWz-l5FbV-hDWHwiD6qAnXaHmWGIeTPo6ltr_4o7-huXgNxzAD8YfJf_1oX4AfnlDShdmcBw5BEKIY9GJvpNLTxVikUZZHcfHKQU6Drh9rSqdAg3yJjwartbFa2eWECB7gMvTp6y2SNK9HGo01LRs4-OtU7kz2hqUWqaE1QCxgHLkP_QSQgkIFcsm4dyapfqKpWvzqIMvag&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECAkQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › Sức Khỏe › Hỗ trợ làm đẹp",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcoh7XIeHJz1yFKBGGbgrrsU.png",
+     "snippet": "Mua Combo Viên uống DHC Biotin & Kẽm (60 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC giá tốt. Mua hàng qua mạng uy tín, tiện lợi.",
+     "snippet_highlighted_words": [
+      "Combo Viên uống DHC Biotin & Kẽm (60 Ngày"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Mua Combo Viên uống DHC Biotin & Kẽm (60 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC giá tốt. Mua hàng qua mạng uy tín, tiện lợi.",
+       "source_info_link": "https://shopee.vn/Combo-Vi%C3%AAn-u%E1%BB%91ng-DHC-Biotin-K%E1%BA%BDm-(60-Ng%C3%A0y)-Th%E1%BB%B1c-ph%E1%BA%A9m-b%E1%BA%A3o-v%E1%BB%87-s%E1%BB%A9c-kho%E1%BA%BB-DHC-Biotin-ZinC-i.44806875.13353576174",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcvLg7wq5wokudNru5fkJ2aY29zU4pHpklrIPt2Q6HXol.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CugCL2dvdG8_dXJsPUNBRVNnUUlCNnpzd0ZVYkd1MThKYnF6V0xEMnZvYi1wZEhPdVNYQl9xZ2V0eF84bjhCei03NE10aFIzZmoxQWtFWENUbU1rS1VIek1DU0pfUWRTTnRhbTlHeC1nRmhHR3pFcXlXVVNGN1Ntd3JWYUJVdUNCT2VUTzBmWkRoNGlXWUlIV0ZfMkJRVjNxVmNFU1JDOXJfSDJ0Q2haRW1VRDVPdDBZRWl3Wlo3VUVNTkcwaEhhUDNjZUtacU4zZE9SVlJ6ZThKME81TzFOWHd4dEtlWkx5UGhiNW4yM0ZNanVWdnZzOGpFLUVFd18tWno4VlZLTFRQMnZMYWZtUFJOQ1pza1Bid2hzRG42QXJtQjdmZEZDR3BXOGlQMENYQjVlNHBzNDJ0dGI5Ymo1ajVoS21HcFFKN083UUtNRWsxbFlqU2ZnVXZCaWw3bmhIWkFrd3h1cjdpYVJfX2kyR1RREgQaAggAGu4FEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkC9BQhCEAAYACAAKhkKBXZpw6puFcF-ckAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxXBfnJAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRXYdGRAMugCL2dvdG8_dXJsPUNBRVNnUUlCNnpzd0ZVYkd1MThKYnF6V0xEMnZvYi1wZEhPdVNYQl9xZ2V0eF84bjhCei03NE10aFIzZmoxQWtFWENUbU1rS1VIek1DU0pfUWRTTnRhbTlHeC1nRmhHR3pFcXlXVVNGN1Ntd3JWYUJVdUNCT2VUTzBmWkRoNGlXWUlIV0ZfMkJRVjNxVmNFU1JDOXJfSDJ0Q2haRW1VRDVPdDBZRWl3Wlo3VUVNTkcwaEhhUDNjZUtacU4zZE9SVlJ6ZThKME81TzFOWHd4dEtlWkx5UGhiNW4yM0ZNanVWdnZzOGpFLUVFd18tWno4VlZLTFRQMnZMYWZtUFJOQ1pza1Bid2hzRG42QXJtQjdmZEZDR3BXOGlQMENYQjVlNHBzNDJ0dGI5Ymo1ajVoS21HcFFKN083UUtNRWsxbFlqU2ZnVXZCaWw3bmhIWkFrd3h1cjdpYVJfX2kyR1RROktDb21ibyA8Yj5WacOqbiB14buRbmc8L2I-IERIQyBCaW90aW4gJmFtcDsgPGI-S-G6vW08L2I-ICg2MCBOZ8OgeSkgLSBTaG9wZWVCtQFNdWEgPGI-Q29tYm8gVmnDqm4gdeG7kW5nIERIQyBCaW90aW4gJmFtcDsgS-G6vW0gKDYwIE5nw6B5PC9iPikgLSBUaOG7sWMgcGjhuqltIGLhuqNvIHbhu4cgc-G7qWMga2hv4bq7IERIQyBCaW90aW4gJmFtcDsgWmluQyBnacOhIHThu5F0LiBNdWEgaMOgbmcgcXVhIG3huqFuZyB1eSB0w61uLCB0aeG7h24gbOG7o2kuIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CugCL2dvdG8_dXJsPUNBRVNnUUlCNnpzd0ZVYkd1MThKYnF6V0xEMnZvYi1wZEhPdVNYQl9xZ2V0eF84bjhCei03NE10aFIzZmoxQWtFWENUbU1rS1VIek1DU0pfUWRTTnRhbTlHeC1nRmhHR3pFcXlXVVNGN1Ntd3JWYUJVdUNCT2VUTzBmWkRoNGlXWUlIV0ZfMkJRVjNxVmNFU1JDOXJfSDJ0Q2haRW1VRDVPdDBZRWl3Wlo3VUVNTkcwaEhhUDNjZUtacU4zZE9SVlJ6ZThKME81TzFOWHd4dEtlWkx5UGhiNW4yM0ZNanVWdnZzOGpFLUVFd18tWno4VlZLTFRQMnZMYWZtUFJOQ1pza1Bid2hzRG42QXJtQjdmZEZDR3BXOGlQMENYQjVlNHBzNDJ0dGI5Ymo1ajVoS21HcFFKN083UUtNRWsxbFlqU2ZnVXZCaWw3bmhIWkFrd3h1cjdpYVJfX2kyR1RREgQaAggAGu4FEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaDQgBEglzaG9wZWUudm5yAHoAgkC9BQhCEAAYACAAKhkKBXZpw6puFcF-ckAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxXBfnJAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRXYdGRAMugCL2dvdG8_dXJsPUNBRVNnUUlCNnpzd0ZVYkd1MThKYnF6V0xEMnZvYi1wZEhPdVNYQl9xZ2V0eF84bjhCei03NE10aFIzZmoxQWtFWENUbU1rS1VIek1DU0pfUWRTTnRhbTlHeC1nRmhHR3pFcXlXVVNGN1Ntd3JWYUJVdUNCT2VUTzBmWkRoNGlXWUlIV0ZfMkJRVjNxVmNFU1JDOXJfSDJ0Q2haRW1VRDVPdDBZRWl3Wlo3VUVNTkcwaEhhUDNjZUtacU4zZE9SVlJ6ZThKME81TzFOWHd4dEtlWkx5UGhiNW4yM0ZNanVWdnZzOGpFLUVFd18tWno4VlZLTFRQMnZMYWZtUFJOQ1pza1Bid2hzRG42QXJtQjdmZEZDR3BXOGlQMENYQjVlNHBzNDJ0dGI5Ymo1ajVoS21HcFFKN083UUtNRWsxbFlqU2ZnVXZCaWw3bmhIWkFrd3h1cjdpYVJfX2kyR1RROktDb21ibyA8Yj5WacOqbiB14buRbmc8L2I-IERIQyBCaW90aW4gJmFtcDsgPGI-S-G6vW08L2I-ICg2MCBOZ8OgeSkgLSBTaG9wZWVCtQFNdWEgPGI-Q29tYm8gVmnDqm4gdeG7kW5nIERIQyBCaW90aW4gJmFtcDsgS-G6vW0gKDYwIE5nw6B5PC9iPikgLSBUaOG7sWMgcGjhuqltIGLhuqNvIHbhu4cgc-G7qWMga2hv4bq7IERIQyBCaW90aW4gJmFtcDsgWmluQyBnacOhIHThu5F0LiBNdWEgaMOgbmcgcXVhIG3huqFuZyB1eSB0w61uLCB0aeG7h24gbOG7o2kuIgIQAUgAWABoAA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 10,
+     "title": "Viên uống DHC Kẽm Zinc (60 Ngày)",
+     "link": "https://shopee.vn/product-i.44806875.3947770549?from_source=h5_video_page",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEShAEB6zswFckDqo1xlIcNIBuADVRqRfNEg19_jPyEBRKj9RVF3ANsEUt99-2a_xqj2djNrhEQz2igLToFiP65O-jnEV0YlwIMdRH3spv9ERQ3Ymqin0Do4kAb_XYQuGxj5IrDTNuRQ0E2CzAmMvkVpZgCUyQ8nIGdIV1O-9JNkOi5rQggBrk&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQFnoECAcQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › product-i.44806875.3947770549",
+     "favicon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcm2huImjT6nVnQT_5ajq290.png",
+     "snippet": "Mua Viên uống DHC Kẽm Zinc (60 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC ZinC giá tốt. Mua hàng qua mạng uy tín, tiện lợi. Shopee đảm bảo nhận hàng, ...",
+     "snippet_highlighted_words": [
+      "Viên uống DHC Kẽm Zinc (60 Ngày"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Mua Viên uống DHC Kẽm Zinc (60 Ngày) - Thực phẩm bảo vệ sức khoẻ DHC ZinC giá tốt. Mua hàng qua mạng uy tín, tiện lợi. Shopee đảm bảo nhận hàng, ...",
+       "source_info_link": "https://shopee.vn/product-i.44806875.3947770549?from_source=h5_video_page",
+       "icon": "https://serpapi.com/searches/6adeb4af8ffee1ab13cd3b40/images/Bh5teOK6uazC_lPMMHmNcrF_dHJNzqJJJNEZlEBG_QC_rZcEcjEHqGOwYbJUz1Fv.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsEBL2dvdG8_dXJsPUNBRVNoQUVCNnpzd0ZiVl9Ob3JIbTRBd3pCcm0xMEtzZGwxUTJBX1M4UFRMYkVxSE05TjZkTTlENkxhck9JcUNUWjJCc25XOVAzVzlURkNDMUo1SG1VbXhRZ3NoVlNwNUZwcHlQdjFiYTFPQmloWERPaWEtdWJSUVpKQUpRbnpsODNrNHBEZmFBNG9IZlhqb2pUNDJUcjh5OUM3TVRkMV8waC1TdDhtVGU2aVFldnNEWkkzY3JnYxIEGgIIABrJBBIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWg0IARIJc2hvcGVlLnZucgB6AIJAmAQIQhAAGAAgACoZCgV2acOqbhXqYlhAGgt2acOqbnXhu5FuZyoaCgZ14buRbmcV6mJYQBoLdmnDqm514buRbmcqDAoFa-G6vW0VZPpQQDLBAS9nb3RvP3VybD1DQUVTaEFFQjZ6c3dGYlZfTm9ySG00QXd6QnJtMTBLc2RsMVEyQV9TOFBUTGJFcUhNOU42ZE05RDZMYXJPSXFDVFoyQnNuVzlQM1c5VEZDQzFKNUhtVW14UWdzaFZTcDVGcHB5UHYxYmExT0JpaFhET2lhLXViUlFaSkFKUW56bDgzazRwRGZhQTRvSGZYam9qVDQyVHI4eTlDN01UZDFfMGgtU3Q4bVRlNmlRZXZzRFpJM2NyZ2M6PTxiPlZpw6puIHXhu5FuZzwvYj4gREhDIDxiPkvhur1tPC9iPiBaaW5jICg2MCBOZ8OgeSkgLSBTaG9wZWVCxQFNdWEgPGI-VmnDqm4gdeG7kW5nIERIQyBL4bq9bSBaaW5jICg2MCBOZ8OgeTwvYj4pIC0gVGjhu7FjIHBo4bqpbSBi4bqjbyB24buHIHPhu6ljIGtob-G6uyBESEMgWmluQyBnacOhIHThu5F0LiBNdWEgaMOgbmcgcXVhIG3huqFuZyB1eSB0w61uLCB0aeG7h24gbOG7o2kuIFNob3BlZSDEkeG6o20gYuG6o28gbmjhuq1uIGjDoG5nLCZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsEBL2dvdG8_dXJsPUNBRVNoQUVCNnpzd0ZiVl9Ob3JIbTRBd3pCcm0xMEtzZGwxUTJBX1M4UFRMYkVxSE05TjZkTTlENkxhck9JcUNUWjJCc25XOVAzVzlURkNDMUo1SG1VbXhRZ3NoVlNwNUZwcHlQdjFiYTFPQmloWERPaWEtdWJSUVpKQUpRbnpsODNrNHBEZmFBNG9IZlhqb2pUNDJUcjh5OUM3TVRkMV8waC1TdDhtVGU2aVFldnNEWkkzY3JnYxIEGgIIABrJBBIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWg0IARIJc2hvcGVlLnZucgB6AIJAmAQIQhAAGAAgACoZCgV2acOqbhXqYlhAGgt2acOqbnXhu5FuZyoaCgZ14buRbmcV6mJYQBoLdmnDqm514buRbmcqDAoFa-G6vW0VZPpQQDLBAS9nb3RvP3VybD1DQUVTaEFFQjZ6c3dGYlZfTm9ySG00QXd6QnJtMTBLc2RsMVEyQV9TOFBUTGJFcUhNOU42ZE05RDZMYXJPSXFDVFoyQnNuVzlQM1c5VEZDQzFKNUhtVW14UWdzaFZTcDVGcHB5UHYxYmExT0JpaFhET2lhLXViUlFaSkFKUW56bDgzazRwRGZhQTRvSGZYam9qVDQyVHI4eTlDN01UZDFfMGgtU3Q4bVRlNmlRZXZzRFpJM2NyZ2M6PTxiPlZpw6puIHXhu5FuZzwvYj4gREhDIDxiPkvhur1tPC9iPiBaaW5jICg2MCBOZ8OgeSkgLSBTaG9wZWVCxQFNdWEgPGI-VmnDqm4gdeG7kW5nIERIQyBL4bq9bSBaaW5jICg2MCBOZ8OgeTwvYj4pIC0gVGjhu7FjIHBo4bqpbSBi4bqjbyB24buHIHPhu6ljIGtob-G6uyBESEMgWmluQyBnacOhIHThu5F0LiBNdWEgaMOgbmcgcXVhIG3huqFuZyB1eSB0w61uLCB0aeG7h24gbOG7o2kuIFNob3BlZSDEkeG6o20gYuG6o28gbmjhuq1uIGjDoG5nLCZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "Shopee Việt Nam"
+    }
+   ],
+   "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=10&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8NMDegQIRRAW",
+    "other_pages": {
+     "2": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=10&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAE",
+     "3": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=20&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAG",
+     "4": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=30&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAI",
+     "5": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=40&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAK",
+     "6": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=50&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAM",
+     "7": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=60&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAO",
+     "8": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=70&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAQ",
+     "9": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=80&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAS",
+     "10": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:shopee.vn&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt91JXsBnM0dXp9I8kCZw3BpzBcOQ:1792980143216&ei=r7TearXmDNWaruEP5uyqwQM&start=90&sa=N&sstk=AS6-VmKjQFjBNzlYKWtTMDUST4JTpeL5GDxPBofC6vXo6w5GJtOO7109ee1JKjHnMtVUMCnobCt3j5uTYZRuCuK5vJKy7vHn83qJSw&ved=2ahUKEwj1-ZnEy9aXAxVVjSsGHWa2KjgQ8tMDegQIRRAU"
+    }
+   },
+   "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=10",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=10",
+    "other_pages": {
+     "2": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=10",
+     "3": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=20",
+     "4": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=30",
+     "5": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=40",
+     "6": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=50",
+     "7": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=60",
+     "8": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=70",
+     "9": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=80",
+     "10": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Ashopee.vn&start=90"
+    }
+   }
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "d43e12ed4f4ccfc8a4780744fd45533495014c36876f0787e0c7be9ba8491cdd"
+ }
+}

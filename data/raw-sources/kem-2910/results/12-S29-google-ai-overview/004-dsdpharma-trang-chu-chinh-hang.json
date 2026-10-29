@@ -1,0 +1,35 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "12 · S29 · Bản tổng hợp AI của Google (AI Overview)",
+  "describe": "Google AI Overview cho câu «Dsdpharma trang chủ chính hãng» (page_token_expired)",
+  "parentFile": "12-S29-google-ai-overview.json",
+  "parentLocation": "records[3]",
+  "sourceCode": "S29",
+  "sourceName": "Bản tổng hợp AI của Google (AI Overview)",
+  "provider": "SerpApi engine=google (+ google_ai_overview khi cần page_token)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Câu trả lời của Google lúc thu"
+  },
+  "limits": [
+   "AI không phải bằng chứng; mọi ý phải kiểm lại bằng lời khách thật",
+   "page_token hết hạn sau vài phút nên token của 26/10 không dùng lại được"
+  ],
+  "resultSha256": "ef362de5d5d4009eb15ce1b65187a5f4722f23b18aa52ac20fd8a76329310ef3"
+ },
+ "result": {
+  "origin": "SAVED_26_10_RUN",
+  "query": "Dsdpharma trang chủ chính hãng",
+  "engine": "google",
+  "requestedAt": "2026-10-26T02:03:13.632Z",
+  "aiOverviewState": "page_token_expired",
+  "ai_overview": {
+   "page_token": "2lErCniczVXNcqpIFH6BWc4rhE2ighiVVFG3uhvUFjWgMVfdWAjYYEAUUJLs5l3mqeZppkFUmGgmN5uZUwX9d_r8f33--NN11i9__fa7HUWb8KFSieO4THyfuFbZ8L2KHr6tjcrSd8PAsH8QV9yvGZv-HSb0d4FhOaZo2IHvWczbXuQZIxRZxnLE2uLJ0n1lNBj0Iq-nqTuhFNQ0jUnFifOFHlorqu11FVbmFfp7ueEluiiH5b1TLgmsEDaHjeA-LlfZKl9-rOgeZQD_BfkYYDqMAPqUjYDW1-TJ9HMAeMltaZloeN6aZisZoOQCShRcJJwwkuSY4IMdlNTmtBmzAEjaybpPCAPtvOidLEn0jpLjTy9_pJMXWUA-j9uVY3wQpZ2ZcjbCj_xHigsrhQpSgZS_cZ6hTE9OcBrHRDWMgRRbRO7LMHd80XjkgMcZkCH-jO-ofCyc5GEUUdWwYhJa2WxlEdCBqziGbaSTIEwKHj0JrC-v3yWN59TZuPXeUAd7aw84NNlCQWmAirGgfK6vm5Y5t-fsj3TNVbmGUGfr93cp0ozwBLUwDzWVCN2ovaxhu1_ulSF3xBk6JP9oaNEHTbnoKaGOIXC90ggpZu0UVhnmlQGUCdCIk3JNC_oRYYGR40oS3p-CHq39nGI5N7uEs5RgYUKvjA9mHhCVUl4zplWE_Zw_eWekS17nC-cgSYZZeaIE3ym1z7zFsGJIcaedxXyoeQ0iJSmgFGfKLnPtEWTuY4VABeHUo6IzhDJgLdvHB_ZjYFD-LUjclTE9k8eUF41aLujKmfzkMiFKxpmMWj6LAAwvRCSNAZHS9--bNP4SFwRHPP0DHnlYtQ21PozGpOtNeH-58ruciUvYH3V7A-0yjHxv8Qsty_ifAu3Y0Mgh6deBZoIvAS1taJeBBk-_fEMbp3IJuQo0mFTe5YZ2fN_z3n8AGpaHZ6BlDa19raH9OtBS564D7QiKS0CDo-ysCLTNdaAljhSAhpdyoaGdgVZsaEegfbOhjb_f0FLgWYeh2N12K3K1y3XcjvDef-VUF_P1Va_BKffxEk2reokl_9rlll704Ommezd3zAdY7UZv5t2cbvgPlslsRSk0N7YeePptFOhrcmvYNzJ3A-ENaCRzxN8AaW3fHmb8mjCeG_giq9d1YcZ3kBOEJRdvvbUAYGSrL-NJsN1wU1b1J3pHbaIdqq2Fp35cf3Hnw8lgsOrPSPw8s9Y_60uXFk1gD6XqTED19pQP31abxqRVK_nzvWSErhOpz8_uptd5xYNO3Ns6ewx1DfY0adBSYUNa9HejKeGkcPWaWhWKypNdku9bUXvLMl5giDRlNQIGGvgJgA5aMejSF0ABcLilY49WysKHQOtMgUbblCb5NElMaOhzK9yL1QVf5U2huqxaxlJvNhmPRG8bUWCZcB2I3N92JmcK",
+   "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=2lErCniczVXNcqpIFH6BWc4rhE2ighiVVFG3uhvUFjWgMVfdWAjYYEAUUJLs5l3mqeZppkFUmGgmN5uZUwX9d_r8f33--NN11i9__fa7HUWb8KFSieO4THyfuFbZ8L2KHr6tjcrSd8PAsH8QV9yvGZv-HSb0d4FhOaZo2IHvWczbXuQZIxRZxnLE2uLJ0n1lNBj0Iq-nqTuhFNQ0jUnFifOFHlorqu11FVbmFfp7ueEluiiH5b1TLgmsEDaHjeA-LlfZKl9-rOgeZQD_BfkYYDqMAPqUjYDW1-TJ9HMAeMltaZloeN6aZisZoOQCShRcJJwwkuSY4IMdlNTmtBmzAEjaybpPCAPtvOidLEn0jpLjTy9_pJMXWUA-j9uVY3wQpZ2ZcjbCj_xHigsrhQpSgZS_cZ6hTE9OcBrHRDWMgRRbRO7LMHd80XjkgMcZkCH-jO-ofCyc5GEUUdWwYhJa2WxlEdCBqziGbaSTIEwKHj0JrC-v3yWN59TZuPXeUAd7aw84NNlCQWmAirGgfK6vm5Y5t-fsj3TNVbmGUGfr93cp0ozwBLUwDzWVCN2ovaxhu1_ulSF3xBk6JP9oaNEHTbnoKaGOIXC90ggpZu0UVhnmlQGUCdCIk3JNC_oRYYGR40oS3p-CHq39nGI5N7uEs5RgYUKvjA9mHhCVUl4zplWE_Zw_eWekS17nC-cgSYZZeaIE3ym1z7zFsGJIcaedxXyoeQ0iJSmgFGfKLnPtEWTuY4VABeHUo6IzhDJgLdvHB_ZjYFD-LUjclTE9k8eUF41aLujKmfzkMiFKxpmMWj6LAAwvRCSNAZHS9--bNP4SFwRHPP0DHnlYtQ21PozGpOtNeH-58ruciUvYH3V7A-0yjHxv8Qsty_ifAu3Y0Mgh6deBZoIvAS1taJeBBk-_fEMbp3IJuQo0mFTe5YZ2fN_z3n8AGpaHZ6BlDa19raH9OtBS564D7QiKS0CDo-ysCLTNdaAljhSAhpdyoaGdgVZsaEegfbOhjb_f0FLgWYeh2N12K3K1y3XcjvDef-VUF_P1Va_BKffxEk2reokl_9rlll704Ommezd3zAdY7UZv5t2cbvgPlslsRSk0N7YeePptFOhrcmvYNzJ3A-ENaCRzxN8AaW3fHmb8mjCeG_giq9d1YcZ3kBOEJRdvvbUAYGSrL-NJsN1wU1b1J3pHbaIdqq2Fp35cf3Hnw8lgsOrPSPw8s9Y_60uXFk1gD6XqTED19pQP31abxqRVK_nzvWSErhOpz8_uptd5xYNO3Ns6ewx1DfY0adBSYUNa9HejKeGkcPWaWhWKypNdku9bUXvLMl5giDRlNQIGGvgJgA5aMejSF0ABcLilY49WysKHQOtMgUbblCb5NElMaOhzK9yL1QVf5U2huqxaxlJvNhmPRG8bUWCZcB2I3N92JmcK"
+  }
+ }
+}

@@ -1,0 +1,1243 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S29",
+  "sourceName": "Bản tổng hợp AI của Google (AI Overview)",
+  "provider": "SerpApi engine=google (+ google_ai_overview khi cần page_token)",
+  "reportName": "Google AI Overview",
+  "grade": "không xếp hạng — chỉ là giả thuyết, mức Yếu",
+  "usedBy": [
+   "INSIGHT (giả thuyết nhóm khách, nỗi lo; chưa nối vào app)"
+  ],
+  "evidenceFamily": "ai_summary_hypothesis",
+  "origin": {
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "collectedOn": "2026-10-29",
+   "collector": "gaps_kem.py (Claude, 29/10/2026)",
+   "serpapiSearchesUsed": 2,
+   "serpapiLeftBefore": 6,
+   "note": "Bản ghi origin=SAVED_26_10_RUN lấy lại từ file 07, không tốn lượt"
+  },
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Câu trả lời của Google lúc thu"
+  },
+  "recordShape": "ai_overview = JSON gốc SerpApi {text_blocks[], references[]}; aiOverviewFollowUp = phản hồi google_ai_overview khi phải đổi page_token.",
+  "limits": [
+   "AI không phải bằng chứng; mọi ý phải kiểm lại bằng lời khách thật",
+   "page_token hết hạn sau vài phút nên token của 26/10 không dùng lại được"
+  ],
+  "cost": {
+   "unit": "lượt SerpApi",
+   "spent": 2
+  },
+  "recordCount": 6,
+  "recordsSha256": "396c91c7e879253acd8d520deab4c2d0513d95600e4396526a30e85816ceabd7",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": [
+  {
+   "origin": "SAVED_26_10_RUN",
+   "query": "viên uống kẽm",
+   "engine": "google",
+   "requestedAt": "2026-10-26T02:02:14.572Z",
+   "aiOverviewState": "inline",
+   "ai_overview": {
+    "text_blocks": [
+     {
+      "type": "paragraph",
+      "snippet": "Viên uống bổ sung kẽm giúp tăng cường hệ miễn dịch, hỗ trợ sinh lý, cải thiện tình trạng rụng tóc, mụn nội tiết và thúc đẩy lành vết thương, với liều dùng phổ biến từ 1 viên/ngày tùy thương hiệu như Viên uống DHC Zinc.",
+      "snippet_highlighted_words": [
+       "DHC Zinc"
+      ],
+      "reference_indexes": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     },
+     {
+      "type": "heading",
+      "snippet": "Tác dụng chính"
+     },
+     {
+      "type": "list",
+      "list": [
+       {
+        "snippet": "Tăng cường miễn dịch: Hỗ trợ hoạt động của các tế bào miễn dịch, giúp cơ thể chống lại bệnh nhiễm trùng."
+       },
+       {
+        "snippet": "Cải thiện da, tóc, móng: Giúp giảm mụn nội tiết, giảm gãy rụng tóc và giúp móng tay chắc khỏe hơn."
+       },
+       {
+        "snippet": "Hỗ trợ sinh lý nam giới: Tham gia điều hòa và duy trì nội tiết tố testosterone, hỗ trợ sức khỏe sinh sản.",
+        "reference_indexes": [
+         1,
+         3,
+         4,
+         5
+        ]
+       }
+      ]
+     },
+     {
+      "type": "heading",
+      "snippet": "Cách uống đúng và lưu ý quan trọng"
+     },
+     {
+      "type": "list",
+      "list": [
+       {
+        "snippet": "Thời điểm uống: Nên uống sau bữa ăn sáng hoặc bữa trưa khoảng 1 - 2 giờ để tránh gây kích ứng dạ dày."
+       },
+       {
+        "snippet": "Khoảng cách với vi chất khác: Cần uống cách canxi hoặc sắt ít nhất 2 giờ để tránh làm giảm khả năng hấp thu của nhau."
+       },
+       {
+        "snippet": "Liệu trình: Thường uống theo đợt từ 1 - 3 tháng rồi tạm nghỉ, không nên lạm dụng liều cao kéo dài. Tránh dùng quá 40mg kẽm nguyên tố mỗi ngày cho người lớn trừ khi có chỉ định của bác sĩ.",
+        "reference_indexes": [
+         1,
+         4,
+         6
+        ]
+       }
+      ]
+     },
+     {
+      "type": "paragraph",
+      "snippet": "Nếu bạn đang tìm mua hoặc cần hỗ trợ thêm, hãy cho tôi biết:"
+     },
+     {
+      "type": "list",
+      "list": [
+       {
+        "snippet": "Bạn cần bổ sung kẽm cho đối tượng nào (người lớn, nam giới, hay trẻ em)?"
+       },
+       {
+        "snippet": "Bạn đang gặp vấn đề cụ thể gì (mụn, rụng tóc, tăng sức đề kháng, hay hỗ trợ sinh lý)?"
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "index": 0,
+      "title": "Viên uống DHC Zinc bổ sung kẽm, tăng cường sức khỏe (30 viên)",
+      "link": "https://nhathuoclongchau.com.vn/thuc-pham-chuc-nang/dhc-zinc-30v-35783.html",
+      "snippet": "Product: Viên giúp cơ thể khỏe mạnh Zinc DHC Brand: DHC (Nhật Bản) Price: 110.000đ/Gói (30 viên/gói) Registration No: 5362/2019/ĐKSP Rating: 4.9 (256 đánh giá) Ing...",
+      "source": "Nhà thuốc Long Châu",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://nhathuoclongchau.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQiel65Np3k7A7XLqpEqaPqGn3IEp0-QN14k9gsjY-UGZLklZMsDifu92asFCpvoBuXC5UTp89Qagh5SO9NKLJEIONdLwSYvvSQ6bR1TgrYyM6mLQEnrfnROt8Rh6nZh64zqLr2sYvuElYUXqRpdP9N9bWcgA"
+     },
+     {
+      "index": 1,
+      "title": "Viên uống bổ sung kẽm: Uống lúc nào tốt và những lưu ý y khoa",
+      "link": "https://medlatec.vn/tin-tuc/vien-uong-bo-sung-kem-uong-luc-nao-tot-nhat-va-nhung-luu-y-y-khoa",
+      "snippet": "* Giới thiệu. Giới thiệu. Hệ thống MEDLATEC GROUP. Công bố Cơ sở đủ điều kiện. * Dịch vụ y tế Dịch vụ bảo hiểm. Dịch vụ bảo hiểm. * Hướng dẫn khách hàng. * Nghiên ...",
+      "source": "Bệnh viện Đa khoa MEDLATEC",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://medlatec.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTmpYuJMTL4gnbPD5Ed5QFdTGEbfxTkzWt0I1CNhqtwO8Wc70h42r1Jh2-Bpyz6tGFX5j3ew91ucyGRBduXr95tTWvcs9asWLQF3kH-FsMW_68a4r9KT_a4w2MGzkThxofo910z1csz5hRXsO28eremUyMoFw"
+     },
+     {
+      "index": 2,
+      "title": "Viên uống bổ sung kẽm DHC 60 viên chính hãng Nhật Bản",
+      "link": "https://www.hangngoainhap.com.vn/2493-vien-uong-bo-sung-kem-dhc-60-vien-chinh-hang-nhat-ban.html",
+      "snippet": "- SP: Viên uống bổ sung kẽm DHC 60 viên - Xuất xứ: Nhật Bản - Hãng: DHC - Giá: 119.000đ (thị trường 142.800đ, tiết kiệm 23.800đ / -17%) - Mã SP: ECS002493 - Thành ...",
+      "source": "Hàng Ngoại Nhập Store",
+      "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.hangngoainhap.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTYWM2qUQfxy_2X1sLKzGPY7FWfW_tLEp0Sgx9qyc_xbXsxvBQ8OUm10KiXCkCM0Dbe_jStW9zYgJAQmfpWOUStzRLvEGtxTYNF3pY3uMJ-i5dcg-OmhX5lrc5pQ20e-noXMBU4PJzl6fLZr-mc56DKHVtzew"
+     },
+     {
+      "index": 3,
+      "title": "Viên uống DHC bổ sung kẽm (DHC Zinc) của Nhật có tốt không?",
+      "link": "https://youmed.vn/tin-tuc/vien-uong-bo-sung-kem-dhc-co-tot-khong-luu-y-khi-dung/",
+      "snippet": "Công dụng của viên uống DHC kẽm. Bổ sung kẽm một cách hiệu quả nhất cho cơ thể. Kích thích vị giác, tăng tổng hợp protein. Hỗ trợ sức khỏe da, niêm mạc. Giảm gãy r...",
+      "source": "YouMed",
+      "source_icon": "https://encrypted-tbn1.gstatic.com/faviconV2?url=https://youmed.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTHrLv-tYO71N0B-EAmjCYUtKaGLucjR_1tvHa0xlvo-8hFAsQzQnjl17eWspohJ5yU18nkYUeh4eHWuddJfNwFVKaMtfYWG7icBOPzEAlqqh4SC65xFB835UITyPnwwKwx30umqRxnjilGiux7IkF6Gu4phw"
+     },
+     {
+      "index": 4,
+      "title": "Uống kẽm bao lâu thì dừng? Liệu trình bổ sung kẽm an toàn",
+      "link": "https://www.pharmacity.vn/uong-kem-bao-lau-thi-dung.htm",
+      "snippet": "Uống kẽm bao lâu thì dừng? Liệu trình bổ sung kẽm an toàn. ... Uống kẽm bao lâu thì dừng? Liệu trình bổ sung kẽm an toàn * Uống kẽm bao lâu thì dừng? Liệu trình bổ...",
+      "source": "Nhà thuốc Pharmacity",
+      "source_icon": "https://encrypted-tbn0.gstatic.com/faviconV2?url=https://www.pharmacity.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRquyDwuayaoKw06Stc9Cfrg8TzoMSBr_FYDGCArSWjTRKbfvGDsdG9yhjekErXSOyemeZYxBmFDGpnlthkXXc6hp734A8jjsm3l7CiiDmo1b-JbYI5m8Lem1hy7coDGI6D_sczqb27EgrJchU_riJlArF8NA"
+     },
+     {
+      "index": 5,
+      "title": "Kẽm có tác dụng gì với nam giới? 8 thuốc bổ sung kẽm cho nam giới",
+      "link": "https://nhathuoclongchau.com.vn/bai-viet/cac-loai-thuoc-bo-sung-kem-cho-nam-gioi-co-tac-dung-gi-48637.html",
+      "snippet": "* Male zinc needs: ~11mg/day; upper safety limit (UL): 40mg/day. * Key benefits: maintains normal testosterone (if deficient), supports reproductive/sperm health, ...",
+      "source": "Nhà thuốc Long Châu",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://nhathuoclongchau.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSdhegpHe8ZRMXsmTEwCB4LtUF5jFM7AcWJAHVQJtUdw6LB6U7zHBh9n6Sehxlv_ommlVg0BxeS7O2k8V5jEV4OZWEXOtG1eTNQacQYc5JCa-c7xwU0EhaukKiHEzVYhdh61QgtTrgvQmvJjf8EBjeZ7XCzcA"
+     },
+     {
+      "index": 6,
+      "title": "Uống kẽm có tác dụng gì? Uống khi nào hợp lý và hiệu quả? - Watsons.vn",
+      "link": "https://www.watsons.vn/vi/blog/cham-soc-suc-khoe/uong-kem-co-tac-dung-gi-uong-khi-nao-hop-ly-va-hieu-qua",
+      "snippet": "Uống kẽm khi nào là tốt nhất? Nên uống sau bữa ăn sáng hoặc bữa trưa 1–2 giờ; Tránh uống khi bụng quá đói để hạn chế khó chịu dạ dày; Duy trì thời gian uống cố địn...",
+      "source": "Watsons.vn",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://www.watsons.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcRekDw_JISwgVTSRrlQZYC4ljTf7Ok4Wd0FYHJZ3PsGZKGqiYi8qm7XmpzB2Q0RwdmWNE_fI67j1ybQhJa6SJVrkq3IYuNgb35f9yWhL2pDomLPlHOSDSUJAowmKY3H6Dt81YxDijpb41XWawI127CnFv5V8w"
+     }
+    ]
+   }
+  },
+  {
+   "origin": "SAVED_26_10_RUN",
+   "query": "Dhc trang chủ chính hãng",
+   "engine": "google",
+   "requestedAt": "2026-10-26T02:03:07.707Z",
+   "aiOverviewState": "page_token_expired",
+   "ai_overview": {
+    "page_token": "IRVvZ3iczVXbcqpIFP2BqfmL8JJEUBLFVFGnmoukgSTgJVFfKARsMAIGEEbf5l_mq-ZrTnNRMdGcnLzM7Cro2-59X73__mfpBa___vGnmySr-I4ksyxroDBES6dhhT5pxpvAIufhMo4s9wdasmlAuPjvEXG4jizHs1nLjULfITYpSxNWzFKE47G0OnTMkGZAtHmL1qLGrJzJRqeIQhxrzMzYWWBtfy1i0iDx7_WCFvCiETdSr3Hdpbox0-9Et1mjRbXoxhNp-pgB_BcUQgDxMAD8p2wI9L4mT8SfB8BrbUuvRHOHrUm1EgGfX-BzBScJ5owoP0awtAOTxkyYjAJA0PfWfUIQ6IeFurck1zvIjz-9_JH2XlQB-TxuZ45hKUo_MNVs5D7y7yg7WilYkAaE-o3DjK_01AQXccxVcxkQMgeJDyJXOz5pPO-BpykQOfgZ3075qLuXB_kEq-ZIG-HKpshZhIcm6VmuVUyiOC94ftilQjHYCjrd1Kaj3rajPaZOCpr8-I3rKh1AWjPMtwxN27EN16B-FOtmq9nptqn2zVWBNCveQy2uQ01DXTmR5jfQfWioDa65wxlfJn9n6LEPunLSU8SVET1XLOhd1vZhFbm6MsBXAvo5SDDX5Eg_jyhg1bjyhD9MgIpgvUrF2uwUzgrijib4yqgwE5WIKqiuGeIqgmHdnxoJH71GpYewLknkqvLkc3wXJFWWgfdxhhwsRejvzN07wwlKXkAFzpR15doTqLlv8nLh0bEzCDNAvdqHJfsuMHz9LcjdFSE-E0eYlx_0XCCLlXyk55KVijMf9XoW8_ydJhEJxfv3TRp9iYsDOzy9g0cdVlK2ncYoGLbl4f0qfh1AZuapsrx8HvfBaRiF_uw3Wpb1PwXarqGhMunngWaDLwGtaGingcbtf_WGNirkInQWaFxeeacb2u59PxhxAmhQ7B-AVjU06VxD-32gFc6dB9oOFKeAxg2qs2Ogrc4DLXsPNDgXjxraAWjHDW0HtG82tNH3G1oBPKccjrvbeoHOdjlJ8--RNkylwHWs9H610lvTZKuGyJb0X3a5uZ_c-aa9vDI8-45rycnGvjLwRnjn2MQbK7jWZRKZAbq03AuxecFxF6CTz3n6AgiBe1nO6AAR_jIKWcq8fVnFykh60TrTsWRMI09R50GS2RtGnRpT6ro3NpK0-YYkw5Q9ZbK8XZhqIKWMPGsOBo_bodbzFu3H8Y20iX3xFmp0z3zrTfvXz84608e8xOg9JGd6O11Js8krY8cvU59qGXS6UG82ncVCuO2bzLP80Nau14lbWBWzL0bvOpsgZvRoEX5ksThZN1sk6-AFl2CeYhk_DgquDQWPKh7VkAP6_QTouEHpQojTQ8SWaThxyrZmdIu2u615y7HmJsMQPko2K7ZLEXEQsc2fgB1mcg",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=IRVvZ3iczVXbcqpIFP2BqfmL8JJEUBLFVFGnmoukgSTgJVFfKARsMAIGEEbf5l_mq-ZrTnNRMdGcnLzM7Cro2-59X73__mfpBa___vGnmySr-I4ksyxroDBES6dhhT5pxpvAIufhMo4s9wdasmlAuPjvEXG4jizHs1nLjULfITYpSxNWzFKE47G0OnTMkGZAtHmL1qLGrJzJRqeIQhxrzMzYWWBtfy1i0iDx7_WCFvCiETdSr3Hdpbox0-9Et1mjRbXoxhNp-pgB_BcUQgDxMAD8p2wI9L4mT8SfB8BrbUuvRHOHrUm1EgGfX-BzBScJ5owoP0awtAOTxkyYjAJA0PfWfUIQ6IeFurck1zvIjz-9_JH2XlQB-TxuZ45hKUo_MNVs5D7y7yg7WilYkAaE-o3DjK_01AQXccxVcxkQMgeJDyJXOz5pPO-BpykQOfgZ3075qLuXB_kEq-ZIG-HKpshZhIcm6VmuVUyiOC94ftilQjHYCjrd1Kaj3rajPaZOCpr8-I3rKh1AWjPMtwxN27EN16B-FOtmq9nptqn2zVWBNCveQy2uQ01DXTmR5jfQfWioDa65wxlfJn9n6LEPunLSU8SVET1XLOhd1vZhFbm6MsBXAvo5SDDX5Eg_jyhg1bjyhD9MgIpgvUrF2uwUzgrijib4yqgwE5WIKqiuGeIqgmHdnxoJH71GpYewLknkqvLkc3wXJFWWgfdxhhwsRejvzN07wwlKXkAFzpR15doTqLlv8nLh0bEzCDNAvdqHJfsuMHz9LcjdFSE-E0eYlx_0XCCLlXyk55KVijMf9XoW8_ydJhEJxfv3TRp9iYsDOzy9g0cdVlK2ncYoGLbl4f0qfh1AZuapsrx8HvfBaRiF_uw3Wpb1PwXarqGhMunngWaDLwGtaGingcbtf_WGNirkInQWaFxeeacb2u59PxhxAmhQ7B-AVjU06VxD-32gFc6dB9oOFKeAxg2qs2Ogrc4DLXsPNDgXjxraAWjHDW0HtG82tNH3G1oBPKccjrvbeoHOdjlJ8--RNkylwHWs9H610lvTZKuGyJb0X3a5uZ_c-aa9vDI8-45rycnGvjLwRnjn2MQbK7jWZRKZAbq03AuxecFxF6CTz3n6AgiBe1nO6AAR_jIKWcq8fVnFykh60TrTsWRMI09R50GS2RtGnRpT6ro3NpK0-YYkw5Q9ZbK8XZhqIKWMPGsOBo_bodbzFu3H8Y20iX3xFmp0z3zrTfvXz84608e8xOg9JGd6O11Js8krY8cvU59qGXS6UG82ncVCuO2bzLP80Nau14lbWBWzL0bvOpsgZvRoEX5ksThZN1sk6-AFl2CeYhk_DgquDQWPKh7VkAP6_QTouEHpQojTQ8SWaThxyrZmdIu2u615y7HmJsMQPko2K7ZLEXEQsc2fgB1mcg"
+   }
+  },
+  {
+   "origin": "SAVED_26_10_RUN",
+   "query": "Acnacare trang chủ chính hãng",
+   "engine": "google",
+   "requestedAt": "2026-10-26T02:03:10.662Z",
+   "aiOverviewState": "page_token_expired",
+   "ai_overview": {
+    "page_token": "jIqwVHiczVXdcqJKEL47V-c1wk0SQYgRUkVtzQCaUZOACZvojYUDDkZxFFA2udt3OU91nmYHBIVEs9ncnNNVzG9Pd38z_dE__5lPF7N___7Lj-NldMXzSZLUCKVk7tUwDXgnellgfkLnUYj9b_5c3Uw5wtoF97JRJQ5HqsB5U1UKHzwnfEG38YMhmIYZKHqXWjdcdlwdjZ3Ie2bWfzxH_IhnzexE0tmkFtU209q5IiiR3G-GjaQmCqJUu-OdgCmA_0IoAoh190D7UI2A1ufsGeybAjArLVm5abhfGuQzA2jpAS11cFBQqkjSbYK2cTAx5YGcCADo1i66DwQBaz_p7SJJ_d6n2x8efi87FPmFfHxvR7bR1pS1VyrFCN_rF5JUZl1myAR6-cR-pOV-Soaze0xdwwToiUeMGwOWtg8Gr03B3RAYEH2kVzi3lZ09pMXMNeRdwjJb4Mch6-r8FPs4G4RRmvDagyJQY_GqW1LdHNqt16Z5u_E2oK49raDSbQIej5nenDqu5478kfAtm9fFekNQpKZ8ljENRzuqRWWqmUTpxO3JBfJvar0arBc807aPXwRaxWB1DyIlDJgGjmcaefNqg2JgwLIzoOUGrJQkrB1U_GtEALiklT74zQD0WO6XHBul0SGeZQIrA3bEzsIkW0ZlUvaMWBYhWsZTEv09arLNK1S2ZMA8PbUd_HaB9u09I4i2Jqw34e7AQL2bJlDGs-46h3ZnFfC7BDhaJ0NUBUOYArLydVQElPflf0EK10Bsz7CZrnbf8kEntW3k8Anp5pppb5VfEYD-uxvZikH07P_3RbE_pQVBwac39KjQarlMWlL_Ub9U4HI2SNrnbOlJhtRcWodpRIPxH5Qs_D8lWlHQyPbRjxPNBZ8iWlbQDhMN7ppyQbMzu4QcJRpMM-9wQSv-7_sgDhANGf090fKC1j5W0P6caBm440QrSHGIaPA-36sSbXmcaCmQCtHQxKgUtD3RqgWtINoXC5r99YKWEc_bdtXqtn4mR6vctR2-Dr_rVGuBvg6sAVhfj5-bj2vsaMlvq9wkiK8Cx52fjabuFRQ78Yt7NmIL9MpzuZUK8MLBTuidxqGzIKfYPzHqJxCegGY61qQToC_80-1IWhAumIdUFZyLbns29kN8HoD1-FqfSlSa36CN-NC-bF6K9eTChlQcPqwGzuMcPQ0v3LaEmqPedyxSW2_317eNmfysrzfx4nyyGnTQTKmb9G5oPQph8LoynSTWBCyFlotWLVlqNJ4EayXLjW7jFXVC_4c9012tESQ0Rs01vu6JSRZYpOpDYyp5xrkZIi4Iscoe7YKAWws8AuCkT90hkKUK-1jfY32PQmBdD4DFCpWlU_ZMXISdkRdtVHEsiZKriBPRwxNHlrmAxC9LVRG4aBGq9V-gpmCT",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=jIqwVHiczVXdcqJKEL47V-c1wk0SQYgRUkVtzQCaUZOACZvojYUDDkZxFFA2udt3OU91nmYHBIVEs9ncnNNVzG9Pd38z_dE__5lPF7N___7Lj-NldMXzSZLUCKVk7tUwDXgnellgfkLnUYj9b_5c3Uw5wtoF97JRJQ5HqsB5U1UKHzwnfEG38YMhmIYZKHqXWjdcdlwdjZ3Ie2bWfzxH_IhnzexE0tmkFtU209q5IiiR3G-GjaQmCqJUu-OdgCmA_0IoAoh190D7UI2A1ufsGeybAjArLVm5abhfGuQzA2jpAS11cFBQqkjSbYK2cTAx5YGcCADo1i66DwQBaz_p7SJJ_d6n2x8efi87FPmFfHxvR7bR1pS1VyrFCN_rF5JUZl1myAR6-cR-pOV-Soaze0xdwwToiUeMGwOWtg8Gr03B3RAYEH2kVzi3lZ09pMXMNeRdwjJb4Mch6-r8FPs4G4RRmvDagyJQY_GqW1LdHNqt16Z5u_E2oK49raDSbQIej5nenDqu5478kfAtm9fFekNQpKZ8ljENRzuqRWWqmUTpxO3JBfJvar0arBc807aPXwRaxWB1DyIlDJgGjmcaefNqg2JgwLIzoOUGrJQkrB1U_GtEALiklT74zQD0WO6XHBul0SGeZQIrA3bEzsIkW0ZlUvaMWBYhWsZTEv09arLNK1S2ZMA8PbUd_HaB9u09I4i2Jqw34e7AQL2bJlDGs-46h3ZnFfC7BDhaJ0NUBUOYArLydVQElPflf0EK10Bsz7CZrnbf8kEntW3k8Anp5pppb5VfEYD-uxvZikH07P_3RbE_pQVBwac39KjQarlMWlL_Ub9U4HI2SNrnbOlJhtRcWodpRIPxH5Qs_D8lWlHQyPbRjxPNBZ8iWlbQDhMN7ppyQbMzu4QcJRpMM-9wQSv-7_sgDhANGf090fKC1j5W0P6caBm440QrSHGIaPA-36sSbXmcaCmQCtHQxKgUtD3RqgWtINoXC5r99YKWEc_bdtXqtn4mR6vctR2-Dr_rVGuBvg6sAVhfj5-bj2vsaMlvq9wkiK8Cx52fjabuFRQ78Yt7NmIL9MpzuZUK8MLBTuidxqGzIKfYPzHqJxCegGY61qQToC_80-1IWhAumIdUFZyLbns29kN8HoD1-FqfSlSa36CN-NC-bF6K9eTChlQcPqwGzuMcPQ0v3LaEmqPedyxSW2_317eNmfysrzfx4nyyGnTQTKmb9G5oPQph8LoynSTWBCyFlotWLVlqNJ4EayXLjW7jFXVC_4c9012tESQ0Rs01vu6JSRZYpOpDYyp5xrkZIi4Iscoe7YKAWws8AuCkT90hkKUK-1jfY32PQmBdD4DFCpWlU_ZMXISdkRdtVHEsiZKriBPRwxNHlrmAxC9LVRG4aBGq9V-gpmCT"
+   }
+  },
+  {
+   "origin": "SAVED_26_10_RUN",
+   "query": "Dsdpharma trang chủ chính hãng",
+   "engine": "google",
+   "requestedAt": "2026-10-26T02:03:13.632Z",
+   "aiOverviewState": "page_token_expired",
+   "ai_overview": {
+    "page_token": "2lErCniczVXNcqpIFH6BWc4rhE2ighiVVFG3uhvUFjWgMVfdWAjYYEAUUJLs5l3mqeZppkFUmGgmN5uZUwX9d_r8f33--NN11i9__fa7HUWb8KFSieO4THyfuFbZ8L2KHr6tjcrSd8PAsH8QV9yvGZv-HSb0d4FhOaZo2IHvWczbXuQZIxRZxnLE2uLJ0n1lNBj0Iq-nqTuhFNQ0jUnFifOFHlorqu11FVbmFfp7ueEluiiH5b1TLgmsEDaHjeA-LlfZKl9-rOgeZQD_BfkYYDqMAPqUjYDW1-TJ9HMAeMltaZloeN6aZisZoOQCShRcJJwwkuSY4IMdlNTmtBmzAEjaybpPCAPtvOidLEn0jpLjTy9_pJMXWUA-j9uVY3wQpZ2ZcjbCj_xHigsrhQpSgZS_cZ6hTE9OcBrHRDWMgRRbRO7LMHd80XjkgMcZkCH-jO-ofCyc5GEUUdWwYhJa2WxlEdCBqziGbaSTIEwKHj0JrC-v3yWN59TZuPXeUAd7aw84NNlCQWmAirGgfK6vm5Y5t-fsj3TNVbmGUGfr93cp0ozwBLUwDzWVCN2ovaxhu1_ulSF3xBk6JP9oaNEHTbnoKaGOIXC90ggpZu0UVhnmlQGUCdCIk3JNC_oRYYGR40oS3p-CHq39nGI5N7uEs5RgYUKvjA9mHhCVUl4zplWE_Zw_eWekS17nC-cgSYZZeaIE3ym1z7zFsGJIcaedxXyoeQ0iJSmgFGfKLnPtEWTuY4VABeHUo6IzhDJgLdvHB_ZjYFD-LUjclTE9k8eUF41aLujKmfzkMiFKxpmMWj6LAAwvRCSNAZHS9--bNP4SFwRHPP0DHnlYtQ21PozGpOtNeH-58ruciUvYH3V7A-0yjHxv8Qsty_ifAu3Y0Mgh6deBZoIvAS1taJeBBk-_fEMbp3IJuQo0mFTe5YZ2fN_z3n8AGpaHZ6BlDa19raH9OtBS564D7QiKS0CDo-ysCLTNdaAljhSAhpdyoaGdgVZsaEegfbOhjb_f0FLgWYeh2N12K3K1y3XcjvDef-VUF_P1Va_BKffxEk2reokl_9rlll704Ommezd3zAdY7UZv5t2cbvgPlslsRSk0N7YeePptFOhrcmvYNzJ3A-ENaCRzxN8AaW3fHmb8mjCeG_giq9d1YcZ3kBOEJRdvvbUAYGSrL-NJsN1wU1b1J3pHbaIdqq2Fp35cf3Hnw8lgsOrPSPw8s9Y_60uXFk1gD6XqTED19pQP31abxqRVK_nzvWSErhOpz8_uptd5xYNO3Ns6ewx1DfY0adBSYUNa9HejKeGkcPWaWhWKypNdku9bUXvLMl5giDRlNQIGGvgJgA5aMejSF0ABcLilY49WysKHQOtMgUbblCb5NElMaOhzK9yL1QVf5U2huqxaxlJvNhmPRG8bUWCZcB2I3N92JmcK",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=2lErCniczVXNcqpIFH6BWc4rhE2ighiVVFG3uhvUFjWgMVfdWAjYYEAUUJLs5l3mqeZppkFUmGgmN5uZUwX9d_r8f33--NN11i9__fa7HUWb8KFSieO4THyfuFbZ8L2KHr6tjcrSd8PAsH8QV9yvGZv-HSb0d4FhOaZo2IHvWczbXuQZIxRZxnLE2uLJ0n1lNBj0Iq-nqTuhFNQ0jUnFifOFHlorqu11FVbmFfp7ueEluiiH5b1TLgmsEDaHjeA-LlfZKl9-rOgeZQD_BfkYYDqMAPqUjYDW1-TJ9HMAeMltaZloeN6aZisZoOQCShRcJJwwkuSY4IMdlNTmtBmzAEjaybpPCAPtvOidLEn0jpLjTy9_pJMXWUA-j9uVY3wQpZ2ZcjbCj_xHigsrhQpSgZS_cZ6hTE9OcBrHRDWMgRRbRO7LMHd80XjkgMcZkCH-jO-ofCyc5GEUUdWwYhJa2WxlEdCBqziGbaSTIEwKHj0JrC-v3yWN59TZuPXeUAd7aw84NNlCQWmAirGgfK6vm5Y5t-fsj3TNVbmGUGfr93cp0ozwBLUwDzWVCN2ovaxhu1_ulSF3xBk6JP9oaNEHTbnoKaGOIXC90ggpZu0UVhnmlQGUCdCIk3JNC_oRYYGR40oS3p-CHq39nGI5N7uEs5RgYUKvjA9mHhCVUl4zplWE_Zw_eWekS17nC-cgSYZZeaIE3ym1z7zFsGJIcaedxXyoeQ0iJSmgFGfKLnPtEWTuY4VABeHUo6IzhDJgLdvHB_ZjYFD-LUjclTE9k8eUF41aLujKmfzkMiFKxpmMWj6LAAwvRCSNAZHS9--bNP4SFwRHPP0DHnlYtQ21PozGpOtNeH-58ruciUvYH3V7A-0yjHxv8Qsty_ifAu3Y0Mgh6deBZoIvAS1taJeBBk-_fEMbp3IJuQo0mFTe5YZ2fN_z3n8AGpaHZ6BlDa19raH9OtBS564D7QiKS0CDo-ysCLTNdaAljhSAhpdyoaGdgVZsaEegfbOhjb_f0FLgWYeh2N12K3K1y3XcjvDef-VUF_P1Va_BKffxEk2reokl_9rlll704Ommezd3zAdY7UZv5t2cbvgPlslsRSk0N7YeePptFOhrcmvYNzJ3A-ENaCRzxN8AaW3fHmb8mjCeG_giq9d1YcZ3kBOEJRdvvbUAYGSrL-NJsN1wU1b1J3pHbaIdqq2Fp35cf3Hnw8lgsOrPSPw8s9Y_60uXFk1gD6XqTED19pQP31abxqRVK_nzvWSErhOpz8_uptd5xYNO3Ns6ewx1DfY0adBSYUNa9HejKeGkcPWaWhWKypNdku9bUXvLMl5giDRlNQIGGvgJgA5aMejSF0ABcLilY49WysKHQOtMgUbblCb5NElMaOhzK9yL1QVf5U2huqxaxlJvNhmPRG8bUWCZcB2I3N92JmcK"
+   }
+  },
+  {
+   "origin": "FRESH",
+   "query": "uống viên kẽm có tác dụng gì",
+   "engine": "google",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:59:50Z",
+   "searchId": "6ae2e3e26c62541764d7567e",
+   "aiOverviewState": "inline",
+   "ai_overview": {
+    "text_blocks": [
+     {
+      "type": "paragraph",
+      "snippet": "Viên kẽm cung cấp kẽm – một khoáng chất thiết yếu tham gia vào hoạt động của hơn 300 enzyme và nhiều quá trình sinh học quan trọng trong cơ thể.",
+      "snippet_highlighted_words": [
+       "cung cấp kẽm – một khoáng chất thiết yếu tham gia vào hoạt động của hơn 300 enzyme và nhiều quá trình sinh học quan trọng trong cơ thể"
+      ],
+      "reference_indexes": [
+       0,
+       1
+      ]
+     },
+     {
+      "type": "heading",
+      "snippet": "Các tác dụng chính của viên kẽm"
+     },
+     {
+      "type": "list",
+      "list": [
+       {
+        "snippet": "Tăng cường hệ miễn dịch: Kẽm kích thích sản sinh tế bào miễn dịch, giúp cơ thể chống lại vi khuẩn, virus và rút ngắn thời gian mắc bệnh cảm lạnh hay nhiễm trùng.",
+        "reference_indexes": [
+         1,
+         2
+        ]
+       },
+       {
+        "snippet": "Hỗ trợ làm lành vết thương và cải thiện da: Kẽm thúc đẩy tái tạo tế bào, kháng viêm, hỗ trợ điều hòa tuyến bã nhờn nên rất hiệu quả trong việc hỗ trợ trị mụn trứng cá và làm lành vết thương.",
+        "reference_indexes": [
+         1,
+         2,
+         3
+        ]
+       },
+       {
+        "snippet": "Cải thiện sức khỏe sinh lý và sinh sản: Ở nam giới, kẽm tham gia sản xuất hormone testosterone, cải thiện số lượng và chất lượng tinh trùng, đồng thời bảo vệ tuyến tiền liệt. Ở nữ giới, kẽm giúp cân bằng nội tiết tố.",
+        "reference_indexes": [
+         0,
+         4,
+         5
+        ]
+       },
+       {
+        "snippet": "Tốt cho tóc và móng: Bổ sung kẽm giúp ngăn ngừa tình trạng rụng tóc, khô da, móng tay dễ gãy.",
+        "reference_indexes": [
+         3,
+         5
+        ]
+       },
+       {
+        "snippet": "Hỗ trợ thần kinh và trí não: Kẽm tham gia tổng hợp chất dẫn truyền thần kinh như serotonin và dopamine, giúp cải thiện trí nhớ, sự tập trung và tâm trạng.",
+        "reference_indexes": [
+         0,
+         1
+        ]
+       },
+       {
+        "snippet": "Hỗ trợ phát triển thể chất: Kẽm cần thiết cho sự phân chia tế bào, tổng hợp protein, giúp phát triển xương và cơ bắp ở trẻ em cũng như người tập luyện thể thao.",
+        "reference_indexes": [
+         0,
+         6
+        ]
+       }
+      ]
+     },
+     {
+      "type": "paragraph",
+      "snippet": "Bạn có thể tìm hiểu thêm các thông tin chi tiết về sản phẩm và liều dùng tại Nhà Thuốc Long Châu hoặc trang Nhà Thuốc An Khang.",
+      "snippet_links": [
+       {
+        "text": "Nhà Thuốc Long Châu",
+        "link": "https://nhathuoclongchau.com.vn/bai-viet/nhung-tac-dung-cua-kem-voi-co-the.html"
+       },
+       {
+        "text": "Nhà Thuốc An Khang",
+        "link": "https://www.nhathuocankhang.com/ban-tin-suc-khoe/zinc-la-gi-tac-dung-lieu-dung-tac-dung-phu-thu-1377993"
+       }
+      ],
+      "reference_indexes": [
+       0,
+       1
+      ]
+     },
+     {
+      "type": "heading",
+      "snippet": "Lưu ý khi sử dụng"
+     },
+     {
+      "type": "list",
+      "list": [
+       {
+        "snippet": "Thời điểm uống: Nên uống kẽm sau bữa ăn khoảng 1–2 giờ để tránh gây cồn cào hoặc buồn nôn."
+       },
+       {
+        "snippet": "Tương tác thuốc/vi chất: Tránh uống kẽm cùng lúc với sắt hoặc canxi; nên uống cách nhau từ 2–3 giờ vì các chất này cạnh tranh khả năng hấp thu."
+       },
+       {
+        "snippet": "Liều lượng: Không tự ý dùng liều cao kéo dài để tránh gây thừa kẽm hoặc giảm hấp thu đồng.",
+        "reference_indexes": [
+         2,
+         5,
+         7,
+         8
+        ]
+       }
+      ]
+     },
+     {
+      "type": "paragraph",
+      "snippet": "Nếu bạn muốn, hãy cho tôi biết:"
+     },
+     {
+      "type": "list",
+      "list": [
+       {
+        "snippet": "Đối tượng sử dụng viên kẽm (người lớn, trẻ em hay phụ nữ mang thai)"
+       },
+       {
+        "snippet": "Lý do bạn muốn bổ sung kẽm (trị mụn, rụng tóc, tăng sức đề kháng hay cải thiện sinh lý)"
+       }
+      ]
+     },
+     {
+      "type": "paragraph",
+      "snippet": "Tôi có thể tư vấn cụ thể hơn về liều lượng hoặc thời gian dùng phù hợp cho bạn."
+     }
+    ],
+    "references": [
+     {
+      "index": 0,
+      "title": "Tác dụng của kẽm với cơ thể là gì? Ăn gì để bổ sung kẽm?",
+      "link": "https://nhathuoclongchau.com.vn/bai-viet/nhung-tac-dung-cua-kem-voi-co-the.html",
+      "snippet": "Tác dụng của kẽm với cơ thể là gì? Ăn gì để bổ sung kẽm? * Kẽm. * Sữa rửa mặt. ... Những tác dụng của kẽm với cơ thể ... Bạn đang gặp phải các vấn đề về sức khỏe n...",
+      "source": "Nhà thuốc Long Châu",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://nhathuoclongchau.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTYfhO_akkMWYl5lDS6sCcLWy1cE8Vz3L-1EaLhm4LpBzEsLNrxeKzl5aLZ_yUX2kjBdVQGerhf1AdabzOLbjRh7Mq8rRJZVU8MFU1a-UE1YI6RzDhBYNi2oUwzv4Yvo9HMxN5aGWhLYT2mwBVMzM0SFaA"
+     },
+     {
+      "index": 1,
+      "title": "Kẽm có tác dụng gì? 14 tác dụng của kẽm đối với cơ thể",
+      "link": "https://www.nhathuocankhang.com/ban-tin-suc-khoe/zinc-la-gi-tac-dung-lieu-dung-tac-dung-phu-thu-1377993",
+      "snippet": "* Zn: 2nd most essential trace mineral; supports 300+ enzymes, protein/DNA function. * 14+ benefits: * Immunity: Stimulates immune cells, cuts infection risk (45mg...",
+      "source": "Nhà thuốc An Khang",
+      "source_icon": "https://encrypted-tbn0.gstatic.com/faviconV2?url=https://www.nhathuocankhang.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcR-OWnM8pa777YpXufvrky6ZXu86FGdlir-sDVRuGcgjmCx-0PZSDp5UmE3MBF_msbFd6jVOKMXrhiKkMYSJ8ysM7fOJcnUGQr-TuhZ3f-EneCUaPkmQheuaZXnEnJQ6kZa-CF155wu40cen5kE_3jB2AY"
+     },
+     {
+      "index": 2,
+      "title": "Có nên uống kẽm mỗi ngày? Liều lượng, đối tượng và cách dùng",
+      "link": "https://www.matsaigon.com/a-z/co-nen-uong-kem-moi-ngay/",
+      "snippet": "Có nên uống kẽm mỗi ngày? Liều lượng, đối tượng và cách dùng - Bệnh Viện Mắt Sài Gòn. ...",
+      "source": "Mắt Sài Gòn",
+      "source_icon": "https://encrypted-tbn1.gstatic.com/faviconV2?url=https://www.matsaigon.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqm2T6ur3iFpU8VPb1iFx9XcA8wLh4qRNsxg-3INxUTZyFxUIGDzo_8BIFhstM9TW7jYIWw7g39R91NJjS8C6kepmeMUSGt0tP9WO8GiuknxYHzadqPOUHrpX1NF050tR_DzuPsU6uU6OH7_vZ5aF9fSE"
+     },
+     {
+      "index": 3,
+      "title": "Uống kẽm có tác dụng gì? Mách bạn 14 lợi ích sức khỏe",
+      "link": "https://tiemchunglongchau.com.vn/kien-thuc-tiem-chung/uong-kem-co-tac-dung-gi-mach-ban-14-loi-ich-suc-khoe",
+      "snippet": "Uống kẽm có tác dụng gì? Mách bạn 14 lợi ích sức khỏe - Trung tâm Tiêm chủng Long Châu. * Uống kẽm có tác dụng gì? Mách bạn 14 lợi ích sức khỏe. ... Uống kẽm có tá...",
+      "source": "Tiêm chủng Long Châu",
+      "source_icon": "https://encrypted-tbn1.gstatic.com/faviconV2?url=https://tiemchunglongchau.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcRJwIadvb2-OBJ84c3NOp5oWRU1Z8k_iLQoqkjzxyxCiw95TGk3_IdASb0I4UVF-sUsSl3reOAtI6zFsNXsxa1jWXbWgoCDaoH3SOMBG-c0CkMlZ_1M5ygWVC_HhLzGBLdRMSi_-3npx6Cr2aYF5RvoOPI"
+     },
+     {
+      "index": 4,
+      "title": "Kẽm có tác dụng gì với nam giới? Cách bổ sung kẽm hiệu quả",
+      "link": "https://medlatec.vn/kem-co-tac-dung-gi-voi-nam-gioi-cach-bo-sung-kem-hieu-qua",
+      "snippet": "Kẽm có tác dụng gì với nam giới? Cách bổ sung kẽm hiệu quả ...",
+      "source": "Bệnh viện Đa khoa MEDLATEC",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://medlatec.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcQp0SXzePvt-2YMFSLDNe56M_3htCfOBncyUrx0Sz7nkFUebZ-IPoEs3HSH8c_H8DWkdWHJon8zWISosIFdzA3_YyUlSK_A90DuFPRNDmNp9fEUdaw6bCCFOwTWovaTOZF193Bss-nYgb0ia5zTWhtNafs"
+     },
+     {
+      "index": 5,
+      "title": "Kẽm có tác dụng gì với nữ? - Bác Sĩ Hạnh",
+      "link": "https://bacsihanh.vn/kem-co-tac-dung-gi-voi-nu-cach-bo-sung-hieu-qua-an-toan/",
+      "snippet": "Về sinh học, kẽm tham gia vào: * Hoạt động của nhiều enzym, hỗ trợ chuyển hóa và tái tạo mô * Tổng hợp protein và ADN, quá trình phân chia tế bào. * Duy trì “hàng ...",
+      "source": "Bác Sĩ Hạnh",
+      "source_icon": "https://encrypted-tbn1.gstatic.com/faviconV2?url=https://bacsihanh.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRRD6-ehsgeBUTOiONa9sOoNx_C0Ppz6oDefTav05K7lUwE6APaaOSrOxcFX4CMkhCiw8d5VfBA6uwuFA7C2Zymiadd_s3N8BViJaOVrlVjR7ZX2O1mwAxg0azHr8e9JBPzEAZb7xTzqKBesjlpYVqipR8"
+     },
+     {
+      "index": 6,
+      "title": "Vai trò của kẽm - Hướng dẫn bổ sung kẽm hợp lý | Vinmec",
+      "link": "https://www.vinmec.com/vie/bai-viet/vai-tro-cua-kem-huong-dan-bo-sung-kem-hop-ly-vi",
+      "snippet": "Vai trò của kẽm - Hướng dẫn bổ sung kẽm hợp lý * Vai trò của kẽm. * Hướng dẫn bổ sung kẽm cho trẻ * Các dấu hiệu cho thấy trẻ bị thiếu kẽm. * Bổ sung kẽm bằng cách...",
+      "source": "Vinmec",
+      "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.vinmec.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ0KW6LJpv-kKKGoCP7_0CziiOlnfmcNCqnir9Vh-erw4P_761JlxBqWKIlg-ACgKBp1qrYnkFzS_uJeu1vJn_iCQPIKImEb0E3AdAg9I3hkTduCrYlVl_GLcBg7zoPTDg8IO39Wv4-tmUxceg87mBc_fY"
+     },
+     {
+      "index": 7,
+      "title": "Uống kẽm có tác dụng gì? Uống khi nào hợp lý và hiệu quả?",
+      "link": "https://www.watsons.vn/vi/blog/cham-soc-suc-khoe/uong-kem-co-tac-dung-gi-uong-khi-nao-hop-ly-va-hieu-qua",
+      "snippet": "Vai trò kẽm: - Khoáng chất vi lượng thiết yếu, cơ thể không tự sản xuất. - Miễn dịch: phát triển, duy trì hoạt động, tăng chống tác nhân môi trường. - Da: giảm kíc...",
+      "source": "Watsons.vn",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://www.watsons.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcTSXBc2L1YvMm-OmlRTifD6KjepfbOWMrC50xU87SHvof6urUJRf0AbqHJtcrmfhSPIH9PJHZ2xA2RU13ghO1c_3d1fbzTivP9eFSgJm6UUGeneMlJfrBqsaQebwS8fQR8vKEYqRcvNCLWHXlGHjaNNM2A"
+     },
+     {
+      "index": 8,
+      "title": "Kẽm là gì? Lợi ích của kẽm đối với sức khỏe tổng thể và sức khỏe hệ ...",
+      "link": "https://www.vinamilk.com.vn/blogs/thong-tin-dinh-duong/kem-la-gi",
+      "snippet": "* Kẽm là gì? Lợi ích của kẽm đối với sức khỏe tổng thể và sức khỏe hệ miễn dịch. Kẽm là gì? Lợi ích của kẽm đối với sức khỏe tổng thể và sức khỏe hệ miễn dịch. Kẽm...",
+      "source": "Vinamilk",
+      "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.vinamilk.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSWUCk1XWUMwWMROjSHIOnu5bde-x2CURnAauNxtJ2m2tzFI6mU38rXAUKxLdkDyySFOSpMsDg5PW4PSkRgTX0Al_e2QtzLyDk-8bFKKGL5ugzPHgjwashxRhxCHYxHcbfWpkP9PjlEUSwwxup1RUByvtw"
+     }
+    ]
+   },
+   "related_questions": null,
+   "related_searches": [
+    {
+     "block_position": 1,
+     "query": "Uống kẽm có tác dụng gì cho nữ",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=U%E1%BB%91ng+k%E1%BA%BDm+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+cho+n%E1%BB%AF&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAg9EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=U%E1%BB%91ng+k%E1%BA%BDm+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+cho+n%E1%BB%AF"
+    },
+    {
+     "block_position": 1,
+     "query": "Uống kẽm có tác dụng gì cho da",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=U%E1%BB%91ng+k%E1%BA%BDm+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+cho+da&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAhBEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=U%E1%BB%91ng+k%E1%BA%BDm+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+cho+da"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm có tác dụng gì với nam giới",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=K%E1%BA%BDm+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+v%E1%BB%9Bi+nam+gi%E1%BB%9Bi&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAhAEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+v%E1%BB%9Bi+nam+gi%E1%BB%9Bi"
+    },
+    {
+     "block_position": 1,
+     "query": "Uống kẽm mỗi ngày có tác dụng gì",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=U%E1%BB%91ng+k%E1%BA%BDm+m%E1%BB%97i+ng%C3%A0y+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAg_EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=U%E1%BB%91ng+k%E1%BA%BDm+m%E1%BB%97i+ng%C3%A0y+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC"
+    },
+    {
+     "block_position": 1,
+     "query": "Bổ sung kẽm cho người lớn có tác dụng gì",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=B%E1%BB%95+sung+k%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAg-EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=B%E1%BB%95+sung+k%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm DSD có tác dụng gì",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=K%E1%BA%BDm+DSD+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAg7EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+DSD+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC"
+    },
+    {
+     "block_position": 1,
+     "query": "Có nên uống kẽm mỗi ngày",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=C%C3%B3+n%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+m%E1%BB%97i+ng%C3%A0y&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAg6EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=C%C3%B3+n%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+m%E1%BB%97i+ng%C3%A0y"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm DSD có tác dụng gì với nam giới",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDgDKHEKvPcrhwfNT-Hm5Ww5rZa0bA:1793254370365&q=K%E1%BA%BDm+DSD+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+v%E1%BB%9Bi+nam+gi%E1%BB%9Bi&sa=X&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQ1QJ6BAg8EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+DSD+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+v%E1%BB%9Bi+nam+gi%E1%BB%9Bi"
+    }
+   ],
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "kẽm có tác dụng gì với trẻ và bổ sung kẽm sao cho đúng",
+     "link": "https://medlatec.vn/tin-tuc/cha-me-nen-biet-kem-co-tac-dung-gi-voi-tre-va-bo-sung-kem-sao-cho-dung-s195-n26329",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESqQEB6zswFWomy01GUVeccvZSZAYM00Pg2jgKtZWo7Rjg2Y3u9A5mZPHy9ks6lEwud3-X2-f081ARmUJtGGwYTfWyv5KvK4vtBD0bz5fQyspltby5dZSDYacRhjk9a_g1o3jLTqAxaQH6Po3ctyw48NKBsxacQnOjzkFDVdrTJpg9FiX1SUuSrmg16e2bsUjzdCnJTfK_Emwiu9IKq7EuOqYzUq5mJQy8di4L&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECCEQAQ&uoh=1",
+     "displayed_link": "https://medlatec.vn › tin-tuc › cha-me-nen-biet-kem-co-...",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABkAAAAcCAMAAACj-uTiAAAAgVBMVEVHcEz44oP44oP44oP54oP44oP44oPVzoz44oP54oP54oP44oP444P44oP54oMOZrP44oP44oP65Yn555P-8Kr865sAX7P77YxRirLzpm7266nb3q8vd7PAzbXk14z_97gLarOctanpST3xmGL2tnqywKmGpbLlLS3tcVP6wofKypLBJWpPAAAAEXRSTlMAvEytCuwSAhpvn43YOykHV6JgGV0AAAFaSURBVCiRhVLp0oMgDERBxKMHEhDvq9rj_R_w47BOO_3x7YxDJssmawhC_yOmjDEa_-RZmKRBEKRJyL7vX3HEPSJ8_dDRzOcLz2X0qIRd2sOGeK9IUkcIIaQQnkuJ65Hwvu-5kA5ClJZKbK9z3k96HPXUANQg-3V99Tw_O4npPLVKaUutNng5EQlsD9nZDAzmGLfe1AsIYpFjYFJKdcOmxklIw0QMnaxfAXWjjWjQaqvBOOT8hEInkQDdqNS0tQ3Ujgl3pgbfQ-v6YHw1oxkspdoVpCxcNe_A3IS6M62Mdym8A-_aULC2Y6u3zhczrlFihyblAE3TNeZnpXTjcdPhvLzdqur2hKc9KsPY6ThROd_v8zw_74_HPD_6faIoznhRLctiPquoloJnZH_SlJef4OnxqCR7b4FF_lY4hDh_53H4vVX0lGQ4wFlyougHhDJKfjfxwCWOLy74A6KmJpTtON_xAAAAAElFTkSuQmCC.png",
+     "date": "3 thg 12, 2021",
+     "snippet": "Kẽm kích thích tế bào lympho B và lympho T phát triển từ đó giúp cho cơ thể có được hệ thống phòng thủ chống lại các tác nhân gây bệnh, chống ...",
+     "snippet_highlighted_words": [
+      "Kẽm",
+      "có",
+      "tác"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Kẽm kích thích tế bào lympho B và lympho T phát triển từ đó giúp cho cơ thể có được hệ thống phòng thủ chống lại các tác nhân gây bệnh, chống ...",
+       "source_info_link": "https://medlatec.vn/tin-tuc/cha-me-nen-biet-kem-co-tac-dung-gi-voi-tre-va-bo-sung-kem-sao-cho-dung-s195-n26329",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABkAAAAcCAMAAACj-uTiAAAAgVBMVEVHcEz44oP44oP44oP54oP44oP44oPVzoz44oP54oP54oP44oP444P44oP54oMOZrP44oP44oP65Yn555P-8Kr865sAX7P77YxRirLzpm7266nb3q8vd7PAzbXk14z_97gLarOctanpST3xmGL2tnqywKmGpbLlLS3tcVP6wofKypLBJWpPAAAAEXRSTlMAvEytCuwSAhpvn43YOykHV6JgGV0AAAFaSURBVCiRhVLp0oMgDERBxKMHEhDvq9rj_R_w47BOO_3x7YxDJssmawhC_yOmjDEa_-RZmKRBEKRJyL7vX3HEPSJ8_dDRzOcLz2X0qIRd2sOGeK9IUkcIIaQQnkuJ65Hwvu-5kA5ClJZKbK9z3k96HPXUANQg-3V99Tw_O4npPLVKaUutNng5EQlsD9nZDAzmGLfe1AsIYpFjYFJKdcOmxklIw0QMnaxfAXWjjWjQaqvBOOT8hEInkQDdqNS0tQ3Ujgl3pgbfQ-v6YHw1oxkspdoVpCxcNe_A3IS6M62Mdym8A-_aULC2Y6u3zhczrlFihyblAE3TNeZnpXTjcdPhvLzdqur2hKc9KsPY6ThROd_v8zw_74_HPD_6faIoznhRLctiPquoloJnZH_SlJef4OnxqCR7b4FF_lY4hDh_53H4vVX0lGQ4wFlyougHhDJKfjfxwCWOLy74A6KmJpTtON_xAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvIBL2dvdG8_dXJsPUNBRVNxUUVCNnpzd0ZUUGRBLVFjQW9HdlRnZUotOVJudmhFTThTenFnb29iM1B0X21FRU1sMmRHZ21qcnIwYmd2OUI1QTRvZU5GY1RRYS1VbmJPWVVhekNWOGZWaDZxWHQycThOZ25XNkhqWC0tUDFFZDRxM0NXekRzSFhuNXRRMTNrZzRtVWI5U3FsTjZ6QTBOXzVjSEQ4RzY5YVp6a0gtX2ZacHBVOExpWmJHYWZJT2dleFdVRWVESDd3S2FrRTkwQjRHNWNnam5FM2dYUXMxLXhMVUE5cjBScVYtLXVaejI4ajJpNmUSBBoCCAAajAYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA6AUIQhAAGAAgACoNCgZ14buRbmcVpmZvPiomCgV2acOqbhUAAAAAGgd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VPH3IQCoTCgNjw7MVrvyqQBoHY8OzdMOhYyogCgR0w6FjFRqBp0AaB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFTxzpEAaBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVlqukQDLyAS9nb3RvP3VybD1DQUVTcVFFQjZ6c3dGVFBkQS1RY0FvR3ZUZ2VKLTlSbnZoRU04U3pxZ29vYjNQdF9tRUVNbDJkR2dtanJyMGJndjlCNUE0b2VORmNUUWEtVW5iT1lVYXpDVjhmVmg2cVh0MnE4TmduVzZIalgtLVAxRWQ0cTNDV3pEc0hYbjV0UTEza2c0bVViOVNxbE42ekEwTl81Y0hEOEc2OWFaemtILV9mWnBwVThMaVpiR2FmSU9nZXhXVUVlREg3d0tha0U5MEI0RzVjZ2puRTNnWFFzMS14TFVBOXIwUnFWLS11WnoyOGoyaTZlOlY8Yj5r4bq9bSBjw7MgdMOhYyBk4bulbmcgZ8OsPC9iPiB24bubaSB0cuG6uyB2w6AgYuG7lSBzdW5nIDxiPmvhur1tPC9iPiBzYW8gY2hvIMSRw7puZ0LWATxiPkvhur1tPC9iPiBrw61jaCB0aMOtY2ggdOG6vyBiw6BvIGx5bXBobyBCIHbDoCBseW1waG8gVCBwaMOhdCB0cmnhu4NuIHThu6sgxJHDsyBnacO6cCBjaG8gY8ahIHRo4buDIDxiPmPDszwvYj4gxJHGsOG7o2MgaOG7hyB0aOG7kW5nIHBow7JuZyB0aOG7pyBjaOG7kW5nIGzhuqFpIGPDoWMgPGI-dMOhYzwvYj4gbmjDom4gZ8OieSBi4buHbmgsIGNo4buRbmcmbmJzcDsuLi5SBGR1bmciAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvIBL2dvdG8_dXJsPUNBRVNxUUVCNnpzd0ZUUGRBLVFjQW9HdlRnZUotOVJudmhFTThTenFnb29iM1B0X21FRU1sMmRHZ21qcnIwYmd2OUI1QTRvZU5GY1RRYS1VbmJPWVVhekNWOGZWaDZxWHQycThOZ25XNkhqWC0tUDFFZDRxM0NXekRzSFhuNXRRMTNrZzRtVWI5U3FsTjZ6QTBOXzVjSEQ4RzY5YVp6a0gtX2ZacHBVOExpWmJHYWZJT2dleFdVRWVESDd3S2FrRTkwQjRHNWNnam5FM2dYUXMxLXhMVUE5cjBScVYtLXVaejI4ajJpNmUSBBoCCAAajAYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA6AUIQhAAGAAgACoNCgZ14buRbmcVpmZvPiomCgV2acOqbhUAAAAAGgd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VPH3IQCoTCgNjw7MVrvyqQBoHY8OzdMOhYyogCgR0w6FjFRqBp0AaB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFTxzpEAaBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVlqukQDLyAS9nb3RvP3VybD1DQUVTcVFFQjZ6c3dGVFBkQS1RY0FvR3ZUZ2VKLTlSbnZoRU04U3pxZ29vYjNQdF9tRUVNbDJkR2dtanJyMGJndjlCNUE0b2VORmNUUWEtVW5iT1lVYXpDVjhmVmg2cVh0MnE4TmduVzZIalgtLVAxRWQ0cTNDV3pEc0hYbjV0UTEza2c0bVViOVNxbE42ekEwTl81Y0hEOEc2OWFaemtILV9mWnBwVThMaVpiR2FmSU9nZXhXVUVlREg3d0tha0U5MEI0RzVjZ2puRTNnWFFzMS14TFVBOXIwUnFWLS11WnoyOGoyaTZlOlY8Yj5r4bq9bSBjw7MgdMOhYyBk4bulbmcgZ8OsPC9iPiB24bubaSB0cuG6uyB2w6AgYuG7lSBzdW5nIDxiPmvhur1tPC9iPiBzYW8gY2hvIMSRw7puZ0LWATxiPkvhur1tPC9iPiBrw61jaCB0aMOtY2ggdOG6vyBiw6BvIGx5bXBobyBCIHbDoCBseW1waG8gVCBwaMOhdCB0cmnhu4NuIHThu6sgxJHDsyBnacO6cCBjaG8gY8ahIHRo4buDIDxiPmPDszwvYj4gxJHGsOG7o2MgaOG7hyB0aOG7kW5nIHBow7JuZyB0aOG7pyBjaOG7kW5nIGzhuqFpIGPDoWMgPGI-dMOhYzwvYj4gbmjDom4gZ8OieSBi4buHbmgsIGNo4buRbmcmbmJzcDsuLi5SBGR1bmciAhABSABYAGgA",
+     "source": "Bệnh viện Đa khoa MEDLATEC"
+    },
+    {
+     "position": 2,
+     "title": "Vì sao kẽm tốt cho nam giới?",
+     "link": "https://www.vinmec.com/vie/bai-viet/vi-sao-kem-tot-cho-nam-gioi-vi",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESfQHrOzAVBCqHWFzYXNAZspSK3DQFQu3hvBQ3PgyXbIEmmArz5gl2mIv7j3ZMLaerMuTp-YpjeCYg_dizQ5ld92tvm3QfAvkuosPLDhSxSyfWqbzvT5P-cK89d-g-W8U4z5gam5BmQAFoXVa2WnjTU5nYNYWwuwEfzTmrzBHx&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECCAQAQ&uoh=1",
+     "displayed_link": "https://www.vinmec.com › ... › Sức khoẻ tổng quát",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAjVBMVEVHcEzBjkPBizzCpmzay4rHjTTEkkzE5uDEnlnBhS_IlDjBjEC_jkXPlTPGpnHVrFDirDH2vi_oxWHBiDXQpVnP2brfwGbUoUvAkk7Dn1bKlD_2y0LwuzXrsCbBiTzCginTkifMjijDhCzXlyfGhivKiindnibhoSXamifBgyrlpST3uh_oqiHysyHtryBU7n5JAAAAH3RSTlMAbJMbBt1XAijzraZ48RBzxMkxnFoJQ21HM5mG5fbJn9TQcQAAANtJREFUKJGV0NsWgiAQBVBDEfFumpZdUNKKrP7_8wKrVcrwEIu3vc5wBsv6_zi2Z8MSr_PAtQlENqJ8YRgYUsbXMBGfMRYacgETjMawuTLHDoYgliZy2DwhpBrQVch9GBfqyQ6D64_Ydb1nKiut_f2fVRKgcOOoQlxZi6ctERUUyWlYWdNspgOJ-tKaoNGOWt844BwXo11OK71r10fRaOdEQ-L2r9z5mgKr-O3Lbnt9rlW87XFfzqQsquhjQzlDr_7aME_Kbar0bRlQyHKWSZrtsi3QR60jrwOKdp47-xfzq87LPwAAAABJRU5ErkJggg.png",
+     "snippet": "Kẽm tăng sức mạnh sinh lý và giúp duy trì sức khỏe sinh sản lâu dài: Kẽm là nguyên liệu không thể thiếu trong cấu tạo của testosterone. Đồng thời, kẽm cũng đóng ...",
+     "snippet_highlighted_words": [
+      "tăng sức mạnh sinh lý và giúp duy trì sức khỏe sinh sản lâu dài"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Kẽm tăng sức mạnh sinh lý và giúp duy trì sức khỏe sinh sản lâu dài: Kẽm là nguyên liệu không thể thiếu trong cấu tạo của testosterone. Đồng thời, kẽm cũng đóng ...",
+       "source_info_link": "https://www.vinmec.com/vie/bai-viet/vi-sao-kem-tot-cho-nam-gioi-vi",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAjVBMVEVHcEzBjkPBizzCpmzay4rHjTTEkkzE5uDEnlnBhS_IlDjBjEC_jkXPlTPGpnHVrFDirDH2vi_oxWHBiDXQpVnP2brfwGbUoUvAkk7Dn1bKlD_2y0LwuzXrsCbBiTzCginTkifMjijDhCzXlyfGhivKiindnibhoSXamifBgyrlpST3uh_oqiHysyHtryBU7n5JAAAAH3RSTlMAbJMbBt1XAijzraZ48RBzxMkxnFoJQ21HM5mG5fbJn9TQcQAAANtJREFUKJGV0NsWgiAQBVBDEfFumpZdUNKKrP7_8wKrVcrwEIu3vc5wBsv6_zi2Z8MSr_PAtQlENqJ8YRgYUsbXMBGfMRYacgETjMawuTLHDoYgliZy2DwhpBrQVch9GBfqyQ6D64_Ydb1nKiut_f2fVRKgcOOoQlxZi6ctERUUyWlYWdNspgOJ-tKaoNGOWt844BwXo11OK71r10fRaOdEQ-L2r9z5mgKr-O3Lbnt9rlW87XFfzqQsquhjQzlDr_7aME_Kbar0bRlQyHKWSZrtsi3QR60jrwOKdp47-xfzq87LPwAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CrYBL2dvdG8_dXJsPUNBRVNmUUhyT3pBVlZvTEFyOHVNb3Q5cXItR09KbURIWVlMbmxjMnpTbFBXN2MtclZMQkxFbEhlcl9SZXFWMjZ0UjJFd3RKVFZTMC1FeTNsMERCSTlDS3laVGZFSnB1UFhuMzd5MkNrUTdXM1oxUkdzNktYcjVmTi1DeXRHREZpUkk3bXdkZnZQRWJXRTBncmRkaUhoRmtTM1p2eUpDZHVtRkx4a05rNGRWMGUSBBoCCAAatwUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCRBQhCEAAYACAAKg0KBnXhu5FuZxUl4_o-KiYKBXZpw6puFQAAAAAaB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRUQRJBAKhMKA2PDsxVAHF4_Ggdjw7N0w6FjKiAKBHTDoWMV6e1sPxoHY8OzdMOhYxoKdMOhY2Thu6VuZyoqCgZk4bulbmcVAIymPxoEZHVuZxoKdMOhY2Thu6VuZxoJaXY7ZDtkdW5nKgoKA2fDrBWfeac-MrYBL2dvdG8_dXJsPUNBRVNmUUhyT3pBVlZvTEFyOHVNb3Q5cXItR09KbURIWVlMbmxjMnpTbFBXN2MtclZMQkxFbEhlcl9SZXFWMjZ0UjJFd3RKVFZTMC1FeTNsMERCSTlDS3laVGZFSnB1UFhuMzd5MkNrUTdXM1oxUkdzNktYcjVmTi1DeXRHREZpUkk3bXdkZnZQRWJXRTBncmRkaUhoRmtTM1p2eUpDZHVtRkx4a05rNGRWMGU6M1bDrCBzYW8gPGI-a-G6vW08L2I-IHThu5F0IGNobyBuYW0gZ2nhu5tpPyAtIFZpbm1lY0LeAUvhur1tIDxiPnTEg25nIHPhu6ljIG3huqFuaCBzaW5oIGzDvSB2w6AgZ2nDunAgZHV5IHRyw6wgc-G7qWMga2jhu49lIHNpbmggc-G6o24gbMOidSBkw6BpPC9iPjogS-G6vW0gbMOgIG5ndXnDqm4gbGnhu4d1IGtow7RuZyB0aOG7gyB0aGnhur91IHRyb25nIGPhuqV1IHThuqFvIGPhu6dhIHRlc3Rvc3Rlcm9uZS4gxJDhu5NuZyB0aOG7nWksIGvhur1tIGPFqW5nIMSRw7NuZyZuYnNwOy4uLlIEZHVuZyICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CrYBL2dvdG8_dXJsPUNBRVNmUUhyT3pBVlZvTEFyOHVNb3Q5cXItR09KbURIWVlMbmxjMnpTbFBXN2MtclZMQkxFbEhlcl9SZXFWMjZ0UjJFd3RKVFZTMC1FeTNsMERCSTlDS3laVGZFSnB1UFhuMzd5MkNrUTdXM1oxUkdzNktYcjVmTi1DeXRHREZpUkk3bXdkZnZQRWJXRTBncmRkaUhoRmtTM1p2eUpDZHVtRkx4a05rNGRWMGUSBBoCCAAatwUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCRBQhCEAAYACAAKg0KBnXhu5FuZxUl4_o-KiYKBXZpw6puFQAAAAAaB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRUQRJBAKhMKA2PDsxVAHF4_Ggdjw7N0w6FjKiAKBHTDoWMV6e1sPxoHY8OzdMOhYxoKdMOhY2Thu6VuZyoqCgZk4bulbmcVAIymPxoEZHVuZxoKdMOhY2Thu6VuZxoJaXY7ZDtkdW5nKgoKA2fDrBWfeac-MrYBL2dvdG8_dXJsPUNBRVNmUUhyT3pBVlZvTEFyOHVNb3Q5cXItR09KbURIWVlMbmxjMnpTbFBXN2MtclZMQkxFbEhlcl9SZXFWMjZ0UjJFd3RKVFZTMC1FeTNsMERCSTlDS3laVGZFSnB1UFhuMzd5MkNrUTdXM1oxUkdzNktYcjVmTi1DeXRHREZpUkk3bXdkZnZQRWJXRTBncmRkaUhoRmtTM1p2eUpDZHVtRkx4a05rNGRWMGU6M1bDrCBzYW8gPGI-a-G6vW08L2I-IHThu5F0IGNobyBuYW0gZ2nhu5tpPyAtIFZpbm1lY0LeAUvhur1tIDxiPnTEg25nIHPhu6ljIG3huqFuaCBzaW5oIGzDvSB2w6AgZ2nDunAgZHV5IHRyw6wgc-G7qWMga2jhu49lIHNpbmggc-G6o24gbMOidSBkw6BpPC9iPjogS-G6vW0gbMOgIG5ndXnDqm4gbGnhu4d1IGtow7RuZyB0aOG7gyB0aGnhur91IHRyb25nIGPhuqV1IHThuqFvIGPhu6dhIHRlc3Rvc3Rlcm9uZS4gxJDhu5NuZyB0aOG7nWksIGvhur1tIGPFqW5nIMSRw7NuZyZuYnNwOy4uLlIEZHVuZyICEAFIAFgAaAA",
+     "source": "Vinmec"
+    },
+    {
+     "position": 3,
+     "title": "Kẽm có tác dụng gì cho da? 10 tác dụng và lưu ý khi sử dụng",
+     "link": "https://www.nhathuocankhang.com/ban-tin-suc-khoe/uong-kem-co-tac-dung-gi-cho-da-1572612",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESkgEB6zswFVMRRB4cinI8kG5Li3BXLm1w9CQ3lextmUBfTUxQVYN_Am5sm7KXINzoQov3mVqBC05eGhCOv0XQGltU-u4lKuPFG0KAQ0nLTS6x2wjgxUnZIlbeezU2-QQ7S406Ug0tlmP9m_P91vSyMOfjMESONeXAHUDQVqMkro9jLBMsTmzcJPg8ZmblPTkeOwRRuQ&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECCkQAQ&uoh=1",
+     "displayed_link": "https://www.nhathuocankhang.com › ban-tin-suc-khoe",
+     "favicon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys_RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3NDc3Nzc3Nys3NzI1Nzc1Nzc3Nzc3Nzc3ODU3NS0vLjU3N__AABEIABwAHAMBEQACEQEDEQH_xAAZAAADAQEBAAAAAAAAAAAAAAAEBQYCAwH_xAAtEAABAgUCAwYHAAAAAAAAAAABAgMABAUREhMxIVFxBiMyUoGRFBUiM0Ghsf_EABoBAAIDAQEAAAAAAAAAAAAAAAMEAAIFAQb_xAAmEQABBAICAAUFAAAAAAAAAAABAAIDESExBBITQVFhcSKRodHw_9oADAMBAAIRAxEAPwB5NVBaHSkX3jLL8rzzpSCnEtRay-yHVJZYBFwl5ZCvYA29YKIpCLTLePO4Xr5S2p_MKW6G5xooy8KwbpV0MDf3YcoMviRGnhcmqgtSL3jgeqCUkI_svLNzHaQF0A6LanUg-YEAf2_pF4WgyZRuKwOnz5ZT6vqcn2nZNxptMtqJS6HDdWNwdTgoYosFcT-R7nkt30nX9n4TnIuQFhGPP97wF7V6eXOzs6qbe1XNEOjE922pCeGAPEA25m947Iy4zak0VwO7GzV-2PRQUv8AbEIhZDdIuWqLlLq7c22MsSQpHmSdxFg8sf2RGymKXuFZ06p0FyUVabZ7wd78YoaiuJNlZb2ubbjlDjHxVv7rUjm45bsZ9d_lJq9W5dVOFHo63ZnIYuPElX032ud789rfoMso69GZSvI5DengxZ91OpRpFSMgrE2uIXqkkBWFmeSNY9YjtrkgyhsRFaVKWk3T4VKHQxFESwkaYiwRG6X_2Q.jpeg",
+     "date": "1 thg 12, 2024",
+     "snippet": "Điều trị mụn trứng cá · Cải thiện tình trạng nám da · Điều trị bệnh chàm · Ngăn ngừa chứng hăm tã · Trị vết bỏng da · Bảo vệ da khỏi tia cực tím.",
+     "snippet_highlighted_words": [
+      "Điều trị mụn trứng c"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Điều trị mụn trứng cá · Cải thiện tình trạng nám da · Điều trị bệnh chàm · Ngăn ngừa chứng hăm tã · Trị vết bỏng da · Bảo vệ da khỏi tia cực tím.",
+       "source_info_link": "https://www.nhathuocankhang.com/ban-tin-suc-khoe/uong-kem-co-tac-dung-gi-cho-da-1572612",
+       "icon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys_RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3NDc3Nzc3Nys3NzI1Nzc1Nzc3Nzc3Nzc3ODU3NS0vLjU3N__AABEIABwAHAMBEQACEQEDEQH_xAAZAAADAQEBAAAAAAAAAAAAAAAEBQYCAwH_xAAtEAABAgUCAwYHAAAAAAAAAAABAgMABAUREhMxIVFxBiMyUoGRFBUiM0Ghsf_EABoBAAIDAQEAAAAAAAAAAAAAAAMEAAIFAQb_xAAmEQABBAICAAUFAAAAAAAAAAABAAIDESExBBITQVFhcSKRodHw_9oADAMBAAIRAxEAPwB5NVBaHSkX3jLL8rzzpSCnEtRay-yHVJZYBFwl5ZCvYA29YKIpCLTLePO4Xr5S2p_MKW6G5xooy8KwbpV0MDf3YcoMviRGnhcmqgtSL3jgeqCUkI_svLNzHaQF0A6LanUg-YEAf2_pF4WgyZRuKwOnz5ZT6vqcn2nZNxptMtqJS6HDdWNwdTgoYosFcT-R7nkt30nX9n4TnIuQFhGPP97wF7V6eXOzs6qbe1XNEOjE922pCeGAPEA25m947Iy4zak0VwO7GzV-2PRQUv8AbEIhZDdIuWqLlLq7c22MsSQpHmSdxFg8sf2RGymKXuFZ06p0FyUVabZ7wd78YoaiuJNlZb2ubbjlDjHxVv7rUjm45bsZ9d_lJq9W5dVOFHo63ZnIYuPElX032ud789rfoMso69GZSvI5DengxZ91OpRpFSMgrE2uIXqkkBWFmeSNY9YjtrkgyhsRFaVKWk3T4VKHQxFESwkaYiwRG6X_2Q.jpeg"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtQBL2dvdG8_dXJsPUNBRVNrZ0VCNnpzd0ZTN2JxYUtmSUU2X3ZZY0VUUGxKTzlPamZlYl9ST3F0Z25LV2cxYXNfQ2pWejlpMGdqUEs3UDQwOGRQWlg0NVhFRVZhcWdwYlFqUzAtVlZFd2s5MHpLaWlUNk95R2g4YndId3pLbU9RWGhYZlFjOUFfeUlrVG51WWZBVGxha1QxczE4UndZajBhazlzMy03YXN6M0haa213NGxJQ2gyNUZyNUtSMjMtUUdjTVJfYzdFeDF5Q2JveExUcHV0cHcSBBoCCAAahwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA4wUIQhAAGAAgACoNCgZ14buRbmcVafdTPyomCgV2acOqbhWYCbI-Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VSAeZQCoTCgNjw7MVZruJQBoHY8OzdMOhYyogCgR0w6FjFSBphkAaB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFaODg0AaBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wV9C50QDLUAS9nb3RvP3VybD1DQUVTa2dFQjZ6c3dGUzdicWFLZklFNl92WWNFVFBsSk85T2pmZWJfUk9xdGduS1dnMWFzX0NqVno5aTBnalBLN1A0MDhkUFpYNDVYRUVWYXFncGJRalMwLVZWRXdrOTB6S2lpVDZPeUdoOGJ3SHd6S21PUVhoWGZRYzlBX3lJa1RudVlmQVRsYWtUMXMxOFJ3WWowYWs5czMtN2FzejNIWmttdzRsSUNoMjVGcjVLUjIzLVFHY01SX2M3RXgxeUNib3hMVHB1dHB3Olo8Yj5L4bq9bSBjw7MgdMOhYyBk4bulbmcgZ8OsPC9iPiBjaG8gZGE_IDEwIDxiPnTDoWMgZOG7pW5nPC9iPiB2w6AgbMawdSDDvSBraGkgc-G7rSBk4bulbmdC6wE8Yj7EkGnhu4F1IHRy4buLIG3hu6VuIHRy4bupbmcgYzwvYj7DoSAmbWlkZG90OyBD4bqjaSB0aGnhu4duIHTDrG5oIHRy4bqhbmcgbsOhbSBkYSAmbWlkZG90OyDEkGnhu4F1IHRy4buLIGLhu4duaCBjaMOgbSAmbWlkZG90OyBOZ8SDbiBuZ-G7q2EgY2jhu6luZyBoxINtIHTDoyAmbWlkZG90OyBUcuG7iyB24bq_dCBi4buPbmcgZGEgJm1pZGRvdDsgQuG6o28gduG7hyBkYSBraOG7j2kgdGlhIGPhu7FjIHTDrW0uUgRkdW5nIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtQBL2dvdG8_dXJsPUNBRVNrZ0VCNnpzd0ZTN2JxYUtmSUU2X3ZZY0VUUGxKTzlPamZlYl9ST3F0Z25LV2cxYXNfQ2pWejlpMGdqUEs3UDQwOGRQWlg0NVhFRVZhcWdwYlFqUzAtVlZFd2s5MHpLaWlUNk95R2g4YndId3pLbU9RWGhYZlFjOUFfeUlrVG51WWZBVGxha1QxczE4UndZajBhazlzMy03YXN6M0haa213NGxJQ2gyNUZyNUtSMjMtUUdjTVJfYzdFeDF5Q2JveExUcHV0cHcSBBoCCAAahwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA4wUIQhAAGAAgACoNCgZ14buRbmcVafdTPyomCgV2acOqbhWYCbI-Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VSAeZQCoTCgNjw7MVZruJQBoHY8OzdMOhYyogCgR0w6FjFSBphkAaB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFaODg0AaBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wV9C50QDLUAS9nb3RvP3VybD1DQUVTa2dFQjZ6c3dGUzdicWFLZklFNl92WWNFVFBsSk85T2pmZWJfUk9xdGduS1dnMWFzX0NqVno5aTBnalBLN1A0MDhkUFpYNDVYRUVWYXFncGJRalMwLVZWRXdrOTB6S2lpVDZPeUdoOGJ3SHd6S21PUVhoWGZRYzlBX3lJa1RudVlmQVRsYWtUMXMxOFJ3WWowYWs5czMtN2FzejNIWmttdzRsSUNoMjVGcjVLUjIzLVFHY01SX2M3RXgxeUNib3hMVHB1dHB3Olo8Yj5L4bq9bSBjw7MgdMOhYyBk4bulbmcgZ8OsPC9iPiBjaG8gZGE_IDEwIDxiPnTDoWMgZOG7pW5nPC9iPiB2w6AgbMawdSDDvSBraGkgc-G7rSBk4bulbmdC6wE8Yj7EkGnhu4F1IHRy4buLIG3hu6VuIHRy4bupbmcgYzwvYj7DoSAmbWlkZG90OyBD4bqjaSB0aGnhu4duIHTDrG5oIHRy4bqhbmcgbsOhbSBkYSAmbWlkZG90OyDEkGnhu4F1IHRy4buLIGLhu4duaCBjaMOgbSAmbWlkZG90OyBOZ8SDbiBuZ-G7q2EgY2jhu6luZyBoxINtIHTDoyAmbWlkZG90OyBUcuG7iyB24bq_dCBi4buPbmcgZGEgJm1pZGRvdDsgQuG6o28gduG7hyBkYSBraOG7j2kgdGlhIGPhu7FjIHTDrW0uUgRkdW5nIgIQAUgAWABoAA",
+     "source": "Nhà thuốc An Khang"
+    },
+    {
+     "position": 4,
+     "title": "Vai trò của kẽm đối với sức khỏe và cách bổ sung kẽm mà ...",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/vai-tro-cua-kem-doi-voi-suc-khoe-va-cach-bo-sung-kem-ma-ban-can-nam-61372.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESsgEB6zswFXtIOKtGkceAcGPg-Vow7TylBMfPSl7GKPGRCW5N8eGmauBsdgzid-avX5XnisQIsl_TFNJi4mcuYMhqEEIFkiXJekXnfYTXN9By3JgnrhbrrPR6Guk4b_k_ITc9rLA5IlViMUHTOq0l6ouvFysmrY1E08g2f_exZbHVjAnjfUiRB-p3i8l86a3mMoQoUDVG6SBXFs_kRJk7SNKisZZG_rLNj7tevv1ljFA3SBVH&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECCgQAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6ae2e3e26c62541764d7567e/images/l3V0amatF0o_p3f8cMe7UVtRMgEcN4Fr0O-SZL6osYc.png",
+     "date": "18 thg 8, 2025",
+     "snippet": "Kẽm có vai trò quan trọng với hệ miễn dịch của cơ thể. Thành phần này giúp kích thích sự phát triển các tế bào lympho B và lympho B. Từ đó tạo ...",
+     "snippet_highlighted_words": [
+      "giúp kích thích sự phát triển các tế bào lympho B và lympho B"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Kẽm có vai trò quan trọng với hệ miễn dịch của cơ thể. Thành phần này giúp kích thích sự phát triển các tế bào lympho B và lympho B. Từ đó tạo ...",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/vai-tro-cua-kem-doi-voi-suc-khoe-va-cach-bo-sung-kem-ma-ban-can-nam-61372.html",
+       "icon": "https://serpapi.com/searches/6ae2e3e26c62541764d7567e/images/l3V0amatF0o_p3f8cMe7UR_fCSY1ogtHnjBPlhZiBpfzn_Ksc8ucOd4PcG39akCT.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cv4BL2dvdG8_dXJsPUNBRVNzZ0VCNnpzd0ZVZENyNDdnU3NQOXNqWlpkNHJBZ19uZVNFU1ZXS25ZMXV4SFVWUDBCWGFPQW1feDluTm5XVjlCTXFYejdYWVVNTlMwUTVZN21SaWFjaFVIUVh3eEN4eTNvaXBPT3ozd3JkNGFscDJXaHN6UE9zdnN5MjVjRkFTLXlGdVk0VlVHMkRzdXIydG9GbFFNMFY1MGJGWEM0WFVWLVlZanlHM0pNWGVQbjZnZ1RlbUIySTZOX3V4ZThBQVdYUllhWnVNaXZlS0FKX3VuYmxWdzV4eU1oZ0RoR1FFRjlrZGdUc2RqOVV5TlNYWk0SBBoCCAAalAYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDuBQhCEAAYACAAKg0KBnXhu5FuZxULKe0_KiYKBXZpw6puFRQKuz8aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRXM2bJAKhMKA2PDsxXTGyhAGgdjw7N0w6FjKiAKBHTDoWMVFmyxPxoHY8OzdMOhYxoKdMOhY2Thu6VuZyoqCgZk4bulbmcVLCqrPxoEZHVuZxoKdMOhY2Thu6VuZxoJaXY7ZDtkdW5nKgoKA2fDrBXvMI0_Mv4BL2dvdG8_dXJsPUNBRVNzZ0VCNnpzd0ZVZENyNDdnU3NQOXNqWlpkNHJBZ19uZVNFU1ZXS25ZMXV4SFVWUDBCWGFPQW1feDluTm5XVjlCTXFYejdYWVVNTlMwUTVZN21SaWFjaFVIUVh3eEN4eTNvaXBPT3ozd3JkNGFscDJXaHN6UE9zdnN5MjVjRkFTLXlGdVk0VlVHMkRzdXIydG9GbFFNMFY1MGJGWEM0WFVWLVlZanlHM0pNWGVQbjZnZ1RlbUIySTZOX3V4ZThBQVdYUllhWnVNaXZlS0FKX3VuYmxWdzV4eU1oZ0RoR1FFRjlrZGdUc2RqOVV5TlNYWk06XlZhaSB0csOyIGPhu6dhIDxiPmvhur1tPC9iPiDEkeG7kWkgduG7m2kgc-G7qWMga2jhu49lIHbDoCBjw6FjaCBi4buVIHN1bmcgPGI-a-G6vW08L2I-IG3DoCAuLi5CyAFL4bq9bSBjw7MgdmFpIHRyw7IgcXVhbiB0cuG7jW5nIHbhu5tpIGjhu4cgbWnhu4VuIGThu4tjaCBj4bunYSBjxqEgdGjhu4MuIFRow6BuaCBwaOG6p24gbsOgeSA8Yj5nacO6cCBrw61jaCB0aMOtY2ggc-G7sSBwaMOhdCB0cmnhu4NuIGPDoWMgdOG6vyBiw6BvIGx5bXBobyBCIHbDoCBseW1waG8gQjwvYj4uIFThu6sgxJHDsyB04bqhbyZuYnNwOy4uLlIEZHVuZyICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cv4BL2dvdG8_dXJsPUNBRVNzZ0VCNnpzd0ZVZENyNDdnU3NQOXNqWlpkNHJBZ19uZVNFU1ZXS25ZMXV4SFVWUDBCWGFPQW1feDluTm5XVjlCTXFYejdYWVVNTlMwUTVZN21SaWFjaFVIUVh3eEN4eTNvaXBPT3ozd3JkNGFscDJXaHN6UE9zdnN5MjVjRkFTLXlGdVk0VlVHMkRzdXIydG9GbFFNMFY1MGJGWEM0WFVWLVlZanlHM0pNWGVQbjZnZ1RlbUIySTZOX3V4ZThBQVdYUllhWnVNaXZlS0FKX3VuYmxWdzV4eU1oZ0RoR1FFRjlrZGdUc2RqOVV5TlNYWk0SBBoCCAAalAYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDuBQhCEAAYACAAKg0KBnXhu5FuZxULKe0_KiYKBXZpw6puFRQKuz8aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRXM2bJAKhMKA2PDsxXTGyhAGgdjw7N0w6FjKiAKBHTDoWMVFmyxPxoHY8OzdMOhYxoKdMOhY2Thu6VuZyoqCgZk4bulbmcVLCqrPxoEZHVuZxoKdMOhY2Thu6VuZxoJaXY7ZDtkdW5nKgoKA2fDrBXvMI0_Mv4BL2dvdG8_dXJsPUNBRVNzZ0VCNnpzd0ZVZENyNDdnU3NQOXNqWlpkNHJBZ19uZVNFU1ZXS25ZMXV4SFVWUDBCWGFPQW1feDluTm5XVjlCTXFYejdYWVVNTlMwUTVZN21SaWFjaFVIUVh3eEN4eTNvaXBPT3ozd3JkNGFscDJXaHN6UE9zdnN5MjVjRkFTLXlGdVk0VlVHMkRzdXIydG9GbFFNMFY1MGJGWEM0WFVWLVlZanlHM0pNWGVQbjZnZ1RlbUIySTZOX3V4ZThBQVdYUllhWnVNaXZlS0FKX3VuYmxWdzV4eU1oZ0RoR1FFRjlrZGdUc2RqOVV5TlNYWk06XlZhaSB0csOyIGPhu6dhIDxiPmvhur1tPC9iPiDEkeG7kWkgduG7m2kgc-G7qWMga2jhu49lIHbDoCBjw6FjaCBi4buVIHN1bmcgPGI-a-G6vW08L2I-IG3DoCAuLi5CyAFL4bq9bSBjw7MgdmFpIHRyw7IgcXVhbiB0cuG7jW5nIHbhu5tpIGjhu4cgbWnhu4VuIGThu4tjaCBj4bunYSBjxqEgdGjhu4MuIFRow6BuaCBwaOG6p24gbsOgeSA8Yj5nacO6cCBrw61jaCB0aMOtY2ggc-G7sSBwaMOhdCB0cmnhu4NuIGPDoWMgdOG6vyBiw6BvIGx5bXBobyBCIHbDoCBseW1waG8gQjwvYj4uIFThu6sgxJHDsyB04bqhbyZuYnNwOy4uLlIEZHVuZyICEAFIAFgAaAA",
+     "source": "Nhà thuốc Long Châu"
+    },
+    {
+     "position": 5,
+     "title": "Bổ sung kẽm - Đối tượng Đặc biệt",
+     "link": "https://www.msdmanuals.com/vi/professional/%C4%91%E1%BB%91i-t%C6%B0%E1%BB%A3ng-%C4%91%E1%BA%B7c-bi%E1%BB%87t/dinh-d%C6%B0%E1%BB%A1ng-b%E1%BB%95-sung/b%E1%BB%95-sung-k%E1%BA%BDm",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAES7AEB6zswFS7iSWreAFs0puoOGPFXN1Fl4PBIFRjOERZl3o6PhDcixbypcvRmOcpGyFo6rV2222mvU0iVz1uMyEcpwQDbbtfXjoTVGG55Zcovh_5udJSFs4p8ZtKLZzJYl4IlzsFKCq7a0tQYdKX5kNPJ_ooAnYt5mvr1RWnnB0gP4fWjbYs3w2lEhH0mtr7ispClmyVtBzjCoKd-Yp5pejXSgEQsm7jBeWfyASmsKKCeS7mPudDfRq_tFuPiqhlKfavMPHXD0pOP0aFth14J2qDVJraB_Hz51_stp2s0zLbmA9TDHoD99mfEh_p-aA&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECB8QAQ&uoh=1",
+     "displayed_link": "https://www.msdmanuals.com › ... › Dietary Supplements",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAABl0lEQVR4AYVSA2wFQRS82rZtx0Zt243t2rZt22bs2rZt-155ua8k653ZN7ODfHx8ELSxg10tw7qiPoYE_0doZo0lHXMnh0rE7hIFsyYH3SBxPh_fzfdr5EkLPVs4PZKnSKBTkz-EBWKbVXN5C1mCh5dnBpakoBu6eP9nYo0vPfz45e2VhoAAytapKRhiSgx4uHp8YIU9Ym3v-kqIKTHwwbi-uBv1RBn2vsBsGM2tSzOWpAjKpke8fu_xpIV9eYIYoG5jdcrlxS-f3d9x4cEHN9cCEjmxm9i7dq2VjQh8E85xIFmpmR13vni45zi5u-WpmhlzxYN_q0AJAggI1IpSZrpXF4zA1LvnJ2aQpZCfuIAnAFMRCAl2E8DEjARZcnkJK9i7Lh211QgkDEICG1Ro61yZNyFlIsj6BQtnRh6sXZxKfR2AmxAS0ARmXT89shJra-en0nDHoa26DgVLEwQJQgJZgEq-K4LmC-OfaRSjbFxf1E0sxtDgZYoEkDB46ReE0yxNkeDXE3s0JEAEX-XSUVON6pcidvcTdjeJ6Xk2IbUAAAAASUVORK5CYII.png",
+     "snippet": "Kẽm, một khoáng chất, cần một lượng nhỏ (chế độ ăn uống khuyến nghị dành cho người lớn từ 8 đến 11 mg/ngày) cho nhiều quá trình trao đổi chất.",
+     "snippet_highlighted_words": [
+      "Kẽm",
+      "uống"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Kẽm, một khoáng chất, cần một lượng nhỏ (chế độ ăn uống khuyến nghị dành cho người lớn từ 8 đến 11 mg/ngày) cho nhiều quá trình trao đổi chất.",
+       "source_info_link": "https://www.msdmanuals.com/vi/professional/%C4%91%E1%BB%91i-t%C6%B0%E1%BB%A3ng-%C4%91%E1%BA%B7c-bi%E1%BB%87t/dinh-d%C6%B0%E1%BB%A1ng-b%E1%BB%95-sung/b%E1%BB%95-sung-k%E1%BA%BDm",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAABl0lEQVR4AYVSA2wFQRS82rZtx0Zt243t2rZt22bs2rZt-155ua8k653ZN7ODfHx8ELSxg10tw7qiPoYE_0doZo0lHXMnh0rE7hIFsyYH3SBxPh_fzfdr5EkLPVs4PZKnSKBTkz-EBWKbVXN5C1mCh5dnBpakoBu6eP9nYo0vPfz45e2VhoAAytapKRhiSgx4uHp8YIU9Ym3v-kqIKTHwwbi-uBv1RBn2vsBsGM2tSzOWpAjKpke8fu_xpIV9eYIYoG5jdcrlxS-f3d9x4cEHN9cCEjmxm9i7dq2VjQh8E85xIFmpmR13vni45zi5u-WpmhlzxYN_q0AJAggI1IpSZrpXF4zA1LvnJ2aQpZCfuIAnAFMRCAl2E8DEjARZcnkJK9i7Lh211QgkDEICG1Ro61yZNyFlIsj6BQtnRh6sXZxKfR2AmxAS0ARmXT89shJra-en0nDHoa26DgVLEwQJQgJZgEq-K4LmC-OfaRSjbFxf1E0sxtDgZYoEkDB46ReE0yxNkeDXE3s0JEAEX-XSUVON6pcidvcTdjeJ6Xk2IbUAAAAASUVORK5CYII.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CswCL2dvdG8_dXJsPUNBRVM3QUVCNnpzd0ZRVkhUWmtOSXdUT1RzWERiZ2djbWczbWw3Z2ZiV0FRYXktWThmU0Exa081MU01RmdWcUxHQTh6SUc0cXVHRFEzWGw0TE11eUtqTG5Kc2ZJR2x2QlFTTDgyckMzSnRJV21vNDZGNzE3OUNsYXluV2V1akR4MUFpSHhkX1FNQVZXUUdRV1luXzJWRWhKYzNpYkpmb1ViLXpqekdFZzhaV3lZbGNycEVjYUpzSTdtajRULV9qVHBmN3ZaU1NJSGJCTzA3Nm1qMGJ6bW52OVFMZnJnRW5rMlJGSjJTdjk5ay05Z0FodnA5TkR1VHpWY2FxVDA1ZU1VelBtWVN4S1phb3dfdXVDeWl5YTF4SFBZZXVqeXhfVWdFSEJYMHpIREVKZmE2S0xDbkxLWlZGTzRzcmZ6ZmY4OUESBBoCCAAazgYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAqgYIQhAAGAAgACoNCgZ14buRbmcVJt9DPyomCgV2acOqbhVd7XQ_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0V-_LIQCoTCgNjw7MVPdtSQBoHY8OzdMOhYyogCgR0w6FjFSsRKUAaB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFRYQAkAaBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVAAAAADLMAi9nb3RvP3VybD1DQUVTN0FFQjZ6c3dGUVZIVFprTkl3VE9Uc1hEYmdnY21nM21sN2dmYldBUWF5LVk4ZlNBMWtPNTFNNUZnVnFMR0E4eklHNHF1R0RRM1hsNExNdXlLakxuSnNmSUdsdkJRU0w4MnJDM0p0SVdtbzQ2RjcxNzlDbGF5bldldWpEeDFBaUh4ZF9RTUFWV1FHUVdZbl8yVkVoSmMzaWJKZm9VYi16anpHRWc4Wld5WWxjcnBFY2FKc0k3bWo0VC1falRwZjd2WlNTSUhiQk8wNzZtajBiem1udjlRTGZyZ0VuazJSRkoyU3Y5OWstOWdBaHZwOU5EdVR6VmNhcVQwNWVNVXpQbVlTeEtaYW93X3V1Q3lpeWExeEhQWWV1anl4X1VnRUhCWDB6SERFSmZhNktMQ25MS1pWRk80c3JmemZmODlBOkdC4buVIHN1bmcgPGI-a-G6vW08L2I-IC0gxJDhu5FpIHTGsOG7o25nIMSQ4bq3YyBiaeG7h3QgLSBD4bqpbSBuYW5nIE1TRELNATxiPkvhur1tPC9iPiwgbeG7mXQga2hvw6FuZyBjaOG6pXQsIGPhuqduIG3hu5l0IGzGsOG7o25nIG5o4buPIChjaOG6vyDEkeG7mSDEg24gPGI-deG7kW5nPC9iPiBraHV54bq_biBuZ2jhu4sgZMOgbmggY2hvIG5nxrDhu51pIGzhu5tuIHThu6sgOCDEkeG6v24gMTEgbWcvbmfDoHkpIGNobyBuaGnhu4F1IHF1w6EgdHLDrG5oIHRyYW8gxJHhu5VpIGNo4bqldC5SBGR1bmciAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CswCL2dvdG8_dXJsPUNBRVM3QUVCNnpzd0ZRVkhUWmtOSXdUT1RzWERiZ2djbWczbWw3Z2ZiV0FRYXktWThmU0Exa081MU01RmdWcUxHQTh6SUc0cXVHRFEzWGw0TE11eUtqTG5Kc2ZJR2x2QlFTTDgyckMzSnRJV21vNDZGNzE3OUNsYXluV2V1akR4MUFpSHhkX1FNQVZXUUdRV1luXzJWRWhKYzNpYkpmb1ViLXpqekdFZzhaV3lZbGNycEVjYUpzSTdtajRULV9qVHBmN3ZaU1NJSGJCTzA3Nm1qMGJ6bW52OVFMZnJnRW5rMlJGSjJTdjk5ay05Z0FodnA5TkR1VHpWY2FxVDA1ZU1VelBtWVN4S1phb3dfdXVDeWl5YTF4SFBZZXVqeXhfVWdFSEJYMHpIREVKZmE2S0xDbkxLWlZGTzRzcmZ6ZmY4OUESBBoCCAAazgYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAqgYIQhAAGAAgACoNCgZ14buRbmcVJt9DPyomCgV2acOqbhVd7XQ_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0V-_LIQCoTCgNjw7MVPdtSQBoHY8OzdMOhYyogCgR0w6FjFSsRKUAaB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFRYQAkAaBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVAAAAADLMAi9nb3RvP3VybD1DQUVTN0FFQjZ6c3dGUVZIVFprTkl3VE9Uc1hEYmdnY21nM21sN2dmYldBUWF5LVk4ZlNBMWtPNTFNNUZnVnFMR0E4eklHNHF1R0RRM1hsNExNdXlLakxuSnNmSUdsdkJRU0w4MnJDM0p0SVdtbzQ2RjcxNzlDbGF5bldldWpEeDFBaUh4ZF9RTUFWV1FHUVdZbl8yVkVoSmMzaWJKZm9VYi16anpHRWc4Wld5WWxjcnBFY2FKc0k3bWo0VC1falRwZjd2WlNTSUhiQk8wNzZtajBiem1udjlRTGZyZ0VuazJSRkoyU3Y5OWstOWdBaHZwOU5EdVR6VmNhcVQwNWVNVXpQbVlTeEtaYW93X3V1Q3lpeWExeEhQWWV1anl4X1VnRUhCWDB6SERFSmZhNktMQ25MS1pWRk80c3JmemZmODlBOkdC4buVIHN1bmcgPGI-a-G6vW08L2I-IC0gxJDhu5FpIHTGsOG7o25nIMSQ4bq3YyBiaeG7h3QgLSBD4bqpbSBuYW5nIE1TRELNATxiPkvhur1tPC9iPiwgbeG7mXQga2hvw6FuZyBjaOG6pXQsIGPhuqduIG3hu5l0IGzGsOG7o25nIG5o4buPIChjaOG6vyDEkeG7mSDEg24gPGI-deG7kW5nPC9iPiBraHV54bq_biBuZ2jhu4sgZMOgbmggY2hvIG5nxrDhu51pIGzhu5tuIHThu6sgOCDEkeG6v24gMTEgbWcvbmfDoHkpIGNobyBuaGnhu4F1IHF1w6EgdHLDrG5oIHRyYW8gxJHhu5VpIGNo4bqldC5SBGR1bmciAhABSABYAGgA",
+     "source": "MSD Manuals"
+    },
+    {
+     "position": 6,
+     "title": "Các loại kẽm phổ biến và những nguyên tắc khi bổ sung kẽm",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/tim-hieu-cac-loai-kem-pho-bien-va-nhung-nguyen-tac-khi-bo-sung-kem.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESqwEB6zswFZ7l9RP5e5JVvRcZMlYNaa1p_R0LuuWOKO7Zk5F4GSYmfxtJc9WXG9wgv86DzfVfAz53njn0WC5m5GcMKUJgywDo9YwVHZCAkGXbDgs5JRDHFoOLskM-ceH_eDSdp7wzaWHlQ3CLD3YSxJrMXtjguL4J86o8dY0ciAiDnt1oNX1ha4pafBT2lGwRgTXSsnlvKOen6SBcSRzPME0cnbusn5dPO7vMPUo&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECCwQAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6ae2e3e26c62541764d7567e/images/l3V0amatF0o_p3f8cMe7UedwA_qZdEamyt8_KRe7CyI.png",
+     "date": "30 thg 4, 2025",
+     "snippet": "Tăng cường hệ miễn dịch: · Hỗ trợ quá trình trao đổi chất: · Thúc đẩy sự phát triển và tăng trưởng: · Cải thiện chức năng não và nhận thức: · Hỗ trợ ...",
+     "snippet_highlighted_words": [
+      "Tăng cường hệ miễn dịch"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Tăng cường hệ miễn dịch: · Hỗ trợ quá trình trao đổi chất: · Thúc đẩy sự phát triển và tăng trưởng: · Cải thiện chức năng não và nhận thức: · Hỗ trợ ...",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/tim-hieu-cac-loai-kem-pho-bien-va-nhung-nguyen-tac-khi-bo-sung-kem.html",
+       "icon": "https://serpapi.com/searches/6ae2e3e26c62541764d7567e/images/l3V0amatF0o_p3f8cMe7UTYSE8q-kilQl4jJpZTZaxLM4SqJSYq7XM2ekxkOrspg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvUBL2dvdG8_dXJsPUNBRVNxd0VCNnpzd0ZZLV9Fbk5hb3FXazJXX3NzZVBrMzFSaHpFMmFvYVN3OTNyamZ2ejVKREV1amVZTG5MamhoWGlPcC1sYmhJb0ZDWFlrbnJZVGJwU2RpUnZtX3luZm1pekgzOGZvMnpLMlJEWHhnTWlfYVkyd0tOaGZEZkhLcVNtYnpnS25FanVfTnFMUnZGZ0RMbGJnZEdwTEJSbW5lMzhubC1KV3dzdlNCcnBKYWJrSURxYUYtZkNnS0hvS2FpSWpMRkZpZ1kyTmRpMDBGR0NSLXRVT3hZdHQtZEVsMmVzcHBmNnRnQUUSBBoCCAAasQYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAjQYIQhAAGAAgACoNCgZ14buRbmcVtMvzPyomCgV2acOqbhW8O_8-Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VdPO4QCoTCgNjw7MVaZ4uQBoHY8OzdMOhYyogCgR0w6FjFVyGyz8aB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFUje0D8aBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVSij6PjL1AS9nb3RvP3VybD1DQUVTcXdFQjZ6c3dGWS1fRW5OYW9xV2syV19zc2VQazMxUmh6RTJhb2FTdzkzcmpmdno1SkRFdWplWUxuTGpoaFhpT3AtbGJoSW9GQ1hZa25yWVRicFNkaVJ2bV95bmZtaXpIMzhmbzJ6SzJSRFh4Z01pX2FZMndLTmhmRGZIS3FTbWJ6Z0tuRWp1X05xTFJ2RmdETGxiZ2RHcExCUm1uZTM4bmwtSld3c3ZTQnJwSmFia0lEcWFGLWZDZ0tIb0thaUlqTEZGaWdZMk5kaTAwRkdDUi10VU94WXR0LWRFbDJlc3BwZjZ0Z0FFOlpDw6FjIGxv4bqhaSA8Yj5r4bq9bTwvYj4gcGjhu5UgYmnhur9uIHbDoCBuaOG7r25nIG5ndXnDqm4gdOG6r2Mga2hpIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj5C9AE8Yj5UxINuZyBjxrDhu51uZyBo4buHIG1p4buFbiBk4buLY2g8L2I-OiAmbWlkZG90OyBI4buXIHRy4bujIHF1w6EgdHLDrG5oIHRyYW8gxJHhu5VpIGNo4bqldDogJm1pZGRvdDsgVGjDumMgxJHhuql5IHPhu7EgcGjDoXQgdHJp4buDbiB2w6AgdMSDbmcgdHLGsOG7n25nOiAmbWlkZG90OyBD4bqjaSB0aGnhu4duIGNo4bupYyBuxINuZyBuw6NvIHbDoCBuaOG6rW4gdGjhu6ljOiAmbWlkZG90OyBI4buXIHRy4bujJm5ic3A7Li4uUgRkdW5nIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvUBL2dvdG8_dXJsPUNBRVNxd0VCNnpzd0ZZLV9Fbk5hb3FXazJXX3NzZVBrMzFSaHpFMmFvYVN3OTNyamZ2ejVKREV1amVZTG5MamhoWGlPcC1sYmhJb0ZDWFlrbnJZVGJwU2RpUnZtX3luZm1pekgzOGZvMnpLMlJEWHhnTWlfYVkyd0tOaGZEZkhLcVNtYnpnS25FanVfTnFMUnZGZ0RMbGJnZEdwTEJSbW5lMzhubC1KV3dzdlNCcnBKYWJrSURxYUYtZkNnS0hvS2FpSWpMRkZpZ1kyTmRpMDBGR0NSLXRVT3hZdHQtZEVsMmVzcHBmNnRnQUUSBBoCCAAasQYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAjQYIQhAAGAAgACoNCgZ14buRbmcVtMvzPyomCgV2acOqbhW8O_8-Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VdPO4QCoTCgNjw7MVaZ4uQBoHY8OzdMOhYyogCgR0w6FjFVyGyz8aB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFUje0D8aBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVSij6PjL1AS9nb3RvP3VybD1DQUVTcXdFQjZ6c3dGWS1fRW5OYW9xV2syV19zc2VQazMxUmh6RTJhb2FTdzkzcmpmdno1SkRFdWplWUxuTGpoaFhpT3AtbGJoSW9GQ1hZa25yWVRicFNkaVJ2bV95bmZtaXpIMzhmbzJ6SzJSRFh4Z01pX2FZMndLTmhmRGZIS3FTbWJ6Z0tuRWp1X05xTFJ2RmdETGxiZ2RHcExCUm1uZTM4bmwtSld3c3ZTQnJwSmFia0lEcWFGLWZDZ0tIb0thaUlqTEZGaWdZMk5kaTAwRkdDUi10VU94WXR0LWRFbDJlc3BwZjZ0Z0FFOlpDw6FjIGxv4bqhaSA8Yj5r4bq9bTwvYj4gcGjhu5UgYmnhur9uIHbDoCBuaOG7r25nIG5ndXnDqm4gdOG6r2Mga2hpIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj5C9AE8Yj5UxINuZyBjxrDhu51uZyBo4buHIG1p4buFbiBk4buLY2g8L2I-OiAmbWlkZG90OyBI4buXIHRy4bujIHF1w6EgdHLDrG5oIHRyYW8gxJHhu5VpIGNo4bqldDogJm1pZGRvdDsgVGjDumMgxJHhuql5IHPhu7EgcGjDoXQgdHJp4buDbiB2w6AgdMSDbmcgdHLGsOG7n25nOiAmbWlkZG90OyBD4bqjaSB0aGnhu4duIGNo4bupYyBuxINuZyBuw6NvIHbDoCBuaOG6rW4gdGjhu6ljOiAmbWlkZG90OyBI4buXIHRy4bujJm5ic3A7Li4uUgRkdW5nIgIQAUgAWABoAA",
+     "source": "Nhà thuốc Long Châu"
+    },
+    {
+     "position": 7,
+     "title": "Cách bổ sung kẽm trong chế độ ăn hàng ngày",
+     "link": "https://www.vinmec.com/vie/bai-viet/cach-bo-sung-kem-trong-che-do-hang-ngay-vi",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESiQEB6zswFYsVukfygdSncpM3cNW_4eTyaNeOc45UfA3hgoYmknzDHclNnO84EQycP8Kh1mXgYkahzuUq5mFkfzu497SIUrX7NA7_owIWmI0artxxvxguRnA1gIC6JLrAWkHdG-3r-aG6m1eHIeUhenRzfD1NBX4-DAALZ45NWyFhDlLlz2Bv7gtT2A&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECEIQAQ&uoh=1",
+     "displayed_link": "https://www.vinmec.com › Trang chủ › Trung tâm nhi",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAjVBMVEVHcEzBjkPBizzCpmzay4rHjTTEkkzE5uDEnlnBhS_IlDjBjEC_jkXPlTPGpnHVrFDirDH2vi_oxWHBiDXQpVnP2brfwGbUoUvAkk7Dn1bKlD_2y0LwuzXrsCbBiTzCginTkifMjijDhCzXlyfGhivKiindnibhoSXamifBgyrlpST3uh_oqiHysyHtryBU7n5JAAAAH3RSTlMAbJMbBt1XAijzraZ48RBzxMkxnFoJQ21HM5mG5fbJn9TQcQAAANtJREFUKJGV0NsWgiAQBVBDEfFumpZdUNKKrP7_8wKrVcrwEIu3vc5wBsv6_zi2Z8MSr_PAtQlENqJ8YRgYUsbXMBGfMRYacgETjMawuTLHDoYgliZy2DwhpBrQVch9GBfqyQ6D64_Ydb1nKiut_f2fVRKgcOOoQlxZi6ctERUUyWlYWdNspgOJ-tKaoNGOWt844BwXo11OK71r10fRaOdEQ-L2r9z5mgKr-O3Lbnt9rlW87XFfzqQsquhjQzlDr_7aME_Kbar0bRlQyHKWSZrtsi3QR60jrwOKdp47-xfzq87LPwAAAABJRU5ErkJggg.png",
+     "snippet": "Kẽm giúp tăng cường khả năng hấp thu dinh dưỡng, tổng hợp protein, phân chia tế bào và giúp tăng cảm giác ngon miệng nên rất quan trọng đối với trẻ em. Bên cạnh ...",
+     "snippet_highlighted_words": [
+      "Kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Kẽm giúp tăng cường khả năng hấp thu dinh dưỡng, tổng hợp protein, phân chia tế bào và giúp tăng cảm giác ngon miệng nên rất quan trọng đối với trẻ em. Bên cạnh ...",
+       "source_info_link": "https://www.vinmec.com/vie/bai-viet/cach-bo-sung-kem-trong-che-do-hang-ngay-vi",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAjVBMVEVHcEzBjkPBizzCpmzay4rHjTTEkkzE5uDEnlnBhS_IlDjBjEC_jkXPlTPGpnHVrFDirDH2vi_oxWHBiDXQpVnP2brfwGbUoUvAkk7Dn1bKlD_2y0LwuzXrsCbBiTzCginTkifMjijDhCzXlyfGhivKiindnibhoSXamifBgyrlpST3uh_oqiHysyHtryBU7n5JAAAAH3RSTlMAbJMbBt1XAijzraZ48RBzxMkxnFoJQ21HM5mG5fbJn9TQcQAAANtJREFUKJGV0NsWgiAQBVBDEfFumpZdUNKKrP7_8wKrVcrwEIu3vc5wBsv6_zi2Z8MSr_PAtQlENqJ8YRgYUsbXMBGfMRYacgETjMawuTLHDoYgliZy2DwhpBrQVch9GBfqyQ6D64_Ydb1nKiut_f2fVRKgcOOoQlxZi6ctERUUyWlYWdNspgOJ-tKaoNGOWt844BwXo11OK71r10fRaOdEQ-L2r9z5mgKr-O3Lbnt9rlW87XFfzqQsquhjQzlDr_7aME_Kbar0bRlQyHKWSZrtsi3QR60jrwOKdp47-xfzq87LPwAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZZR0xidndYVV91QjR5WFV0ZWIyMTNUZHNCWXZUOFBpUzBUbFRJZC1hUG1QdElBVUt1ZmlOb3hURGR6NHR2YkNSSFpkVVE2VG1lZkl3MHRUTmtRNGJJMjdpZ1JRWXdmUVdvbC1PbDFSTXkzLTZhMDBKUmNBX3dGTVJUR2Y3aTZNSVRkblhQZVI0SW9oZFJoWk1PN21XWTBBS2hOdGVBRGF4R1R2RTVweFhHd3c1SEhGcGcSBBoCCAAa3QUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkC3BQhCEAAYACAAKg0KBnXhu5FuZxVi40g-KiYKBXZpw6puFdLobz4aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRXUN59AKhMKA2PDsxW-vDRAGgdjw7N0w6FjKiAKBHTDoWMVQg2ePxoHY8OzdMOhYxoKdMOhY2Thu6VuZyoqCgZk4bulbmcV55-SPxoEZHVuZxoKdMOhY2Thu6VuZxoJaXY7ZDtkdW5nKgoKA2fDrBWkmto_MsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZZR0xidndYVV91QjR5WFV0ZWIyMTNUZHNCWXZUOFBpUzBUbFRJZC1hUG1QdElBVUt1ZmlOb3hURGR6NHR2YkNSSFpkVVE2VG1lZkl3MHRUTmtRNGJJMjdpZ1JRWXdmUVdvbC1PbDFSTXkzLTZhMDBKUmNBX3dGTVJUR2Y3aTZNSVRkblhQZVI0SW9oZFJoWk1PN21XWTBBS2hOdGVBRGF4R1R2RTVweFhHd3c1SEhGcGc6R0PDoWNoIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gdHJvbmcgY2jhur8gxJHhu5kgxINuIGjDoG5nIG5nw6B5IC0gVmlubWVjQt4BPGI-S-G6vW08L2I-IGdpw7pwIHTEg25nIGPGsOG7nW5nIGto4bqjIG7Eg25nIGjhuqVwIHRodSBkaW5oIGTGsOG7oW5nLCB04buVbmcgaOG7o3AgcHJvdGVpbiwgcGjDom4gY2hpYSB04bq_IGLDoG8gdsOgIGdpw7pwIHTEg25nIGPhuqNtIGdpw6FjIG5nb24gbWnhu4duZyBuw6puIHLhuqV0IHF1YW4gdHLhu41uZyDEkeG7kWkgduG7m2kgdHLhursgZW0uIELDqm4gY-G6oW5oJm5ic3A7Li4uUgRkdW5nIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZZR0xidndYVV91QjR5WFV0ZWIyMTNUZHNCWXZUOFBpUzBUbFRJZC1hUG1QdElBVUt1ZmlOb3hURGR6NHR2YkNSSFpkVVE2VG1lZkl3MHRUTmtRNGJJMjdpZ1JRWXdmUVdvbC1PbDFSTXkzLTZhMDBKUmNBX3dGTVJUR2Y3aTZNSVRkblhQZVI0SW9oZFJoWk1PN21XWTBBS2hOdGVBRGF4R1R2RTVweFhHd3c1SEhGcGcSBBoCCAAa3QUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkC3BQhCEAAYACAAKg0KBnXhu5FuZxVi40g-KiYKBXZpw6puFdLobz4aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRXUN59AKhMKA2PDsxW-vDRAGgdjw7N0w6FjKiAKBHTDoWMVQg2ePxoHY8OzdMOhYxoKdMOhY2Thu6VuZyoqCgZk4bulbmcV55-SPxoEZHVuZxoKdMOhY2Thu6VuZxoJaXY7ZDtkdW5nKgoKA2fDrBWkmto_MsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZZR0xidndYVV91QjR5WFV0ZWIyMTNUZHNCWXZUOFBpUzBUbFRJZC1hUG1QdElBVUt1ZmlOb3hURGR6NHR2YkNSSFpkVVE2VG1lZkl3MHRUTmtRNGJJMjdpZ1JRWXdmUVdvbC1PbDFSTXkzLTZhMDBKUmNBX3dGTVJUR2Y3aTZNSVRkblhQZVI0SW9oZFJoWk1PN21XWTBBS2hOdGVBRGF4R1R2RTVweFhHd3c1SEhGcGc6R0PDoWNoIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gdHJvbmcgY2jhur8gxJHhu5kgxINuIGjDoG5nIG5nw6B5IC0gVmlubWVjQt4BPGI-S-G6vW08L2I-IGdpw7pwIHTEg25nIGPGsOG7nW5nIGto4bqjIG7Eg25nIGjhuqVwIHRodSBkaW5oIGTGsOG7oW5nLCB04buVbmcgaOG7o3AgcHJvdGVpbiwgcGjDom4gY2hpYSB04bq_IGLDoG8gdsOgIGdpw7pwIHTEg25nIGPhuqNtIGdpw6FjIG5nb24gbWnhu4duZyBuw6puIHLhuqV0IHF1YW4gdHLhu41uZyDEkeG7kWkgduG7m2kgdHLhursgZW0uIELDqm4gY-G6oW5oJm5ic3A7Li4uUgRkdW5nIgIQAUgAWABoAA",
+     "source": "Vinmec"
+    },
+    {
+     "position": 8,
+     "title": "Kẽm là gì? Vai trò của kẽm đối với cơ thể",
+     "link": "https://www.vinmec.com/vie/co-the-nguoi/kem-42",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESaQHrOzAVUuRZQHHB1N9NfoZskJqmVHy8tgILfdj5A5wBj5XHtlotrTjm69b09OgDM7zgFakLjBcgGH5hcbK_6OHaw24aSiINY7B-3wJ1i2D2lTxzVkCgivXCyvP2-o9LNCpSv5lx7-g8_Q&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECEgQAQ&uoh=1",
+     "displayed_link": "https://www.vinmec.com › vie › co-the-nguoi › kem-42",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAjVBMVEVHcEzBjkPBizzCpmzay4rHjTTEkkzE5uDEnlnBhS_IlDjBjEC_jkXPlTPGpnHVrFDirDH2vi_oxWHBiDXQpVnP2brfwGbUoUvAkk7Dn1bKlD_2y0LwuzXrsCbBiTzCginTkifMjijDhCzXlyfGhivKiindnibhoSXamifBgyrlpST3uh_oqiHysyHtryBU7n5JAAAAH3RSTlMAbJMbBt1XAijzraZ48RBzxMkxnFoJQ21HM5mG5fbJn9TQcQAAANtJREFUKJGV0NsWgiAQBVBDEfFumpZdUNKKrP7_8wKrVcrwEIu3vc5wBsv6_zi2Z8MSr_PAtQlENqJ8YRgYUsbXMBGfMRYacgETjMawuTLHDoYgliZy2DwhpBrQVch9GBfqyQ6D64_Ydb1nKiut_f2fVRKgcOOoQlxZi6ctERUUyWlYWdNspgOJ-tKaoNGOWt844BwXo11OK71r10fRaOdEQ-L2r9z5mgKr-O3Lbnt9rlW87XFfzqQsquhjQzlDr_7aME_Kbar0bRlQyHKWSZrtsi3QR60jrwOKdp47-xfzq87LPwAAAABJRU5ErkJggg.png",
+     "snippet": "Kẽm có vai trò quan trọng với hệ miễn dịch vì nó kích thích sự phát triển các tế bào lympho B và lympho B, từ đó tạo một hệ thống phòng thủ giúp cơ thể chống ...",
+     "snippet_highlighted_words": [
+      "kích thích sự phát triển các tế bào lympho B và lympho B"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Kẽm có vai trò quan trọng với hệ miễn dịch vì nó kích thích sự phát triển các tế bào lympho B và lympho B, từ đó tạo một hệ thống phòng thủ giúp cơ thể chống ...",
+       "source_info_link": "https://www.vinmec.com/vie/co-the-nguoi/kem-42",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAjVBMVEVHcEzBjkPBizzCpmzay4rHjTTEkkzE5uDEnlnBhS_IlDjBjEC_jkXPlTPGpnHVrFDirDH2vi_oxWHBiDXQpVnP2brfwGbUoUvAkk7Dn1bKlD_2y0LwuzXrsCbBiTzCginTkifMjijDhCzXlyfGhivKiindnibhoSXamifBgyrlpST3uh_oqiHysyHtryBU7n5JAAAAH3RSTlMAbJMbBt1XAijzraZ48RBzxMkxnFoJQ21HM5mG5fbJn9TQcQAAANtJREFUKJGV0NsWgiAQBVBDEfFumpZdUNKKrP7_8wKrVcrwEIu3vc5wBsv6_zi2Z8MSr_PAtQlENqJ8YRgYUsbXMBGfMRYacgETjMawuTLHDoYgliZy2DwhpBrQVch9GBfqyQ6D64_Ydb1nKiut_f2fVRKgcOOoQlxZi6ctERUUyWlYWdNspgOJ-tKaoNGOWt844BwXo11OK71r10fRaOdEQ-L2r9z5mgKr-O3Lbnt9rlW87XFfzqQsquhjQzlDr_7aME_Kbar0bRlQyHKWSZrtsi3QR60jrwOKdp47-xfzq87LPwAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpwBL2dvdG8_dXJsPUNBRVNhUUhyT3pBVjBMeFdOc1h6RDE3ZUo4SnZ1UDFrem1ueXV0cThnajAxem9YLVZxdDBKUm9tTGZaQWRra3BNUmdrdUJkbTg1TVFpdjV4d3NqemJBSEt2NzZYUFB4NlIzTkhGY2x0WVFFLTM5Wmg0bGllT2d2dl9XZ0FyUUhyWVJ4S0ZZa3RGcFRpVzRZZlR3EgQaAggAGsIFEgIIARoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAnAUIQhAAGAAgACoNCgZ14buRbmcVZGyCPSomCgV2acOqbhUAAAAAGgd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VmDS7QCoTCgNjw7MVYcA0QBoHY8OzdMOhYyogCgR0w6FjFYjKhT8aB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFVG4wz8aBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVWFkhQDKcAS9nb3RvP3VybD1DQUVTYVFIck96QVYwTHhXTnNYekQxN2VKOEp2dVAxa3ptbnl1dHE4Z2owMXpvWC1WcXQwSlJvbUxmWkFka2twTVJna3VCZG04NU1RaXY1eHdzanpiQUhLdjc2WFBQeDZSM05IRmNsdFlRRS0zOVpoNGxpZU9ndnZfV2dBclFIcllSeEtGWWt0RnBUaVc0WWZUdzpYPGI-S-G6vW08L2I-IGzDoCA8Yj5nw6w8L2I-PyBWYWkgdHLDsiBj4bunYSA8Yj5r4bq9bTwvYj4gxJHhu5FpIHbhu5tpIGPGoSB0aOG7gyAtIFZpbm1lY0LeAUvhur1tIGPDsyB2YWkgdHLDsiBxdWFuIHRy4buNbmcgduG7m2kgaOG7hyBtaeG7hW4gZOG7i2NoIHbDrCBuw7MgPGI-a8OtY2ggdGjDrWNoIHPhu7EgcGjDoXQgdHJp4buDbiBjw6FjIHThur8gYsOgbyBseW1waG8gQiB2w6AgbHltcGhvIEI8L2I-LCB04burIMSRw7MgdOG6oW8gbeG7mXQgaOG7hyB0aOG7kW5nIHBow7JuZyB0aOG7pyBnacO6cCBjxqEgdGjhu4MgY2jhu5FuZyZuYnNwOy4uLlIEZHVuZyICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpwBL2dvdG8_dXJsPUNBRVNhUUhyT3pBVjBMeFdOc1h6RDE3ZUo4SnZ1UDFrem1ueXV0cThnajAxem9YLVZxdDBKUm9tTGZaQWRra3BNUmdrdUJkbTg1TVFpdjV4d3NqemJBSEt2NzZYUFB4NlIzTkhGY2x0WVFFLTM5Wmg0bGllT2d2dl9XZ0FyUUhyWVJ4S0ZZa3RGcFRpVzRZZlR3EgQaAggAGsIFEgIIARoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAnAUIQhAAGAAgACoNCgZ14buRbmcVZGyCPSomCgV2acOqbhUAAAAAGgd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VmDS7QCoTCgNjw7MVYcA0QBoHY8OzdMOhYyogCgR0w6FjFYjKhT8aB2PDs3TDoWMaCnTDoWNk4bulbmcqKgoGZOG7pW5nFVG4wz8aBGR1bmcaCnTDoWNk4bulbmcaCWl2O2Q7ZHVuZyoKCgNnw6wVWFkhQDKcAS9nb3RvP3VybD1DQUVTYVFIck96QVYwTHhXTnNYekQxN2VKOEp2dVAxa3ptbnl1dHE4Z2owMXpvWC1WcXQwSlJvbUxmWkFka2twTVJna3VCZG04NU1RaXY1eHdzanpiQUhLdjc2WFBQeDZSM05IRmNsdFlRRS0zOVpoNGxpZU9ndnZfV2dBclFIcllSeEtGWWt0RnBUaVc0WWZUdzpYPGI-S-G6vW08L2I-IGzDoCA8Yj5nw6w8L2I-PyBWYWkgdHLDsiBj4bunYSA8Yj5r4bq9bTwvYj4gxJHhu5FpIHbhu5tpIGPGoSB0aOG7gyAtIFZpbm1lY0LeAUvhur1tIGPDsyB2YWkgdHLDsiBxdWFuIHRy4buNbmcgduG7m2kgaOG7hyBtaeG7hW4gZOG7i2NoIHbDrCBuw7MgPGI-a8OtY2ggdGjDrWNoIHPhu7EgcGjDoXQgdHJp4buDbiBjw6FjIHThur8gYsOgbyBseW1waG8gQiB2w6AgbHltcGhvIEI8L2I-LCB04burIMSRw7MgdOG6oW8gbeG7mXQgaOG7hyB0aOG7kW5nIHBow7JuZyB0aOG7pyBnacO6cCBjxqEgdGjhu4MgY2jhu5FuZyZuYnNwOy4uLlIEZHVuZyICEAFIAFgAaAA",
+     "source": "Vinmec"
+    },
+    {
+     "position": 9,
+     "title": "Uống kẽm có tác dụng phụ không?",
+     "link": "https://tiemchunglongchau.com.vn/kien-thuc-tiem-chung/uong-kem-co-tac-dung-phu-khong-9-tac-dung-phu-khi-bi-du-kem",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESrAEB6zswFZ92rQhos0U4PcJWaPs80aGv6HjNpCg7JG9QpHqH0A5AV6J8Vr1wPMvrZdwAuSEfmrV0mprEjJP7O5zHrTTxdjr50CYIAZgoVKcBnLfVhBCIIuyn9uHYtdbRiyjYbcWv3x-Y9sffHDVcCZc8pIWUsuhexqB6W44PxToUHJjIm4exDXfl_F5f_30-IEGlMJSGRLQCPNuDSQ7vvRaERGzuub2FoU9jGidE&ved=2ahUKEwjF7vKNyd6XAxVzkO4BHb1iBbAQFnoECEQQAQ&uoh=1",
+     "displayed_link": "https://tiemchunglongchau.com.vn › ... › Dinh dưỡng",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAbFBMVEVHcEwt0tIt0tIt0tIt0tIt0tIs0dEt0tIt0tIr1NUm1Nga1tY10M2GsZycqY1wva_7agf3bRTndy8u2tPzcSLBlGoVasYNJMAKRMRHvnJQt0hStj8OLsASkMwcstAMGL89xZAAydkvzbRXysAvtxv4AAAACXRSTlMATZLK7P8SpOvY6A92AAABMklEQVR4AY2TVQLDIBBE44LE3dve_47dgUqs8vLJCzssi7HCtGzHdR3bMo0TPN9d4Xv7dcvdYW1_D9wDjrdad0_xTtbPDex_SnCSL2RgnXRbgAtJRGxdZHP-OEnSNMn4qx8kuIpcwZOCSEv-qkT9dYGoaqKJtSBZ2_X0kWHqiHlTD8NQj1EKIRFt33Vd34aIaUOY5oGYp7IAGe87sJBgGw42GGslXFId4aqE_oqGq4xhRQJxe0RYtKAOq4RcVagrqSPcOoAIBEqEkxbGUpfgegOKgBI2Cc8IWQFeESDYOGauItSNSFSFCBF0F3BMk4QBVExqIW47onUVNJ7vPj8jMBBqYX1ZPEtAzNbDu75uJoFg25laDwxtzNl2tH-MnPPv0P4aexjOyUh7P57ev4_35_O_A5mhJCkLzE9_AAAAAElFTkSuQmCC.png",
+     "date": "31 thg 12, 2025",
+     "snippet": "Buồn nôn · Đau bụng · Tiêu chảy · Cảm giác miệng đắng · Nhức đầu hoặc cảm giác giống như cảm cúm · Nồng độ HDL thấp · Thiếu đồng · Hệ miễn dịch kém.",
+     "about_this_result": {
+      "source": {
+       "description": "Buồn nôn · Đau bụng · Tiêu chảy · Cảm giác miệng đắng · Nhức đầu hoặc cảm giác giống như cảm cúm · Nồng độ HDL thấp · Thiếu đồng · Hệ miễn dịch kém.",
+       "source_info_link": "https://tiemchunglongchau.com.vn/kien-thuc-tiem-chung/uong-kem-co-tac-dung-phu-khong-9-tac-dung-phu-khi-bi-du-kem",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAbFBMVEVHcEwt0tIt0tIt0tIt0tIt0tIs0dEt0tIt0tIr1NUm1Nga1tY10M2GsZycqY1wva_7agf3bRTndy8u2tPzcSLBlGoVasYNJMAKRMRHvnJQt0hStj8OLsASkMwcstAMGL89xZAAydkvzbRXysAvtxv4AAAACXRSTlMATZLK7P8SpOvY6A92AAABMklEQVR4AY2TVQLDIBBE44LE3dve_47dgUqs8vLJCzssi7HCtGzHdR3bMo0TPN9d4Xv7dcvdYW1_D9wDjrdad0_xTtbPDex_SnCSL2RgnXRbgAtJRGxdZHP-OEnSNMn4qx8kuIpcwZOCSEv-qkT9dYGoaqKJtSBZ2_X0kWHqiHlTD8NQj1EKIRFt33Vd34aIaUOY5oGYp7IAGe87sJBgGw42GGslXFId4aqE_oqGq4xhRQJxe0RYtKAOq4RcVagrqSPcOoAIBEqEkxbGUpfgegOKgBI2Cc8IWQFeESDYOGauItSNSFSFCBF0F3BMk4QBVExqIW47onUVNJ7vPj8jMBBqYX1ZPEtAzNbDu75uJoFg25laDwxtzNl2tH-MnPPv0P4aexjOyUh7P57ev4_35_O_A5mhJCkLzE9_AAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvYBL2dvdG8_dXJsPUNBRVNyQUVCNnpzd0ZYbkNmT2ktaWtpTk1pUlFfWWM0SjRPQm5QS2txYjdqM0R2R0tDSFB5ZVdzWThuYkFIMkJLeFVWR0NLbVdHbnRHM25VU0lLd0FKUllJX19BR09sUkx0elpKc3Y4Nk45U3BsalplT0I5LXlQaklqRzJhN2c4T0lNd2dDWGM3akRLdjBZbXhyd0xzWEVLay05QUR0UU5TUzFNRU12Z1NNbExvN1FEVzFDWmljZU10UFRNU1JtZ2NZZXdhdGV1dERKaW4yR19LcHFTLThvanJJdF80aEhtbnpDWnFjZXJDUy1JEgQaAggAGsMGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQJ8GCEIQABgAIAAqDQoGdeG7kW5nFYjvvkAqJgoFdmnDqm4VrATbPhoHdGh14buRYxoEdmllbhoJaXY7ZDt2aWVuKgwKBWvhur1tFSV2CEEqEwoDY8OzFeAH6EAaB2PDs3TDoWMqIAoEdMOhYxXiFulAGgdjw7N0w6FjGgp0w6FjZOG7pW5nKioKBmThu6VuZxXiFulAGgRkdW5nGgp0w6FjZOG7pW5nGglpdjtkO2R1bmcqCgoDZ8OsFTGQ5j8y9gEvZ290bz91cmw9Q0FFU3JBRUI2enN3RlhuQ2ZPaS1pa2lOTWlSUV9ZYzRKNE9CblBLa3FiN2ozRHZHS0NIUHllV3NZOG5iQUgyQkt4VVZHQ0ttV0dudEczblVTSUt3QUpSWUlfX0FHT2xSTHR6Wkpzdjg2TjlTcGxqWmVPQjkteVBqSWpHMmE3ZzhPSU13Z0NYYzdqREt2MFlteHJ3THNYRUtrLTlBRHRRTlNTMU1FTXZnU01sTG83UURXMUNaaWNlTXRQVE1TUm1nY1lld2F0ZXV0REppbjJHX0twcVMtOG9qckl0XzRoSG1uekNacWNlckNTLUk6ZjxiPlXhu5FuZyBr4bq9bSBjw7MgdMOhYyBk4bulbmc8L2I-IHBo4bulIGtow7RuZz8gOSA8Yj50w6FjIGThu6VuZzwvYj4gcGjhu6Uga2hpIGLhu4sgZMawIDxiPmvhur1tPC9iPkL5AUJ14buTbiBuw7RuICZtaWRkb3Q7IMSQYXUgYuG7pW5nICZtaWRkb3Q7IFRpw6p1IGNo4bqjeSAmbWlkZG90OyBD4bqjbSBnacOhYyBtaeG7h25nIMSR4bqvbmcgJm1pZGRvdDsgTmjhu6ljIMSR4bqndSBob-G6t2MgY-G6o20gZ2nDoWMgZ2nhu5FuZyBuaMawIGPhuqNtIGPDum0gJm1pZGRvdDsgTuG7k25nIMSR4buZIEhETCB0aOG6pXAgJm1pZGRvdDsgVGhp4bq_dSDEkeG7k25nICZtaWRkb3Q7IEjhu4cgbWnhu4VuIGThu4tjaCBrw6ltLlIEZHVuZyICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvYBL2dvdG8_dXJsPUNBRVNyQUVCNnpzd0ZYbkNmT2ktaWtpTk1pUlFfWWM0SjRPQm5QS2txYjdqM0R2R0tDSFB5ZVdzWThuYkFIMkJLeFVWR0NLbVdHbnRHM25VU0lLd0FKUllJX19BR09sUkx0elpKc3Y4Nk45U3BsalplT0I5LXlQaklqRzJhN2c4T0lNd2dDWGM3akRLdjBZbXhyd0xzWEVLay05QUR0UU5TUzFNRU12Z1NNbExvN1FEVzFDWmljZU10UFRNU1JtZ2NZZXdhdGV1dERKaW4yR19LcHFTLThvanJJdF80aEhtbnpDWnFjZXJDUy1JEgQaAggAGsMGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQJ8GCEIQABgAIAAqDQoGdeG7kW5nFYjvvkAqJgoFdmnDqm4VrATbPhoHdGh14buRYxoEdmllbhoJaXY7ZDt2aWVuKgwKBWvhur1tFSV2CEEqEwoDY8OzFeAH6EAaB2PDs3TDoWMqIAoEdMOhYxXiFulAGgdjw7N0w6FjGgp0w6FjZOG7pW5nKioKBmThu6VuZxXiFulAGgRkdW5nGgp0w6FjZOG7pW5nGglpdjtkO2R1bmcqCgoDZ8OsFTGQ5j8y9gEvZ290bz91cmw9Q0FFU3JBRUI2enN3RlhuQ2ZPaS1pa2lOTWlSUV9ZYzRKNE9CblBLa3FiN2ozRHZHS0NIUHllV3NZOG5iQUgyQkt4VVZHQ0ttV0dudEczblVTSUt3QUpSWUlfX0FHT2xSTHR6Wkpzdjg2TjlTcGxqWmVPQjkteVBqSWpHMmE3ZzhPSU13Z0NYYzdqREt2MFlteHJ3THNYRUtrLTlBRHRRTlNTMU1FTXZnU01sTG83UURXMUNaaWNlTXRQVE1TUm1nY1lld2F0ZXV0REppbjJHX0twcVMtOG9qckl0XzRoSG1uekNacWNlckNTLUk6ZjxiPlXhu5FuZyBr4bq9bSBjw7MgdMOhYyBk4bulbmc8L2I-IHBo4bulIGtow7RuZz8gOSA8Yj50w6FjIGThu6VuZzwvYj4gcGjhu6Uga2hpIGLhu4sgZMawIDxiPmvhur1tPC9iPkL5AUJ14buTbiBuw7RuICZtaWRkb3Q7IMSQYXUgYuG7pW5nICZtaWRkb3Q7IFRpw6p1IGNo4bqjeSAmbWlkZG90OyBD4bqjbSBnacOhYyBtaeG7h25nIMSR4bqvbmcgJm1pZGRvdDsgTmjhu6ljIMSR4bqndSBob-G6t2MgY-G6o20gZ2nDoWMgZ2nhu5FuZyBuaMawIGPhuqNtIGPDum0gJm1pZGRvdDsgTuG7k25nIMSR4buZIEhETCB0aOG6pXAgJm1pZGRvdDsgVGhp4bq_dSDEkeG7k25nICZtaWRkb3Q7IEjhu4cgbWnhu4VuIGThu4tjaCBrw6ltLlIEZHVuZyICEAFIAFgAaAA",
+     "source": "Tiêm chủng Long Châu"
+    }
+   ]
+  },
+  {
+   "origin": "FRESH",
+   "query": "ai nên uống viên kẽm",
+   "engine": "google",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:59:51Z",
+   "searchId": "6ae2e3e3895c9cb7af3c8dd2",
+   "aiOverviewState": "inline",
+   "ai_overview": {
+    "text_blocks": [
+     {
+      "type": "paragraph",
+      "snippet": "Những đối tượng cần bổ sung kẽm nhiều hơn hoặc dễ bị thiếu hụt kẽm bao gồm:",
+      "reference_indexes": [
+       0
+      ]
+     },
+     {
+      "type": "list",
+      "list": [
+       {
+        "snippet": "Người ăn chay (đặc biệt là ăn chay trường): Do kẽm từ thực phẩm chủ yếu có trong thịt, cá và hải sản; người ăn chay cần lượng kẽm cao hơn khoảng 50% so với người ăn mặn.",
+        "reference_indexes": [
+         0,
+         1
+        ]
+       },
+       {
+        "snippet": "Phụ nữ mang thai và đang cho con bú: Nhu cầu kẽm tăng cao để hỗ trợ sự phát triển của thai nhi và tạo sữa.",
+        "reference_indexes": [
+         0,
+         1
+        ]
+       },
+       {
+        "snippet": "Trẻ sơ sinh trên 6 tháng tuổi (bú mẹ hoàn toàn): Khi bước sang tuổi ăn dặm, sữa mẹ không đủ cung cấp lượng kẽm cần thiết (nhu cầu tăng thêm khoảng 50%).",
+        "reference_indexes": [
+         0,
+         1
+        ]
+       },
+       {
+        "snippet": "Người mắc các bệnh lý tiêu hóa và hấp thu: Người bị viêm ruột, viêm ruột kết, hội chứng ruột ngắn, bệnh thận mạn tính hoặc loét miệng gặp khó khăn trong việc hấp thu kẽm.",
+        "reference_indexes": [
+         0,
+         1
+        ]
+       },
+       {
+        "snippet": "Người mắc bệnh hồng cầu hình lưỡi liềm: Cơ thể nhóm đối tượng này thường khó hấp thụ kẽm, dẫn đến nồng độ kẽm thấp.",
+        "reference_indexes": [
+         0,
+         1
+        ]
+       },
+       {
+        "snippet": "Người nghiện rượu: Rượu làm tổn thương đường ruột khiến cơ thể giảm hấp thu dinh dưỡng và tăng đào thải kẽm qua đường nước tiểu.",
+        "reference_indexes": [
+         0,
+         1
+        ]
+       },
+       {
+        "snippet": "Người cao tuổi: Khả năng hấp thu khoáng chất của cơ thể suy giảm theo tuổi tác.",
+        "reference_indexes": [
+         2
+        ]
+       },
+       {
+        "snippet": "Nam giới trưởng thành: Cần kẽm để hỗ trợ sản sinh testosterone và chất lượng tinh trùng.",
+        "reference_indexes": [
+         0,
+         3
+        ]
+       }
+      ]
+     },
+     {
+      "type": "paragraph",
+      "snippet": "Bạn có thể tìm hiểu thêm thông tin chi tiết tại Vinmec hoặc tham khảo hướng dẫn từ Nhà thuốc Long Châu.",
+      "snippet_links": [
+       {
+        "text": "Vinmec",
+        "link": "https://www.vinmec.com/vie/bai-viet/ai-can-bo-sung-kem-vi"
+       },
+       {
+        "text": "Nhà thuốc Long Châu",
+        "link": "https://nhathuoclongchau.com.vn/bai-viet/cac-dau-hieu-co-the-thieu-kem-va-cach-bo-sung-kem-hieu-qua.html"
+       }
+      ],
+      "reference_indexes": [
+       0,
+       4
+      ]
+     },
+     {
+      "type": "paragraph",
+      "snippet": "Bạn muốn tìm hiểu thêm về dấu hiệu nhận biết thiếu kẽm hay liều lượng bổ sung phù hợp cho đối tượng cụ thể nào?"
+     }
+    ],
+    "references": [
+     {
+      "index": 0,
+      "title": "Ai cần bổ sung kẽm? | Vinmec",
+      "link": "https://www.vinmec.com/vie/bai-viet/ai-can-bo-sung-kem-vi",
+      "snippet": "* Biểu hiện thiếu kẽm: móng dễ gãy/vết trắng, da khô, giảm miễn dịch/vị giác, chậm liền sẹo/mọc tóc; trẻ lười ăn/chậm phát triển; nam giảm sinh sản; phụ nữ mang th...",
+      "source": "Vinmec",
+      "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.vinmec.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSZTyb5b00oh5Zdw6g15B9zpSVEobeOaMOaO7ymTYEGwdK11iVi27uc4T5no3-UWYnYC0yNdFYRx6NLEAhBEbCB-K19H954gCrgE1oxiMAOnNXQ32A8Ak6IOeSGVJtrZ4JB1uGiJVtSi2e-zgkZ0rUt4xY"
+     },
+     {
+      "index": 1,
+      "title": "Bổ sung kẽm đúng cách: Những ai và khi nào cần bổ sung kẽm?",
+      "link": "https://nutrihome.vn/bo-sung-kem/",
+      "snippet": "Bổ sung kẽm đúng cách: Những ai và khi nào cần bổ sung kẽm? ... 1. ... 2. ... 3. ... 4. ... 5. ... 6. ... Những ai cần bổ sung kẽm? * Tóc rụng nhiều hơn bình thườn...",
+      "source": "Trung tâm Dinh dưỡng Nutrihome",
+      "source_icon": "https://encrypted-tbn0.gstatic.com/faviconV2?url=https://nutrihome.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcTlqOMtFQ4pI8wugSd1mxUIJrjS1L7auXz3rCNhAzzM_1LaViZqpLxT5EMwAmHkfnn38J4Sh--ybDKAfMQNaBO75I0cqFBnNNTs9r6V36fO5cSNsZGR_PFWNJi8mjyONtw693bvCM9wH_3Igmdujwa_qCM"
+     },
+     {
+      "index": 2,
+      "title": "Nhu cầu kẽm tăng cao trong quá trình mang thai và khi nuôi con bằng sữa ...",
+      "link": "https://www.facebook.com/DuocPhamNhatNhat11/posts/%EF%B8%8F%EF%B8%8F-nh%E1%BB%AFng-ai-c%E1%BA%A7n-b%E1%BB%95-sung-k%E1%BA%BDm-%EF%B8%8F%EF%B8%8Fk%E1%BA%BDm-l%C3%A0-m%E1%BB%99t-vi-ch%E1%BA%A5t-thi%E1%BA%BFt-y%E1%BA%BFu-cho-s%E1%BB%A9c-kh%E1%BB%8Fe-nh%C6%B0ng-kh/897384105863981/",
+      "snippet": "Người ăn chay: Chế độ ăn thuần chay có thể thiếu kẽm do không tiêu thụ các sản phẩm động vật, vì thế việc bổ sung kẽm từ thực phẩm chức năng hoặc nguồn thực vật gi...",
+      "source": "Facebook",
+      "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.facebook.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcR0_MOy23eCB0qyiSAEaX8OY80yNLc4koDLlD8QP0nB8Uz9LUaxcGVP-Ye5o6fCq3OzCnrbkZpdGBzTT_LAhWpIzcq3-_n6-BaMs5d_MbWPWNtuacKHFNUC0vsCFW-8vYgs7of-xJgCuQ"
+     },
+     {
+      "index": 3,
+      "title": "Kẽm có tác dụng gì với nam giới? Cách bổ sung kẽm hiệu quả",
+      "link": "https://medlatec.vn/kem-co-tac-dung-gi-voi-nam-gioi-cach-bo-sung-kem-hieu-qua",
+      "snippet": "Kẽm: Khoáng chất vi lượng thiết yếu cho nam giới. Tác dụng: - Tăng sinh lý: Sản xuất testosterone, tăng ham muốn/cương dương. - Cải thiện sinh sản: Sản xuất, phát ...",
+      "source": "Bệnh viện Đa khoa MEDLATEC",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://medlatec.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcQp0SXzePvt-2YMFSLDNe56M_3htCfOBncyUrx0Sz7nkFUebZ-IPoEs3HSH8c_H8DWkdWHJon8zWISosIFdzA3_YyUlSK_A90DuFPRNDmNp9fEUdaw6bCCFOwTWovaTOZF193Bss-nYgb0ia5zTWhtNafs"
+     },
+     {
+      "index": 4,
+      "title": "Các dấu hiệu cơ thể thiếu kẽm và cách bổ sung kẽm hiệu quả",
+      "link": "https://nhathuoclongchau.com.vn/bai-viet/cac-dau-hieu-co-the-thieu-kem-va-cach-bo-sung-kem-hieu-qua.html",
+      "snippet": "Những dấu hiệu cho thấy cơ thể thiếu kẽm. Người lớn nên bổ sung kẽm khi có dấu hiệu thiếu như rụng tóc, móng giòn, vết thương lâu lành, tiêu chảy kéo dài, dễ nhiễm...",
+      "source": "Nhà thuốc Long Châu",
+      "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://nhathuoclongchau.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+      "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQvYJVZZX3UIYmgDV00oBhHJ2zTJt3LIXcv_2r0QxojjQ3ATUE04fDv-UH3TM_Qew6CSfazSPpWD7TsOySQxPVtegp7B9T09OSxyhsmlXbxxNVTJMHt5R3GcizS3YvwS9wLLJpslc3jytMIqf2eVj6cxLk"
+     }
+    ]
+   },
+   "related_questions": null,
+   "related_searches": [
+    {
+     "block_position": 1,
+     "query": "Thuốc kẽm cho người lớn",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=Thu%E1%BB%91c+k%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg2EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Thu%E1%BB%91c+k%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn"
+    },
+    {
+     "block_position": 1,
+     "query": "Loại kẽm nào tốt cho đàn ông",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=Lo%E1%BA%A1i+k%E1%BA%BDm+n%C3%A0o+t%E1%BB%91t+cho+%C4%91%C3%A0n+%C3%B4ng&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg9EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Lo%E1%BA%A1i+k%E1%BA%BDm+n%C3%A0o+t%E1%BB%91t+cho+%C4%91%C3%A0n+%C3%B4ng"
+    },
+    {
+     "block_position": 1,
+     "query": "Có nên uống kẽm mỗi ngày",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=C%C3%B3+n%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+m%E1%BB%97i+ng%C3%A0y&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg8EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=C%C3%B3+n%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+m%E1%BB%97i+ng%C3%A0y"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm cho người lớn Long Châu",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=K%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn+Long+Ch%C3%A2u&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg7EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn+Long+Ch%C3%A2u"
+    },
+    {
+     "block_position": 1,
+     "query": "Thuốc bổ sung kẽm cho nam giới",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=Thu%E1%BB%91c+b%E1%BB%95+sung+k%E1%BA%BDm+cho+nam+gi%E1%BB%9Bi&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg6EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Thu%E1%BB%91c+b%E1%BB%95+sung+k%E1%BA%BDm+cho+nam+gi%E1%BB%9Bi"
+    },
+    {
+     "block_position": 1,
+     "query": "Khi nào cần bổ sung kẽm cho người lớn",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=Khi+n%C3%A0o+c%E1%BA%A7n+b%E1%BB%95+sung+k%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg5EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Khi+n%C3%A0o+c%E1%BA%A7n+b%E1%BB%95+sung+k%E1%BA%BDm+cho+ng%C6%B0%E1%BB%9Di+l%E1%BB%9Bn"
+    },
+    {
+     "block_position": 1,
+     "query": "Viên kẽm Long Châu",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=Vi%C3%AAn+k%E1%BA%BDm+Long+Ch%C3%A2u&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg4EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Vi%C3%AAn+k%E1%BA%BDm+Long+Ch%C3%A2u"
+    },
+    {
+     "block_position": 1,
+     "query": "Thuốc bổ sung kẽm cho phụ nữ",
+     "link": "https://www.google.com/search?sca_esv=68586879720fbd95&hl=vi&gl=vn&sxsrf=AKL5yDjvDDAxys_YmondzCsJq7NjxIvwLg:1793254371323&q=Thu%E1%BB%91c+b%E1%BB%95+sung+k%E1%BA%BDm+cho+ph%E1%BB%A5+n%E1%BB%AF&sa=X&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQ1QJ6BAg3EAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Thu%E1%BB%91c+b%E1%BB%95+sung+k%E1%BA%BDm+cho+ph%E1%BB%A5+n%E1%BB%AF"
+    }
+   ],
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "Top 15 thuốc kẽm cho người lớn tốt được bác sĩ khuyên ...",
+     "link": "https://chiaki.vn/tin-tuc/top-9-thuoc-kem-cho-nguoi-lon-tot-nhat-cap-nhat-2022",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESiQEB6zswFaIRaBZ2C3iESKdT9T8wkVETpj2a6q04jDQvUvAj7bRXYF0K1G1zodjjb9nTBEs3T5ahMao905MdrE8j5vzWVDU0bLsTdGa0i2CqTqQVVGnHF2Kai04NAETypILRfqfqqqe2_y8F1pW7jvydLoutV1kw56WoYAS3qKapZFoe751YjQ5hMg&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECCkQAQ&uoh=1",
+     "displayed_link": "https://chiaki.vn › ... › Sức Khỏe › Bổ sung dưỡng chất",
+     "favicon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewRDuJY_cBi9KTlYIjqmQlTE.png",
+     "date": "4 thg 9, 2026",
+     "snippet": "Chất kẽm giúp phòng bệnh tiểu đường, ung thư, tim mạch, chữa viêm da, đặc biệt giúp tăng tinh trùng ở nam giới. Xem ngay top 12 thuốc kẽm ...",
+     "snippet_highlighted_words": [
+      "kẽm",
+      "kẽm"
+     ],
+     "sitelinks": {
+      "inline": [
+       {
+        "title": "Tại sao người lớn nên bổ sung...",
+        "link": "https://chiaki.vn/tin-tuc/top-9-thuoc-kem-cho-nguoi-lon-tot-nhat-cap-nhat-2022#toc_0"
+       },
+       {
+        "title": "Top 15 thuốc kẽm cho người...",
+        "link": "https://chiaki.vn/tin-tuc/top-9-thuoc-kem-cho-nguoi-lon-tot-nhat-cap-nhat-2022#toc_3"
+       }
+      ]
+     },
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 5.0,
+        "reviews": 1
+       },
+       "extensions": [
+        "5,0(1)"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Chất kẽm giúp phòng bệnh tiểu đường, ung thư, tim mạch, chữa viêm da, đặc biệt giúp tăng tinh trùng ở nam giới. Xem ngay top 12 thuốc kẽm ...",
+       "source_info_link": "https://chiaki.vn/tin-tuc/top-9-thuoc-kem-cho-nguoi-lon-tot-nhat-cap-nhat-2022",
+       "icon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewQXqVnmvnCE50-eGwN_Gl5vmr_0Z7GU1Oy9lHYe37335.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZUVGpZcjkwSktYNHRQcWtRWTNBakFINEhNdlR1MW0xTEhucHNYNkMyTHA3aUVNdUxnckNlMzlrUHNLUlhlRkZZdHVTLU02OXpwelJvX1dSQmItQ0lSSnJXc1ZFdnh3TE9rTVJXSkFWX2JreVRpVFJKM3NlOTczeWp6ZlpPUkh0MXVkWFlRbG5DNkF4R2lKLTVPWm5Pa1VQVEs0RkpibWsyV2hNeHhjRlI5dERSN0F0clESBBoCCAAamwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA9wUIQhAAGAAgACqyAQoCYWkVAAAAABoDYWlyGgRheGl0GgRiw6NpGgNkb2kaA2hvaRoFaOG6o2kaBGxvYWkaBGzDo2kaBG3Do2kaA25vaRoDc8SpGgV04bqjaRoDw6FpGgPDo2kaA8OkaRoE4bqjaRoHaXY7ZDthaRoIaXY7ZDthaXIaCWl2O2Q7YXhpdBoIaXY7ZDtkb2kaCGl2O2Q7aG9pGglpdjtkO2xvYWkaCGl2O2Q7bm9pGgNnw6waAWEqCwoEbsOqbhV_WZg_Kg0KBnXhu5FuZxVeY_U_KiYKBXZpw6puFblCIEAaB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRVYKZ1AMsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZUVGpZcjkwSktYNHRQcWtRWTNBakFINEhNdlR1MW0xTEhucHNYNkMyTHA3aUVNdUxnckNlMzlrUHNLUlhlRkZZdHVTLU02OXpwelJvX1dSQmItQ0lSSnJXc1ZFdnh3TE9rTVJXSkFWX2JreVRpVFJKM3NlOTczeWp6ZlpPUkh0MXVkWFlRbG5DNkF4R2lKLTVPWm5Pa1VQVEs0RkpibWsyV2hNeHhjRlI5dERSN0F0clE6VFRvcCAxNSB0aHXhu5FjIDxiPmvhur1tPC9iPiBjaG8gbmfGsOG7nWkgbOG7m24gdOG7kXQgxJHGsOG7o2MgYsOhYyBzxKkga2h1ecOqbiBkw7luZ0LEAUNo4bqldCA8Yj5r4bq9bTwvYj4gZ2nDunAgcGjDsm5nIGLhu4duaCB0aeG7g3UgxJHGsOG7nW5nLCB1bmcgdGjGsCwgdGltIG3huqFjaCwgY2jhu69hIHZpw6ptIGRhLCDEkeG6t2MgYmnhu4d0IGdpw7pwIHTEg25nIHRpbmggdHLDuW5nIOG7nyBuYW0gZ2nhu5tpLiBYZW0gbmdheSB0b3AgMTIgdGh14buRYyA8Yj5r4bq9bTwvYj4mbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZUVGpZcjkwSktYNHRQcWtRWTNBakFINEhNdlR1MW0xTEhucHNYNkMyTHA3aUVNdUxnckNlMzlrUHNLUlhlRkZZdHVTLU02OXpwelJvX1dSQmItQ0lSSnJXc1ZFdnh3TE9rTVJXSkFWX2JreVRpVFJKM3NlOTczeWp6ZlpPUkh0MXVkWFlRbG5DNkF4R2lKLTVPWm5Pa1VQVEs0RkpibWsyV2hNeHhjRlI5dERSN0F0clESBBoCCAAamwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA9wUIQhAAGAAgACqyAQoCYWkVAAAAABoDYWlyGgRheGl0GgRiw6NpGgNkb2kaA2hvaRoFaOG6o2kaBGxvYWkaBGzDo2kaBG3Do2kaA25vaRoDc8SpGgV04bqjaRoDw6FpGgPDo2kaA8OkaRoE4bqjaRoHaXY7ZDthaRoIaXY7ZDthaXIaCWl2O2Q7YXhpdBoIaXY7ZDtkb2kaCGl2O2Q7aG9pGglpdjtkO2xvYWkaCGl2O2Q7bm9pGgNnw6waAWEqCwoEbsOqbhV_WZg_Kg0KBnXhu5FuZxVeY_U_KiYKBXZpw6puFblCIEAaB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRVYKZ1AMsgBL2dvdG8_dXJsPUNBRVNpUUVCNnpzd0ZUVGpZcjkwSktYNHRQcWtRWTNBakFINEhNdlR1MW0xTEhucHNYNkMyTHA3aUVNdUxnckNlMzlrUHNLUlhlRkZZdHVTLU02OXpwelJvX1dSQmItQ0lSSnJXc1ZFdnh3TE9rTVJXSkFWX2JreVRpVFJKM3NlOTczeWp6ZlpPUkh0MXVkWFlRbG5DNkF4R2lKLTVPWm5Pa1VQVEs0RkpibWsyV2hNeHhjRlI5dERSN0F0clE6VFRvcCAxNSB0aHXhu5FjIDxiPmvhur1tPC9iPiBjaG8gbmfGsOG7nWkgbOG7m24gdOG7kXQgxJHGsOG7o2MgYsOhYyBzxKkga2h1ecOqbiBkw7luZ0LEAUNo4bqldCA8Yj5r4bq9bTwvYj4gZ2nDunAgcGjDsm5nIGLhu4duaCB0aeG7g3UgxJHGsOG7nW5nLCB1bmcgdGjGsCwgdGltIG3huqFjaCwgY2jhu69hIHZpw6ptIGRhLCDEkeG6t2MgYmnhu4d0IGdpw7pwIHTEg25nIHRpbmggdHLDuW5nIOG7nyBuYW0gZ2nhu5tpLiBYZW0gbmdheSB0b3AgMTIgdGh14buRYyA8Yj5r4bq9bTwvYj4mbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "Chiaki.vn"
+    },
+    {
+     "position": 2,
+     "title": "7 mối nguy hiểm tiềm ẩn khi dùng thực phẩm bổ sung kẽm",
+     "link": "https://yte.nghean.gov.vn/tin-chuyen-nganh/7-moi-nguy-hiem-tiem-an-khi-dung-thuc-pham-bo-sung-kem-685000?pageindex=0",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESrwEB6zswFSAbK3u90Fr1gE7doIL9K4k4GAUf8wJiSOKwMBZuK7U4b4uB9Nc6qUZkLAppPydTFHdngS5VsQkR_L7d9c4yDtW0h7nilhvNGG1FI7XtDhyUqFtNWCsFaKf42I7GY8pItg9gLqa9-SIt_Fg3FxMwIlKDRj4r5DwnCh5B6Iz1AVWNv5675F1H82RLdvZNdMKO76esyx9q_bXteZ4G-oapCD_aAtVz5Z8MxGgZ&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECCUQAQ&uoh=1",
+     "displayed_link": "https://yte.nghean.gov.vn › tin-chuyen-nganh › 7-moi-ng...",
+     "date": "5 thg 8, 2024",
+     "snippet": "Uống kẽm liều cao trong thời gian dài có thể dẫn đến tình trạng thiếu đồng hoặc không đủ đồng, gây ra nhiều vấn đề sức khỏe, bao gồm thiếu máu ...",
+     "snippet_highlighted_words": [
+      "Uống kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Uống kẽm liều cao trong thời gian dài có thể dẫn đến tình trạng thiếu đồng hoặc không đủ đồng, gây ra nhiều vấn đề sức khỏe, bao gồm thiếu máu ...",
+       "source_info_link": "https://yte.nghean.gov.vn/tin-chuyen-nganh/7-moi-nguy-hiem-tiem-an-khi-dung-thuc-pham-bo-sung-kem-685000?pageindex=0"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvoBL2dvdG8_dXJsPUNBRVNyd0VCNnpzd0ZZWVR3Z3NHT2hvdXpzMHhEUmk3cFZHOHJGN2FhZ0xJMFdzSkxOMWRTWVBYUzZHTWxQY0xENmFvU2NmMXRIQWhacGV3d2x1VGZEVHZsQTE1RHpMa21PM2hSbWRjLUh4MzMxbndodV9SQl9xb3VDc3lfc2dBUDlSUjJkeUVBWVVCX2tSTUp3Qk9wNUNENkIwX3BsOVoyOVdqakpGNGh2OHFaaUJnUzZBVDZrS3lfb1ppb29qTjBwR2dmOExPVnEwYW9xVmlRUHNHVVFqTXdsY1Z0QjdZWlJVS0xib3BzWll4UU1UchIEGgIIABrWBhICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQLAGCEIQABgAIAAqsgEKAmFpFQAAAAAaA2FpchoEYXhpdBoEYsOjaRoDZG9pGgNob2kaBWjhuqNpGgRsb2FpGgRsw6NpGgRtw6NpGgNub2kaA3PEqRoFdOG6o2kaA8OhaRoDw6NpGgPDpGkaBOG6o2kaB2l2O2Q7YWkaCGl2O2Q7YWlyGglpdjtkO2F4aXQaCGl2O2Q7ZG9pGghpdjtkO2hvaRoJaXY7ZDtsb2FpGghpdjtkO25vaRoDZ8OsGgFhKgsKBG7Dqm4VGz2BPyoNCgZ14buRbmcVG3t_PiomCgV2acOqbhUa0oA_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0V2OJkQDL6AS9nb3RvP3VybD1DQUVTcndFQjZ6c3dGWVlUd2dzR09ob3V6czB4RFJpN3BWRzhyRjdhYWdMSTBXc0pMTjFkU1lQWFM2R01sUGNMRDZhb1NjZjF0SEFoWnBld3dsdVRmRFR2bEExNUR6TGttTzNoUm1kYy1IeDMzMW53aHVfUkJfcW91Q3N5X3NnQVA5UlIyZHlFQVlVQl9rUk1Kd0JPcDVDRDZCMF9wbDlaMjlXampKRjRodjhxWmlCZ1M2QVQ2a0t5X29aaW9vak4wcEdnZjhMT1ZxMGFvcVZpUVBzR1VRak13bGNWdEI3WVpSVUtMYm9wc1pZeFFNVHI6TjcgbeG7kWkgbmd1eSBoaeG7g20gdGnhu4FtIOG6qW4ga2hpIGTDuW5nIHRo4buxYyBwaOG6qW0gYuG7lSBzdW5nIDxiPmvhur1tPC9iPkLRATxiPlXhu5FuZyBr4bq9bTwvYj4gbGnhu4F1IGNhbyB0cm9uZyB0aOG7nWkgZ2lhbiBkw6BpIGPDsyB0aOG7gyBk4bqrbiDEkeG6v24gdMOsbmggdHLhuqFuZyB0aGnhur91IMSR4buTbmcgaG_hurdjIGtow7RuZyDEkeG7pyDEkeG7k25nLCBnw6J5IHJhIG5oaeG7gXUgduG6pW4gxJHhu4Egc-G7qWMga2jhu49lLCBiYW8gZ-G7k20gdGhp4bq_dSBtw6F1Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvoBL2dvdG8_dXJsPUNBRVNyd0VCNnpzd0ZZWVR3Z3NHT2hvdXpzMHhEUmk3cFZHOHJGN2FhZ0xJMFdzSkxOMWRTWVBYUzZHTWxQY0xENmFvU2NmMXRIQWhacGV3d2x1VGZEVHZsQTE1RHpMa21PM2hSbWRjLUh4MzMxbndodV9SQl9xb3VDc3lfc2dBUDlSUjJkeUVBWVVCX2tSTUp3Qk9wNUNENkIwX3BsOVoyOVdqakpGNGh2OHFaaUJnUzZBVDZrS3lfb1ppb29qTjBwR2dmOExPVnEwYW9xVmlRUHNHVVFqTXdsY1Z0QjdZWlJVS0xib3BzWll4UU1UchIEGgIIABrWBhICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQLAGCEIQABgAIAAqsgEKAmFpFQAAAAAaA2FpchoEYXhpdBoEYsOjaRoDZG9pGgNob2kaBWjhuqNpGgRsb2FpGgRsw6NpGgRtw6NpGgNub2kaA3PEqRoFdOG6o2kaA8OhaRoDw6NpGgPDpGkaBOG6o2kaB2l2O2Q7YWkaCGl2O2Q7YWlyGglpdjtkO2F4aXQaCGl2O2Q7ZG9pGghpdjtkO2hvaRoJaXY7ZDtsb2FpGghpdjtkO25vaRoDZ8OsGgFhKgsKBG7Dqm4VGz2BPyoNCgZ14buRbmcVG3t_PiomCgV2acOqbhUa0oA_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0V2OJkQDL6AS9nb3RvP3VybD1DQUVTcndFQjZ6c3dGWVlUd2dzR09ob3V6czB4RFJpN3BWRzhyRjdhYWdMSTBXc0pMTjFkU1lQWFM2R01sUGNMRDZhb1NjZjF0SEFoWnBld3dsdVRmRFR2bEExNUR6TGttTzNoUm1kYy1IeDMzMW53aHVfUkJfcW91Q3N5X3NnQVA5UlIyZHlFQVlVQl9rUk1Kd0JPcDVDRDZCMF9wbDlaMjlXampKRjRodjhxWmlCZ1M2QVQ2a0t5X29aaW9vak4wcEdnZjhMT1ZxMGFvcVZpUVBzR1VRak13bGNWdEI3WVpSVUtMYm9wc1pZeFFNVHI6TjcgbeG7kWkgbmd1eSBoaeG7g20gdGnhu4FtIOG6qW4ga2hpIGTDuW5nIHRo4buxYyBwaOG6qW0gYuG7lSBzdW5nIDxiPmvhur1tPC9iPkLRATxiPlXhu5FuZyBr4bq9bTwvYj4gbGnhu4F1IGNhbyB0cm9uZyB0aOG7nWkgZ2lhbiBkw6BpIGPDsyB0aOG7gyBk4bqrbiDEkeG6v24gdMOsbmggdHLhuqFuZyB0aGnhur91IMSR4buTbmcgaG_hurdjIGtow7RuZyDEkeG7pyDEkeG7k25nLCBnw6J5IHJhIG5oaeG7gXUgduG6pW4gxJHhu4Egc-G7qWMga2jhu49lLCBiYW8gZ-G7k20gdGhp4bq_dSBtw6F1Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Cổng thông tin điện tử Tỉnh Nghệ An"
+    },
+    {
+     "position": 3,
+     "title": "Top 6 sản phẩm kẽm cho bé hiệu quả và được tin dùng ...",
+     "link": "https://concung.com/thong-tin-bo-ich/top-6-san-pham-kem-cho-be-hieu-qua-va-duoc-tin-dung-bv2811.html?srsltid=AYCX9vKd7DJCv2EtKAqLAb62Gxa75nI9-TQE0cnbwEoW2o6jNhLpUUQH",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAES4QEB6zswFbMg9IjpUbHgZyrWZxkh85hDJX6LnPr8x57PKtp1_yt7D-dDxBm5DCflbb0FsjOAXM1rY7oRgIkMElxR1VVaIHHplpccFo_UYaovFQtYqPsgSvhsx7Mom94SvIJO7ZsKrsdmoiFc5Glb_lfZz-W2xVHIMp20WF8At7XyemH3vd8VKLII0zbTMj2mZ3s-P5tAd7vYVYSjU9HLhU_fPGeNv5w1U88D4988tMWzzmLi52KVVCPFYZb0IKdnJ510z_Yth-qaMpA501J2hlBS9L-9WP0XPSCSQ3AdPdvOlNc&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECCAQAQ&uoh=1",
+     "displayed_link": "https://concung.com › Thông tin bổ ích",
+     "favicon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewTs9320u4DKl-cLnNq8qxjw.png",
+     "date": "3 thg 4, 2026",
+     "snippet": "Đối với các thuốc kẽm cho bé dưới dạng viên uống (như kẽm gluconat hay kẽm sulfat) nên cho bé uống sau bữa ăn sau 30 phút để cơ thể hấp thu tốt ...",
+     "snippet_highlighted_words": [
+      "kẽm",
+      "viên uống",
+      "kẽm",
+      "kẽm",
+      "nên",
+      "uống"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Đối với các thuốc kẽm cho bé dưới dạng viên uống (như kẽm gluconat hay kẽm sulfat) nên cho bé uống sau bữa ăn sau 30 phút để cơ thể hấp thu tốt ...",
+       "source_info_link": "https://concung.com/thong-tin-bo-ich/top-6-san-pham-kem-cho-be-hieu-qua-va-duoc-tin-dung-bv2811.html?srsltid=AYCX9vKd7DJCv2EtKAqLAb62Gxa75nI9-TQE0cnbwEoW2o6jNhLpUUQH",
+       "icon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8Bewa6kObBOVRnDqBX-qLgn-L5Qi7agYQK6x009yU0tsGHZ.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cr0CL2dvdG8_dXJsPUNBRVM0UUVCNnpzd0ZldHdrTkJGcFV2aGpKbVRlV042SzRzTWR0MGp3T1RsZmUtOFc5XzVxaHktS2VkaE1SNlM2Unh4bzNpaFpvTzRFQWpzWGRIZmNFR05fbk10dXRwNUdRaXc3MUdCMmhnNlZWMk56RkNCZmZkVy1aQl9QZHd6ZlhTbDN3cVRDM0x6WnlDNC1LQWpxOWZ3b202cTJkSUQwdWNIeVo4VHYxZ2FtWWgyYkRDWUR0SEFYdkpCY2MtLXMwTjVOOFJoQlJwV0J5LWxHRWRUR212d0otc0NrNmhieEN4eHVNdXdBMHpDZEp5NUxVOWo0T1RpMHpqWEVhTV9pcG1BTnhMaE9DdW1QQ2xQbkZIX2NXaTI3c3ZWbFA2VFZSRmN2RHdtUzcyVXVGTnRrQXcSBBoCCAAa5AYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkC-BghCEAAYACAAKrIBCgJhaRUAAAAAGgNhaXIaBGF4aXQaBGLDo2kaA2RvaRoDaG9pGgVo4bqjaRoEbG9haRoEbMOjaRoEbcOjaRoDbm9pGgNzxKkaBXThuqNpGgPDoWkaA8OjaRoDw6RpGgThuqNpGgdpdjtkO2FpGghpdjtkO2FpchoJaXY7ZDtheGl0GghpdjtkO2RvaRoIaXY7ZDtob2kaCWl2O2Q7bG9haRoIaXY7ZDtub2kaA2fDrBoBYSoLCgRuw6puFYkRZT8qDQoGdeG7kW5nFTKrhz8qJgoFdmnDqm4VGZ1kPxoHdGh14buRYxoEdmllbhoJaXY7ZDt2aWVuKgwKBWvhur1tFQYcqUAy5QEvZ290bz91cmw9Q0FFU253RUI2enN3RmVOaFI5Zld6X2R6UzU5T1pYVmtBN3d0Q1Z4eWotUkRqaVlKdVBLclJkd0ctb21hX0pnT2R3a3hhTlItV2ZwSGh3eS13TlBCVWp2dWJnZWU3QjVfWmNkcU9BSW5NUU9FZmdseldtQ3Qyc1dTdGlwamRtSjBtaTVZS0ZBMjNRd2xfejBSNGdsWDFENFdISXMtU19jUGcwY19zQ1hXSmFsMURBVnFpYVdwY2R4b1lXSF91aTg0MzZ2OFJvbWFLTkxVeG5VUENVb01yekNXNU93OlZUb3AgNiBz4bqjbiBwaOG6qW0gPGI-a-G6vW08L2I-IGNobyBiw6kgaGnhu4d1IHF14bqjIHbDoCDEkcaw4bujYyB0aW4gZMO5bmcgaGnhu4duIG5heULsAcSQ4buRaSB24bubaSBjw6FjIHRodeG7kWMgPGI-a-G6vW08L2I-IGNobyBiw6kgZMaw4bubaSBk4bqhbmcgPGI-dmnDqm4gdeG7kW5nPC9iPiAobmjGsCA8Yj5r4bq9bTwvYj4gZ2x1Y29uYXQgaGF5IDxiPmvhur1tPC9iPiBzdWxmYXQpIDxiPm7Dqm48L2I-IGNobyBiw6kgPGI-deG7kW5nPC9iPiBzYXUgYuG7r2EgxINuIHNhdSAzMCBwaMO6dCDEkeG7gyBjxqEgdGjhu4MgaOG6pXAgdGh1IHThu5F0Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cr0CL2dvdG8_dXJsPUNBRVM0UUVCNnpzd0ZldHdrTkJGcFV2aGpKbVRlV042SzRzTWR0MGp3T1RsZmUtOFc5XzVxaHktS2VkaE1SNlM2Unh4bzNpaFpvTzRFQWpzWGRIZmNFR05fbk10dXRwNUdRaXc3MUdCMmhnNlZWMk56RkNCZmZkVy1aQl9QZHd6ZlhTbDN3cVRDM0x6WnlDNC1LQWpxOWZ3b202cTJkSUQwdWNIeVo4VHYxZ2FtWWgyYkRDWUR0SEFYdkpCY2MtLXMwTjVOOFJoQlJwV0J5LWxHRWRUR212d0otc0NrNmhieEN4eHVNdXdBMHpDZEp5NUxVOWo0T1RpMHpqWEVhTV9pcG1BTnhMaE9DdW1QQ2xQbkZIX2NXaTI3c3ZWbFA2VFZSRmN2RHdtUzcyVXVGTnRrQXcSBBoCCAAa5AYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkC-BghCEAAYACAAKrIBCgJhaRUAAAAAGgNhaXIaBGF4aXQaBGLDo2kaA2RvaRoDaG9pGgVo4bqjaRoEbG9haRoEbMOjaRoEbcOjaRoDbm9pGgNzxKkaBXThuqNpGgPDoWkaA8OjaRoDw6RpGgThuqNpGgdpdjtkO2FpGghpdjtkO2FpchoJaXY7ZDtheGl0GghpdjtkO2RvaRoIaXY7ZDtob2kaCWl2O2Q7bG9haRoIaXY7ZDtub2kaA2fDrBoBYSoLCgRuw6puFYkRZT8qDQoGdeG7kW5nFTKrhz8qJgoFdmnDqm4VGZ1kPxoHdGh14buRYxoEdmllbhoJaXY7ZDt2aWVuKgwKBWvhur1tFQYcqUAy5QEvZ290bz91cmw9Q0FFU253RUI2enN3RmVOaFI5Zld6X2R6UzU5T1pYVmtBN3d0Q1Z4eWotUkRqaVlKdVBLclJkd0ctb21hX0pnT2R3a3hhTlItV2ZwSGh3eS13TlBCVWp2dWJnZWU3QjVfWmNkcU9BSW5NUU9FZmdseldtQ3Qyc1dTdGlwamRtSjBtaTVZS0ZBMjNRd2xfejBSNGdsWDFENFdISXMtU19jUGcwY19zQ1hXSmFsMURBVnFpYVdwY2R4b1lXSF91aTg0MzZ2OFJvbWFLTkxVeG5VUENVb01yekNXNU93OlZUb3AgNiBz4bqjbiBwaOG6qW0gPGI-a-G6vW08L2I-IGNobyBiw6kgaGnhu4d1IHF14bqjIHbDoCDEkcaw4bujYyB0aW4gZMO5bmcgaGnhu4duIG5heULsAcSQ4buRaSB24bubaSBjw6FjIHRodeG7kWMgPGI-a-G6vW08L2I-IGNobyBiw6kgZMaw4bubaSBk4bqhbmcgPGI-dmnDqm4gdeG7kW5nPC9iPiAobmjGsCA8Yj5r4bq9bTwvYj4gZ2x1Y29uYXQgaGF5IDxiPmvhur1tPC9iPiBzdWxmYXQpIDxiPm7Dqm48L2I-IGNobyBiw6kgPGI-deG7kW5nPC9iPiBzYXUgYuG7r2EgxINuIHNhdSAzMCBwaMO6dCDEkeG7gyBjxqEgdGjhu4MgaOG6pXAgdGh1IHThu5F0Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Concung"
+    },
+    {
+     "position": 4,
+     "title": "Kẽm: Cách dùng, liều dùng, tác dụng phụ",
+     "link": "https://www.nhathuocankhang.com/ban-tin-suc-khoe/lieu-dung-cach-dung-cac-che-pham-bo-sung-kem-1380109",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESoAEB6zswFbfxB798u6LvSRRsp_L4Mtpf17VNVTMZdS7SF7ND84KfUrK9JDNM9ESqhQKydNStgCcDWOsOZfddmqFHhjt2T1dIKk7gzOlyyK8VaUDpHuqUMS7W_HcSgDtzL63ju72jl8IKpkwN6EVNW-AyMDei5saKcvZOqWqyQw41HgPkGDCZefK4424Gjm1N9CfvjBsgZlKeVCrei-VdUdDC&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECB8QAQ&uoh=1",
+     "displayed_link": "https://www.nhathuocankhang.com › ban-tin-suc-khoe",
+     "favicon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys_RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3NDc3Nzc3Nys3NzI1Nzc1Nzc3Nzc3Nzc3ODU3NS0vLjU3N__AABEIABwAHAMBEQACEQEDEQH_xAAZAAADAQEBAAAAAAAAAAAAAAAEBQYCAwH_xAAtEAABAgUCAwYHAAAAAAAAAAABAgMABAUREhMxIVFxBiMyUoGRFBUiM0Ghsf_EABoBAAIDAQEAAAAAAAAAAAAAAAMEAAIFAQb_xAAmEQABBAICAAUFAAAAAAAAAAABAAIDESExBBITQVFhcSKRodHw_9oADAMBAAIRAxEAPwB5NVBaHSkX3jLL8rzzpSCnEtRay-yHVJZYBFwl5ZCvYA29YKIpCLTLePO4Xr5S2p_MKW6G5xooy8KwbpV0MDf3YcoMviRGnhcmqgtSL3jgeqCUkI_svLNzHaQF0A6LanUg-YEAf2_pF4WgyZRuKwOnz5ZT6vqcn2nZNxptMtqJS6HDdWNwdTgoYosFcT-R7nkt30nX9n4TnIuQFhGPP97wF7V6eXOzs6qbe1XNEOjE922pCeGAPEA25m947Iy4zak0VwO7GzV-2PRQUv8AbEIhZDdIuWqLlLq7c22MsSQpHmSdxFg8sf2RGymKXuFZ06p0FyUVabZ7wd78YoaiuJNlZb2ubbjlDjHxVv7rUjm45bsZ9d_lJq9W5dVOFHo63ZnIYuPElX032ud789rfoMso69GZSvI5DengxZ91OpRpFSMgrE2uIXqkkBWFmeSNY9YjtrkgyhsRFaVKWk3T4VKHQxFESwkaYiwRG6X_2Q.jpeg",
+     "date": "1 thg 1, 2022",
+     "snippet": "Bổ sung kẽm trước khi ăn 1 giờ hoặc sau ăn 2 giờ. · Tránh ăn sữa, thịt gà hoặc các thực phẩm giàu chất xơ trong vòng 2 giờ sau khi uống viên kẽm.",
+     "snippet_highlighted_words": [
+      "kẽm",
+      "uống viên kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Bổ sung kẽm trước khi ăn 1 giờ hoặc sau ăn 2 giờ. · Tránh ăn sữa, thịt gà hoặc các thực phẩm giàu chất xơ trong vòng 2 giờ sau khi uống viên kẽm.",
+       "source_info_link": "https://www.nhathuocankhang.com/ban-tin-suc-khoe/lieu-dung-cach-dung-cac-che-pham-bo-sung-kem-1380109",
+       "icon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys_RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3NDc3Nzc3Nys3NzI1Nzc1Nzc3Nzc3Nzc3ODU3NS0vLjU3N__AABEIABwAHAMBEQACEQEDEQH_xAAZAAADAQEBAAAAAAAAAAAAAAAEBQYCAwH_xAAtEAABAgUCAwYHAAAAAAAAAAABAgMABAUREhMxIVFxBiMyUoGRFBUiM0Ghsf_EABoBAAIDAQEAAAAAAAAAAAAAAAMEAAIFAQb_xAAmEQABBAICAAUFAAAAAAAAAAABAAIDESExBBITQVFhcSKRodHw_9oADAMBAAIRAxEAPwB5NVBaHSkX3jLL8rzzpSCnEtRay-yHVJZYBFwl5ZCvYA29YKIpCLTLePO4Xr5S2p_MKW6G5xooy8KwbpV0MDf3YcoMviRGnhcmqgtSL3jgeqCUkI_svLNzHaQF0A6LanUg-YEAf2_pF4WgyZRuKwOnz5ZT6vqcn2nZNxptMtqJS6HDdWNwdTgoYosFcT-R7nkt30nX9n4TnIuQFhGPP97wF7V6eXOzs6qbe1XNEOjE922pCeGAPEA25m947Iy4zak0VwO7GzV-2PRQUv8AbEIhZDdIuWqLlLq7c22MsSQpHmSdxFg8sf2RGymKXuFZ06p0FyUVabZ7wd78YoaiuJNlZb2ubbjlDjHxVv7rUjm45bsZ9d_lJq9W5dVOFHo63ZnIYuPElX032ud789rfoMso69GZSvI5DengxZ91OpRpFSMgrE2uIXqkkBWFmeSNY9YjtrkgyhsRFaVKWk3T4VKHQxFESwkaYiwRG6X_2Q.jpeg"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CuYBL2dvdG8_dXJsPUNBRVNvQUVCNnpzd0ZTcnBrbGNSNGE3T3Y4OFppNlFFNDBGTUpSZTYxcTZZb09WUURZYU1uOFN0Q1ZnTmhONjZ0a3hwd3NPLWVROEwwbklWSlJ3aExIT09oVlBZM3RhZ1FoeUZIVTd4bEJqNFRESU5Ta1ZhTDkwcTBHN2dmQ3JpdktObmtSbnRmWkhGZWQteUY4M1l0SEFHSUtLdE03VElnRHFWVVpreUNLdk1ENG8zbW1xYnVGQzg1UFN0cVNpRWhEdS1WaGhKcnU5WFdVNTNzR0ctUGNaUFo3VHkSBBoCCAAaxAYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCeBghCEAAYACAAKrIBCgJhaRUAXbE9GgNhaXIaBGF4aXQaBGLDo2kaA2RvaRoDaG9pGgVo4bqjaRoEbG9haRoEbMOjaRoEbcOjaRoDbm9pGgNzxKkaBXThuqNpGgPDoWkaA8OjaRoDw6RpGgThuqNpGgdpdjtkO2FpGghpdjtkO2FpchoJaXY7ZDtheGl0GghpdjtkO2RvaRoIaXY7ZDtob2kaCWl2O2Q7bG9haRoIaXY7ZDtub2kaA2fDrBoBYSoLCgRuw6puFdVeFz8qDQoGdeG7kW5nFQEAsj8qJgoFdmnDqm4VOoSNPxoHdGh14buRYxoEdmllbhoJaXY7ZDt2aWVuKgwKBWvhur1tFRh4dkAy5gEvZ290bz91cmw9Q0FFU29BRUI2enN3RlNycGtsY1I0YTdPdjg4Wmk2UUU0MEZNSlJlNjFxNllvT1ZRRFlhTW44U3RDVmdOaE42NnRreHB3c08tZVE4TDBuSVZKUndoTEhPT2hWUFkzdGFnUWh5RkhVN3hsQmo0VERJTlNrVmFMOTBxMEc3Z2ZDcml2S05ua1JudGZaSEZlZC15RjgzWXRIQUdJS0t0TTdUSWdEcVZVWmt5Q0t2TUQ0bzNtbXFidUZDODVQU3RxU2lFaER1LVZoaEpydTlYV1U1M3NHRy1QY1pQWjdUeTpSPGI-S-G6vW08L2I-OiBDw6FjaCBkw7luZywgbGnhu4F1IGTDuW5nLCB0w6FjIGThu6VuZyBwaOG7pSAtIE5ow6AgdGh14buRYyBBbiBLaGFuZ0LPAULhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gdHLGsOG7m2Mga2hpIMSDbiAxIGdp4budIGhv4bq3YyBzYXUgxINuIDIgZ2nhu50uICZtaWRkb3Q7IFRyw6FuaCDEg24gc-G7r2EsIHRo4buLdCBnw6AgaG_hurdjIGPDoWMgdGjhu7FjIHBo4bqpbSBnacOgdSBjaOG6pXQgeMahIHRyb25nIHbDsm5nIDIgZ2nhu50gc2F1IGtoaSA8Yj514buRbmcgdmnDqm4ga-G6vW08L2I-LiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CuYBL2dvdG8_dXJsPUNBRVNvQUVCNnpzd0ZTcnBrbGNSNGE3T3Y4OFppNlFFNDBGTUpSZTYxcTZZb09WUURZYU1uOFN0Q1ZnTmhONjZ0a3hwd3NPLWVROEwwbklWSlJ3aExIT09oVlBZM3RhZ1FoeUZIVTd4bEJqNFRESU5Ta1ZhTDkwcTBHN2dmQ3JpdktObmtSbnRmWkhGZWQteUY4M1l0SEFHSUtLdE03VElnRHFWVVpreUNLdk1ENG8zbW1xYnVGQzg1UFN0cVNpRWhEdS1WaGhKcnU5WFdVNTNzR0ctUGNaUFo3VHkSBBoCCAAaxAYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCeBghCEAAYACAAKrIBCgJhaRUAXbE9GgNhaXIaBGF4aXQaBGLDo2kaA2RvaRoDaG9pGgVo4bqjaRoEbG9haRoEbMOjaRoEbcOjaRoDbm9pGgNzxKkaBXThuqNpGgPDoWkaA8OjaRoDw6RpGgThuqNpGgdpdjtkO2FpGghpdjtkO2FpchoJaXY7ZDtheGl0GghpdjtkO2RvaRoIaXY7ZDtob2kaCWl2O2Q7bG9haRoIaXY7ZDtub2kaA2fDrBoBYSoLCgRuw6puFdVeFz8qDQoGdeG7kW5nFQEAsj8qJgoFdmnDqm4VOoSNPxoHdGh14buRYxoEdmllbhoJaXY7ZDt2aWVuKgwKBWvhur1tFRh4dkAy5gEvZ290bz91cmw9Q0FFU29BRUI2enN3RlNycGtsY1I0YTdPdjg4Wmk2UUU0MEZNSlJlNjFxNllvT1ZRRFlhTW44U3RDVmdOaE42NnRreHB3c08tZVE4TDBuSVZKUndoTEhPT2hWUFkzdGFnUWh5RkhVN3hsQmo0VERJTlNrVmFMOTBxMEc3Z2ZDcml2S05ua1JudGZaSEZlZC15RjgzWXRIQUdJS0t0TTdUSWdEcVZVWmt5Q0t2TUQ0bzNtbXFidUZDODVQU3RxU2lFaER1LVZoaEpydTlYV1U1M3NHRy1QY1pQWjdUeTpSPGI-S-G6vW08L2I-OiBDw6FjaCBkw7luZywgbGnhu4F1IGTDuW5nLCB0w6FjIGThu6VuZyBwaOG7pSAtIE5ow6AgdGh14buRYyBBbiBLaGFuZ0LPAULhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gdHLGsOG7m2Mga2hpIMSDbiAxIGdp4budIGhv4bq3YyBzYXUgxINuIDIgZ2nhu50uICZtaWRkb3Q7IFRyw6FuaCDEg24gc-G7r2EsIHRo4buLdCBnw6AgaG_hurdjIGPDoWMgdGjhu7FjIHBo4bqpbSBnacOgdSBjaOG6pXQgeMahIHRyb25nIHbDsm5nIDIgZ2nhu50gc2F1IGtoaSA8Yj514buRbmcgdmnDqm4ga-G6vW08L2I-LiICEAFIAFgAaAA",
+     "source": "Nhà thuốc An Khang"
+    },
+    {
+     "position": 5,
+     "title": "Kẽm (Zn) là một khoáng chất quan trọng trong cơ thể. ...",
+     "link": "https://www.facebook.com/DrWynnTran/videos/t%C3%B4i-c%C3%B3-n%C3%AAn-b%E1%BB%95-sung-k%E1%BA%BDm/1029840334929297/",
+     "displayed_link": ">2 N lượt thể hiện cảm xúc",
+     "date": "3 năm trước",
+     "thumbnail": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewbVk-V5cV7kJ-n-edgkQNOI.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "snippet": "Triệu chứng khi thiếu kẽm - tiêu chảy - rụng tóc - thị lực thay đổi - vết thương lâu hồi phục - mất vị giác Triệu chứng khi dư kẽm - ói mửa - ...",
+     "duration": "4:43",
+     "about_this_result": {
+      "source": {
+       "description": "Triệu chứng khi thiếu kẽm - tiêu chảy - rụng tóc - thị lực thay đổi - vết thương lâu hồi phục - mất vị giác Triệu chứng khi dư kẽm - ói mửa - ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvgBL2dvdG8_dXJsPUNBRVNyUUVCNnpzd0ZYUWU3OUtXWGdlTTk4bm9NRkJaaFI2YWc0WnAzQkRRa1NNbUVfSi1OWkhBNEY5X0xzZVJyOXRpOEdfN3hNNzdVUDBkTTFVdzBrR3QwNjFvWm5hMWN5VHVfX09tVWNJZlpCN1ItcVllcU1SeUxycGdQZEdqVEl5UlRsSUh5Q3pKbmVjYmRQbnZjdjh3Um5xY1JjcThLQUV2NHJSWVdwNWdsbVJqaEtheVdJMnRwd3c5ODRoenAtdUcwRGVMQ0lkRG9aQ1ZUNlhUQWFWakJwVG9xUkxyQUJsR3FZZUpLeGFZMmcSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaFhIAGgAiACoAMgA6AEIASgBaAHIAegAiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvgBL2dvdG8_dXJsPUNBRVNyUUVCNnpzd0ZYUWU3OUtXWGdlTTk4bm9NRkJaaFI2YWc0WnAzQkRRa1NNbUVfSi1OWkhBNEY5X0xzZVJyOXRpOEdfN3hNNzdVUDBkTTFVdzBrR3QwNjFvWm5hMWN5VHVfX09tVWNJZlpCN1ItcVllcU1SeUxycGdQZEdqVEl5UlRsSUh5Q3pKbmVjYmRQbnZjdjh3Um5xY1JjcThLQUV2NHJSWVdwNWdsbVJqaEtheVdJMnRwd3c5ODRoenAtdUcwRGVMQ0lkRG9aQ1ZUNlhUQWFWakJwVG9xUkxyQUJsR3FZZUpLeGFZMmcSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaFhIAGgAiACoAMgA6AEIASgBaAHIAegAiAhABSABYAGgA",
+     "video_link": "https://encrypted-vtbn0.gstatic.com/video?q=tbn:ANd9GcScXAS2sa_vq5X4z_cLNnB3_v61ymox0MR2UA",
+     "source": "Facebook · Dr. Wynn Tran"
+    },
+    {
+     "position": 6,
+     "title": "[REVIEW] TOP 12 thực phẩm chức năng bổ sung kẽm ...",
+     "link": "https://www.pharmart.vn/blog/review-top-thuc-pham-chuc-nang-bo-sung-kem-duoc-tin-dung-nhat-hien-nay-789.html?srsltid=AYCX9vI2xlf9PnST9NWZSF0B2rzCkapJgrSs5jJs6wH8ZdnIax5uCrPy",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAES6QEB6zswFZAW0THf67qPLStwuQs7IcpSz24Dj8QEZB6-yanbwEvZt8wXsiSxf0YbyLofsDpJ2Tu26ymllfZTqY2l61UajzTYxbMSdmnHYb4xyS1oA3yM9kYHu8zWiv4i_oTfrjeB9tZT2Q8s1rI7QKuYZFNHseT6xQ_giejgUz7tketKQmFNXavVuGTqi8beHHAXv-wyRMAQ9l1UYJ2TZgTxhUHnnKq8ssjHHk-LUH7LF1A5IY2loCGfEcteU6s60poG9X_XPFc2AhINhvVL7tnAGWZ07EuGBPLZyuHqr7ajmu3paf_de9q61Q&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECD8QAQ&uoh=1",
+     "displayed_link": "https://www.pharmart.vn › ... › Sống khỏe",
+     "favicon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8Bewej_2vfAPROx6nup9u61nKY.png",
+     "snippet": "Thực phẩm chức năng bổ sung kẽm tốt cho da, tóc móng · Thực phẩm chức năng bổ sung kẽm DHC Nhật Bản · Blackmores Bio Zinc · Nelson Pharmex Zinc · GNC Zinc 50mg.",
+     "snippet_highlighted_words": [
+      "DHC Nhật Bản"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Thực phẩm chức năng bổ sung kẽm tốt cho da, tóc móng · Thực phẩm chức năng bổ sung kẽm DHC Nhật Bản · Blackmores Bio Zinc · Nelson Pharmex Zinc · GNC Zinc 50mg.",
+       "source_info_link": "https://www.pharmart.vn/blog/review-top-thuc-pham-chuc-nang-bo-sung-kem-duoc-tin-dung-nhat-hien-nay-789.html?srsltid=AYCX9vI2xlf9PnST9NWZSF0B2rzCkapJgrSs5jJs6wH8ZdnIax5uCrPy",
+       "icon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewatBqhi4AbTUDA67MZ0kYX1wEDVQLdNuWIgpmBznooZT.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsgCL2dvdG8_dXJsPUNBRVM2UUVCNnpzd0ZiajJHOVVkX0VKektDN3ZBR294WV9PbUlnazNKV2xieXQtQmF0Q0x1RkRtZGlzbEdjWFJHYlpVaUxiYkxXeVBsb0FmN2phV1lsci1aRWFKN2NlU0k0OGR1Uk4wZWQ3OUtZN01TMmlUODIta0dPOGtGZHp2UlpoZlo0RlBxUUZwcmw0b0xuUFJzVnRRXzlmSlUyOEdWTTFYMWFIUk1NYUxrU1p2RjZfb2RMTUdMRC1SR0ZUSnZPYmhBSHFXSW93c2ItWVpVY1Y5N3g5ZHV5RzgyT1NWVlhaektZWGp1YkthVkFzQ01hQUJ4dHdURXZrMnJ5MW55X1NTOXhvY0FMdUxtNUhIcU1JbnJOaTlDeUJ5OW1ZSlFySWZkV21WdVFyTXNmRk5WTWNvZGhzaXBuNzhfdxIEGgIIABrcBhICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQLYGCEIQABgAIAAqsgEKAmFpFQAAAAAaA2FpchoEYXhpdBoEYsOjaRoDZG9pGgNob2kaBWjhuqNpGgRsb2FpGgRsw6NpGgRtw6NpGgNub2kaA3PEqRoFdOG6o2kaA8OhaRoDw6NpGgPDpGkaBOG6o2kaB2l2O2Q7YWkaCGl2O2Q7YWlyGglpdjtkO2F4aXQaCGl2O2Q7ZG9pGghpdjtkO2hvaRoJaXY7ZDtsb2FpGghpdjtkO25vaRoDZ8OsGgFhKgsKBG7Dqm4VATiKPyoNCgZ14buRbmcVHkjHPyomCgV2acOqbhXqCrk_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VmE6PQDLwAS9nb3RvP3VybD1DQUVTcHdFQjZ6c3dGUXBDcm96dEVpVnpEcXZnQkc4LWhKVURMVVc0RFN6b0ZNdWloU0dGU3cwMG1SNHZRQUl0b05LLUpBUDRkbkt3c2xENzVWQmNBYWdoVGZTd2JQOGRUYzZsOU0wN04wbmdhN0tMOUMwOGlHT0Vhc0pTWEV2QU5fV0YtX0xzekpDZ3kwVkJVbGhqb2VSWDNPbE4xUTkzZEZsNnhwYllkSkpObnRic1c2M1Q3MGRQMnlsV0JXSUdaVHpCNXFOelphN3ptd1hxcTJicU5PV1V1ODNRMEROQko2SndhZzpOW1JFVklFV10gVE9QIDEyIHRo4buxYyBwaOG6qW0gY2jhu6ljIG7Eg25nIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gxJHGsOG7o2MgLi4uQuEBVGjhu7FjIHBo4bqpbSBjaOG7qWMgbsSDbmcgYuG7lSBzdW5nIGvhur1tIHThu5F0IGNobyBkYSwgdMOzYyBtw7NuZyAmbWlkZG90OyBUaOG7sWMgcGjhuqltIGNo4bupYyBuxINuZyBi4buVIHN1bmcga-G6vW0gPGI-REhDIE5o4bqtdCBC4bqjbjwvYj4gJm1pZGRvdDsgQmxhY2ttb3JlcyBCaW8gWmluYyAmbWlkZG90OyBOZWxzb24gUGhhcm1leCBaaW5jICZtaWRkb3Q7IEdOQyBaaW5jIDUwbWcuIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsgCL2dvdG8_dXJsPUNBRVM2UUVCNnpzd0ZiajJHOVVkX0VKektDN3ZBR294WV9PbUlnazNKV2xieXQtQmF0Q0x1RkRtZGlzbEdjWFJHYlpVaUxiYkxXeVBsb0FmN2phV1lsci1aRWFKN2NlU0k0OGR1Uk4wZWQ3OUtZN01TMmlUODIta0dPOGtGZHp2UlpoZlo0RlBxUUZwcmw0b0xuUFJzVnRRXzlmSlUyOEdWTTFYMWFIUk1NYUxrU1p2RjZfb2RMTUdMRC1SR0ZUSnZPYmhBSHFXSW93c2ItWVpVY1Y5N3g5ZHV5RzgyT1NWVlhaektZWGp1YkthVkFzQ01hQUJ4dHdURXZrMnJ5MW55X1NTOXhvY0FMdUxtNUhIcU1JbnJOaTlDeUJ5OW1ZSlFySWZkV21WdVFyTXNmRk5WTWNvZGhzaXBuNzhfdxIEGgIIABrcBhICCAAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQLYGCEIQABgAIAAqsgEKAmFpFQAAAAAaA2FpchoEYXhpdBoEYsOjaRoDZG9pGgNob2kaBWjhuqNpGgRsb2FpGgRsw6NpGgRtw6NpGgNub2kaA3PEqRoFdOG6o2kaA8OhaRoDw6NpGgPDpGkaBOG6o2kaB2l2O2Q7YWkaCGl2O2Q7YWlyGglpdjtkO2F4aXQaCGl2O2Q7ZG9pGghpdjtkO2hvaRoJaXY7ZDtsb2FpGghpdjtkO25vaRoDZ8OsGgFhKgsKBG7Dqm4VATiKPyoNCgZ14buRbmcVHkjHPyomCgV2acOqbhXqCrk_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VmE6PQDLwAS9nb3RvP3VybD1DQUVTcHdFQjZ6c3dGUXBDcm96dEVpVnpEcXZnQkc4LWhKVURMVVc0RFN6b0ZNdWloU0dGU3cwMG1SNHZRQUl0b05LLUpBUDRkbkt3c2xENzVWQmNBYWdoVGZTd2JQOGRUYzZsOU0wN04wbmdhN0tMOUMwOGlHT0Vhc0pTWEV2QU5fV0YtX0xzekpDZ3kwVkJVbGhqb2VSWDNPbE4xUTkzZEZsNnhwYllkSkpObnRic1c2M1Q3MGRQMnlsV0JXSUdaVHpCNXFOelphN3ptd1hxcTJicU5PV1V1ODNRMEROQko2SndhZzpOW1JFVklFV10gVE9QIDEyIHRo4buxYyBwaOG6qW0gY2jhu6ljIG7Eg25nIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gxJHGsOG7o2MgLi4uQuEBVGjhu7FjIHBo4bqpbSBjaOG7qWMgbsSDbmcgYuG7lSBzdW5nIGvhur1tIHThu5F0IGNobyBkYSwgdMOzYyBtw7NuZyAmbWlkZG90OyBUaOG7sWMgcGjhuqltIGNo4bupYyBuxINuZyBi4buVIHN1bmcga-G6vW0gPGI-REhDIE5o4bqtdCBC4bqjbjwvYj4gJm1pZGRvdDsgQmxhY2ttb3JlcyBCaW8gWmluYyAmbWlkZG90OyBOZWxzb24gUGhhcm1leCBaaW5jICZtaWRkb3Q7IEdOQyBaaW5jIDUwbWcuIgIQAUgAWABoAA",
+     "source": "Pharmart.vn"
+    },
+    {
+     "position": 7,
+     "title": "Triệu chứng thiếu kẽm ở nam giới và cách bổ sung hiệu quả",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/trieu-chung-thieu-kem-o-nam-gioi-va-cach-bo-sung-hieu-qua.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESogEB6zswFZc4WZlyNuihGrAukC6tqhG5Scy61_x7I1LtWPt2MMYGbHESA4meQ0MpmUElk1sBXASSDATRVIJId2jH7P4K1kShQmUqc8GW8my2g7aWEwGapOtkluLeGR3UfQcpFk7bAhfU9REeRBrT3m4tYQgpYfHHqpXTNucTjvn6s0uXi8Y2Qob9VCYsHyvO6lbfcg7uOuWUBxKoKLCYFN0kXM4&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECD4QAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewRnI8jkkk5dDt2-h8X4S2ZU.png",
+     "snippet": "Kẽm đóng vai trò quan trọng trong cơ thể của tất cả chúng ta. Riêng đối với nam giới, kẽm còn cần thiết cho quá trình sản xuất tinh trùng.",
+     "snippet_highlighted_words": [
+      "Kẽm",
+      "kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Kẽm đóng vai trò quan trọng trong cơ thể của tất cả chúng ta. Riêng đối với nam giới, kẽm còn cần thiết cho quá trình sản xuất tinh trùng.",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/trieu-chung-thieu-kem-o-nam-gioi-va-cach-bo-sung-hieu-qua.html",
+       "icon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewelC7nJ7UKh01CddbMmbGiCBmIipK_1MsZ10SXkGBpub.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CukBL2dvdG8_dXJsPUNBRVNvZ0VCNnpzd0ZZblg1OGYtSVItM25ndHRQX29GR2R6Ylp1RUQwa1JLUXlHV0ZWR25KNkg5OXB1UUF6Z3hBRk8tQ202MTBEZE5GYUFFREd1SVI2LVpnRFBaVi1sTERQcDZCeHY2ZlpLQ3h2VFdMblFpSzl1TFpIYXlOM2xmQ0ZoS09OYVBoYXRuUW1wTzJyVk1sVmJvYUpaa25qZmZlVkVTTUZhS0t5VVdlbTdjQTRXbHE1MVZ4U21BbzY3NmNIRk1JcVd5b2FnMWRaUVJVSERfakxqamRTZGRKTlUSBBoCCAAatwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAkwYIQhAAGAAgACqyAQoCYWkVAAAAABoDYWlyGgRheGl0GgRiw6NpGgNkb2kaA2hvaRoFaOG6o2kaBGxvYWkaBGzDo2kaBG3Do2kaA25vaRoDc8SpGgV04bqjaRoDw6FpGgPDo2kaA8OkaRoE4bqjaRoHaXY7ZDthaRoIaXY7ZDthaXIaCWl2O2Q7YXhpdBoIaXY7ZDtkb2kaCGl2O2Q7aG9pGglpdjtkO2xvYWkaCGl2O2Q7bm9pGgNnw6waAWEqCwoEbsOqbhXJoEs_Kg0KBnXhu5FuZxUwiI8_KiYKBXZpw6puFeSxBD8aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRVku1dAMukBL2dvdG8_dXJsPUNBRVNvZ0VCNnpzd0ZZblg1OGYtSVItM25ndHRQX29GR2R6Ylp1RUQwa1JLUXlHV0ZWR25KNkg5OXB1UUF6Z3hBRk8tQ202MTBEZE5GYUFFREd1SVI2LVpnRFBaVi1sTERQcDZCeHY2ZlpLQ3h2VFdMblFpSzl1TFpIYXlOM2xmQ0ZoS09OYVBoYXRuUW1wTzJyVk1sVmJvYUpaa25qZmZlVkVTTUZhS0t5VVdlbTdjQTRXbHE1MVZ4U21BbzY3NmNIRk1JcVd5b2FnMWRaUVJVSERfakxqamRTZGRKTlU6VFRyaeG7h3UgY2jhu6luZyB0aGnhur91IDxiPmvhur1tPC9iPiDhu58gbmFtIGdp4bubaSB2w6AgY8OhY2ggYuG7lSBzdW5nIGhp4buHdSBxdeG6o0K_ATxiPkvhur1tPC9iPiDEkcOzbmcgdmFpIHRyw7IgcXVhbiB0cuG7jW5nIHRyb25nIGPGoSB0aOG7gyBj4bunYSB04bqldCBj4bqjIGNow7puZyB0YS4gUmnDqm5nIMSR4buRaSB24bubaSBuYW0gZ2nhu5tpLCA8Yj5r4bq9bTwvYj4gY8OybiBj4bqnbiB0aGnhur90IGNobyBxdcOhIHRyw6xuaCBz4bqjbiB4deG6pXQgdGluaCB0csO5bmcuIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CukBL2dvdG8_dXJsPUNBRVNvZ0VCNnpzd0ZZblg1OGYtSVItM25ndHRQX29GR2R6Ylp1RUQwa1JLUXlHV0ZWR25KNkg5OXB1UUF6Z3hBRk8tQ202MTBEZE5GYUFFREd1SVI2LVpnRFBaVi1sTERQcDZCeHY2ZlpLQ3h2VFdMblFpSzl1TFpIYXlOM2xmQ0ZoS09OYVBoYXRuUW1wTzJyVk1sVmJvYUpaa25qZmZlVkVTTUZhS0t5VVdlbTdjQTRXbHE1MVZ4U21BbzY3NmNIRk1JcVd5b2FnMWRaUVJVSERfakxqamRTZGRKTlUSBBoCCAAatwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAkwYIQhAAGAAgACqyAQoCYWkVAAAAABoDYWlyGgRheGl0GgRiw6NpGgNkb2kaA2hvaRoFaOG6o2kaBGxvYWkaBGzDo2kaBG3Do2kaA25vaRoDc8SpGgV04bqjaRoDw6FpGgPDo2kaA8OkaRoE4bqjaRoHaXY7ZDthaRoIaXY7ZDthaXIaCWl2O2Q7YXhpdBoIaXY7ZDtkb2kaCGl2O2Q7aG9pGglpdjtkO2xvYWkaCGl2O2Q7bm9pGgNnw6waAWEqCwoEbsOqbhXJoEs_Kg0KBnXhu5FuZxUwiI8_KiYKBXZpw6puFeSxBD8aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRVku1dAMukBL2dvdG8_dXJsPUNBRVNvZ0VCNnpzd0ZZblg1OGYtSVItM25ndHRQX29GR2R6Ylp1RUQwa1JLUXlHV0ZWR25KNkg5OXB1UUF6Z3hBRk8tQ202MTBEZE5GYUFFREd1SVI2LVpnRFBaVi1sTERQcDZCeHY2ZlpLQ3h2VFdMblFpSzl1TFpIYXlOM2xmQ0ZoS09OYVBoYXRuUW1wTzJyVk1sVmJvYUpaa25qZmZlVkVTTUZhS0t5VVdlbTdjQTRXbHE1MVZ4U21BbzY3NmNIRk1JcVd5b2FnMWRaUVJVSERfakxqamRTZGRKTlU6VFRyaeG7h3UgY2jhu6luZyB0aGnhur91IDxiPmvhur1tPC9iPiDhu58gbmFtIGdp4bubaSB2w6AgY8OhY2ggYuG7lSBzdW5nIGhp4buHdSBxdeG6o0K_ATxiPkvhur1tPC9iPiDEkcOzbmcgdmFpIHRyw7IgcXVhbiB0cuG7jW5nIHRyb25nIGPGoSB0aOG7gyBj4bunYSB04bqldCBj4bqjIGNow7puZyB0YS4gUmnDqm5nIMSR4buRaSB24bubaSBuYW0gZ2nhu5tpLCA8Yj5r4bq9bTwvYj4gY8OybiBj4bqnbiB0aGnhur90IGNobyBxdcOhIHRyw6xuaCBz4bqjbiB4deG6pXQgdGluaCB0csO5bmcuIgIQAUgAWABoAA",
+     "source": "Nhà thuốc Long Châu"
+    },
+    {
+     "position": 8,
+     "title": "7 mối nguy hiểm tiềm ẩn khi bổ sung kẽm sai cách",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/7-moi-nguy-hiem-tiem-an-khi-bo-sung-kem-sai-cach.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESmQEB6zswFT93JMu2CbNk86MSbKcBKW3FP8sPW1I9K6nUYtHiT8FqNYo-WtUdtEubBNizHe-Uvmh8tdhT0dMXSzp8rt2RDDN-Co9UfpdJs-upy5qJtVbL73w-vMoRfS_-IKHAmqMPQxMjOVhVKM2REdhsNdS8IWQ36gjSlSkMBpZPMwgvEgBq4iHgfbwMQhHsGTC9xOybOdT4uO0&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECEEQAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewQUh095lCTaoKTn6CU1ax8s.png",
+     "date": "16 thg 10, 2024",
+     "snippet": "Rối loạn tiêu hóa · Ảnh hưởng đến hệ thần kinh · Ảnh hưởng đến hệ miễn dịch · Ảnh hưởng đến hệ tim mạch · Ảnh hưởng đến khả năng hấp thu các khoáng ...",
+     "about_this_result": {
+      "source": {
+       "description": "Rối loạn tiêu hóa · Ảnh hưởng đến hệ thần kinh · Ảnh hưởng đến hệ miễn dịch · Ảnh hưởng đến hệ tim mạch · Ảnh hưởng đến khả năng hấp thu các khoáng ...",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/7-moi-nguy-hiem-tiem-an-khi-bo-sung-kem-sai-cach.html",
+       "icon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewbZCTLoruSz8GFADbJvZDhDOtAdVIv8ii6HDJ1dDUAAr.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Ct0BL2dvdG8_dXJsPUNBRVNtUUVCNnpzd0ZmZVduUVZFYWFaSGlqVDJPTEktcmd6QkllWGhIWFB2c2dFVDltZkh5a29iN3Ezb1JXNjZza2ZFT204MFItNUhoZVJRajltM1o1U0ZoQzlIdUhCQWRkSWFvSUZIR2ZKLTNOYXhMQmwyNzdnRDlGdlBGaFB4LVRycUM2Sk5Ba0pmQ2RHaTAwWGV0c0ZVX1Rxek9XVkJtblBvdUxYeXd3bTJFcGlpa05WaWhBNHBueVZ2LWsxNGlYWkM2V0ZMcWRUTHJfRHRSUWsSBBoCCAAazwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAqwYIQhAAGAAgACqyAQoCYWkVAAAAABoDYWlyGgRheGl0GgRiw6NpGgNkb2kaA2hvaRoFaOG6o2kaBGxvYWkaBGzDo2kaBG3Do2kaA25vaRoDc8SpGgV04bqjaRoDw6FpGgPDo2kaA8OkaRoE4bqjaRoHaXY7ZDthaRoIaXY7ZDthaXIaCWl2O2Q7YXhpdBoIaXY7ZDtkb2kaCGl2O2Q7aG9pGglpdjtkO2xvYWkaCGl2O2Q7bm9pGgNnw6waAWEqCwoEbsOqbhUnEoY_Kg0KBnXhu5FuZxV_zZk_KiYKBXZpw6puFWmTFz4aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRXmT2JAMt0BL2dvdG8_dXJsPUNBRVNtUUVCNnpzd0ZmZVduUVZFYWFaSGlqVDJPTEktcmd6QkllWGhIWFB2c2dFVDltZkh5a29iN3Ezb1JXNjZza2ZFT204MFItNUhoZVJRajltM1o1U0ZoQzlIdUhCQWRkSWFvSUZIR2ZKLTNOYXhMQmwyNzdnRDlGdlBGaFB4LVRycUM2Sk5Ba0pmQ2RHaTAwWGV0c0ZVX1Rxek9XVkJtblBvdUxYeXd3bTJFcGlpa05WaWhBNHBueVZ2LWsxNGlYWkM2V0ZMcWRUTHJfRHRSUWs6RDcgbeG7kWkgbmd1eSBoaeG7g20gdGnhu4FtIOG6qW4ga2hpIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gc2FpIGPDoWNoQvMBUuG7kWkgbG_huqFuIHRpw6p1IGjDs2EgJm1pZGRvdDsg4bqibmggaMaw4bufbmcgxJHhur9uIGjhu4cgdGjhuqduIGtpbmggJm1pZGRvdDsg4bqibmggaMaw4bufbmcgxJHhur9uIGjhu4cgbWnhu4VuIGThu4tjaCAmbWlkZG90OyDhuqJuaCBoxrDhu59uZyDEkeG6v24gaOG7hyB0aW0gbeG6oWNoICZtaWRkb3Q7IOG6om5oIGjGsOG7n25nIMSR4bq_biBraOG6oyBuxINuZyBo4bqlcCB0aHUgY8OhYyBraG_DoW5nJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Ct0BL2dvdG8_dXJsPUNBRVNtUUVCNnpzd0ZmZVduUVZFYWFaSGlqVDJPTEktcmd6QkllWGhIWFB2c2dFVDltZkh5a29iN3Ezb1JXNjZza2ZFT204MFItNUhoZVJRajltM1o1U0ZoQzlIdUhCQWRkSWFvSUZIR2ZKLTNOYXhMQmwyNzdnRDlGdlBGaFB4LVRycUM2Sk5Ba0pmQ2RHaTAwWGV0c0ZVX1Rxek9XVkJtblBvdUxYeXd3bTJFcGlpa05WaWhBNHBueVZ2LWsxNGlYWkM2V0ZMcWRUTHJfRHRSUWsSBBoCCAAazwYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAqwYIQhAAGAAgACqyAQoCYWkVAAAAABoDYWlyGgRheGl0GgRiw6NpGgNkb2kaA2hvaRoFaOG6o2kaBGxvYWkaBGzDo2kaBG3Do2kaA25vaRoDc8SpGgV04bqjaRoDw6FpGgPDo2kaA8OkaRoE4bqjaRoHaXY7ZDthaRoIaXY7ZDthaXIaCWl2O2Q7YXhpdBoIaXY7ZDtkb2kaCGl2O2Q7aG9pGglpdjtkO2xvYWkaCGl2O2Q7bm9pGgNnw6waAWEqCwoEbsOqbhUnEoY_Kg0KBnXhu5FuZxV_zZk_KiYKBXZpw6puFWmTFz4aB3RodeG7kWMaBHZpZW4aCWl2O2Q7dmllbioMCgVr4bq9bRXmT2JAMt0BL2dvdG8_dXJsPUNBRVNtUUVCNnpzd0ZmZVduUVZFYWFaSGlqVDJPTEktcmd6QkllWGhIWFB2c2dFVDltZkh5a29iN3Ezb1JXNjZza2ZFT204MFItNUhoZVJRajltM1o1U0ZoQzlIdUhCQWRkSWFvSUZIR2ZKLTNOYXhMQmwyNzdnRDlGdlBGaFB4LVRycUM2Sk5Ba0pmQ2RHaTAwWGV0c0ZVX1Rxek9XVkJtblBvdUxYeXd3bTJFcGlpa05WaWhBNHBueVZ2LWsxNGlYWkM2V0ZMcWRUTHJfRHRSUWs6RDcgbeG7kWkgbmd1eSBoaeG7g20gdGnhu4FtIOG6qW4ga2hpIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gc2FpIGPDoWNoQvMBUuG7kWkgbG_huqFuIHRpw6p1IGjDs2EgJm1pZGRvdDsg4bqibmggaMaw4bufbmcgxJHhur9uIGjhu4cgdGjhuqduIGtpbmggJm1pZGRvdDsg4bqibmggaMaw4bufbmcgxJHhur9uIGjhu4cgbWnhu4VuIGThu4tjaCAmbWlkZG90OyDhuqJuaCBoxrDhu59uZyDEkeG6v24gaOG7hyB0aW0gbeG6oWNoICZtaWRkb3Q7IOG6om5oIGjGsOG7n25nIMSR4bq_biBraOG6oyBuxINuZyBo4bqlcCB0aHUgY8OhYyBraG_DoW5nJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Nhà thuốc Long Châu"
+    },
+    {
+     "position": 9,
+     "title": "Bổ sung kẽm cho người lớn thiếu kẽm thế nào?",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/bo-sung-kem-cho-nguoi-lon-thieu-kem-the-nao-48671.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESmgEB6zswFZT85YNg-YggxeOTmIrGm4m901oboITe_gz1iLDLLeRw6d364Suv-ve91bR7C2wLRIRyKCKRHq5a6X8K0yDXJ_exOb46YC_mfFwnCrCmOo0mGrOj4lsR34XvDhQQiptqnHeuxzHkhFCXz6uSmXpZB1_ZtKcIfpn3Vo9SofyAlw1IuGa902RimUQ5C9CR3LAZK1j2sXpe&ved=2ahUKEwiLr62Oyd6XAxUmt4kEHRzIGRoQFnoECEYQAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewbjdHoAeN96o9S5HnY6cbcI.png",
+     "date": "22 thg 4, 2025",
+     "snippet": "Bổ sung kẽm cho người lớn giúp tăng cường khả năng sinh sản và sinh lý. Đối với nam giới, kẽm là một trong những vi chất quan trọng nhất vì kẽm ...",
+     "snippet_highlighted_words": [
+      "Bổ sung kẽm cho người lớn giúp tăng cường khả năng sinh sản và sinh lý"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Bổ sung kẽm cho người lớn giúp tăng cường khả năng sinh sản và sinh lý. Đối với nam giới, kẽm là một trong những vi chất quan trọng nhất vì kẽm ...",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/bo-sung-kem-cho-nguoi-lon-thieu-kem-the-nao-48671.html",
+       "icon": "https://serpapi.com/searches/6ae2e3e3895c9cb7af3c8dd2/images/ZG6KIlR2RXot_eoa-8BewZhEC1-GdyiKVXmw_0q0xQ7cWJ57LwmrWiiz8ZyBis8o.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Ct4BL2dvdG8_dXJsPUNBRVNtZ0VCNnpzd0ZUZTB0NGZ5dUlLMTE2NWNmVzdBYmF6eFZVeXRvMUFTRlVPQ21jQjNweUh5cDAxcUN4SFFUbEQ4M3JpcWhqaHJXb0ZkbS1vaGt2cExJdzUyRkNCbFVEcVVFRjNFZXVfMXp0b3JWVVlXMlJWaTJTM0RES3pLN0d5LUUzYmZpVU1SYWwxeXhkNzJReXk0dXVZUHNKSEZMT1pURUVJWkJ6YXRHYzB0bHFlSUZ6X3RHSkd5cXlXTXVDbzRkQnlrVnBBUWxxS3RiSlRIEgQaAggAGrsGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQJcGCEIQABgAIAAqsgEKAmFpFQAAAAAaA2FpchoEYXhpdBoEYsOjaRoDZG9pGgNob2kaBWjhuqNpGgRsb2FpGgRsw6NpGgRtw6NpGgNub2kaA3PEqRoFdOG6o2kaA8OhaRoDw6NpGgPDpGkaBOG6o2kaB2l2O2Q7YWkaCGl2O2Q7YWlyGglpdjtkO2F4aXQaCGl2O2Q7ZG9pGghpdjtkO2hvaRoJaXY7ZDtsb2FpGghpdjtkO25vaRoDZ8OsGgFhKgsKBG7Dqm4VwrqRPyoNCgZ14buRbmcV2p6uPyomCgV2acOqbhXnGVo_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VOvSVQDLeAS9nb3RvP3VybD1DQUVTbWdFQjZ6c3dGVGUwdDRmeXVJSzExNjVjZlc3QWJhenhWVXl0bzFBU0ZVT0NtY0IzcHlIeXAwMXFDeEhRVGxEODNyaXFoamhyV29GZG0tb2hrdnBMSXc1MkZDQmxVRHFVRUYzRWV1XzF6dG9yVlVZVzJSVmkyUzNEREt6SzdHeS1FM2JmaVVNUmFsMXl4ZDcyUXl5NHV1WVBzSkhGTE9aVEVFSVpCemF0R2MwdGxxZUlGel90R0pHeXF5V011Q280ZEJ5a1ZwQVFscUt0YkpUSDpXQuG7lSBzdW5nIDxiPmvhur1tPC9iPiBjaG8gbmfGsOG7nWkgbOG7m24gdGhp4bq_dSA8Yj5r4bq9bTwvYj4gdGjhur8gbsOgbz8gLSBMb25nIENow6J1QssBPGI-QuG7lSBzdW5nIGvhur1tIGNobyBuZ8aw4budaSBs4bubbiBnacO6cCB0xINuZyBjxrDhu51uZyBraOG6oyBuxINuZyBzaW5oIHPhuqNuIHbDoCBzaW5oIGzDvTwvYj4uIMSQ4buRaSB24bubaSBuYW0gZ2nhu5tpLCBr4bq9bSBsw6AgbeG7mXQgdHJvbmcgbmjhu69uZyB2aSBjaOG6pXQgcXVhbiB0cuG7jW5nIG5o4bqldCB2w6wga-G6vW0mbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Ct4BL2dvdG8_dXJsPUNBRVNtZ0VCNnpzd0ZUZTB0NGZ5dUlLMTE2NWNmVzdBYmF6eFZVeXRvMUFTRlVPQ21jQjNweUh5cDAxcUN4SFFUbEQ4M3JpcWhqaHJXb0ZkbS1vaGt2cExJdzUyRkNCbFVEcVVFRjNFZXVfMXp0b3JWVVlXMlJWaTJTM0RES3pLN0d5LUUzYmZpVU1SYWwxeXhkNzJReXk0dXVZUHNKSEZMT1pURUVJWkJ6YXRHYzB0bHFlSUZ6X3RHSkd5cXlXTXVDbzRkQnlrVnBBUWxxS3RiSlRIEgQaAggAGrsGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQJcGCEIQABgAIAAqsgEKAmFpFQAAAAAaA2FpchoEYXhpdBoEYsOjaRoDZG9pGgNob2kaBWjhuqNpGgRsb2FpGgRsw6NpGgRtw6NpGgNub2kaA3PEqRoFdOG6o2kaA8OhaRoDw6NpGgPDpGkaBOG6o2kaB2l2O2Q7YWkaCGl2O2Q7YWlyGglpdjtkO2F4aXQaCGl2O2Q7ZG9pGghpdjtkO2hvaRoJaXY7ZDtsb2FpGghpdjtkO25vaRoDZ8OsGgFhKgsKBG7Dqm4VwrqRPyoNCgZ14buRbmcV2p6uPyomCgV2acOqbhXnGVo_Ggd0aHXhu5FjGgR2aWVuGglpdjtkO3ZpZW4qDAoFa-G6vW0VOvSVQDLeAS9nb3RvP3VybD1DQUVTbWdFQjZ6c3dGVGUwdDRmeXVJSzExNjVjZlc3QWJhenhWVXl0bzFBU0ZVT0NtY0IzcHlIeXAwMXFDeEhRVGxEODNyaXFoamhyV29GZG0tb2hrdnBMSXc1MkZDQmxVRHFVRUYzRWV1XzF6dG9yVlVZVzJSVmkyUzNEREt6SzdHeS1FM2JmaVVNUmFsMXl4ZDcyUXl5NHV1WVBzSkhGTE9aVEVFSVpCemF0R2MwdGxxZUlGel90R0pHeXF5V011Q280ZEJ5a1ZwQVFscUt0YkpUSDpXQuG7lSBzdW5nIDxiPmvhur1tPC9iPiBjaG8gbmfGsOG7nWkgbOG7m24gdGhp4bq_dSA8Yj5r4bq9bTwvYj4gdGjhur8gbsOgbz8gLSBMb25nIENow6J1QssBPGI-QuG7lSBzdW5nIGvhur1tIGNobyBuZ8aw4budaSBs4bubbiBnacO6cCB0xINuZyBjxrDhu51uZyBraOG6oyBuxINuZyBzaW5oIHPhuqNuIHbDoCBzaW5oIGzDvTwvYj4uIMSQ4buRaSB24bubaSBuYW0gZ2nhu5tpLCBr4bq9bSBsw6AgbeG7mXQgdHJvbmcgbmjhu69uZyB2aSBjaOG6pXQgcXVhbiB0cuG7jW5nIG5o4bqldCB2w6wga-G6vW0mbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "Nhà thuốc Long Châu"
+    }
+   ]
+  }
+ ]
+}

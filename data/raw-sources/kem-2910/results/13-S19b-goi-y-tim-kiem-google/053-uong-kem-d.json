@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm d» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[52]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "feb8fc0d8efb3b1d739ee7b54869dd365c3fa4a12da8a86a057298a46c61d2c1"
+ },
+ "result": {
+  "prefix": "uống kẽm d",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:20Z",
+  "suggestions": [
+   "uống kẽm dhc có hại thận không",
+   "uống kẽm dhc như thế nào",
+   "uống kẽm dha có tác dụng gì",
+   "uống kẽm dhc bao lâu thì có tác dụng",
+   "uống kẽm dhc khi nào là tốt nhất",
+   "uống kẽm dhc trong bao lâu",
+   "uống kẽm dsd có tác dụng gì",
+   "uống kẽm dhc có tốt không",
+   "uống kẽm dhc",
+   "uống kẽm dhc có tác dụng phụ không"
+  ],
+  "raw": [
+   "uống kẽm d",
+   [
+    "uống kẽm dhc có hại thận không",
+    "uống kẽm dhc như thế nào",
+    "uống kẽm dha có tác dụng gì",
+    "uống kẽm dhc bao lâu thì có tác dụng",
+    "uống kẽm dhc khi nào là tốt nhất",
+    "uống kẽm dhc trong bao lâu",
+    "uống kẽm dsd có tác dụng gì",
+    "uống kẽm dhc có tốt không",
+    "uống kẽm dhc",
+    "uống kẽm dhc có tác dụng phụ không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

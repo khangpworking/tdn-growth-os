@@ -1,0 +1,72 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "04 · S14 · Lời nói trong video bán hàng TikTok",
+  "describe": "videowatch.generate modelCall",
+  "parentFile": "04-S14-video-ban-hang-loi-noi.json",
+  "parentLocation": "records[4]",
+  "sourceCode": "S14",
+  "sourceName": "Lời nói trong video bán hàng TikTok",
+  "provider": "Gemini (đọc video) + công cụ tải video trên máy chủ",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Video có sẵn lúc thu"
+  },
+  "limits": [
+   "Lời người bán, không phải ý kiến khách",
+   "Tệp video đã xoá sau 45 ngày, chỉ giữ dấu sha256"
+  ],
+  "resultSha256": "9632e6e00110c2af826904719da5d3e2192feac9922bc14dfcaebf3e3671df2e"
+ },
+ "result": {
+  "kind": "modelCall",
+  "captureId": "video-watch-0001",
+  "operation": "videowatch.generate",
+  "endpoint": "/v1beta/models/gemini-3.8-flash-high:generateContent",
+  "method": "POST",
+  "requestParameters": {
+   "captionChars": 1514,
+   "captionSha256": "470d538d3bac9f3151d15ee9e52b9af35a3f2e35b219027fd4d1a34142403ac6",
+   "model": "gemini-3.8-flash-high",
+   "requestSha256": "5d6018cf48cf72f34327912e28f939790decd3f7edc26467d88eb8075024e71b"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:04:36.280Z",
+  "completedAt": "2026-10-26T02:04:43.176Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "PAID_CREDITS",
+  "responseSha256": "b4cbfdf96e95bceab0ea708b09f80216bc60097a415d6c4a5ddabeaaca825d71",
+  "response": {
+   "candidates": [
+    {
+     "content": {
+      "role": "model",
+      "parts": [
+       {
+        "thoughtSignature": "EoUFCoIFAWkUfRPFPdFHEo3mbcwF0mqJhD3go0nYeMK6kOzZDfaOX48V3WLp5LwHLzyGky6voombnZ0qLHPAsuW8ntEvkLuu3ml/8izCtBsYhRQx3HRrHccqxeaCaLLot8ankbWZ7rmNltDOb+rH3v8W3mc3R0ENhDCmLTWfywUz8O2Uhiozti37KFOYHog6pD+n6F9xdeTog29EpgF5X5YpGMKU1VgBc9NcfMgiihVzPajYyrBUbgf+pmiY2LvxKEy72PNFAfnAQdAnPrbOAbcZ/IXEzzn+UJXOIezOoa1+w9JaOndq++sGG5bZnYAjeuiaM7e/akA4c+mrrsY+TneuiXR4vnSOr0Xm51bxKiINy5o1ki/7czyHPf3/583UzN6VY77NKD7o+5uZ4ypsQchAvHPCNe1eL16Xo6Sjh9pcTrUx+MdqVhuoxYO4P5p1rElaQVk9bhMVx8SLzEf9av9E5wxcj1SCDwDn1tEEHBh9DJHNICyKblmi6QpIfjyFhzFZUNSrNW9r4sPLe6rGiCSuuqiGimsAC6ZjXF1cWl5kCumrmtpi3lLatwZSCOiv6dwcG7AtXYe1QzirUGrzBNrIRbgUua01QEd9hRmvPs7gN03ahouvZLGVE2McIG7OiW5Sw2N70cusJX6JUIaJON+YScXQfp+lMdYk6UO4U0rszYvKO39hUxdCK5ieypiEAFWt/NqiWMUQPII+Wy2FmjG2Bv00uzxzTxRWeea1pxYz/5WQJI7kZoJ3kkTxasXKmBvBm1BiUBEhR1mwJIH4WItlrfnz8QiZyC7y0rv946jfViovsJD7ctyV6Vp6T2uNVygH5/fbx51JBdvWI9Z6KHd38TQ2yhHn",
+        "text": "{\"aboutProduct\": true, \"videoKind\": \"SELLER_VIDEO\"}"
+       }
+      ]
+     },
+     "finishReason": "STOP"
+    }
+   ],
+   "usageMetadata": {
+    "promptTokenCount": 659,
+    "candidatesTokenCount": 16,
+    "totalTokenCount": 820,
+    "thoughtsTokenCount": 145
+   },
+   "modelVersion": "gemini-3.8-flash-n",
+   "responseId": "OLXeatmgFOTlosUPruSDiAc"
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "9c99c846268ccac7abeb6041efaa1d8c066f24e09a8fba3d0c0a187172edc1fb"
+ }
+}

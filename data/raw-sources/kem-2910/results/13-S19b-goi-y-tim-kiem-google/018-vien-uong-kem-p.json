@@ -1,0 +1,100 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm p» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[17]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "7c7db0a47c69a744306db66c5aabc6612d1fdc275f4a87c090122a692ea2d187"
+ },
+ "result": {
+  "prefix": "viên uống kẽm p",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:54Z",
+  "suggestions": [
+   "viên uống kẽm pharmacity",
+   "viên uống kẽm picolinate",
+   "viên uống kẽm puritan's pride zinc 50mg",
+   "viên uống kẽm pharmaform",
+   "viên uống kẽm oyster plus zinc",
+   "viên uống kẽm của pháp",
+   "viên uống kẽm trị mụn puritan's pride zinc for acne",
+   "viên uống kẽm dhc thành phần",
+   "viên uống tóc hair pro kẽm biotin",
+   "viên uống kẽm dhc có tác dụng phụ không"
+  ],
+  "raw": [
+   "viên uống kẽm p",
+   [
+    "viên uống kẽm pharmacity",
+    "viên uống kẽm picolinate",
+    "viên uống kẽm puritan's pride zinc 50mg",
+    "viên uống kẽm pharmaform",
+    "viên uống kẽm oyster plus zinc",
+    "viên uống kẽm của pháp",
+    "viên uống kẽm trị mụn puritan's pride zinc for acne",
+    "viên uống kẽm dhc thành phần",
+    "viên uống tóc hair pro kẽm biotin",
+    "viên uống kẽm dhc có tác dụng phụ không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

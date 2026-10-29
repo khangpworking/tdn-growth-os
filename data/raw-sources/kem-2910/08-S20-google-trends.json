@@ -1,0 +1,1041 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S20 + S20b",
+  "sourceName": "Mức quan tâm tìm kiếm Google Trends (theo thời gian + theo tỉnh)",
+  "provider": "SerpApi engine=google_trends",
+  "reportName": "mức quan tâm tìm kiếm",
+  "grade": "B",
+  "usedBy": [
+   "MARKET (biểu đồ, bảng tỉnh)",
+   "INSIGHT (đề xuất: vùng ưu tiên, chưa nối)"
+  ],
+  "evidenceFamily": "search_interest",
+  "origin": {
+   "method": "EXPORTED_FROM_APP_RUN",
+   "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+   "runCreatedAt": "2026-10-26T01:55:11Z",
+   "runReports": [
+    "MARKET"
+   ],
+   "runRequestedPeriod": {
+    "startDate": "2025-10-26",
+    "endDate": "2026-10-25"
+   },
+   "runOutcome": "COLLECTION PARTIAL, REPORTS FAILED (raw captures complete for this source unless noted)",
+   "dataTypes": [
+    "TIMESERIES",
+    "GEO_MAP_0"
+   ]
+  },
+  "period": {
+   "startDate": "2025-10-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "12 tháng, geo=VN"
+  },
+  "recordShape": "TIMESERIES: interest_over_time.timeline_data[]; GEO_MAP_0: interest_by_region[] (63 tỉnh trước sáp nhập).",
+  "numberFields": {
+   "value": "chỉ số 0–100 tương đối, không phải số người"
+  },
+  "limits": [
+   "Mức quan tâm, không phải số người",
+   "Từ khoá dài cho dữ liệu thưa"
+  ],
+  "recordCount": 2,
+  "recordsSha256": "08e2c29f43bc80788370fbad392a25cb383113572fc2a141c8343d100a053426",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": [
+  {
+   "captureId": "serpapi-0001",
+   "operation": "serpapi.google.trends",
+   "endpoint": "https://serpapi.com/search.json",
+   "method": "GET",
+   "requestParameters": {
+    "data_type": "TIMESERIES",
+    "date": "2025-10-26 2026-10-25",
+    "engine": "google_trends",
+    "geo": "VN",
+    "hl": "vi",
+    "q": "viên uống kẽm"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:02:15.861Z",
+   "completedAt": "2026-10-26T02:02:17.663Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": "6adeb4a89ae491c53076f03b",
+   "billing": "PAID_SEARCH_UNLESS_CACHED",
+   "responseSha256": "6475e62f77bf38299137b6e0f1a5504967fe3ca1cf7c3c6d54f50874334f8942",
+   "response": {
+    "search_metadata": {
+     "id": "6adeb4a89ae491c53076f03b",
+     "status": "Success",
+     "json_endpoint": "https://serpapi.com/searches/pkRGVFU5_b_V1pp7Qa0ypLeCi0vCYtI0PhhtMiMsOz4/6adeb4a89ae491c53076f03b.json",
+     "markdown_endpoint": "https://serpapi.com/searches/pkRGVFU5_b_V1pp7Qa0ypLeCi0vCYtI0PhhtMiMsOz4/6adeb4a89ae491c53076f03b.md",
+     "created_at": "2026-10-26 02:02:16 UTC",
+     "processed_at": "2026-10-26 02:02:16 UTC",
+     "google_trends_url": "https://trends.google.com/trends/embed/explore/TIMESERIES?hl=vi&tz=420&req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm%22%2C%22geo%22%3A%22VN%22%2C%22time%22%3A%222025-10-26+2026-10-25%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D",
+     "raw_html_file": "https://serpapi.com/searches/pkRGVFU5_b_V1pp7Qa0ypLeCi0vCYtI0PhhtMiMsOz4/6adeb4a89ae491c53076f03b.html",
+     "prettify_html_file": "https://serpapi.com/searches/pkRGVFU5_b_V1pp7Qa0ypLeCi0vCYtI0PhhtMiMsOz4/6adeb4a89ae491c53076f03b.prettify",
+     "total_time_taken": 1.48
+    },
+    "search_parameters": {
+     "engine": "google_trends",
+     "q": "viên uống kẽm",
+     "hl": "vi",
+     "geo": "VN",
+     "date": "2025-10-26 2026-10-25",
+     "tz": "420",
+     "data_type": "TIMESERIES"
+    },
+    "interest_over_time": {
+     "timeline_data": [
+      {
+       "date": "26 thg 10 – 1 thg 11, 2025",
+       "timestamp": "1761436800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "37",
+         "extracted_value": 37
+        }
+       ]
+      },
+      {
+       "date": "2 – 8 thg 11, 2025",
+       "timestamp": "1762041600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "52",
+         "extracted_value": 52
+        }
+       ]
+      },
+      {
+       "date": "9 – 15 thg 11, 2025",
+       "timestamp": "1762646400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "36",
+         "extracted_value": 36
+        }
+       ]
+      },
+      {
+       "date": "16 – 22 thg 11, 2025",
+       "timestamp": "1763251200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "39",
+         "extracted_value": 39
+        }
+       ]
+      },
+      {
+       "date": "23 – 29 thg 11, 2025",
+       "timestamp": "1763856000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "30",
+         "extracted_value": 30
+        }
+       ]
+      },
+      {
+       "date": "30 thg 11 – 6 thg 12, 2025",
+       "timestamp": "1764460800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "48",
+         "extracted_value": 48
+        }
+       ]
+      },
+      {
+       "date": "7 – 13 thg 12, 2025",
+       "timestamp": "1765065600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "48",
+         "extracted_value": 48
+        }
+       ]
+      },
+      {
+       "date": "14 – 20 thg 12, 2025",
+       "timestamp": "1765670400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "34",
+         "extracted_value": 34
+        }
+       ]
+      },
+      {
+       "date": "21 – 27 thg 12, 2025",
+       "timestamp": "1766275200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "51",
+         "extracted_value": 51
+        }
+       ]
+      },
+      {
+       "date": "28 thg 12, 2025 – 3 thg 1, 2026",
+       "timestamp": "1766880000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "47",
+         "extracted_value": 47
+        }
+       ]
+      },
+      {
+       "date": "4 – 10 thg 1, 2026",
+       "timestamp": "1767484800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "42",
+         "extracted_value": 42
+        }
+       ]
+      },
+      {
+       "date": "11 – 17 thg 1, 2026",
+       "timestamp": "1768089600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "48",
+         "extracted_value": 48
+        }
+       ]
+      },
+      {
+       "date": "18 – 24 thg 1, 2026",
+       "timestamp": "1768694400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "61",
+         "extracted_value": 61
+        }
+       ]
+      },
+      {
+       "date": "25 – 31 thg 1, 2026",
+       "timestamp": "1769299200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "39",
+         "extracted_value": 39
+        }
+       ]
+      },
+      {
+       "date": "1 – 7 thg 2, 2026",
+       "timestamp": "1769904000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "44",
+         "extracted_value": 44
+        }
+       ]
+      },
+      {
+       "date": "8 – 14 thg 2, 2026",
+       "timestamp": "1770508800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "49",
+         "extracted_value": 49
+        }
+       ]
+      },
+      {
+       "date": "15 – 21 thg 2, 2026",
+       "timestamp": "1771113600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "31",
+         "extracted_value": 31
+        }
+       ]
+      },
+      {
+       "date": "22 – 28 thg 2, 2026",
+       "timestamp": "1771718400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "59",
+         "extracted_value": 59
+        }
+       ]
+      },
+      {
+       "date": "1 – 7 thg 3, 2026",
+       "timestamp": "1772323200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "65",
+         "extracted_value": 65
+        }
+       ]
+      },
+      {
+       "date": "8 – 14 thg 3, 2026",
+       "timestamp": "1772928000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "44",
+         "extracted_value": 44
+        }
+       ]
+      },
+      {
+       "date": "15 – 21 thg 3, 2026",
+       "timestamp": "1773532800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "49",
+         "extracted_value": 49
+        }
+       ]
+      },
+      {
+       "date": "22 – 28 thg 3, 2026",
+       "timestamp": "1774137600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "82",
+         "extracted_value": 82
+        }
+       ]
+      },
+      {
+       "date": "29 thg 3 – 4 thg 4, 2026",
+       "timestamp": "1774742400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "37",
+         "extracted_value": 37
+        }
+       ]
+      },
+      {
+       "date": "5 – 11 thg 4, 2026",
+       "timestamp": "1775347200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "45",
+         "extracted_value": 45
+        }
+       ]
+      },
+      {
+       "date": "12 – 18 thg 4, 2026",
+       "timestamp": "1775952000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "61",
+         "extracted_value": 61
+        }
+       ]
+      },
+      {
+       "date": "19 – 25 thg 4, 2026",
+       "timestamp": "1776556800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "43",
+         "extracted_value": 43
+        }
+       ]
+      },
+      {
+       "date": "26 thg 4 – 2 thg 5, 2026",
+       "timestamp": "1777161600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "41",
+         "extracted_value": 41
+        }
+       ]
+      },
+      {
+       "date": "3 – 9 thg 5, 2026",
+       "timestamp": "1777766400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "62",
+         "extracted_value": 62
+        }
+       ]
+      },
+      {
+       "date": "10 – 16 thg 5, 2026",
+       "timestamp": "1778371200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "50",
+         "extracted_value": 50
+        }
+       ]
+      },
+      {
+       "date": "17 – 23 thg 5, 2026",
+       "timestamp": "1778976000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "49",
+         "extracted_value": 49
+        }
+       ]
+      },
+      {
+       "date": "24 – 30 thg 5, 2026",
+       "timestamp": "1779580800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "37",
+         "extracted_value": 37
+        }
+       ]
+      },
+      {
+       "date": "31 thg 5 – 6 thg 6, 2026",
+       "timestamp": "1780185600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "48",
+         "extracted_value": 48
+        }
+       ]
+      },
+      {
+       "date": "7 – 13 thg 6, 2026",
+       "timestamp": "1780790400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "39",
+         "extracted_value": 39
+        }
+       ]
+      },
+      {
+       "date": "14 – 20 thg 6, 2026",
+       "timestamp": "1781395200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "49",
+         "extracted_value": 49
+        }
+       ]
+      },
+      {
+       "date": "21 – 27 thg 6, 2026",
+       "timestamp": "1782000000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "42",
+         "extracted_value": 42
+        }
+       ]
+      },
+      {
+       "date": "28 thg 6 – 4 thg 7, 2026",
+       "timestamp": "1782604800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "61",
+         "extracted_value": 61
+        }
+       ]
+      },
+      {
+       "date": "5 – 11 thg 7, 2026",
+       "timestamp": "1783209600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "55",
+         "extracted_value": 55
+        }
+       ]
+      },
+      {
+       "date": "12 – 18 thg 7, 2026",
+       "timestamp": "1783814400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "41",
+         "extracted_value": 41
+        }
+       ]
+      },
+      {
+       "date": "19 – 25 thg 7, 2026",
+       "timestamp": "1784419200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "27",
+         "extracted_value": 27
+        }
+       ]
+      },
+      {
+       "date": "26 thg 7 – 1 thg 8, 2026",
+       "timestamp": "1785024000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "50",
+         "extracted_value": 50
+        }
+       ]
+      },
+      {
+       "date": "2 – 8 thg 8, 2026",
+       "timestamp": "1785628800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "44",
+         "extracted_value": 44
+        }
+       ]
+      },
+      {
+       "date": "9 – 15 thg 8, 2026",
+       "timestamp": "1786233600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "52",
+         "extracted_value": 52
+        }
+       ]
+      },
+      {
+       "date": "16 – 22 thg 8, 2026",
+       "timestamp": "1786838400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "73",
+         "extracted_value": 73
+        }
+       ]
+      },
+      {
+       "date": "23 – 29 thg 8, 2026",
+       "timestamp": "1787443200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "60",
+         "extracted_value": 60
+        }
+       ]
+      },
+      {
+       "date": "30 thg 8 – 5 thg 9, 2026",
+       "timestamp": "1788048000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "63",
+         "extracted_value": 63
+        }
+       ]
+      },
+      {
+       "date": "6 – 12 thg 9, 2026",
+       "timestamp": "1788652800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "62",
+         "extracted_value": 62
+        }
+       ]
+      },
+      {
+       "date": "13 – 19 thg 9, 2026",
+       "timestamp": "1789257600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "68",
+         "extracted_value": 68
+        }
+       ]
+      },
+      {
+       "date": "20 – 26 thg 9, 2026",
+       "timestamp": "1789862400",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "100",
+         "extracted_value": 100
+        }
+       ]
+      },
+      {
+       "date": "27 thg 9 – 3 thg 10, 2026",
+       "timestamp": "1790467200",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "87",
+         "extracted_value": 87
+        }
+       ]
+      },
+      {
+       "date": "4 – 10 thg 10, 2026",
+       "timestamp": "1791072000",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "68",
+         "extracted_value": 68
+        }
+       ]
+      },
+      {
+       "date": "11 – 17 thg 10, 2026",
+       "timestamp": "1791676800",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "50",
+         "extracted_value": 50
+        }
+       ]
+      },
+      {
+       "date": "18 – 24 thg 10, 2026",
+       "timestamp": "1792281600",
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "62",
+         "extracted_value": 62
+        }
+       ]
+      },
+      {
+       "date": "25 – 31 thg 10, 2026",
+       "timestamp": "1792886400",
+       "partial_data": true,
+       "values": [
+        {
+         "query": "viên uống kẽm",
+         "query_index": 0,
+         "value": "62",
+         "extracted_value": 62
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "step": "COLLECTION",
+   "captureArtifactSha256": "8412bb5b0e09f92f9f10b6ee57e57e2c5626adfb285bdbb9d6b0b4ff3be9cc7e"
+  },
+  {
+   "captureId": "serpapi-0001",
+   "operation": "serpapi.google.trends",
+   "endpoint": "https://serpapi.com/search.json",
+   "method": "GET",
+   "requestParameters": {
+    "data_type": "GEO_MAP_0",
+    "date": "2025-10-26 2026-10-25",
+    "engine": "google_trends",
+    "geo": "VN",
+    "hl": "vi",
+    "q": "viên uống kẽm"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:02:17.663Z",
+   "completedAt": "2026-10-26T02:02:22.067Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": "6adeb4a977e19d9eb5e8f056",
+   "billing": "PAID_SEARCH_UNLESS_CACHED",
+   "responseSha256": "be9da9c3d02f8cf10ee27fce9a79a591e7e5a34d5152a67e017840068c9ceafd",
+   "response": {
+    "search_metadata": {
+     "id": "6adeb4a977e19d9eb5e8f056",
+     "status": "Success",
+     "json_endpoint": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.json",
+     "markdown_endpoint": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.md",
+     "created_at": "2026-10-26 02:02:17 UTC",
+     "processed_at": "2026-10-26 02:02:17 UTC",
+     "google_trends_url": "https://trends.google.com/trends/embed/explore/GEO_MAP?hl=vi&tz=420&req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm%22%2C%22geo%22%3A%22VN%22%2C%22time%22%3A%222025-10-26+2026-10-25%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D",
+     "raw_html_file": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.html",
+     "prettify_html_file": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.prettify",
+     "total_time_taken": 4.07
+    },
+    "search_parameters": {
+     "engine": "google_trends",
+     "q": "viên uống kẽm",
+     "hl": "vi",
+     "geo": "VN",
+     "date": "2025-10-26 2026-10-25",
+     "tz": "420",
+     "data_type": "GEO_MAP_0"
+    },
+    "interest_by_region": [
+     {
+      "geo": "VN-09",
+      "location": "Lạng Sơn",
+      "max_value_index": 0,
+      "value": "100",
+      "extracted_value": 100
+     },
+     {
+      "geo": "VN-13",
+      "location": "Quảng Ninh",
+      "max_value_index": 0,
+      "value": "92",
+      "extracted_value": 92
+     },
+     {
+      "geo": "VN-63",
+      "location": "Hà Nam",
+      "max_value_index": 0,
+      "value": "88",
+      "extracted_value": 88
+     },
+     {
+      "geo": "VN-23",
+      "location": "Hà Tĩnh",
+      "max_value_index": 0,
+      "value": "82",
+      "extracted_value": 82
+     },
+     {
+      "geo": "VN-66",
+      "location": "Hưng Yên",
+      "max_value_index": 0,
+      "value": "72",
+      "extracted_value": 72
+     },
+     {
+      "geo": "VN-56",
+      "location": "Bắc Ninh",
+      "max_value_index": 0,
+      "value": "72",
+      "extracted_value": 72
+     },
+     {
+      "geo": "VN-31",
+      "location": "Bình Định",
+      "max_value_index": 0,
+      "value": "64",
+      "extracted_value": 64
+     },
+     {
+      "geo": "VN-34",
+      "location": "Khánh Hòa",
+      "max_value_index": 0,
+      "value": "63",
+      "extracted_value": 63
+     },
+     {
+      "geo": "VN-43",
+      "location": "Bà Rịa - Vũng Tàu",
+      "max_value_index": 0,
+      "value": "61",
+      "extracted_value": 61
+     },
+     {
+      "geo": "VN-HN",
+      "location": "Hà Nội",
+      "max_value_index": 0,
+      "value": "61",
+      "extracted_value": 61
+     },
+     {
+      "geo": "VN-69",
+      "location": "Thái Nguyên",
+      "max_value_index": 0,
+      "value": "58",
+      "extracted_value": 58
+     },
+     {
+      "geo": "VN-30",
+      "location": "Gia Lai",
+      "max_value_index": 0,
+      "value": "55",
+      "extracted_value": 55
+     },
+     {
+      "geo": "VN-SG",
+      "location": "Hồ Chí Minh",
+      "max_value_index": 0,
+      "value": "55",
+      "extracted_value": 55
+     },
+     {
+      "geo": "VN-70",
+      "location": "Vĩnh Phúc",
+      "max_value_index": 0,
+      "value": "54",
+      "extracted_value": 54
+     },
+     {
+      "geo": "VN-26",
+      "location": "Thừa Thiên Huế",
+      "max_value_index": 0,
+      "value": "53",
+      "extracted_value": 53
+     },
+     {
+      "geo": "VN-44",
+      "location": "An Giang",
+      "max_value_index": 0,
+      "value": "52",
+      "extracted_value": 52
+     },
+     {
+      "geo": "VN-39",
+      "location": "Đồng Nai",
+      "max_value_index": 0,
+      "value": "51",
+      "extracted_value": 51
+     },
+     {
+      "geo": "VN-HP",
+      "location": "Hải Phòng",
+      "max_value_index": 0,
+      "value": "51",
+      "extracted_value": 51
+     },
+     {
+      "geo": "VN-61",
+      "location": "Hải Dương",
+      "max_value_index": 0,
+      "value": "50",
+      "extracted_value": 50
+     },
+     {
+      "geo": "VN-CT",
+      "location": "Cần Thơ",
+      "max_value_index": 0,
+      "value": "50",
+      "extracted_value": 50
+     },
+     {
+      "geo": "VN-58",
+      "location": "Bình Phước",
+      "max_value_index": 0,
+      "value": "50",
+      "extracted_value": 50
+     },
+     {
+      "geo": "VN-41",
+      "location": "Long An",
+      "max_value_index": 0,
+      "value": "50",
+      "extracted_value": 50
+     },
+     {
+      "geo": "VN-54",
+      "location": "Bắc Giang",
+      "max_value_index": 0,
+      "value": "48",
+      "extracted_value": 48
+     },
+     {
+      "geo": "VN-21",
+      "location": "Thanh Hoá",
+      "max_value_index": 0,
+      "value": "47",
+      "extracted_value": 47
+     },
+     {
+      "geo": "VN-20",
+      "location": "Thái Bình",
+      "max_value_index": 0,
+      "value": "45",
+      "extracted_value": 45
+     },
+     {
+      "geo": "VN-50",
+      "location": "Bến Tre",
+      "max_value_index": 0,
+      "value": "45",
+      "extracted_value": 45
+     },
+     {
+      "geo": "VN-46",
+      "location": "Tiền Giang",
+      "max_value_index": 0,
+      "value": "45",
+      "extracted_value": 45
+     },
+     {
+      "geo": "VN-57",
+      "location": "Bình Dương",
+      "max_value_index": 0,
+      "value": "42",
+      "extracted_value": 42
+     },
+     {
+      "geo": "VN-DN",
+      "location": "Đà Nẵng",
+      "max_value_index": 0,
+      "value": "40",
+      "extracted_value": 40
+     },
+     {
+      "geo": "VN-35",
+      "location": "Lâm Đồng",
+      "max_value_index": 0,
+      "value": "40",
+      "extracted_value": 40
+     },
+     {
+      "geo": "VN-33",
+      "location": "Đắk Lắk",
+      "max_value_index": 0,
+      "value": "36",
+      "extracted_value": 36
+     },
+     {
+      "geo": "VN-22",
+      "location": "Nghệ An",
+      "max_value_index": 0,
+      "value": "26",
+      "extracted_value": 26
+     },
+     {
+      "geo": "VN-67",
+      "location": "Nam Định",
+      "max_value_index": 0,
+      "value": "2",
+      "extracted_value": 2
+     },
+     {
+      "geo": "VN-68",
+      "location": "Phú Thọ",
+      "max_value_index": 0,
+      "value": "2",
+      "extracted_value": 2
+     },
+     {
+      "geo": "VN-37",
+      "location": "Tây Ninh",
+      "max_value_index": 0,
+      "value": "2",
+      "extracted_value": 2
+     }
+    ]
+   },
+   "step": "COLLECTION",
+   "captureArtifactSha256": "d05ba6e0cf5223c1ce56f99a9dce4ef0b410db64178c4be8bc390a383a697fd7"
+  }
+ ]
+}

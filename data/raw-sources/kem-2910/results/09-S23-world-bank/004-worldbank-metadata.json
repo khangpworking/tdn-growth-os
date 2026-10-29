@@ -1,0 +1,74 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "09 · S23 · Ngân hàng Thế giới",
+  "describe": "worldbank.metadata worldbank.metadata",
+  "parentFile": "09-S23-world-bank.json",
+  "parentLocation": "records[3]",
+  "sourceCode": "S23",
+  "sourceName": "Ngân hàng Thế giới",
+  "provider": "World Bank API v2 (source=2)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "1960-01-01",
+   "endDate": "2025-12-31",
+   "timezone": "UTC",
+   "basis": "Chuỗi năm đầy đủ của chỉ số"
+  },
+  "limits": [
+   "Không chia theo sản phẩm"
+  ],
+  "resultSha256": "c5bc79803a7eb9b96f3da839dfd087baac67d5e2d311fd484ff22c5187e9bcac"
+ },
+ "result": {
+  "captureId": "world-bank-0004",
+  "operation": "worldbank.metadata",
+  "endpoint": "https://api.worldbank.org/v2/indicator/SP.POP.TOTL",
+  "method": "GET",
+  "requestParameters": {
+   "format": "json"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:25.961Z",
+  "completedAt": "2026-10-26T02:02:26.057Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "FREE_ACCOUNT_QUERY",
+  "responseSha256": "2f8491efc00bf2c0995112ff8e87aba69e5e9d22d0880b22f7e3a4ec757ba05c",
+  "response": [
+   {
+    "page": 1,
+    "pages": 1,
+    "per_page": "50",
+    "total": 1
+   },
+   [
+    {
+     "id": "SP.POP.TOTL",
+     "name": "Population, total",
+     "unit": "",
+     "source": {
+      "id": "2",
+      "value": "World Development Indicators"
+     },
+     "sourceNote": "Total population is based on the de facto definition of population, which counts all residents regardless of legal status or citizenship. The values shown are midyear estimates.",
+     "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division;\nStatistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices;\nEurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat;\nPopulation and Vital Statistics Report (various years), United Nations (UN), uri: https://unstats.un.org, publisher: UN Statistics Division",
+     "topics": [
+      {
+       "id": "19",
+       "value": "Climate Change"
+      },
+      {
+       "id": "8",
+       "value": "Health "
+      }
+     ]
+    }
+   ]
+  ],
+  "step": "COLLECTION",
+  "captureArtifactSha256": "f21849e04c66c3901fe8a36d38c844e812bac722cff069f34f7d0467132056b7"
+ }
+}

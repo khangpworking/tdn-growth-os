@@ -1,0 +1,176 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "12 · S29 · Bản tổng hợp AI của Google (AI Overview)",
+  "describe": "Google AI Overview cho câu «viên uống kẽm» (inline)",
+  "parentFile": "12-S29-google-ai-overview.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S29",
+  "sourceName": "Bản tổng hợp AI của Google (AI Overview)",
+  "provider": "SerpApi engine=google (+ google_ai_overview khi cần page_token)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Câu trả lời của Google lúc thu"
+  },
+  "limits": [
+   "AI không phải bằng chứng; mọi ý phải kiểm lại bằng lời khách thật",
+   "page_token hết hạn sau vài phút nên token của 26/10 không dùng lại được"
+  ],
+  "resultSha256": "f550920eabb844f0334a6bcf21dc97c653120b7f94c4021a483173e5c63167c2"
+ },
+ "result": {
+  "origin": "SAVED_26_10_RUN",
+  "query": "viên uống kẽm",
+  "engine": "google",
+  "requestedAt": "2026-10-26T02:02:14.572Z",
+  "aiOverviewState": "inline",
+  "ai_overview": {
+   "text_blocks": [
+    {
+     "type": "paragraph",
+     "snippet": "Viên uống bổ sung kẽm giúp tăng cường hệ miễn dịch, hỗ trợ sinh lý, cải thiện tình trạng rụng tóc, mụn nội tiết và thúc đẩy lành vết thương, với liều dùng phổ biến từ 1 viên/ngày tùy thương hiệu như Viên uống DHC Zinc.",
+     "snippet_highlighted_words": [
+      "DHC Zinc"
+     ],
+     "reference_indexes": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ]
+    },
+    {
+     "type": "heading",
+     "snippet": "Tác dụng chính"
+    },
+    {
+     "type": "list",
+     "list": [
+      {
+       "snippet": "Tăng cường miễn dịch: Hỗ trợ hoạt động của các tế bào miễn dịch, giúp cơ thể chống lại bệnh nhiễm trùng."
+      },
+      {
+       "snippet": "Cải thiện da, tóc, móng: Giúp giảm mụn nội tiết, giảm gãy rụng tóc và giúp móng tay chắc khỏe hơn."
+      },
+      {
+       "snippet": "Hỗ trợ sinh lý nam giới: Tham gia điều hòa và duy trì nội tiết tố testosterone, hỗ trợ sức khỏe sinh sản.",
+       "reference_indexes": [
+        1,
+        3,
+        4,
+        5
+       ]
+      }
+     ]
+    },
+    {
+     "type": "heading",
+     "snippet": "Cách uống đúng và lưu ý quan trọng"
+    },
+    {
+     "type": "list",
+     "list": [
+      {
+       "snippet": "Thời điểm uống: Nên uống sau bữa ăn sáng hoặc bữa trưa khoảng 1 - 2 giờ để tránh gây kích ứng dạ dày."
+      },
+      {
+       "snippet": "Khoảng cách với vi chất khác: Cần uống cách canxi hoặc sắt ít nhất 2 giờ để tránh làm giảm khả năng hấp thu của nhau."
+      },
+      {
+       "snippet": "Liệu trình: Thường uống theo đợt từ 1 - 3 tháng rồi tạm nghỉ, không nên lạm dụng liều cao kéo dài. Tránh dùng quá 40mg kẽm nguyên tố mỗi ngày cho người lớn trừ khi có chỉ định của bác sĩ.",
+       "reference_indexes": [
+        1,
+        4,
+        6
+       ]
+      }
+     ]
+    },
+    {
+     "type": "paragraph",
+     "snippet": "Nếu bạn đang tìm mua hoặc cần hỗ trợ thêm, hãy cho tôi biết:"
+    },
+    {
+     "type": "list",
+     "list": [
+      {
+       "snippet": "Bạn cần bổ sung kẽm cho đối tượng nào (người lớn, nam giới, hay trẻ em)?"
+      },
+      {
+       "snippet": "Bạn đang gặp vấn đề cụ thể gì (mụn, rụng tóc, tăng sức đề kháng, hay hỗ trợ sinh lý)?"
+      }
+     ]
+    }
+   ],
+   "references": [
+    {
+     "index": 0,
+     "title": "Viên uống DHC Zinc bổ sung kẽm, tăng cường sức khỏe (30 viên)",
+     "link": "https://nhathuoclongchau.com.vn/thuc-pham-chuc-nang/dhc-zinc-30v-35783.html",
+     "snippet": "Product: Viên giúp cơ thể khỏe mạnh Zinc DHC Brand: DHC (Nhật Bản) Price: 110.000đ/Gói (30 viên/gói) Registration No: 5362/2019/ĐKSP Rating: 4.9 (256 đánh giá) Ing...",
+     "source": "Nhà thuốc Long Châu",
+     "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://nhathuoclongchau.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQiel65Np3k7A7XLqpEqaPqGn3IEp0-QN14k9gsjY-UGZLklZMsDifu92asFCpvoBuXC5UTp89Qagh5SO9NKLJEIONdLwSYvvSQ6bR1TgrYyM6mLQEnrfnROt8Rh6nZh64zqLr2sYvuElYUXqRpdP9N9bWcgA"
+    },
+    {
+     "index": 1,
+     "title": "Viên uống bổ sung kẽm: Uống lúc nào tốt và những lưu ý y khoa",
+     "link": "https://medlatec.vn/tin-tuc/vien-uong-bo-sung-kem-uong-luc-nao-tot-nhat-va-nhung-luu-y-y-khoa",
+     "snippet": "* Giới thiệu. Giới thiệu. Hệ thống MEDLATEC GROUP. Công bố Cơ sở đủ điều kiện. * Dịch vụ y tế Dịch vụ bảo hiểm. Dịch vụ bảo hiểm. * Hướng dẫn khách hàng. * Nghiên ...",
+     "source": "Bệnh viện Đa khoa MEDLATEC",
+     "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://medlatec.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+     "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTmpYuJMTL4gnbPD5Ed5QFdTGEbfxTkzWt0I1CNhqtwO8Wc70h42r1Jh2-Bpyz6tGFX5j3ew91ucyGRBduXr95tTWvcs9asWLQF3kH-FsMW_68a4r9KT_a4w2MGzkThxofo910z1csz5hRXsO28eremUyMoFw"
+    },
+    {
+     "index": 2,
+     "title": "Viên uống bổ sung kẽm DHC 60 viên chính hãng Nhật Bản",
+     "link": "https://www.hangngoainhap.com.vn/2493-vien-uong-bo-sung-kem-dhc-60-vien-chinh-hang-nhat-ban.html",
+     "snippet": "- SP: Viên uống bổ sung kẽm DHC 60 viên - Xuất xứ: Nhật Bản - Hãng: DHC - Giá: 119.000đ (thị trường 142.800đ, tiết kiệm 23.800đ / -17%) - Mã SP: ECS002493 - Thành ...",
+     "source": "Hàng Ngoại Nhập Store",
+     "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.hangngoainhap.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+     "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTYWM2qUQfxy_2X1sLKzGPY7FWfW_tLEp0Sgx9qyc_xbXsxvBQ8OUm10KiXCkCM0Dbe_jStW9zYgJAQmfpWOUStzRLvEGtxTYNF3pY3uMJ-i5dcg-OmhX5lrc5pQ20e-noXMBU4PJzl6fLZr-mc56DKHVtzew"
+    },
+    {
+     "index": 3,
+     "title": "Viên uống DHC bổ sung kẽm (DHC Zinc) của Nhật có tốt không?",
+     "link": "https://youmed.vn/tin-tuc/vien-uong-bo-sung-kem-dhc-co-tot-khong-luu-y-khi-dung/",
+     "snippet": "Công dụng của viên uống DHC kẽm. Bổ sung kẽm một cách hiệu quả nhất cho cơ thể. Kích thích vị giác, tăng tổng hợp protein. Hỗ trợ sức khỏe da, niêm mạc. Giảm gãy r...",
+     "source": "YouMed",
+     "source_icon": "https://encrypted-tbn1.gstatic.com/faviconV2?url=https://youmed.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+     "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTHrLv-tYO71N0B-EAmjCYUtKaGLucjR_1tvHa0xlvo-8hFAsQzQnjl17eWspohJ5yU18nkYUeh4eHWuddJfNwFVKaMtfYWG7icBOPzEAlqqh4SC65xFB835UITyPnwwKwx30umqRxnjilGiux7IkF6Gu4phw"
+    },
+    {
+     "index": 4,
+     "title": "Uống kẽm bao lâu thì dừng? Liệu trình bổ sung kẽm an toàn",
+     "link": "https://www.pharmacity.vn/uong-kem-bao-lau-thi-dung.htm",
+     "snippet": "Uống kẽm bao lâu thì dừng? Liệu trình bổ sung kẽm an toàn. ... Uống kẽm bao lâu thì dừng? Liệu trình bổ sung kẽm an toàn * Uống kẽm bao lâu thì dừng? Liệu trình bổ...",
+     "source": "Nhà thuốc Pharmacity",
+     "source_icon": "https://encrypted-tbn0.gstatic.com/faviconV2?url=https://www.pharmacity.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+     "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRquyDwuayaoKw06Stc9Cfrg8TzoMSBr_FYDGCArSWjTRKbfvGDsdG9yhjekErXSOyemeZYxBmFDGpnlthkXXc6hp734A8jjsm3l7CiiDmo1b-JbYI5m8Lem1hy7coDGI6D_sczqb27EgrJchU_riJlArF8NA"
+    },
+    {
+     "index": 5,
+     "title": "Kẽm có tác dụng gì với nam giới? 8 thuốc bổ sung kẽm cho nam giới",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/cac-loai-thuoc-bo-sung-kem-cho-nam-gioi-co-tac-dung-gi-48637.html",
+     "snippet": "* Male zinc needs: ~11mg/day; upper safety limit (UL): 40mg/day. * Key benefits: maintains normal testosterone (if deficient), supports reproductive/sperm health, ...",
+     "source": "Nhà thuốc Long Châu",
+     "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://nhathuoclongchau.com.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+     "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSdhegpHe8ZRMXsmTEwCB4LtUF5jFM7AcWJAHVQJtUdw6LB6U7zHBh9n6Sehxlv_ommlVg0BxeS7O2k8V5jEV4OZWEXOtG1eTNQacQYc5JCa-c7xwU0EhaukKiHEzVYhdh61QgtTrgvQmvJjf8EBjeZ7XCzcA"
+    },
+    {
+     "index": 6,
+     "title": "Uống kẽm có tác dụng gì? Uống khi nào hợp lý và hiệu quả? - Watsons.vn",
+     "link": "https://www.watsons.vn/vi/blog/cham-soc-suc-khoe/uong-kem-co-tac-dung-gi-uong-khi-nao-hop-ly-va-hieu-qua",
+     "snippet": "Uống kẽm khi nào là tốt nhất? Nên uống sau bữa ăn sáng hoặc bữa trưa 1–2 giờ; Tránh uống khi bụng quá đói để hạn chế khó chịu dạ dày; Duy trì thời gian uống cố địn...",
+     "source": "Watsons.vn",
+     "source_icon": "https://encrypted-tbn3.gstatic.com/faviconV2?url=https://www.watsons.vn&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+     "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcRekDw_JISwgVTSRrlQZYC4ljTf7Ok4Wd0FYHJZ3PsGZKGqiYi8qm7XmpzB2Q0RwdmWNE_fI67j1ybQhJa6SJVrkq3IYuNgb35f9yWhL2pDomLPlHOSDSUJAowmKY3H6Dt81YxDijpb41XWawI127CnFv5V8w"
+    }
+   ]
+  }
+ }
+}

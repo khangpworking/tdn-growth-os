@@ -1,0 +1,101 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «kẽm cho nữ» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[77]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "0406fdd4825c11767074b84d9840b4579ee2310fca6fb57dd7d0af612f759f03"
+ },
+ "result": {
+  "prefix": "kẽm cho nữ",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:38Z",
+  "suggestions": [
+   "kẽm cho nữ",
+   "thuốc kẽm cho nữ",
+   "kẽm cho phụ nữ sau sinh",
+   "viên kẽm cho nữ",
+   "kẽm cho phụ nữ mang thai",
+   "kẽm tốt cho nữ",
+   "bổ sung kẽm cho nữ",
+   "bổ sung kẽm cho nữ có tác dụng gì",
+   "kẽm giúp gì cho nữ",
+   "viên uống kẽm cho nữ"
+  ],
+  "raw": [
+   "kẽm cho nữ",
+   [
+    "kẽm cho nữ",
+    "thuốc kẽm cho nữ",
+    "kẽm cho phụ nữ sau sinh",
+    "viên kẽm cho nữ",
+    "kẽm cho phụ nữ mang thai",
+    "kẽm tốt cho nữ",
+    "bổ sung kẽm cho nữ",
+    "bổ sung kẽm cho nữ có tác dụng gì",
+    "kẽm giúp gì cho nữ",
+    "viên uống kẽm cho nữ"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

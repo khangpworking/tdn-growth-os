@@ -1,0 +1,3121 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric: capture/manifest.json",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[1].content",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "fd9f1742681346e85e805e9835125e971c76dad513a1d5746414a653b2bac2a0"
+ },
+ "result": {
+  "contractVersion": "metric-results-capture-v1",
+  "captureId": "metric-1792979721488",
+  "specDigest": "05cc40fe9598d051d420ee0a31f0bae98f3f441d44fa357c67b4bae89e82f693",
+  "appliedFilters": {
+   "advancedFilters": [],
+   "aiNormalisation": false,
+   "category": null,
+   "exclusions": [],
+   "keywords": [
+    "viên uống kẽm"
+   ],
+   "period": {
+    "endDate": "2026-10-20",
+    "startDate": "2026-09-21"
+   },
+   "platforms": [
+    "shopee",
+    "tiktok"
+   ],
+   "smartQuery": true,
+   "ticks": [
+    "Smart query",
+    "Filter fake/abnormal products",
+    "Exclude gifts ( Detail )",
+    "Exclude deleted products"
+   ],
+   "usefulFilters": {
+    "deleted": true,
+    "fake": true,
+    "gifts": true
+   }
+  },
+  "resultCount": 1728,
+  "productPagination": {
+   "cap": 200,
+   "totalShown": null,
+   "pageSize": 20,
+   "pagesRead": 10,
+   "rowsRead": 200,
+   "truncated": false,
+   "byPlatform": {
+    "all": {
+     "cap": 200,
+     "totalShown": null,
+     "pageSize": 20,
+     "pagesRead": 10,
+     "rowsRead": 200,
+     "truncated": false
+    }
+   }
+  },
+  "views": [
+   {
+    "platform": "all",
+    "pagesRead": 10
+   }
+  ],
+  "sourceMap": {
+   "W1": {
+    "source": "dom",
+    "region": "#QuerySearchBuilder"
+   },
+   "W2": {
+    "source": "response",
+    "region": "Market Overview",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "response:/v2/market/analytics/search-basic//derived/overview/0"
+    ]
+   },
+   "W3": {
+    "source": "response",
+    "region": "Platform split",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "response:/v2/market/analytics/search-basic//derived/platform-split/1"
+    ]
+   },
+   "W4": {
+    "source": "dom",
+    "region": "Monthly trend",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart",
+     "dom:[data-metric-region=\"monthly\"], [data-region=\"monthly\"], [data-testid=\"monthly-trend\"], #growth-detail-chart"
+    ]
+   },
+   "W5": {
+    "source": "response",
+    "region": "Category",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "response:/v2/market/analytics/search-basic//derived/category/5"
+    ]
+   },
+   "W6": {
+    "source": "response",
+    "region": "Price levels",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "response:/v2/market/analytics/search-basic//derived/price/2"
+    ]
+   },
+   "W7": {
+    "source": "dom",
+    "region": "Top 10 brands",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]",
+     "dom:[data-metric-region=\"top10-brand\"], [data-region=\"top10-brand\"], [data-testid=\"top10-brand\"]"
+    ]
+   },
+   "W8": {
+    "source": "dom",
+    "region": "Top 10 shops",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]",
+     "dom:[data-metric-region=\"top10-shop\"], [data-region=\"top10-shop\"], [data-testid=\"top10-shop\"]"
+    ]
+   },
+   "W9": {
+    "source": "dom",
+    "region": "Brand by shop type",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]",
+     "dom:[data-metric-region=\"brand-shop-type\"], [data-region=\"brand-shop-type\"], [data-testid=\"brand-shop-type\"]"
+    ]
+   },
+   "W10": {
+    "source": "response",
+    "region": "Shop type",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "response:/v2/market/analytics/search-basic//derived/shop-type/4"
+    ]
+   },
+   "W11": {
+    "source": "response",
+    "region": "Warehouse",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "response:/v2/market/analytics/search-basic//derived/warehouse/3"
+    ]
+   },
+   "W12": {
+    "source": "dom",
+    "region": "Top products",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable",
+     "dom:[data-metric-region=\"top-products\"], [data-region=\"top-products\"], [data-testid=\"top-products\"], .products-list-container, .ProductTable"
+    ]
+   },
+   "W13": {
+    "source": "dom",
+    "region": "Top shops",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable",
+     "dom:[data-metric-region=\"top-shops\"], [data-region=\"top-shops\"], [data-testid=\"top-shops\"], .shop-list-container, .ShopTable"
+    ]
+   },
+   "W14": {
+    "source": "response",
+    "region": "Top brands",
+    "platforms": [
+     "all"
+    ],
+    "pointers": [
+     "response:/v2/market/analytics/groups//derived/top-brands/0"
+    ]
+   },
+   "W15": {
+    "source": "dom",
+    "region": "Combined result view"
+   },
+   "W16": {
+    "source": "dom",
+    "region": "Detail history",
+    "platforms": [],
+    "pointers": []
+   }
+  },
+  "metricDataVersion": "metric-results-data-v2",
+  "chartSeries": {
+   "contractVersion": "metric-results-data-v2",
+   "series": [
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "200000-350000",
+     "value": 1038950996,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "200000-350000",
+     "value": 1081080277,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "100000-150000",
+     "value": 948701736,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "100000-150000",
+     "value": 512866069,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "500000-750000",
+     "value": 843895188,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "500000-750000",
+     "value": 1079823337,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "350000-500000",
+     "value": 633006060,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "350000-500000",
+     "value": 1603108707,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "150000-200000",
+     "value": 610976127,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "150000-200000",
+     "value": 5253202690,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "750000-1000000",
+     "value": 584224900,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "750000-1000000",
+     "value": 286008673,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "75000-100000",
+     "value": 180117689,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "75000-100000",
+     "value": 46946354,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "1000000-1500000",
+     "value": 38723900,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "1000000-1500000",
+     "value": 608875865,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "50000-75000",
+     "value": 29817360,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "50000-75000",
+     "value": 21925520,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "30000-50000",
+     "value": 7630080,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "shopee",
+     "label": "1500000-2000000",
+     "value": 1890000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "priceRange",
+     "platform": "tiktok",
+     "label": "1500000-2000000",
+     "value": 40801590,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Hà Nội",
+     "value": 3377908448,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Tp. Hồ Chí Minh",
+     "value": 1301797431,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Gia Lai",
+     "value": 125355000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Vĩnh Long",
+     "value": 74085000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Tây Ninh",
+     "value": 25500870,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Hải Phòng",
+     "value": 5813000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Phú Thọ",
+     "value": 1335000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "An Giang",
+     "value": 1021998,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Bắc Ninh",
+     "value": 975000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Đà Nẵng",
+     "value": 961000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Lâm Đồng",
+     "value": 798789,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Nghệ An",
+     "value": 750000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Đồng Nai",
+     "value": 536000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Ninh Bình",
+     "value": 486500,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Hưng Yên",
+     "value": 375000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Cần Thơ",
+     "value": 235000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "province",
+     "platform": "shopee",
+     "label": "Bình Dương",
+     "value": 0,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "shopType",
+     "platform": "shopee",
+     "label": "0",
+     "value": 846475885,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "shopType",
+     "platform": "tiktok",
+     "label": "0",
+     "value": 7024971151,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "shopType",
+     "platform": "shopee",
+     "label": "1",
+     "value": 4071458151,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "shopType",
+     "platform": "tiktok",
+     "label": "1",
+     "value": 3509667931,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "category",
+     "platform": "shopee",
+     "label": "c2035652732",
+     "value": 4856900036,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "category",
+     "platform": "tiktok",
+     "label": "c2035652732",
+     "value": 10518806473,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "category",
+     "platform": "shopee",
+     "label": "c1478997685",
+     "value": 59794000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "category",
+     "platform": "tiktok",
+     "label": "c950887968",
+     "value": 15832609,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "category",
+     "platform": "shopee",
+     "label": "c1144728673",
+     "value": 1240000,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "headline",
+     "platform": "shopee",
+     "revenue": 4917934036,
+     "units": 19588,
+     "previousRevenue": 5321987402,
+     "previousUnits": 22246,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "headline",
+     "platform": "tiktok",
+     "revenue": 10534639082,
+     "units": 43270,
+     "previousRevenue": 11118996504,
+     "previousUnits": 45333,
+     "source": "response:/v2/market/analytics/search-basic/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày Bổ Sung Kẽm 150mg Viên Uống DSD Bổ Sung Kẽm Biozinc Hộp 2 Lọ X 30 Viên Hộp 1 Lọ 30 Viên | Hãy Chọn Phân Loại Tặng Bọt Vệ Sinh Nam ",
+     "revenue": 4274304541,
+     "units": 21618,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung Kẽm KingSPEED - Nguyên liệu nhập khẩu Đức - Hỗ trợ tăng cường sức khỏe - Lọ 30 viên ",
+     "revenue": 1234760501,
+     "units": 3232,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống DHC Kẽm Zinc  20 Ngày & 60 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC ZinC ",
+     "revenue": 684643000,
+     "units": 3099,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " TPBVSK Viên uống ACNACARE Mega We Care  30 viên  - Kẽm Crôm D.Salina Vitamin C Vitamin E ",
+     "revenue": 648634748,
+     "units": 4267,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  ĐQ  Combo Viên uống DHC Vitamin C & Kẽm  20ngày ;60 ngày & 120 ngày  - Thực phẩm bảo vệ sức khoẻ DHC Vitamin C & Zinc ",
+     "revenue": 601139419,
+     "units": 2162,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Vitamin C & Kẽm  60 ngày  - Thực phẩm bảo vệ sức khoẻ DHC Vitamin C & Zinc ",
+     "revenue": 539417000,
+     "units": 922,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  MUA 1 TẶNG 1  Viên uống KINGS.UP Thái Minh - Hộp 80 viên - Tặng Ngay 1 Lọ Kẽm 15 Viên -  Che Tên  ",
+     "revenue": 523609446,
+     "units": 462,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " ZN ZINC LIPOSOMAL - Viên uống bổ sung kẽm dễ hấp thu hỗ trợ tăng cường đề kháng cải thiện da tóc móng và hỗ trợ sức khỏe tổng thể nhập khẩu chính hãng  90 viên  ",
+     "revenue": 455517641,
+     "units": 743,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống DHC Kẽm Zinc  60 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC ZinC ",
+     "revenue": 440461000,
+     "units": 1459,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " TPBVSK Viên uống giảm mụn giảm nhờn - Kẽm Crôm D.Salina Vitamin C Vitamin E - ACNACARE Mega We Care  30 viên  ",
+     "revenue": 406771920,
+     "units": 2700,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Biotin & Kẽm  60 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC ",
+     "revenue": 391322000,
+     "units": 523,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Biotin  30 Ngày  & Kẽm  20 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC ",
+     "revenue": 318477000,
+     "units": 896,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Vitamin C & Kẽm  20 ngày  - Thực phẩm bảo vệ sức khoẻ DHC Vitamin C & Zinc ",
+     "revenue": 248607000,
+     "units": 1028,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " DSDPHARMA Kẽm DSD Plus 30 Ngày 60 Ngày - Viên uống DSD bổ sung Kẽm Biozinc - Tăng cường sức khỏe ",
+     "revenue": 244499346,
+     "units": 1334,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  ĐQ  Viên uống DHC Kẽm ZinC hỗ trợ duy trì sức khỏe giúp cơ thể khỏe mạnh  60 Ngày - TPBVSK DHC ZinC ",
+     "revenue": 186984240,
+     "units": 1545,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống DHC Kẽm Zinc  20 ngày ; 60 ngày và 120 ngày   giúp cơ thể khỏe mạnh hỗ trợ duy trì sức khỏe - TPBVSK DHC Zinc ",
+     "revenue": 170359012,
+     "units": 1219,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống Hàu Tươi Orihiro Bổ Sung Kẽm Cho Nam Nữ 120 viên hộp – Orihiro Nhật Bản chính hãng ",
+     "revenue": 167589912,
+     "units": 265,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống Hàu lùn Plus bổ sung kẽm cho nam giới - Hộp 60 viên ",
+     "revenue": 132919472,
+     "units": 300,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung Kẽm NOW Zinc Glycinate 30 mg Albion TRAACS Zinc 120 Softgels | Made in USA ",
+     "revenue": 104554728,
+     "units": 148,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Hàu Biển Goodhealth Oyster Plus  60 Viên  Bổ Sung Kẽm Tăng Cường Sinh Lý Sức Đề Kháng Nam ",
+     "revenue": 102965000,
+     "units": 255,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "DSD.PHARMA Shop",
+     "revenue": 4344604555,
+     "units": 21851,
+     "previousRevenue": 4653067276,
+     "previousUnits": 23416,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "shopee",
+     "name": "DHC Vietnam Official",
+     "revenue": 2833931000,
+     "units": 8801,
+     "previousRevenue": 3201434840,
+     "previousUnits": 10242,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "Thai Minh Pharmaceuticals",
+     "revenue": 1794494828,
+     "units": 3718,
+     "previousRevenue": 1795460802,
+     "previousUnits": 4295,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "DHC Vietnam",
+     "revenue": 1481071312,
+     "units": 6775,
+     "previousRevenue": 1323516432,
+     "previousUnits": 6879,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "Mega We Care Việt Nam",
+     "revenue": 648634748,
+     "units": 4267,
+     "previousRevenue": 544873852,
+     "previousUnits": 3338,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "Tiến Sĩ An Shop",
+     "revenue": 504900041,
+     "units": 819,
+     "previousRevenue": 639484250,
+     "previousUnits": 651,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "shopee",
+     "name": "Mega We Care",
+     "revenue": 499469220,
+     "units": 3319,
+     "previousRevenue": 432840624,
+     "previousUnits": 3067,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "DSD Pharma Group",
+     "revenue": 276173867,
+     "units": 1519,
+     "previousRevenue": 264321899,
+     "previousUnits": 1459,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "ORIHIRO Vietnam",
+     "revenue": 219899795,
+     "units": 309,
+     "previousRevenue": 223426345,
+     "previousUnits": 277,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "GymstoreVN",
+     "revenue": 140451743,
+     "units": 250,
+     "previousRevenue": 108879697,
+     "previousUnits": 164,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "Châu Long Pharma",
+     "revenue": 132919472,
+     "units": 300,
+     "previousRevenue": 152571014,
+     "previousUnits": 339,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "shopee",
+     "name": "FITPRO",
+     "revenue": 125355000,
+     "units": 285,
+     "previousRevenue": 64366200,
+     "previousUnits": 156,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "ONFIT",
+     "revenue": 123256941,
+     "units": 176,
+     "previousRevenue": 113240487,
+     "previousUnits": 168,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "Nature's Key Nutrition",
+     "revenue": 112317438,
+     "units": 430,
+     "previousRevenue": 47222583,
+     "previousUnits": 197,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "shopee",
+     "name": "Doppelherz Vietnam",
+     "revenue": 78730000,
+     "units": 238,
+     "previousRevenue": 86175800,
+     "previousUnits": 271,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "shopee",
+     "name": "DSD GROUP",
+     "revenue": 73400000,
+     "units": 412,
+     "previousRevenue": 139282500,
+     "previousUnits": 809,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "Imochi",
+     "revenue": 62386424,
+     "units": 237,
+     "previousRevenue": 83949718,
+     "previousUnits": 327,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "shopee",
+     "name": "Lumota",
+     "revenue": 60943000,
+     "units": 730,
+     "previousRevenue": 87435300,
+     "previousUnits": 1146,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "tiktok",
+     "name": "NOW VN Store",
+     "revenue": 60901806,
+     "units": 79,
+     "previousRevenue": 195088618,
+     "previousUnits": 265,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topShops",
+     "platform": "shopee",
+     "name": "Sorbus",
+     "revenue": 57338215,
+     "units": 73,
+     "previousRevenue": 51440030,
+     "previousUnits": 66,
+     "source": "response:/v2/market/analytics/shops/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Dhc",
+     "revenue": 3250910343,
+     "units": 12807,
+     "previousRevenue": 3740832976,
+     "previousUnits": 15038,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Dhc",
+     "revenue": 1641037817,
+     "units": 7879,
+     "previousRevenue": 1512726669,
+     "previousUnits": 8146,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Dsd",
+     "revenue": 4343683343,
+     "units": 21849,
+     "previousRevenue": 4653917943,
+     "previousUnits": 23419,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Thái Minh",
+     "revenue": 1282192316,
+     "units": 3277,
+     "previousRevenue": 1263036841,
+     "previousUnits": 3787,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Acnacare Mega We Care",
+     "revenue": 648634748,
+     "units": 4267,
+     "previousRevenue": 544873852,
+     "previousUnits": 3338,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Mega We Care",
+     "revenue": 506905220,
+     "units": 3374,
+     "previousRevenue": 442372124,
+     "previousUnits": 3144,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Dsdpharma",
+     "revenue": 278685017,
+     "units": 1534,
+     "previousRevenue": 265828810,
+     "previousUnits": 1468,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Dsdpharma",
+     "revenue": 39319425,
+     "units": 172,
+     "previousRevenue": 29669725,
+     "previousUnits": 203,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Biocyte",
+     "revenue": 176495105,
+     "units": 208,
+     "previousRevenue": 177018368,
+     "previousUnits": 210,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Biocyte",
+     "revenue": 104634600,
+     "units": 150,
+     "previousRevenue": 97128960,
+     "previousUnits": 147,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Now",
+     "revenue": 154828590,
+     "units": 274,
+     "previousRevenue": 127488043,
+     "previousUnits": 194,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Now",
+     "revenue": 87032025,
+     "units": 145,
+     "previousRevenue": 42043739,
+     "previousUnits": 58,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Orihiro",
+     "revenue": 219899795,
+     "units": 309,
+     "previousRevenue": 223426345,
+     "previousUnits": 277,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Orihiro",
+     "revenue": 1636000,
+     "units": 3,
+     "previousRevenue": 0,
+     "previousUnits": 0,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Goodhealth Naturally New Zealand",
+     "revenue": 132919472,
+     "units": 300,
+     "previousRevenue": 152571014,
+     "previousUnits": 339,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Puritan'S Pride",
+     "revenue": 121246000,
+     "units": 432,
+     "previousRevenue": 105593000,
+     "previousUnits": 494,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Puritan'S Pride",
+     "revenue": 2268457,
+     "units": 7,
+     "previousRevenue": 772815,
+     "previousUnits": 3,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Good Health",
+     "revenue": 105005000,
+     "units": 259,
+     "previousRevenue": 56583120,
+     "previousUnits": 147,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Good Health",
+     "revenue": 15573033,
+     "units": 30,
+     "previousRevenue": 15059672,
+     "previousUnits": 29,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Nature'S Key",
+     "revenue": 112317438,
+     "units": 430,
+     "previousRevenue": 47222583,
+     "previousUnits": 197,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Doppelherz",
+     "revenue": 80251500,
+     "units": 243,
+     "previousRevenue": 88889300,
+     "previousUnits": 280,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Webber Naturals",
+     "revenue": 78704293,
+     "units": 140,
+     "previousRevenue": 85028532,
+     "previousUnits": 133,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Webber Naturals",
+     "revenue": 0,
+     "units": 0,
+     "previousRevenue": 1138000,
+     "previousUnits": 2,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "N Nufarm",
+     "revenue": 60901806,
+     "units": 79,
+     "previousRevenue": 195088618,
+     "previousUnits": 265,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Solgar",
+     "revenue": 57338215,
+     "units": 73,
+     "previousRevenue": 51440030,
+     "previousUnits": 66,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Bio Island",
+     "revenue": 53894000,
+     "units": 76,
+     "previousRevenue": 40139520,
+     "previousUnits": 60,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "shopee",
+     "name": "Swisse",
+     "revenue": 41833270,
+     "units": 54,
+     "previousRevenue": 35970407,
+     "previousUnits": 52,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Swisse",
+     "revenue": 5066120,
+     "units": 6,
+     "previousRevenue": 7837105,
+     "previousUnits": 9,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topBrands",
+     "platform": "tiktok",
+     "name": "Kirkland",
+     "revenue": 43140330,
+     "units": 54,
+     "previousRevenue": 56408442,
+     "previousUnits": 66,
+     "source": "response:/v2/market/analytics/groups/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo Viên uống DHC Vitamin C & Kẽm  60ngày & 120 ngày - Thực phẩm bảo vệ sức khoẻ DHC Vitamin C & Zinc ",
+     "revenue": 102321111,
+     "units": 161,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  ĐQ  Combo Viên uống DHC Biotin  & Kẽm  - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC - Combo 20 ngày; Combo 60 ngày & Combo 120 ngày ",
+     "revenue": 97578654,
+     "units": 251,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống Bổ Sung Kẽm Biocyte Zn Zinc Liposomal Công Nghệ Kẽm Cao Cấp Tăng Hấp Thu ",
+     "revenue": 93935048,
+     "units": 112,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  LIVE  TPBVSK Viên uống giảm mụn giảm nhờn - Kẽm Crôm D.Salina Vitamin C Vitamin E - ACNACARE Mega We Care ",
+     "revenue": 92548800,
+     "units": 618,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống DHC Kẽm Zinc  15 ngày; 20 Ngày & 60 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC ZinC  DHC x VNNW  ",
+     "revenue": 85801183,
+     "units": 737,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  SALE  Viên Uống Magie Glycinate Nature's Key 250mg - Kết Hợp Vitamin D3 + B6 & Kẽm - Hỗ Trợ Cải Thiện Chất Lượng Giấc Ngủ Sức Khỏe Xương Khớp & Cơ Bắp Tình Trạng Chuột Rút. Hỗ Trợ Thư Giãn Giảm Lo Âu Căng Thẳng - Hộp 30 Viên Dùng 1 Tháng ",
+     "revenue": 82951160,
+     "units": 316,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống DHC Kẽm ZinC hỗ trợ duy trì sức khỏe giúp cơ thể khỏe mạnh  60 Ngày & 120 Ngày  - TPBVSK DHC ZinC ",
+     "revenue": 80369805,
+     "units": 250,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống DHC Kẽm Zinc  20 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC ZinC ",
+     "revenue": 74058000,
+     "units": 577,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung kẽm - Viên uống DSD bổ sung Kẽm Biozinc ",
+     "revenue": 69825000,
+     "units": 399,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Kẽm DSD 60 Ngày bổ sung kẽm - Viên uống DSD bổ sung Kẽm Biozinc | Hộp 2 lọ x 30 viên ",
+     "revenue": 68776635,
+     "units": 229,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm Doppelherz Zincodin hỗ trợ tăng sức đề kháng  Hộp 30 viên  ",
+     "revenue": 66490000,
+     "units": 218,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Solgar Zinc Kẽm Citrate 30Mg -  Bổ Sung Kẽm Chăm Sóc Sức Khỏe Phái Nam  Lọ 100 Viên  ",
+     "revenue": 57338215,
+     "units": 73,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Bổ sung Kẽm DHC ZinC 30 Viên 30 Ngày DHC kẽm của Nhật Lumota Shop ",
+     "revenue": 56586000,
+     "units": 713,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo 2 Viên uống Hàu Tươi Orihiro Bổ Sung Kẽm Cho Nam Nữ 120 viên hộp – Orihiro Nhật Bản chính hãng ",
+     "revenue": 52309883,
+     "units": 44,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm tăng sức đề kháng Zinc Puritan's Pride ",
+     "revenue": 50643000,
+     "units": 197,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung vitamin khoáng chất thiết yếu cho sức khỏe tổng thể - Bổ sung Magie Omega 3  80V  Canxi Kẽm Sắt Vitamin C... giúp hỗ trợ tăng cường sức khỏe cải thiện cơ thể đa dạng phân loại nhập khẩu chính hãng ",
+     "revenue": 49382400,
+     "units": 76,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  COMBO MIỄN DỊCH & CHIỀU CAO  Viên Uống Bổ Sung Kẽm ZinC Bioisland Và Canxi Hữu Cơ Bioisland Cho Bé ",
+     "revenue": 48367000,
+     "units": 68,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống canxi magie kẽm calcium citrate magnesium zinc vitamin D3 kirkland mỹ hộp 500 viên ",
+     "revenue": 43140330,
+     "units": 54,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  Live  Combo Viên uống DHC Vitamin C + Kẽm  60 Ngày  hỗ trợ duy trì sức khỏe giúp da sáng mịn-TPBVSK DHC Vitamin C+Zinc ",
+     "revenue": 39660000,
+     "units": 68,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Kẽm Zinc Chính Hãng Hỗ Trợ Duy Trì Sức Khoẻ Giúp Cơ Thể Khoẻ Mạnh - Gói 15 & 30 Ngày ",
+     "revenue": 39242619,
+     "units": 381,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  ĐQ  Combo Viên uống DHC Biotin ; Kẽm & Vitamin C  - Thực phẩm bảo vệ sức khoẻ DHC Biotin + ZinC + Vitamin C  - Combo 20 ngày & Combo 60 ngày ",
+     "revenue": 38719109,
+     "units": 73,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Bổ Sung Kẽm Tăng Cường Sức Khỏe Nam Giới Swisse Ultiboost Men’s Potency+ ",
+     "revenue": 37841270,
+     "units": 46,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Kẽm DSD Multi Ginseng B+ Plus 150mg 30 Viên - Vitamin B & Nhân Sâm - Bổ sung Kẽm Tăng cường sức khỏe ",
+     "revenue": 36349425,
+     "units": 153,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  MUA 1 TẶNG 2  Viên uống KINGS.UP Thái Minh - Hộp 120 viên - Tặng Ngay 1 Hộp Kẽm 15 Viên và 1 Tuýp C Sủi Super Cool -  Che Tên  ",
+     "revenue": 36124881,
+     "units": 24,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung kẽm Now Foods Zinc 50 mg - Made in USA ",
+     "revenue": 35897015,
+     "units": 102,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Bổ Sung Kẽm Zn Zinc Liposomal Biocyte - Hấp Thu Cao Tăng Đề Kháng Giảm Mụn Hỗ Trợ Tóc Móng Khỏe ",
+     "revenue": 35601000,
+     "units": 48,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  đủ bill  Viên uống ZMA Now bổ sung kẽm magie vitamin B6 giúp ngủ ngon tăng phục hồi hỗ trợ sinh lý ",
+     "revenue": 34755815,
+     "units": 37,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " 【Giao hàng ngay Hàng chính hãng NOW foods Omega-3 90hạt Nồng độ 75% Một chai đa năng Trái tim + Não bộ + Mắt +Duy trì thị lực Khớp Bảo vệ hệ tim mạch magie kẽm Viên uống bổ ",
+     "revenue": 32523876,
+     "units": 44,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  Live  Viên uống DHC Kẽm Zinc  60 Ngày  giúp cơ thể khỏe mạnh hỗ trợ duy trì sức khỏe - TPBVSK DHC Zinc ",
+     "revenue": 32015000,
+     "units": 107,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày - Viên uống DSD bổ sung Kẽm Biozinc - Tăng cường sức khỏe ",
+     "revenue": 31674521,
+     "units": 185,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  Tun Phạm x DHC  Combo Viên uống DHC Vitamin C & Kẽm  20 ngày;60 ngày & 120 ngày  - Thực phẩm bảo vệ sức khoẻ DHC Vitamin C & Zinc ",
+     "revenue": 31254368,
+     "units": 118,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung Kẽm Magie Vitamin B6 VTEAY - Hỗ trợ chuyển hóa năng lượng giảm mệt mỏi tăng cường chức năng cơ & thần kinh - 90 viên - FDA ",
+     "revenue": 30687895,
+     "units": 136,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống Bổ Sung Kẽm Canprev Zinc Bisglycinate 120 Viên | WHEYSTORE ",
+     "revenue": 29533834,
+     "units": 49,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  LIVE  Viên Uống Magie Glycinate Nature's Key 250mg - Kết Hợp Vitamin D3 + B6 & Kẽm - Hỗ Trợ Cải Thiện Chất Lượng Giấc Ngủ Sức Khỏe Xương Khớp & Cơ Bắp Tình Trạng Chuột Rút. Hỗ Trợ Thư Giãn Giảm Lo Âu Căng Thẳng - Hộp 30 Viên Dùng 1 Tháng ",
+     "revenue": 29366278,
+     "units": 114,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống Hàu Biển Goodhealth Oyster Plus  60 Viên  Bổ Sung Kẽm Chiết Xuất Hàu Biển ",
+     "revenue": 29321893,
+     "units": 64,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " 【Giao hàng ngay Hàng chính hãng NOW foods Magnesium Glycinate 180TabletsKhông chứa chiết xuất tiêu đen Hỗ trợ thư giãn Nhẹ dịu và dễ hấp thụ Hỗ trợ giấc ngủ ngon magie kẽm Viên uống bổ ",
+     "revenue": 28377930,
+     "units": 35,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  HÀNG CÔNG TY  Viên uống bổ sung kẽm Zn Zinc Liposomal Biocyte Pháp Hộp 90 viên- Hỗ trợ tăng cường sức khỏe ",
+     "revenue": 28271654,
+     "units": 33,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo Viên Uống DHC Zinc Bổ Sung Kẽm Gói 30 Viên & Vitamin C Gói 60 Viên Zinc  30 Days Supply  + Vitamin C Hard Capsules  30 Days Supply  | HASAKI BEAUTY ",
+     "revenue": 26722552,
+     "units": 107,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Kẽm ZinC 15 Ngày 15 Viên & 30 Ngày 30 Viên Hỗ Trợ Duy Trì Sức Khoẻ ",
+     "revenue": 26156802,
+     "units": 198,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " TPBVSK Viên Uống Bổ Sung Kẽm Biocyte Zn Zinc Liposomal ",
+     "revenue": 25820541,
+     "units": 31,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm Now Zinc 50mg - Cải thiện não bộ hệ miễn dịch phát triển xương ",
+     "revenue": 25412000,
+     "units": 76,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Bổ Sung Kẽm DHC Zinc 15 Viên 30 Viên ",
+     "revenue": 25331000,
+     "units": 313,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " VIÊN UỐNG ZOS+  NEW ZEALAND+ BỔ SUNG VI CHẤT KẼM - 60 viên  hộp ",
+     "revenue": 24962338,
+     "units": 16,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Bổ sung Kẽm DHC Zinc Nhật Bản ",
+     "revenue": 24870870,
+     "units": 341,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo Viên Uống DHC Zinc Bổ Sung Kẽm & Vitamin C 30 Ngày Nhật Bản ",
+     "revenue": 23168110,
+     "units": 74,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Ngừa Mụn Mờ Thâm 30 Ngày  Zinc Kẽm 30v gói và Vitamin C 60v gói  ",
+     "revenue": 22890000,
+     "units": 111,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Kẽm Biocyte Zn Zinc Liposomal  90 Viên  Công Nghệ Liposome Hấp Thụ Cao Tăng Đề Kháng ",
+     "revenue": 22390000,
+     "units": 30,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm LAC ZinC 15mg  100 viên  ",
+     "revenue": 21906000,
+     "units": 65,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm Nutricost Zinc Picolinate 30mg   50mg  USA  hấp thụ tốt tăng sức đề kháng - Gymstore ",
+     "revenue": 21720000,
+     "units": 34,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " MS 02 mua   có quà   _ viên uống x-men bổ sung  có thành phần kẽm hữu cơ  và các vị thảo dược giúp ăn ngon ngủ tốt  tăng đề kháng ....hộp 30 viên ",
+     "revenue": 21557704,
+     "units": 77,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Kẽm và Vitamin D  60 ngày  - Combo Thực phẩm bảo vệ sức khoẻ Zinc + Vitamin D ",
+     "revenue": 21398000,
+     "units": 46,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên Uống Ngăn Ngừa Mụn Mờ Thâm DHC Nhật Bản gồm Vitamin C DHC 30 ngày & Viên Kẽm DHC 30 ngày ",
+     "revenue": 21320000,
+     "units": 161,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Bổ sung Kẽm DHC ZinC 30 Viên 30 Ngày DHC kẽm của Nhật shop Cosin Store ",
+     "revenue": 21156000,
+     "units": 252,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Nhật Bản Vitamin B,C,E,Biotin,Rau Củ Kẽm Collagen Trắng Da Hoa Hồng Canxi 30 ngày ",
+     "revenue": 20564000,
+     "units": 268,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " TPBVSK Viên Uống Bổ Sung Canxi Magie Kẽm Biocyte Cal Mag Zinc Liposomal ",
+     "revenue": 20474000,
+     "units": 35,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống Bổ Sung Kẽm DHC Zinc Nhật Bản Hỗ Trợ Sức Khoẻ Chăm Sóc Da Tóc 30 Ngày - 30 Viên ",
+     "revenue": 19547946,
+     "units": 114,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung Kẽm Blackmores Bio ZinC của Úc tăng cường hệ miễn dịch ",
+     "revenue": 19350000,
+     "units": 37,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " A28_ Viên uống bổ sung canxi  magie kẽm vitamin  Frombio Calcium Magnesium 90 viên ",
+     "revenue": 19065492,
+     "units": 23,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  BILL US Viên uống bổ sung kẽm tăng sức đề kháng Puritain'sPride Zinc Gluconate 25mg -100viên ",
+     "revenue": 19052000,
+     "units": 68,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " DHC Combo Vitamin C DHC 30 ngày & Viên Kẽm DHC 30 ngày Viên Uống Hỗ Trợ Ngừa Mụn Mờ Thâm ",
+     "revenue": 18671445,
+     "units": 63,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống DHC Bổ Sung Kẽm Hỗ Trợ Giảm Mụn Giảm Rụng Tóc Nhật Bản ",
+     "revenue": 17510622,
+     "units": 207,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Kẽm Giảm Mụn  Tăng Sức Đề Kháng Puritan's Pride Zinc Gluconate 50mg 100 Viên - 250 viên ",
+     "revenue": 17085000,
+     "units": 62,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống DHC Kẽm Zinc  100 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC ZinC ",
+     "revenue": 17050000,
+     "units": 32,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống canxi magie kẽm Now Calcium & Magnesium  Mỹ  giảm loãng xương chuột rút tăng đề kháng ",
+     "revenue": 16893900,
+     "units": 15,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo TPBVSK DHC VITAMIN C HARD CAPSULE + Zinc + ADLAY EXTRACT dạng viên uống hỗ trợ bổ sung Vitamin C + Kẽm + Adlay ý dĩ - DHC Nhật Bản chính hãng - Combo 20 Ngày và 60 Ngày ",
+     "revenue": 16853192,
+     "units": 32,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Bổ Sung Kẽm Zinc Nhật Bản ",
+     "revenue": 16682000,
+     "units": 217,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  HÀNG MỸ  Viên uống bổ sung kẽm Thorne ZinC Picolinate 30MG | 60 & 180 viên ",
+     "revenue": 16500000,
+     "units": 22,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung kẽm 60 viên 60 ngày - Hàng nội đia Nhật ",
+     "revenue": 16315908,
+     "units": 116,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  Date 2029  Combo 60 ngày gồm viên uống Vitamin C DHC gói 120 viên & Kẽm DHC gói 60 viên Nhật Bản chính hãng ",
+     "revenue": 16278900,
+     "units": 108,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống Bổ Sung Kẽm Biocyte Zn Zinc Liposomal 15mg  90 Viên  | Made In France | MUSCLESTORE ",
+     "revenue": 16236941,
+     "units": 18,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Kẽm ZinC Picolinate Hỗ Trợ Tăng Cường Miễn Dịch Viên Uống Giảm Mụn Vitamin B6 Kết Hợp Bổ Sung Kẽm Cho Nam 30 Viên ",
+     "revenue": 15865000,
+     "units": 54,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống DHC Bổ Sung Kẽm Tăng Cường Trí Não Hệ Miễn Dịch Giúp Làn Da Khỏe Mạnh - DHC Zinc 15 Ngày 30 Ngày ",
+     "revenue": 15788996,
+     "units": 201,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Tinh Chất Hàu Oyster Plus Zinc Úc - Viên Uống Bổ Sung Hàu Lùn - Hàu Cao Bổ sung Kẽm Canxi ",
+     "revenue": 15573033,
+     "units": 30,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm giảm mụn Zinc For Acne Puritan's Pride 100 viên ",
+     "revenue": 15557000,
+     "units": 35,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Zinc Bổ Sung Kẽm Gói 30 Ngày 30 Viên Zinc  30 Days Supply  ",
+     "revenue": 15265000,
+     "units": 106,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Kẽm và Vitamin C | AusNatures Super Immune | Đẹp Da Tăng Đề Kháng | Lọ 60 Viên ",
+     "revenue": 14950000,
+     "units": 23,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  HÀNG CÔNG TY  TPBVSK Viên Uống Bổ Sung Kẽm Tăng Cường Sức Khỏe Biocyte Zn Zinc Liposomal ",
+     "revenue": 14922600,
+     "units": 20,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Bổ Sung Canxi Magie Kẽm CALCIUM ZINC MAGNESIUM BiotechUSA Hộp 100 Viên ",
+     "revenue": 14880000,
+     "units": 31,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo Viên Uống DHC Zinc Bổ Sung Kẽm & Biotin 30 Ngày Nhật Bản ",
+     "revenue": 14569766,
+     "units": 39,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Bổ Sung Kẽm & Vitamin C Sanct Bernhard Vitamin C + Zink - Hỗ Trợ Tăng Đề Kháng 60 Viên Hộp ",
+     "revenue": 13371160,
+     "units": 32,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống DHC Bổ Sung Vitamin Nhật Bản Vitamin B,C,E,Biotin Rau Củ Kẽm Collagen Sáng Da Canxi 15 30 60 90 Ngày ",
+     "revenue": 12948760,
+     "units": 172,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  ĐQ  Combo Viên uống DHC Biotin  & Kẽm  - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC - Combo 20 ngày; Combo 60 ngày & Combo 120 ngày ",
+     "revenue": 12909981,
+     "units": 34,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống Kẽm ACNACARE Mega We Care Giúp Giảm Mụn Giảm Nhờn Hộp 30 viên DR KHOA ",
+     "revenue": 12520668,
+     "units": 72,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm Zinc GBB Premium+ bổ sung kẽm magie vit B6 hỗ trợ giảm mụn mọc tóc năng sức khỏe  1H 30v  ",
+     "revenue": 11872000,
+     "units": 116,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " TPBVSK OYSTERMAB hộp 30 viên Viên uống hàu hổ trợ bổ sung kẽm,Q10 tăng cường sức khỏe dành cho nam ",
+     "revenue": 11454688,
+     "units": 16,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm tự nhiên Blackmores Bio ZinC Úc  84v 168v  giúp duy trì làn da khỏe mạnh cho trẻ trên 12 tuổi người lớn ",
+     "revenue": 11016000,
+     "units": 24,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo TPBVSK DHC VITAMIN C HARD CAPSULE + Vitamin E + Zinc dạng viên uống hỗ trợ bổ sung Vitamin C + Vitamin E + Kẽm - DHC Nhật Bản chính hãng - Combo 20 Ngày và 60 Ngày ",
+     "revenue": 10917375,
+     "units": 25,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  CHÍNH HÃNG  Kẽm Biocyte - Viên uống bổ sung kẽm bao vi nang - Hỗ trợ tăng đề kháng làm đẹp da ",
+     "revenue": 10509999,
+     "units": 12,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  FS  Combo Viên uống DHC Kẽm + Vitamin C hỗ trợ duy trì sức khỏe hỗ trợ giảm thâm da giúp da sáng mịn  Combo 60 Ngày & Combo 120 Ngày  - TPBVSK DHC ZinC + Vitamin C ",
+     "revenue": 10079722,
+     "units": 16,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "   HSD 2029  Viên uống Kẽm DHC gói 60 viên Nhật Bản  60 NGÀY  chính hãng nội địa ",
+     "revenue": 9985000,
+     "units": 73,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo 02 hộp viên uống bổ sung kẽm và vitamin C hỗ trợ tăng cường sức đề kháng Doppelherz Zincodin  Hộp 30 viên  ",
+     "revenue": 9760000,
+     "units": 16,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống DHC Zinc bổ sung kẽm cho cơ thể hỗ trợ duy trì sức khỏe  30 viên  ",
+     "revenue": 9684000,
+     "units": 75,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  Độc Quyền  INVERVA Zinc Power Multi — Viên uống bổ sung Kẽm cải thiện tình trạng tóc thưa rụng da thiếu sức sống móng yếu dễ gãy giúp cơ thể bớt mệt mỏi và suy nhược. ",
+     "revenue": 9581763,
+     "units": 48,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo viên uống Vitamin C DHC gói 120 viên & Kẽm DHC gói 60 viên Nhật Bản chính hãng ",
+     "revenue": 9246245,
+     "units": 35,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Thực Phẩm Bảo Vệ Sức Khỏe DHC Dạng Viên Uống Bổ Sung Kẽm 30 Ngày Hasaki Sản Phẩm Chính Hãng ",
+     "revenue": 9125000,
+     "units": 108,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "   ĐỦ BILL STORE + AIR  Viên uống bổ sung Kẽm ZinC Picolinate 30mg 50mg Sports Research ",
+     "revenue": 9093000,
+     "units": 7,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống giảm rụng tóc OTINPLUS  Hộp 60 viên  của Ý - Bổ sung Biotin Kẽm B5 giúp giảm rụng tóc gãy móng bong tróc da ",
+     "revenue": 9048000,
+     "units": 12,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo 2 hộp kẽm ADA hộp 60 viên uống Tặng kèm 2 bọt vệ sinh Max Men Kẽm Gluconate nguyên liệu nhập khẩu Pháp - Hỗ trợ tăng cường sức khoẻ ",
+     "revenue": 9039629,
+     "units": 19,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  MP27a   Tăng Cường Thể Lực  Combo Viên Uống Vitamin B & Kẽm MP - Tăng Cường Sức Khỏe Cải Thiện Đề Kháng Hỗ Trợ Toàn Diện Dành Cho Nam Giới ",
+     "revenue": 8918208,
+     "units": 13,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống Kẽm Hữu Cơ NOW Foods Zinc Glycinate 30mg Hỗ Trợ Giảm Mụn Giảm Rụng Tóc Tăng Sức Đề Kháng 120 Viên ",
+     "revenue": 8682870,
+     "units": 13,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  CHÍNH HÃNG  Viên Uống Bổ Sung Canxi Magie Kẽm CALCIUM ZINC MAGNESIUM BiotechUSA Hộp 100 Viên - KEYGYM ",
+     "revenue": 8622000,
+     "units": 18,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " JARROW Zinc Balance Viên Uống Bổ Sung Kẽm Hỗ Trợ Sức Đề Kháng - Hộp 100 Viên 15mg tại WheySinhVien Vn ",
+     "revenue": 8396470,
+     "units": 11,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm NOW Zinc Glycinate 30 mg Albion TRAACS Zinc giúp tăng cường sức đề kháng ",
+     "revenue": 8299680,
+     "units": 15,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống kẽm Zinc GBB Premium+ bổ sung kẽm magie vit B6 hỗ trợ giảm mụn mọc tóc năng sức khỏe  1H 30v  ",
+     "revenue": 8070767,
+     "units": 67,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm Best Life Kẽm Biotin Giúp tóc chắc khỏe ngăn gãy rụng làm sáng đẹp làn da hộp 60 viên ",
+     "revenue": 8060368,
+     "units": 45,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Kẽm Zinc Bis Glycinnate Canprev 25mg120 viên ",
+     "revenue": 7803000,
+     "units": 17,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  Live  Combo Viên uống DHC Biotin & Kẽm  60 Ngày  giúp cơ thể khỏe mạnh tốt cho da và tóc - TPBVSK DHC Biotin & ZinC ",
+     "revenue": 7632000,
+     "units": 10,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống DHC Zn Bổ Sung Kẽm Cho Cơ Thể Gói 30 viên ",
+     "revenue": 7601028,
+     "units": 62,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung vitamin C và kẽm Bbeeaauu 120 viên hỗ trợ hệ miễn dịch và hỗ trợ phục hồi tế bào trắng da vitaminc ",
+     "revenue": 7044491,
+     "units": 32,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Kẽm ACNACARE Mega We Care Giúp Giảm Mụn Giảm Nhờn Hộp 30 viên DR KHOA ",
+     "revenue": 6960000,
+     "units": 52,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " BIOTIN mọc tóc,KẼM BIOTIN viên uống mọc tóc hỗ trợ giảm gẫy rụng tóc rụng tóc sau sinh  giảm nám   HỘP 30 VIÊN   ",
+     "revenue": 6870300,
+     "units": 41,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm tăng cường sức đề kháng hỗ trợ tăng cơ bắp giảm mụn viêm Thorne Picolinate và Bisglycinate Mỹ  BILL US  ",
+     "revenue": 6800000,
+     "units": 8,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " DHC Combo DHC Kẽm & DHC Biotin Tóc Chắc Khoẻ - Giảm Gãy Rụng Viên Uống 30 Ngày Uống  Hàng công ty - Đầy đủ tem phụ  ",
+     "revenue": 6773070,
+     "units": 20,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  HÀNG NHẬP KHẨU  Viên uống DHC Kẽm ZinC 15 ngày 30 ngày ",
+     "revenue": 6608000,
+     "units": 91,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Vitamin C & Kẽm ZinC - Chọn Combo 15 30 Ngày - Vitamin C Hard Capsule ",
+     "revenue": 6485976,
+     "units": 24,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm giảm mụn tăng sức đề kháng Zinc Gluconate 50mg Puritan's Pride ",
+     "revenue": 6371000,
+     "units": 23,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " DHC Viên uống bổ sung Kẽm ZinC DHC ZinC 15 ngày 30 ngày vienuong dhc ",
+     "revenue": 6291508,
+     "units": 68,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  COMBO vitamin C + D Canxi  Viên Nhai Bổ Sung Vitamin Wonderplus  60 viên hộp  - Giúp Làn Da Rạng Rỡ - Tăng Cường Đề Kháng - Giúp Xương Chăc Khỏe bột uống và sủi mộc cốm kẽm boss man ",
+     "revenue": 6136524,
+     "units": 102,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  FS   ĐQ  Combo Viên uống DHC Biotin  & Kẽm  - Thực phẩm bảo vệ sức khoẻ DHC Biotin & ZinC - Combo 60 ngày & Combo 120 ngày ",
+     "revenue": 6059760,
+     "units": 8,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Kẽm và DHC Vitamin C 30 ngày dùng hỗ trợ ngừa mụn mờ thâm shop Cosin Store ",
+     "revenue": 5982000,
+     "units": 21,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " KẼM BIOTIN Viên Uống Giúp Mọc Tóc Nhanh Kích Thích Mọc Tóc Giảm Gãy Rụng Tóc Giúp Tóc Chắc Khoẻ ",
+     "revenue": 5950000,
+     "units": 7,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống DHC Zinc Bổ Sung Kẽm Gói 30 Ngày 30 Viên | HASAKI BEAUTY ",
+     "revenue": 5877596,
+     "units": 40,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  Tun Phạm x DHC  Viên uống DHC Kẽm ZinC hỗ trợ duy trì sức khỏe giúp cơ thể khỏe mạnh  20 Ngày & 60 Ngày  - TPBVSK DHC ZinC ",
+     "revenue": 5816685,
+     "units": 39,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Kẽm Zinc 30mg Nature Made  Hàng Mỹ  ",
+     "revenue": 5750000,
+     "units": 23,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Kẽm và Dầu hoa hồng  20 ngày  - Thực phẩm bảo vệ sức khoẻ DHC ZinC & Bulgarian Rose Capsule ",
+     "revenue": 5705000,
+     "units": 9,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo viên uống DHC ngăn ngừa rụng tóc chắc khỏe tóc 30 ngày gồm Viên uống Kẽm Zinc + Biotin ",
+     "revenue": 5445640,
+     "units": 53,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm Nutricost Zinc Picolinate tăng khả năng hấp thu tăng miễn dịch - Gymstore ",
+     "revenue": 5443200,
+     "units": 9,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  Chính hãng  Viên Uống Bổ Sung Kẽm Thorne Zinc Picolinate 15mg  60 viên  tại WheySinhVien Vn ",
+     "revenue": 5434000,
+     "units": 4,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Kẽm Glycinate - Albion Zinc Glycinate Swanson - 90 viên ",
+     "revenue": 5353000,
+     "units": 21,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung Kẽm KingSPEED Lọ 30 viên - Nguyên liệu nhập khẩu Đức - Hỗ trợ tăng cường sức khỏe ",
+     "revenue": 5149422,
+     "units": 14,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm Nhật Bản gói 60 viên  60 NGÀY  tăng đề kháng khỏe tóc da móng ",
+     "revenue": 5075000,
+     "units": 35,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống  giúp tăng cường sức khỏe cho nam giới Swisse Ultiboost Men’s Potency+ Bổ Sung Kẽm 450mg & Vitamin B ",
+     "revenue": 5066120,
+     "units": 6,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  HSD 04 27  Combo Viên uống DHC Adlay Extract & Kẽm  20ngày  - Combo TPBVSK DHC Adlay Extract & ZinC 20 ngày & 60 ngày ",
+     "revenue": 4976650,
+     "units": 15,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Collagen & Kẽm  20 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC Collagen  new  & ZinC ",
+     "revenue": 4930000,
+     "units": 13,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống Kẽm Zinc 50mg Nature’s Bounty  Hàng Mỹ  ",
+     "revenue": 4880000,
+     "units": 18,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Canxi Hữu Cơ Litocal Nhập Khẩu Pháp – Bổ Sung Canxi D3 K2 Magie Kẽm Hỗ Trợ Xương Khớp Ngừa Loãng Xương ",
+     "revenue": 4800000,
+     "units": 12,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " B O Viên uống kẽm ZinC Bis-Glycinate 25-50mg bổ sung kẽm hấp thu nhanh ",
+     "revenue": 4785000,
+     "units": 11,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  MUA 1 TẶNG 2  - Viên uống KINGS.UP Thái Minh - Hộp 120 viên - Tặng 1 Lọ Kẽm 15 viên + 1 tuýp C sủi ",
+     "revenue": 4676709,
+     "units": 3,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  DHC x Creator  Combo Viên uống DHC Vitamin C & Kẽm  20 ngày;60ngày & 120 ngày  - Thực phẩm bảo vệ sức khoẻ DHC Vitamin C & Zinc ",
+     "revenue": 4664326,
+     "units": 17,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống kẽm zinc 50mg now mỹ hộp 100 viên ",
+     "revenue": 4594663,
+     "units": 12,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Collagen & Kẽm  60 Ngày  - Thực phẩm bảo vệ sức khoẻ DHC Collagen  new  & ZinC ",
+     "revenue": 4570000,
+     "units": 5,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Bổ Sung Kẽm GBB Zinc Premium+ – Tăng Sức Đề Kháng Giảm Nguy Cơ Thiếu Kẽm Hộp 30 Viên ",
+     "revenue": 4514794,
+     "units": 60,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Thực Phẩm Bảo Vệ Sức Khỏe DHC Dạng Viên Uống Bổ Sung Kẽm 15 Ngày | HASAKI BEAUTY ",
+     "revenue": 4346811,
+     "units": 45,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Kẽm và DHC Vitamin C 30 ngày dùng hỗ trợ ngừa mụn mờ thâm Lumota Shop ",
+     "revenue": 4282000,
+     "units": 16,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  DHC x Creator  TPBVSK DHC Zinc dạng viên uống hỗ trợ bổ sung kẽm cho nam và nữ chính hãng - DHC Nhật Bản - Gói 20 Ngày và 60 Ngày ",
+     "revenue": 4266486,
+     "units": 28,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo viên uống bổ sung DHA và Kẽm ZinC Bioisland cho bé khỏe mạnh phát triển toàn diện ",
+     "revenue": 4255000,
+     "units": 6,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống tăng cường sinh lý nam giới Hàu biển ob bổ sung kẽm tinh chất hàu  Hộp 30v  ZLove ",
+     "revenue": 4213000,
+     "units": 9,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống kẽm Nhật Bản 60 viên   60 ngày ",
+     "revenue": 4167097,
+     "units": 31,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Combo TPBVSK DHC VITAMIN C HARD CAPSULE + TPBVSK DHC Zinc + Son dưỡng DHC Lip Cream  combo dạng viên uống hỗ trợ bổ sung Kẽm và Vitamin C + Son dưỡng cho nam và nữ 20 Ngày  ",
+     "revenue": 3769593,
+     "units": 7,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Vitamin C Vitamin D Viên nang Canxi Magie Kẽm và Vitamin D3 hỗ trợ sự phát triển của xương Viên uống bổ sung vitamin ",
+     "revenue": 3739229,
+     "units": 20,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống KẼM BIOTIN hộp 30 viên giúp đẹp tóc,móng khỏe,giảm sạm nám da ",
+     "revenue": 3710000,
+     "units": 25,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  MUA 1 TẶNG 1  VIÊN UỐNG CANXI NAO VẠN TAM-Hộp 100viên -Hỗ trợ bổ sung CANXI,D3,K2,KẼM,MAGIE,CALCIUM-NT Ngọc Huyền ",
+     "revenue": 3624446,
+     "units": 14,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Kẽm DSD 60 Ngày bổ sung kẽm - Viên uống DSD bổ sung Kẽm Biozinc Hộp 2 lọ x 30 viên ",
+     "revenue": 3575000,
+     "units": 13,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Zinc Bổ Sung Kẽm Gói 30 Ngày 30 Viên Zinc  30 Days Supply  ",
+     "revenue": 3555000,
+     "units": 25,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  Chính hãng  Viên uống bổ sung kẽm Thorne ZinC Picolinate 30MG | 180 viên ",
+     "revenue": 3507000,
+     "units": 3,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên Uống Biotin và Kẽm hỗ trợ giảm rụng tóc mọc tóc hiệu quả  Kẽm 30 viên & Biotin 60 viên  ",
+     "revenue": 3435000,
+     "units": 36,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm Swisse ZinC+ ",
+     "revenue": 3424000,
+     "units": 8,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống Canxi Magie Kẽm Vitamin D3 Calcium Magnesium Zinc Alliwise Hỗ Trợ Xương Cơ Chắc Khỏe Tăng Cường Miễn Dịch ",
+     "revenue": 3409835,
+     "units": 17,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  MP27a   Tăng Cường Thể Lực  Combo Viên Uống Vitamin B & Kẽm MP - Tăng Cường Sức Khỏe Cải Thiện Đề Kháng Hỗ Trợ Toàn Diện Dành Cho Nam Giới ",
+     "revenue": 3396008,
+     "units": 5,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung Canxi magie kẽm D3 Calcium Magnesium Zinc D3 SmallFamily ",
+     "revenue": 3360000,
+     "units": 11,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Canxi Magie Kẽm D3 Nature's Bounty Calcium Magnesium Zinc- Bảo Vệ Xương Khớp Toàn Diện ",
+     "revenue": 3306300,
+     "units": 11,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên uống bổ sung kẽm Nhật Bản 60 viên 60 ngày ",
+     "revenue": 3272114,
+     "units": 24,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống kẽm Canprev Zinc bisglycinate 25&50mg ",
+     "revenue": 3174000,
+     "units": 6,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Bổ Sung Kẽm Tăng Cường Trí Não Hệ Miễn Dịch Da Khỏe Mạnh - DHC Zinc 15 Ngày 30 Ngày ",
+     "revenue": 3167000,
+     "units": 41,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " DSD Kẽm DSD Plus Viên uống bổ sung Kẽm Nhân sâm đỏ Vitamin B1 B2 B6 Magie Lactat 30 viên hỗ trợ sức khỏe hàng ngày Không có hộp  ",
+     "revenue": 3135325,
+     "units": 27,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống ZMA NOW Foods Bổ Sung Kẽm Magie Vitamin B6 Giúp Ngủ Ngon Tăng Phục Hồi & Xây Dựng Cơ Bắp Hỗ Trợ Sinh Lý ",
+     "revenue": 2992937,
+     "units": 3,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung kẽm - Viên uống DSD bổ sung Kẽm Biozinc THUÔCTOT247 ",
+     "revenue": 2970000,
+     "units": 19,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " TPBVSK Viên Uống Bổ Sung Canxi Magie Kẽm Biocyte Cal Mag Zinc Liposomal ",
+     "revenue": 2960000,
+     "units": 5,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": "  Bill hãng  Viên uống kẽm giảm mụn ZINC FOR ACNE Puritan Pride 100v ",
+     "revenue": 2959000,
+     "units": 11,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  DHC x LONGCHUN  Viên uống DHC Kẽm ZinC hỗ trợ duy trì sức khỏe giúp cơ thể khỏe mạnh  20 Ngày & 60 Ngày  - TPBVSK DHC ZinC ",
+     "revenue": 2921839,
+     "units": 19,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  Chính Hãng Date Xa  Viên Uống Tinh Chất Hàu Bổ Sung Kẽm Vitamin cho Nam New Zealand Oyster Plus ",
+     "revenue": 2889915,
+     "units": 6,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " VIÊN UỐNG YẾN SÀO NEST STRONG TĂNG CƯỜNG SINH LÝ NAM GIỚI L-ARGININE 9.000MG KẼM 7.200MG ",
+     "revenue": 2880000,
+     "units": 3,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống Kẽm DHC Zinc Hỗ Trợ Làm Đẹp Da Khỏe Tóc Tốt Cho Trí Não 30 Ngày ",
+     "revenue": 2860000,
+     "units": 22,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống l-cystine B6  gồm kẽm vitamin E vitamin b6  ",
+     "revenue": 2850000,
+     "units": 19,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên uống bổ sung kẽm Nature’s Bounty Zinc 50mg 100 viên  và 400 viên ",
+     "revenue": 2835000,
+     "units": 7,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": "  MP27   Hàm Lượng Chuẩn  Viên Uống Kẽm MP Zinc  60 Ngày  - Viên Uống Bổ Sung Kẽm Và Vi Chất Tốt Hỗ Trợ Sức Khỏe Toàn Diện  Tặng Kèm Bọt Vệ Sinh Nam  - Hộp 60 Viên ",
+     "revenue": 2804094,
+     "units": 9,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Cazimak New Viên uống bổ sung Canxi D3K2 Magie Kẽm  cho mọi lứa tuổi | Nhập khẩu chính hãng Châu Âu ",
+     "revenue": 2800000,
+     "units": 8,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "tiktok",
+     "name": " Viên Uống Kẽm Zinc 50mg NOW Foods Hàm Lượng Cao Hỗ Trợ Giảm Mụn Giảm Rụng Tóc Tăng Sức Đề Kháng ",
+     "revenue": 2701040,
+     "units": 8,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Viên Uống DHC Bổ Sung Kẽm Zinc Nhật Bản - Marie Japan ",
+     "revenue": 2601000,
+     "units": 34,
+     "source": "response:/v2/market/analytics/products/"
+    },
+    {
+     "series": "topProducts",
+     "platform": "shopee",
+     "name": " Combo Viên uống DHC Adlay Extract & Kẽm  60 ngày  - Combo Thực phẩm bảo vệ sức khoẻ DHC Adlay Extract & ZinC ",
+     "revenue": 2590000,
+     "units": 3,
+     "source": "response:/v2/market/analytics/products/"
+    }
+   ],
+   "trendOffered": false,
+   "trendNote": "not offered by the source"
+  },
+  "files": [
+   {
+    "role": "raw-responses",
+    "path": "raw-responses.json",
+    "mediaType": "application/json",
+    "byteSize": 1187894,
+    "sha256": "cca455ed78602301f951fd33ded46783deb29729d4e427beba0439710a64390f"
+   },
+   {
+    "role": "snapshot",
+    "path": "snapshot.json",
+    "mediaType": "application/json",
+    "byteSize": 1079935,
+    "sha256": "0a227e78986c233174d3441444365bd62d1ba1464766fc625049cd79460fd30d"
+   },
+   {
+    "role": "results-html",
+    "path": "results.html",
+    "mediaType": "text/html",
+    "byteSize": 12448696,
+    "sha256": "909605b94405f15b550b96317605e596e7f62be0df1e54ab008af25744e8b829"
+   },
+   {
+    "role": "screenshot:all:monthly",
+    "path": "platform-all-region-monthly.png",
+    "mediaType": "image/png",
+    "byteSize": 123052,
+    "sha256": "188e893555321b732f8776ef4b54a40440782a4a084bb3d984b67c09bad55cc6"
+   },
+   {
+    "role": "screenshot:all:overview",
+    "path": "platform-all-region-overview.png",
+    "mediaType": "image/png",
+    "byteSize": 124132,
+    "sha256": "8282283c7ee9c7e44684bb191057540ce82a6cb46523bd1d9a4c50a15b8d635e"
+   },
+   {
+    "role": "screenshot:all:platform-chart",
+    "path": "platform-all-region-platform-chart.png",
+    "mediaType": "image/png",
+    "byteSize": 113849,
+    "sha256": "8f9d5d89b9ef7c1a184bcf2413b8593efa04d64775a71a9948f1c2896f3ef394"
+   },
+   {
+    "role": "screenshot:all:platform-split",
+    "path": "platform-all-region-platform-split.png",
+    "mediaType": "image/png",
+    "byteSize": 116360,
+    "sha256": "931bdf9cf9c16a64f2e37a7702e152ac9b68512bca0ed756d2f966f6ce158459"
+   },
+   {
+    "role": "screenshot:all:top-brands",
+    "path": "platform-all-region-top-brands.png",
+    "mediaType": "image/png",
+    "byteSize": 205642,
+    "sha256": "b3bca082d0494e818bbce9a8e067fef1293e4eb21efc5af61a6ca7ea1e692a3d"
+   },
+   {
+    "role": "screenshot:all:top-products",
+    "path": "platform-all-region-top-products.png",
+    "mediaType": "image/png",
+    "byteSize": 307565,
+    "sha256": "8f13e02bb0c7fb41d48e596d12a50e643a8dc551a7bc5c37d4c47a1e0947c09c"
+   },
+   {
+    "role": "screenshot:all:top-shops",
+    "path": "platform-all-region-top-shops.png",
+    "mediaType": "image/png",
+    "byteSize": 249795,
+    "sha256": "6d57ecba58087102eec3337d0bb9c46ffc2b3a2b8f80ed82f851bf6d3e15593a"
+   }
+  ],
+  "screenshotSkips": [
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "brand-shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "category",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "price",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "shop-type",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-brand",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   },
+   {
+    "platform": "all",
+    "region": "top10-shop",
+    "reason": "RESULT_REGION_NOT_FOUND"
+   }
+  ],
+  "archive": {
+   "rawResponses": "raw-responses.json",
+   "normalizedSnapshot": "snapshot.json",
+   "resultsHtml": "results.html",
+   "screenshots": [
+    "platform-all-region-monthly.png",
+    "platform-all-region-overview.png",
+    "platform-all-region-platform-chart.png",
+    "platform-all-region-platform-split.png",
+    "platform-all-region-top-brands.png",
+    "platform-all-region-top-products.png",
+    "platform-all-region-top-shops.png"
+   ]
+  },
+  "noReportFileRequested": true,
+  "captureGate": {
+   "cleared": true
+  }
+ }
+}

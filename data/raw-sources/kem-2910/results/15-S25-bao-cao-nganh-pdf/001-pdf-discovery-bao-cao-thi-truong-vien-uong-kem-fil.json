@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "15 · S25 · Báo cáo ngành, tài liệu PDF",
+  "describe": "pdf.discovery báo cáo thị trường viên uống kẽm filetype:pdf -site:studocu.vn -site:scribd.com",
+  "parentFile": "15-S25-bao-cao-nganh-pdf.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S25",
+  "sourceName": "Báo cáo ngành, tài liệu PDF",
+  "provider": "Tìm bằng SerpApi (lượt 26/10) + tải trực tiếp",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Tài liệu có trên mạng lúc thu; năm phát hành ghi trong tài liệu"
+  },
+  "limits": [
+   "Tối đa 2 tệp, mỗi tệp tối đa 60 trang khi đọc",
+   "Tài liệu tìm tự động cho từ khoá bất kỳ thường Yếu hoặc không liên quan; cần lọc",
+   "Tệp PDF không có trong kho; chỉ giữ url + sha256"
+  ],
+  "resultSha256": "97727944142c0b44dde287ae649ec0e3fef40b7168f15d2fddbe887f353397dd"
+ },
+ "result": {
+  "operation": "pdf.discovery",
+  "origin": "SAVED_26_10_RUN",
+  "query": "báo cáo thị trường viên uống kẽm filetype:pdf -site:studocu.vn -site:scribd.com",
+  "candidates": [
+   {
+    "position": 1,
+    "title": "XU HƯỚNG NGHIÊN CỨU VÀ ỨNG DỤNG CÁC HOẠT CHẤT ...",
+    "link": "https://thongke.cesti.gov.vn/images/BCPTXHCN/OVERVIEW/201801301022297533Tongquan%20_Ky%2008%20-%20cong%20nghe%20nano%20trong%20thao%20duoc%20-27.10.2017%20Final.pdf",
+    "source": "cesti.gov.vn"
+   },
+   {
+    "position": 2,
+    "title": "BÁO CÁO ĐÁNH GIÁ 05 NĂM THỰC HIỆN NGHỊ ĐỊNH SỐ 09 ...",
+    "link": "https://qppl.dienbien.gov.vn/qlvb/vbpq.nsf/3d0f058120469ad34725726600365420/E8020D675458354E4725881A0001D4B3/$file/B%C3%81O%20C%C3%81O%20%C4%90%C3%81NH%20GI%C3%81%205%20N%C4%82M%20THI%20H%C3%80NH%20NGH%E1%BB%8A%20%C4%90%E1%BB%8ANH%2009%20-%2031.3.2022.pdf",
+    "source": "dienbien.gov.vn"
+   },
+   {
+    "position": 3,
+    "title": "Xác định nồng độ kẽm, đồng, canxi trong huyết thanh và ...",
+    "link": "https://tcydls108.benhvien108.vn/index.php/YDLS/article/download/922/582",
+    "source": "Tạp chí Y Dược lâm sàng 108"
+   },
+   {
+    "position": 4,
+    "title": "Báo cáo Xuất nhập khẩu Việt Nam 2024",
+    "link": "https://trungtamwto.vn/file/23903/bao-cao-xnk-vn-2024-1534_compressed.pdf",
+    "source": "Trung tâm WTO và Hội nhập"
+   },
+   {
+    "position": 5,
+    "title": "Tên đề tài: NGHIÊN CỨU VỀ THỊ TRƯỜNG SỮA BỘT CỦA ...",
+    "link": "https://siu.edu.vn/wp-content/uploads/2022/12/luu-minh-quoc.pdf",
+    "source": "Trường Đại học Quốc tế Sài Gòn - SIU"
+   },
+   {
+    "position": 6,
+    "title": "báo cáo phát triển bền vững",
+    "link": "https://traphaco.com.vn/upload/shareholder/attach/20200730_TRA_SR2019_nen.pdf",
+    "source": "Traphaco"
+   },
+   {
+    "position": 7,
+    "title": "Báo cáo Hiện trạng môi trường quốc gia giai đoạn 2016",
+    "link": "https://moit.gov.vn/upload/2005517/fck/files/20211108_Bao_cao_HTMT_2016-2020_F_a4980.pdf",
+    "source": "moit.gov.vn"
+   },
+   {
+    "position": 8,
+    "title": "Quy định về quản lý thực phẩm chức năng",
+    "link": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2023/11/11-vbhn-byt.pdf",
+    "source": "Cổng Thông tin điện tử Chính phủ"
+   },
+   {
+    "position": 9,
+    "title": "BỘ Y TẾ",
+    "link": "https://viendinhduong.vn/storage/app/uploads/public/2025/04/03/y2022m05d19_qd_1294_vv_ban_hanh_kh_thuc_hien_hd_qgdd_den_nam_2025.pdf",
+    "source": "Viện dinh dưỡng"
+   },
+   {
+    "position": 10,
+    "title": "các báo cáo phân tích và dự báo thống kê năm 2023",
+    "link": "https://www.nso.gov.vn/wp-content/uploads/2024/05/Bao-cao-PTDB-nam-2023.pdf",
+    "source": "General Statistics Office of Vietnam"
+   }
+  ]
+ }
+}

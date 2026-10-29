@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «có nên uống kẽm» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[73]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "c5d2052d3e51da6be145838808547b2c7b36c8cfa4bea1dfab7ceb91d5a0179f"
+ },
+ "result": {
+  "prefix": "có nên uống kẽm",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:35Z",
+  "suggestions": [
+   "có nên uống kẽm mỗi ngày không",
+   "có nên uống kẽm amagain không",
+   "có nên uống kẽm vào buổi chiều",
+   "có nên uống kẽm cùng canxi",
+   "có nên uống kẽm và vitamin c cùng lúc",
+   "có nên uống kẽm trước khi ngủ",
+   "có nên uống kẽm ada",
+   "có nên uống kẽm trước khi ăn sáng không",
+   "có nên uống kẽm sau ăn",
+   "có nên uống kẽm trước khi ăn"
+  ],
+  "raw": [
+   "có nên uống kẽm",
+   [
+    "có nên uống kẽm mỗi ngày không",
+    "có nên uống kẽm amagain không",
+    "có nên uống kẽm vào buổi chiều",
+    "có nên uống kẽm cùng canxi",
+    "có nên uống kẽm và vitamin c cùng lúc",
+    "có nên uống kẽm trước khi ngủ",
+    "có nên uống kẽm ada",
+    "có nên uống kẽm trước khi ăn sáng không",
+    "có nên uống kẽm sau ăn",
+    "có nên uống kẽm trước khi ăn"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

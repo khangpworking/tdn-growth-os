@@ -1,0 +1,102 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm u» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[68]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "1f346bee1c438ba2fcf4bbbd1f12ffe96c0fda778594f3bfe7b11700d86433d2"
+ },
+ "result": {
+  "prefix": "uống kẽm u",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:32Z",
+  "suggestions": [
+   "uống kẽm xong uống sữa được không",
+   "uống kẽm nên uống lúc nào",
+   "uống kẽm cách uống sữa bao lâu",
+   "uống kẽm sau uống sữa được không",
+   "uống kẽm xong uống nước cam được không",
+   "uống kẽm xong uống cafe được không",
+   "uống kẽm sau uống sữa bao lâu",
+   "uống kẽm có uống bia được không",
+   "uống kẽm nên uống trước ăn hay sau ăn",
+   "uống kẽm nên uống buổi nào"
+  ],
+  "raw": [
+   "uống kẽm u",
+   [
+    "uống kẽm xong uống sữa được không",
+    "uống kẽm nên uống lúc nào",
+    "uống kẽm cách uống sữa bao lâu",
+    "uống kẽm sau uống sữa được không",
+    "uống kẽm xong uống nước cam được không",
+    "uống kẽm xong uống cafe được không",
+    "uống kẽm sau uống sữa bao lâu",
+    "uống kẽm có uống bia được không",
+    "uống kẽm nên uống trước ăn hay sau ăn",
+    "uống kẽm nên uống buổi nào"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

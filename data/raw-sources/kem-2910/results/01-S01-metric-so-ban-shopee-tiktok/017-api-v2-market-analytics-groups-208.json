@@ -1,0 +1,990 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API POST /v2/market/analytics/groups/ (thứ tự 208)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[208]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "f5e160b480e97647efecd2618cd33da1467ce38eb4554beac5cdfde6a43d551d"
+ },
+ "result": {
+  "urlPath": "/v2/market/analytics/groups/",
+  "responseOrder": 208,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": {
+    "groups": [
+     {
+      "ranking": 1,
+      "previous_ranking": 1,
+      "brand": "Dhc",
+      "shop_total": 72,
+      "product_total": 152,
+      "order_custom_sum": 20686,
+      "revenue_custom_sum": 4891948160,
+      "avg_price": 236485,
+      "previous_order_custom_sum": 23184,
+      "previous_revenue_custom_sum": 5253559645,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Dhc",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 1624,
+          "revenue_custom": 175196965
+         },
+         "1": {
+          "order_custom": 11183,
+          "revenue_custom": 3075713378
+         }
+        },
+        "shop_total": 57,
+        "product_total": 98,
+        "order_custom_sum": 12807,
+        "revenue_custom_sum": 3250910343,
+        "avg_price": 253838,
+        "previous_order_custom_sum": 15038,
+        "previous_revenue_custom_sum": 3740832976
+       },
+       {
+        "brand": "Dhc",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 600,
+          "revenue_custom": 48555571
+         },
+         "1": {
+          "order_custom": 7279,
+          "revenue_custom": 1592482246
+         }
+        },
+        "shop_total": 15,
+        "product_total": 54,
+        "order_custom_sum": 7879,
+        "revenue_custom_sum": 1641037817,
+        "avg_price": 208279,
+        "previous_order_custom_sum": 8146,
+        "previous_revenue_custom_sum": 1512726669
+       }
+      ]
+     },
+     {
+      "ranking": 2,
+      "previous_ranking": 2,
+      "brand": "Dsd",
+      "shop_total": 2,
+      "product_total": 3,
+      "order_custom_sum": 21849,
+      "revenue_custom_sum": 4343683343,
+      "avg_price": 198804,
+      "previous_order_custom_sum": 23419,
+      "previous_revenue_custom_sum": 4653917943,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Dsd",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 21849,
+          "revenue_custom": 4343683343
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 2,
+        "product_total": 3,
+        "order_custom_sum": 21849,
+        "revenue_custom_sum": 4343683343,
+        "avg_price": 198804,
+        "previous_order_custom_sum": 23419,
+        "previous_revenue_custom_sum": 4653917943
+       }
+      ]
+     },
+     {
+      "ranking": 3,
+      "previous_ranking": 3,
+      "brand": "Thái Minh",
+      "shop_total": 4,
+      "product_total": 5,
+      "order_custom_sum": 3277,
+      "revenue_custom_sum": 1282192316,
+      "avg_price": 391270,
+      "previous_order_custom_sum": 3787,
+      "previous_revenue_custom_sum": 1263036841,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Thái Minh",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 3277,
+          "revenue_custom": 1282192316
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 4,
+        "product_total": 5,
+        "order_custom_sum": 3277,
+        "revenue_custom_sum": 1282192316,
+        "avg_price": 391270,
+        "previous_order_custom_sum": 3787,
+        "previous_revenue_custom_sum": 1263036841
+       }
+      ]
+     },
+     {
+      "ranking": 4,
+      "previous_ranking": 4,
+      "brand": "Acnacare Mega We Care",
+      "shop_total": 1,
+      "product_total": 1,
+      "order_custom_sum": 4267,
+      "revenue_custom_sum": 648634748,
+      "avg_price": 152011,
+      "previous_order_custom_sum": 3338,
+      "previous_revenue_custom_sum": 544873852,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Acnacare Mega We Care",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         },
+         "1": {
+          "order_custom": 4267,
+          "revenue_custom": 648634748
+         }
+        },
+        "shop_total": 1,
+        "product_total": 1,
+        "order_custom_sum": 4267,
+        "revenue_custom_sum": 648634748,
+        "avg_price": 152011,
+        "previous_order_custom_sum": 3338,
+        "previous_revenue_custom_sum": 544873852
+       }
+      ]
+     },
+     {
+      "ranking": 5,
+      "previous_ranking": 5,
+      "brand": "Mega We Care",
+      "shop_total": 4,
+      "product_total": 6,
+      "order_custom_sum": 3374,
+      "revenue_custom_sum": 506905220,
+      "avg_price": 150238,
+      "previous_order_custom_sum": 3144,
+      "previous_revenue_custom_sum": 442372124,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Mega We Care",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 55,
+          "revenue_custom": 7436000
+         },
+         "1": {
+          "order_custom": 3319,
+          "revenue_custom": 499469220
+         }
+        },
+        "shop_total": 4,
+        "product_total": 6,
+        "order_custom_sum": 3374,
+        "revenue_custom_sum": 506905220,
+        "avg_price": 150238,
+        "previous_order_custom_sum": 3144,
+        "previous_revenue_custom_sum": 442372124
+       }
+      ]
+     },
+     {
+      "ranking": 6,
+      "previous_ranking": 6,
+      "brand": "Dsdpharma",
+      "shop_total": 4,
+      "product_total": 5,
+      "order_custom_sum": 1706,
+      "revenue_custom_sum": 318004442,
+      "avg_price": 186403,
+      "previous_order_custom_sum": 1671,
+      "previous_revenue_custom_sum": 295498535,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Dsdpharma",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 1534,
+          "revenue_custom": 278685017
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 2,
+        "product_total": 3,
+        "order_custom_sum": 1534,
+        "revenue_custom_sum": 278685017,
+        "avg_price": 181672,
+        "previous_order_custom_sum": 1468,
+        "previous_revenue_custom_sum": 265828810
+       },
+       {
+        "brand": "Dsdpharma",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 172,
+          "revenue_custom": 39319425
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 2,
+        "product_total": 2,
+        "order_custom_sum": 172,
+        "revenue_custom_sum": 39319425,
+        "avg_price": 228601,
+        "previous_order_custom_sum": 203,
+        "previous_revenue_custom_sum": 29669725
+       }
+      ]
+     },
+     {
+      "ranking": 7,
+      "previous_ranking": 7,
+      "brand": "Biocyte",
+      "shop_total": 15,
+      "product_total": 17,
+      "order_custom_sum": 358,
+      "revenue_custom_sum": 281129705,
+      "avg_price": 785278,
+      "previous_order_custom_sum": 357,
+      "previous_revenue_custom_sum": 274147328,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Biocyte",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 47,
+          "revenue_custom": 40502575
+         },
+         "1": {
+          "order_custom": 161,
+          "revenue_custom": 135992530
+         }
+        },
+        "shop_total": 6,
+        "product_total": 6,
+        "order_custom_sum": 208,
+        "revenue_custom_sum": 176495105,
+        "avg_price": 848534,
+        "previous_order_custom_sum": 210,
+        "previous_revenue_custom_sum": 177018368
+       },
+       {
+        "brand": "Biocyte",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 29,
+          "revenue_custom": 20968600
+         },
+         "1": {
+          "order_custom": 121,
+          "revenue_custom": 83666000
+         }
+        },
+        "shop_total": 9,
+        "product_total": 11,
+        "order_custom_sum": 150,
+        "revenue_custom_sum": 104634600,
+        "avg_price": 697564,
+        "previous_order_custom_sum": 147,
+        "previous_revenue_custom_sum": 97128960
+       }
+      ]
+     },
+     {
+      "ranking": 8,
+      "previous_ranking": 10,
+      "brand": "Now",
+      "shop_total": 10,
+      "product_total": 16,
+      "order_custom_sum": 419,
+      "revenue_custom_sum": 241860615,
+      "avg_price": 577232,
+      "previous_order_custom_sum": 252,
+      "previous_revenue_custom_sum": 169531782,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Now",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 24,
+          "revenue_custom": 14376847
+         },
+         "1": {
+          "order_custom": 250,
+          "revenue_custom": 140451743
+         }
+        },
+        "shop_total": 2,
+        "product_total": 5,
+        "order_custom_sum": 274,
+        "revenue_custom_sum": 154828590,
+        "avg_price": 565067,
+        "previous_order_custom_sum": 194,
+        "previous_revenue_custom_sum": 127488043
+       },
+       {
+        "brand": "Now",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 145,
+          "revenue_custom": 87032025
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 8,
+        "product_total": 11,
+        "order_custom_sum": 145,
+        "revenue_custom_sum": 87032025,
+        "avg_price": 600220,
+        "previous_order_custom_sum": 58,
+        "previous_revenue_custom_sum": 42043739
+       }
+      ]
+     },
+     {
+      "ranking": 9,
+      "previous_ranking": 8,
+      "brand": "Orihiro",
+      "shop_total": 3,
+      "product_total": 4,
+      "order_custom_sum": 312,
+      "revenue_custom_sum": 221535795,
+      "avg_price": 710050,
+      "previous_order_custom_sum": 277,
+      "previous_revenue_custom_sum": 223426345,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Orihiro",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         },
+         "1": {
+          "order_custom": 309,
+          "revenue_custom": 219899795
+         }
+        },
+        "shop_total": 1,
+        "product_total": 2,
+        "order_custom_sum": 309,
+        "revenue_custom_sum": 219899795,
+        "avg_price": 711649,
+        "previous_order_custom_sum": 277,
+        "previous_revenue_custom_sum": 223426345
+       },
+       {
+        "brand": "Orihiro",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 2,
+          "revenue_custom": 1057000
+         },
+         "1": {
+          "order_custom": 1,
+          "revenue_custom": 579000
+         }
+        },
+        "shop_total": 2,
+        "product_total": 2,
+        "order_custom_sum": 3,
+        "revenue_custom_sum": 1636000,
+        "avg_price": 545333,
+        "previous_order_custom_sum": 0,
+        "previous_revenue_custom_sum": 0
+       }
+      ]
+     },
+     {
+      "ranking": 10,
+      "previous_ranking": 11,
+      "brand": "Goodhealth Naturally New Zealand",
+      "shop_total": 1,
+      "product_total": 1,
+      "order_custom_sum": 300,
+      "revenue_custom_sum": 132919472,
+      "avg_price": 443064,
+      "previous_order_custom_sum": 339,
+      "previous_revenue_custom_sum": 152571014,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Goodhealth Naturally New Zealand",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         },
+         "1": {
+          "order_custom": 300,
+          "revenue_custom": 132919472
+         }
+        },
+        "shop_total": 1,
+        "product_total": 1,
+        "order_custom_sum": 300,
+        "revenue_custom_sum": 132919472,
+        "avg_price": 443064,
+        "previous_order_custom_sum": 339,
+        "previous_revenue_custom_sum": 152571014
+       }
+      ]
+     },
+     {
+      "ranking": 11,
+      "previous_ranking": 13,
+      "brand": "Puritan'S Pride",
+      "shop_total": 9,
+      "product_total": 18,
+      "order_custom_sum": 439,
+      "revenue_custom_sum": 123514457,
+      "avg_price": 281354,
+      "previous_order_custom_sum": 497,
+      "previous_revenue_custom_sum": 106365815,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Puritan'S Pride",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 432,
+          "revenue_custom": 121246000
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 8,
+        "product_total": 16,
+        "order_custom_sum": 432,
+        "revenue_custom_sum": 121246000,
+        "avg_price": 280662,
+        "previous_order_custom_sum": 494,
+        "previous_revenue_custom_sum": 105593000
+       },
+       {
+        "brand": "Puritan'S Pride",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 7,
+          "revenue_custom": 2268457
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 1,
+        "product_total": 2,
+        "order_custom_sum": 7,
+        "revenue_custom_sum": 2268457,
+        "avg_price": 324065,
+        "previous_order_custom_sum": 3,
+        "previous_revenue_custom_sum": 772815
+       }
+      ]
+     },
+     {
+      "ranking": 12,
+      "previous_ranking": 16,
+      "brand": "Good Health",
+      "shop_total": 5,
+      "product_total": 5,
+      "order_custom_sum": 289,
+      "revenue_custom_sum": 120578033,
+      "avg_price": 417225,
+      "previous_order_custom_sum": 176,
+      "previous_revenue_custom_sum": 71642792,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Good Health",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 2,
+          "revenue_custom": 1028000
+         },
+         "1": {
+          "order_custom": 257,
+          "revenue_custom": 103977000
+         }
+        },
+        "shop_total": 4,
+        "product_total": 4,
+        "order_custom_sum": 259,
+        "revenue_custom_sum": 105005000,
+        "avg_price": 405424,
+        "previous_order_custom_sum": 147,
+        "previous_revenue_custom_sum": 56583120
+       },
+       {
+        "brand": "Good Health",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 30,
+          "revenue_custom": 15573033
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 1,
+        "product_total": 1,
+        "order_custom_sum": 30,
+        "revenue_custom_sum": 15573033,
+        "avg_price": 519101,
+        "previous_order_custom_sum": 29,
+        "previous_revenue_custom_sum": 15059672
+       }
+      ]
+     },
+     {
+      "ranking": 13,
+      "previous_ranking": 19,
+      "brand": "Nature'S Key",
+      "shop_total": 1,
+      "product_total": 2,
+      "order_custom_sum": 430,
+      "revenue_custom_sum": 112317438,
+      "avg_price": 261203,
+      "previous_order_custom_sum": 197,
+      "previous_revenue_custom_sum": 47222583,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Nature'S Key",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 430,
+          "revenue_custom": 112317438
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 1,
+        "product_total": 2,
+        "order_custom_sum": 430,
+        "revenue_custom_sum": 112317438,
+        "avg_price": 261203,
+        "previous_order_custom_sum": 197,
+        "previous_revenue_custom_sum": 47222583
+       }
+      ]
+     },
+     {
+      "ranking": 14,
+      "previous_ranking": 14,
+      "brand": "Doppelherz",
+      "shop_total": 4,
+      "product_total": 6,
+      "order_custom_sum": 243,
+      "revenue_custom_sum": 80251500,
+      "avg_price": 330253,
+      "previous_order_custom_sum": 280,
+      "previous_revenue_custom_sum": 88889300,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Doppelherz",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 5,
+          "revenue_custom": 1521500
+         },
+         "1": {
+          "order_custom": 238,
+          "revenue_custom": 78730000
+         }
+        },
+        "shop_total": 4,
+        "product_total": 6,
+        "order_custom_sum": 243,
+        "revenue_custom_sum": 80251500,
+        "avg_price": 330253,
+        "previous_order_custom_sum": 280,
+        "previous_revenue_custom_sum": 88889300
+       }
+      ]
+     },
+     {
+      "ranking": 15,
+      "previous_ranking": 15,
+      "brand": "Webber Naturals",
+      "shop_total": 2,
+      "product_total": 2,
+      "order_custom_sum": 140,
+      "revenue_custom_sum": 78704293,
+      "avg_price": 562173,
+      "previous_order_custom_sum": 135,
+      "previous_revenue_custom_sum": 86166532,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Webber Naturals",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         },
+         "1": {
+          "order_custom": 140,
+          "revenue_custom": 78704293
+         }
+        },
+        "shop_total": 2,
+        "product_total": 2,
+        "order_custom_sum": 140,
+        "revenue_custom_sum": 78704293,
+        "avg_price": 562173,
+        "previous_order_custom_sum": 133,
+        "previous_revenue_custom_sum": 85028532
+       },
+       {
+        "brand": "Webber Naturals",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 0,
+        "product_total": 0,
+        "order_custom_sum": 0,
+        "revenue_custom_sum": 0,
+        "avg_price": -2147483648,
+        "previous_order_custom_sum": 2,
+        "previous_revenue_custom_sum": 1138000
+       }
+      ]
+     },
+     {
+      "ranking": 16,
+      "previous_ranking": 9,
+      "brand": "N Nufarm",
+      "shop_total": 1,
+      "product_total": 2,
+      "order_custom_sum": 79,
+      "revenue_custom_sum": 60901806,
+      "avg_price": 770908,
+      "previous_order_custom_sum": 265,
+      "previous_revenue_custom_sum": 195088618,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "N Nufarm",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 79,
+          "revenue_custom": 60901806
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 1,
+        "product_total": 2,
+        "order_custom_sum": 79,
+        "revenue_custom_sum": 60901806,
+        "avg_price": 770908,
+        "previous_order_custom_sum": 265,
+        "previous_revenue_custom_sum": 195088618
+       }
+      ]
+     },
+     {
+      "ranking": 17,
+      "previous_ranking": 18,
+      "brand": "Solgar",
+      "shop_total": 1,
+      "product_total": 1,
+      "order_custom_sum": 73,
+      "revenue_custom_sum": 57338215,
+      "avg_price": 785455,
+      "previous_order_custom_sum": 66,
+      "previous_revenue_custom_sum": 51440030,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Solgar",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         },
+         "1": {
+          "order_custom": 73,
+          "revenue_custom": 57338215
+         }
+        },
+        "shop_total": 1,
+        "product_total": 1,
+        "order_custom_sum": 73,
+        "revenue_custom_sum": 57338215,
+        "avg_price": 785455,
+        "previous_order_custom_sum": 66,
+        "previous_revenue_custom_sum": 51440030
+       }
+      ]
+     },
+     {
+      "ranking": 18,
+      "previous_ranking": 23,
+      "brand": "Bio Island",
+      "shop_total": 4,
+      "product_total": 4,
+      "order_custom_sum": 76,
+      "revenue_custom_sum": 53894000,
+      "avg_price": 709131,
+      "previous_order_custom_sum": 60,
+      "previous_revenue_custom_sum": 40139520,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Bio Island",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 2,
+          "revenue_custom": 1272000
+         },
+         "1": {
+          "order_custom": 74,
+          "revenue_custom": 52622000
+         }
+        },
+        "shop_total": 4,
+        "product_total": 4,
+        "order_custom_sum": 76,
+        "revenue_custom_sum": 53894000,
+        "avg_price": 709131,
+        "previous_order_custom_sum": 60,
+        "previous_revenue_custom_sum": 40139520
+       }
+      ]
+     },
+     {
+      "ranking": 19,
+      "previous_ranking": 20,
+      "brand": "Swisse",
+      "shop_total": 3,
+      "product_total": 5,
+      "order_custom_sum": 60,
+      "revenue_custom_sum": 46899390,
+      "avg_price": 781656,
+      "previous_order_custom_sum": 61,
+      "previous_revenue_custom_sum": 43807512,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Swisse",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 8,
+          "revenue_custom": 3992000
+         },
+         "1": {
+          "order_custom": 46,
+          "revenue_custom": 37841270
+         }
+        },
+        "shop_total": 2,
+        "product_total": 4,
+        "order_custom_sum": 54,
+        "revenue_custom_sum": 41833270,
+        "avg_price": 774690,
+        "previous_order_custom_sum": 52,
+        "previous_revenue_custom_sum": 35970407
+       },
+       {
+        "brand": "Swisse",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         },
+         "1": {
+          "order_custom": 6,
+          "revenue_custom": 5066120
+         }
+        },
+        "shop_total": 1,
+        "product_total": 1,
+        "order_custom_sum": 6,
+        "revenue_custom_sum": 5066120,
+        "avg_price": 844353,
+        "previous_order_custom_sum": 9,
+        "previous_revenue_custom_sum": 7837105
+       }
+      ]
+     },
+     {
+      "ranking": 20,
+      "previous_ranking": 17,
+      "brand": "Kirkland",
+      "shop_total": 1,
+      "product_total": 1,
+      "order_custom_sum": 54,
+      "revenue_custom_sum": 43140330,
+      "avg_price": 798895,
+      "previous_order_custom_sum": 66,
+      "previous_revenue_custom_sum": 56408442,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Kirkland",
+        "platform_id": 8,
+        "official_type": {
+         "0": {
+          "order_custom": 54,
+          "revenue_custom": 43140330
+         },
+         "1": {
+          "order_custom": 0,
+          "revenue_custom": 0
+         }
+        },
+        "shop_total": 1,
+        "product_total": 1,
+        "order_custom_sum": 54,
+        "revenue_custom_sum": 43140330,
+        "avg_price": 798895,
+        "previous_order_custom_sum": 66,
+        "previous_revenue_custom_sum": 56408442
+       }
+      ]
+     }
+    ]
+   },
+   "code": "SUCCESS"
+  },
+  "method": "POST",
+  "timestamp": 1792979731632,
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"viên uống kẽm\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":true,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom_sum__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\",\"fields\":null}"
+ }
+}

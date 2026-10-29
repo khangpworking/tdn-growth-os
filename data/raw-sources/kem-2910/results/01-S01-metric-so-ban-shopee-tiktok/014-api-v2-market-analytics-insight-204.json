@@ -1,0 +1,109 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API POST /v2/market/analytics/insight/ (thứ tự 204)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[204]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "be3f4f2af7801f6a29080537187324f4f02a313490cd235c0561face519f0901"
+ },
+ "result": {
+  "urlPath": "/v2/market/analytics/insight/",
+  "responseOrder": 204,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": [
+    {
+     "platform_id": 1,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 1055469554,
+       "order_custom_sum": 4185
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 978784828,
+       "order_custom_sum": 3890
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 1137942082,
+       "order_custom_sum": 4611
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 1329131652,
+       "order_custom_sum": 5331
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 416605920,
+       "order_custom_sum": 1571
+      }
+     ]
+    },
+    {
+     "platform_id": 8,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 2298549136,
+       "order_custom_sum": 9481
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 2419923478,
+       "order_custom_sum": 9836
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 2655786255,
+       "order_custom_sum": 10642
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 2541530838,
+       "order_custom_sum": 10703
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 618849375,
+       "order_custom_sum": 2608
+      }
+     ]
+    }
+   ],
+   "code": "SUCCESS"
+  },
+  "method": "POST",
+  "timestamp": 1792979731630,
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"viên uống kẽm\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":true,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"start_date\":\"20260921\",\"end_date\":\"20261020\",\"interval_days\":7}"
+ }
+}

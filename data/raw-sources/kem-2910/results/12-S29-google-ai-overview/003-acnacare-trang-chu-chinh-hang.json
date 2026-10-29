@@ -1,0 +1,35 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "12 · S29 · Bản tổng hợp AI của Google (AI Overview)",
+  "describe": "Google AI Overview cho câu «Acnacare trang chủ chính hãng» (page_token_expired)",
+  "parentFile": "12-S29-google-ai-overview.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S29",
+  "sourceName": "Bản tổng hợp AI của Google (AI Overview)",
+  "provider": "SerpApi engine=google (+ google_ai_overview khi cần page_token)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Câu trả lời của Google lúc thu"
+  },
+  "limits": [
+   "AI không phải bằng chứng; mọi ý phải kiểm lại bằng lời khách thật",
+   "page_token hết hạn sau vài phút nên token của 26/10 không dùng lại được"
+  ],
+  "resultSha256": "f9fff8318215abd3df9409411325d51d855dc5a0b0e0b4b729707eaf4c2fe1ff"
+ },
+ "result": {
+  "origin": "SAVED_26_10_RUN",
+  "query": "Acnacare trang chủ chính hãng",
+  "engine": "google",
+  "requestedAt": "2026-10-26T02:03:10.662Z",
+  "aiOverviewState": "page_token_expired",
+  "ai_overview": {
+   "page_token": "jIqwVHiczVXdcqJKEL47V-c1wk0SQYgRUkVtzQCaUZOACZvojYUDDkZxFFA2udt3OU91nmYHBIVEs9ncnNNVzG9Pd38z_dE__5lPF7N___7Lj-NldMXzSZLUCKVk7tUwDXgnellgfkLnUYj9b_5c3Uw5wtoF97JRJQ5HqsB5U1UKHzwnfEG38YMhmIYZKHqXWjdcdlwdjZ3Ie2bWfzxH_IhnzexE0tmkFtU209q5IiiR3G-GjaQmCqJUu-OdgCmA_0IoAoh190D7UI2A1ufsGeybAjArLVm5abhfGuQzA2jpAS11cFBQqkjSbYK2cTAx5YGcCADo1i66DwQBaz_p7SJJ_d6n2x8efi87FPmFfHxvR7bR1pS1VyrFCN_rF5JUZl1myAR6-cR-pOV-Soaze0xdwwToiUeMGwOWtg8Gr03B3RAYEH2kVzi3lZ09pMXMNeRdwjJb4Mch6-r8FPs4G4RRmvDagyJQY_GqW1LdHNqt16Z5u_E2oK49raDSbQIej5nenDqu5478kfAtm9fFekNQpKZ8ljENRzuqRWWqmUTpxO3JBfJvar0arBc807aPXwRaxWB1DyIlDJgGjmcaefNqg2JgwLIzoOUGrJQkrB1U_GtEALiklT74zQD0WO6XHBul0SGeZQIrA3bEzsIkW0ZlUvaMWBYhWsZTEv09arLNK1S2ZMA8PbUd_HaB9u09I4i2Jqw34e7AQL2bJlDGs-46h3ZnFfC7BDhaJ0NUBUOYArLydVQElPflf0EK10Bsz7CZrnbf8kEntW3k8Anp5pppb5VfEYD-uxvZikH07P_3RbE_pQVBwac39KjQarlMWlL_Ub9U4HI2SNrnbOlJhtRcWodpRIPxH5Qs_D8lWlHQyPbRjxPNBZ8iWlbQDhMN7ppyQbMzu4QcJRpMM-9wQSv-7_sgDhANGf090fKC1j5W0P6caBm440QrSHGIaPA-36sSbXmcaCmQCtHQxKgUtD3RqgWtINoXC5r99YKWEc_bdtXqtn4mR6vctR2-Dr_rVGuBvg6sAVhfj5-bj2vsaMlvq9wkiK8Cx52fjabuFRQ78Yt7NmIL9MpzuZUK8MLBTuidxqGzIKfYPzHqJxCegGY61qQToC_80-1IWhAumIdUFZyLbns29kN8HoD1-FqfSlSa36CN-NC-bF6K9eTChlQcPqwGzuMcPQ0v3LaEmqPedyxSW2_317eNmfysrzfx4nyyGnTQTKmb9G5oPQph8LoynSTWBCyFlotWLVlqNJ4EayXLjW7jFXVC_4c9012tESQ0Rs01vu6JSRZYpOpDYyp5xrkZIi4Iscoe7YKAWws8AuCkT90hkKUK-1jfY32PQmBdD4DFCpWlU_ZMXISdkRdtVHEsiZKriBPRwxNHlrmAxC9LVRG4aBGq9V-gpmCT",
+   "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=jIqwVHiczVXdcqJKEL47V-c1wk0SQYgRUkVtzQCaUZOACZvojYUDDkZxFFA2udt3OU91nmYHBIVEs9ncnNNVzG9Pd38z_dE__5lPF7N___7Lj-NldMXzSZLUCKVk7tUwDXgnellgfkLnUYj9b_5c3Uw5wtoF97JRJQ5HqsB5U1UKHzwnfEG38YMhmIYZKHqXWjdcdlwdjZ3Ie2bWfzxH_IhnzexE0tmkFtU209q5IiiR3G-GjaQmCqJUu-OdgCmA_0IoAoh190D7UI2A1ufsGeybAjArLVm5abhfGuQzA2jpAS11cFBQqkjSbYK2cTAx5YGcCADo1i66DwQBaz_p7SJJ_d6n2x8efi87FPmFfHxvR7bR1pS1VyrFCN_rF5JUZl1myAR6-cR-pOV-Soaze0xdwwToiUeMGwOWtg8Gr03B3RAYEH2kVzi3lZ09pMXMNeRdwjJb4Mch6-r8FPs4G4RRmvDagyJQY_GqW1LdHNqt16Z5u_E2oK49raDSbQIej5nenDqu5478kfAtm9fFekNQpKZ8ljENRzuqRWWqmUTpxO3JBfJvar0arBc807aPXwRaxWB1DyIlDJgGjmcaefNqg2JgwLIzoOUGrJQkrB1U_GtEALiklT74zQD0WO6XHBul0SGeZQIrA3bEzsIkW0ZlUvaMWBYhWsZTEv09arLNK1S2ZMA8PbUd_HaB9u09I4i2Jqw34e7AQL2bJlDGs-46h3ZnFfC7BDhaJ0NUBUOYArLydVQElPflf0EK10Bsz7CZrnbf8kEntW3k8Anp5pppb5VfEYD-uxvZikH07P_3RbE_pQVBwac39KjQarlMWlL_Ub9U4HI2SNrnbOlJhtRcWodpRIPxH5Qs_D8lWlHQyPbRjxPNBZ8iWlbQDhMN7ppyQbMzu4QcJRpMM-9wQSv-7_sgDhANGf090fKC1j5W0P6caBm440QrSHGIaPA-36sSbXmcaCmQCtHQxKgUtD3RqgWtINoXC5r99YKWEc_bdtXqtn4mR6vctR2-Dr_rVGuBvg6sAVhfj5-bj2vsaMlvq9wkiK8Cx52fjabuFRQ78Yt7NmIL9MpzuZUK8MLBTuidxqGzIKfYPzHqJxCegGY61qQToC_80-1IWhAumIdUFZyLbns29kN8HoD1-FqfSlSa36CN-NC-bF6K9eTChlQcPqwGzuMcPQ0v3LaEmqPedyxSW2_317eNmfysrzfx4nyyGnTQTKmb9G5oPQph8LoynSTWBCyFlotWLVlqNJ4EayXLjW7jFXVC_4c9012tESQ0Rs01vu6JSRZYpOpDYyp5xrkZIi4Iscoe7YKAWws8AuCkT90hkKUK-1jfY32PQmBdD4DFCpWlU_ZMXISdkRdtVHEsiZKriBPRwxNHlrmAxC9LVRG4aBGq9V-gpmCT"
+  }
+ }
+}

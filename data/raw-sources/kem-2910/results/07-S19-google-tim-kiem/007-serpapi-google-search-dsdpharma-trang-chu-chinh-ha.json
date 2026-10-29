@@ -1,0 +1,443 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "describe": "Kết quả Google cho câu «Dsdpharma trang chủ chính hãng»",
+  "parentFile": "07-S19-google-tim-kiem.json",
+  "parentLocation": "records[6]",
+  "sourceCode": "S19 (gồm S13, S26)",
+  "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "provider": "SerpApi engine=google",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Kết quả Google lúc thu"
+  },
+  "limits": [
+   "App chỉ đọc organic_results; các khối khác giữ trong bản gốc",
+   "ai_overview có thể chỉ là page_token (xem file 14)"
+  ],
+  "resultSha256": "7b73701315279f2ca49299fd5c364fb77dd90b6eb3d876dd01b26c331223203c"
+ },
+ "result": {
+  "captureId": "serpapi-expanded-3-serpapi-0001",
+  "operation": "serpapi.google.search",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "engine": "google",
+   "gl": "vn",
+   "hl": "vi",
+   "num": 10,
+   "q": "Dsdpharma trang chủ chính hãng"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:03:13.632Z",
+  "completedAt": "2026-10-26T02:03:14.703Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb4e1ec5aa50b82fbb539",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "dec072e16a427ceb29d733679a9f735aba6c27ce7b25999945eccd16565516a8",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb4e1ec5aa50b82fbb539",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/0nhlWOKajTwy13EZJgCtmSAYDEV8FrEKtka_kDY67Bc/6adeb4e1ec5aa50b82fbb539.json",
+    "markdown_endpoint": "https://serpapi.com/searches/0nhlWOKajTwy13EZJgCtmSAYDEV8FrEKtka_kDY67Bc/6adeb4e1ec5aa50b82fbb539.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/0nhlWOKajTwy13EZJgCtmSAYDEV8FrEKtka_kDY67Bc/6adeb4e1ec5aa50b82fbb539.json_with_pixel_position",
+    "created_at": "2026-10-26 02:03:13 UTC",
+    "processed_at": "2026-10-26 02:03:13 UTC",
+    "google_url": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&oq=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&hl=vi&gl=vn&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/0nhlWOKajTwy13EZJgCtmSAYDEV8FrEKtka_kDY67Bc/6adeb4e1ec5aa50b82fbb539.html",
+    "total_time_taken": 0.61
+   },
+   "search_parameters": {
+    "engine": "google",
+    "q": "Dsdpharma trang chủ chính hãng",
+    "google_domain": "google.com",
+    "hl": "vi",
+    "gl": "vn",
+    "device": "desktop"
+   },
+   "search_information": {
+    "query_displayed": "Dsdpharma trang chủ chính hãng",
+    "total_results": 127,
+    "time_taken_displayed": 0.28,
+    "organic_results_state": "Results for exact spelling"
+   },
+   "related_questions": [
+    {
+     "question": "Kẽm DSD Pharma cơ tốt không?",
+     "type": "featured_snippet",
+     "next_page_token": "eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikvhur1tIERTRCBQaGFybWEgY8ahIHThu5F0IGtow7RuZz8iLCJsayI6IkdpRnI0YnE5YlNCa2MyUWdjR2hoY20xaElHUERzeUIwNGJ1UmRDQnJhTU8wYm1jIiwiYnMiOiJjLVB5NUZMeWZyaHJiNjZDUzdDTFFrQkdZbEZ1b2tMeXNZVUtKUTkzVHl4UnlNNDR2Q1V2M2Q1SVdVb3hHNndxcFRoRm9RQ3E2dkJtRkZWY3JzaEc1Unhlb0pEOGNQZHlrRHFncEVKSnBVTGU0UVg1OWtieVVySUlvN0NvNExMa2trSVlrNTU1ZUtGQ1VtSy1RbDVHNXVGVnBmWkcwbEtTQ08xb3NsenVYT28tLVE5M0xjeFVnS2dCbVFkMVkzSUdVRlZpTGxETHc5MnpNLTJOWktTa0lHcXdTUXN3QWdBIiwiaWQiOiJmY180YlRlYW9LU05OTHRtTFFQdTktcjRRUV81In0=",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google_related_questions&google_domain=google.com&next_page_token=eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikvhur1tIERTRCBQaGFybWEgY8ahIHThu5F0IGtow7RuZz8iLCJsayI6IkdpRnI0YnE5YlNCa2MyUWdjR2hoY20xaElHUERzeUIwNGJ1UmRDQnJhTU8wYm1jIiwiYnMiOiJjLVB5NUZMeWZyaHJiNjZDUzdDTFFrQkdZbEZ1b2tMeXNZVUtKUTkzVHl4UnlNNDR2Q1V2M2Q1SVdVb3hHNndxcFRoRm9RQ3E2dkJtRkZWY3JzaEc1Unhlb0pEOGNQZHlrRHFncEVKSnBVTGU0UVg1OWtieVVySUlvN0NvNExMa2trSVlrNTU1ZUtGQ1VtSy1RbDVHNXVGVnBmWkcwbEtTQ08xb3NsenVYT28tLVE5M0xjeFVnS2dCbVFkMVkzSUdVRlZpTGxETHc5MnpNLTJOWktTa0lHcXdTUXN3QWdBIiwiaWQiOiJmY180YlRlYW9LU05OTHRtTFFQdTktcjRRUV81In0%3D"
+    },
+    {
+     "question": "Kẽm DSD là của công ty nào?",
+     "type": "featured_snippet",
+     "next_page_token": "eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikvhur1tIERTRCBsw6AgY+G7p2EgY8O0bmcgdHkgbsOgbz8iLCJsayI6IkdoMXI0YnE5YlNCa2MyUWdZLUc3cDJFZ1k4TzBibWNnZEhrZ2JzT2didyIsImJzIjoiYy1QeTVGTHlmcmhyYjY2Q1M3Q0xRa0JHWWxGdW9rTHlzWVVLSlE5M1R5eFJ5TTQ0dkNVdjNkNUlXVW94RzZ3cXBUaEZvUUNxNnZCbUZGVmNyc2hHNVJ4ZW9KRDhjUGR5a0RxZ3BFSkpwVUxlNFFYNTlrYnlVcklJbzdDbzRMTGtra0lZazU1NWVLRkNVbUstUWw1RzV1RlZwZlpHMGxLU0NPMW9zbHp1WE9vLS1ROTNMY3hVZ0tnQm1RZDFZM0lHVUZWaUxsREx3OTJ6TS0yTlpLU2tJR3F3U1Fzd0FnQSIsImlkIjoiZmNfNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVFfNSJ9",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google_related_questions&google_domain=google.com&next_page_token=eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikvhur1tIERTRCBsw6AgY%2BG7p2EgY8O0bmcgdHkgbsOgbz8iLCJsayI6IkdoMXI0YnE5YlNCa2MyUWdZLUc3cDJFZ1k4TzBibWNnZEhrZ2JzT2didyIsImJzIjoiYy1QeTVGTHlmcmhyYjY2Q1M3Q0xRa0JHWWxGdW9rTHlzWVVLSlE5M1R5eFJ5TTQ0dkNVdjNkNUlXVW94RzZ3cXBUaEZvUUNxNnZCbUZGVmNyc2hHNVJ4ZW9KRDhjUGR5a0RxZ3BFSkpwVUxlNFFYNTlrYnlVcklJbzdDbzRMTGtra0lZazU1NWVLRkNVbUstUWw1RzV1RlZwZlpHMGxLU0NPMW9zbHp1WE9vLS1ROTNMY3hVZ0tnQm1RZDFZM0lHVUZWaUxsREx3OTJ6TS0yTlpLU2tJR3F3U1Fzd0FnQSIsImlkIjoiZmNfNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVFfNSJ9"
+    },
+    {
+     "question": "Kẽm DSD giá bao nhiêu?",
+     "type": "featured_snippet",
+     "next_page_token": "eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikvhur1tIERTRCBnacOhIGJhbyBuaGnDqnU/IiwibGsiOiJHaGxyNGJxOWJTQmtjMlFnWjJuRG9TQmlZVzhnYm1ocHc2cDEiLCJicyI6ImMtUHk1Rkx5ZnJocmI2NkNTN0NMUWtCR1lsRnVva0x5c1lVS0pROTNUeXhSeU00NHZDVXYzZDVJV1VveEc2d3FwVGhGb1FDcTZ2Qm1GRlZjcnNoRzVSeGVvSkQ4Y1BkeWtEcWdwRUpKcFVMZTRRWDU5a2J5VXJJSW83Q280TExra2tJWWs1NTVlS0ZDVW1LLVFsNUc1dUZWcGZaRzBsS1NDTzFvc2x6dVhPby0tUTkzTGN4VWdLZ0JtUWQxWTNJR1VGVmlMbERMdzkyek0tMk5aS1NrSUdxd1NRc3dBZ0EiLCJpZCI6ImZjXzRiVGVhb0tTTk5MdG1MUVB1OS1yNFFRXzUifQ==",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google_related_questions&google_domain=google.com&next_page_token=eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikvhur1tIERTRCBnacOhIGJhbyBuaGnDqnU%2FIiwibGsiOiJHaGxyNGJxOWJTQmtjMlFnWjJuRG9TQmlZVzhnYm1ocHc2cDEiLCJicyI6ImMtUHk1Rkx5ZnJocmI2NkNTN0NMUWtCR1lsRnVva0x5c1lVS0pROTNUeXhSeU00NHZDVXYzZDVJV1VveEc2d3FwVGhGb1FDcTZ2Qm1GRlZjcnNoRzVSeGVvSkQ4Y1BkeWtEcWdwRUpKcFVMZTRRWDU5a2J5VXJJSW83Q280TExra2tJWWs1NTVlS0ZDVW1LLVFsNUc1dUZWcGZaRzBsS1NDTzFvc2x6dVhPby0tUTkzTGN4VWdLZ0JtUWQxWTNJR1VGVmlMbERMdzkyek0tMk5aS1NrSUdxd1NRc3dBZ0EiLCJpZCI6ImZjXzRiVGVhb0tTTk5MdG1MUVB1OS1yNFFRXzUifQ%3D%3D"
+    },
+    {
+     "question": "Loại kẽm nào tốt cho nam giới?",
+     "type": "featured_snippet",
+     "next_page_token": "eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikxv4bqhaSBr4bq9bSBuw6BvIHThu5F0IGNobyBuYW0gZ2nhu5tpPyIsImxrIjoiR2hwcjRicTliU0IwNGJ1UmRDQmphRzhnYm1GdElHZHA0YnViYVEiLCJicyI6ImMtUHk1Rkx5ZnJocmI2NkNTN0NMUWtCR1lsRnVva0x5c1lVS0pROTNUeXhSeU00NHZDVXYzZDVJV1VveEc2d3FwVGhGb1FDcTZ2Qm1GRlZjcnNoRzVSeGVvSkQ4Y1BkeWtEcWdwRUpKcFVMZTRRWDU5a2J5VXJJSW83Q280TExra2tJWWs1NTVlS0ZDVW1LLVFsNUc1dUZWcGZaRzBsS1NDTzFvc2x6dVhPby0tUTkzTGN4VWdLZ0JtUWQxWTNJR1VGVmlMbERMdzkyek0tMk5aS1NrSUdxd1NRc3dBZ0EiLCJpZCI6ImZjXzRiVGVhb0tTTk5MdG1MUVB1OS1yNFFRXzUifQ==",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google_related_questions&google_domain=google.com&next_page_token=eyJvbnMiOiIxMDA0MSIsImZjIjoiRXFFQkNtSkJTbWxVTkhSS1MwTndYM0pTZFZCcVowdG5XR0k0ZFRBdFExbHpaM0pTTVhkM2IyZzJNamhJYUZwMVRFdEZUMXBHVGs5S05EZEpjM05KTFVoNk9GUllSVk5pVkc5dVltNDNhRTVPVDNaeFJGOW5jWGRSYkhkclJIbElhVFJ0T1ZoTlp4SVhOR0pVWldGdlMxTk9Ua3gwYlV4UlVIVTVMWEkwVVZFYUlrRkVjM0k1WmxGZlozUm9abEJvYTAxdFZYTjBOV0pKUTB0aE1teEhZWG94UjBFIiwiZmN2IjoiMyIsImVpIjoiNGJUZWFvS1NOTkx0bUxRUHU5LXI0UVEiLCJxYyI6IkNpSmtjMlJ3YUdGeWJXRWdkSEpoYm1jZ1kyamh1NmNnWTJqRHJXNW9JR2pEbzI1bkVFSjl5TGdlUDZJQkFuWnAiLCJxdWVzdGlvbiI6Ikxv4bqhaSBr4bq9bSBuw6BvIHThu5F0IGNobyBuYW0gZ2nhu5tpPyIsImxrIjoiR2hwcjRicTliU0IwNGJ1UmRDQmphRzhnYm1GdElHZHA0YnViYVEiLCJicyI6ImMtUHk1Rkx5ZnJocmI2NkNTN0NMUWtCR1lsRnVva0x5c1lVS0pROTNUeXhSeU00NHZDVXYzZDVJV1VveEc2d3FwVGhGb1FDcTZ2Qm1GRlZjcnNoRzVSeGVvSkQ4Y1BkeWtEcWdwRUpKcFVMZTRRWDU5a2J5VXJJSW83Q280TExra2tJWWs1NTVlS0ZDVW1LLVFsNUc1dUZWcGZaRzBsS1NDTzFvc2x6dVhPby0tUTkzTGN4VWdLZ0JtUWQxWTNJR1VGVmlMbERMdzkyek0tMk5aS1NrSUdxd1NRc3dBZ0EiLCJpZCI6ImZjXzRiVGVhb0tTTk5MdG1MUVB1OS1yNFFRXzUifQ%3D%3D"
+    }
+   ],
+   "ai_overview": {
+    "page_token": "2lErCniczVXNcqpIFH6BWc4rhE2ighiVVFG3uhvUFjWgMVfdWAjYYEAUUJLs5l3mqeZppkFUmGgmN5uZUwX9d_r8f33--NN11i9__fa7HUWb8KFSieO4THyfuFbZ8L2KHr6tjcrSd8PAsH8QV9yvGZv-HSb0d4FhOaZo2IHvWczbXuQZIxRZxnLE2uLJ0n1lNBj0Iq-nqTuhFNQ0jUnFifOFHlorqu11FVbmFfp7ueEluiiH5b1TLgmsEDaHjeA-LlfZKl9-rOgeZQD_BfkYYDqMAPqUjYDW1-TJ9HMAeMltaZloeN6aZisZoOQCShRcJJwwkuSY4IMdlNTmtBmzAEjaybpPCAPtvOidLEn0jpLjTy9_pJMXWUA-j9uVY3wQpZ2ZcjbCj_xHigsrhQpSgZS_cZ6hTE9OcBrHRDWMgRRbRO7LMHd80XjkgMcZkCH-jO-ofCyc5GEUUdWwYhJa2WxlEdCBqziGbaSTIEwKHj0JrC-v3yWN59TZuPXeUAd7aw84NNlCQWmAirGgfK6vm5Y5t-fsj3TNVbmGUGfr93cp0ozwBLUwDzWVCN2ovaxhu1_ulSF3xBk6JP9oaNEHTbnoKaGOIXC90ggpZu0UVhnmlQGUCdCIk3JNC_oRYYGR40oS3p-CHq39nGI5N7uEs5RgYUKvjA9mHhCVUl4zplWE_Zw_eWekS17nC-cgSYZZeaIE3ym1z7zFsGJIcaedxXyoeQ0iJSmgFGfKLnPtEWTuY4VABeHUo6IzhDJgLdvHB_ZjYFD-LUjclTE9k8eUF41aLujKmfzkMiFKxpmMWj6LAAwvRCSNAZHS9--bNP4SFwRHPP0DHnlYtQ21PozGpOtNeH-58ruciUvYH3V7A-0yjHxv8Qsty_ifAu3Y0Mgh6deBZoIvAS1taJeBBk-_fEMbp3IJuQo0mFTe5YZ2fN_z3n8AGpaHZ6BlDa19raH9OtBS564D7QiKS0CDo-ysCLTNdaAljhSAhpdyoaGdgVZsaEegfbOhjb_f0FLgWYeh2N12K3K1y3XcjvDef-VUF_P1Va_BKffxEk2reokl_9rlll704Ommezd3zAdY7UZv5t2cbvgPlslsRSk0N7YeePptFOhrcmvYNzJ3A-ENaCRzxN8AaW3fHmb8mjCeG_giq9d1YcZ3kBOEJRdvvbUAYGSrL-NJsN1wU1b1J3pHbaIdqq2Fp35cf3Hnw8lgsOrPSPw8s9Y_60uXFk1gD6XqTED19pQP31abxqRVK_nzvWSErhOpz8_uptd5xYNO3Ns6ewx1DfY0adBSYUNa9HejKeGkcPWaWhWKypNdku9bUXvLMl5giDRlNQIGGvgJgA5aMejSF0ABcLilY49WysKHQOtMgUbblCb5NElMaOhzK9yL1QVf5U2huqxaxlJvNhmPRG8bUWCZcB2I3N92JmcK",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=2lErCniczVXNcqpIFH6BWc4rhE2ighiVVFG3uhvUFjWgMVfdWAjYYEAUUJLs5l3mqeZppkFUmGgmN5uZUwX9d_r8f33--NN11i9__fa7HUWb8KFSieO4THyfuFbZ8L2KHr6tjcrSd8PAsH8QV9yvGZv-HSb0d4FhOaZo2IHvWczbXuQZIxRZxnLE2uLJ0n1lNBj0Iq-nqTuhFNQ0jUnFifOFHlorqu11FVbmFfp7ueEluiiH5b1TLgmsEDaHjeA-LlfZKl9-rOgeZQD_BfkYYDqMAPqUjYDW1-TJ9HMAeMltaZloeN6aZisZoOQCShRcJJwwkuSY4IMdlNTmtBmzAEjaybpPCAPtvOidLEn0jpLjTy9_pJMXWUA-j9uVY3wQpZ2ZcjbCj_xHigsrhQpSgZS_cZ6hTE9OcBrHRDWMgRRbRO7LMHd80XjkgMcZkCH-jO-ofCyc5GEUUdWwYhJa2WxlEdCBqziGbaSTIEwKHj0JrC-v3yWN59TZuPXeUAd7aw84NNlCQWmAirGgfK6vm5Y5t-fsj3TNVbmGUGfr93cp0ozwBLUwDzWVCN2ovaxhu1_ulSF3xBk6JP9oaNEHTbnoKaGOIXC90ggpZu0UVhnmlQGUCdCIk3JNC_oRYYGR40oS3p-CHq39nGI5N7uEs5RgYUKvjA9mHhCVUl4zplWE_Zw_eWekS17nC-cgSYZZeaIE3ym1z7zFsGJIcaedxXyoeQ0iJSmgFGfKLnPtEWTuY4VABeHUo6IzhDJgLdvHB_ZjYFD-LUjclTE9k8eUF41aLujKmfzkMiFKxpmMWj6LAAwvRCSNAZHS9--bNP4SFwRHPP0DHnlYtQ21PozGpOtNeH-58ruciUvYH3V7A-0yjHxv8Qsty_ifAu3Y0Mgh6deBZoIvAS1taJeBBk-_fEMbp3IJuQo0mFTe5YZ2fN_z3n8AGpaHZ6BlDa19raH9OtBS564D7QiKS0CDo-ysCLTNdaAljhSAhpdyoaGdgVZsaEegfbOhjb_f0FLgWYeh2N12K3K1y3XcjvDef-VUF_P1Va_BKffxEk2reokl_9rlll704Ommezd3zAdY7UZv5t2cbvgPlslsRSk0N7YeePptFOhrcmvYNzJ3A-ENaCRzxN8AaW3fHmb8mjCeG_giq9d1YcZ3kBOEJRdvvbUAYGSrL-NJsN1wU1b1J3pHbaIdqq2Fp35cf3Hnw8lgsOrPSPw8s9Y_60uXFk1gD6XqTED19pQP31abxqRVK_nzvWSErhOpz8_uptd5xYNO3Ns6ewx1DfY0adBSYUNa9HejKeGkcPWaWhWKypNdku9bUXvLMl5giDRlNQIGGvgJgA5aMejSF0ABcLilY49WysKHQOtMgUbblCb5NElMaOhzK9yL1QVf5U2huqxaxlJvNhmPRG8bUWCZcB2I3N92JmcK"
+   },
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "DSD GROUP, Cửa hàng trực tuyến",
+     "link": "https://shopee.vn/dsd_official",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESWQHrOzAVyaC_IGl3PZFay8JTUVEw-DIiCveDRjtGca8usEql8AiNYfZv-uam2IQNRn2VaXtIy683ZKAdH0eoZN9NjaxhRUQXOV8Lw2E6niGcnyr494Mvr5vW&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQFnoECCQQAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › dsd_official",
+     "favicon": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLq-ZByI2Uqzmr09-NZm3pO1k.png",
+     "snippet": "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung kẽm - Viên uống DSD bổ sung · [MUA 3 GIẢM 30%- MUA 4 GIẢM 50%] Bọt vệ sinh · TPBVSK Viên Bổ Thận DSD Sâm Nhung Bổ Thận ...",
+     "snippet_highlighted_words": [
+      "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung kẽm - Viên uống DSD bổ sung · [MUA 3 GIẢM 30%- MUA 4 GIẢM 50%] Bọt vệ sinh · TPBVSK Viên Bổ Thận DSD Sâm Nhung Bổ Thận ...",
+       "source_info_link": "https://shopee.vn/dsd_official",
+       "icon": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLq2y4TAkzUVLojfxrLu1A2osyKjuYMLBw2oZz_wrgAkb8.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CoYBL2dvdG8_dXJsPUNBRVNXUUhyT3pBVmVFUFlzczc0LTJldVBvWTNIOFVHeHBHX2twcFlUTzNnT1pYUVNhOXNjaW1GNXIzdG5uTkoyb19YR1ZMRDZITXVqVEdFb2RCRlIwWGY0Y3VJOGJHX2FNWWFieWx1MVA0VHpZaTdLNElMRy1GZTctY2MSBBoCCAAa9AUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA0AUIQhAAGAAgACocCglkc2RwaGFybWEV-GZcPxoKZHNkIHBoYXJtYSpaCgV0cmFuZxUAAAAAGgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgV3aGl0ZRoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZxoDd2ViKjYKBWNo4bunFQAAAAAaA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqNQoGY2jDrW5oFQAAAAAaBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaBoGY2jhuqV0KikKBWjDo25nFQAAAAAaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZzKGAS9nb3RvP3VybD1DQUVTV1FIck96QVZlRVBZc3M3NC0yZXVQb1kzSDhVR3hwR19rcHBZVE8zZ09aWFFTYTlzY2ltRjVyM3Rubk5KMm9fWEdWTEQ2SE11alRHRW9kQkZSMFhmNGN1SThiR19hTVlhYnlsdTFQNFR6WWk3SzRJTEctRmU3LWNjOjlEU0QgR1JPVVAsIEPhu61hIGjDoG5nIHRy4buxYyB0dXnhur9uIHwgU2hvcGVlIFZp4buHdCBOYW1C3QE8Yj5EU0RQSEFSTUEgS-G6vW0gRFNEIDMwIE5nw6B5IDYwIE5nw6B5IGLhu5Ugc3VuZyBr4bq9bTwvYj4gLSBWacOqbiB14buRbmcgRFNEIGLhu5Ugc3VuZyAmbWlkZG90OyBbTVVBIDMgR0nhuqJNIDMwJS0gTVVBIDQgR0nhuqJNIDUwJV0gQuG7jXQgduG7hyBzaW5oICZtaWRkb3Q7IFRQQlZTSyBWacOqbiBC4buVIFRo4bqtbiBEU0QgU8OibSBOaHVuZyBC4buVIFRo4bqtbiZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CoYBL2dvdG8_dXJsPUNBRVNXUUhyT3pBVmVFUFlzczc0LTJldVBvWTNIOFVHeHBHX2twcFlUTzNnT1pYUVNhOXNjaW1GNXIzdG5uTkoyb19YR1ZMRDZITXVqVEdFb2RCRlIwWGY0Y3VJOGJHX2FNWWFieWx1MVA0VHpZaTdLNElMRy1GZTctY2MSBBoCCAAa9AUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJA0AUIQhAAGAAgACocCglkc2RwaGFybWEV-GZcPxoKZHNkIHBoYXJtYSpaCgV0cmFuZxUAAAAAGgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgV3aGl0ZRoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZxoDd2ViKjYKBWNo4bunFQAAAAAaA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqNQoGY2jDrW5oFQAAAAAaBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaBoGY2jhuqV0KikKBWjDo25nFQAAAAAaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZzKGAS9nb3RvP3VybD1DQUVTV1FIck96QVZlRVBZc3M3NC0yZXVQb1kzSDhVR3hwR19rcHBZVE8zZ09aWFFTYTlzY2ltRjVyM3Rubk5KMm9fWEdWTEQ2SE11alRHRW9kQkZSMFhmNGN1SThiR19hTVlhYnlsdTFQNFR6WWk3SzRJTEctRmU3LWNjOjlEU0QgR1JPVVAsIEPhu61hIGjDoG5nIHRy4buxYyB0dXnhur9uIHwgU2hvcGVlIFZp4buHdCBOYW1C3QE8Yj5EU0RQSEFSTUEgS-G6vW0gRFNEIDMwIE5nw6B5IDYwIE5nw6B5IGLhu5Ugc3VuZyBr4bq9bTwvYj4gLSBWacOqbiB14buRbmcgRFNEIGLhu5Ugc3VuZyAmbWlkZG90OyBbTVVBIDMgR0nhuqJNIDMwJS0gTVVBIDQgR0nhuqJNIDUwJV0gQuG7jXQgduG7hyBzaW5oICZtaWRkb3Q7IFRQQlZTSyBWacOqbiBC4buVIFRo4bqtbiBEU0QgU8OibSBOaHVuZyBC4buVIFRo4bqtbiZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "source": "Shopee Việt Nam"
+    },
+    {
+     "position": 2,
+     "title": "Kẽm DSD – Bổ sung kẽm sinh học, tăng cường đề kháng và ...",
+     "link": "https://www.facebook.com/minhhaisport/posts/k%E1%BA%BDm-dsd-b%E1%BB%95-sung-k%E1%BA%BDm-sinh-h%E1%BB%8Dc-t%C4%83ng-c%C6%B0%E1%BB%9Dng-%C4%91%E1%BB%81-kh%C3%A1ng-v%C3%A0-c%E1%BB%A7ng-c%E1%BB%91-s%E1%BB%A9c-kh%E1%BB%8Fe-t%E1%BB%AB-g%E1%BB%91cc%C3%B4ng/1090829663712198/",
+     "displayed_link": "1 lượt bày tỏ cảm xúc · 2 tuần trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLq_DORMulm4DKAn7zPCBMoRg.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "snippet": "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung ... Xanh Lá Farm ▻ SĂN SALE HÀNG HỮU CƠ CHÍNH HÃNG GIÁ TỐT- SẢN PHẨM HỮU CƠ CHO CẢ GIA ĐÌNH .",
+     "duration": "1:29",
+     "about_this_result": {
+      "source": {
+       "description": "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung ... Xanh Lá Farm ▻ SĂN SALE HÀNG HỮU CƠ CHÍNH HÃNG GIÁ TỐT- SẢN PHẨM HỮU CƠ CHO CẢ GIA ĐÌNH .",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsUDL2dvdG8_dXJsPUNBRVN4d0lCNnpzd0ZUWXVYbmNKc1NwRmVfZXFqYTFxRnVsTGJ2b3dpRmRoODVtOTJCc1g0MFFtazNJeEZjc1BkMDk3TnRmQjBxMmhOdDVlOHBrWWhYM0Z2ckh6b1hUN244QUhMdTRaQzZLRV9nQWQ5ZUFnRFhpc29UMmJWcVQzR0lfOUxsbVZoRE5LWF9FN2RCLVRmcXhjRGRSNnFVS3A5VFNRd2Z1UEo5YlVjZjk4enZHdkpqTHJudm1zSTRIcWlzUF8tUk5xS0hyVHMzTTg5ZUxnV3RhTTZsU0ZoSVZGdGt1RnJTaGw1R3o1U0szLXU1NG41bnQ0N2Q0Q1hHbVJUSzhVdlBjSFBvYzZTd3FCSXhnNkNadmVmUlM1SDZ5eE93RE96Ny1EUFZvNHBJcFhLTzRLS25zN0RjTnJ5NVNRdTRCWUJWRUNLdzRWazZVTGlZaGg0TnR5VG9YMVRCZDVNSGdLbjhuTU9nTl9qN3htZlJDWFV0bmw0U1B0Q3VxUzlldjBNWWNRcVZZOW5RcFozaHJJWDRYLUlwVzBzaDVhNnJ2cmxmV1Etd2txV3AycFB6OTNRUk9HSVlREhYKEAoECDBIAgoECEhIAgoCCD8aAggAGhYSABoAIgAqADIAOgBCAEoAWgByAHoAIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsUDL2dvdG8_dXJsPUNBRVN4d0lCNnpzd0ZUWXVYbmNKc1NwRmVfZXFqYTFxRnVsTGJ2b3dpRmRoODVtOTJCc1g0MFFtazNJeEZjc1BkMDk3TnRmQjBxMmhOdDVlOHBrWWhYM0Z2ckh6b1hUN244QUhMdTRaQzZLRV9nQWQ5ZUFnRFhpc29UMmJWcVQzR0lfOUxsbVZoRE5LWF9FN2RCLVRmcXhjRGRSNnFVS3A5VFNRd2Z1UEo5YlVjZjk4enZHdkpqTHJudm1zSTRIcWlzUF8tUk5xS0hyVHMzTTg5ZUxnV3RhTTZsU0ZoSVZGdGt1RnJTaGw1R3o1U0szLXU1NG41bnQ0N2Q0Q1hHbVJUSzhVdlBjSFBvYzZTd3FCSXhnNkNadmVmUlM1SDZ5eE93RE96Ny1EUFZvNHBJcFhLTzRLS25zN0RjTnJ5NVNRdTRCWUJWRUNLdzRWazZVTGlZaGg0TnR5VG9YMVRCZDVNSGdLbjhuTU9nTl9qN3htZlJDWFV0bmw0U1B0Q3VxUzlldjBNWWNRcVZZOW5RcFozaHJJWDRYLUlwVzBzaDVhNnJ2cmxmV1Etd2txV3AycFB6OTNRUk9HSVlREhYKEAoECDBIAgoECEhIAgoCCD8aAggAGhYSABoAIgAqADIAOgBCAEoAWgByAHoAIgIQAUgAWABoAA",
+     "source": "Facebook · Minh Hải Sport"
+    },
+    {
+     "position": 3,
+     "title": "8 sản phẩm bổ sung kẽm cho nam giới",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/cac-loai-thuoc-bo-sung-kem-cho-nam-gioi-co-tac-dung-gi-48637.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESpQEB6zswFSARYx6aoaiRf_Yi7nuHI8wSPGemkZngslB8x2-cxS57RHYkcRPRyi_Egw373rO6agu8JR6b1KKZ-GhpNs4nXeC5jwihWW85dVDCOsgbPwW3KmESTfQwxJ1Nlc6v5wVAYJyw-ctpfrzCMNfDSjYlg3KPLwbRmQqD2zwH7tayTtrgoP2D16OEUZwZ68R3oRpB_DjywcZm44w1BIQaAdku69Q&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQFnoECB4QAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLq5XwquxYH2uzEsv16XwT9q8.png",
+     "date": "22 thg 9, 2026",
+     "snippet": "Farzincol 10mg (Thuốc điều trị chứa kẽm) · Công dụng: Bổ sung kẽm, hỗ trợ phòng và cải thiện tình trạng thiếu kẽm. · Cách dùng: Việc dùng thuốc ...",
+     "snippet_highlighted_words": [
+      "trạng"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Farzincol 10mg (Thuốc điều trị chứa kẽm) · Công dụng: Bổ sung kẽm, hỗ trợ phòng và cải thiện tình trạng thiếu kẽm. · Cách dùng: Việc dùng thuốc ...",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/cac-loai-thuoc-bo-sung-kem-cho-nam-gioi-co-tac-dung-gi-48637.html",
+       "icon": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLqxRXVUHYD48eFu-oHZXhJNVeWEMW7hsFaKNn7DkFdxOa.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cu0BL2dvdG8_dXJsPUNBRVNwUUVCNnpzd0ZkY0ZGV1FmVXYxTHJHZ0YtWnltQUZBVEVlRkJIaFZVZUFqT001WkNkSFJnRG1tck5uNEp2ZE13Tnp1dlZncE9fTzF0VXJUSERqRFRDLURtVDRBMDA3eWNENG9uTkpyZ2staTFyUzM0RV9sVUNuMGxSUzFSVDQ2RlF1MkhtOHFvMFNSdXdhVTAxV0phbkdqb055OVpOR0ZHa3NZdlJlM19GNFItN0w0aDE1UXBkS1NLT3hodTktSmFhREIzVjJlbGFwSWlOZWFwLUNIX0JCeVNLMGl3bjdNEgQaAggAGtYGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQLIGCEIQABgAIAAqHAoJZHNkcGhhcm1hFQAAAAAaCmRzZCBwaGFybWEqWgoFdHJhbmcVDU06PxoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxWQrH48GgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBXf8iY-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxWJbI4-GgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcy7QEvZ290bz91cmw9Q0FFU3BRRUI2enN3RmRjRkZXUWZVdjFMckdnRi1aeW1BRkFURWVGQkhoVlVlQWpPTTVaQ2RIUmdEbW1yTm40SnZkTXdOenV2VmdwT19PMXRVclRIRGpEVEMtRG1UNEEwMDd5Y0Q0b25OSnJnay1pMXJTMzRFX2xVQ24wbFJTMVJUNDZGUXUySG04cW8wU1J1d2FVMDFXSmFuR2pvTnk5Wk5HRkdrc1l2UmUzX0Y0Ui03TDRoMTVRcGRLU0tPeGh1OS1KYWFEQjNWMmVsYXBJaU5lYXAtQ0hfQkJ5U0swaXduN006Ojggc-G6o24gcGjhuqltIGLhu5Ugc3VuZyBr4bq9bSBjaG8gbmFtIGdp4bubaSAtIExvbmcgQ2jDonVC1wFGYXJ6aW5jb2wgMTBtZyAoVGh14buRYyDEkWnhu4F1IHRy4buLIGNo4bupYSBr4bq9bSkgJm1pZGRvdDsgQ8O0bmcgZOG7pW5nOiBC4buVIHN1bmcga-G6vW0sIGjhu5cgdHLhu6MgcGjDsm5nIHbDoCBj4bqjaSB0aGnhu4duIHTDrG5oIDxiPnRy4bqhbmc8L2I-IHRoaeG6v3Uga-G6vW0uICZtaWRkb3Q7IEPDoWNoIGTDuW5nOiBWaeG7h2MgZMO5bmcgdGh14buRYyZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cu0BL2dvdG8_dXJsPUNBRVNwUUVCNnpzd0ZkY0ZGV1FmVXYxTHJHZ0YtWnltQUZBVEVlRkJIaFZVZUFqT001WkNkSFJnRG1tck5uNEp2ZE13Tnp1dlZncE9fTzF0VXJUSERqRFRDLURtVDRBMDA3eWNENG9uTkpyZ2staTFyUzM0RV9sVUNuMGxSUzFSVDQ2RlF1MkhtOHFvMFNSdXdhVTAxV0phbkdqb055OVpOR0ZHa3NZdlJlM19GNFItN0w0aDE1UXBkS1NLT3hodTktSmFhREIzVjJlbGFwSWlOZWFwLUNIX0JCeVNLMGl3bjdNEgQaAggAGtYGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQLIGCEIQABgAIAAqHAoJZHNkcGhhcm1hFQAAAAAaCmRzZCBwaGFybWEqWgoFdHJhbmcVDU06PxoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxWQrH48GgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBXf8iY-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxWJbI4-GgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcy7QEvZ290bz91cmw9Q0FFU3BRRUI2enN3RmRjRkZXUWZVdjFMckdnRi1aeW1BRkFURWVGQkhoVlVlQWpPTTVaQ2RIUmdEbW1yTm40SnZkTXdOenV2VmdwT19PMXRVclRIRGpEVEMtRG1UNEEwMDd5Y0Q0b25OSnJnay1pMXJTMzRFX2xVQ24wbFJTMVJUNDZGUXUySG04cW8wU1J1d2FVMDFXSmFuR2pvTnk5Wk5HRkdrc1l2UmUzX0Y0Ui03TDRoMTVRcGRLU0tPeGh1OS1KYWFEQjNWMmVsYXBJaU5lYXAtQ0hfQkJ5U0swaXduN006Ojggc-G6o24gcGjhuqltIGLhu5Ugc3VuZyBr4bq9bSBjaG8gbmFtIGdp4bubaSAtIExvbmcgQ2jDonVC1wFGYXJ6aW5jb2wgMTBtZyAoVGh14buRYyDEkWnhu4F1IHRy4buLIGNo4bupYSBr4bq9bSkgJm1pZGRvdDsgQ8O0bmcgZOG7pW5nOiBC4buVIHN1bmcga-G6vW0sIGjhu5cgdHLhu6MgcGjDsm5nIHbDoCBj4bqjaSB0aGnhu4duIHTDrG5oIDxiPnRy4bqhbmc8L2I-IHRoaeG6v3Uga-G6vW0uICZtaWRkb3Q7IEPDoWNoIGTDuW5nOiBWaeG7h2MgZMO5bmcgdGh14buRYyZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "source": "Nhà thuốc Long Châu"
+    },
+    {
+     "position": 4,
+     "title": "Hãy tìm hiểu kỹ trước khi mua Kẽm DSD PHARMA để tránh ...",
+     "link": "https://www.facebook.com/bichthuan.bui.526/videos/h%C3%A3y-t%C3%ACm-hi%E1%BB%83u-k%E1%BB%B9-tr%C6%B0%E1%BB%9Bc-khi-mua-k%E1%BA%BDm-dsd-pharma-%C4%91%E1%BB%83-tr%C3%A1nh-ti%E1%BB%81n-m%E1%BA%A5t-t%E1%BA%ADt-mang-c%C3%A1c-b%C3%A1c-/3506881956142081/",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESswIB6zswFWtR-K6-LgAQXLjnJbbu8jBJ-ZSC0QCYyDMCwwa2uHDDgx9xKp2LtmESw1ZGB1WRnXKW59DVQTqsczgwo80hPVZaB4EZ2G2dgrdaLnvzmx1vbyOs_b9Z-_WHCMJMD5ELOOSlarvYiZR7wMl2xEZ87GbwrGSZrGVddgaHksZlPyi99Y9KJtB1rPEM9ge1xCCMIzFtFmmZ5RguRuNpQtfN01KYe8Slvmb-2qQyBAOhzzPd426ZvghwLHxLmCymugEY_ve71MMW_IFMNgPmViW_ZMUV-aKWDo8bPSiqxHssUcqxmK8fr20q-fdVHdoh3WLwt1VK9ukUyKHBvbGIzPbLxUpij-oWmd5x-g6gcYkZKH0_RDYB1hMXnyyJIFlMFUt_nQSFfrZQFxtMPztqJzXU&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQFnoECB0QAQ&uoh=1",
+     "displayed_link": "8 lượt bày tỏ cảm xúc · 3 tháng trước",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "snippet": "Các bác mua ở đây ạ DSDPHARMA Viên Kẽm DSD Plus 60 Ngày Bổ Sung Kẽm 150mg - Bổ Sung Kẽm Biozinc & Vitamin Nhóm B, Nhân Sâm - Hộp 2 Lọ X ...",
+     "snippet_highlighted_words": [
+      "DSDPHARMA"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Các bác mua ở đây ạ DSDPHARMA Viên Kẽm DSD Plus 60 Ngày Bổ Sung Kẽm 150mg - Bổ Sung Kẽm Biozinc & Vitamin Nhóm B, Nhân Sâm - Hộp 2 Lọ X ...",
+       "source_info_link": "https://www.facebook.com/bichthuan.bui.526/videos/h%C3%A3y-t%C3%ACm-hi%E1%BB%83u-k%E1%BB%B9-tr%C6%B0%E1%BB%9Bc-khi-mua-k%E1%BA%BDm-dsd-pharma-%C4%91%E1%BB%83-tr%C3%A1nh-ti%E1%BB%81n-m%E1%BA%A5t-t%E1%BA%ADt-mang-c%C3%A1c-b%C3%A1c-/3506881956142081/",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqoDL2dvdG8_dXJsPUNBRVNzd0lCNnpzd0ZZelphYldyTWlOMm5oNG14eFpDc0FQZk9VVUQxY3VzNno1Ny1nTGloMVBPQzF5cTNRaFc0UnB0QW95UTJyUGtGNFpfR1VrdHdZaWxVZWw3aC1ocFR1SG9nZUs3NnZCV1pYbG1rRHY3TWkzcHROM2xFc191NmJWS1Jvd2c5eVkzR0NkamVQbDVuWHI4RGFMQVg5eFVuZ202LWF6MVpHeWxfS3p5Q1h3Wi1GU3dvWlZPa2p3TmFJYXFSVzhLcGFTSGpGWnpsUTNDNWlxUi1uaFFScmJtVGlNc3VncnRmdlU0YlJfdHQxaVk5ZXhtcU1oX1VQVVJHWVlra2had2ZBbDlMMkRaLTQtUURWZzJEaDJZRk1DYjVRM0IxVHpwYnFFdjRTYm5acjNMYVg1c3RQcXBvZWZ3RF9HLWV4QU9IZTczeGNZcXlaU2tUaGRmR3JJeEZQbXlDTTJpSVJrQ3daaHk0TEliSUt5SXhrS0dLMlpnV2o3TFhWMEpzZWlzTzZ3ZTJQc1NWcnF5RnFjTkwwYmxfQnQzEgQaAggAGocIEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQOMHCEIQABgAIAAqHAoJZHNkcGhhcm1hFd4UN0AaCmRzZCBwaGFybWEqWgoFdHJhbmcVr6IxPhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBWLqqw_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxVzkKA_GgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcyqgMvZ290bz91cmw9Q0FFU3N3SUI2enN3Rll6WmFiV3JNaU4ybmg0bXh4WkNzQVBmT1VVRDFjdXM2ejU3LWdMaWgxUE9DMXlxM1FoVzRScHRBb3lRMnJQa0Y0Wl9HVWt0d1lpbFVlbDdoLWhwVHVIb2dlSzc2dkJXWlhsbWtEdjdNaTNwdE4zbEVzX3U2YlZLUm93Zzl5WTNHQ2RqZVBsNW5YcjhEYUxBWDl4VW5nbTYtYXoxWkd5bF9LenlDWHdaLUZTd29aVk9randOYUlhcVJXOEtwYVNIakZaemxRM0M1aXFSLW5oUVJyYm1UaU1zdWdydGZ2VTRiUl90dDFpWTlleG1xTWhfVVBVUkdZWWtraFp3ZkFsOUwyRFotNC1RRFZnMkRoMllGTUNiNVEzQjFUenBicUV2NFNiblpyM0xhWDVzdFBxcG9lZndEX0ctZXhBT0hlNzN4Y1lxeVpTa1RoZGZHckl4RlBteUNNMmlJUmtDd1poeTRMSWJJS3lJeGtLR0syWmdXajdMWFYwSnNlaXNPNndlMlBzU1ZycXlGcWNOTDBibF9CdDM6T0jDo3kgdMOsbSBoaeG7g3Uga-G7uSB0csaw4bubYyBraGkgbXVhIEvhur1tIDxiPkRTRCBQSEFSTUE8L2I-IMSR4buDIHRyw6FuaCAuLi5CtgFDw6FjIGLDoWMgbXVhIOG7nyDEkcOieSDhuqEgPGI-RFNEUEhBUk1BPC9iPiBWacOqbiBL4bq9bSBEU0QgUGx1cyA2MCBOZ8OgeSBC4buVIFN1bmcgS-G6vW0gMTUwbWcgLSBC4buVIFN1bmcgS-G6vW0gQmlvemluYyAmYW1wOyBWaXRhbWluIE5ow7NtIEIsIE5ow6JuIFPDom0gLSBI4buZcCAyIEzhu40gWCZuYnNwOy4uLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqoDL2dvdG8_dXJsPUNBRVNzd0lCNnpzd0ZZelphYldyTWlOMm5oNG14eFpDc0FQZk9VVUQxY3VzNno1Ny1nTGloMVBPQzF5cTNRaFc0UnB0QW95UTJyUGtGNFpfR1VrdHdZaWxVZWw3aC1ocFR1SG9nZUs3NnZCV1pYbG1rRHY3TWkzcHROM2xFc191NmJWS1Jvd2c5eVkzR0NkamVQbDVuWHI4RGFMQVg5eFVuZ202LWF6MVpHeWxfS3p5Q1h3Wi1GU3dvWlZPa2p3TmFJYXFSVzhLcGFTSGpGWnpsUTNDNWlxUi1uaFFScmJtVGlNc3VncnRmdlU0YlJfdHQxaVk5ZXhtcU1oX1VQVVJHWVlra2had2ZBbDlMMkRaLTQtUURWZzJEaDJZRk1DYjVRM0IxVHpwYnFFdjRTYm5acjNMYVg1c3RQcXBvZWZ3RF9HLWV4QU9IZTczeGNZcXlaU2tUaGRmR3JJeEZQbXlDTTJpSVJrQ3daaHk0TEliSUt5SXhrS0dLMlpnV2o3TFhWMEpzZWlzTzZ3ZTJQc1NWcnF5RnFjTkwwYmxfQnQzEgQaAggAGocIEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQOMHCEIQABgAIAAqHAoJZHNkcGhhcm1hFd4UN0AaCmRzZCBwaGFybWEqWgoFdHJhbmcVr6IxPhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBWLqqw_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxVzkKA_GgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcyqgMvZ290bz91cmw9Q0FFU3N3SUI2enN3Rll6WmFiV3JNaU4ybmg0bXh4WkNzQVBmT1VVRDFjdXM2ejU3LWdMaWgxUE9DMXlxM1FoVzRScHRBb3lRMnJQa0Y0Wl9HVWt0d1lpbFVlbDdoLWhwVHVIb2dlSzc2dkJXWlhsbWtEdjdNaTNwdE4zbEVzX3U2YlZLUm93Zzl5WTNHQ2RqZVBsNW5YcjhEYUxBWDl4VW5nbTYtYXoxWkd5bF9LenlDWHdaLUZTd29aVk9randOYUlhcVJXOEtwYVNIakZaemxRM0M1aXFSLW5oUVJyYm1UaU1zdWdydGZ2VTRiUl90dDFpWTlleG1xTWhfVVBVUkdZWWtraFp3ZkFsOUwyRFotNC1RRFZnMkRoMllGTUNiNVEzQjFUenBicUV2NFNiblpyM0xhWDVzdFBxcG9lZndEX0ctZXhBT0hlNzN4Y1lxeVpTa1RoZGZHckl4RlBteUNNMmlJUmtDd1poeTRMSWJJS3lJeGtLR0syWmdXajdMWFYwSnNlaXNPNndlMlBzU1ZycXlGcWNOTDBibF9CdDM6T0jDo3kgdMOsbSBoaeG7g3Uga-G7uSB0csaw4bubYyBraGkgbXVhIEvhur1tIDxiPkRTRCBQSEFSTUE8L2I-IMSR4buDIHRyw6FuaCAuLi5CtgFDw6FjIGLDoWMgbXVhIOG7nyDEkcOieSDhuqEgPGI-RFNEUEhBUk1BPC9iPiBWacOqbiBL4bq9bSBEU0QgUGx1cyA2MCBOZ8OgeSBC4buVIFN1bmcgS-G6vW0gMTUwbWcgLSBC4buVIFN1bmcgS-G6vW0gQmlvemluYyAmYW1wOyBWaXRhbWluIE5ow7NtIEIsIE5ow6JuIFPDom0gLSBI4buZcCAyIEzhu40gWCZuYnNwOy4uLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "Facebook · Bùi Bích Thuận"
+    },
+    {
+     "position": 5,
+     "title": "Kẽm DSD Plus – bổ sung kẽm tiện lợi, đồng hành cùng nam ...",
+     "link": "https://www.facebook.com/minhhaisport/posts/k%E1%BA%BDm-dsd-plus-b%E1%BB%95-sung-k%E1%BA%BDm-ti%E1%BB%87n-l%E1%BB%A3i-%C4%91%E1%BB%93ng-h%C3%A0nh-c%C3%B9ng-nam-gi%E1%BB%9Bi-trong-l%E1%BB%91i-s%E1%BB%91ng-n%C4%83ng-%C4%91%E1%BB%99/1047681124693719/",
+     "displayed_link": ">10 lượt thể hiện cảm xúc · 2 tháng trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLq3u3YBDpAEokbxPnxxiBEwc.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "snippet": "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung kẽm - Viên uống DSD bổ ... chính là bổ sung hàm lượng kẽm cần thiết cho cơ thể.hàm lượng kẽm ...",
+     "duration": "0:52",
+     "about_this_result": {
+      "source": {
+       "description": "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày bổ sung kẽm - Viên uống DSD bổ ... chính là bổ sung hàm lượng kẽm cần thiết cho cơ thể.hàm lượng kẽm ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqoDL2dvdG8_dXJsPUNBRVNzd0lCNnpzd0ZUX2pzVzhsZUxSRU1fZjZVVFVrcGdic2NyLVVlbXNrcnZEY0RCdmVoUWpxX2o5RGc4aXpvazhSd3ljOU1RczlFdHBONHBJcDNRNVNHSGx3bURYX1RuT1hLSDA4eDlOaWtjZ0NkRFBjbTZOdmdSbDgwUGo0X1NtVENTQ1dHbnRZVzN5STlyckxjZGZXZ01UYmoyTnpoekVBSXRla3pyMGlWcDJKRDgxazNCS3dlR2R1QVhGaVE5ellCRlR0Ry1McG94azV1VVlpZ0FvTHI0SVNFaF9Obmx2SkNKSXF1dm9NQ2RTaW9Tel92SS14d19iOGlvemFMWDFPNXlwSloyNHBsQUlHNWowYThqT3dUdXdkZW1SV19yUW12WlJBRXFWMGh2R3ViZnpTbzV6dTIzZnltZGVJVTduSmpyeXFHejhCdHRidmFWck5jcFFfQWU4WXhhaVY3R2tnVTZDR1N5MS1kRUpza2x3MXRyODlHNWxzeUFqbWw5R0Vob1NtQjV4MDRMSG1kSGVkczRTSVZXQmI5TXJKEhYKEAoECDBIAgoECEhIAgoCCD8aAggAGhYSABoAIgAqADIAOgBCAEoAWgByAHoAIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqoDL2dvdG8_dXJsPUNBRVNzd0lCNnpzd0ZUX2pzVzhsZUxSRU1fZjZVVFVrcGdic2NyLVVlbXNrcnZEY0RCdmVoUWpxX2o5RGc4aXpvazhSd3ljOU1RczlFdHBONHBJcDNRNVNHSGx3bURYX1RuT1hLSDA4eDlOaWtjZ0NkRFBjbTZOdmdSbDgwUGo0X1NtVENTQ1dHbnRZVzN5STlyckxjZGZXZ01UYmoyTnpoekVBSXRla3pyMGlWcDJKRDgxazNCS3dlR2R1QVhGaVE5ellCRlR0Ry1McG94azV1VVlpZ0FvTHI0SVNFaF9Obmx2SkNKSXF1dm9NQ2RTaW9Tel92SS14d19iOGlvemFMWDFPNXlwSloyNHBsQUlHNWowYThqT3dUdXdkZW1SV19yUW12WlJBRXFWMGh2R3ViZnpTbzV6dTIzZnltZGVJVTduSmpyeXFHejhCdHRidmFWck5jcFFfQWU4WXhhaVY3R2tnVTZDR1N5MS1kRUpza2x3MXRyODlHNWxzeUFqbWw5R0Vob1NtQjV4MDRMSG1kSGVkczRTSVZXQmI5TXJKEhYKEAoECDBIAgoECEhIAgoCCD8aAggAGhYSABoAIgAqADIAOgBCAEoAWgByAHoAIgIQAUgAWABoAA",
+     "source": "Facebook · Minh Hải Sport"
+    },
+    {
+     "position": 6,
+     "title": "Viên uống DSD bổ sung Kẽm Biozinc",
+     "link": "https://www.lazada.vn/products/dsdpharma-kem-dsd-30-ngay-60-ngay-bo-sung-kem-vien-uong-dsd-bo-sung-kem-biozinc-i13369165236.html?srsltid=AYCX9vIl2leEZgIJZL_b8eb8HdVScWCKN0RgJGJf0ndt3V8oSBv3gou6",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAES_QEB6zswFf8vsN42G-zuLGf5RVjd72m1h2l94nYIPQk55qARpQDCgFf82oy1nxG1kL4d7N7pSbpw8gP7bvVh2B1PkPNE-WIPifYgwZyVe3jJpnP1mQ3Hb9JxsxhH6N2HNpZ6AUO2hp0vrpgOa-Uw0vlh6lzvhu6vvovlV4oRhIpOEwJLA2znyKj4QADXT7-MouHbWmUsYZ7IB9GqLZLfcOh6_LHet8M3zCz6NGSgcE4JFviPJteFhy-Ab7ABt4Rm4K13nx7NenAbWCTMnuGZb_rMYfLbviYMF3oBtpRSu8RX3fJdk94eBgANJ7J7Qo7A6E5au_t_ZGRg13zHn-SB&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQFnoECCAQAQ&uoh=1",
+     "displayed_link": "https://www.lazada.vn › ... › Hệ miễn dịch",
+     "favicon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys_RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Lzg3LTc3Ny83Lzc3Nys3Nzc3LzctNzc3NzcvLf_AABEIACAAIAMBEQACEQEDEQH_xAAbAAACAgMBAAAAAAAAAAAAAAACBwEFAwQGAP_EACgQAAIBAwIFAwUAAAAAAAAAAAECEQMEBQAhBhIxQVETIuEUMmFxgf_EABsBAAIDAAMAAAAAAAAAAAAAAAQFAQMGAAIH_8QAJBEAAQQCAQQCAwAAAAAAAAAAAQACAwQRIRIxQVFhcYEFMvD_2gAMAwEAAhEDEQA_AKnn1evVCEfMyxzAjmEiREjyPxqxqDlaCiDFpgEwJMdh50XG_CTWYAVKtOj45sLO26If2VrwNa215xFTp3lBK9Jabv6dQSpIiJHfrpC7QWz_AC8z46pMbsHIGQmVl1wuWt69DK2sra1FpoVVi8sqsAnJ7u_QeNVt5A6WRrmzXcHQu_bfrqRvOlhw6YSx9OyxVJk-oDQxoVD6nLMy5HaDsTt_RrseR2VNg2ZcySnp7GvoFcHxtZW9hxC9G0pLSpmkjlV2EmZgdtFwynjtM6TXTwcnb2qfD5Ovh8il7bKjOoKlXGzKeo-dQYsjCa2eFmIxvOkxcFlMRxBWZkq1ra-cq5t2qxDqAAydjsI_UyN9Dvjcz4WcsRzVxjRaO-O3g_3wUeWymH4Zrc4rV698EKi2WrzbElvcT9u7T5O2xjXGsc8elEEM9wYwA3zj6156JeZnLXGZyL3t0qI7AKFQbKo6D51aBxGAtPUqsgjEbVokA6dyVC1Y6t-ZbINlSqwQVMEGQR2OhnR4TNloP6FeZSSSZJJkk9zod4TGB-UHTQrk4iC__9k.jpeg",
+     "snippet": "*Công dụng của viên uống Kẽm DSD: - Viên kẽm DSD là thực phẩm chức năng đáp ứng đầy đủ các tiêu chí chất lượng với công dụng chính là bổ sung hàm lượng kẽm cần ...",
+     "snippet_highlighted_words": [
+      "chính"
+     ],
+     "rich_snippet": {
+      "bottom": {
+       "detected_extensions": {
+        "price": 280000,
+        "currency": "₫ - ₫",
+        "trả_lại_hàng_trong_ngày": 30
+       },
+       "extensions": [
+        "280.000 ₫ - 330.000 ₫",
+        "Còn hàng",
+        "Giao hàng miễn phí",
+        "Trả lại hàng trong 30 ngày"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "*Công dụng của viên uống Kẽm DSD: - Viên kẽm DSD là thực phẩm chức năng đáp ứng đầy đủ các tiêu chí chất lượng với công dụng chính là bổ sung hàm lượng kẽm cần ...",
+       "source_info_link": "https://www.lazada.vn/products/dsdpharma-kem-dsd-30-ngay-60-ngay-bo-sung-kem-vien-uong-dsd-bo-sung-kem-biozinc-i13369165236.html?srsltid=AYCX9vIl2leEZgIJZL_b8eb8HdVScWCKN0RgJGJf0ndt3V8oSBv3gou6",
+       "icon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3Ojo6Iys_RD84QzQ5OjcBCgoKDQwNGg8PGjclHyU3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Lzg3LTc3Ny83Lzc3Nys3Nzc3LzctNzc3NzcvLf_AABEIACAAIAMBEQACEQEDEQH_xAAbAAACAgMBAAAAAAAAAAAAAAACBwEFAwQGAP_EACgQAAIBAwIFAwUAAAAAAAAAAAECEQMEBQAhBhIxQVETIuEUMmFxgf_EABsBAAIDAAMAAAAAAAAAAAAAAAQFAQMGAAIH_8QAJBEAAQQCAQQCAwAAAAAAAAAAAQACAwQRIRIxQVFhcYEFMvD_2gAMAwEAAhEDEQA_AKnn1evVCEfMyxzAjmEiREjyPxqxqDlaCiDFpgEwJMdh50XG_CTWYAVKtOj45sLO26If2VrwNa215xFTp3lBK9Jabv6dQSpIiJHfrpC7QWz_AC8z46pMbsHIGQmVl1wuWt69DK2sra1FpoVVi8sqsAnJ7u_QeNVt5A6WRrmzXcHQu_bfrqRvOlhw6YSx9OyxVJk-oDQxoVD6nLMy5HaDsTt_RrseR2VNg2ZcySnp7GvoFcHxtZW9hxC9G0pLSpmkjlV2EmZgdtFwynjtM6TXTwcnb2qfD5Ovh8il7bKjOoKlXGzKeo-dQYsjCa2eFmIxvOkxcFlMRxBWZkq1ra-cq5t2qxDqAAydjsI_UyN9Dvjcz4WcsRzVxjRaO-O3g_3wUeWymH4Zrc4rV698EKi2WrzbElvcT9u7T5O2xjXGsc8elEEM9wYwA3zj6156JeZnLXGZyL3t0qI7AKFQbKo6D51aBxGAtPUqsgjEbVokA6dyVC1Y6t-ZbINlSqwQVMEGQR2OhnR4TNloP6FeZSSSZJJkk9zod4TGB-UHTQrk4iC__9k.jpeg"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CuICL2dvdG8_dXJsPUNBRVNfUUVCNnpzd0ZYVDQzMlpGRXNlZ1VNS2NsMTdXWXp3TUJab2dwZWhuT2YwNF9fS3VyR0Fid0RzTU5FV3pybGpDV1lGNkU0bUJoRkhFbURwdmZ0QjRxWnhCMFlSRlRHM3NDZ0d3bHFHNVZxYzE4SHB1UFc4U3hDNVpBR0VIbWVuR2poeGhGYU9GZUhuMlZ5ZElvNTUtWGF0bURySWtSYTBnVHcxR3RQZHV4MHR6YjQ0TDAxZmM3TU1tSkZ3UTdKYzJocVN0dVI4djd1MndETFNfcGV4cGt3eXg2SjVfYkY1TmxERElWaEFmWG9xSVpmVnp3THRoRW80c3o2V2gxNnNsbzNqdlVWODVfUENsUGo3azFGTzV1bEFTY19XNExDaEQ5OFZ3eW1OVHp6SFdraTBCVDVtZEVzY0VOOVVqVXBQUkp4cS1aQkRDQUhCSjNGaWFnMUVlEgQaAggAGocHEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQOMGCEIQABgAIAAqHAoJZHNkcGhhcm1hFeGIRkAaCmRzZCBwaGFybWEqWgoFdHJhbmcVNxUDPxoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxUcpcY5GgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBUMT9c-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxUbUxM-GgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcyjAIvZ290bz91cmw9Q0FFU3ZBRUI2enN3RlNLVkpxclo4RlV1aDNibWM4emtBdGE2b25iejVVS0E5WkIzMmlzR3N3bHNEZ1pVMXZfbTA0TnJ1bDZLWThJblNEdkRjUTgzVmY1UldONjBMLWx0UWRxT0g3OEZPVzB6MHdJaEN3WFQwcUNhUW1tYUJSZzdpYnhNM0owNC1kcFd5ZVFFRGkyT3M3UkNEd3JBdnFmWllXVGlGWFI1WUtNdWRGWEVwNUJBc2pKRjI3SVBBaUxFbXVIeTZkYW45VkN3eWx4RWhSVEZ0N05WTXV2UlZHaWVjQUZmOGZFanFOTlYyc1pxQS1jYmpDNGJvbjhpX2JseWdnOjxWacOqbiB14buRbmcgRFNEIGLhu5Ugc3VuZyBL4bq9bSBCaW96aW5jIHwgTGF6YWRhIFZp4buHdCBOYW1C5wEqQ8O0bmcgZOG7pW5nIGPhu6dhIHZpw6puIHXhu5FuZyBL4bq9bSBEU0Q6IC0gVmnDqm4ga-G6vW0gRFNEIGzDoCB0aOG7sWMgcGjhuqltIGNo4bupYyBuxINuZyDEkcOhcCDhu6luZyDEkeG6p3kgxJHhu6cgY8OhYyB0acOqdSBjaMOtIGNo4bqldCBsxrDhu6NuZyB24bubaSBjw7RuZyBk4bulbmcgPGI-Y2jDrW5oPC9iPiBsw6AgYuG7lSBzdW5nIGjDoG0gbMaw4bujbmcga-G6vW0gY-G6p24mbmJzcDsuLi5SBmhp4buHdVIGdGjhu6ljIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CuICL2dvdG8_dXJsPUNBRVNfUUVCNnpzd0ZYVDQzMlpGRXNlZ1VNS2NsMTdXWXp3TUJab2dwZWhuT2YwNF9fS3VyR0Fid0RzTU5FV3pybGpDV1lGNkU0bUJoRkhFbURwdmZ0QjRxWnhCMFlSRlRHM3NDZ0d3bHFHNVZxYzE4SHB1UFc4U3hDNVpBR0VIbWVuR2poeGhGYU9GZUhuMlZ5ZElvNTUtWGF0bURySWtSYTBnVHcxR3RQZHV4MHR6YjQ0TDAxZmM3TU1tSkZ3UTdKYzJocVN0dVI4djd1MndETFNfcGV4cGt3eXg2SjVfYkY1TmxERElWaEFmWG9xSVpmVnp3THRoRW80c3o2V2gxNnNsbzNqdlVWODVfUENsUGo3azFGTzV1bEFTY19XNExDaEQ5OFZ3eW1OVHp6SFdraTBCVDVtZEVzY0VOOVVqVXBQUkp4cS1aQkRDQUhCSjNGaWFnMUVlEgQaAggAGocHEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQOMGCEIQABgAIAAqHAoJZHNkcGhhcm1hFeGIRkAaCmRzZCBwaGFybWEqWgoFdHJhbmcVNxUDPxoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxUcpcY5GgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBUMT9c-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxUbUxM-GgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcyjAIvZ290bz91cmw9Q0FFU3ZBRUI2enN3RlNLVkpxclo4RlV1aDNibWM4emtBdGE2b25iejVVS0E5WkIzMmlzR3N3bHNEZ1pVMXZfbTA0TnJ1bDZLWThJblNEdkRjUTgzVmY1UldONjBMLWx0UWRxT0g3OEZPVzB6MHdJaEN3WFQwcUNhUW1tYUJSZzdpYnhNM0owNC1kcFd5ZVFFRGkyT3M3UkNEd3JBdnFmWllXVGlGWFI1WUtNdWRGWEVwNUJBc2pKRjI3SVBBaUxFbXVIeTZkYW45VkN3eWx4RWhSVEZ0N05WTXV2UlZHaWVjQUZmOGZFanFOTlYyc1pxQS1jYmpDNGJvbjhpX2JseWdnOjxWacOqbiB14buRbmcgRFNEIGLhu5Ugc3VuZyBL4bq9bSBCaW96aW5jIHwgTGF6YWRhIFZp4buHdCBOYW1C5wEqQ8O0bmcgZOG7pW5nIGPhu6dhIHZpw6puIHXhu5FuZyBL4bq9bSBEU0Q6IC0gVmnDqm4ga-G6vW0gRFNEIGzDoCB0aOG7sWMgcGjhuqltIGNo4bupYyBuxINuZyDEkcOhcCDhu6luZyDEkeG6p3kgxJHhu6cgY8OhYyB0acOqdSBjaMOtIGNo4bqldCBsxrDhu6NuZyB24bubaSBjw7RuZyBk4bulbmcgPGI-Y2jDrW5oPC9iPiBsw6AgYuG7lSBzdW5nIGjDoG0gbMaw4bujbmcga-G6vW0gY-G6p24mbmJzcDsuLi5SBmhp4buHdVIGdGjhu6ljIgIQAUgAWABoAA",
+     "source": "Lazada"
+    },
+    {
+     "position": 7,
+     "title": "DSDPHARMA Viên Kẽm DSD Plus 60 Ngày Bổ Sung ...",
+     "link": "https://thuoctot247.vn/san-pham/dsdpharma-vien-kem-dsd-plus-60-ngay-bo-sung-kem-150mg-bo-sung-kem-biozinc-vitamin-nhom-b-nhan-sam-hop-2-lo-x-30-vien/?srsltid=AYCX9vJvBDDKLAsFKRJM4_2bFNa9inE96KLv2RdvFlOVY4lD1Pkna4YS",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESkgIB6zswFTFpNxEpihS3lDJAv9TfVjymqkFqDd4DIlr0cehEyfIuUPblgDoCz1sa-UkQx2IWrqxJI2F_jtct8ZV6C94J7GnSFfN4UqrhjgDLP3lC9L11SJvFEA16h-7NsJDEcSkESTUAjnfM_xzUu2xQliILA57L75JizxfAxAbBh-oOjQ641jxgvefiC1b3cByuDMpuzKe_sUfwY0IuIzQgKtVh0XgdtvhxrOUptRLl6AmxwGZenzs02Ha4leTsUvPmFkBk5IwUX7J7Tn8KbnRqAytZHup3a4qzLRPAqqQQ_q6wUiAzO9TgWOl3znQ-IvlBrQBHaZf1wtrNGBwDKT6mjW1JSRRG9D1sJIehuff3Ctgg&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQFnoECCUQAQ&uoh=1",
+     "displayed_link": "https://thuoctot247.vn › ... › Đông trùng hạ thảo",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAeFBMVEUAAAD____-6dD____-__34mSv8__9HcEz__vz__fv________938D--fP____________7zqPy9fb________________4liH____4kxz4khv3kxz4jgP4kRH3iwD5nz36rmH7v4f80Kn-7-H6t3n93sP6s2_96dXft3AhAAAAGXRSTlMBY31JHP4PAHX85aycMJTX7_cHvkBa0OvHjAHTawAAAbZJREFUOI1tU4mWqyAMpU8xqM9lus0AAarW9v__cBKw1TM2h4NJuN4sBCFYYJG9sdh5e-37rm3IC3BUp6qv6ssbA0U9DUHrMEw_OYAqx5t08jH32cKYl4NHZ4xDfy-b02zZMM6HSTEJFOXNG615GQzl6A2ppGuHT0UccBq8tdqy02onMR5rSwijyxxEMy3_a8s48jOaVNpxqEG0A5JFAGusYRJiN5GQvFiC6CT_rXViYTIXJbr8fBaV35zzR96iRBvHCwPsAomKu1-yLDu3gaPheBAVcr680ubuBff2ENjGOROn4Ch9Exdn7-45F68C2_6ZCzVgCp9IzAog21EV-dOnmqiqbymlHXLur5KILvYBOoqR6pP15UByZIbzf5amIEA2e2oRS1DvUQBYpwK6W-qKC3w34j0oLw2ayaQsE2A9eEHh_I0xhFQv0jRoK7TlG7evHMQfoYyO1QO5kC-SUb2ZN9FoqpBvl-XfjmJB-Dgk1nwEEKIf4jCaCEgZxoasr-M6-jgykeG4pwConxoXhm27NpADP4CPScZQtOXdiI_8b69fjPGKVHkt9q1aeQCKbeZ7xIfkfgEpWDauHni-NAAAAABJRU5ErkJggg.png",
+     "snippet": "Viên uống Kẽm DSD (DSD Biozinc) là thực phẩm chức năng bổ sung kẽm và các dưỡng chất thiết yếu (vitamin nhóm B, nhân sâm) giúp tăng cường sức khỏe nam giới.",
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống Kẽm DSD (DSD Biozinc) là thực phẩm chức năng bổ sung kẽm và các dưỡng chất thiết yếu (vitamin nhóm B, nhân sâm) giúp tăng cường sức khỏe nam giới.",
+       "source_info_link": "https://thuoctot247.vn/san-pham/dsdpharma-vien-kem-dsd-plus-60-ngay-bo-sung-kem-150mg-bo-sung-kem-biozinc-vitamin-nhom-b-nhan-sam-hop-2-lo-x-30-vien/?srsltid=AYCX9vJvBDDKLAsFKRJM4_2bFNa9inE96KLv2RdvFlOVY4lD1Pkna4YS",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAeFBMVEUAAAD____-6dD____-__34mSv8__9HcEz__vz__fv________938D--fP____________7zqPy9fb________________4liH____4kxz4khv3kxz4jgP4kRH3iwD5nz36rmH7v4f80Kn-7-H6t3n93sP6s2_96dXft3AhAAAAGXRSTlMBY31JHP4PAHX85aycMJTX7_cHvkBa0OvHjAHTawAAAbZJREFUOI1tU4mWqyAMpU8xqM9lus0AAarW9v__cBKw1TM2h4NJuN4sBCFYYJG9sdh5e-37rm3IC3BUp6qv6ssbA0U9DUHrMEw_OYAqx5t08jH32cKYl4NHZ4xDfy-b02zZMM6HSTEJFOXNG615GQzl6A2ppGuHT0UccBq8tdqy02onMR5rSwijyxxEMy3_a8s48jOaVNpxqEG0A5JFAGusYRJiN5GQvFiC6CT_rXViYTIXJbr8fBaV35zzR96iRBvHCwPsAomKu1-yLDu3gaPheBAVcr680ubuBff2ENjGOROn4Ch9Exdn7-45F68C2_6ZCzVgCp9IzAog21EV-dOnmqiqbymlHXLur5KILvYBOoqR6pP15UByZIbzf5amIEA2e2oRS1DvUQBYpwK6W-qKC3w34j0oLw2ayaQsE2A9eEHh_I0xhFQv0jRoK7TlG7evHMQfoYyO1QO5kC-SUb2ZN9FoqpBvl-XfjmJB-Dgk1nwEEKIf4jCaCEgZxoasr-M6-jgykeG4pwConxoXhm27NpADP4CPScZQtOXdiI_8b69fjPGKVHkt9q1aeQCKbeZ7xIfkfgEpWDauHni-NAAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cv4CL2dvdG8_dXJsPUNBRVNrZ0lCNnpzd0ZYU0d0N1V2X1ZKYzNGQU1YYXN3ZEZBa0syNDJZYzJmQUF3ZXZraW9kdjctbEw3a0JmZFBGRWpZalhLSFV3VFdqVlZSMWp1aFlUcXBIRzhiTDc3QlRGdjh3TDFBSmxtTjdDOG9OSzlmZEZGaE0wRGhLNHphQVNzcnBVOEs4RS1GdF84WGZYZVg2eWpqSl9YNW1oYWVJTE8tZlN5MGVEUjc3UkpOUUlOZjNFM2FKaFYyb3Nub2FrenVPSU01TmVoNXFhVmNfUE9NNHc1SUdFLXYwSThTb2FNa1VLbUtkU0x1UTNJMGxNQlRSeWpEaWFlNWtNOUc4bHJRNnVxRFc1TW05V1FIRElEdjdlSllzQmMtc1J1bV80YmloYTMtU05pZlpJOGhzbDRYNmpJRTd1RFd4b1hUZ2ZQbTljaDgzSk1FT3lvbUl3ZkRxZ3VRblRVWUNfVlM3UGtHMXR5MzlFNllEX2ZjRl9kdhIEGgIIABqIBxIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDkBghCEAAYACAAKhwKCWRzZHBoYXJtYRVaYBtAGgpkc2QgcGhhcm1hKloKBXRyYW5nFdOnfj8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaBXdoaXRlGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nGgN3ZWIqNgoFY2jhu6cV7PwCPxoDY2h1GgN3ZWIaCnRyYW5nY2jhu6caCGl2O2Q7Y2h1GghpdjtkO3dlYio1CgZjaMOtbmgVVOpkPxoFY2hpbmgaC2Now61uaGjDo25nGgppdjtkO2NoaW5oGgZjaOG6pXQqKQoFaMOjbmcVDzVaPxoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMqgCL2dvdG8_dXJsPUNBRVMwUUVCNnpzd0ZYcjUxNHkxV1c1WDAwbllaY3had2VTTW85NGdJZTJJdzlnQVF5Wll3TXBFUGYyRlpNYi13TkNtRjladlFaczMybXNWTTFIVmRIMVN6WVk1a09MbnRwcjhjOGl1S3pObE9pYkRMTGNkU2UxWkNSeC1wS05ETWZHOVczdXdKT043UENHMkV4Y00yYVZPUWV1M2lCU0xjVXRQMmgzcXZlWHdJOUl3REY4UjE0a3pRUFI3TDJwWWROV3N0NUZxYVluVHpMLVk5cV90enpTTFJsSGVwck9TcVpHWU15TU5DQWc5SXhBdEtJU1dDQlotaTlYRXRkQXpnSnhoazdIcXdrRGM1NDc0TnhmSjhTU1BCZUZuUFE6QjxiPkRTRFBIQVJNQTwvYj4gVmnDqm4gS-G6vW0gRFNEIFBsdXMgNjAgTmfDoHkgQuG7lSBTdW5nIEvhur1tIC4uLkLGAVZpw6puIHXhu5FuZyBL4bq9bSBEU0QgKERTRCBCaW96aW5jKSBsw6AgdGjhu7FjIHBo4bqpbSBjaOG7qWMgbsSDbmcgYuG7lSBzdW5nIGvhur1tIHbDoCBjw6FjIGTGsOG7oW5nIGNo4bqldCB0aGnhur90IHnhur91ICh2aXRhbWluIG5ow7NtIEIsIG5ow6JuIHPDom0pIGdpw7pwIHTEg25nIGPGsOG7nW5nIHPhu6ljIGto4buPZSBuYW0gZ2nhu5tpLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cv4CL2dvdG8_dXJsPUNBRVNrZ0lCNnpzd0ZYU0d0N1V2X1ZKYzNGQU1YYXN3ZEZBa0syNDJZYzJmQUF3ZXZraW9kdjctbEw3a0JmZFBGRWpZalhLSFV3VFdqVlZSMWp1aFlUcXBIRzhiTDc3QlRGdjh3TDFBSmxtTjdDOG9OSzlmZEZGaE0wRGhLNHphQVNzcnBVOEs4RS1GdF84WGZYZVg2eWpqSl9YNW1oYWVJTE8tZlN5MGVEUjc3UkpOUUlOZjNFM2FKaFYyb3Nub2FrenVPSU01TmVoNXFhVmNfUE9NNHc1SUdFLXYwSThTb2FNa1VLbUtkU0x1UTNJMGxNQlRSeWpEaWFlNWtNOUc4bHJRNnVxRFc1TW05V1FIRElEdjdlSllzQmMtc1J1bV80YmloYTMtU05pZlpJOGhzbDRYNmpJRTd1RFd4b1hUZ2ZQbTljaDgzSk1FT3lvbUl3ZkRxZ3VRblRVWUNfVlM3UGtHMXR5MzlFNllEX2ZjRl9kdhIEGgIIABqIBxIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDkBghCEAAYACAAKhwKCWRzZHBoYXJtYRVaYBtAGgpkc2QgcGhhcm1hKloKBXRyYW5nFdOnfj8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaBXdoaXRlGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nGgN3ZWIqNgoFY2jhu6cV7PwCPxoDY2h1GgN3ZWIaCnRyYW5nY2jhu6caCGl2O2Q7Y2h1GghpdjtkO3dlYio1CgZjaMOtbmgVVOpkPxoFY2hpbmgaC2Now61uaGjDo25nGgppdjtkO2NoaW5oGgZjaOG6pXQqKQoFaMOjbmcVDzVaPxoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMqgCL2dvdG8_dXJsPUNBRVMwUUVCNnpzd0ZYcjUxNHkxV1c1WDAwbllaY3had2VTTW85NGdJZTJJdzlnQVF5Wll3TXBFUGYyRlpNYi13TkNtRjladlFaczMybXNWTTFIVmRIMVN6WVk1a09MbnRwcjhjOGl1S3pObE9pYkRMTGNkU2UxWkNSeC1wS05ETWZHOVczdXdKT043UENHMkV4Y00yYVZPUWV1M2lCU0xjVXRQMmgzcXZlWHdJOUl3REY4UjE0a3pRUFI3TDJwWWROV3N0NUZxYVluVHpMLVk5cV90enpTTFJsSGVwck9TcVpHWU15TU5DQWc5SXhBdEtJU1dDQlotaTlYRXRkQXpnSnhoazdIcXdrRGM1NDc0TnhmSjhTU1BCZUZuUFE6QjxiPkRTRFBIQVJNQTwvYj4gVmnDqm4gS-G6vW0gRFNEIFBsdXMgNjAgTmfDoHkgQuG7lSBTdW5nIEvhur1tIC4uLkLGAVZpw6puIHXhu5FuZyBL4bq9bSBEU0QgKERTRCBCaW96aW5jKSBsw6AgdGjhu7FjIHBo4bqpbSBjaOG7qWMgbsSDbmcgYuG7lSBzdW5nIGvhur1tIHbDoCBjw6FjIGTGsOG7oW5nIGNo4bqldCB0aGnhur90IHnhur91ICh2aXRhbWluIG5ow7NtIEIsIG5ow6JuIHPDom0pIGdpw7pwIHTEg25nIGPGsOG7nW5nIHPhu6ljIGto4buPZSBuYW0gZ2nhu5tpLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "Thuốc Tốt 247"
+    },
+    {
+     "position": 8,
+     "title": "Kẽm DSD Pharma Biozinc hỗ trợ bổ sung kẽm, kết hợp nhân ...",
+     "link": "https://www.tiktok.com/@vlogminhhai/video/7697576420817603861",
+     "displayed_link": ">2,7 N lượt xem: · 1 tuần trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLqzHmwYt7SzaNqgVpD8FgRcI.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Video TikTok từ Vlog Minh Hải (@vlogminhhai): \"Kẽm DSD Pharma Biozinc hỗ trợ bổ sung kẽm, kết hợp nhân sâm và vitamin nhóm B, hỗ trợ tăng ...",
+     "duration": "0:58",
+     "about_this_result": {
+      "source": {
+       "description": "Video TikTok từ Vlog Minh Hải (@vlogminhhai): \"Kẽm DSD Pharma Biozinc hỗ trợ bổ sung kẽm, kết hợp nhân sâm và vitamin nhóm B, hỗ trợ tăng ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CrABL2dvdG8_dXJsPUNBRVNlQUhyT3pBVlBEXzRNSXFiVG92TTRaY3Z6NFhUei1FSWp3RFJ3dmdBOE5DVDRhZ0JGOWVNUTNLTlRnMjJ3dUtPTUlRY2Y1dmRDSWJPTXBELWZ3UEQtcWJjWGZRY202Z2ktWXo5bG9mT3FnSGNLUzZuVmFIcG1JcE5GVjltNW0yXzdXMGdpcFRKeXp1SWJfaWV1b1lPVlZWVDJpNFlhNzd6WFESFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaFhIAGgAiACoAMgA6AEIASgBaAHIAegAiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CrABL2dvdG8_dXJsPUNBRVNlQUhyT3pBVlBEXzRNSXFiVG92TTRaY3Z6NFhUei1FSWp3RFJ3dmdBOE5DVDRhZ0JGOWVNUTNLTlRnMjJ3dUtPTUlRY2Y1dmRDSWJPTXBELWZ3UEQtcWJjWGZRY202Z2ktWXo5bG9mT3FnSGNLUzZuVmFIcG1JcE5GVjltNW0yXzdXMGdpcFRKeXp1SWJfaWV1b1lPVlZWVDJpNFlhNzd6WFESFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaFhIAGgAiACoAMgA6AEIASgBaAHIAegAiAhABSABYAGgA",
+     "video_link": "https://encrypted-vtbn0.gstatic.com/video?q=tbn:ANd9GcSIK_yx1U0-dH6T3mI1gE1oj3LnlWAxNo9AuQ",
+     "source": "TikTok · Vlog Minh Hải"
+    },
+    {
+     "position": 9,
+     "title": "Viên uống DSD bổ sung Kẽm Biozinc - Tăng cường sinh lực",
+     "link": "https://shopee.vn/DSDPHARMA-K%E1%BA%BDm-DSD-30-Ng%C3%A0y-60-Ng%C3%A0y-Vi%C3%AAn-u%E1%BB%91ng-DSD-b%E1%BB%95-sung-K%E1%BA%BDm-Biozinc-T%C4%83ng-c%C6%B0%E1%BB%9Dng-sinh-l%E1%BB%B1c-i.934056750.49561060580",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEShgIB6zswFUAK9R7wC0hQ3FVXPN5qw402PaQRn9rCNVLX2hDbUYzUio7kA0zBYIrwseTcgQFEUaOj-MXIy5ibe0unDMxe7yNGwF41JQCR83Yg7CG2KfchBL7BJgQ9aduN9lVwLsEwvijpLTPG8kQG2k_ieoiOgB9yVXBTFVZfLrhNuzM8Nzo6My45noa-ciha57muVt9T3XP4zCxNVkLCg3F25PNt9CtC1hZdr1rFhBqmmZjRriYzlq8Ef6ZpRn0Wt4jbDWakfY4H2opl5zpIz_Di4IET4tTqPYf9gTOQQeAOjtXGMygXDwU7z11zGuIY9sUwupaobjq8t3AmtB-Ce3LasSVqYOIK&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQFnoECB8QAQ&uoh=1",
+     "displayed_link": "https://shopee.vn › ... › Hỗ trợ sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLq4Dpm2VG5OHlPK-ttzgSHD4.png",
+     "snippet": "Mua DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày - Viên uống DSD bổ sung Kẽm Biozinc - Tăng cường sinh lực giá tốt. Mua hàng qua mạng uy tín, tiện lợi.",
+     "snippet_highlighted_words": [
+      "DSDPHARMA"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 4.8,
+        "reviews": 2840,
+        "price": 175000,
+        "currency": "₫"
+       },
+       "extensions": [
+        "4,8(2.840)",
+        "175.000 ₫",
+        "Còn hàng"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Mua DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày - Viên uống DSD bổ sung Kẽm Biozinc - Tăng cường sinh lực giá tốt. Mua hàng qua mạng uy tín, tiện lợi.",
+       "source_info_link": "https://shopee.vn/DSDPHARMA-K%E1%BA%BDm-DSD-30-Ng%C3%A0y-60-Ng%C3%A0y-Vi%C3%AAn-u%E1%BB%91ng-DSD-b%E1%BB%95-sung-K%E1%BA%BDm-Biozinc-T%C4%83ng-c%C6%B0%E1%BB%9Dng-sinh-l%E1%BB%B1c-i.934056750.49561060580",
+       "icon": "https://serpapi.com/searches/6adeb4e1ec5aa50b82fbb539/images/tecHBj9hws10DPgsvakLq7_TF5rbxM9g8GvAuK_UoQL6yeMaFxTNIPNnv4w1-NC5.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cu4CL2dvdG8_dXJsPUNBRVNoZ0lCNnpzd0ZjS1JnY05SMXlpbThtZ0hkSUJoZ3FBamY4ZmQ1cHRPMEZZUFBMc0hRaFUxcGhOMTYzRzluVDljeDJFME43SFV0RVA2blhRdnVHZVBuUFc0bmJoTDVGdjlZR2dvSmc5U25ybUhoOWxXMk5INjg5QjRlclBDUEJQZkxEQUZlMDdiZklaYXBwV0ZTckJaNXFhS0U3V3dPTDlXYXZyU0IyZW9xd1BHdGdhbGFIRkEtTUUxbVBLVFgxem1WbjVMb0pkbnVfdEs1QldETDNKZ3psNTNCNWpxQXY0RlFHeDRadHhYNjBmallLMmFnaGxUZ3VXdEtqUDQ5a3gxTXFtY0Vfa0RaRzI3R3RabmZkSTltYms1eE1OV3I4TkZxSDhhbzBVV25PekNZVUpCeGRNUUpmYnV5T0JwbXlVT3RTcWpPVkZ3d2hUVkUtNVZZMTNCUkhrbFltR3JyMDg2EgQaAggAGrkHEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQJUHCEIQABgAIAAqHAoJZHNkcGhhcm1hFdduG0AaCmRzZCBwaGFybWEqWgoFdHJhbmcVAAAAABoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBUAAAAAGgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcy7gIvZ290bz91cmw9Q0FFU2hnSUI2enN3RmNLUmdjTlIxeWltOG1nSGRJQmhncUFqZjhmZDVwdE8wRllQUExzSFFoVTFwaE4xNjNHOW5UOWN4MkUwTjdIVXRFUDZuWFF2dUdlUG5QVzRuYmhMNUZ2OVlHZ29KZzlTbnJtSGg5bFcyTkg2ODlCNGVyUENQQlBmTERBRmUwN2JmSVphcHBXRlNyQlo1cWFLRTdXd09MOVdhdnJTQjJlb3F3UEd0Z2FsYUhGQS1NRTFtUEtUWDF6bVZuNUxvSmRudV90SzVCV0RMM0pnemw1M0I1anFBdjRGUUd4NFp0eFg2MGZqWUsyYWdobFRndVd0S2pQNDlreDFNcW1jRV9rRFpHMjdHdFpuZmRJOW1iazV4TU5XcjhORnFIOGFvMFVXbk96Q1lVSkJ4ZE1RSmZidXlPQnBteVVPdFNxak9WRnd3aFRWRS01VlkxM0JSSGtsWW1HcnIwODY6RFZpw6puIHXhu5FuZyBEU0QgYuG7lSBzdW5nIEvhur1tIEJpb3ppbmMgLSBUxINuZyBjxrDhu51uZyBzaW5oIGzhu7FjQq8BTXVhIDxiPkRTRFBIQVJNQTwvYj4gS-G6vW0gRFNEIDMwIE5nw6B5IDYwIE5nw6B5IC0gVmnDqm4gdeG7kW5nIERTRCBi4buVIHN1bmcgS-G6vW0gQmlvemluYyAtIFTEg25nIGPGsOG7nW5nIHNpbmggbOG7sWMgZ2nDoSB04buRdC4gTXVhIGjDoG5nIHF1YSBt4bqhbmcgdXkgdMOtbiwgdGnhu4duIGzhu6NpLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cu4CL2dvdG8_dXJsPUNBRVNoZ0lCNnpzd0ZjS1JnY05SMXlpbThtZ0hkSUJoZ3FBamY4ZmQ1cHRPMEZZUFBMc0hRaFUxcGhOMTYzRzluVDljeDJFME43SFV0RVA2blhRdnVHZVBuUFc0bmJoTDVGdjlZR2dvSmc5U25ybUhoOWxXMk5INjg5QjRlclBDUEJQZkxEQUZlMDdiZklaYXBwV0ZTckJaNXFhS0U3V3dPTDlXYXZyU0IyZW9xd1BHdGdhbGFIRkEtTUUxbVBLVFgxem1WbjVMb0pkbnVfdEs1QldETDNKZ3psNTNCNWpxQXY0RlFHeDRadHhYNjBmallLMmFnaGxUZ3VXdEtqUDQ5a3gxTXFtY0Vfa0RaRzI3R3RabmZkSTltYms1eE1OV3I4TkZxSDhhbzBVV25PekNZVUpCeGRNUUpmYnV5T0JwbXlVT3RTcWpPVkZ3d2hUVkUtNVZZMTNCUkhrbFltR3JyMDg2EgQaAggAGrkHEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQJUHCEIQABgAIAAqHAoJZHNkcGhhcm1hFdduG0AaCmRzZCBwaGFybWEqWgoFdHJhbmcVAAAAABoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoFd2hpdGUaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcaA3dlYio2CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKjUKBmNow61uaBUAAAAAGgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgaBmNo4bqldCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcy7gIvZ290bz91cmw9Q0FFU2hnSUI2enN3RmNLUmdjTlIxeWltOG1nSGRJQmhncUFqZjhmZDVwdE8wRllQUExzSFFoVTFwaE4xNjNHOW5UOWN4MkUwTjdIVXRFUDZuWFF2dUdlUG5QVzRuYmhMNUZ2OVlHZ29KZzlTbnJtSGg5bFcyTkg2ODlCNGVyUENQQlBmTERBRmUwN2JmSVphcHBXRlNyQlo1cWFLRTdXd09MOVdhdnJTQjJlb3F3UEd0Z2FsYUhGQS1NRTFtUEtUWDF6bVZuNUxvSmRudV90SzVCV0RMM0pnemw1M0I1anFBdjRGUUd4NFp0eFg2MGZqWUsyYWdobFRndVd0S2pQNDlreDFNcW1jRV9rRFpHMjdHdFpuZmRJOW1iazV4TU5XcjhORnFIOGFvMFVXbk96Q1lVSkJ4ZE1RSmZidXlPQnBteVVPdFNxak9WRnd3aFRWRS01VlkxM0JSSGtsWW1HcnIwODY6RFZpw6puIHXhu5FuZyBEU0QgYuG7lSBzdW5nIEvhur1tIEJpb3ppbmMgLSBUxINuZyBjxrDhu51uZyBzaW5oIGzhu7FjQq8BTXVhIDxiPkRTRFBIQVJNQTwvYj4gS-G6vW0gRFNEIDMwIE5nw6B5IDYwIE5nw6B5IC0gVmnDqm4gdeG7kW5nIERTRCBi4buVIHN1bmcgS-G6vW0gQmlvemluYyAtIFTEg25nIGPGsOG7nW5nIHNpbmggbOG7sWMgZ2nDoSB04buRdC4gTXVhIGjDoG5nIHF1YSBt4bqhbmcgdXkgdMOtbiwgdGnhu4duIGzhu6NpLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "Shopee Việt Nam"
+    }
+   ],
+   "related_searches": [
+    {
+     "block_position": 1,
+     "query": "DSD Pharma",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=DSD+Pharma&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgOEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DSD+Pharma"
+    },
+    {
+     "block_position": 1,
+     "query": "Dsd Pharma là công ty gì",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=Dsd+Pharma+l%C3%A0+c%C3%B4ng+ty+g%C3%AC&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgiEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsd+Pharma+l%C3%A0+c%C3%B4ng+ty+g%C3%AC"
+    },
+    {
+     "block_position": 1,
+     "query": "DSD Pharma Shop",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=DSD+Pharma+Shop&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgbEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DSD+Pharma+Shop"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm DSD chính hãng",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=K%E1%BA%BDm+DSD+ch%C3%ADnh+h%C3%A3ng&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgVEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+DSD+ch%C3%ADnh+h%C3%A3ng"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm dsd Long Châu",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=K%E1%BA%BDm+dsd+Long+Ch%C3%A2u&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgUEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+dsd+Long+Ch%C3%A2u"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm Boss Man có bạn ở hiệu thuốc không",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=K%E1%BA%BDm+Boss+Man+c%C3%B3+b%E1%BA%A1n+%E1%BB%9F+hi%E1%BB%87u+thu%E1%BB%91c+kh%C3%B4ng&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgSEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+Boss+Man+c%C3%B3+b%E1%BA%A1n+%E1%BB%9F+hi%E1%BB%87u+thu%E1%BB%91c+kh%C3%B4ng"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm DSD có tác dụng gì với nam giới",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=K%E1%BA%BDm+DSD+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+v%E1%BB%9Bi+nam+gi%E1%BB%9Bi&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgREAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+DSD+c%C3%B3+t%C3%A1c+d%E1%BB%A5ng+g%C3%AC+v%E1%BB%9Bi+nam+gi%E1%BB%9Bi"
+    },
+    {
+     "block_position": 1,
+     "query": "Kẽm DSD Multi B",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&q=K%E1%BA%BDm+DSD+Multi+B&sa=X&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ1QJ6BAgPEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=K%E1%BA%BDm+DSD+Multi+B"
+    }
+   ],
+   "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=10&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8NMDegQISxAW",
+    "other_pages": {
+     "2": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=10&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAE",
+     "3": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=20&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAG",
+     "4": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=30&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAI",
+     "5": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=40&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAK",
+     "6": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=50&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAM",
+     "7": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=60&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAO",
+     "8": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=70&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAQ",
+     "9": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=80&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAS",
+     "10": "https://www.google.com/search?q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQntVB2QbWdIgaJcbK-hp3zPYUTBNpw:1792980193863&ei=4bTeaoKSNNLtmLQPu9-r4QQ&start=90&sa=N&sstk=AS6-VmJbVUSd_lutLkj5BYnUP4Ra4Ht5CyxX7EXwYnec7-dzWnKzu-yNT_laVa1WEJSRUblh3Si01Wb7MOBs0eZXxlyscwx9nGUbKA&ved=2ahUKEwjChq3cy9aXAxXSNoYAHbvvKkwQ8tMDegQISxAU"
+    }
+   },
+   "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+    "other_pages": {
+     "2": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+     "3": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=20",
+     "4": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=30",
+     "5": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=40",
+     "6": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=50",
+     "7": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=60",
+     "8": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=70",
+     "9": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=80",
+     "10": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dsdpharma+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=90"
+    }
+   }
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "57eb140e95a88a93440c46db2e59737b6736ca8a01fc73565256bd8fc42e3917"
+ }
+}

@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "17 · S07 · Bình luận dưới video TikTok",
+  "describe": "Bình luận TikTok của video https://www.tiktok.com/@imochi.vn/video/7636394988934302996 (3 bình luận)",
+  "parentFile": "17-S07-tiktok-binh-luan.json",
+  "parentLocation": "records[1].items[videoWebUrl=https://www.tiktok.com/@imochi.vn/video/7636394988934302996]",
+  "sourceCode": "S07",
+  "sourceName": "Bình luận dưới video TikTok",
+  "provider": "Apify clockworks/tiktok-comments-scraper",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Bình luận có dưới video lúc thu (createTimeISO mỗi bình luận)"
+  },
+  "limits": [
+   "Tối đa 100 bình luận mỗi video, không lấy trả lời",
+   "Lời bình luận không phải lúc nào cũng là người mua",
+   "Không in nguyên văn"
+  ],
+  "videoUrl": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+  "commentCount": 3,
+  "resultSha256": "ea29752f54c92f8c040ca9d75c5e2b3d6725c1b05b818a79ef55bc84a60e2db7"
+ },
+ "result": [
+  {
+   "videoWebUrl": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "submittedVideoUrl": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "input": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "cid": "anon-d4da3661ad4b",
+   "createTime": 1778001481,
+   "createTimeISO": "2026-05-05T17:18:01.000Z",
+   "text": "@[ẩn]: c ơi e muốn mua viên ptr chiều cao gh bên mình mua kiểu gì ạ",
+   "diggCount": 1,
+   "likedByAuthor": false,
+   "pinnedByAuthor": false,
+   "repliesToId": null,
+   "replyCommentTotal": 3,
+   "uid": "anon-0aa2bba96686",
+   "uniqueId": "anon-0ce805412a33",
+   "avatarThumbnail": "<removed: 1>",
+   "mentions": [],
+   "detailedMentions": [],
+   "images": [],
+   "sticker": null
+  },
+  {
+   "videoWebUrl": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "submittedVideoUrl": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "input": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "cid": "anon-278382f2aebd",
+   "createTime": 1783988643,
+   "createTimeISO": "2026-07-14T00:24:03.000Z",
+   "text": "Chị ơi. Ngày uống 2 lần sau khi ăn phải không ạ. Mỗi lần uống 1 viên phải k ạ",
+   "diggCount": 0,
+   "likedByAuthor": false,
+   "pinnedByAuthor": false,
+   "repliesToId": null,
+   "replyCommentTotal": 2,
+   "uid": "anon-3149083d81c2",
+   "uniqueId": "anon-0a7469de82dd",
+   "avatarThumbnail": "<removed: 1>",
+   "mentions": [],
+   "detailedMentions": [],
+   "images": [],
+   "sticker": null
+  },
+  {
+   "videoWebUrl": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "submittedVideoUrl": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "input": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "cid": "anon-3bd5908e5838",
+   "createTime": 1781107170,
+   "createTimeISO": "2026-06-10T15:59:30.000Z",
+   "text": "Chị có viên uống rau củ ko chi",
+   "diggCount": 0,
+   "likedByAuthor": false,
+   "pinnedByAuthor": false,
+   "repliesToId": null,
+   "replyCommentTotal": 0,
+   "uid": "anon-4ba127978210",
+   "uniqueId": "anon-b2d6c0021922",
+   "avatarThumbnail": "<removed: 1>",
+   "mentions": [],
+   "detailedMentions": [],
+   "images": [],
+   "sticker": null
+  }
+ ]
+}

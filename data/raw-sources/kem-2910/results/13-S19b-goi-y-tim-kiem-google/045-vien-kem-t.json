@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm t» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[44]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "bb2f16bdbf681d18a14e0e84cbd6b54648ea7ab96aedcfb5fad617519c6762df"
+ },
+ "result": {
+  "prefix": "viên kẽm t",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:14Z",
+  "suggestions": [
+   "viên kẽm tốt",
+   "viên kẽm tổng hợp",
+   "viên kẽm thiên sư",
+   "viên kẽm trẻ em",
+   "viên kẽm tại long châu",
+   "viên kẽm traphaco có tốt không",
+   "viên kẽm thái lan",
+   "viên kẽm tốt nhất cho nam giới",
+   "viên kẽm traphaco cnc",
+   "viên kẽm traphaco long châu"
+  ],
+  "raw": [
+   "viên kẽm t",
+   [
+    "viên kẽm tốt",
+    "viên kẽm tổng hợp",
+    "viên kẽm thiên sư",
+    "viên kẽm trẻ em",
+    "viên kẽm tại long châu",
+    "viên kẽm traphaco có tốt không",
+    "viên kẽm thái lan",
+    "viên kẽm tốt nhất cho nam giới",
+    "viên kẽm traphaco cnc",
+    "viên kẽm traphaco long châu"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

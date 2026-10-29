@@ -1,0 +1,220 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "04 · S14 · Lời nói trong video bán hàng TikTok",
+  "describe": "Lời nói trong video bán hàng và video đánh giá sản phẩm (lấy từ phụ đề có sẵn) automation-video-watch",
+  "parentFile": "04-S14-video-ban-hang-loi-noi.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S14",
+  "sourceName": "Lời nói trong video bán hàng TikTok",
+  "provider": "Gemini (đọc video) + công cụ tải video trên máy chủ",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Video có sẵn lúc thu"
+  },
+  "limits": [
+   "Lời người bán, không phải ý kiến khách",
+   "Tệp video đã xoá sau 45 ngày, chỉ giữ dấu sha256"
+  ],
+  "resultSha256": "2b00c04bd10a1b0f002cee801abb3f189e4590f9f12d1e0241927c99d6659a74"
+ },
+ "result": {
+  "packageId": "e45208b4-5042-434c-9003-b6eb751b50f5",
+  "packageKey": "automation-video-watch:f0f4799a-f9b3-4204-91b2-682ab79d0fce-7690943902592912660-1dcc36cf95d3c94c",
+  "sourceLabel": "Lời nói trong video bán hàng và video đánh giá sản phẩm (lấy từ phụ đề có sẵn)",
+  "finalizedAt": "2026-10-26T02:04:49.838Z",
+  "files": [
+   {
+    "logicalPath": "reading.json",
+    "artifactSha256": "1dcc36cf95d3c94c6e65fbbfd831deeef7d7dd6b245a2a95f79c98d07e0899dd",
+    "mediaType": "application/json",
+    "content": {
+     "candidatesSha256": "fa6e326422c465af17da3b1897c6844e4fe1f83415e9e6ff15cfff1e5df4874d",
+     "captionSource": "NATIVE_SUBTITLE",
+     "contractVersion": "video-reading-v3",
+     "limitations": [
+      "Lấy từ phụ đề có sẵn của video, chưa có người kiểm tra.",
+      "Đây là lời người bán hoặc người làm video đánh giá, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng."
+     ],
+     "media": {
+      "byteSize": 2399,
+      "downloadedAt": "2026-10-26T02:04:45.064Z",
+      "durationSeconds": 60,
+      "sha256": "0559dc3c59bcc1c057633f277088781c0ab658c92e7131e71f3d0deac6cecf2c"
+     },
+     "model": {
+      "modelId": "gemini-3.8-flash-high",
+      "responseSha256": "74f3adfc8e40ab34d7e38e4df1033ec50f84463cf892f4459f5b738b34a46ee0"
+     },
+     "onScreenText": [],
+     "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+     "registryId": "S14",
+     "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+     "scopeSha256": "8049b115432c6db5d6ddf3454847851b167fb4efa6374f19a5e92ad738361557",
+     "segments": [
+      {
+       "endSeconds": 3.44,
+       "startSeconds": 0.12,
+       "text": "Cho em Xin hỏi chút ạ cả Nam và nữ có dùng được không chị"
+      },
+      {
+       "endSeconds": 6.12,
+       "startSeconds": 3.64,
+       "text": "thì cái viên uống kẽm của thương hiệu DHC Nhật Bản này"
+      },
+      {
+       "endSeconds": 7.24,
+       "startSeconds": 6.36,
+       "text": "cả Nam và nữ"
+      },
+      {
+       "endSeconds": 10.08,
+       "startSeconds": 7.32,
+       "text": "từ 15 tuổi trở lên là đều có thể sử dụng được nha"
+      },
+      {
+       "endSeconds": 12.48,
+       "startSeconds": 10.48,
+       "text": "đối với các bạn nữ khi mà mình uống kẽm vào"
+      },
+      {
+       "endSeconds": 14.32,
+       "startSeconds": 12.52,
+       "text": "nó sẽ hỗ trợ Cho mình kiềm dầu này"
+      },
+      {
+       "endSeconds": 15.121,
+       "startSeconds": 14.321,
+       "text": "hết mụn này"
+      },
+      {
+       "endSeconds": 17.72,
+       "startSeconds": 15.28,
+       "text": "đẹp da này cải thiện vấn đề tóc rụng và móng giòn"
+      },
+      {
+       "endSeconds": 20.32,
+       "startSeconds": 17.88,
+       "text": "còn đối với Nam giới thì kẽm nó là một cái trợ thủ đắc lực"
+      },
+      {
+       "endSeconds": 22.72,
+       "startSeconds": 20.72,
+       "text": "để hỗ trợ mình nâng Cao sức khỏe phong độ này"
+      },
+      {
+       "endSeconds": 24.48,
+       "startSeconds": 22.88,
+       "text": "giúp mình bớt cái cảm giác mệt mỏi"
+      },
+      {
+       "endSeconds": 26.2,
+       "startSeconds": 24.52,
+       "text": "uể oải khi mà mình vận động nhiều"
+      },
+      {
+       "endSeconds": 28,
+       "startSeconds": 26.4,
+       "text": "hoặc là mình chơi thể thao tập gym"
+      },
+      {
+       "endSeconds": 30.2,
+       "startSeconds": 28.16,
+       "text": "một gói như thế này thì nó sẽ có"
+      },
+      {
+       "endSeconds": 33.04,
+       "startSeconds": 30.36,
+       "text": "30 viên ở bên trong tương đương với 30 ngày sử dụng"
+      },
+      {
+       "endSeconds": 34.36,
+       "startSeconds": 33.32,
+       "text": "tức là mỗi một ngày"
+      },
+      {
+       "endSeconds": 37.8,
+       "startSeconds": 35.6,
+       "text": "mình sẽ uống một viên như thế này nha"
+      },
+      {
+       "endSeconds": 39.6,
+       "startSeconds": 38.16,
+       "text": "đó một viên kẽm như thế này"
+      },
+      {
+       "endSeconds": 40.88,
+       "startSeconds": 39.76,
+       "text": "tính Ra rất là rẻ nha"
+      },
+      {
+       "endSeconds": 42.801,
+       "startSeconds": 40.881,
+       "text": "mỗi ngày mọi người chỉ mất có vài nghìn đồng thôi"
+      },
+      {
+       "endSeconds": 45.001,
+       "startSeconds": 42.802,
+       "text": "rẻ hơn cả một cốc trà đá luôn"
+      },
+      {
+       "endSeconds": 48.16,
+       "startSeconds": 45.16,
+       "text": "hàm lượng kẽm là 15mg trên một ngày và cái hàm lượng này á"
+      },
+      {
+       "endSeconds": 50.44,
+       "startSeconds": 48.44,
+       "text": "thì nó đáp ứng Theo cái tiêu chuẩn khuyến nghị"
+      },
+      {
+       "endSeconds": 51.84,
+       "startSeconds": 50.48,
+       "text": "dành Cho người trưởng thành"
+      },
+      {
+       "endSeconds": 53.8,
+       "startSeconds": 52.24,
+       "text": "nên là mọi người uống nó sẽ rất là an"
+      },
+      {
+       "endSeconds": 55.16,
+       "startSeconds": 53.88,
+       "text": "toàn và không lo dư thừa nhá"
+      },
+      {
+       "endSeconds": 56.6,
+       "startSeconds": 55.28,
+       "text": "và một liệu trình thì mọi người nên"
+      },
+      {
+       "endSeconds": 57.921,
+       "startSeconds": 56.601,
+       "text": "cố gắng uống 23"
+      },
+      {
+       "endSeconds": 60,
+       "startSeconds": 58,
+       "text": "tháng để mình cảm nhận được cái hiệu quả Cao nha"
+      }
+     ],
+     "sourceSetSha256": "161771987181fdd3ddf3ef9621d0c3c1ffaa063b8f4befae6ad2d0f5ee060b9b",
+     "state": "PREPARED_NOT_ADMITTED",
+     "video": {
+      "aboutProduct": true,
+      "durationSeconds": 60,
+      "origin": "EXPANDED_SEARCH",
+      "videoId": "7690943902592912660",
+      "videoKind": "SELLER_VIDEO",
+      "videoUrl": "https://www.tiktok.com/@imochi.vn/video/7690943902592912660"
+     },
+     "voice": "SELLER",
+     "workspaceId": "bc412bc5-5693-48b1-a949-85215b5cc414"
+    }
+   }
+  ]
+ }
+}

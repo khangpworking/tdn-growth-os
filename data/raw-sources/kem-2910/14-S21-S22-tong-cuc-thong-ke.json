@@ -1,0 +1,453 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S21 + S22",
+  "sourceName": "Số liệu Cục Thống kê (bảng tháng + chỉ số giá CPI theo tỉnh)",
+  "provider": "nso.gov.vn (WordPress media API + tệp .xlsx)",
+  "reportName": "Cục Thống kê (nso.gov.vn)",
+  "grade": "A",
+  "usedBy": [
+   "MARKET (bối cảnh vĩ mô, giá theo tỉnh)"
+  ],
+  "evidenceFamily": "macro_statistic",
+  "origin": {
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "collectedOn": "2026-10-29",
+   "collector": "gaps_kem.py (Claude, 29/10/2026)",
+   "note": "Lượt chạy 26/10 không lưu bản thu NSO; thu lại theo đúng cách của app: 1 lần liệt kê + tối đa 2 tệp, cách 2 giây"
+  },
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Tệp tháng mới nhất trên trang tại lúc thu (tháng ghi trong tên tệp)"
+  },
+  "recordShape": "nso.listing = 40 tệp .xlsx mới nhất; nso.workbook = url + sha256 của tệp gốc (excludedFile); tệp không có trong kho.",
+  "limits": [
+   "Không chia theo sản phẩm (nhóm hàng rộng)",
+   "Không cộng với số bán trên sàn",
+   "Tệp .xlsx không có trong kho; chỉ giữ url + sha256"
+  ],
+  "cost": {
+   "unit": "USD",
+   "spent": 0
+  },
+  "recordCount": 3,
+  "recordsSha256": "db5c9155f5ec067f2f7e8651c4b9c6fa3782df970696af346f1cb42c72ca1e86",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": [
+  {
+   "operation": "nso.listing",
+   "url": "https://www.nso.gov.vn/wp-json/wp/v2/media?mime_type=application%2Fvnd.openxmlformats-officedocument.spreadsheetml.sheet&per_page=40&orderby=date&order=desc&_fields=id%2Cdate%2Ctitle%2Csource_url%2Cmime_type",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:59:12Z",
+   "response": [
+    {
+     "id": 62719,
+     "date": "2026-10-12T11:03:48",
+     "title": {
+      "rendered": "Bieu so lieu Lao dong viec lam QIII.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/Bieu-so-lieu-Lao-dong-viec-lam-QIII.2026.xlsx"
+    },
+    {
+     "id": 62565,
+     "date": "2026-10-03T08:02:22",
+     "title": {
+      "rendered": "02. Bieu thang 9.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/02.-Bieu-thang-9.2026.xlsx"
+    },
+    {
+     "id": 62559,
+     "date": "2026-10-03T07:42:35",
+     "title": {
+      "rendered": "Bieu thang 9.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/02.-Bieu-thang-9-ngay-02.10.2026.xlsx"
+    },
+    {
+     "id": 62541,
+     "date": "2026-10-02T17:43:34",
+     "title": {
+      "rendered": "CPI, Gold Price Index, and US Dollar Price Index in Sept. and the nine months of 2026_Eng"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/CPI-Gold-Price-Index-and-US-Dollar-Price-Index-in-Sept.-and-the-nine-months-of-2026_Eng.xlsx"
+    },
+    {
+     "id": 62487,
+     "date": "2026-10-02T16:17:39",
+     "title": {
+      "rendered": "IIP &#8211; Eng9"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/IIP-Eng9.xlsx"
+    },
+    {
+     "id": 62484,
+     "date": "2026-10-02T16:15:52",
+     "title": {
+      "rendered": "IIP &#8211; VIE"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/IIP-VIE.xlsx"
+    },
+    {
+     "id": 62470,
+     "date": "2026-10-02T16:02:20",
+     "title": {
+      "rendered": "So lieu CPI tháng 9, QIII va 9 thang nam 2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/So-lieu-CPI-thang-9-QIII-va-9-thang-nam-2026.xlsx"
+    },
+    {
+     "id": 62331,
+     "date": "2026-09-12T15:34:31",
+     "title": {
+      "rendered": "02 Tables Aug 2026 -EN"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/09/02-Tables-Aug-2026-EN.xlsx"
+    },
+    {
+     "id": 62233,
+     "date": "2026-09-03T08:05:42",
+     "title": {
+      "rendered": "02 Bieu T8.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/09/02-Bieu-T8.2026.xlsx"
+    },
+    {
+     "id": 62207,
+     "date": "2026-09-02T13:52:30",
+     "title": {
+      "rendered": "So lieu CPI, chi so gia vang, chi so gia USD thang Tam và 8 thang nam 2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/09/So-lieu-CPI-chi-so-gia-vang-chi-so-gia-USD-thang-Tam-va-8-thang-nam-2026-1.xlsx"
+    },
+    {
+     "id": 62205,
+     "date": "2026-09-02T13:51:16",
+     "title": {
+      "rendered": "CPI-Gold-Price-Index-and-US-Dollar-Price-Index-in-August-2026_Eng"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/09/CPI-Gold-Price-Index-and-US-Dollar-Price-Index-in-August-2026_Eng.xlsx"
+    },
+    {
+     "id": 62200,
+     "date": "2026-09-02T13:09:47",
+     "title": {
+      "rendered": "So lieu CPI, chi so gia vang, chi so gia USD thang Tam và 8 thang nam 2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/09/So-lieu-CPI-chi-so-gia-vang-chi-so-gia-USD-thang-Tam-va-8-thang-nam-2026.xlsx"
+    },
+    {
+     "id": 62190,
+     "date": "2026-09-01T10:29:56",
+     "title": {
+      "rendered": "IIP &#8211; Engt8"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/09/IIP-Engt8.xlsx"
+    },
+    {
+     "id": 62186,
+     "date": "2026-09-01T10:26:51",
+     "title": {
+      "rendered": "IIP &#8211; Vie"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/09/IIP-Vie.xlsx"
+    },
+    {
+     "id": 62067,
+     "date": "2026-08-12T15:59:10",
+     "title": {
+      "rendered": "2. Bieu T7.2026-EN-gui"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/08/2.-Bieu-T7.2026-EN-gui.xlsx"
+    },
+    {
+     "id": 61987,
+     "date": "2026-08-03T08:11:47",
+     "title": {
+      "rendered": "CPI, gia vang, gia USD_T7.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/08/CPI-gia-vang-gia-USD_T7.2026.xlsx"
+    },
+    {
+     "id": 61983,
+     "date": "2026-08-03T08:10:08",
+     "title": {
+      "rendered": "CPI, Gold Price Index, and US Dollar Price Index in July 2026_Eng"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/08/CPI-Gold-Price-Index-and-US-Dollar-Price-Index-in-July-2026_Eng.xlsx"
+    },
+    {
+     "id": 61982,
+     "date": "2026-08-03T08:08:38",
+     "title": {
+      "rendered": "2. Bieu T7.2026- final"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/08/2.-Bieu-T7.2026-final.xlsx"
+    },
+    {
+     "id": 61970,
+     "date": "2026-08-02T23:25:52",
+     "title": {
+      "rendered": "IIP &#8211; Vie"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/08/IIP-Vie.xlsx"
+    },
+    {
+     "id": 61943,
+     "date": "2026-08-02T10:35:00",
+     "title": {
+      "rendered": "2. Bieu T6.2026_ENG"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/08/2.-Bieu-T6.2026_ENG.xlsx"
+    },
+    {
+     "id": 61872,
+     "date": "2026-07-16T08:38:49",
+     "title": {
+      "rendered": "02 Bieu T4.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/05/02-Bieu-T4.2026-1.xlsx"
+    },
+    {
+     "id": 61866,
+     "date": "2026-07-15T10:42:25",
+     "title": {
+      "rendered": "02 Tables April 2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/05/02-Tables-April-2026-EN-1.xlsx"
+    },
+    {
+     "id": 61736,
+     "date": "2026-07-06T23:24:42",
+     "title": {
+      "rendered": "Bieu so lieu cong bo KSMS 2025"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/Bieu-so-lieu-cong-bo-ksms2025_f_s.xlsx"
+    },
+    {
+     "id": 61678,
+     "date": "2026-07-03T08:31:56",
+     "title": {
+      "rendered": "2. Bieu T6.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/2.-Bieu-T6.2026.xlsx"
+    },
+    {
+     "id": 61672,
+     "date": "2026-07-02T22:44:50",
+     "title": {
+      "rendered": "CPI, Gold Price Index, and US Dollar Price Index in June and the first six months of 2026_Eng"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/CPI-Gold-Price-Index-and-US-Dollar-Price-Index-in-June-and-the-first-six-months-of-2026_Eng.xlsx"
+    },
+    {
+     "id": 61666,
+     "date": "2026-07-02T22:14:04",
+     "title": {
+      "rendered": "Bieu so lieu Lao dong viec lam_QII.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/Bieu-so-lieu-Lao-dong-viec-lam_QII.2026.xlsx"
+    },
+    {
+     "id": 61643,
+     "date": "2026-07-02T20:32:34",
+     "title": {
+      "rendered": "So lieu CPI, chỉ số giá vàng, đô la Mỹ thang 6 va 6 thang nam 2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/So-lieu-CPI-chi-so-gia-vang-do-la-My-thang-6-va-6-thang-nam-2026.xlsx"
+    },
+    {
+     "id": 61637,
+     "date": "2026-07-02T19:33:51",
+     "title": {
+      "rendered": "5.1 Bieu tong quan Du bao THKT the gioi quy II.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/5.1-Bieu-tong-quan-Du-bao-THKT-the-gioi-quy-II.2026.xlsx"
+    },
+    {
+     "id": 61595,
+     "date": "2026-07-02T16:52:58",
+     "title": {
+      "rendered": "IIP &#8211; Eng2"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/IIP-Eng2.xlsx"
+    },
+    {
+     "id": 61594,
+     "date": "2026-07-02T16:52:42",
+     "title": {
+      "rendered": "IIP &#8211; Eng1"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/IIP-Eng1.xlsx"
+    },
+    {
+     "id": 61591,
+     "date": "2026-07-02T16:48:39",
+     "title": {
+      "rendered": "IIP &#8211; Vie"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/07/IIP-Vie.xlsx"
+    },
+    {
+     "id": 61474,
+     "date": "2026-06-12T15:33:19",
+     "title": {
+      "rendered": "02. Tables May 2026-EN-gui"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/06/02.-Tables-May-2026-EN-gui.xlsx"
+    },
+    {
+     "id": 61397,
+     "date": "2026-06-03T08:18:31",
+     "title": {
+      "rendered": "02. Biểu T5.2026-final"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/06/02.-Bieu-T5.2026-final.xlsx"
+    },
+    {
+     "id": 61393,
+     "date": "2026-06-02T19:57:40",
+     "title": {
+      "rendered": "T5. CPI web (Eng)"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/06/T5.-CPI-web-Eng.xlsx"
+    },
+    {
+     "id": 61389,
+     "date": "2026-06-02T19:50:23",
+     "title": {
+      "rendered": "CPI tháng 5 năm 2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/06/CPI-thang-5-nam-2026.xlsx"
+    },
+    {
+     "id": 61360,
+     "date": "2026-06-02T14:41:34",
+     "title": {
+      "rendered": "IIP- Eng"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/06/IIP-Eng.xlsx"
+    },
+    {
+     "id": 61356,
+     "date": "2026-06-02T14:37:07",
+     "title": {
+      "rendered": "IIP &#8211; Vie"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/06/IIP-Vie.xlsx"
+    },
+    {
+     "id": 61007,
+     "date": "2026-05-03T08:07:03",
+     "title": {
+      "rendered": "02 Bieu T4.2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/05/02-Bieu-T4.2026.xlsx"
+    },
+    {
+     "id": 60987,
+     "date": "2026-05-02T19:53:17",
+     "title": {
+      "rendered": "T4. CPI web (Eng)"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/05/T4.-CPI-web-Eng.xlsx"
+    },
+    {
+     "id": 60983,
+     "date": "2026-05-02T19:47:18",
+     "title": {
+      "rendered": "CPI tháng 4 năm 2026"
+     },
+     "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/05/CPI-thang-4-nam-2026.xlsx"
+    }
+   ]
+  },
+  {
+   "operation": "nso.workbook",
+   "url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/02.-Bieu-thang-9.2026.xlsx",
+   "listingEntry": {
+    "id": 62565,
+    "date": "2026-10-03T08:02:22",
+    "title": {
+     "rendered": "02. Bieu thang 9.2026"
+    },
+    "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/02.-Bieu-thang-9.2026.xlsx"
+   },
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:59:14Z",
+   "byteSize": 994069,
+   "sha256": "4d990c5057cd08a67e9f97563323265678144efb8c365e0a5a36888b78ac9285",
+   "excludedFile": "files/nso-02.-Bieu-thang-9.2026.xlsx",
+   "excludedReason": "Tệp .xlsx gốc chứa đường dẫn máy và thông tin tài khoản của nơi phát hành: không đưa vào kho công khai; tải lại theo url và kiểm sha256"
+  },
+  {
+   "operation": "nso.workbook",
+   "url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/So-lieu-CPI-thang-9-QIII-va-9-thang-nam-2026.xlsx",
+   "listingEntry": {
+    "id": 62470,
+    "date": "2026-10-02T16:02:20",
+    "title": {
+     "rendered": "So lieu CPI tháng 9, QIII va 9 thang nam 2026"
+    },
+    "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "source_url": "https://www.nso.gov.vn/wp-content/uploads/2026/10/So-lieu-CPI-thang-9-QIII-va-9-thang-nam-2026.xlsx"
+   },
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:59:21Z",
+   "byteSize": 38439,
+   "sha256": "89ed4a489fdb141c52b06650150d7808a35ca44940c6c0d41fa0dcb3f7d9b9cb",
+   "excludedFile": "files/nso-So-lieu-CPI-thang-9-QIII-va-9-thang-nam-2026.xlsx",
+   "excludedReason": "Tệp .xlsx gốc chứa đường dẫn máy và thông tin tài khoản của nơi phát hành: không đưa vào kho công khai; tải lại theo url và kiểm sha256"
+  }
+ ]
+}

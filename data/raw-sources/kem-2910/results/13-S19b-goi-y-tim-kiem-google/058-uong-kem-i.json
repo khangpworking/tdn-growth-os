@@ -1,0 +1,48 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm i» (1 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[57]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "bea0d32e4b9b48089c459fbe1a43c6796c7d5f4587e5d3bb6a9c522301a2b699"
+ },
+ "result": {
+  "prefix": "uống kẽm i",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:24Z",
+  "suggestions": [
+   "kẽm imochild uống lúc nào"
+  ],
+  "raw": [
+   "uống kẽm i",
+   [
+    "kẽm imochild uống lúc nào"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,73 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "04 · S14 · Lời nói trong video bán hàng TikTok",
+  "describe": "videowatch.generate modelCall",
+  "parentFile": "04-S14-video-ban-hang-loi-noi.json",
+  "parentLocation": "records[3]",
+  "sourceCode": "S14",
+  "sourceName": "Lời nói trong video bán hàng TikTok",
+  "provider": "Gemini (đọc video) + công cụ tải video trên máy chủ",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Video có sẵn lúc thu"
+  },
+  "limits": [
+   "Lời người bán, không phải ý kiến khách",
+   "Tệp video đã xoá sau 45 ngày, chỉ giữ dấu sha256"
+  ],
+  "resultSha256": "79400c2ef08a5016ff81ec7501aee744ce7bbcb1349ced9bbe9b0f4426fcf203"
+ },
+ "result": {
+  "kind": "modelCall",
+  "captureId": "video-watch-0001",
+  "operation": "videowatch.generate",
+  "endpoint": "/v1beta/models/gemini-3.8-flash-high:generateContent",
+  "method": "POST",
+  "requestParameters": {
+   "mimeType": "video/mp4",
+   "model": "gemini-3.8-flash-high",
+   "requestSha256": "fbdc8edc6c454a91eefe5e5962697926ad34630e125dd9f3faa7c11d61471a83",
+   "videoByteSize": 2947303,
+   "videoSha256": "2f6e6b8baf3daeeaabeec119055054d738fb4b8f039083d0a5114c9f43d9eac3"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:04:01.352Z",
+  "completedAt": "2026-10-26T02:04:31.971Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "PAID_CREDITS",
+  "responseSha256": "d7961c4540a831e2ead3a6e266af790de54d0d33248f3b0de1b95bf1c91331c0",
+  "response": {
+   "candidates": [
+    {
+     "content": {
+      "role": "model",
+      "parts": [
+       {
+        "thoughtSignature": "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",
+        "text": "{\n  \"aboutProduct\": true,\n  \"videoKind\": \"REVIEW_VIDEO\",\n  \"segments\": [\n    {\n      \"startSecond\": 0.0,\n      \"endSecond\": 4.6,\n      \"speech\": \"Bây giờ là 5:30 sáng, trời hôm nay mùa hè nên là sáng rất là sớm.\"\n    },\n    {\n      \"startSecond\": 4.6,\n      \"endSecond\": 7.4,\n      \"speech\": \"Chúng ta bắt đầu ngày mới bằng một viên kẽm ở đây nhá.\"\n    },\n    {\n      \"startSecond\": 7.4,\n      \"endSecond\": 9.9,\n      \"speech\": \"Tại sao lại phải uống kẽm trước ăn sáng?\"\n    },\n    {\n      \"startSecond\": 10.3,\n      \"endSecond\": 13.5,\n      \"speech\": \"Thì để chúng ta có thể hấp thu vi chất của kẽm tốt hơn.\"\n    },\n    {\n      \"startSecond\": 13.5,\n      \"endSecond\": 17.1,\n      \"speech\": \"Bác sĩ Biên thì thường uống khoảng trước 30 phút một viên bé tí này thôi.\"\n    },\n    {\n      \"startSecond\": 17.1,\n      \"endSecond\": 20.3,\n      \"speech\": \"Nhiều người mà gặp phải tình trạng là hay nhiệt miệng này,\"\n    },\n    {\n      \"startSecond\": 20.3,\n      \"endSecond\": 21.6,\n      \"speech\": \"hay mụn nội tiết,\"\n    },\n    {\n      \"startSecond\": 21.6,\n      \"endSecond\": 24.3,\n      \"speech\": \"cứ nghĩ là do nóng trong, nhưng mà hãy thử bổ sung kẽm.\"\n    },\n    {\n      \"startSecond\": 24.3,\n      \"endSecond\": 26.6,\n      \"speech\": \"Cái loại viên kẽm này có bổ sung thêm vitamin C,\"\n    },\n    {\n      \"startSecond\": 26.6,\n      \"endSecond\": 29.8,\n      \"speech\": \"xem cái tình trạng mụn rồi cái tình trạng nhiệt miệng nó có cải thiện không nha.\"\n    },\n    {\n      \"startSecond\": 29.8,\n      \"endSecond\": 32.2,\n      \"speech\": \"Trước khi ăn 30 phút thì làm viên kẽm đã.\"\n    },\n    {\n      \"startSecond\": 33.7,\n      \"endSecond\": 37.6,\n      \"speech\": \"Loại kẽm bác sĩ Biên đang dùng là kẽm Pino nhập khẩu từ Anh.\"\n    },\n    {\n      \"startSecond\": 37.6,\n      \"endSecond\": 43.1,\n      \"speech\": \"Đấy, nó là kẽm citrate, kẽm hữu cơ, nên là chúng ta có thể uống lúc bụng đói được, không vấn đề gì cả.\"\n    },\n    {\n      \"startSecond\": 43.1,\n      \"endSecond\": 48.1,\n      \"speech\": \"Với những ai mà uống xong có cảm giác tình trạng là nôn nao sau khi uống thì chúng ta uống sau bữa ăn.\"\n    }\n  ],\n  \"onScreenText\": [\n    {\n      \"startSecond\": 0.0,\n      \"endSecond\": 4.5,\n      \"text\": \"5:30 AM\"\n    },\n    {\n      \"startSecond\": 7.4,\n      \"endSecond\": 9.9,\n      \"text\": \"TẠI SAO PHẢI UỐNG KẼM TRƯỚC ĂN SÁNG\"\n    },\n    {\n      \"startSecond\": 10.3,\n      \"endSecond\": 12.3,\n      \"text\": \"THÌ ĐỂ CHÚNG TA CÓ THỂ\"\n    },\n    {\n      \"startSecond\": 12.3,\n      \"endSecond\": 13.5,\n      \"text\": \"HẤP THỤ VI CHẤT CỦA KẼM TỐT HƠN.\"\n    },\n    {\n      \"startSecond\": 14.1,\n      \"endSecond\": 15.6,\n      \"text\": \"BÁC SĨ BIÊN THÌ THƯỜNG UỐNG\"\n    },\n    {\n      \"startSecond\": 15.6,\n      \"endSecond\": 17.1,\n      \"text\": \"KHOẢNG TRƯỚC 30 PHÚT MỘT VIÊN BÉ TÍ NÀY THÔI.\"\n    },\n    {\n      \"startSecond\": 17.1,\n      \"endSecond\": 18.9,\n      \"text\": \"NHIỀU NGƯỜI MÀ GẶP PHẢI TÌNH TRẠNG\"\n    },\n    {\n      \"startSecond\": 18.9,\n      \"endSecond\": 19.9,\n      \"text\": \"LÀ HAY NHIỆT MIỆNG NÀY\"\n    },\n    {\n      \"startSecond\": 19.9,\n      \"endSecond\": 21.0,\n      \"text\": \"HAY MỤN NỘI TIẾT\"\n    },\n    {\n      \"startSecond\": 21.0,\n      \"endSecond\": 22.8,\n      \"text\": \"CỨ NGHĨ LÀ DO NÓNG TRONG\"\n    },\n    {\n      \"startSecond\": 22.8,\n      \"endSecond\": 24.1,\n      \"text\": \"NHƯNG MÀ HÃY THỬ BỔ SUNG KẼM\"\n    },\n    {\n      \"startSecond\": 24.1,\n      \"endSecond\": 25.4,\n      \"text\": \"LOẠI VIÊN KẼM NÀY\"\n    },\n    {\n      \"startSecond\": 25.4,\n      \"endSecond\": 26.5,\n      \"text\": \"CÓ BỔ SUNG THÊM VITAMIN C\"\n    },\n    {\n      \"startSecond\": 25.5,\n      \"endSecond\": 26.6,\n      \"text\": \"VITAMIN C\"\n    },\n    {\n      \"startSecond\": 26.5,\n      \"endSecond\": 27.8,\n      \"text\": \"XEM CÁI TÌNH TRẠNG MỤN\"\n    },\n    {\n      \"startSecond\": 27.8,\n      \"endSecond\": 29.0,\n      \"text\": \"RỒI CÁI TÌNH TRẠNG NHIỆT MIỆNG\"\n    },\n    {\n      \"startSecond\": 29.0,\n      \"endSecond\": 29.8,\n      \"text\": \"NÓ CÓ CẢI THIỆN KHÔNG NHA\"\n    },\n    {\n      \"startSecond\": 29.8,\n      \"endSecond\": 32.2,\n      \"text\": \"TRƯỚC KHI ĂN 30 PHÚT THÌ LÀM VIÊN KẼM ĐÃ.\"\n    },\n    {\n      \"startSecond\": 32.2,\n      \"endSecond\": 34.2,\n      \"text\": \"PLAY\"\n    },\n    {\n      \"startSecond\": 34.2,\n      \"endSecond\": 36.3,\n      \"text\": \"LOẠI KẼM BÁC SĨ BIÊN ĐANG DÙNG LÀ KẼM PINO\"\n    },\n    {\n      \"startSecond\": 36.3,\n      \"endSecond\": 37.6,\n      \"text\": \"NHẬP KHẨU TỪ ANH\"\n    },\n    {\n      \"startSecond\": 37.6,\n      \"endSecond\": 39.7,\n      \"text\": \"NÓ LÀ KẼM CITRATE KẼM HỮU CƠ\"\n    },\n    {\n      \"startSecond\": 39.7,\n      \"endSecond\": 41.9,\n      \"text\": \"NÊN LÀ CHÚNG TA CÓ THỂ UỐNG LÚC BỤNG ĐÓI ĐƯỢC\"\n    },\n    {\n      \"startSecond\": 41.9,\n      \"endSecond\": 43.1,\n      \"text\": \"KHÔNG VẤN ĐỀ GÌ CẢ.\"\n    },\n    {\n      \"startSecond\": 43.1,\n      \"endSecond\": 44.5,\n      \"text\": \"VỚI NHỮNG AI MÀ UỐNG XONG\"\n    },\n    {\n      \"startSecond\": 44.5,\n      \"endSecond\": 46.1,\n      \"text\": \"CÓ CẢM GIÁC TÌNH TRẠNG LÀ NÔN NAO\"\n    },\n    {\n      \"startSecond\": 46.1,\n      \"endSecond\": 47.0,\n      \"text\": \"SAU KHI UỐNG\"\n    },\n    {\n      \"startSecond\": 47.0,\n      \"endSecond\": 48.1,\n      \"text\": \"THÌ CHÚNG TA UỐNG SAU BỮA ĂN.\"\n    }\n  ]\n}"
+       }
+      ]
+     },
+     "finishReason": "STOP"
+    }
+   ],
+   "usageMetadata": {
+    "promptTokenCount": 4678,
+    "candidatesTokenCount": 2262,
+    "totalTokenCount": 8276,
+    "thoughtsTokenCount": 1336
+   },
+   "modelVersion": "gemini-3.8-flash-n",
+   "responseId": "FbXeaofvIJfI2roP57KpyAQ"
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "97bf33313cd5753fc98c9b04d6171ea4bd65c1c85dd5bbab0070627725dc167c"
+ }
+}

@@ -1,0 +1,101 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm r» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[65]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "1de91c5c1eb8201ad19b6a3c27617c8a78af8062ca029a8ebeda13839cfbd5a4"
+ },
+ "result": {
+  "prefix": "uống kẽm r",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:30Z",
+  "suggestions": [
+   "uống kẽm rụng tóc",
+   "uống kẽm rồi uống sữa được không",
+   "uống kẽm rồi ăn sữa chua được không",
+   "uống kẽm chống rụng tóc",
+   "uống kẽm có rụng tóc không",
+   "uống kẽm.rồi uống nước cam được không",
+   "uống kẽm bị rối loạn tiêu hoá",
+   "uống kẽm rồi uống cà phê được không",
+   "uống kẽm có giảm rụng tóc không",
+   "uống kẽm có lâu ra không"
+  ],
+  "raw": [
+   "uống kẽm r",
+   [
+    "uống kẽm rụng tóc",
+    "uống kẽm rồi uống sữa được không",
+    "uống kẽm rồi ăn sữa chua được không",
+    "uống kẽm chống rụng tóc",
+    "uống kẽm có rụng tóc không",
+    "uống kẽm.rồi uống nước cam được không",
+    "uống kẽm bị rối loạn tiêu hoá",
+    "uống kẽm rồi uống cà phê được không",
+    "uống kẽm có giảm rụng tóc không",
+    "uống kẽm có lâu ra không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30,
+      10
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

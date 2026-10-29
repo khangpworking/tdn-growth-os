@@ -1,0 +1,246 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "16 · S28 · Hồ sơ người Việt do AI viết (dữ liệu tổng hợp, 1 triệu hồ sơ)",
+  "describe": "baseline_sex_age_zone baseline_sex_age_zone",
+  "parentFile": "16-S28-nemotron-ho-so-nguoi-viet.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S28",
+  "sourceName": "Hồ sơ người Việt do AI viết (dữ liệu tổng hợp, 1 triệu hồ sơ)",
+  "provider": "NVIDIA Nemotron-Personas-Vietnam (CC BY 4.0), bản tải về máy chủ 17/10",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": null,
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Dữ liệu tổng hợp, không có kỳ"
+  },
+  "limits": [
+   "Dò theo từ khoá sản phẩm không dùng được (canxi 0 người)",
+   "Vùng chia gần đều, không dùng cho tỉnh",
+   "Chỉ dùng nội bộ, không in vào báo cáo"
+  ],
+  "resultSha256": "8ed14f1a9dfd904fa84ab017bf76276a8b2ef5535e75f212c8b59995ee702d67"
+ },
+ "result": {
+  "kind": "baseline_sex_age_zone",
+  "rows": [
+   {
+    "sex": "Nam",
+    "age_band": 10,
+    "zone": "Nông Thôn",
+    "n": 10557
+   },
+   {
+    "sex": "Nam",
+    "age_band": 10,
+    "zone": "Đô Thị",
+    "n": 6297
+   },
+   {
+    "sex": "Nam",
+    "age_band": 20,
+    "zone": "Nông Thôn",
+    "n": 52484
+   },
+   {
+    "sex": "Nam",
+    "age_band": 20,
+    "zone": "Đô Thị",
+    "n": 40091
+   },
+   {
+    "sex": "Nam",
+    "age_band": 30,
+    "zone": "Nông Thôn",
+    "n": 63945
+   },
+   {
+    "sex": "Nam",
+    "age_band": 30,
+    "zone": "Đô Thị",
+    "n": 45739
+   },
+   {
+    "sex": "Nam",
+    "age_band": 40,
+    "zone": "Nông Thôn",
+    "n": 60211
+   },
+   {
+    "sex": "Nam",
+    "age_band": 40,
+    "zone": "Đô Thị",
+    "n": 39457
+   },
+   {
+    "sex": "Nam",
+    "age_band": 50,
+    "zone": "Nông Thôn",
+    "n": 53354
+   },
+   {
+    "sex": "Nam",
+    "age_band": 50,
+    "zone": "Đô Thị",
+    "n": 29988
+   },
+   {
+    "sex": "Nam",
+    "age_band": 60,
+    "zone": "Nông Thôn",
+    "n": 33705
+   },
+   {
+    "sex": "Nam",
+    "age_band": 60,
+    "zone": "Đô Thị",
+    "n": 17204
+   },
+   {
+    "sex": "Nam",
+    "age_band": 70,
+    "zone": "Nông Thôn",
+    "n": 15788
+   },
+   {
+    "sex": "Nam",
+    "age_band": 70,
+    "zone": "Đô Thị",
+    "n": 7294
+   },
+   {
+    "sex": "Nam",
+    "age_band": 80,
+    "zone": "Nông Thôn",
+    "n": 6352
+   },
+   {
+    "sex": "Nam",
+    "age_band": 80,
+    "zone": "Đô Thị",
+    "n": 2663
+   },
+   {
+    "sex": "Nam",
+    "age_band": 90,
+    "zone": "Nông Thôn",
+    "n": 316
+   },
+   {
+    "sex": "Nam",
+    "age_band": 90,
+    "zone": "Đô Thị",
+    "n": 141
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 10,
+    "zone": "Nông Thôn",
+    "n": 11025
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 10,
+    "zone": "Đô Thị",
+    "n": 6559
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 20,
+    "zone": "Nông Thôn",
+    "n": 49960
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 20,
+    "zone": "Đô Thị",
+    "n": 38701
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 30,
+    "zone": "Nông Thôn",
+    "n": 63022
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 30,
+    "zone": "Đô Thị",
+    "n": 44895
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 40,
+    "zone": "Nông Thôn",
+    "n": 59842
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 40,
+    "zone": "Đô Thị",
+    "n": 39228
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 50,
+    "zone": "Nông Thôn",
+    "n": 55230
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 50,
+    "zone": "Đô Thị",
+    "n": 30990
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 60,
+    "zone": "Nông Thôn",
+    "n": 41048
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 60,
+    "zone": "Đô Thị",
+    "n": 20902
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 70,
+    "zone": "Nông Thôn",
+    "n": 23887
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 70,
+    "zone": "Đô Thị",
+    "n": 10900
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 80,
+    "zone": "Nông Thôn",
+    "n": 12134
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 80,
+    "zone": "Đô Thị",
+    "n": 5130
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 90,
+    "zone": "Nông Thôn",
+    "n": 689
+   },
+   {
+    "sex": "Nữ",
+    "age_band": 90,
+    "zone": "Đô Thị",
+    "n": 272
+   }
+  ]
+ }
+}

@@ -1,0 +1,101 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm đ» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[30]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "6187100bfa4fce325fb0b424a46f3ded1941b72bf6d0dbf85d83ad9a81b712aa"
+ },
+ "result": {
+  "prefix": "viên kẽm đ",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:04Z",
+  "suggestions": [
+   "viên kẽm dangbeoo",
+   "viên kẽm đài loan",
+   "viên kẽm đức",
+   "viên kẽm để làm gì",
+   "viên kẽm đồng",
+   "viên kẽm đs",
+   "viên kẽm đẹp da",
+   "viên kẽm đhc",
+   "viên kẽm điều trị mụn",
+   "kẽm viên đỏ"
+  ],
+  "raw": [
+   "viên kẽm đ",
+   [
+    "viên kẽm dangbeoo",
+    "viên kẽm đài loan",
+    "viên kẽm đức",
+    "viên kẽm để làm gì",
+    "viên kẽm đồng",
+    "viên kẽm đs",
+    "viên kẽm đẹp da",
+    "viên kẽm đhc",
+    "viên kẽm điều trị mụn",
+    "kẽm viên đỏ"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512,
+      10
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

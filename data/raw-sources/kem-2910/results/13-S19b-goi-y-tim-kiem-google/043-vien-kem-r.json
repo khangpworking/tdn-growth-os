@@ -1,0 +1,89 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm r» (8 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[42]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "9277f16679a47deff0a9346fdef4dd38cf18c2bba46add638e18fb3eb2c9c50c"
+ },
+ "result": {
+  "prefix": "viên kẽm r",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:13Z",
+  "suggestions": [
+   "viên kẽm rossmann",
+   "viên kẽm zinc roxtech",
+   "viên kẽm trị rụng tóc",
+   "viên kẽm giá rẻ",
+   "viên kẽm giảm rụng tóc",
+   "review viên kẽm amagain",
+   "review viên kẽm dhc",
+   "review viên kẽm"
+  ],
+  "raw": [
+   "viên kẽm r",
+   [
+    "viên kẽm rossmann",
+    "viên kẽm zinc roxtech",
+    "viên kẽm trị rụng tóc",
+    "viên kẽm giá rẻ",
+    "viên kẽm giảm rụng tóc",
+    "review viên kẽm amagain",
+    "review viên kẽm dhc",
+    "review viên kẽm"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

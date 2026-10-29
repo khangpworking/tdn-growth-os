@@ -1,0 +1,352 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "describe": "Kết quả Google cho câu «Acnacare trang chủ chính hãng»",
+  "parentFile": "07-S19-google-tim-kiem.json",
+  "parentLocation": "records[5]",
+  "sourceCode": "S19 (gồm S13, S26)",
+  "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "provider": "SerpApi engine=google",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Kết quả Google lúc thu"
+  },
+  "limits": [
+   "App chỉ đọc organic_results; các khối khác giữ trong bản gốc",
+   "ai_overview có thể chỉ là page_token (xem file 14)"
+  ],
+  "resultSha256": "e99d2ae52acb7a5c92d86f7fb7ff2da890bcdd6780f889d4731028fac88afe18"
+ },
+ "result": {
+  "captureId": "serpapi-expanded-2-serpapi-0001",
+  "operation": "serpapi.google.search",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "engine": "google",
+   "gl": "vn",
+   "hl": "vi",
+   "num": 10,
+   "q": "Acnacare trang chủ chính hãng"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:03:10.662Z",
+  "completedAt": "2026-10-26T02:03:11.630Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb4de47787493e717e44d",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "a22769b8964391addbb9cd91af214b1324c539e4ac8a6759482d10634443a1d1",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb4de47787493e717e44d",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/vPOiFh0Xinw4c3W-JMkifKE8BV-NMYE-jZ5wutTi3qE/6adeb4de47787493e717e44d.json",
+    "markdown_endpoint": "https://serpapi.com/searches/vPOiFh0Xinw4c3W-JMkifKE8BV-NMYE-jZ5wutTi3qE/6adeb4de47787493e717e44d.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/vPOiFh0Xinw4c3W-JMkifKE8BV-NMYE-jZ5wutTi3qE/6adeb4de47787493e717e44d.json_with_pixel_position",
+    "created_at": "2026-10-26 02:03:10 UTC",
+    "processed_at": "2026-10-26 02:03:10 UTC",
+    "google_url": "https://www.google.com/search?q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&oq=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&hl=vi&gl=vn&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/vPOiFh0Xinw4c3W-JMkifKE8BV-NMYE-jZ5wutTi3qE/6adeb4de47787493e717e44d.html",
+    "total_time_taken": 0.49
+   },
+   "search_parameters": {
+    "engine": "google",
+    "q": "Acnacare trang chủ chính hãng",
+    "google_domain": "google.com",
+    "hl": "vi",
+    "gl": "vn",
+    "device": "desktop"
+   },
+   "search_information": {
+    "query_displayed": "Acnacare trang chủ chính hãng",
+    "total_results": 565000000,
+    "time_taken_displayed": 0.25,
+    "organic_results_state": "Results for exact spelling"
+   },
+   "ai_overview": {
+    "page_token": "jIqwVHiczVXdcqJKEL47V-c1wk0SQYgRUkVtzQCaUZOACZvojYUDDkZxFFA2udt3OU91nmYHBIVEs9ncnNNVzG9Pd38z_dE__5lPF7N___7Lj-NldMXzSZLUCKVk7tUwDXgnellgfkLnUYj9b_5c3Uw5wtoF97JRJQ5HqsB5U1UKHzwnfEG38YMhmIYZKHqXWjdcdlwdjZ3Ie2bWfzxH_IhnzexE0tmkFtU209q5IiiR3G-GjaQmCqJUu-OdgCmA_0IoAoh190D7UI2A1ufsGeybAjArLVm5abhfGuQzA2jpAS11cFBQqkjSbYK2cTAx5YGcCADo1i66DwQBaz_p7SJJ_d6n2x8efi87FPmFfHxvR7bR1pS1VyrFCN_rF5JUZl1myAR6-cR-pOV-Soaze0xdwwToiUeMGwOWtg8Gr03B3RAYEH2kVzi3lZ09pMXMNeRdwjJb4Mch6-r8FPs4G4RRmvDagyJQY_GqW1LdHNqt16Z5u_E2oK49raDSbQIej5nenDqu5478kfAtm9fFekNQpKZ8ljENRzuqRWWqmUTpxO3JBfJvar0arBc807aPXwRaxWB1DyIlDJgGjmcaefNqg2JgwLIzoOUGrJQkrB1U_GtEALiklT74zQD0WO6XHBul0SGeZQIrA3bEzsIkW0ZlUvaMWBYhWsZTEv09arLNK1S2ZMA8PbUd_HaB9u09I4i2Jqw34e7AQL2bJlDGs-46h3ZnFfC7BDhaJ0NUBUOYArLydVQElPflf0EK10Bsz7CZrnbf8kEntW3k8Anp5pppb5VfEYD-uxvZikH07P_3RbE_pQVBwac39KjQarlMWlL_Ub9U4HI2SNrnbOlJhtRcWodpRIPxH5Qs_D8lWlHQyPbRjxPNBZ8iWlbQDhMN7ppyQbMzu4QcJRpMM-9wQSv-7_sgDhANGf090fKC1j5W0P6caBm440QrSHGIaPA-36sSbXmcaCmQCtHQxKgUtD3RqgWtINoXC5r99YKWEc_bdtXqtn4mR6vctR2-Dr_rVGuBvg6sAVhfj5-bj2vsaMlvq9wkiK8Cx52fjabuFRQ78Yt7NmIL9MpzuZUK8MLBTuidxqGzIKfYPzHqJxCegGY61qQToC_80-1IWhAumIdUFZyLbns29kN8HoD1-FqfSlSa36CN-NC-bF6K9eTChlQcPqwGzuMcPQ0v3LaEmqPedyxSW2_317eNmfysrzfx4nyyGnTQTKmb9G5oPQph8LoynSTWBCyFlotWLVlqNJ4EayXLjW7jFXVC_4c9012tESQ0Rs01vu6JSRZYpOpDYyp5xrkZIi4Iscoe7YKAWws8AuCkT90hkKUK-1jfY32PQmBdD4DFCpWlU_ZMXISdkRdtVHEsiZKriBPRwxNHlrmAxC9LVRG4aBGq9V-gpmCT",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=jIqwVHiczVXdcqJKEL47V-c1wk0SQYgRUkVtzQCaUZOACZvojYUDDkZxFFA2udt3OU91nmYHBIVEs9ncnNNVzG9Pd38z_dE__5lPF7N___7Lj-NldMXzSZLUCKVk7tUwDXgnellgfkLnUYj9b_5c3Uw5wtoF97JRJQ5HqsB5U1UKHzwnfEG38YMhmIYZKHqXWjdcdlwdjZ3Ie2bWfzxH_IhnzexE0tmkFtU209q5IiiR3G-GjaQmCqJUu-OdgCmA_0IoAoh190D7UI2A1ufsGeybAjArLVm5abhfGuQzA2jpAS11cFBQqkjSbYK2cTAx5YGcCADo1i66DwQBaz_p7SJJ_d6n2x8efi87FPmFfHxvR7bR1pS1VyrFCN_rF5JUZl1myAR6-cR-pOV-Soaze0xdwwToiUeMGwOWtg8Gr03B3RAYEH2kVzi3lZ09pMXMNeRdwjJb4Mch6-r8FPs4G4RRmvDagyJQY_GqW1LdHNqt16Z5u_E2oK49raDSbQIej5nenDqu5478kfAtm9fFekNQpKZ8ljENRzuqRWWqmUTpxO3JBfJvar0arBc807aPXwRaxWB1DyIlDJgGjmcaefNqg2JgwLIzoOUGrJQkrB1U_GtEALiklT74zQD0WO6XHBul0SGeZQIrA3bEzsIkW0ZlUvaMWBYhWsZTEv09arLNK1S2ZMA8PbUd_HaB9u09I4i2Jqw34e7AQL2bJlDGs-46h3ZnFfC7BDhaJ0NUBUOYArLydVQElPflf0EK10Bsz7CZrnbf8kEntW3k8Anp5pppb5VfEYD-uxvZikH07P_3RbE_pQVBwac39KjQarlMWlL_Ub9U4HI2SNrnbOlJhtRcWodpRIPxH5Qs_D8lWlHQyPbRjxPNBZ8iWlbQDhMN7ppyQbMzu4QcJRpMM-9wQSv-7_sgDhANGf090fKC1j5W0P6caBm440QrSHGIaPA-36sSbXmcaCmQCtHQxKgUtD3RqgWtINoXC5r99YKWEc_bdtXqtn4mR6vctR2-Dr_rVGuBvg6sAVhfj5-bj2vsaMlvq9wkiK8Cx52fjabuFRQ78Yt7NmIL9MpzuZUK8MLBTuidxqGzIKfYPzHqJxCegGY61qQToC_80-1IWhAumIdUFZyLbns29kN8HoD1-FqfSlSa36CN-NC-bF6K9eTChlQcPqwGzuMcPQ0v3LaEmqPedyxSW2_317eNmfysrzfx4nyyGnTQTKmb9G5oPQph8LoynSTWBCyFlotWLVlqNJ4EayXLjW7jFXVC_4c9012tESQ0Rs01vu6JSRZYpOpDYyp5xrkZIi4Iscoe7YKAWws8AuCkT90hkKUK-1jfY32PQmBdD4DFCpWlU_ZMXISdkRdtVHEsiZKriBPRwxNHlrmAxC9LVRG4aBGq9V-gpmCT"
+   },
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "Hệ thống mạng đấu thầu quốc gia - Bộ Tài chính - EGP_v2.0 ...",
+     "link": "https://muasamcong.mof.gov.vn/web/guest",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESYgHrOzAVPl7uXJy2xiIPyGLEIezYoo2xT0-BuAft1I3u8THakSaD07RrNE_mD2sfkkMefnuEfcBm9Dj2vbxolJxXKJQJ9tB7owd5WteUCgjA4QiVmZbhzwLef95ORLBdc9yb&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBAQAQ&uoh=1",
+     "displayed_link": "https://muasamcong.mof.gov.vn › web › guest",
+     "favicon": "https://serpapi.com/searches/6adeb4de47787493e717e44d/images/hzMt2SaeuPFxvBYBzmpAj-H4bMACnfJ_wNy2dCH1bBg.png",
+     "snippet": "Đến với VNEPS, nhà đầu tư có thể: Tìm kiếm cơ hội đầu tư, đấu thầu; Tối ưu hóa công tác chuẩn bị và dự thầu; Quản lý toàn bộ hoạt động đấu thầu.",
+     "about_this_result": {
+      "source": {
+       "description": "Đến với VNEPS, nhà đầu tư có thể: Tìm kiếm cơ hội đầu tư, đấu thầu; Tối ưu hóa công tác chuẩn bị và dự thầu; Quản lý toàn bộ hoạt động đấu thầu.",
+       "source_info_link": "https://muasamcong.mof.gov.vn/web/guest",
+       "icon": "https://serpapi.com/searches/6adeb4de47787493e717e44d/images/hzMt2SaeuPFxvBYBzmpAj_RS2AC-hj22CZqPsq2Xe6TeGIsf4fsTV5-g1o80zAFB.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpIBL2dvdG8_dXJsPUNBRVNZZ0hyT3pBVkZuYVRDSkhFcTl3aXI0VTRwcWpwUUlpU1NyaXl6ZTRNdjFmcHpBZmNwZXBVZ0FoTTRpaTItbk13TW00RXd2cmhwYllNbVVIWkYxQ1Y4ZEJhY3RkM0w2eW8yYUw2dzRmUjJTSllxTExRczFDNUVaaDNaeWd1R1NhbXNwMjMSBBoCCAAaggYSAggBGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDcBQhCEAAYACAAKjAKCGFjbmFjYXJlFQAAAAAaCWFjbmEgY2FyZRoJYWNuZSBjYXJlGglhY25hY2Fyw6kqTgoFdHJhbmcVRQ3hPhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyosCgVjaOG7pxVCFEk_Ggp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqLQoGY2jDrW5oFU2ZIkAaBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcykgEvZ290bz91cmw9Q0FFU1lnSHJPekFWRm5hVENKSEVxOXdpcjRVNHBxanBRSWlTU3JpeXplNE12MWZwekFmY3BlcFVnQWhNNGlpMi1uTXdNbTRFd3ZyaHBiWU1tVUhaRjFDVjhkQmFjdGQzTDZ5bzJhTDZ3NGZSMlNKWXFMTFFzMUM1RVpoM1p5Z3VHU2Ftc3AyMzpVSOG7hyB0aOG7kW5nIG3huqFuZyDEkeG6pXUgdGjhuqd1IHF14buRYyBnaWEgLSBC4buZIFTDoGkgPGI-Y2jDrW5oPC9iPiAtIEVHUF92Mi4wIC4uLkLLAcSQ4bq_biB24bubaSBWTkVQUywgbmjDoCDEkeG6p3UgdMawIGPDsyB0aOG7gzogVMOsbSBraeG6v20gY8ahIGjhu5lpIMSR4bqndSB0xrAsIMSR4bqldSB0aOG6p3U7IFThu5FpIMawdSBow7NhIGPDtG5nIHTDoWMgY2h14bqpbiBi4buLIHbDoCBk4buxIHRo4bqndTsgUXXhuqNuIGzDvSB0b8OgbiBi4buZIGhv4bqhdCDEkeG7mW5nIMSR4bqldSB0aOG6p3UuUgZ0aOG7qWNSBmhp4buHdSICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpIBL2dvdG8_dXJsPUNBRVNZZ0hyT3pBVkZuYVRDSkhFcTl3aXI0VTRwcWpwUUlpU1NyaXl6ZTRNdjFmcHpBZmNwZXBVZ0FoTTRpaTItbk13TW00RXd2cmhwYllNbVVIWkYxQ1Y4ZEJhY3RkM0w2eW8yYUw2dzRmUjJTSllxTExRczFDNUVaaDNaeWd1R1NhbXNwMjMSBBoCCAAaggYSAggBGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDcBQhCEAAYACAAKjAKCGFjbmFjYXJlFQAAAAAaCWFjbmEgY2FyZRoJYWNuZSBjYXJlGglhY25hY2Fyw6kqTgoFdHJhbmcVRQ3hPhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyosCgVjaOG7pxVCFEk_Ggp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqLQoGY2jDrW5oFU2ZIkAaBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcykgEvZ290bz91cmw9Q0FFU1lnSHJPekFWRm5hVENKSEVxOXdpcjRVNHBxanBRSWlTU3JpeXplNE12MWZwekFmY3BlcFVnQWhNNGlpMi1uTXdNbTRFd3ZyaHBiWU1tVUhaRjFDVjhkQmFjdGQzTDZ5bzJhTDZ3NGZSMlNKWXFMTFFzMUM1RVpoM1p5Z3VHU2Ftc3AyMzpVSOG7hyB0aOG7kW5nIG3huqFuZyDEkeG6pXUgdGjhuqd1IHF14buRYyBnaWEgLSBC4buZIFTDoGkgPGI-Y2jDrW5oPC9iPiAtIEVHUF92Mi4wIC4uLkLLAcSQ4bq_biB24bubaSBWTkVQUywgbmjDoCDEkeG6p3UgdMawIGPDsyB0aOG7gzogVMOsbSBraeG6v20gY8ahIGjhu5lpIMSR4bqndSB0xrAsIMSR4bqldSB0aOG6p3U7IFThu5FpIMawdSBow7NhIGPDtG5nIHTDoWMgY2h14bqpbiBi4buLIHbDoCBk4buxIHRo4bqndTsgUXXhuqNuIGzDvSB0b8OgbiBi4buZIGhv4bqhdCDEkeG7mW5nIMSR4bqldSB0aOG6p3UuUgZ0aOG7qWNSBmhp4buHdSICEAFIAFgAaAA",
+     "source": "Bộ Tài chính"
+    },
+    {
+     "position": 2,
+     "title": "Halico - chủ hãng vodka Hà Nội lãi kỷ lục từ khi lên sàn",
+     "link": "https://vnexpress.net/chu-hang-vodka-ha-noi-lai-ky-luc-tu-khi-len-san-5136341.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESjQEB6zswFUoBwODI0fO_0P5h7-ROCKn5bxTCcgKhZJ7AKpbsqK77Dd9blFENyA5iFMEBdCYIYKEHe07zA_nYZlPgl9uC5pe2-SRTj1pc2FIkAnDVcbA0AXEppq-fLMI2Hlb9pMxkzmzT8bFONQ1yjc9rdjwhOc4bpZWSHx8Yr4b-2EbNRQqGzxgzRettIl8&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBUQAQ&uoh=1",
+     "displayed_link": "https://vnexpress.net › Kinh doanh › Doanh nghiệp",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAP1BMVEVHcEyeIk6eIk6eIk6eH0yaDEScFEeeIk727vD____BhpbbvMTLm6jHk6GYAD6lPl_o09nWsbq9fY-wXHW5c4e7DUQiAAAACHRSTlMAP__T____h0M48LIAAACISURBVHgBhdNFFoAwEATR0MkM7tz_rDwcIs3fFhI1xmSIsmZvTiJ0rzm0KEOVYosOZd142rLurth28tW9owBwL350_Qu82A3l2yjfWEzVQ-DFbie6gR_7eeOw8eP9tzC6ednMxdCFEU433X_kn-UD4lPhi0CXjy482TK-2fyY8ANGjyY_1PQ6rM1sFK3WePbQAAAAAElFTkSuQmCC.png",
+     "date": "1 ngày trước",
+     "snippet": "Theo báo cáo tài chính mới đây, Công ty cổ phần Rượu và Nước giải khát Hà Nội (Halico - HNR) ghi nhận doanh thu thuần hơn 29,2 tỷ đồng, tăng gần ...",
+     "snippet_highlighted_words": [
+      "chính"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Theo báo cáo tài chính mới đây, Công ty cổ phần Rượu và Nước giải khát Hà Nội (Halico - HNR) ghi nhận doanh thu thuần hơn 29,2 tỷ đồng, tăng gần ...",
+       "source_info_link": "https://vnexpress.net/chu-hang-vodka-ha-noi-lai-ky-luc-tu-khi-len-san-5136341.html",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAP1BMVEVHcEyeIk6eIk6eIk6eH0yaDEScFEeeIk727vD____BhpbbvMTLm6jHk6GYAD6lPl_o09nWsbq9fY-wXHW5c4e7DUQiAAAACHRSTlMAP__T____h0M48LIAAACISURBVHgBhdNFFoAwEATR0MkM7tz_rDwcIs3fFhI1xmSIsmZvTiJ0rzm0KEOVYosOZd142rLurth28tW9owBwL350_Qu82A3l2yjfWEzVQ-DFbie6gR_7eeOw8eP9tzC6ednMxdCFEU433X_kn-UD4lPhi0CXjy482TK-2fyY8ANGjyY_1PQ6rM1sFK3WePbQAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cs0BL2dvdG8_dXJsPUNBRVNqUUVCNnpzd0ZVLXRaTFN4UVY3WHlKR2NQZFl2UUhPdE5aRHgxWGZObmpod3ZwSFNMUXh5bE1SSVdHWkJNNFd0OTZsYjN5WW1tWlIwckVzaVo3SWJyR0dMbUxjVWVVd3dkVklJSEdJbk5KZUg4OHBNYWFYQVA5MC16UUJvbTlsWlFVal81c0g0WFM1MC1kNDgwdEVxYndrR2FJWWtzRWY5bWlIWnJ2eVRTRXRrSzJuQjhYTlpDeDNGTElIWVhZVRIEGgIIABq0BhICCAEaACICCAEqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAjAYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFUVRCD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVq_UuQBoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBXGWrY-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVV28NQBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMs0BL2dvdG8_dXJsPUNBRVNqUUVCNnpzd0ZVLXRaTFN4UVY3WHlKR2NQZFl2UUhPdE5aRHgxWGZObmpod3ZwSFNMUXh5bE1SSVdHWkJNNFd0OTZsYjN5WW1tWlIwckVzaVo3SWJyR0dMbUxjVWVVd3dkVklJSEdJbk5KZUg4OHBNYWFYQVA5MC16UUJvbTlsWlFVal81c0g0WFM1MC1kNDgwdEVxYndrR2FJWWtzRWY5bWlIWnJ2eVRTRXRrSzJuQjhYTlpDeDNGTElIWVhZVTpOSGFsaWNvIC0gPGI-Y2jhu6cgaMOjbmc8L2I-IHZvZGthIEjDoCBO4buZaSBsw6NpIGvhu7cgbOG7pWMgdOG7qyBraGkgbMOqbiBzw6BuQscBVGhlbyBiw6FvIGPDoW8gdMOgaSA8Yj5jaMOtbmg8L2I-IG3hu5tpIMSRw6J5LCBDw7RuZyB0eSBj4buVIHBo4bqnbiBSxrDhu6N1IHbDoCBOxrDhu5tjIGdp4bqjaSBraMOhdCBIw6AgTuG7mWkgKEhhbGljbyAtIEhOUikgZ2hpIG5o4bqtbiBkb2FuaCB0aHUgdGh14bqnbiBoxqFuIDI5LDIgdOG7tyDEkeG7k25nLCB0xINuZyBn4bqnbiZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cs0BL2dvdG8_dXJsPUNBRVNqUUVCNnpzd0ZVLXRaTFN4UVY3WHlKR2NQZFl2UUhPdE5aRHgxWGZObmpod3ZwSFNMUXh5bE1SSVdHWkJNNFd0OTZsYjN5WW1tWlIwckVzaVo3SWJyR0dMbUxjVWVVd3dkVklJSEdJbk5KZUg4OHBNYWFYQVA5MC16UUJvbTlsWlFVal81c0g0WFM1MC1kNDgwdEVxYndrR2FJWWtzRWY5bWlIWnJ2eVRTRXRrSzJuQjhYTlpDeDNGTElIWVhZVRIEGgIIABq0BhICCAEaACICCAEqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAjAYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFUVRCD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVq_UuQBoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBXGWrY-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVV28NQBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMs0BL2dvdG8_dXJsPUNBRVNqUUVCNnpzd0ZVLXRaTFN4UVY3WHlKR2NQZFl2UUhPdE5aRHgxWGZObmpod3ZwSFNMUXh5bE1SSVdHWkJNNFd0OTZsYjN5WW1tWlIwckVzaVo3SWJyR0dMbUxjVWVVd3dkVklJSEdJbk5KZUg4OHBNYWFYQVA5MC16UUJvbTlsWlFVal81c0g0WFM1MC1kNDgwdEVxYndrR2FJWWtzRWY5bWlIWnJ2eVRTRXRrSzJuQjhYTlpDeDNGTElIWVhZVTpOSGFsaWNvIC0gPGI-Y2jhu6cgaMOjbmc8L2I-IHZvZGthIEjDoCBO4buZaSBsw6NpIGvhu7cgbOG7pWMgdOG7qyBraGkgbMOqbiBzw6BuQscBVGhlbyBiw6FvIGPDoW8gdMOgaSA8Yj5jaMOtbmg8L2I-IG3hu5tpIMSRw6J5LCBDw7RuZyB0eSBj4buVIHBo4bqnbiBSxrDhu6N1IHbDoCBOxrDhu5tjIGdp4bqjaSBraMOhdCBIw6AgTuG7mWkgKEhhbGljbyAtIEhOUikgZ2hpIG5o4bqtbiBkb2FuaCB0aHUgdGh14bqnbiBoxqFuIDI5LDIgdOG7tyDEkeG7k25nLCB0xINuZyBn4bqnbiZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "source": "VnExpress"
+    },
+    {
+     "position": 3,
+     "title": "Đồng chí Tổng Bí thư Tô Lâm được bầu làm Chủ tịch nước",
+     "link": "https://nhandan.vn/dong-chi-tong-bi-thu-to-lam-duoc-bau-lam-chu-tich-nuoc-post953764.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESlAEB6zswFddMNCW6HE6X4oeFctb_NuydshDZZdgB49yn2GTI-fxhLkuMRtmvSN8H0DpNkiiXOEtJTSczkVunP7pY3izm4LBPgjultThRMsEI14us5lZwztQZRoSeOEeT9UMW5ecYJH3e-bsR90g5Ky0hlueY0ywuVzMhaL_kuoYyTX9cZB_YuJS3L6E5wloCiDRDGGZM&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBMQAQ&uoh=1",
+     "displayed_link": "https://nhandan.vn › dong-chi-tong-bi-thu-to-lam-duoc-...",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAACmklEQVR4AWxTAxBkORB93UnGM2fbtm3btlk6lLZcZ3NRWNu2bds2Rx9J789aL05eu0LBuOFX2ylTH4awAwPmuScbUa2yzS5eep1btf4addbpveJpM14B6wgiBCeKCvlN5ubruqgzztqh3fTZt1cb_PQ9HEPCOkrnnzdJXXHhoHjazLuDZh0-Sj9-z6LqH81_JW0AxUAUwcPcc_Nn-QZfv8MwSiifhx-UyiAeOe51PuY4EDMolwWnTMy55C2dhr7-skmZL9_6E8YgGjHpxto_TV5iHAAvELTu8qpbteZkaBPuvRdKhl_DKMC2TVNIqYSbGJs862QG9r4KwAy7blMq7NH_E8rnavsU7x6eQ3bDRoB4903siL0gNAOGxO85n0PQsccbCIKTBWRxKJixD8RgRJFO3HHpFx7tLbU6YDTcouVnh70HvsuZdBXeMI4MgYDhe7XO5qG7G_LJx5dhrbdC0Ygp50BruzeEI4PAey1Q2sxOPXhXV6kmRomQCANyBNvewF6IAwOOvAnZttVkXn7mJyoVvSCI6HB7WsPccL2SKNrNSWnHSODJrrwjhTNOmqEvu3CKBCHkSNaJsm79ltvgDdZqUNddvpYljiGVKiDOa4Z5_P4-UqkAQQD4tyhQnixhiHjq3Kvrjdu86-_N_beNzn77RWsKp04-x85ddJU648SBSfnK5vqrS8kfuNsrpqOP2py6-9ZZ4ZDRt3GxaO269QJrWV99yXZ1ycVj7Jz5lmodOj0Ztmz_eWIh5ZavBBEsctkKCeAIWl18UV7WrClToUB27TpH1om68Hwj5coJbuOmjtotXnZuNGr0Az7rpBQEgGzZsq900dJlu-9F9r3bZcvgQczTNR9z9DS1c0qKcxiYWf4wkAY4gXg_AJ9kO5N0brn-AAAAAElFTkSuQmCC.png",
+     "date": "6 thg 4, 2026",
+     "snippet": "Đồng chí Tô Lâm, Tổng Bí thư Ban Chấp hành Trung ương Đảng Cộng sản Việt Nam, đại biểu Quốc hội khóa XVI được Quốc hội bầu giữ chức Chủ tịch ...",
+     "snippet_highlighted_words": [
+      "Chủ"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Đồng chí Tô Lâm, Tổng Bí thư Ban Chấp hành Trung ương Đảng Cộng sản Việt Nam, đại biểu Quốc hội khóa XVI được Quốc hội bầu giữ chức Chủ tịch ...",
+       "source_info_link": "https://nhandan.vn/dong-chi-tong-bi-thu-to-lam-duoc-bau-lam-chu-tich-nuoc-post953764.html",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAACmklEQVR4AWxTAxBkORB93UnGM2fbtm3btlk6lLZcZ3NRWNu2bds2Rx9J789aL05eu0LBuOFX2ylTH4awAwPmuScbUa2yzS5eep1btf4addbpveJpM14B6wgiBCeKCvlN5ubruqgzztqh3fTZt1cb_PQ9HEPCOkrnnzdJXXHhoHjazLuDZh0-Sj9-z6LqH81_JW0AxUAUwcPcc_Nn-QZfv8MwSiifhx-UyiAeOe51PuY4EDMolwWnTMy55C2dhr7-skmZL9_6E8YgGjHpxto_TV5iHAAvELTu8qpbteZkaBPuvRdKhl_DKMC2TVNIqYSbGJs862QG9r4KwAy7blMq7NH_E8rnavsU7x6eQ3bDRoB4903siL0gNAOGxO85n0PQsccbCIKTBWRxKJixD8RgRJFO3HHpFx7tLbU6YDTcouVnh70HvsuZdBXeMI4MgYDhe7XO5qG7G_LJx5dhrbdC0Ygp50BruzeEI4PAey1Q2sxOPXhXV6kmRomQCANyBNvewF6IAwOOvAnZttVkXn7mJyoVvSCI6HB7WsPccL2SKNrNSWnHSODJrrwjhTNOmqEvu3CKBCHkSNaJsm79ltvgDdZqUNddvpYljiGVKiDOa4Z5_P4-UqkAQQD4tyhQnixhiHjq3Kvrjdu86-_N_beNzn77RWsKp04-x85ddJU648SBSfnK5vqrS8kfuNsrpqOP2py6-9ZZ4ZDRt3GxaO269QJrWV99yXZ1ycVj7Jz5lmodOj0Ztmz_eWIh5ZavBBEsctkKCeAIWl18UV7WrClToUB27TpH1om68Hwj5coJbuOmjtotXnZuNGr0Az7rpBQEgGzZsq900dJlu-9F9r3bZcvgQczTNR9z9DS1c0qKcxiYWf4wkAY4gXg_AJ9kO5N0brn-AAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtYBL2dvdG8_dXJsPUNBRVNsQUVCNnpzd0ZjYVZrWXdMV2tzR0puSC1CWXRqbVVRemV4Zk9YdjF0a2x6NHFDOWlRdEZqbTcwN2lFVlZReHdoQXpsZ2w4ZFhQbVQ4ZjBDSUZaMlRGbVZBblZLZHBmRnZBSWhFQW9TZ3hZb0hubFdCNWNOVDNqdFJ5SllqYXFEdXp6V1JNUDBtaVdxeGlxUjRjUWpsalBYUHBTYXdtWFNKRXlBZGxocHJWUW5OamV1TS1GN3JsVDdjQnBUbDA4VUlCclV4OHJSZhIEGgIIABrNBhICCAAaAggBIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJApQYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFWomUD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVb_iOPxoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBUjD4Q_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMtYBL2dvdG8_dXJsPUNBRVNsQUVCNnpzd0ZjYVZrWXdMV2tzR0puSC1CWXRqbVVRemV4Zk9YdjF0a2x6NHFDOWlRdEZqbTcwN2lFVlZReHdoQXpsZ2w4ZFhQbVQ4ZjBDSUZaMlRGbVZBblZLZHBmRnZBSWhFQW9TZ3hZb0hubFdCNWNOVDNqdFJ5SllqYXFEdXp6V1JNUDBtaVdxeGlxUjRjUWpsalBYUHBTYXdtWFNKRXlBZGxocHJWUW5OamV1TS1GN3JsVDdjQnBUbDA4VUlCclV4OHJSZjpVxJDhu5NuZyBjaMOtIFThu5VuZyBCw60gdGjGsCBUw7QgTMOibSDEkcaw4bujYyBi4bqndSBsw6BtIDxiPkNo4bunPC9iPiB04buLY2ggbsaw4bubY0LQAcSQ4buTbmcgY2jDrSBUw7QgTMOibSwgVOG7lW5nIELDrSB0aMawIEJhbiBDaOG6pXAgaMOgbmggVHJ1bmcgxrDGoW5nIMSQ4bqjbmcgQ-G7mW5nIHPhuqNuIFZp4buHdCBOYW0sIMSR4bqhaSBiaeG7g3UgUXXhu5FjIGjhu5lpIGtow7NhIFhWSSDEkcaw4bujYyBRdeG7kWMgaOG7mWkgYuG6p3UgZ2nhu68gY2jhu6ljIDxiPkNo4bunPC9iPiB04buLY2gmbmJzcDsuLi5SBmhp4buHdVIGdGjhu6ljIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtYBL2dvdG8_dXJsPUNBRVNsQUVCNnpzd0ZjYVZrWXdMV2tzR0puSC1CWXRqbVVRemV4Zk9YdjF0a2x6NHFDOWlRdEZqbTcwN2lFVlZReHdoQXpsZ2w4ZFhQbVQ4ZjBDSUZaMlRGbVZBblZLZHBmRnZBSWhFQW9TZ3hZb0hubFdCNWNOVDNqdFJ5SllqYXFEdXp6V1JNUDBtaVdxeGlxUjRjUWpsalBYUHBTYXdtWFNKRXlBZGxocHJWUW5OamV1TS1GN3JsVDdjQnBUbDA4VUlCclV4OHJSZhIEGgIIABrNBhICCAAaAggBIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJApQYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFWomUD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVb_iOPxoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBUjD4Q_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMtYBL2dvdG8_dXJsPUNBRVNsQUVCNnpzd0ZjYVZrWXdMV2tzR0puSC1CWXRqbVVRemV4Zk9YdjF0a2x6NHFDOWlRdEZqbTcwN2lFVlZReHdoQXpsZ2w4ZFhQbVQ4ZjBDSUZaMlRGbVZBblZLZHBmRnZBSWhFQW9TZ3hZb0hubFdCNWNOVDNqdFJ5SllqYXFEdXp6V1JNUDBtaVdxeGlxUjRjUWpsalBYUHBTYXdtWFNKRXlBZGxocHJWUW5OamV1TS1GN3JsVDdjQnBUbDA4VUlCclV4OHJSZjpVxJDhu5NuZyBjaMOtIFThu5VuZyBCw60gdGjGsCBUw7QgTMOibSDEkcaw4bujYyBi4bqndSBsw6BtIDxiPkNo4bunPC9iPiB04buLY2ggbsaw4bubY0LQAcSQ4buTbmcgY2jDrSBUw7QgTMOibSwgVOG7lW5nIELDrSB0aMawIEJhbiBDaOG6pXAgaMOgbmggVHJ1bmcgxrDGoW5nIMSQ4bqjbmcgQ-G7mW5nIHPhuqNuIFZp4buHdCBOYW0sIMSR4bqhaSBiaeG7g3UgUXXhu5FjIGjhu5lpIGtow7NhIFhWSSDEkcaw4bujYyBRdeG7kWMgaOG7mWkgYuG6p3UgZ2nhu68gY2jhu6ljIDxiPkNo4bunPC9iPiB04buLY2gmbmJzcDsuLi5SBmhp4buHdVIGdGjhu6ljIgIQAUgAWABoAA",
+     "source": "Báo Nhân Dân điện tử"
+    },
+    {
+     "position": 4,
+     "title": "Hà Nội cơ bản thống nhất chủ trương nghiên cứu phương ...",
+     "link": "https://laodong.vn/ban-doc/ha-noi-co-ban-thong-nhat-chu-truong-nghien-cuu-phuong-an-cai-tao-long-song-hong-1788545.ldo",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESsQEB6zswFU7p3YowZfPzgI11Jb6uZWvKOw-Y-_490FtDdrWSCvP1YfP9xrhwtI1sfct-aCs2Rb9BgvOtpyJtZiy2Kgij3AHKJdw-bHnxypt_Co3tnOI-AXZtyROeZ6aIzAiDPPlViJ3b_nDTOxyUxH6Ks6j3c-1r_FH19WOkuUbS-ArXwYk_QgH9aUmlvaHrygC0h3VbcEF4VMNjs4Dn3J1CsrETI9WFSHMAN38i7XVa-DA&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBgQAQ&uoh=1",
+     "displayed_link": "https://laodong.vn › ban-doc › ha-noi-co-ban-thong-nh...",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAALVBMVEVHcEzbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTr-cuSfAAAADnRSTlMA0UJsgQvCU5jtGSqtj6Yw19AAAADySURBVCiRfZJJAoQgDARZDBCi_v-5kxXRw_RBMSWEbkjpn-AQXeBf-pxDi5DOW1SNkb-rFlvK8jp8mdp8MKSaFebo0TBGuGCJ_niTD3vANbGs5snqeSucsgnX4RCeVW-Mj2mwpdKLSA3UrioMBF7S6yOc3EMgt5z4Zg2kqUAxAvnFLKWA7P9hpzt9oIe8mM_sKwET7bB-Zo5IQeAI0yHwny2EdYTXJc_u4Qq0xNgLcrWjOwHPVv4krk1dnj1NW0lh06OP28A7ObYj480DxoGLqWzGDLZElDbR1MAMPscdqnbBLNPyZv02SEMFO4NTa5T-6QeC_xAwIQM1zQAAAABJRU5ErkJggg.png",
+     "date": "2 ngày trước",
+     "snippet": "Hà Nội - UBND TP cơ bản thống nhất chủ trương nghiên cứu phương án cải tạo lòng sông Hồng, sông Đà kết hợp tận thu sản phẩm.",
+     "snippet_highlighted_words": [
+      "chủ"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Hà Nội - UBND TP cơ bản thống nhất chủ trương nghiên cứu phương án cải tạo lòng sông Hồng, sông Đà kết hợp tận thu sản phẩm.",
+       "source_info_link": "https://laodong.vn/ban-doc/ha-noi-co-ban-thong-nhat-chu-truong-nghien-cuu-phuong-an-cai-tao-long-song-hong-1788545.ldo",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAALVBMVEVHcEzbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTrbNTr-cuSfAAAADnRSTlMA0UJsgQvCU5jtGSqtj6Yw19AAAADySURBVCiRfZJJAoQgDARZDBCi_v-5kxXRw_RBMSWEbkjpn-AQXeBf-pxDi5DOW1SNkb-rFlvK8jp8mdp8MKSaFebo0TBGuGCJ_niTD3vANbGs5snqeSucsgnX4RCeVW-Mj2mwpdKLSA3UrioMBF7S6yOc3EMgt5z4Zg2kqUAxAvnFLKWA7P9hpzt9oIe8mM_sKwET7bB-Zo5IQeAI0yHwny2EdYTXJc_u4Qq0xNgLcrWjOwHPVv4krk1dnj1NW0lh06OP28A7ObYj480DxoGLqWzGDLZElDbR1MAMPscdqnbBLNPyZv02SEMFO4NTa5T-6QeC_xAwIQM1zQAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cv0BL2dvdG8_dXJsPUNBRVNzUUVCNnpzd0ZkSS1JQWtrY3g0NjRoVmlPZnh6cTFSdDNTak5xX1RKcVQ5N2hkOVFHTVkwUjBIdlpCbWs2UXBWLUdCUVVLTl9FR3dWM3BMZFYtUk5sQks1eFRKYUFLUzNweXFGZ2FNcXNnSUt4M0FOQTVUekV1RlFLMS1iS0kyRmZEblpxLS1wUVo3b0VVVWJLMVlrZkh0NGdzYXBtXzZvQ3B0OWkxakZBT3BhRnJOci1od0IzWUhHeUkyRkRaSXNFcWRkRE9pYnFjM2RCZEZxSGdtX0tFOHBTN2tqSGpnT1BxTEYySVZTVXZHSlpKNBIEGgIIABrSBhICCAAaACICCAEqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAqgYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFXluGD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVPLdCQBoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBU5JiE-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMv0BL2dvdG8_dXJsPUNBRVNzUUVCNnpzd0ZkSS1JQWtrY3g0NjRoVmlPZnh6cTFSdDNTak5xX1RKcVQ5N2hkOVFHTVkwUjBIdlpCbWs2UXBWLUdCUVVLTl9FR3dWM3BMZFYtUk5sQks1eFRKYUFLUzNweXFGZ2FNcXNnSUt4M0FOQTVUekV1RlFLMS1iS0kyRmZEblpxLS1wUVo3b0VVVWJLMVlrZkh0NGdzYXBtXzZvQ3B0OWkxakZBT3BhRnJOci1od0IzWUhHeUkyRkRaSXNFcWRkRE9pYnFjM2RCZEZxSGdtX0tFOHBTN2tqSGpnT1BxTEYySVZTVXZHSlpKNDpXSMOgIE7hu5lpIGPGoSBi4bqjbiB0aOG7kW5nIG5o4bqldCA8Yj5jaOG7pzwvYj4gdHLGsMahbmcgbmdoacOqbiBj4bupdSBwaMawxqFuZyDDoW4gLi4uQqwBSMOgIE7hu5lpIC0gVUJORCBUUCBjxqEgYuG6o24gdGjhu5FuZyBuaOG6pXQgPGI-Y2jhu6c8L2I-IHRyxrDGoW5nIG5naGnDqm4gY-G7qXUgcGjGsMahbmcgw6FuIGPhuqNpIHThuqFvIGzDsm5nIHPDtG5nIEjhu5NuZywgc8O0bmcgxJDDoCBr4bq_dCBo4bujcCB04bqtbiB0aHUgc-G6o24gcGjhuqltLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cv0BL2dvdG8_dXJsPUNBRVNzUUVCNnpzd0ZkSS1JQWtrY3g0NjRoVmlPZnh6cTFSdDNTak5xX1RKcVQ5N2hkOVFHTVkwUjBIdlpCbWs2UXBWLUdCUVVLTl9FR3dWM3BMZFYtUk5sQks1eFRKYUFLUzNweXFGZ2FNcXNnSUt4M0FOQTVUekV1RlFLMS1iS0kyRmZEblpxLS1wUVo3b0VVVWJLMVlrZkh0NGdzYXBtXzZvQ3B0OWkxakZBT3BhRnJOci1od0IzWUhHeUkyRkRaSXNFcWRkRE9pYnFjM2RCZEZxSGdtX0tFOHBTN2tqSGpnT1BxTEYySVZTVXZHSlpKNBIEGgIIABrSBhICCAAaACICCAEqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAqgYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFXluGD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVPLdCQBoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBU5JiE-GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMv0BL2dvdG8_dXJsPUNBRVNzUUVCNnpzd0ZkSS1JQWtrY3g0NjRoVmlPZnh6cTFSdDNTak5xX1RKcVQ5N2hkOVFHTVkwUjBIdlpCbWs2UXBWLUdCUVVLTl9FR3dWM3BMZFYtUk5sQks1eFRKYUFLUzNweXFGZ2FNcXNnSUt4M0FOQTVUekV1RlFLMS1iS0kyRmZEblpxLS1wUVo3b0VVVWJLMVlrZkh0NGdzYXBtXzZvQ3B0OWkxakZBT3BhRnJOci1od0IzWUhHeUkyRkRaSXNFcWRkRE9pYnFjM2RCZEZxSGdtX0tFOHBTN2tqSGpnT1BxTEYySVZTVXZHSlpKNDpXSMOgIE7hu5lpIGPGoSBi4bqjbiB0aOG7kW5nIG5o4bqldCA8Yj5jaOG7pzwvYj4gdHLGsMahbmcgbmdoacOqbiBj4bupdSBwaMawxqFuZyDDoW4gLi4uQqwBSMOgIE7hu5lpIC0gVUJORCBUUCBjxqEgYuG6o24gdGjhu5FuZyBuaOG6pXQgPGI-Y2jhu6c8L2I-IHRyxrDGoW5nIG5naGnDqm4gY-G7qXUgcGjGsMahbmcgw6FuIGPhuqNpIHThuqFvIGzDsm5nIHPDtG5nIEjhu5NuZywgc8O0bmcgxJDDoCBr4bq_dCBo4bujcCB04bqtbiB0aHUgc-G6o24gcGjhuqltLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "Laodong.vn"
+    },
+    {
+     "position": 5,
+     "title": "Đồng chí Đặng Xuân Phong giữ chức Bộ trưởng, Chủ ...",
+     "link": "https://vpcp.chinhphu.vn/dong-chi-dang-xuan-phong-giu-chuc-bo-truong-chu-nhiem-van-phong-chinh-phu-115260408161912602.htm",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEStAEB6zswFWaN7vQURq1IUOEGUXlJhymP3Oe47SoyQTpv528HTyqObHOahtz8m5uKDzKoZsmNZ4URj9GM6m_mEKs_m9NFXswWWiChKbDk-2JVV-yLhgmwnmqJwZD7K5bu7EyHodSTBAMwWhPscvZzVD9Ldql7K-qpL12Xu4K09Vp7TZe4lyuSTkiwltckuvaXsJpj2GoPV6yviwgGeIrPLCldXQysX8lCHMTW625sOsnZmL0Rmlw&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBIQAQ&uoh=1",
+     "displayed_link": "https://vpcp.chinhphu.vn › Thông tin hoạt động",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAACo0lEQVR4AW1TQ5gdYRB8-XKNNXrYtzMT27bNU2zbtm3b1im2k7Vt26709GF9qIf-q6qrf5gAVCmNxNNyo7QH0vHMl6J31msh10AG_U67Lx2lNb08v9igwLVB1dRb0uas12J-zmcBGc9FJJ2TGWQAo0Zruak3pfWVGqTekU5mfxBAneDX3w6n2jpcHVQ4KTqc6ujwG2gHJYPBSb0tHS5jkHJVnpD9XgB9w4UFBElHyGwBHqM1uFhUrrmYdaTckGFwk6_Io9igwKVBVYrrm_1OgJumUeeGTA6aKyPxax0kfK4Lv2k2IxGvuTfUOAVpPNkg4bjcKecTxbolw7kBk8CQdcQ-rIuo2wJ1VovrzqIOGpdNSNvGFL7A-i_ni4Co9RaDUAwXlaIrGo_iqhYbcJLoLRYYmrC51h-miGXWL9kfBURvtsCrrYqA4Xb49nZkcmn49nFEwAg7PFuriNlu4X2IWGJ9Z_Jopu53s2ugJIjZZkbYHFupUXQGRxd0XovdZTY6w5U0pN1pSjyhtEk8pfDR0RkjbJ6NRSGTbMh4JvJ9CJnKNYTNtyHtHh1zPzvoUiHxpNKMj5GIrrnfGvA5017wGLlfBeR8YvDvgJEOiNlqYY7BJc2f4nuQdEbZaRxj1hsBSecVpN1lEs9J4N_pT0UkX1Jg8LLfCsYNXVtskHDMPCxqtTU1aq0V4RQzeoMV0RstCJvlwHMb9ehNFpqdfq-zInKlNZXGHlDmKnu112p6NNX3-_ZV4dNDhf8QR3i21eDdidBFg_8wR_j0UuHeWN_t3VGrXv4tMOJPWOwpN-X80BkOhdSBLoqSn3BMyY87YEb4Ylthyi05N-6oRWF-ZQbJ15QRWW_EH1lvxY3pL6RW8QcVKW6_Wcp4KbWhmvFSfxFnUGnNf1zkbuJR3eE_AAAAAElFTkSuQmCC.png",
+     "date": "8 thg 4, 2026",
+     "snippet": "Đồng chí Đặng Xuân Phong sinh ngày: 8/7/1972; Quê quán: Tỉnh Phú Thọ; Trình độ lý luận chính trị: Cao cấp; Trình độ chuyên môn: Tiến sĩ Kinh ...",
+     "snippet_highlighted_words": [
+      "chính"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Đồng chí Đặng Xuân Phong sinh ngày: 8/7/1972; Quê quán: Tỉnh Phú Thọ; Trình độ lý luận chính trị: Cao cấp; Trình độ chuyên môn: Tiến sĩ Kinh ...",
+       "source_info_link": "https://vpcp.chinhphu.vn/dong-chi-dang-xuan-phong-giu-chuc-bo-truong-chu-nhiem-van-phong-chinh-phu-115260408161912602.htm",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAACo0lEQVR4AW1TQ5gdYRB8-XKNNXrYtzMT27bNU2zbtm3b1im2k7Vt26709GF9qIf-q6qrf5gAVCmNxNNyo7QH0vHMl6J31msh10AG_U67Lx2lNb08v9igwLVB1dRb0uas12J-zmcBGc9FJJ2TGWQAo0Zruak3pfWVGqTekU5mfxBAneDX3w6n2jpcHVQ4KTqc6ujwG2gHJYPBSb0tHS5jkHJVnpD9XgB9w4UFBElHyGwBHqM1uFhUrrmYdaTckGFwk6_Io9igwKVBVYrrm_1OgJumUeeGTA6aKyPxax0kfK4Lv2k2IxGvuTfUOAVpPNkg4bjcKecTxbolw7kBk8CQdcQ-rIuo2wJ1VovrzqIOGpdNSNvGFL7A-i_ni4Co9RaDUAwXlaIrGo_iqhYbcJLoLRYYmrC51h-miGXWL9kfBURvtsCrrYqA4Xb49nZkcmn49nFEwAg7PFuriNlu4X2IWGJ9Z_Jopu53s2ugJIjZZkbYHFupUXQGRxd0XovdZTY6w5U0pN1pSjyhtEk8pfDR0RkjbJ6NRSGTbMh4JvJ9CJnKNYTNtyHtHh1zPzvoUiHxpNKMj5GIrrnfGvA5017wGLlfBeR8YvDvgJEOiNlqYY7BJc2f4nuQdEbZaRxj1hsBSecVpN1lEs9J4N_pT0UkX1Jg8LLfCsYNXVtskHDMPCxqtTU1aq0V4RQzeoMV0RstCJvlwHMb9ehNFpqdfq-zInKlNZXGHlDmKnu112p6NNX3-_ZV4dNDhf8QR3i21eDdidBFg_8wR_j0UuHeWN_t3VGrXv4tMOJPWOwpN-X80BkOhdSBLoqSn3BMyY87YEb4Ylthyi05N-6oRWF-ZQbJ15QRWW_EH1lvxY3pL6RW8QcVKW6_Wcp4KbWhmvFSfxFnUGnNf1zkbuJR3eE_AAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CoECL2dvdG8_dXJsPUNBRVN0QUVCNnpzd0ZkWDJLWUlJcVZYdWZFZFB3d2UzcWphY0FEbnUzT3NSVmk3cWpvWEFJQi1tZFRKNFNxd2ZaclVNdl9pQzJPTVU2ekVBRVM3U1ZCVW1PTEZ0aVFRRHZFZEx5TzNWQV9QeThOeUcxdGF6d2gxMnVjMkFNSXRMZXZVWUN6SmxHYVBESk9EQ1lBdU5vc0dQQ1BMR3RFbjE1TnN0ZVE4RzM1ZFU4Yi1nYVNOcHN0UVRudmZ0Qm5fSWdOb1dMX0l2Q0l2V3lFY2dqSWxoQTJjdmo0ZThweWdmU2JnekRtMzRWME1RdjhrN1lNZmdBdzASBBoCCAAa5gYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAwgYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFZstID8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVRqxNQBoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBVG7SE_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMoECL2dvdG8_dXJsPUNBRVN0QUVCNnpzd0ZkWDJLWUlJcVZYdWZFZFB3d2UzcWphY0FEbnUzT3NSVmk3cWpvWEFJQi1tZFRKNFNxd2ZaclVNdl9pQzJPTVU2ekVBRVM3U1ZCVW1PTEZ0aVFRRHZFZEx5TzNWQV9QeThOeUcxdGF6d2gxMnVjMkFNSXRMZXZVWUN6SmxHYVBESk9EQ1lBdU5vc0dQQ1BMR3RFbjE1TnN0ZVE4RzM1ZFU4Yi1nYVNOcHN0UVRudmZ0Qm5fSWdOb1dMX0l2Q0l2V3lFY2dqSWxoQTJjdmo0ZThweWdmU2JnekRtMzRWME1RdjhrN1lNZmdBdzA6VsSQ4buTbmcgY2jDrSDEkOG6t25nIFh1w6JuIFBob25nIGdp4buvIGNo4bupYyBC4buZIHRyxrDhu59uZywgPGI-Q2jhu6c8L2I-IG5oaeG7h20gLi4uQsEBxJDhu5NuZyBjaMOtIMSQ4bq3bmcgWHXDom4gUGhvbmcgc2luaCBuZ8OgeTogOC83LzE5NzI7IFF1w6ogcXXDoW46IFThu4luaCBQaMO6IFRo4buNOyBUcsOsbmggxJHhu5kgbMO9IGx14bqtbiA8Yj5jaMOtbmg8L2I-IHRy4buLOiBDYW8gY-G6pXA7IFRyw6xuaCDEkeG7mSBjaHV5w6puIG3DtG46IFRp4bq_biBzxKkgS2luaCZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CoECL2dvdG8_dXJsPUNBRVN0QUVCNnpzd0ZkWDJLWUlJcVZYdWZFZFB3d2UzcWphY0FEbnUzT3NSVmk3cWpvWEFJQi1tZFRKNFNxd2ZaclVNdl9pQzJPTVU2ekVBRVM3U1ZCVW1PTEZ0aVFRRHZFZEx5TzNWQV9QeThOeUcxdGF6d2gxMnVjMkFNSXRMZXZVWUN6SmxHYVBESk9EQ1lBdU5vc0dQQ1BMR3RFbjE1TnN0ZVE4RzM1ZFU4Yi1nYVNOcHN0UVRudmZ0Qm5fSWdOb1dMX0l2Q0l2V3lFY2dqSWxoQTJjdmo0ZThweWdmU2JnekRtMzRWME1RdjhrN1lNZmdBdzASBBoCCAAa5gYSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAwgYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFZstID8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVRqxNQBoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBVG7SE_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMoECL2dvdG8_dXJsPUNBRVN0QUVCNnpzd0ZkWDJLWUlJcVZYdWZFZFB3d2UzcWphY0FEbnUzT3NSVmk3cWpvWEFJQi1tZFRKNFNxd2ZaclVNdl9pQzJPTVU2ekVBRVM3U1ZCVW1PTEZ0aVFRRHZFZEx5TzNWQV9QeThOeUcxdGF6d2gxMnVjMkFNSXRMZXZVWUN6SmxHYVBESk9EQ1lBdU5vc0dQQ1BMR3RFbjE1TnN0ZVE4RzM1ZFU4Yi1nYVNOcHN0UVRudmZ0Qm5fSWdOb1dMX0l2Q0l2V3lFY2dqSWxoQTJjdmo0ZThweWdmU2JnekRtMzRWME1RdjhrN1lNZmdBdzA6VsSQ4buTbmcgY2jDrSDEkOG6t25nIFh1w6JuIFBob25nIGdp4buvIGNo4bupYyBC4buZIHRyxrDhu59uZywgPGI-Q2jhu6c8L2I-IG5oaeG7h20gLi4uQsEBxJDhu5NuZyBjaMOtIMSQ4bq3bmcgWHXDom4gUGhvbmcgc2luaCBuZ8OgeTogOC83LzE5NzI7IFF1w6ogcXXDoW46IFThu4luaCBQaMO6IFRo4buNOyBUcsOsbmggxJHhu5kgbMO9IGx14bqtbiA8Yj5jaMOtbmg8L2I-IHRy4buLOiBDYW8gY-G6pXA7IFRyw6xuaCDEkeG7mSBjaHV5w6puIG3DtG46IFRp4bq_biBzxKkgS2luaCZuYnNwOy4uLlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "source": "vpcp.chinhphu.vn"
+    },
+    {
+     "position": 6,
+     "title": "QUY NHƠN UNITED - LÂM ĐỒNG | BÙNG NỔ \"TIỆC\" BÀN ...",
+     "link": "https://www.youtube.com/watch?v=325Fj7D7cNE",
+     "displayed_link": ">13,8 N lượt xem: · 2 ngày trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4de47787493e717e44d/images/hzMt2SaeuPFxvBYBzmpAj5J3J6W4IPz3eU0mhlfSC4k.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAAAhUlEQVR4AWNwL_ChCFPHgP8MxqxA7ArEKVBcCcUNIAznI-RdQXrABgAZpv8ZjP6Tg0F6QQbsosCAXSADHmGVVPIC0jKEDHgAMuAbmgRE445D___feYzXIJBeBigH04BVW_9DAcgwqEGYaik2gGIvUByIlEbjDooTEiwps5GRlNmolpkowgBVP9wMSzSKGAAAAABJRU5ErkJggg.png",
+     "snippet": "XEM TRỌN VẸN V.LEAGUE TRÊN FPT PLAY https://fptplay.go.link/5u1oJ ĐĂNG KÝ KÊNH FPT BÓNG ĐÁ VIỆT để không bỏ lỡ những video highlights ...",
+     "duration": "12:11",
+     "about_this_result": {
+      "source": {
+       "description": "XEM TRỌN VẸN V.LEAGUE TRÊN FPT PLAY https://fptplay.go.link/5u1oJ ĐĂNG KÝ KÊNH FPT BÓNG ĐÁ VIỆT để không bỏ lỡ những video highlights ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAAAhUlEQVR4AWNwL_ChCFPHgP8MxqxA7ArEKVBcCcUNIAznI-RdQXrABgAZpv8ZjP6Tg0F6QQbsosCAXSADHmGVVPIC0jKEDHgAMuAbmgRE445D___feYzXIJBeBigH04BVW_9DAcgwqEGYaik2gGIvUByIlEbjDooTEiwps5GRlNmolpkowgBVP9wMSzSKGAAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpgBL2dvdG8_dXJsPUNBRVNaZ0hyT3pBVlJ4VGZFVVlDWGFpTV9iTGZlV2JQUDZrVzZ4UXg1LUJCdDVBRURURms2eWFjcHhrOGdOaUdFLVpiUEY0dHJmZExKejNaUFhLYkRwVXJ4RGZkTS1PSkxnTHp4QUZPY3hmVmI4bHNCQWlKVlpwMUZQRDVodi0yZTVLYl9naVBlZnF1aGcSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaFhIAGgAiACoAMgA6AEIASgBaAHIAegAiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpgBL2dvdG8_dXJsPUNBRVNaZ0hyT3pBVlJ4VGZFVVlDWGFpTV9iTGZlV2JQUDZrVzZ4UXg1LUJCdDVBRURURms2eWFjcHhrOGdOaUdFLVpiUEY0dHJmZExKejNaUFhLYkRwVXJ4RGZkTS1PSkxnTHp4QUZPY3hmVmI4bHNCQWlKVlpwMUZQRDVodi0yZTVLYl9naVBlZnF1aGcSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaFhIAGgAiACoAMgA6AEIASgBaAHIAegAiAhABSABYAGgA",
+     "video_link": "https://encrypted-vtbn0.gstatic.com/video?q=tbn:ANd9GcR3TfEMeBejl1SZUcub20VtWocSzgp3_0UnCQ",
+     "source": "YouTube · FPT Bóng Đá Việt"
+    },
+    {
+     "position": 7,
+     "title": "Thư của Tổng Bí thư, Chủ tịch nước Tô Lâm gửi ngành ...",
+     "link": "https://baochinhphu.vn/thu-cua-tong-bi-thu-chu-tich-nuoc-to-lam-gui-nganh-giao-duc-nhan-dip-khai-giang-nam-hoc-moi-2026-2027-102260904211237253.htm",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESzwEB6zswFW8jUgFnWcQ1exwn7LfVymjS7DDMwZtppP-T2LQ8ieiNmiDzp5MJebYkaS-oJ9F4M7MWiptv4cmx5uLKTHCifbd5JTs_ATQXRfBgU8gtJF3b39EsPr_jiPIsstShpH4XWq1Oocrr4ZqswJuq3l-R_H_aYYUE7ogrm4bUo7rivlpgz4V0aMpjFnhrDCbpQvSmcRDXkgLo3VU5xOuxpaG_V35F6xelPKaE0t9IPmDmwHIj3193rK7NKfLjSiFVdoOw84XTsrBo0e5othM&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBQQAQ&uoh=1",
+     "displayed_link": "https://baochinhphu.vn › Chính trị",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAACo0lEQVR4AW1TQ5gdYRB8-XKNNXrYtzMT27bNU2zbtm3b1im2k7Vt26709GF9qIf-q6qrf5gAVCmNxNNyo7QH0vHMl6J31msh10AG_U67Lx2lNb08v9igwLVB1dRb0uas12J-zmcBGc9FJJ2TGWQAo0Zruak3pfWVGqTekU5mfxBAneDX3w6n2jpcHVQ4KTqc6ujwG2gHJYPBSb0tHS5jkHJVnpD9XgB9w4UFBElHyGwBHqM1uFhUrrmYdaTckGFwk6_Io9igwKVBVYrrm_1OgJumUeeGTA6aKyPxax0kfK4Lv2k2IxGvuTfUOAVpPNkg4bjcKecTxbolw7kBk8CQdcQ-rIuo2wJ1VovrzqIOGpdNSNvGFL7A-i_ni4Co9RaDUAwXlaIrGo_iqhYbcJLoLRYYmrC51h-miGXWL9kfBURvtsCrrYqA4Xb49nZkcmn49nFEwAg7PFuriNlu4X2IWGJ9Z_Jopu53s2ugJIjZZkbYHFupUXQGRxd0XovdZTY6w5U0pN1pSjyhtEk8pfDR0RkjbJ6NRSGTbMh4JvJ9CJnKNYTNtyHtHh1zPzvoUiHxpNKMj5GIrrnfGvA5017wGLlfBeR8YvDvgJEOiNlqYY7BJc2f4nuQdEbZaRxj1hsBSecVpN1lEs9J4N_pT0UkX1Jg8LLfCsYNXVtskHDMPCxqtTU1aq0V4RQzeoMV0RstCJvlwHMb9ehNFpqdfq-zInKlNZXGHlDmKnu112p6NNX3-_ZV4dNDhf8QR3i21eDdidBFg_8wR_j0UuHeWN_t3VGrXv4tMOJPWOwpN-X80BkOhdSBLoqSn3BMyY87YEb4Ylthyi05N-6oRWF-ZQbJ15QRWW_EH1lvxY3pL6RW8QcVKW6_Wcp4KbWhmvFSfxFnUGnNf1zkbuJR3eE_AAAAAElFTkSuQmCC.png",
+     "date": "5 thg 9, 2026",
+     "snippet": "(Chinhphu.vn) - Nhân dịp khai giảng năm học 2026-2027, Tổng Bí thư, Chủ tịch nước Tô Lâm đã gửi thư tới ngành giáo dục.",
+     "snippet_highlighted_words": [
+      "Chủ"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "(Chinhphu.vn) - Nhân dịp khai giảng năm học 2026-2027, Tổng Bí thư, Chủ tịch nước Tô Lâm đã gửi thư tới ngành giáo dục.",
+       "source_info_link": "https://baochinhphu.vn/thu-cua-tong-bi-thu-chu-tich-nuoc-to-lam-gui-nganh-giao-duc-nhan-dip-khai-giang-nam-hoc-moi-2026-2027-102260904211237253.htm",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAACo0lEQVR4AW1TQ5gdYRB8-XKNNXrYtzMT27bNU2zbtm3b1im2k7Vt26709GF9qIf-q6qrf5gAVCmNxNNyo7QH0vHMl6J31msh10AG_U67Lx2lNb08v9igwLVB1dRb0uas12J-zmcBGc9FJJ2TGWQAo0Zruak3pfWVGqTekU5mfxBAneDX3w6n2jpcHVQ4KTqc6ujwG2gHJYPBSb0tHS5jkHJVnpD9XgB9w4UFBElHyGwBHqM1uFhUrrmYdaTckGFwk6_Io9igwKVBVYrrm_1OgJumUeeGTA6aKyPxax0kfK4Lv2k2IxGvuTfUOAVpPNkg4bjcKecTxbolw7kBk8CQdcQ-rIuo2wJ1VovrzqIOGpdNSNvGFL7A-i_ni4Co9RaDUAwXlaIrGo_iqhYbcJLoLRYYmrC51h-miGXWL9kfBURvtsCrrYqA4Xb49nZkcmn49nFEwAg7PFuriNlu4X2IWGJ9Z_Jopu53s2ugJIjZZkbYHFupUXQGRxd0XovdZTY6w5U0pN1pSjyhtEk8pfDR0RkjbJ6NRSGTbMh4JvJ9CJnKNYTNtyHtHh1zPzvoUiHxpNKMj5GIrrnfGvA5017wGLlfBeR8YvDvgJEOiNlqYY7BJc2f4nuQdEbZaRxj1hsBSecVpN1lEs9J4N_pT0UkX1Jg8LLfCsYNXVtskHDMPCxqtTU1aq0V4RQzeoMV0RstCJvlwHMb9ehNFpqdfq-zInKlNZXGHlDmKnu112p6NNX3-_ZV4dNDhf8QR3i21eDdidBFg_8wR_j0UuHeWN_t3VGrXv4tMOJPWOwpN-X80BkOhdSBLoqSn3BMyY87YEb4Ylthyi05N-6oRWF-ZQbJ15QRWW_EH1lvxY3pL6RW8QcVKW6_Wcp4KbWhmvFSfxFnUGnNf1zkbuJR3eE_AAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqUCL2dvdG8_dXJsPUNBRVN6d0VCNnpzd0ZleDZRQkV3anJxV0FHTnYycUxnVTVYMUE0LVpZNlY0NFVjSzZPblFMM0tna0tpNi1RUDRwd2l0OUlpS2dkdGZNVzJGazJRZWE1V0VEcEdWMTQtcUNCWWZDdkRHMHhBLTladnYydVZhMXlWck1fU1V6QW1hSnItdkdBam45bXNGTFRfczhZQVVvLVBSc0RvTEhIdUwxRXlBbHJsdVBTdVZxUm84WHVVMjR2eDY3dkR0MG95ZEdVT2ZYT1hrWThwQ1BqOWxSaU1rY0JGVkEtY1FlQ3VuaThHVHBFWkFwcV9MX2xaSDZ0QXpqLVBwamRVZlMtV0dMRXFyQlN0cm93d0twZkZnYU9oTnFRQUN5dUkSBBoCCAAa6gYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDEBghCEAAYACAAKjAKCGFjbmFjYXJlFQAAAAAaCWFjbmEgY2FyZRoJYWNuZSBjYXJlGglhY25hY2Fyw6kqTgoFdHJhbmcV252yPBoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyosCgVjaOG7pxWru8Q_Ggp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqLQoGY2jDrW5oFSKEjz8aBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcypQIvZ290bz91cmw9Q0FFU3p3RUI2enN3RmV4NlFCRXdqcnFXQUdOdjJxTGdVNVgxQTQtWlk2VjQ0VWNLNk9uUUwzS2drS2k2LVFQNHB3aXQ5SWlLZ2R0Zk1XMkZrMlFlYTVXRURwR1YxNC1xQ0JZZkN2REcweEEtOVp2djJ1VmExeVZyTV9TVXpBbWFKci12R0Fqbjltc0ZMVF9zOFlBVW8tUFJzRG9MSEh1TDFFeUFscmx1UFN1VnFSbzhYdVUyNHZ4Njd2RHQwb3lkR1VPZlhPWGtZOHBDUGo5bFJpTWtjQkZWQS1jUWVDdW5pOEdUcEVaQXBxX0xfbFpINnRBemotUHBqZFVmUy1XR0xFcXJCU3Ryb3d3S3BmRmdhT2hOcVFBQ3l1STpXVGjGsCBj4bunYSBU4buVbmcgQsOtIHRoxrAsIDxiPkNo4bunPC9iPiB04buLY2ggbsaw4bubYyBUw7QgTMOibSBn4butaSBuZ8OgbmggZ2nDoW8gLi4uQp4BKENoaW5ocGh1LnZuKSAtIE5ow6JuIGThu4twIGtoYWkgZ2nhuqNuZyBuxINtIGjhu41jIDIwMjYtMjAyNywgVOG7lW5nIELDrSB0aMawLCA8Yj5DaOG7pzwvYj4gdOG7i2NoIG7GsOG7m2MgVMO0IEzDom0gxJHDoyBn4butaSB0aMawIHThu5tpIG5nw6BuaCBnacOhbyBk4bulYy5SBnRo4bupY1IGaGnhu4d1IgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqUCL2dvdG8_dXJsPUNBRVN6d0VCNnpzd0ZleDZRQkV3anJxV0FHTnYycUxnVTVYMUE0LVpZNlY0NFVjSzZPblFMM0tna0tpNi1RUDRwd2l0OUlpS2dkdGZNVzJGazJRZWE1V0VEcEdWMTQtcUNCWWZDdkRHMHhBLTladnYydVZhMXlWck1fU1V6QW1hSnItdkdBam45bXNGTFRfczhZQVVvLVBSc0RvTEhIdUwxRXlBbHJsdVBTdVZxUm84WHVVMjR2eDY3dkR0MG95ZEdVT2ZYT1hrWThwQ1BqOWxSaU1rY0JGVkEtY1FlQ3VuaThHVHBFWkFwcV9MX2xaSDZ0QXpqLVBwamRVZlMtV0dMRXFyQlN0cm93d0twZkZnYU9oTnFRQUN5dUkSBBoCCAAa6gYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDEBghCEAAYACAAKjAKCGFjbmFjYXJlFQAAAAAaCWFjbmEgY2FyZRoJYWNuZSBjYXJlGglhY25hY2Fyw6kqTgoFdHJhbmcV252yPBoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyosCgVjaOG7pxWru8Q_Ggp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqLQoGY2jDrW5oFSKEjz8aBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcypQIvZ290bz91cmw9Q0FFU3p3RUI2enN3RmV4NlFCRXdqcnFXQUdOdjJxTGdVNVgxQTQtWlk2VjQ0VWNLNk9uUUwzS2drS2k2LVFQNHB3aXQ5SWlLZ2R0Zk1XMkZrMlFlYTVXRURwR1YxNC1xQ0JZZkN2REcweEEtOVp2djJ1VmExeVZyTV9TVXpBbWFKci12R0Fqbjltc0ZMVF9zOFlBVW8tUFJzRG9MSEh1TDFFeUFscmx1UFN1VnFSbzhYdVUyNHZ4Njd2RHQwb3lkR1VPZlhPWGtZOHBDUGo5bFJpTWtjQkZWQS1jUWVDdW5pOEdUcEVaQXBxX0xfbFpINnRBemotUHBqZFVmUy1XR0xFcXJCU3Ryb3d3S3BmRmdhT2hOcVFBQ3l1STpXVGjGsCBj4bunYSBU4buVbmcgQsOtIHRoxrAsIDxiPkNo4bunPC9iPiB04buLY2ggbsaw4bubYyBUw7QgTMOibSBn4butaSBuZ8OgbmggZ2nDoW8gLi4uQp4BKENoaW5ocGh1LnZuKSAtIE5ow6JuIGThu4twIGtoYWkgZ2nhuqNuZyBuxINtIGjhu41jIDIwMjYtMjAyNywgVOG7lW5nIELDrSB0aMawLCA8Yj5DaOG7pzwvYj4gdOG7i2NoIG7GsOG7m2MgVMO0IEzDom0gxJHDoyBn4butaSB0aMawIHThu5tpIG5nw6BuaCBnacOhbyBk4bulYy5SBnRo4bupY1IGaGnhu4d1IgIQAUgAWABoAA",
+     "source": "baochinhphu.vn"
+    },
+    {
+     "position": 8,
+     "title": "Điều động, bổ nhiệm cán bộ chủ chốt ở 4 tỉnh, thành",
+     "link": "https://tienphong.vn/dieu-dong-bo-nhiem-can-bo-chu-chot-o-4-tinh-thanh-post1888322.tpo",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESkQEB6zswFcZtKZNnJ05y6qjqL8-OKG4ogmYu6XFAwynfUIc0DywhCFKd39E-b_NB_Fax_PQKySI8813tB1KK_c-XWj-g5-5bBMe3wUjcRDM7z55vJqoBGzJeIY8nWB7o_IWqGCm76ASN8WuQEyHj6x-qfEiZoowodgkXKnuOsy0wMNn8JqQBgVtN8nLbP-riQ3Ez&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBEQAQ&uoh=1",
+     "displayed_link": "https://tienphong.vn › dieu-dong-bo-nhiem-can-bo-chu-...",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAxlBMVEVHcEz-4-P-19f-________j4_-d3f_ZGT-bGz2GRnCo6P-Z2f_JSb-ExP-Ghr-IySyAAD-AADvAACkAAD_AAD8AAD_SkrVBATkAACCAACldHTJISGFNDR0R0f-AABrNzdRFhalhIT4___vhob_g4P_AAD3ubn3i4uNAAD_Kyv8NzfoVlfIo6TvfX3KAACzb2-JIyOSaGiUPz-kPT3_oaGHXFx6AACUenpTLC1jAABDAABkQEB9WVn89vbwdnXcamnbysrGtbU4_lehAAAAQnRSTlMAYG0dJ_z_____dvH_______7___7-_v___4z37tj__P6RCmOa_7TG___6xCrH_036ye_XhMf_dOj__6SDFsmmMlKCm1LDAAABXElEQVR4AYTQBbaDMBBA0boLCRmc1N3dbf-b-hmsln_6KtjFJvazeOKteNIvFYF0JhuVy-aCsvlCCIqlclAlqlrJK09QIZKo-gKYH2Ak3HgCTVcxxQBxIgBV_E3TCoHtuF42cBBCqfnVG80AtIJlu0w471Czm_bKZDK9VmACUOXAGe33tMFgUMLvUBuNX0GJECLABJcizgkvD8bvABAMCErW4WIBo-b3FRDA1H-rjj6TASB0vlAoAWC69QrAB8IZbrOFE2b68gXgHPwrMGPVbGl4wnT-AnAOPuB0uE4PxbKjbt4AeIADh4o2LItN2O6kb8E5wRgo-_ErAPABAOAkGEwPeAHZHIShxrRfx5eUXYEQXd0eji5OSToHMajTeXeJYfI5UCd6OOkcOoYURHMQYBkB6Vv8A5gIgVhIQd4Q6dsrLqfu5Qvc-gfsOFJxIQH3R1ChUGhYu-bfGIgFAKUQP2mfNw9rAAAAAElFTkSuQmCC.png",
+     "date": "20 giờ trước",
+     "snippet": "TPHCM và 3 tỉnh công bố loạt quyết định điều động, luân chuyển, bổ nhiệm cán bộ chủ chốt, trong đó có các vị trí lãnh đạo tại sở, ...",
+     "snippet_highlighted_words": [
+      "chủ"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "TPHCM và 3 tỉnh công bố loạt quyết định điều động, luân chuyển, bổ nhiệm cán bộ chủ chốt, trong đó có các vị trí lãnh đạo tại sở, ...",
+       "source_info_link": "https://tienphong.vn/dieu-dong-bo-nhiem-can-bo-chu-chot-o-4-tinh-thanh-post1888322.tpo",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAxlBMVEVHcEz-4-P-19f-________j4_-d3f_ZGT-bGz2GRnCo6P-Z2f_JSb-ExP-Ghr-IySyAAD-AADvAACkAAD_AAD8AAD_SkrVBATkAACCAACldHTJISGFNDR0R0f-AABrNzdRFhalhIT4___vhob_g4P_AAD3ubn3i4uNAAD_Kyv8NzfoVlfIo6TvfX3KAACzb2-JIyOSaGiUPz-kPT3_oaGHXFx6AACUenpTLC1jAABDAABkQEB9WVn89vbwdnXcamnbysrGtbU4_lehAAAAQnRSTlMAYG0dJ_z_____dvH_______7___7-_v___4z37tj__P6RCmOa_7TG___6xCrH_036ye_XhMf_dOj__6SDFsmmMlKCm1LDAAABXElEQVR4AYTQBbaDMBBA0boLCRmc1N3dbf-b-hmsln_6KtjFJvazeOKteNIvFYF0JhuVy-aCsvlCCIqlclAlqlrJK09QIZKo-gKYH2Ak3HgCTVcxxQBxIgBV_E3TCoHtuF42cBBCqfnVG80AtIJlu0w471Czm_bKZDK9VmACUOXAGe33tMFgUMLvUBuNX0GJECLABJcizgkvD8bvABAMCErW4WIBo-b3FRDA1H-rjj6TASB0vlAoAWC69QrAB8IZbrOFE2b68gXgHPwrMGPVbGl4wnT-AnAOPuB0uE4PxbKjbt4AeIADh4o2LItN2O6kb8E5wRgo-_ErAPABAOAkGEwPeAHZHIShxrRfx5eUXYEQXd0eji5OSToHMajTeXeJYfI5UCd6OOkcOoYURHMQYBkB6Vv8A5gIgVhIQd4Q6dsrLqfu5Qvc-gfsOFJxIQH3R1ChUGhYu-bfGIgFAKUQP2mfNw9rAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtIBL2dvdG8_dXJsPUNBRVNrUUVCNnpzd0ZiUXlHSEFPQjN5WkFqanlCV0tEU3BOS25KTXUtQm1lcm5sNWtrVC1VcWp2UUJoZ203UTVPanhvQVRZWV9fMWZISmJESHM4V0pDQVJ6Z1JMd1Z5WjZrWEI2NW54YWlDSkFwYlk0TkdXUXRBaFBvdTVCY09Tdy1jRzZxN0RHVXhibkRnUnFDbWZHcldVS29wN3BWUzdDVnNCbkZqaE9ZZ3U3NndZWC1KWXdvb0JseHQ2dnY1cmNac1hBbTIxEgQaAggAGrUGEgIIABoAIgIIASoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCNBghCEAAYACAAKjAKCGFjbmFjYXJlFQAAAAAaCWFjbmEgY2FyZRoJYWNuZSBjYXJlGglhY25hY2Fyw6kqTgoFdHJhbmcVf69FPhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyosCgVjaOG7pxX2vQtAGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqLQoGY2jDrW5oFYOEQT8aBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcy0gEvZ290bz91cmw9Q0FFU2tRRUI2enN3RmJReUdIQU9CM3laQWpqeUJXS0RTcE5LbkpNdS1CbWVybmw1a2tULVVxanZRQmhnbTdRNU9qeG9BVFlZX18xZkhKYkRIczhXSkNBUnpnUkx3VnlaNmtYQjY1bnhhaUNKQXBiWTROR1dRdEFoUG91NUJjT1N3LWNHNnE3REdVeGJuRGdScUNtZkdyV1VLb3A3cFZTN0NWc0JuRmpoT1lndTc2d1lYLUpZd29vQmx4dDZ2djVyY1pzWEFtMjE6UMSQaeG7gXUgxJHhu5luZywgYuG7lSBuaGnhu4dtIGPDoW4gYuG7mSA8Yj5jaOG7pzwvYj4gY2jhu5F0IOG7nyA0IHThu4luaCwgdGjDoG5oQsEBVFBIQ00gdsOgIDMgdOG7iW5oIGPDtG5nIGLhu5EgbG_huqF0IHF1eeG6v3QgxJHhu4tuaCDEkWnhu4F1IMSR4buZbmcsIGx1w6JuIGNodXnhu4NuLCBi4buVIG5oaeG7h20gY8OhbiBi4buZIDxiPmNo4bunPC9iPiBjaOG7kXQsIHRyb25nIMSRw7MgY8OzIGPDoWMgduG7iyB0csOtIGzDo25oIMSR4bqhbyB04bqhaSBz4bufLCZuYnNwOy4uLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtIBL2dvdG8_dXJsPUNBRVNrUUVCNnpzd0ZiUXlHSEFPQjN5WkFqanlCV0tEU3BOS25KTXUtQm1lcm5sNWtrVC1VcWp2UUJoZ203UTVPanhvQVRZWV9fMWZISmJESHM4V0pDQVJ6Z1JMd1Z5WjZrWEI2NW54YWlDSkFwYlk0TkdXUXRBaFBvdTVCY09Tdy1jRzZxN0RHVXhibkRnUnFDbWZHcldVS29wN3BWUzdDVnNCbkZqaE9ZZ3U3NndZWC1KWXdvb0JseHQ2dnY1cmNac1hBbTIxEgQaAggAGrUGEgIIABoAIgIIASoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCNBghCEAAYACAAKjAKCGFjbmFjYXJlFQAAAAAaCWFjbmEgY2FyZRoJYWNuZSBjYXJlGglhY25hY2Fyw6kqTgoFdHJhbmcVf69FPhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyosCgVjaOG7pxX2vQtAGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIqLQoGY2jDrW5oFYOEQT8aBWNoaW5oGgtjaMOtbmhow6NuZxoKaXY7ZDtjaGluaCopCgVow6NuZxUAAAAAGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcy0gEvZ290bz91cmw9Q0FFU2tRRUI2enN3RmJReUdIQU9CM3laQWpqeUJXS0RTcE5LbkpNdS1CbWVybmw1a2tULVVxanZRQmhnbTdRNU9qeG9BVFlZX18xZkhKYkRIczhXSkNBUnpnUkx3VnlaNmtYQjY1bnhhaUNKQXBiWTROR1dRdEFoUG91NUJjT1N3LWNHNnE3REdVeGJuRGdScUNtZkdyV1VLb3A3cFZTN0NWc0JuRmpoT1lndTc2d1lYLUpZd29vQmx4dDZ2djVyY1pzWEFtMjE6UMSQaeG7gXUgxJHhu5luZywgYuG7lSBuaGnhu4dtIGPDoW4gYuG7mSA8Yj5jaOG7pzwvYj4gY2jhu5F0IOG7nyA0IHThu4luaCwgdGjDoG5oQsEBVFBIQ00gdsOgIDMgdOG7iW5oIGPDtG5nIGLhu5EgbG_huqF0IHF1eeG6v3QgxJHhu4tuaCDEkWnhu4F1IMSR4buZbmcsIGx1w6JuIGNodXnhu4NuLCBi4buVIG5oaeG7h20gY8OhbiBi4buZIDxiPmNo4bunPC9iPiBjaOG7kXQsIHRyb25nIMSRw7MgY8OzIGPDoWMgduG7iyB0csOtIGzDo25oIMSR4bqhbyB04bqhaSBz4bufLCZuYnNwOy4uLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "Báo Tiền Phong"
+    },
+    {
+     "position": 9,
+     "title": "Tổng Bí thư, Chủ tịch nước và phu nhân kết thúc tốt đẹp ...",
+     "link": "https://vietnamnet.vn/tong-bi-thu-chu-tich-nuoc-va-phu-nhan-ket-thuc-tot-dep-chuyen-tham-eu-bi-2568160.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESpgEB6zswFcrebMCpi3ahmZ8iNf6nL0o-7yMqKo9ZXQzS8wdv7-8wOk9BN9j65IP89SpTMAI6jRlNI8wK98ZI5Qk8fdpAZBdTxBQlQQFG0Cexv1oVi-v0DYX1vAnQMNzQB03V7XbwsFC5rZRD425PaxPoqgsZUwyuF8P-u_yJsnhuIwQ3bTIbvYp4KV3XmnJLJp0YmzoKd0OkH4C5VGDQj44jkftx_U3Z&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQFnoECBcQAQ&uoh=1",
+     "displayed_link": "https://vietnamnet.vn › Chính trị › Đối ngoại",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAKlBMVEVHcEzNICfNICfNICfNICfNICfNICfNICfNICfNICfNICfNICfNICfNICeHlo8pAAAADXRSTlMAjDsa92EuA-CvyU4PGWWlEAAAAI9JREFUKJHV0EESwyAIBVBQFDXl_tft12ii09hlZ_pXyssAhuh_onE6c8p-ssh6X4KZlfvKee7CwDQ-9mUxckDuE8I4-R4MCb2Sh9VZgpgbix1y2dkP6fjKZmFeesIjrYbKQK0rr3bWgC59GoJqbC-99lobh7IxoiYmj6btPRKfDJr2Vv_73siJ3xrpF_tl3m0uBUVsnY3MAAAAAElFTkSuQmCC.png",
+     "date": "2 ngày trước",
+     "snippet": "Trưa 24/10, Tổng Bí thư, Chủ tịch nước Tô Lâm cùng phu nhân rời thủ đô Brussels, kết thúc tốt đẹp chuyến thăm chính thức Liên minh châu Âu ...",
+     "snippet_highlighted_words": [
+      "Chủ",
+      "chính thức"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Trưa 24/10, Tổng Bí thư, Chủ tịch nước Tô Lâm cùng phu nhân rời thủ đô Brussels, kết thúc tốt đẹp chuyến thăm chính thức Liên minh châu Âu ...",
+       "source_info_link": "https://vietnamnet.vn/tong-bi-thu-chu-tich-nuoc-va-phu-nhan-ket-thuc-tot-dep-chuyen-tham-eu-bi-2568160.html",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAKlBMVEVHcEzNICfNICfNICfNICfNICfNICfNICfNICfNICfNICfNICfNICfNICeHlo8pAAAADXRSTlMAjDsa92EuA-CvyU4PGWWlEAAAAI9JREFUKJHV0EESwyAIBVBQFDXl_tft12ii09hlZ_pXyssAhuh_onE6c8p-ssh6X4KZlfvKee7CwDQ-9mUxckDuE8I4-R4MCb2Sh9VZgpgbix1y2dkP6fjKZmFeesIjrYbKQK0rr3bWgC59GoJqbC-99lobh7IxoiYmj6btPRKfDJr2Vv_73siJ3xrpF_tl3m0uBUVsnY3MAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cu4BL2dvdG8_dXJsPUNBRVNwZ0VCNnpzd0ZSYmY1Ni1VbEhmN1Q1emxkNHd2NkhOMUh1R18yNzh0NkdINVlUQXJaYmptWFNOR2RLeVl2RHo4cXlkOVdHUXVsemhHbXRxTXJ3NUZtOEREemtMaVZWZmtsdE1VQkY4YkRJN3Rwcmc4N3cweGFPemdjOTc5Z2NjenZUSDE5dkp3Q202cktxbTcxTVZ0VlZ5OXJDMmJyS19BeGZYY0FscFJsMUN6aTRmQUVrLWg4a1dKSjFySlZ2VHhINGpvSjBHemV3YzlXYTNVQXVTZWR6TXRLTHBsSS13VxIEGgIIABrfBhICCAAaACICCAEqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAtwYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFaQfCTwaBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVinbRPhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBVSI5E_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMu4BL2dvdG8_dXJsPUNBRVNwZ0VCNnpzd0ZSYmY1Ni1VbEhmN1Q1emxkNHd2NkhOMUh1R18yNzh0NkdINVlUQXJaYmptWFNOR2RLeVl2RHo4cXlkOVdHUXVsemhHbXRxTXJ3NUZtOEREemtMaVZWZmtsdE1VQkY4YkRJN3Rwcmc4N3cweGFPemdjOTc5Z2NjenZUSDE5dkp3Q202cktxbTcxTVZ0VlZ5OXJDMmJyS19BeGZYY0FscFJsMUN6aTRmQUVrLWg4a1dKSjFySlZ2VHhINGpvSjBHemV3YzlXYTNVQXVTZWR6TXRLTHBsSS13VzpXVOG7lW5nIELDrSB0aMawLCA8Yj5DaOG7pzwvYj4gdOG7i2NoIG7GsOG7m2MgdsOgIHBodSBuaMOibiBr4bq_dCB0aMO6YyB04buRdCDEkeG6uXAgLi4uQsgBVHLGsGEgMjQvMTAsIFThu5VuZyBCw60gdGjGsCwgPGI-Q2jhu6c8L2I-IHThu4tjaCBuxrDhu5tjIFTDtCBMw6JtIGPDuW5nIHBodSBuaMOibiBy4budaSB0aOG7pyDEkcO0IEJydXNzZWxzLCBr4bq_dCB0aMO6YyB04buRdCDEkeG6uXAgY2h1eeG6v24gdGjEg20gPGI-Y2jDrW5oIHRo4bupYzwvYj4gTGnDqm4gbWluaCBjaMOidSDDgnUmbmJzcDsuLi5SBnRo4bupY1IGaGnhu4d1IgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cu4BL2dvdG8_dXJsPUNBRVNwZ0VCNnpzd0ZSYmY1Ni1VbEhmN1Q1emxkNHd2NkhOMUh1R18yNzh0NkdINVlUQXJaYmptWFNOR2RLeVl2RHo4cXlkOVdHUXVsemhHbXRxTXJ3NUZtOEREemtMaVZWZmtsdE1VQkY4YkRJN3Rwcmc4N3cweGFPemdjOTc5Z2NjenZUSDE5dkp3Q202cktxbTcxTVZ0VlZ5OXJDMmJyS19BeGZYY0FscFJsMUN6aTRmQUVrLWg4a1dKSjFySlZ2VHhINGpvSjBHemV3YzlXYTNVQXVTZWR6TXRLTHBsSS13VxIEGgIIABrfBhICCAAaACICCAEqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAtwYIQhAAGAAgACowCghhY25hY2FyZRUAAAAAGglhY25hIGNhcmUaCWFjbmUgY2FyZRoJYWNuYWNhcsOpKk4KBXRyYW5nFaQfCTwaBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqLAoFY2jhu6cVinbRPhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViKi0KBmNow61uaBVSI5E_GgVjaGluaBoLY2jDrW5oaMOjbmcaCml2O2Q7Y2hpbmgqKQoFaMOjbmcVAAAAABoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nMu4BL2dvdG8_dXJsPUNBRVNwZ0VCNnpzd0ZSYmY1Ni1VbEhmN1Q1emxkNHd2NkhOMUh1R18yNzh0NkdINVlUQXJaYmptWFNOR2RLeVl2RHo4cXlkOVdHUXVsemhHbXRxTXJ3NUZtOEREemtMaVZWZmtsdE1VQkY4YkRJN3Rwcmc4N3cweGFPemdjOTc5Z2NjenZUSDE5dkp3Q202cktxbTcxTVZ0VlZ5OXJDMmJyS19BeGZYY0FscFJsMUN6aTRmQUVrLWg4a1dKSjFySlZ2VHhINGpvSjBHemV3YzlXYTNVQXVTZWR6TXRLTHBsSS13VzpXVOG7lW5nIELDrSB0aMawLCA8Yj5DaOG7pzwvYj4gdOG7i2NoIG7GsOG7m2MgdsOgIHBodSBuaMOibiBr4bq_dCB0aMO6YyB04buRdCDEkeG6uXAgLi4uQsgBVHLGsGEgMjQvMTAsIFThu5VuZyBCw60gdGjGsCwgPGI-Q2jhu6c8L2I-IHThu4tjaCBuxrDhu5tjIFTDtCBMw6JtIGPDuW5nIHBodSBuaMOibiBy4budaSB0aOG7pyDEkcO0IEJydXNzZWxzLCBr4bq_dCB0aMO6YyB04buRdCDEkeG6uXAgY2h1eeG6v24gdGjEg20gPGI-Y2jDrW5oIHRo4bupYzwvYj4gTGnDqm4gbWluaCBjaMOidSDDgnUmbmJzcDsuLi5SBnRo4bupY1IGaGnhu4d1IgIQAUgAWABoAA",
+     "source": "Báo VietNamNet"
+    }
+   ],
+   "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvRcN0Emq5AdUIIl7DTqpLmjoC1wQ:1792980190894&ei=3rTearyINtTE0PEPm9DKoQM&start=10&sa=N&sstk=AS6-VmJ57PRQpwKFZB_Ib0x9RtWAV9HztlSvFFqqu3Q1ynrGapEETKBgMzeQ5rz9p9nxBFZjlbPdTML1UnA55oN5AYCgrnJpu0ey5A&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQ8NMDegQIRBAM",
+    "other_pages": {
+     "2": "https://www.google.com/search?q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvRcN0Emq5AdUIIl7DTqpLmjoC1wQ:1792980190894&ei=3rTearyINtTE0PEPm9DKoQM&start=10&sa=N&sstk=AS6-VmJ57PRQpwKFZB_Ib0x9RtWAV9HztlSvFFqqu3Q1ynrGapEETKBgMzeQ5rz9p9nxBFZjlbPdTML1UnA55oN5AYCgrnJpu0ey5A&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQ8tMDegQIRBAE",
+     "3": "https://www.google.com/search?q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvRcN0Emq5AdUIIl7DTqpLmjoC1wQ:1792980190894&ei=3rTearyINtTE0PEPm9DKoQM&start=20&sa=N&sstk=AS6-VmJ57PRQpwKFZB_Ib0x9RtWAV9HztlSvFFqqu3Q1ynrGapEETKBgMzeQ5rz9p9nxBFZjlbPdTML1UnA55oN5AYCgrnJpu0ey5A&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQ8tMDegQIRBAG",
+     "4": "https://www.google.com/search?q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvRcN0Emq5AdUIIl7DTqpLmjoC1wQ:1792980190894&ei=3rTearyINtTE0PEPm9DKoQM&start=30&sa=N&sstk=AS6-VmJ57PRQpwKFZB_Ib0x9RtWAV9HztlSvFFqqu3Q1ynrGapEETKBgMzeQ5rz9p9nxBFZjlbPdTML1UnA55oN5AYCgrnJpu0ey5A&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQ8tMDegQIRBAI",
+     "5": "https://www.google.com/search?q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvRcN0Emq5AdUIIl7DTqpLmjoC1wQ:1792980190894&ei=3rTearyINtTE0PEPm9DKoQM&start=40&sa=N&sstk=AS6-VmJ57PRQpwKFZB_Ib0x9RtWAV9HztlSvFFqqu3Q1ynrGapEETKBgMzeQ5rz9p9nxBFZjlbPdTML1UnA55oN5AYCgrnJpu0ey5A&ved=2ahUKEwi87_fay9aXAxVUIjQIHRuoMjQQ8tMDegQIRBAK"
+    }
+   },
+   "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+    "other_pages": {
+     "2": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+     "3": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=20",
+     "4": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=30",
+     "5": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Acnacare+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=40"
+    }
+   }
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "b3da3ab85afba5d2ee0a5f2c67cc5e64263a2f78fe8df5324eaeb245b17209dd"
+ }
+}

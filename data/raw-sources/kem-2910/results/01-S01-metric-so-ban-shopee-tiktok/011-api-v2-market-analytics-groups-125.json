@@ -1,0 +1,801 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API POST /v2/market/analytics/groups/ (thứ tự 125)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[125]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "1fec7fd316f81492ce0c5c14febddcca4715d62ffc6f1d1b68e1af6f040cfcb7"
+ },
+ "result": {
+  "urlPath": "/v2/market/analytics/groups/",
+  "responseOrder": 125,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": {
+    "groups": [
+     {
+      "ranking": 1,
+      "previous_ranking": 2,
+      "brand": "Samsung",
+      "shop_total": 1195,
+      "product_total": 7469,
+      "order_custom_sum": 89381,
+      "revenue_custom_sum": 321705266209,
+      "avg_price": 3599257,
+      "previous_order_custom_sum": 108814,
+      "previous_revenue_custom_sum": 453386438957,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Samsung",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 56058,
+          "revenue_custom": 93184179672
+         },
+         "1": {
+          "order_custom": 33323,
+          "revenue_custom": 228521086537
+         }
+        },
+        "shop_total": 1195,
+        "product_total": 7469,
+        "order_custom_sum": 89381,
+        "revenue_custom_sum": 321705266209,
+        "avg_price": 3599257,
+        "previous_order_custom_sum": 108814,
+        "previous_revenue_custom_sum": 453386438957
+       }
+      ]
+     },
+     {
+      "ranking": 2,
+      "previous_ranking": 1,
+      "brand": "Apple",
+      "shop_total": 127,
+      "product_total": 487,
+      "order_custom_sum": 19903,
+      "revenue_custom_sum": 293127868085,
+      "avg_price": 14727823,
+      "previous_order_custom_sum": 31876,
+      "previous_revenue_custom_sum": 491743413986,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Apple",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 5568,
+          "revenue_custom": 206025086
+         },
+         "1": {
+          "order_custom": 14335,
+          "revenue_custom": 292921842999
+         }
+        },
+        "shop_total": 127,
+        "product_total": 487,
+        "order_custom_sum": 19903,
+        "revenue_custom_sum": 293127868085,
+        "avg_price": 14727823,
+        "previous_order_custom_sum": 31876,
+        "previous_revenue_custom_sum": 491743413986
+       }
+      ]
+     },
+     {
+      "ranking": 3,
+      "previous_ranking": 3,
+      "brand": "Xiaomi",
+      "shop_total": 720,
+      "product_total": 4175,
+      "order_custom_sum": 61983,
+      "revenue_custom_sum": 179218926633,
+      "avg_price": 2891420,
+      "previous_order_custom_sum": 72215,
+      "previous_revenue_custom_sum": 240582982481,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Xiaomi",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 24429,
+          "revenue_custom": 35937025036
+         },
+         "1": {
+          "order_custom": 37554,
+          "revenue_custom": 143281901597
+         }
+        },
+        "shop_total": 720,
+        "product_total": 4175,
+        "order_custom_sum": 61983,
+        "revenue_custom_sum": 179218926633,
+        "avg_price": 2891420,
+        "previous_order_custom_sum": 72215,
+        "previous_revenue_custom_sum": 240582982481
+       }
+      ]
+     },
+     {
+      "ranking": 4,
+      "previous_ranking": 6,
+      "brand": "Cocoon",
+      "shop_total": 296,
+      "product_total": 2466,
+      "order_custom_sum": 365332,
+      "revenue_custom_sum": 133000691926,
+      "avg_price": 364054,
+      "previous_order_custom_sum": 358261,
+      "previous_revenue_custom_sum": 108741201977,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Cocoon",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 34098,
+          "revenue_custom": 5586429456
+         },
+         "1": {
+          "order_custom": 331234,
+          "revenue_custom": 127414262470
+         }
+        },
+        "shop_total": 296,
+        "product_total": 2466,
+        "order_custom_sum": 365332,
+        "revenue_custom_sum": 133000691926,
+        "avg_price": 364054,
+        "previous_order_custom_sum": 358261,
+        "previous_revenue_custom_sum": 108741201977
+       }
+      ]
+     },
+     {
+      "ranking": 5,
+      "previous_ranking": 4,
+      "brand": "Vinamilk",
+      "shop_total": 410,
+      "product_total": 2058,
+      "order_custom_sum": 316963,
+      "revenue_custom_sum": 115728839656,
+      "avg_price": 365117,
+      "previous_order_custom_sum": 583247,
+      "previous_revenue_custom_sum": 204497429482,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Vinamilk",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 45870,
+          "revenue_custom": 14217036362
+         },
+         "1": {
+          "order_custom": 271093,
+          "revenue_custom": 101511803294
+         }
+        },
+        "shop_total": 410,
+        "product_total": 2058,
+        "order_custom_sum": 316963,
+        "revenue_custom_sum": 115728839656,
+        "avg_price": 365117,
+        "previous_order_custom_sum": 583247,
+        "previous_revenue_custom_sum": 204497429482
+       }
+      ]
+     },
+     {
+      "ranking": 6,
+      "previous_ranking": 7,
+      "brand": "Huggies",
+      "shop_total": 237,
+      "product_total": 1405,
+      "order_custom_sum": 238844,
+      "revenue_custom_sum": 94504509930,
+      "avg_price": 395674,
+      "previous_order_custom_sum": 279590,
+      "previous_revenue_custom_sum": 103287615515,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Huggies",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 79549,
+          "revenue_custom": 20826924120
+         },
+         "1": {
+          "order_custom": 159295,
+          "revenue_custom": 73677585810
+         }
+        },
+        "shop_total": 237,
+        "product_total": 1405,
+        "order_custom_sum": 238844,
+        "revenue_custom_sum": 94504509930,
+        "avg_price": 395674,
+        "previous_order_custom_sum": 279590,
+        "previous_revenue_custom_sum": 103287615515
+       }
+      ]
+     },
+     {
+      "ranking": 7,
+      "previous_ranking": 5,
+      "brand": "Oppo",
+      "shop_total": 458,
+      "product_total": 2484,
+      "order_custom_sum": 23294,
+      "revenue_custom_sum": 87297051257,
+      "avg_price": 3747619,
+      "previous_order_custom_sum": 26339,
+      "previous_revenue_custom_sum": 116226056914,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Oppo",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 16660,
+          "revenue_custom": 39905117945
+         },
+         "1": {
+          "order_custom": 6634,
+          "revenue_custom": 47391933312
+         }
+        },
+        "shop_total": 458,
+        "product_total": 2484,
+        "order_custom_sum": 23294,
+        "revenue_custom_sum": 87297051257,
+        "avg_price": 3747619,
+        "previous_order_custom_sum": 26339,
+        "previous_revenue_custom_sum": 116226056914
+       }
+      ]
+     },
+     {
+      "ranking": 8,
+      "previous_ranking": 9,
+      "brand": "L'Oreal Paris",
+      "shop_total": 231,
+      "product_total": 813,
+      "order_custom_sum": 287223,
+      "revenue_custom_sum": 83926507665,
+      "avg_price": 292199,
+      "previous_order_custom_sum": 316864,
+      "previous_revenue_custom_sum": 81866181187,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "L'Oreal Paris",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 34347,
+          "revenue_custom": 6067432878
+         },
+         "1": {
+          "order_custom": 252876,
+          "revenue_custom": 77859074787
+         }
+        },
+        "shop_total": 231,
+        "product_total": 813,
+        "order_custom_sum": 287223,
+        "revenue_custom_sum": 83926507665,
+        "avg_price": 292199,
+        "previous_order_custom_sum": 316864,
+        "previous_revenue_custom_sum": 81866181187
+       }
+      ]
+     },
+     {
+      "ranking": 9,
+      "previous_ranking": 8,
+      "brand": "Lg",
+      "shop_total": 447,
+      "product_total": 2187,
+      "order_custom_sum": 18623,
+      "revenue_custom_sum": 71056187570,
+      "avg_price": 3815507,
+      "previous_order_custom_sum": 20954,
+      "previous_revenue_custom_sum": 83891860439,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Lg",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 11708,
+          "revenue_custom": 14582507655
+         },
+         "1": {
+          "order_custom": 6915,
+          "revenue_custom": 56473679915
+         }
+        },
+        "shop_total": 447,
+        "product_total": 2187,
+        "order_custom_sum": 18623,
+        "revenue_custom_sum": 71056187570,
+        "avg_price": 3815507,
+        "previous_order_custom_sum": 20954,
+        "previous_revenue_custom_sum": 83891860439
+       }
+      ]
+     },
+     {
+      "ranking": 10,
+      "previous_ranking": 10,
+      "brand": "Lock&Lock",
+      "shop_total": 286,
+      "product_total": 4223,
+      "order_custom_sum": 199686,
+      "revenue_custom_sum": 66944256366,
+      "avg_price": 335247,
+      "previous_order_custom_sum": 236001,
+      "previous_revenue_custom_sum": 71071197224,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Lock&Lock",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 50718,
+          "revenue_custom": 8077966178
+         },
+         "1": {
+          "order_custom": 148968,
+          "revenue_custom": 58866290188
+         }
+        },
+        "shop_total": 286,
+        "product_total": 4223,
+        "order_custom_sum": 199686,
+        "revenue_custom_sum": 66944256366,
+        "avg_price": 335247,
+        "previous_order_custom_sum": 236001,
+        "previous_revenue_custom_sum": 71071197224
+       }
+      ]
+     },
+     {
+      "ranking": 11,
+      "previous_ranking": 32,
+      "brand": "Vinfast",
+      "shop_total": 133,
+      "product_total": 503,
+      "order_custom_sum": 9500,
+      "revenue_custom_sum": 57116761889,
+      "avg_price": 6012290,
+      "previous_order_custom_sum": 8153,
+      "previous_revenue_custom_sum": 39584093366,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Vinfast",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 6662,
+          "revenue_custom": 2955606875
+         },
+         "1": {
+          "order_custom": 2838,
+          "revenue_custom": 54161155014
+         }
+        },
+        "shop_total": 133,
+        "product_total": 503,
+        "order_custom_sum": 9500,
+        "revenue_custom_sum": 57116761889,
+        "avg_price": 6012290,
+        "previous_order_custom_sum": 8153,
+        "previous_revenue_custom_sum": 39584093366
+       }
+      ]
+     },
+     {
+      "ranking": 12,
+      "previous_ranking": 17,
+      "brand": "Growplus",
+      "shop_total": 44,
+      "product_total": 609,
+      "order_custom_sum": 87945,
+      "revenue_custom_sum": 56023372019,
+      "avg_price": 637027,
+      "previous_order_custom_sum": 96024,
+      "previous_revenue_custom_sum": 56693126900,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Growplus",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 11033,
+          "revenue_custom": 3046819812
+         },
+         "1": {
+          "order_custom": 76912,
+          "revenue_custom": 52976552207
+         }
+        },
+        "shop_total": 44,
+        "product_total": 609,
+        "order_custom_sum": 87945,
+        "revenue_custom_sum": 56023372019,
+        "avg_price": 637027,
+        "previous_order_custom_sum": 96024,
+        "previous_revenue_custom_sum": 56693126900
+       }
+      ]
+     },
+     {
+      "ranking": 13,
+      "previous_ranking": 19,
+      "brand": "La Roche-Posay",
+      "shop_total": 196,
+      "product_total": 694,
+      "order_custom_sum": 106330,
+      "revenue_custom_sum": 52767015718,
+      "avg_price": 496257,
+      "previous_order_custom_sum": 119031,
+      "previous_revenue_custom_sum": 53862349533,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "La Roche-Posay",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 13675,
+          "revenue_custom": 2855000617
+         },
+         "1": {
+          "order_custom": 92655,
+          "revenue_custom": 49912015101
+         }
+        },
+        "shop_total": 196,
+        "product_total": 694,
+        "order_custom_sum": 106330,
+        "revenue_custom_sum": 52767015718,
+        "avg_price": 496257,
+        "previous_order_custom_sum": 119031,
+        "previous_revenue_custom_sum": 53862349533
+       }
+      ]
+     },
+     {
+      "ranking": 14,
+      "previous_ranking": 16,
+      "brand": "Sunhouse",
+      "shop_total": 411,
+      "product_total": 4697,
+      "order_custom_sum": 107246,
+      "revenue_custom_sum": 51743484161,
+      "avg_price": 482474,
+      "previous_order_custom_sum": 117592,
+      "previous_revenue_custom_sum": 57195143084,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Sunhouse",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 34998,
+          "revenue_custom": 16091598940
+         },
+         "1": {
+          "order_custom": 72248,
+          "revenue_custom": 35651885221
+         }
+        },
+        "shop_total": 411,
+        "product_total": 4697,
+        "order_custom_sum": 107246,
+        "revenue_custom_sum": 51743484161,
+        "avg_price": 482474,
+        "previous_order_custom_sum": 117592,
+        "previous_revenue_custom_sum": 57195143084
+       }
+      ]
+     },
+     {
+      "ranking": 15,
+      "previous_ranking": 13,
+      "brand": "D'Alba",
+      "shop_total": 150,
+      "product_total": 429,
+      "order_custom_sum": 84024,
+      "revenue_custom_sum": 51529912611,
+      "avg_price": 613276,
+      "previous_order_custom_sum": 101189,
+      "previous_revenue_custom_sum": 58437329634,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "D'Alba",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 4241,
+          "revenue_custom": 1570871467
+         },
+         "1": {
+          "order_custom": 79783,
+          "revenue_custom": 49959041144
+         }
+        },
+        "shop_total": 150,
+        "product_total": 429,
+        "order_custom_sum": 84024,
+        "revenue_custom_sum": 51529912611,
+        "avg_price": 613276,
+        "previous_order_custom_sum": 101189,
+        "previous_revenue_custom_sum": 58437329634
+       }
+      ]
+     },
+     {
+      "ranking": 16,
+      "previous_ranking": 57,
+      "brand": "Sao Thái Dương",
+      "shop_total": 83,
+      "product_total": 723,
+      "order_custom_sum": 167164,
+      "revenue_custom_sum": 50464506165,
+      "avg_price": 301886,
+      "previous_order_custom_sum": 121620,
+      "previous_revenue_custom_sum": 27938134419,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Sao Thái Dương",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 3405,
+          "revenue_custom": 678332181
+         },
+         "1": {
+          "order_custom": 163759,
+          "revenue_custom": 49786173984
+         }
+        },
+        "shop_total": 83,
+        "product_total": 723,
+        "order_custom_sum": 167164,
+        "revenue_custom_sum": 50464506165,
+        "avg_price": 301886,
+        "previous_order_custom_sum": 121620,
+        "previous_revenue_custom_sum": 27938134419
+       }
+      ]
+     },
+     {
+      "ranking": 17,
+      "previous_ranking": 15,
+      "brand": "Top Gia",
+      "shop_total": 155,
+      "product_total": 1361,
+      "order_custom_sum": 467713,
+      "revenue_custom_sum": 50002141562,
+      "avg_price": 106907,
+      "previous_order_custom_sum": 536434,
+      "previous_revenue_custom_sum": 57586909452,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Top Gia",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 28389,
+          "revenue_custom": 2475869734
+         },
+         "1": {
+          "order_custom": 439324,
+          "revenue_custom": 47526271828
+         }
+        },
+        "shop_total": 155,
+        "product_total": 1361,
+        "order_custom_sum": 467713,
+        "revenue_custom_sum": 50002141562,
+        "avg_price": 106907,
+        "previous_order_custom_sum": 536434,
+        "previous_revenue_custom_sum": 57586909452
+       }
+      ]
+     },
+     {
+      "ranking": 18,
+      "previous_ranking": 18,
+      "brand": "Coolmate",
+      "shop_total": 8,
+      "product_total": 1295,
+      "order_custom_sum": 234020,
+      "revenue_custom_sum": 49924418770,
+      "avg_price": 213333,
+      "previous_order_custom_sum": 284827,
+      "previous_revenue_custom_sum": 54616559024,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Coolmate",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 5,
+          "revenue_custom": 972000
+         },
+         "1": {
+          "order_custom": 234015,
+          "revenue_custom": 49923446770
+         }
+        },
+        "shop_total": 8,
+        "product_total": 1295,
+        "order_custom_sum": 234020,
+        "revenue_custom_sum": 49924418770,
+        "avg_price": 213333,
+        "previous_order_custom_sum": 284827,
+        "previous_revenue_custom_sum": 54616559024
+       }
+      ]
+     },
+     {
+      "ranking": 19,
+      "previous_ranking": 14,
+      "brand": "Deli",
+      "shop_total": 519,
+      "product_total": 9503,
+      "order_custom_sum": 941726,
+      "revenue_custom_sum": 48770675069,
+      "avg_price": 51788,
+      "previous_order_custom_sum": 1282479,
+      "previous_revenue_custom_sum": 57891910570,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Deli",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 57702,
+          "revenue_custom": 3570733388
+         },
+         "1": {
+          "order_custom": 884024,
+          "revenue_custom": 45199941681
+         }
+        },
+        "shop_total": 519,
+        "product_total": 9503,
+        "order_custom_sum": 941726,
+        "revenue_custom_sum": 48770675069,
+        "avg_price": 51788,
+        "previous_order_custom_sum": 1282479,
+        "previous_revenue_custom_sum": 57891910570
+       }
+      ]
+     },
+     {
+      "ranking": 20,
+      "previous_ranking": 33,
+      "brand": "Cỏ Mềm",
+      "shop_total": 15,
+      "product_total": 603,
+      "order_custom_sum": 178515,
+      "revenue_custom_sum": 47638983955,
+      "avg_price": 266862,
+      "previous_order_custom_sum": 160405,
+      "previous_revenue_custom_sum": 39315115187,
+      "top_products_revenue_custom": [],
+      "top_products_order_custom": [],
+      "order_revenue_intervals": [],
+      "details_by_platforms": [
+       {
+        "brand": "Cỏ Mềm",
+        "platform_id": 1,
+        "official_type": {
+         "0": {
+          "order_custom": 26,
+          "revenue_custom": 6918950
+         },
+         "1": {
+          "order_custom": 178489,
+          "revenue_custom": 47632065005
+         }
+        },
+        "shop_total": 15,
+        "product_total": 603,
+        "order_custom_sum": 178515,
+        "revenue_custom_sum": 47638983955,
+        "avg_price": 266862,
+        "previous_order_custom_sum": 160405,
+        "previous_revenue_custom_sum": 39315115187
+       }
+      ]
+     }
+    ]
+   },
+   "code": "SUCCESS"
+  },
+  "method": "POST",
+  "timestamp": 1792979723108,
+  "requestBody": "{\"include_query\":{\"platforms\":[1],\"queries\":[],\"categories\":[\"1__100635\",\"1__100631\",\"1__100015\",\"1__100634\",\"1__100012\",\"1__100532\",\"1__100644\",\"1__100641\",\"1__100632\",\"1__100636\",\"1__100009\",\"1__100643\",\"1__100630\",\"1__100639\",\"1__100001\",\"1__100535\",\"1__100010\",\"1__100637\",\"1__100011\",\"1__100017\",\"1__100633\",\"1__100629\",\"1__100533\",\"1__100016\",\"1__100642\",\"1__100638\",\"1__100640\",\"1__100013\",\"1__100534\",\"1__102053\",\"1__102187\",\"1__1999888999\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.03,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom_sum__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\",\"fields\":null}"
+ }
+}

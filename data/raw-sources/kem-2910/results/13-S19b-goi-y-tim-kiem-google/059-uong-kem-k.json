@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm k» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[58]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "b50a89fc45656a9a49e165c4b09d96b7ed2006f9297e8d47b179ce332281c311"
+ },
+ "result": {
+  "prefix": "uống kẽm k",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:24Z",
+  "suggestions": [
+   "uống kẽm khi đói",
+   "uống kẽm khi bụng đói",
+   "uống kẽm khi nào thì tốt",
+   "uống kẽm khi tiêu chảy",
+   "uống kẽm kèm canxi được không",
+   "uống kẽm khi bụng đói được không",
+   "uống kẽm khi nào thì tốt nhất",
+   "uống kẽm kết hợp với canxi được không",
+   "uống kẽm khi đói hay no",
+   "uống kẽm kỵ với gì"
+  ],
+  "raw": [
+   "uống kẽm k",
+   [
+    "uống kẽm khi đói",
+    "uống kẽm khi bụng đói",
+    "uống kẽm khi nào thì tốt",
+    "uống kẽm khi tiêu chảy",
+    "uống kẽm kèm canxi được không",
+    "uống kẽm khi bụng đói được không",
+    "uống kẽm khi nào thì tốt nhất",
+    "uống kẽm kết hợp với canxi được không",
+    "uống kẽm khi đói hay no",
+    "uống kẽm kỵ với gì"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

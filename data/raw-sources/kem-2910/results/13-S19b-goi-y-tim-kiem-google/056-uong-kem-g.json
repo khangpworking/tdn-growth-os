@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm g» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[55]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "a27b72fd188137457b6ac2b09f72a77fb2f755bad11f4cf7f6a688fc1fd24d1d"
+ },
+ "result": {
+  "prefix": "uống kẽm g",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:22Z",
+  "suggestions": [
+   "uống kẽm gây buồn ngủ",
+   "uống kẽm giảm rụng tóc",
+   "uống kẽm gì tốt",
+   "uống kẽm gây mụn",
+   "uống kẽm giờ nào tốt",
+   "uống kẽm gây mất ngủ",
+   "uống kẽm gây táo bón",
+   "uống kẽm giúp gì",
+   "uống kẽm gluconat",
+   "uống kẽm giảm mụn"
+  ],
+  "raw": [
+   "uống kẽm g",
+   [
+    "uống kẽm gây buồn ngủ",
+    "uống kẽm giảm rụng tóc",
+    "uống kẽm gì tốt",
+    "uống kẽm gây mụn",
+    "uống kẽm giờ nào tốt",
+    "uống kẽm gây mất ngủ",
+    "uống kẽm gây táo bón",
+    "uống kẽm giúp gì",
+    "uống kẽm gluconat",
+    "uống kẽm giảm mụn"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

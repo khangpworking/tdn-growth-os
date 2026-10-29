@@ -1,0 +1,54 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm q» (2 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[41]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "8644465504e76df90368bd6e0921ef7fdfc47715879952980cebce57f80c0b8a"
+ },
+ "result": {
+  "prefix": "viên kẽm q",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:12Z",
+  "suggestions": [
+   "viên kẽm hàn quốc",
+   "viên uống kẽm hàn quốc"
+  ],
+  "raw": [
+   "viên kẽm q",
+   [
+    "viên kẽm hàn quốc",
+    "viên uống kẽm hàn quốc"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

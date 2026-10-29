@@ -1,0 +1,5574 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "reportName": "kết quả tìm kiếm",
+  "grade": "B (ý định tìm, không phải lời khách)",
+  "usedBy": [
+   "INSIGHT (nỗi lo khi tìm I08, nhóm quan tâm I02; chưa nối vào app)"
+  ],
+  "evidenceFamily": "search_intent",
+  "origin": {
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "collectedOn": "2026-10-29",
+   "collector": "gaps_kem.py (Claude, 29/10/2026)",
+   "prefixCount": 79,
+   "uniquePhraseCount": 592,
+   "uniquePhrases": [
+    "bổ sung kẽm cho nữ",
+    "bổ sung kẽm cho nữ có tác dụng gì",
+    "cách uống viên kẽm acnacare",
+    "cách uống viên kẽm ada",
+    "cách uống viên kẽm amagain",
+    "cách uống viên kẽm hiệu quả",
+    "có nên uống kẽm ada",
+    "có nên uống kẽm amagain không",
+    "có nên uống kẽm cùng canxi",
+    "có nên uống kẽm mỗi ngày không",
+    "có nên uống kẽm sau ăn",
+    "có nên uống kẽm trước khi ngủ",
+    "có nên uống kẽm trước khi ăn",
+    "có nên uống kẽm trước khi ăn sáng không",
+    "có nên uống kẽm và vitamin c cùng lúc",
+    "có nên uống kẽm vào buổi chiều",
+    "kem trị mụn nội tiết",
+    "kẽm cho bé 12 tuổi",
+    "kẽm cho bé 2t",
+    "kẽm cho bé 3 tuổi",
+    "kẽm cho bé nên uống lúc nào",
+    "kẽm cho bé tiêu chảy",
+    "kẽm cho bé uống buổi chiều được không",
+    "kẽm cho bé uống buổi tối được không",
+    "kẽm cho bé uống sáng hay tối",
+    "kẽm cho bé uống tối được không",
+    "kẽm cho bé ăn ngon",
+    "kẽm cho nam",
+    "kẽm cho nam giới có tác dụng gì",
+    "kẽm cho nam giới của nhật",
+    "kẽm cho nam giới long châu",
+    "kẽm cho nam giới pharmacity",
+    "kẽm cho nam giới tốt nhất",
+    "kẽm cho nam long châu",
+    "kẽm cho nam loại nào tốt",
+    "kẽm cho nữ",
+    "kẽm cho phụ nữ mang thai",
+    "kẽm cho phụ nữ sau sinh",
+    "kẽm có tác dụng gì cho bé",
+    "kẽm có tác dụng gì trong tập gym",
+    "kẽm có tác dụng gì với cơ thể",
+    "kẽm có tác dụng gì với cơ thể nam giới",
+    "kẽm có tác dụng gì với da",
+    "kẽm có tác dụng gì với tinh trùng",
+    "kẽm có tác dụng gì với đàn ông",
+    "kẽm có tác dụng gì đối với cơ thể con người",
+    "kẽm có tác dụng tăng chiều cao không",
+    "kẽm có tác dụng với nước không",
+    "kẽm giúp gì cho nữ",
+    "kẽm imochild uống lúc nào",
+    "kẽm oxyd viên uống",
+    "kẽm trong trị mụn",
+    "kẽm trị mụn acnacare",
+    "kẽm trị mụn viêm",
+    "kẽm trị mụn zinc",
+    "kẽm trị mụn được không",
+    "kẽm tốt cho nữ",
+    "kẽm uống cùng omega 3",
+    "kẽm uống trẻ em",
+    "kẽm viên lọ",
+    "kẽm viên xanh",
+    "kẽm viên đỏ",
+    "nên uống viên kẽm không",
+    "review viên kẽm",
+    "review viên kẽm amagain",
+    "review viên kẽm dhc",
+    "review viên uống kẽm dhc",
+    "serum kẽm trị mụn",
+    "thuốc kẽm cho nữ",
+    "trẻ uống kẽm quá liều",
+    "trẻ uống kẽm quá liều có sao không",
+    "uống kẽm ada bao lâu thì có tác dụng",
+    "uống kẽm ada có hại không",
+    "uống kẽm ada có hại thận không",
+    "uống kẽm ada có tác dụng gì",
+    "uống kẽm ada có tăng cân không",
+    "uống kẽm ada khi nào",
+    "uống kẽm ada nhiều có tốt không",
+    "uống kẽm amagain có tác dụng gì",
+    "uống kẽm amagain có tốt không",
+    "uống kẽm amagain khi nào",
+    "uống kẽm bao lâu thì nghỉ",
+    "uống kẽm bao lâu thì uống sữa",
+    "uống kẽm buổi chiều",
+    "uống kẽm buổi tối có sao k",
+    "uống kẽm buổi tối được ko",
+    "uống kẽm bị buồn nôn",
+    "uống kẽm bị mắc ói",
+    "uống kẽm bị rối loạn tiêu hoá",
+    "uống kẽm bị tiêu chảy",
+    "uống kẽm bị đau lưng",
+    "uống kẽm bổ sung gì cho cơ thể",
+    "uống kẽm cho trẻ em",
+    "uống kẽm chống rụng tóc",
+    "uống kẽm cách omega 3 bao lâu",
+    "uống kẽm cách uống sữa bao lâu",
+    "uống kẽm có bị yếu sinh lý không",
+    "uống kẽm có cai thiện ysl ko",
+    "uống kẽm có chữa được yếu sinh lý không",
+    "uống kẽm có giảm rụng tóc không",
+    "uống kẽm có hại không",
+    "uống kẽm có hết yếu sinh lý không",
+    "uống kẽm có lâu ra không",
+    "uống kẽm có mất ngủ không",
+    "uống kẽm có mập không",
+    "uống kẽm có rụng tóc không",
+    "uống kẽm có tác dụng gì",
+    "uống kẽm có tác dụng gì cho nam",
+    "uống kẽm có tác dụng gì cho nữ",
+    "uống kẽm có tác dụng phụ không",
+    "uống kẽm có tác dụng và tác hại gì",
+    "uống kẽm có tốt cho thận không",
+    "uống kẽm có tốt ko",
+    "uống kẽm có uống bia được không",
+    "uống kẽm cùng omega 3 được không",
+    "uống kẽm cùng vitamin e có được không",
+    "uống kẽm dha có tác dụng gì",
+    "uống kẽm dhc",
+    "uống kẽm dhc bao lâu thì có tác dụng",
+    "uống kẽm dhc có hại thận không",
+    "uống kẽm dhc có tác dụng phụ không",
+    "uống kẽm dhc có tốt không",
+    "uống kẽm dhc khi nào là tốt nhất",
+    "uống kẽm dhc như thế nào",
+    "uống kẽm dhc trong bao lâu",
+    "uống kẽm dsd có tác dụng gì",
+    "uống kẽm giúp gì",
+    "uống kẽm giảm mụn",
+    "uống kẽm giảm rụng tóc",
+    "uống kẽm giờ nào tốt",
+    "uống kẽm gluconat",
+    "uống kẽm gây buồn ngủ",
+    "uống kẽm gây mất ngủ",
+    "uống kẽm gây mụn",
+    "uống kẽm gây táo bón",
+    "uống kẽm gì tốt",
+    "uống kẽm hay canxi trước",
+    "uống kẽm hay sắt trước",
+    "uống kẽm hiệu quả",
+    "uống kẽm hàm lượng bao nhiêu",
+    "uống kẽm hàng ngày",
+    "uống kẽm hàng ngày có tác dụng gì",
+    "uống kẽm hàng ngày có tốt không",
+    "uống kẽm hàng ngày được không",
+    "uống kẽm hết hạn có sao không",
+    "uống kẽm hết mụn",
+    "uống kẽm hỗ trợ gì",
+    "uống kẽm khi bụng đói",
+    "uống kẽm khi bụng đói được không",
+    "uống kẽm khi nào",
+    "uống kẽm khi nào cho trẻ",
+    "uống kẽm khi nào có tác dụng",
+    "uống kẽm khi nào là tốt nhất cho bé",
+    "uống kẽm khi nào thì tốt",
+    "uống kẽm khi nào thì tốt nhất",
+    "uống kẽm khi nào trong ngày",
+    "uống kẽm khi nào tốt nhất",
+    "uống kẽm khi tiêu chảy",
+    "uống kẽm khi đói",
+    "uống kẽm khi đói hay no",
+    "uống kẽm kèm canxi được không",
+    "uống kẽm kèm omega 3 được không",
+    "uống kẽm kết hợp với canxi được không",
+    "uống kẽm kỵ với gì",
+    "uống kẽm loại nào",
+    "uống kẽm là gì",
+    "uống kẽm lâu dài được không",
+    "uống kẽm lúc 6h tối được không",
+    "uống kẽm lúc 7h tối được không",
+    "uống kẽm lúc bụng đói",
+    "uống kẽm lúc nào",
+    "uống kẽm lúc nào tốt",
+    "uống kẽm lúc tối có sao không",
+    "uống kẽm lúc đói hay no",
+    "uống kẽm mất ngủ",
+    "uống kẽm mấy giờ",
+    "uống kẽm mấy giờ là tốt nhất",
+    "uống kẽm mấy tháng thì ngưng",
+    "uống kẽm mắc ói",
+    "uống kẽm mọc tóc",
+    "uống kẽm mỗi ngày",
+    "uống kẽm mỗi ngày có sao không",
+    "uống kẽm mỗi ngày có tác dụng gì",
+    "uống kẽm mỗi ngày có tốt không",
+    "uống kẽm ngày mấy lần",
+    "uống kẽm ngăn rụng tóc",
+    "uống kẽm ngủ ngon",
+    "uống kẽm nhiều",
+    "uống kẽm nhiều có bị sao không",
+    "uống kẽm nhiều có sao không",
+    "uống kẽm nhiều quá có tốt không",
+    "uống kẽm như thế nào",
+    "uống kẽm như thế nào là tốt",
+    "uống kẽm ntn là tốt nhất",
+    "uống kẽm nên uống buổi nào",
+    "uống kẽm nên uống lúc nào",
+    "uống kẽm nên uống trước ăn hay sau ăn",
+    "uống kẽm quá liều",
+    "uống kẽm quá liều có sao không",
+    "uống kẽm quá nhiều",
+    "uống kẽm rồi uống cà phê được không",
+    "uống kẽm rồi uống sữa được không",
+    "uống kẽm rồi ăn sữa chua được không",
+    "uống kẽm rụng tóc",
+    "uống kẽm sao cho hiệu quả",
+    "uống kẽm sau bao lâu có tác dụng",
+    "uống kẽm sau bao lâu thì được ăn",
+    "uống kẽm sau bữa ăn bao lâu",
+    "uống kẽm sau bữa ăn tối được không",
+    "uống kẽm sau hay trước ăn",
+    "uống kẽm sau kháng sinh bao lâu",
+    "uống kẽm sau uống sữa bao lâu",
+    "uống kẽm sau uống sữa được không",
+    "uống kẽm sau ăn sáng bao lâu",
+    "uống kẽm sau ăn sáng được không",
+    "uống kẽm sau ăn trưa",
+    "uống kẽm thế nào cho đúng",
+    "uống kẽm trong lúc ăn được không",
+    "uống kẽm trước bữa ăn được không",
+    "uống kẽm trước hay sau bữa ăn",
+    "uống kẽm trước ăn được không",
+    "uống kẽm trị mụn như thế nào",
+    "uống kẽm trị mụn trong bao lâu",
+    "uống kẽm tăng sức đề kháng",
+    "uống kẽm tăng testosterone",
+    "uống kẽm tối có tốt không",
+    "uống kẽm tốt cho cái gì",
+    "uống kẽm và magie khi nào",
+    "uống kẽm và omega 3 cùng lúc",
+    "uống kẽm và omega 3 cùng lúc được không",
+    "uống kẽm và sắt cách nhau bao lâu",
+    "uống kẽm và sắt cùng lúc được không",
+    "uống kẽm và sắt khi nào",
+    "uống kẽm và vitamin e có tác dụng gì",
+    "uống kẽm và vitamin e cùng lúc được không",
+    "uống kẽm và vitamin e trị mụn",
+    "uống kẽm vào buổi trưa được không",
+    "uống kẽm vào buổi tối có sao không",
+    "uống kẽm vào giờ nào",
+    "uống kẽm vào thời gian nào",
+    "uống kẽm vào thời gian nào là tốt",
+    "uống kẽm với omega 3",
+    "uống kẽm với omega 3 được không",
+    "uống kẽm với vitamin e",
+    "uống kẽm xong bao lâu uống sữa",
+    "uống kẽm xong thấy buồn nôn",
+    "uống kẽm xong uống bia được không",
+    "uống kẽm xong uống cafe được không",
+    "uống kẽm xong uống cà phê được không",
+    "uống kẽm xong uống nước cam được không",
+    "uống kẽm xong uống nước dừa được không",
+    "uống kẽm xong uống sữa được không",
+    "uống kẽm xong uống yakult được không",
+    "uống kẽm xong ăn chuối được không",
+    "uống kẽm xong ăn sữa chua được không",
+    "uống kẽm xong ăn trái cây được không",
+    "uống kẽm xong đi ngủ có tốt không",
+    "uống kẽm ăn quýt được không",
+    "uống kẽm đau bụng",
+    "uống kẽm đau dạ dày",
+    "uống kẽm đi tiểu màu vàng",
+    "uống kẽm đi tiểu nhiều",
+    "uống kẽm đúng cách",
+    "uống kẽm đúng cách cho bé",
+    "uống kẽm được gì",
+    "uống kẽm đẹp da",
+    "uống kẽm để làm gì",
+    "uống kẽm đỡ rụng tóc",
+    "uống kẽm ở nam giới có tác dụng gì",
+    "uống kẽm.rồi uống nước cam được không",
+    "uống nhiều kẽm quá có sao không",
+    "uống nhiều kẽm quá thì sao",
+    "uống viên kẽm ada có tác dụng gì",
+    "uống viên kẽm amagain có tốt không",
+    "uống viên kẽm bị buồn nôn",
+    "uống viên kẽm bị đau bụng",
+    "uống viên kẽm có giảm mụn không",
+    "uống viên kẽm có gây suy thận không",
+    "uống viên kẽm có hại thận không",
+    "uống viên kẽm cùng omega 3 được không",
+    "uống viên kẽm hàng ngày có tốt không",
+    "uống viên kẽm khi nào",
+    "uống viên kẽm khi nào tốt nhất",
+    "uống viên kẽm lúc nào trong ngày",
+    "uống viên kẽm lúc nào tốt",
+    "uống viên kẽm lúc đói có được không",
+    "uống viên kẽm mỗi ngày",
+    "uống viên kẽm mỗi ngày có sao không",
+    "uống viên kẽm mỗi ngày có tác dụng gì",
+    "uống viên kẽm mỗi ngày có tốt không",
+    "uống viên kẽm nhiều có tốt không",
+    "uống viên kẽm thường xuyên có tốt không",
+    "uống viên kẽm thời điểm nào là tốt nhất",
+    "uống viên kẽm trước khi ngủ được không",
+    "uống viên kẽm tốt không",
+    "uống viên kẽm vào thời điểm nào trong ngày",
+    "uống viên kẽm đúng cách",
+    "uống viên kẽm để làm gì",
+    "viên kẹo kẽm",
+    "viên kẹo kẽm của nhật",
+    "viên kẽm",
+    "viên kẽm ada có tác dụng gì",
+    "viên kẽm amagain bán ở đâu",
+    "viên kẽm amagain bán ở đâu thành phố hồ chí minh hồ chí minh",
+    "viên kẽm amagain có phải của traphaco không",
+    "viên kẽm amagain có tốt cho sinh lý nam không",
+    "viên kẽm amagain có tốt không",
+    "viên kẽm amagain giá bao nhiêu",
+    "viên kẽm amagain shopee",
+    "viên kẽm amagain sản xuất tại traphaco cnc",
+    "viên kẽm an khang",
+    "viên kẽm anagain",
+    "viên kẽm b+ có tác dụng gì",
+    "viên kẽm bao nhiêu tiền",
+    "viên kẽm bio island",
+    "viên kẽm bio island zinc",
+    "viên kẽm biotin",
+    "viên kẽm biotrade",
+    "viên kẽm bisglycinate traphaco",
+    "viên kẽm blackmores",
+    "viên kẽm boss man có tác dụng gì",
+    "viên kẽm boss man có tốt không",
+    "viên kẽm bổ sung cho nữ",
+    "viên kẽm bổ sung gì",
+    "viên kẽm chiết xuất hàu biển orihiro",
+    "viên kẽm cho nam giới",
+    "viên kẽm cho nữ",
+    "viên kẽm chính hãng",
+    "viên kẽm có nên uống buổi tối không",
+    "viên kẽm có tác dụng gì cho cơ thể",
+    "viên kẽm có tác dụng phụ không",
+    "viên kẽm của dhc",
+    "viên kẽm của doppelherz",
+    "viên kẽm của long châu",
+    "viên kẽm của pháp",
+    "viên kẽm của sao thái dương",
+    "viên kẽm dangbeoo",
+    "viên kẽm dhc",
+    "viên kẽm dhc bao nhiêu tuổi uống được",
+    "viên kẽm dhc của nhật",
+    "viên kẽm dhc nhật bản 60 viên",
+    "viên kẽm dhc pharmacity",
+    "viên kẽm dhc uống khi nào",
+    "viên kẽm dhc zinc",
+    "viên kẽm doppelherz",
+    "viên kẽm dsd pharma",
+    "viên kẽm dsd plus",
+    "viên kẽm dta multi b+",
+    "viên kẽm ecopex",
+    "viên kẽm energee",
+    "viên kẽm energee có tác dụng gì",
+    "viên kẽm energee sao thái dương",
+    "viên kẽm energy",
+    "viên kẽm energy có tác dụng gì",
+    "viên kẽm energy có tốt không",
+    "viên kẽm enter",
+    "viên kẽm giá bao nhiêu",
+    "viên kẽm giá rẻ",
+    "viên kẽm giúp gì",
+    "viên kẽm giảm mụn",
+    "viên kẽm giảm rụng tóc",
+    "viên kẽm gluconat 70mg",
+    "viên kẽm gluconate",
+    "viên kẽm gluconate zicum",
+    "viên kẽm gym",
+    "viên kẽm gấu",
+    "viên kẽm hasaki",
+    "viên kẽm healthy care",
+    "viên kẽm hàm lượng bao nhiêu",
+    "viên kẽm hàn quốc",
+    "viên kẽm hàu",
+    "viên kẽm hàu biển",
+    "viên kẽm hãng nào tốt",
+    "viên kẽm hỗ trợ sinh lý nam",
+    "viên kẽm hữu cơ",
+    "viên kẽm kingspeed",
+    "viên kẽm kirkland",
+    "viên kẽm kiềm dầu",
+    "viên kẽm l'cystine",
+    "viên kẽm liposomal",
+    "viên kẽm liều dùng",
+    "viên kẽm long châu",
+    "viên kẽm loại nào tốt",
+    "viên kẽm loại tốt",
+    "viên kẽm là gì",
+    "viên kẽm là thuốc gì",
+    "viên kẽm magie",
+    "viên kẽm magie canxi",
+    "viên kẽm magie sắt",
+    "viên kẽm mega",
+    "viên kẽm mua ở đâu",
+    "viên kẽm multi",
+    "viên kẽm multi b+",
+    "viên kẽm multi b+ có tốt không",
+    "viên kẽm mọc tóc",
+    "viên kẽm mỹ",
+    "viên kẽm ngày uống mấy viên",
+    "viên kẽm người lớn",
+    "viên kẽm nhai cho bé",
+    "viên kẽm nhập khẩu",
+    "viên kẽm nhật bản",
+    "viên kẽm nhật bản dhc",
+    "viên kẽm nào tốt cho nam giới",
+    "viên kẽm nào tốt nhất",
+    "viên kẽm nên uông vào thời điểm nào trong ngày",
+    "viên kẽm nên uống lúc nào",
+    "viên kẽm nên uống trước hay sau ăn",
+    "viên kẽm omega",
+    "viên kẽm orihiro",
+    "viên kẽm ostrovit",
+    "viên kẽm oyster",
+    "viên kẽm oyster plus",
+    "viên kẽm pharmacity",
+    "viên kẽm rossmann",
+    "viên kẽm sao thái dương",
+    "viên kẽm sds",
+    "viên kẽm selen",
+    "viên kẽm siberian",
+    "viên kẽm sinh lý",
+    "viên kẽm solgar",
+    "viên kẽm swisse",
+    "viên kẽm sắt",
+    "viên kẽm sắt magie",
+    "viên kẽm sủi",
+    "viên kẽm thiên sư",
+    "viên kẽm thái lan",
+    "viên kẽm traphaco cnc",
+    "viên kẽm traphaco có tốt không",
+    "viên kẽm traphaco long châu",
+    "viên kẽm trẻ em",
+    "viên kẽm trị mụn nào tốt",
+    "viên kẽm trị rụng tóc",
+    "viên kẽm tại long châu",
+    "viên kẽm tốt",
+    "viên kẽm tốt nhất cho nam giới",
+    "viên kẽm tổng hợp",
+    "viên kẽm uông vào thời điểm nào trong ngày",
+    "viên kẽm uống buổi chiều được không",
+    "viên kẽm uống buổi tối được không",
+    "viên kẽm uống cho nam",
+    "viên kẽm uống cùng magie được không",
+    "viên kẽm uống hàng ngày",
+    "viên kẽm uống khi nào trong ngày",
+    "viên kẽm uống lúc nào",
+    "viên kẽm uống lúc nào là tốt nhất",
+    "viên kẽm uống lúc nào tốt nhất",
+    "viên kẽm uống ngày mấy viên",
+    "viên kẽm uống như thế nào",
+    "viên kẽm uống sáng hay tối",
+    "viên kẽm uống thời điểm nào",
+    "viên kẽm uống tối được không",
+    "viên kẽm vitamin",
+    "viên kẽm vitamin c",
+    "viên kẽm việt nam",
+    "viên kẽm voz",
+    "viên kẽm và magie",
+    "viên kẽm và selen",
+    "viên kẽm và sắt",
+    "viên kẽm và vitamin c",
+    "viên kẽm và vitamin c của đức",
+    "viên kẽm vỉ",
+    "viên kẽm zinc",
+    "viên kẽm zinc elite",
+    "viên kẽm zinc roxtech",
+    "viên kẽm đhc",
+    "viên kẽm điều trị mụn",
+    "viên kẽm đs",
+    "viên kẽm đài loan",
+    "viên kẽm đẹp da",
+    "viên kẽm để làm gì",
+    "viên kẽm đồng",
+    "viên kẽm đức",
+    "viên kẽm ở long châu",
+    "viên kẽm ở nhà thuốc long châu",
+    "viên kẽm ở nhật",
+    "viên kẽm ở đức",
+    "viên nhai kẽm bio island",
+    "viên nhai kẽm orihiro",
+    "viên uống bổ sung kẽm cho nam giới",
+    "viên uống bổ sung kẽm cho người lớn",
+    "viên uống bổ sung kẽm cho trẻ em",
+    "viên uống bổ sung kẽm của nhật",
+    "viên uống bổ sung kẽm dhc",
+    "viên uống canxi magie kẽm cho trẻ em",
+    "viên uống canxi magie kẽm hàn quốc",
+    "viên uống canxi magie kẽm kirkland",
+    "viên uống dhc kẽm uống như thế nào",
+    "viên uống kẽm",
+    "viên uống kẽm (zinc)",
+    "viên uống kẽm acnacare",
+    "viên uống kẽm ada",
+    "viên uống kẽm amagain",
+    "viên uống kẽm amway",
+    "viên uống kẽm b+",
+    "viên uống kẽm biotin",
+    "viên uống kẽm biotrade",
+    "viên uống kẽm bisglycinate",
+    "viên uống kẽm blackmore",
+    "viên uống kẽm boss man",
+    "viên uống kẽm bổ sung",
+    "viên uống kẽm cho nam",
+    "viên uống kẽm cho nam giới",
+    "viên uống kẽm cho người lớn",
+    "viên uống kẽm cho nữ",
+    "viên uống kẽm chính hãng",
+    "viên uống kẽm chống rụng tóc",
+    "viên uống kẽm có tác dụng gì",
+    "viên uống kẽm có tốt không",
+    "viên uống kẽm của mỹ",
+    "viên uống kẽm của nhật",
+    "viên uống kẽm của nhật có tác dụng gì",
+    "viên uống kẽm của pháp",
+    "viên uống kẽm của traphaco",
+    "viên uống kẽm của úc",
+    "viên uống kẽm của đức",
+    "viên uống kẽm dhc",
+    "viên uống kẽm dhc có tác dụng gì",
+    "viên uống kẽm dhc có tác dụng phụ không",
+    "viên uống kẽm dhc có tốt không",
+    "viên uống kẽm dhc nhật bản",
+    "viên uống kẽm dhc thành phần",
+    "viên uống kẽm dhc uống bao lâu thì ngưng",
+    "viên uống kẽm dhc uống khi nào",
+    "viên uống kẽm dhc zinc",
+    "viên uống kẽm dhc zinc có tác dụng gì",
+    "viên uống kẽm dsd",
+    "viên uống kẽm dsd có tốt không",
+    "viên uống kẽm dành cho nam",
+    "viên uống kẽm giá bao nhiêu",
+    "viên uống kẽm giá rẻ",
+    "viên uống kẽm giảm mụn",
+    "viên uống kẽm gluconat",
+    "viên uống kẽm gsv",
+    "viên uống kẽm hasaki",
+    "viên uống kẽm hàn quốc",
+    "viên uống kẽm hàu",
+    "viên uống kẽm hỗ trợ trị mụn",
+    "viên uống kẽm hữu cơ",
+    "viên uống kẽm kiềm dầu",
+    "viên uống kẽm l'cystine",
+    "viên uống kẽm long châu",
+    "viên uống kẽm loại nào tốt",
+    "viên uống kẽm loại nào tốt nhất",
+    "viên uống kẽm là gì",
+    "viên uống kẽm magie",
+    "viên uống kẽm magie canxi",
+    "viên uống kẽm mega",
+    "viên uống kẽm mua ở đâu",
+    "viên uống kẽm mọc tóc",
+    "viên uống kẽm mỹ",
+    "viên uống kẽm nhà thuốc long châu",
+    "viên uống kẽm nhật bản",
+    "viên uống kẽm now",
+    "viên uống kẽm nào tốt",
+    "viên uống kẽm nào tốt cho nam",
+    "viên uống kẽm nào tốt nhất",
+    "viên uống kẽm orihiro",
+    "viên uống kẽm oyster plus zinc",
+    "viên uống kẽm pharmacity",
+    "viên uống kẽm pharmaform",
+    "viên uống kẽm picolinate",
+    "viên uống kẽm puritan's pride zinc 50mg",
+    "viên uống kẽm selen",
+    "viên uống kẽm sắt",
+    "viên uống kẽm thorne",
+    "viên uống kẽm traphaco",
+    "viên uống kẽm trị mụn",
+    "viên uống kẽm trị mụn dhc",
+    "viên uống kẽm trị mụn puritan's pride zinc for acne",
+    "viên uống kẽm trị mụn zinc for acne review",
+    "viên uống kẽm tăng cường sinh lý nam",
+    "viên uống kẽm tốt",
+    "viên uống kẽm tốt cho nam",
+    "viên uống kẽm tốt nhất",
+    "viên uống kẽm tốt nhất hiện nay",
+    "viên uống kẽm tổng hợp",
+    "viên uống kẽm uống khi nào",
+    "viên uống kẽm vitamin c",
+    "viên uống kẽm việt nam",
+    "viên uống kẽm voz",
+    "viên uống kẽm và biotin",
+    "viên uống kẽm và magie",
+    "viên uống kẽm và selen",
+    "viên uống kẽm và sắt",
+    "viên uống kẽm và vitamin c",
+    "viên uống kẽm và đồng",
+    "viên uống kẽm zinc for acne",
+    "viên uống kẽm zinc gluconate",
+    "viên uống kẽm đồng",
+    "viên uống kẽm đức",
+    "viên uống kẽm ở nhật",
+    "viên uống tóc hair pro kẽm biotin"
+   ]
+  },
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "recordShape": "records[i] = {prefix, suggestions[] (đã tách), raw (phản hồi gốc [q, [gợi ý]])}. declare.origin.uniquePhrases = tập gợi ý không trùng.",
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "cost": {
+   "unit": "USD",
+   "spent": 0
+  },
+  "recordCount": 79,
+  "recordsSha256": "5252140a48a81f7374d91499b1ebc95001b88ca7ce2232d4da908c009ffe7ef0",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": [
+  {
+   "prefix": "viên uống kẽm",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:41Z",
+   "suggestions": [
+    "viên uống kẽm",
+    "viên uống kẽm magie",
+    "viên uống kẽm pharmacity",
+    "viên uống kẽm của nhật",
+    "viên uống kẽm gluconat",
+    "viên uống kẽm và biotin",
+    "viên uống kẽm của mỹ",
+    "viên uống kẽm kiềm dầu",
+    "viên uống kẽm dhc có tác dụng gì",
+    "viên uống kẽm (zinc)"
+   ],
+   "raw": [
+    "viên uống kẽm",
+    [
+     "viên uống kẽm",
+     "viên uống kẽm magie",
+     "viên uống kẽm pharmacity",
+     "viên uống kẽm của nhật",
+     "viên uống kẽm gluconat",
+     "viên uống kẽm và biotin",
+     "viên uống kẽm của mỹ",
+     "viên uống kẽm kiềm dầu",
+     "viên uống kẽm dhc có tác dụng gì",
+     "viên uống kẽm (zinc)"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:42Z",
+   "suggestions": [
+    "viên kẽm",
+    "viên kẽm long châu",
+    "viên kẽm zinc",
+    "viên kẽm dhc",
+    "viên kẽm nên uống lúc nào",
+    "viên kẽm pharmacity",
+    "viên kẽm amagain bán ở đâu",
+    "viên kẽm amagain có tốt không",
+    "viên kẽm nào tốt nhất",
+    "viên kẽm uống lúc nào là tốt nhất"
+   ],
+   "raw": [
+    "viên kẽm",
+    [
+     "viên kẽm",
+     "viên kẽm long châu",
+     "viên kẽm zinc",
+     "viên kẽm dhc",
+     "viên kẽm nên uống lúc nào",
+     "viên kẽm pharmacity",
+     "viên kẽm amagain bán ở đâu",
+     "viên kẽm amagain có tốt không",
+     "viên kẽm nào tốt nhất",
+     "viên kẽm uống lúc nào là tốt nhất"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:43Z",
+   "suggestions": [
+    "uống kẽm có tác dụng gì cho nam",
+    "uống kẽm có tác dụng gì cho nữ",
+    "uống kẽm lúc nào tốt",
+    "uống kẽm buổi tối được ko",
+    "uống kẽm bị buồn nôn",
+    "uống kẽm nhiều có sao không",
+    "uống kẽm có tốt ko",
+    "uống kẽm mỗi ngày có sao không",
+    "uống kẽm trước hay sau bữa ăn",
+    "uống kẽm buổi tối có sao k"
+   ],
+   "raw": [
+    "uống kẽm",
+    [
+     "uống kẽm có tác dụng gì cho nam",
+     "uống kẽm có tác dụng gì cho nữ",
+     "uống kẽm lúc nào tốt",
+     "uống kẽm buổi tối được ko",
+     "uống kẽm bị buồn nôn",
+     "uống kẽm nhiều có sao không",
+     "uống kẽm có tốt ko",
+     "uống kẽm mỗi ngày có sao không",
+     "uống kẽm trước hay sau bữa ăn",
+     "uống kẽm buổi tối có sao k"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm a",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:43Z",
+   "suggestions": [
+    "viên uống kẽm ada",
+    "viên uống kẽm acnacare",
+    "viên uống kẽm amagain",
+    "viên uống kẽm amway",
+    "uống viên kẽm amagain có tốt không",
+    "uống viên kẽm ada có tác dụng gì",
+    "cách uống viên kẽm amagain",
+    "cách uống viên kẽm acnacare",
+    "cách uống viên kẽm ada",
+    "viên uống kẽm zinc for acne"
+   ],
+   "raw": [
+    "viên uống kẽm a",
+    [
+     "viên uống kẽm ada",
+     "viên uống kẽm acnacare",
+     "viên uống kẽm amagain",
+     "viên uống kẽm amway",
+     "uống viên kẽm amagain có tốt không",
+     "uống viên kẽm ada có tác dụng gì",
+     "cách uống viên kẽm amagain",
+     "cách uống viên kẽm acnacare",
+     "cách uống viên kẽm ada",
+     "viên uống kẽm zinc for acne"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm b",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:44Z",
+   "suggestions": [
+    "viên uống kẽm biotin",
+    "viên uống kẽm blackmore",
+    "viên uống kẽm boss man",
+    "viên uống kẽm bổ sung",
+    "viên uống kẽm biotrade",
+    "viên uống kẽm bisglycinate",
+    "viên uống kẽm b+",
+    "viên kẽm uống buổi tối được không",
+    "viên kẽm uống buổi chiều được không",
+    "uống viên kẽm bị buồn nôn"
+   ],
+   "raw": [
+    "viên uống kẽm b",
+    [
+     "viên uống kẽm biotin",
+     "viên uống kẽm blackmore",
+     "viên uống kẽm boss man",
+     "viên uống kẽm bổ sung",
+     "viên uống kẽm biotrade",
+     "viên uống kẽm bisglycinate",
+     "viên uống kẽm b+",
+     "viên kẽm uống buổi tối được không",
+     "viên kẽm uống buổi chiều được không",
+     "uống viên kẽm bị buồn nôn"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm c",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:45Z",
+   "suggestions": [
+    "viên uống kẽm của nhật",
+    "viên uống kẽm của traphaco",
+    "viên uống kẽm của nhật có tác dụng gì",
+    "viên uống kẽm của úc",
+    "viên uống kẽm cho người lớn",
+    "viên uống kẽm cho nam",
+    "viên uống kẽm của mỹ",
+    "viên uống kẽm có tác dụng gì",
+    "viên uống kẽm của đức",
+    "viên uống kẽm cho nữ"
+   ],
+   "raw": [
+    "viên uống kẽm c",
+    [
+     "viên uống kẽm của nhật",
+     "viên uống kẽm của traphaco",
+     "viên uống kẽm của nhật có tác dụng gì",
+     "viên uống kẽm của úc",
+     "viên uống kẽm cho người lớn",
+     "viên uống kẽm cho nam",
+     "viên uống kẽm của mỹ",
+     "viên uống kẽm có tác dụng gì",
+     "viên uống kẽm của đức",
+     "viên uống kẽm cho nữ"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm d",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:46Z",
+   "suggestions": [
+    "viên uống kẽm dhc có tác dụng gì",
+    "viên uống kẽm dhc nhật bản",
+    "viên uống kẽm dsd có tốt không",
+    "viên uống kẽm dhc",
+    "viên uống kẽm dhc có tác dụng phụ không",
+    "viên uống kẽm dhc zinc",
+    "viên uống kẽm dsd",
+    "viên uống kẽm dhc zinc có tác dụng gì",
+    "viên uống kẽm dành cho nam",
+    "viên uống kẽm dhc có tốt không"
+   ],
+   "raw": [
+    "viên uống kẽm d",
+    [
+     "viên uống kẽm dhc có tác dụng gì",
+     "viên uống kẽm dhc nhật bản",
+     "viên uống kẽm dsd có tốt không",
+     "viên uống kẽm dhc",
+     "viên uống kẽm dhc có tác dụng phụ không",
+     "viên uống kẽm dhc zinc",
+     "viên uống kẽm dsd",
+     "viên uống kẽm dhc zinc có tác dụng gì",
+     "viên uống kẽm dành cho nam",
+     "viên uống kẽm dhc có tốt không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm đ",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:46Z",
+   "suggestions": [
+    "viên uống kẽm đồng",
+    "viên uống kẽm đức",
+    "uống viên kẽm đúng cách",
+    "uống viên kẽm để làm gì",
+    "viên uống kẽm và đồng",
+    "viên kẽm uống tối được không",
+    "uống viên kẽm thời điểm nào là tốt nhất",
+    "viên uống kẽm mua ở đâu",
+    "uống viên kẽm bị đau bụng",
+    "viên kẽm uống thời điểm nào"
+   ],
+   "raw": [
+    "viên uống kẽm đ",
+    [
+     "viên uống kẽm đồng",
+     "viên uống kẽm đức",
+     "uống viên kẽm đúng cách",
+     "uống viên kẽm để làm gì",
+     "viên uống kẽm và đồng",
+     "viên kẽm uống tối được không",
+     "uống viên kẽm thời điểm nào là tốt nhất",
+     "viên uống kẽm mua ở đâu",
+     "uống viên kẽm bị đau bụng",
+     "viên kẽm uống thời điểm nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm e",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:47Z",
+   "suggestions": [
+    "viên uống canxi magie kẽm cho trẻ em",
+    "viên uống bổ sung kẽm cho trẻ em"
+   ],
+   "raw": [
+    "viên uống kẽm e",
+    [
+     "viên uống canxi magie kẽm cho trẻ em",
+     "viên uống bổ sung kẽm cho trẻ em"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm g",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:48Z",
+   "suggestions": [
+    "viên uống kẽm gluconat",
+    "viên uống kẽm giá bao nhiêu",
+    "viên uống kẽm giảm mụn",
+    "viên uống kẽm gsv",
+    "viên uống kẽm giá rẻ",
+    "viên uống kẽm zinc gluconate",
+    "viên uống kẽm là gì",
+    "viên uống kẽm cho nam giới",
+    "uống viên kẽm có gây suy thận không",
+    "uống viên kẽm có giảm mụn không"
+   ],
+   "raw": [
+    "viên uống kẽm g",
+    [
+     "viên uống kẽm gluconat",
+     "viên uống kẽm giá bao nhiêu",
+     "viên uống kẽm giảm mụn",
+     "viên uống kẽm gsv",
+     "viên uống kẽm giá rẻ",
+     "viên uống kẽm zinc gluconate",
+     "viên uống kẽm là gì",
+     "viên uống kẽm cho nam giới",
+     "uống viên kẽm có gây suy thận không",
+     "uống viên kẽm có giảm mụn không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm h",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:49Z",
+   "suggestions": [
+    "viên uống kẽm hàn quốc",
+    "viên uống kẽm hữu cơ",
+    "viên uống kẽm hàu",
+    "viên uống kẽm hỗ trợ trị mụn",
+    "viên uống kẽm hasaki",
+    "uống viên kẽm hàng ngày có tốt không",
+    "viên kẽm uống hàng ngày",
+    "viên uống kẽm chính hãng",
+    "viên uống kẽm tổng hợp",
+    "uống viên kẽm có hại thận không"
+   ],
+   "raw": [
+    "viên uống kẽm h",
+    [
+     "viên uống kẽm hàn quốc",
+     "viên uống kẽm hữu cơ",
+     "viên uống kẽm hàu",
+     "viên uống kẽm hỗ trợ trị mụn",
+     "viên uống kẽm hasaki",
+     "uống viên kẽm hàng ngày có tốt không",
+     "viên kẽm uống hàng ngày",
+     "viên uống kẽm chính hãng",
+     "viên uống kẽm tổng hợp",
+     "uống viên kẽm có hại thận không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm i",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:49Z",
+   "suggestions": [],
+   "raw": [
+    "viên uống kẽm i",
+    []
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm k",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:50Z",
+   "suggestions": [
+    "viên uống kẽm kiềm dầu",
+    "uống viên kẽm khi nào",
+    "uống viên kẽm khi nào tốt nhất",
+    "viên kẽm uống khi nào trong ngày",
+    "viên uống canxi magie kẽm kirkland",
+    "viên uống kẽm có tốt không",
+    "viên uống kẽm dhc uống khi nào",
+    "nên uống viên kẽm không",
+    "uống viên kẽm tốt không",
+    "uống viên kẽm trước khi ngủ được không"
+   ],
+   "raw": [
+    "viên uống kẽm k",
+    [
+     "viên uống kẽm kiềm dầu",
+     "uống viên kẽm khi nào",
+     "uống viên kẽm khi nào tốt nhất",
+     "viên kẽm uống khi nào trong ngày",
+     "viên uống canxi magie kẽm kirkland",
+     "viên uống kẽm có tốt không",
+     "viên uống kẽm dhc uống khi nào",
+     "nên uống viên kẽm không",
+     "uống viên kẽm tốt không",
+     "uống viên kẽm trước khi ngủ được không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm l",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:51Z",
+   "suggestions": [
+    "viên uống kẽm loại nào tốt nhất",
+    "viên uống kẽm loại nào tốt",
+    "viên uống kẽm long châu",
+    "viên uống kẽm l'cystine",
+    "viên uống kẽm là gì",
+    "viên kẽm uống lúc nào",
+    "viên kẽm uống lúc nào tốt nhất",
+    "uống viên kẽm lúc nào tốt",
+    "uống viên kẽm lúc nào trong ngày",
+    "uống viên kẽm lúc đói có được không"
+   ],
+   "raw": [
+    "viên uống kẽm l",
+    [
+     "viên uống kẽm loại nào tốt nhất",
+     "viên uống kẽm loại nào tốt",
+     "viên uống kẽm long châu",
+     "viên uống kẽm l'cystine",
+     "viên uống kẽm là gì",
+     "viên kẽm uống lúc nào",
+     "viên kẽm uống lúc nào tốt nhất",
+     "uống viên kẽm lúc nào tốt",
+     "uống viên kẽm lúc nào trong ngày",
+     "uống viên kẽm lúc đói có được không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30,
+       10
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm m",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:52Z",
+   "suggestions": [
+    "viên uống kẽm magie",
+    "viên uống kẽm mỹ",
+    "viên uống kẽm mua ở đâu",
+    "viên uống kẽm mọc tóc",
+    "viên uống kẽm mega",
+    "viên uống kẽm magie canxi",
+    "uống viên kẽm mỗi ngày có tốt không",
+    "uống viên kẽm mỗi ngày có sao không",
+    "uống viên kẽm mỗi ngày có tác dụng gì",
+    "uống viên kẽm mỗi ngày"
+   ],
+   "raw": [
+    "viên uống kẽm m",
+    [
+     "viên uống kẽm magie",
+     "viên uống kẽm mỹ",
+     "viên uống kẽm mua ở đâu",
+     "viên uống kẽm mọc tóc",
+     "viên uống kẽm mega",
+     "viên uống kẽm magie canxi",
+     "uống viên kẽm mỗi ngày có tốt không",
+     "uống viên kẽm mỗi ngày có sao không",
+     "uống viên kẽm mỗi ngày có tác dụng gì",
+     "uống viên kẽm mỗi ngày"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm n",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:52Z",
+   "suggestions": [
+    "viên uống kẽm nào tốt nhất",
+    "viên uống kẽm nhật bản",
+    "viên uống kẽm nhà thuốc long châu",
+    "viên uống kẽm nào tốt cho nam",
+    "viên uống kẽm nào tốt",
+    "viên uống kẽm now",
+    "viên kẽm uống như thế nào",
+    "uống viên kẽm nhiều có tốt không",
+    "viên uống kẽm cho nam",
+    "viên uống kẽm cho người lớn"
+   ],
+   "raw": [
+    "viên uống kẽm n",
+    [
+     "viên uống kẽm nào tốt nhất",
+     "viên uống kẽm nhật bản",
+     "viên uống kẽm nhà thuốc long châu",
+     "viên uống kẽm nào tốt cho nam",
+     "viên uống kẽm nào tốt",
+     "viên uống kẽm now",
+     "viên kẽm uống như thế nào",
+     "uống viên kẽm nhiều có tốt không",
+     "viên uống kẽm cho nam",
+     "viên uống kẽm cho người lớn"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm o",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:53Z",
+   "suggestions": [
+    "viên uống kẽm oyster plus zinc",
+    "viên uống kẽm orihiro",
+    "viên uống kẽm ở nhật",
+    "viên uống kẽm mua ở đâu",
+    "uống viên kẽm cùng omega 3 được không",
+    "kẽm oxyd viên uống"
+   ],
+   "raw": [
+    "viên uống kẽm o",
+    [
+     "viên uống kẽm oyster plus zinc",
+     "viên uống kẽm orihiro",
+     "viên uống kẽm ở nhật",
+     "viên uống kẽm mua ở đâu",
+     "uống viên kẽm cùng omega 3 được không",
+     "kẽm oxyd viên uống"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm p",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:54Z",
+   "suggestions": [
+    "viên uống kẽm pharmacity",
+    "viên uống kẽm picolinate",
+    "viên uống kẽm puritan's pride zinc 50mg",
+    "viên uống kẽm pharmaform",
+    "viên uống kẽm oyster plus zinc",
+    "viên uống kẽm của pháp",
+    "viên uống kẽm trị mụn puritan's pride zinc for acne",
+    "viên uống kẽm dhc thành phần",
+    "viên uống tóc hair pro kẽm biotin",
+    "viên uống kẽm dhc có tác dụng phụ không"
+   ],
+   "raw": [
+    "viên uống kẽm p",
+    [
+     "viên uống kẽm pharmacity",
+     "viên uống kẽm picolinate",
+     "viên uống kẽm puritan's pride zinc 50mg",
+     "viên uống kẽm pharmaform",
+     "viên uống kẽm oyster plus zinc",
+     "viên uống kẽm của pháp",
+     "viên uống kẽm trị mụn puritan's pride zinc for acne",
+     "viên uống kẽm dhc thành phần",
+     "viên uống tóc hair pro kẽm biotin",
+     "viên uống kẽm dhc có tác dụng phụ không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm q",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:55Z",
+   "suggestions": [
+    "viên uống kẽm hàn quốc",
+    "viên uống canxi magie kẽm hàn quốc",
+    "cách uống viên kẽm hiệu quả"
+   ],
+   "raw": [
+    "viên uống kẽm q",
+    [
+     "viên uống kẽm hàn quốc",
+     "viên uống canxi magie kẽm hàn quốc",
+     "cách uống viên kẽm hiệu quả"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm r",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:55Z",
+   "suggestions": [
+    "viên uống kẽm chống rụng tóc",
+    "viên uống kẽm giá rẻ",
+    "review viên uống kẽm dhc",
+    "viên uống kẽm trị mụn zinc for acne review"
+   ],
+   "raw": [
+    "viên uống kẽm r",
+    [
+     "viên uống kẽm chống rụng tóc",
+     "viên uống kẽm giá rẻ",
+     "review viên uống kẽm dhc",
+     "viên uống kẽm trị mụn zinc for acne review"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm s",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:56Z",
+   "suggestions": [
+    "viên uống kẽm sắt",
+    "viên uống kẽm selen",
+    "viên kẽm uống sáng hay tối",
+    "viên uống kẽm bổ sung",
+    "viên uống kẽm và sắt",
+    "viên uống kẽm và selen",
+    "viên uống bổ sung kẽm cho nam giới",
+    "viên uống bổ sung kẽm của nhật",
+    "viên uống bổ sung kẽm cho người lớn",
+    "viên uống bổ sung kẽm dhc"
+   ],
+   "raw": [
+    "viên uống kẽm s",
+    [
+     "viên uống kẽm sắt",
+     "viên uống kẽm selen",
+     "viên kẽm uống sáng hay tối",
+     "viên uống kẽm bổ sung",
+     "viên uống kẽm và sắt",
+     "viên uống kẽm và selen",
+     "viên uống bổ sung kẽm cho nam giới",
+     "viên uống bổ sung kẽm của nhật",
+     "viên uống bổ sung kẽm cho người lớn",
+     "viên uống bổ sung kẽm dhc"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm t",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:57Z",
+   "suggestions": [
+    "viên uống kẽm trị mụn",
+    "viên uống kẽm tốt nhất hiện nay",
+    "viên uống kẽm trị mụn zinc for acne review",
+    "viên uống kẽm traphaco",
+    "viên uống kẽm trị mụn dhc",
+    "viên uống kẽm tăng cường sinh lý nam",
+    "viên uống kẽm tốt",
+    "viên uống kẽm thorne",
+    "viên uống kẽm tốt cho nam",
+    "viên uống kẽm tốt nhất"
+   ],
+   "raw": [
+    "viên uống kẽm t",
+    [
+     "viên uống kẽm trị mụn",
+     "viên uống kẽm tốt nhất hiện nay",
+     "viên uống kẽm trị mụn zinc for acne review",
+     "viên uống kẽm traphaco",
+     "viên uống kẽm trị mụn dhc",
+     "viên uống kẽm tăng cường sinh lý nam",
+     "viên uống kẽm tốt",
+     "viên uống kẽm thorne",
+     "viên uống kẽm tốt cho nam",
+     "viên uống kẽm tốt nhất"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm u",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:58Z",
+   "suggestions": [
+    "viên uống kẽm uống khi nào",
+    "viên uống kẽm dhc uống khi nào",
+    "viên uống kẽm dhc uống bao lâu thì ngưng",
+    "viên uống dhc kẽm uống như thế nào"
+   ],
+   "raw": [
+    "viên uống kẽm u",
+    [
+     "viên uống kẽm uống khi nào",
+     "viên uống kẽm dhc uống khi nào",
+     "viên uống kẽm dhc uống bao lâu thì ngưng",
+     "viên uống dhc kẽm uống như thế nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm v",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:59Z",
+   "suggestions": [
+    "viên uống kẽm và biotin",
+    "viên uống kẽm và selen",
+    "viên uống kẽm và magie",
+    "viên uống kẽm và vitamin c",
+    "viên uống kẽm vitamin c",
+    "viên uống kẽm và sắt",
+    "viên uống kẽm và đồng",
+    "viên uống kẽm voz",
+    "viên uống kẽm việt nam",
+    "uống viên kẽm vào thời điểm nào trong ngày"
+   ],
+   "raw": [
+    "viên uống kẽm v",
+    [
+     "viên uống kẽm và biotin",
+     "viên uống kẽm và selen",
+     "viên uống kẽm và magie",
+     "viên uống kẽm và vitamin c",
+     "viên uống kẽm vitamin c",
+     "viên uống kẽm và sắt",
+     "viên uống kẽm và đồng",
+     "viên uống kẽm voz",
+     "viên uống kẽm việt nam",
+     "uống viên kẽm vào thời điểm nào trong ngày"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm x",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:57:59Z",
+   "suggestions": [
+    "uống viên kẽm thường xuyên có tốt không"
+   ],
+   "raw": [
+    "viên uống kẽm x",
+    [
+     "uống viên kẽm thường xuyên có tốt không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên uống kẽm y",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:00Z",
+   "suggestions": [],
+   "raw": [
+    "viên uống kẽm y",
+    []
+   ]
+  },
+  {
+   "prefix": "viên kẽm a",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:01Z",
+   "suggestions": [
+    "viên kẽm amagain bán ở đâu",
+    "viên kẽm amagain có tốt không",
+    "viên kẽm amagain shopee",
+    "viên kẽm an khang",
+    "viên kẽm amagain bán ở đâu thành phố hồ chí minh hồ chí minh",
+    "viên kẽm anagain",
+    "viên kẽm amagain có phải của traphaco không",
+    "viên kẽm amagain có tốt cho sinh lý nam không",
+    "viên kẽm ada có tác dụng gì",
+    "viên kẽm amagain giá bao nhiêu"
+   ],
+   "raw": [
+    "viên kẽm a",
+    [
+     "viên kẽm amagain bán ở đâu",
+     "viên kẽm amagain có tốt không",
+     "viên kẽm amagain shopee",
+     "viên kẽm an khang",
+     "viên kẽm amagain bán ở đâu thành phố hồ chí minh hồ chí minh",
+     "viên kẽm anagain",
+     "viên kẽm amagain có phải của traphaco không",
+     "viên kẽm amagain có tốt cho sinh lý nam không",
+     "viên kẽm ada có tác dụng gì",
+     "viên kẽm amagain giá bao nhiêu"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm b",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:02Z",
+   "suggestions": [
+    "viên kẽm bổ sung gì",
+    "viên kẽm bao nhiêu tiền",
+    "viên kẽm bisglycinate traphaco",
+    "viên kẽm bổ sung cho nữ",
+    "viên kẽm biotrade",
+    "viên kẽm boss man có tác dụng gì",
+    "viên kẽm blackmores",
+    "viên kẽm boss man có tốt không",
+    "viên kẽm biotin",
+    "viên kẽm b+ có tác dụng gì"
+   ],
+   "raw": [
+    "viên kẽm b",
+    [
+     "viên kẽm bổ sung gì",
+     "viên kẽm bao nhiêu tiền",
+     "viên kẽm bisglycinate traphaco",
+     "viên kẽm bổ sung cho nữ",
+     "viên kẽm biotrade",
+     "viên kẽm boss man có tác dụng gì",
+     "viên kẽm blackmores",
+     "viên kẽm boss man có tốt không",
+     "viên kẽm biotin",
+     "viên kẽm b+ có tác dụng gì"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm c",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:02Z",
+   "suggestions": [
+    "viên kẽm của dhc",
+    "viên kẽm của pháp",
+    "viên kẽm chính hãng",
+    "viên kẽm có tác dụng phụ không",
+    "viên kẽm của long châu",
+    "viên kẽm của sao thái dương",
+    "viên kẽm có tác dụng gì cho cơ thể",
+    "viên kẽm có nên uống buổi tối không",
+    "viên kẽm cho nam giới",
+    "viên kẽm của doppelherz"
+   ],
+   "raw": [
+    "viên kẽm c",
+    [
+     "viên kẽm của dhc",
+     "viên kẽm của pháp",
+     "viên kẽm chính hãng",
+     "viên kẽm có tác dụng phụ không",
+     "viên kẽm của long châu",
+     "viên kẽm của sao thái dương",
+     "viên kẽm có tác dụng gì cho cơ thể",
+     "viên kẽm có nên uống buổi tối không",
+     "viên kẽm cho nam giới",
+     "viên kẽm của doppelherz"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm d",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:03Z",
+   "suggestions": [
+    "viên kẽm dhc",
+    "viên kẽm dhc zinc",
+    "viên kẽm dta multi b+",
+    "viên kẽm dhc của nhật",
+    "viên kẽm dsd pharma",
+    "viên kẽm dhc pharmacity",
+    "viên kẽm dhc nhật bản 60 viên",
+    "viên kẽm dhc bao nhiêu tuổi uống được",
+    "viên kẽm doppelherz",
+    "viên kẽm dsd plus"
+   ],
+   "raw": [
+    "viên kẽm d",
+    [
+     "viên kẽm dhc",
+     "viên kẽm dhc zinc",
+     "viên kẽm dta multi b+",
+     "viên kẽm dhc của nhật",
+     "viên kẽm dsd pharma",
+     "viên kẽm dhc pharmacity",
+     "viên kẽm dhc nhật bản 60 viên",
+     "viên kẽm dhc bao nhiêu tuổi uống được",
+     "viên kẽm doppelherz",
+     "viên kẽm dsd plus"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm đ",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:04Z",
+   "suggestions": [
+    "viên kẽm dangbeoo",
+    "viên kẽm đài loan",
+    "viên kẽm đức",
+    "viên kẽm để làm gì",
+    "viên kẽm đồng",
+    "viên kẽm đs",
+    "viên kẽm đẹp da",
+    "viên kẽm đhc",
+    "viên kẽm điều trị mụn",
+    "kẽm viên đỏ"
+   ],
+   "raw": [
+    "viên kẽm đ",
+    [
+     "viên kẽm dangbeoo",
+     "viên kẽm đài loan",
+     "viên kẽm đức",
+     "viên kẽm để làm gì",
+     "viên kẽm đồng",
+     "viên kẽm đs",
+     "viên kẽm đẹp da",
+     "viên kẽm đhc",
+     "viên kẽm điều trị mụn",
+     "kẽm viên đỏ"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512,
+       10
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm e",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:04Z",
+   "suggestions": [
+    "viên kẽm energy có tốt không",
+    "viên kẽm enter",
+    "viên kẽm energy",
+    "viên kẽm energy có tác dụng gì",
+    "viên kẽm energee sao thái dương",
+    "viên kẽm energee có tác dụng gì",
+    "viên kẽm energee",
+    "viên kẽm ecopex",
+    "viên kẽm trẻ em",
+    "viên kẽm zinc elite"
+   ],
+   "raw": [
+    "viên kẽm e",
+    [
+     "viên kẽm energy có tốt không",
+     "viên kẽm enter",
+     "viên kẽm energy",
+     "viên kẽm energy có tác dụng gì",
+     "viên kẽm energee sao thái dương",
+     "viên kẽm energee có tác dụng gì",
+     "viên kẽm energee",
+     "viên kẽm ecopex",
+     "viên kẽm trẻ em",
+     "viên kẽm zinc elite"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm g",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:05Z",
+   "suggestions": [
+    "viên kẽm gluconate",
+    "viên kẽm gluconat 70mg",
+    "viên kẽm giá bao nhiêu",
+    "viên kẽm giảm mụn",
+    "viên kẽm giúp gì",
+    "viên kẽm gluconate zicum",
+    "viên kẽm giá rẻ",
+    "viên kẽm gym",
+    "viên kẽm gấu",
+    "viên kẽm giảm rụng tóc"
+   ],
+   "raw": [
+    "viên kẽm g",
+    [
+     "viên kẽm gluconate",
+     "viên kẽm gluconat 70mg",
+     "viên kẽm giá bao nhiêu",
+     "viên kẽm giảm mụn",
+     "viên kẽm giúp gì",
+     "viên kẽm gluconate zicum",
+     "viên kẽm giá rẻ",
+     "viên kẽm gym",
+     "viên kẽm gấu",
+     "viên kẽm giảm rụng tóc"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm h",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:06Z",
+   "suggestions": [
+    "viên kẽm hàu",
+    "viên kẽm hàn quốc",
+    "viên kẽm hãng nào tốt",
+    "viên kẽm hàm lượng bao nhiêu",
+    "viên kẽm dhc",
+    "viên kẽm hàu biển",
+    "viên kẽm hữu cơ",
+    "viên kẽm hỗ trợ sinh lý nam",
+    "viên kẽm hasaki",
+    "viên kẽm healthy care"
+   ],
+   "raw": [
+    "viên kẽm h",
+    [
+     "viên kẽm hàu",
+     "viên kẽm hàn quốc",
+     "viên kẽm hãng nào tốt",
+     "viên kẽm hàm lượng bao nhiêu",
+     "viên kẽm dhc",
+     "viên kẽm hàu biển",
+     "viên kẽm hữu cơ",
+     "viên kẽm hỗ trợ sinh lý nam",
+     "viên kẽm hasaki",
+     "viên kẽm healthy care"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512,
+       10
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm i",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:07Z",
+   "suggestions": [
+    "viên kẽm bio island zinc",
+    "viên kẽm bio island",
+    "viên nhai kẽm bio island"
+   ],
+   "raw": [
+    "viên kẽm i",
+    [
+     "viên kẽm bio island zinc",
+     "viên kẽm bio island",
+     "viên nhai kẽm bio island"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm k",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:07Z",
+   "suggestions": [
+    "viên kẽm kingspeed",
+    "viên kẽm kiềm dầu",
+    "viên kẽm kirkland",
+    "viên kẹo kẽm",
+    "viên kẹo kẽm của nhật",
+    "uống viên kẽm khi nào",
+    "uống viên kẽm khi nào tốt nhất",
+    "viên kẽm nhập khẩu",
+    "viên kẽm an khang",
+    "viên kẽm dhc uống khi nào"
+   ],
+   "raw": [
+    "viên kẽm k",
+    [
+     "viên kẽm kingspeed",
+     "viên kẽm kiềm dầu",
+     "viên kẽm kirkland",
+     "viên kẹo kẽm",
+     "viên kẹo kẽm của nhật",
+     "uống viên kẽm khi nào",
+     "uống viên kẽm khi nào tốt nhất",
+     "viên kẽm nhập khẩu",
+     "viên kẽm an khang",
+     "viên kẽm dhc uống khi nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm l",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:08Z",
+   "suggestions": [
+    "viên kẽm long châu",
+    "viên kẽm là gì",
+    "viên kẽm loại nào tốt",
+    "viên kẽm liều dùng",
+    "viên kẽm l'cystine",
+    "viên kẽm loại tốt",
+    "viên kẽm là thuốc gì",
+    "viên kẽm liposomal",
+    "kẽm viên lọ",
+    "viên kẽm uống lúc nào"
+   ],
+   "raw": [
+    "viên kẽm l",
+    [
+     "viên kẽm long châu",
+     "viên kẽm là gì",
+     "viên kẽm loại nào tốt",
+     "viên kẽm liều dùng",
+     "viên kẽm l'cystine",
+     "viên kẽm loại tốt",
+     "viên kẽm là thuốc gì",
+     "viên kẽm liposomal",
+     "kẽm viên lọ",
+     "viên kẽm uống lúc nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm m",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:09Z",
+   "suggestions": [
+    "viên kẽm magie sắt",
+    "viên kẽm mua ở đâu",
+    "viên kẽm multi b+",
+    "viên kẽm magie canxi",
+    "viên kẽm mỹ",
+    "viên kẽm magie",
+    "viên kẽm multi b+ có tốt không",
+    "viên kẽm multi",
+    "viên kẽm mọc tóc",
+    "viên kẽm mega"
+   ],
+   "raw": [
+    "viên kẽm m",
+    [
+     "viên kẽm magie sắt",
+     "viên kẽm mua ở đâu",
+     "viên kẽm multi b+",
+     "viên kẽm magie canxi",
+     "viên kẽm mỹ",
+     "viên kẽm magie",
+     "viên kẽm multi b+ có tốt không",
+     "viên kẽm multi",
+     "viên kẽm mọc tóc",
+     "viên kẽm mega"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm n",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:10Z",
+   "suggestions": [
+    "viên kẽm nên uống lúc nào",
+    "viên kẽm nào tốt nhất",
+    "viên kẽm nào tốt cho nam giới",
+    "viên kẽm người lớn",
+    "viên kẽm nhai cho bé",
+    "viên kẽm nên uống trước hay sau ăn",
+    "viên kẽm nhật bản",
+    "viên kẽm nhật bản dhc",
+    "viên kẽm nên uông vào thời điểm nào trong ngày",
+    "viên kẽm ngày uống mấy viên"
+   ],
+   "raw": [
+    "viên kẽm n",
+    [
+     "viên kẽm nên uống lúc nào",
+     "viên kẽm nào tốt nhất",
+     "viên kẽm nào tốt cho nam giới",
+     "viên kẽm người lớn",
+     "viên kẽm nhai cho bé",
+     "viên kẽm nên uống trước hay sau ăn",
+     "viên kẽm nhật bản",
+     "viên kẽm nhật bản dhc",
+     "viên kẽm nên uông vào thời điểm nào trong ngày",
+     "viên kẽm ngày uống mấy viên"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm o",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:10Z",
+   "suggestions": [
+    "viên kẽm orihiro",
+    "viên kẽm oyster plus",
+    "viên kẽm ostrovit",
+    "viên kẽm oyster",
+    "viên kẽm omega",
+    "viên kẽm ở nhật",
+    "viên kẽm ở long châu",
+    "viên kẽm ở nhà thuốc long châu",
+    "viên kẽm ở đức",
+    "viên nhai kẽm orihiro"
+   ],
+   "raw": [
+    "viên kẽm o",
+    [
+     "viên kẽm orihiro",
+     "viên kẽm oyster plus",
+     "viên kẽm ostrovit",
+     "viên kẽm oyster",
+     "viên kẽm omega",
+     "viên kẽm ở nhật",
+     "viên kẽm ở long châu",
+     "viên kẽm ở nhà thuốc long châu",
+     "viên kẽm ở đức",
+     "viên nhai kẽm orihiro"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm p",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:11Z",
+   "suggestions": [
+    "viên kẽm pharmacity",
+    "viên kẽm bổ sung gì",
+    "viên kẽm bao nhiêu tiền",
+    "viên kẽm bisglycinate traphaco",
+    "viên kẽm bổ sung cho nữ",
+    "viên kẽm biotrade",
+    "viên kẽm boss man có tác dụng gì",
+    "viên kẽm blackmores",
+    "viên kẽm boss man có tốt không",
+    "viên kẽm biotin"
+   ],
+   "raw": [
+    "viên kẽm p",
+    [
+     "viên kẽm pharmacity",
+     "viên kẽm bổ sung gì",
+     "viên kẽm bao nhiêu tiền",
+     "viên kẽm bisglycinate traphaco",
+     "viên kẽm bổ sung cho nữ",
+     "viên kẽm biotrade",
+     "viên kẽm boss man có tác dụng gì",
+     "viên kẽm blackmores",
+     "viên kẽm boss man có tốt không",
+     "viên kẽm biotin"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ],
+      [
+       512,
+       10,
+       11
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm q",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:12Z",
+   "suggestions": [
+    "viên kẽm hàn quốc",
+    "viên uống kẽm hàn quốc"
+   ],
+   "raw": [
+    "viên kẽm q",
+    [
+     "viên kẽm hàn quốc",
+     "viên uống kẽm hàn quốc"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm r",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:13Z",
+   "suggestions": [
+    "viên kẽm rossmann",
+    "viên kẽm zinc roxtech",
+    "viên kẽm trị rụng tóc",
+    "viên kẽm giá rẻ",
+    "viên kẽm giảm rụng tóc",
+    "review viên kẽm amagain",
+    "review viên kẽm dhc",
+    "review viên kẽm"
+   ],
+   "raw": [
+    "viên kẽm r",
+    [
+     "viên kẽm rossmann",
+     "viên kẽm zinc roxtech",
+     "viên kẽm trị rụng tóc",
+     "viên kẽm giá rẻ",
+     "viên kẽm giảm rụng tóc",
+     "review viên kẽm amagain",
+     "review viên kẽm dhc",
+     "review viên kẽm"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm s",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:13Z",
+   "suggestions": [
+    "viên kẽm sủi",
+    "viên kẽm sắt magie",
+    "viên kẽm sao thái dương",
+    "viên kẽm sắt",
+    "viên kẽm swisse",
+    "viên kẽm solgar",
+    "viên kẽm selen",
+    "viên kẽm sinh lý",
+    "viên kẽm siberian",
+    "viên kẽm sds"
+   ],
+   "raw": [
+    "viên kẽm s",
+    [
+     "viên kẽm sủi",
+     "viên kẽm sắt magie",
+     "viên kẽm sao thái dương",
+     "viên kẽm sắt",
+     "viên kẽm swisse",
+     "viên kẽm solgar",
+     "viên kẽm selen",
+     "viên kẽm sinh lý",
+     "viên kẽm siberian",
+     "viên kẽm sds"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm t",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:14Z",
+   "suggestions": [
+    "viên kẽm tốt",
+    "viên kẽm tổng hợp",
+    "viên kẽm thiên sư",
+    "viên kẽm trẻ em",
+    "viên kẽm tại long châu",
+    "viên kẽm traphaco có tốt không",
+    "viên kẽm thái lan",
+    "viên kẽm tốt nhất cho nam giới",
+    "viên kẽm traphaco cnc",
+    "viên kẽm traphaco long châu"
+   ],
+   "raw": [
+    "viên kẽm t",
+    [
+     "viên kẽm tốt",
+     "viên kẽm tổng hợp",
+     "viên kẽm thiên sư",
+     "viên kẽm trẻ em",
+     "viên kẽm tại long châu",
+     "viên kẽm traphaco có tốt không",
+     "viên kẽm thái lan",
+     "viên kẽm tốt nhất cho nam giới",
+     "viên kẽm traphaco cnc",
+     "viên kẽm traphaco long châu"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm u",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:15Z",
+   "suggestions": [
+    "viên kẽm uống lúc nào là tốt nhất",
+    "viên kẽm uống cùng magie được không",
+    "viên kẽm uống cho nam",
+    "viên kẽm uống ngày mấy viên",
+    "viên kẽm uông vào thời điểm nào trong ngày",
+    "viên kẽm uống sáng hay tối",
+    "viên kẽm uống lúc nào tốt nhất",
+    "viên kẽm uống buổi tối được không",
+    "viên kẽm uống buổi chiều được không",
+    "viên kẽm uống lúc nào"
+   ],
+   "raw": [
+    "viên kẽm u",
+    [
+     "viên kẽm uống lúc nào là tốt nhất",
+     "viên kẽm uống cùng magie được không",
+     "viên kẽm uống cho nam",
+     "viên kẽm uống ngày mấy viên",
+     "viên kẽm uông vào thời điểm nào trong ngày",
+     "viên kẽm uống sáng hay tối",
+     "viên kẽm uống lúc nào tốt nhất",
+     "viên kẽm uống buổi tối được không",
+     "viên kẽm uống buổi chiều được không",
+     "viên kẽm uống lúc nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm v",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:16Z",
+   "suggestions": [
+    "viên kẽm vitamin c",
+    "viên kẽm và selen",
+    "viên kẽm và vitamin c",
+    "viên kẽm và magie",
+    "viên kẽm việt nam",
+    "viên kẽm voz",
+    "viên kẽm và vitamin c của đức",
+    "viên kẽm và sắt",
+    "viên kẽm vỉ",
+    "viên kẽm vitamin"
+   ],
+   "raw": [
+    "viên kẽm v",
+    [
+     "viên kẽm vitamin c",
+     "viên kẽm và selen",
+     "viên kẽm và vitamin c",
+     "viên kẽm và magie",
+     "viên kẽm việt nam",
+     "viên kẽm voz",
+     "viên kẽm và vitamin c của đức",
+     "viên kẽm và sắt",
+     "viên kẽm vỉ",
+     "viên kẽm vitamin"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm x",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:16Z",
+   "suggestions": [
+    "kẽm viên xanh",
+    "viên kẽm chiết xuất hàu biển orihiro",
+    "viên kẽm amagain sản xuất tại traphaco cnc",
+    "uống viên kẽm thường xuyên có tốt không"
+   ],
+   "raw": [
+    "viên kẽm x",
+    [
+     "kẽm viên xanh",
+     "viên kẽm chiết xuất hàu biển orihiro",
+     "viên kẽm amagain sản xuất tại traphaco cnc",
+     "uống viên kẽm thường xuyên có tốt không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "viên kẽm y",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:17Z",
+   "suggestions": [],
+   "raw": [
+    "viên kẽm y",
+    []
+   ]
+  },
+  {
+   "prefix": "uống kẽm a",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:18Z",
+   "suggestions": [
+    "uống kẽm ada khi nào",
+    "uống kẽm ada có tăng cân không",
+    "uống kẽm amagain khi nào",
+    "uống kẽm ada nhiều có tốt không",
+    "uống kẽm ada có hại thận không",
+    "uống kẽm ada có tác dụng gì",
+    "uống kẽm amagain có tác dụng gì",
+    "uống kẽm amagain có tốt không",
+    "uống kẽm ada bao lâu thì có tác dụng",
+    "uống kẽm ada có hại không"
+   ],
+   "raw": [
+    "uống kẽm a",
+    [
+     "uống kẽm ada khi nào",
+     "uống kẽm ada có tăng cân không",
+     "uống kẽm amagain khi nào",
+     "uống kẽm ada nhiều có tốt không",
+     "uống kẽm ada có hại thận không",
+     "uống kẽm ada có tác dụng gì",
+     "uống kẽm amagain có tác dụng gì",
+     "uống kẽm amagain có tốt không",
+     "uống kẽm ada bao lâu thì có tác dụng",
+     "uống kẽm ada có hại không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm b",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:19Z",
+   "suggestions": [
+    "uống kẽm buổi tối được ko",
+    "uống kẽm bị buồn nôn",
+    "uống kẽm bao lâu thì nghỉ",
+    "uống kẽm buổi chiều",
+    "uống kẽm bị mắc ói",
+    "uống kẽm buổi tối có sao k",
+    "uống kẽm bị đau lưng",
+    "uống kẽm bao lâu thì uống sữa",
+    "uống kẽm bổ sung gì cho cơ thể",
+    "uống kẽm bị tiêu chảy"
+   ],
+   "raw": [
+    "uống kẽm b",
+    [
+     "uống kẽm buổi tối được ko",
+     "uống kẽm bị buồn nôn",
+     "uống kẽm bao lâu thì nghỉ",
+     "uống kẽm buổi chiều",
+     "uống kẽm bị mắc ói",
+     "uống kẽm buổi tối có sao k",
+     "uống kẽm bị đau lưng",
+     "uống kẽm bao lâu thì uống sữa",
+     "uống kẽm bổ sung gì cho cơ thể",
+     "uống kẽm bị tiêu chảy"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm c",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:19Z",
+   "suggestions": [
+    "uống kẽm có tác dụng gì cho nam",
+    "uống kẽm có tác dụng gì cho nữ",
+    "uống kẽm có tốt ko",
+    "uống kẽm có mập không",
+    "uống kẽm có tốt cho thận không",
+    "uống kẽm có tác dụng và tác hại gì",
+    "uống kẽm có hại không",
+    "uống kẽm có tác dụng phụ không",
+    "uống kẽm có mất ngủ không",
+    "uống kẽm có tác dụng gì"
+   ],
+   "raw": [
+    "uống kẽm c",
+    [
+     "uống kẽm có tác dụng gì cho nam",
+     "uống kẽm có tác dụng gì cho nữ",
+     "uống kẽm có tốt ko",
+     "uống kẽm có mập không",
+     "uống kẽm có tốt cho thận không",
+     "uống kẽm có tác dụng và tác hại gì",
+     "uống kẽm có hại không",
+     "uống kẽm có tác dụng phụ không",
+     "uống kẽm có mất ngủ không",
+     "uống kẽm có tác dụng gì"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm d",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:20Z",
+   "suggestions": [
+    "uống kẽm dhc có hại thận không",
+    "uống kẽm dhc như thế nào",
+    "uống kẽm dha có tác dụng gì",
+    "uống kẽm dhc bao lâu thì có tác dụng",
+    "uống kẽm dhc khi nào là tốt nhất",
+    "uống kẽm dhc trong bao lâu",
+    "uống kẽm dsd có tác dụng gì",
+    "uống kẽm dhc có tốt không",
+    "uống kẽm dhc",
+    "uống kẽm dhc có tác dụng phụ không"
+   ],
+   "raw": [
+    "uống kẽm d",
+    [
+     "uống kẽm dhc có hại thận không",
+     "uống kẽm dhc như thế nào",
+     "uống kẽm dha có tác dụng gì",
+     "uống kẽm dhc bao lâu thì có tác dụng",
+     "uống kẽm dhc khi nào là tốt nhất",
+     "uống kẽm dhc trong bao lâu",
+     "uống kẽm dsd có tác dụng gì",
+     "uống kẽm dhc có tốt không",
+     "uống kẽm dhc",
+     "uống kẽm dhc có tác dụng phụ không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm đ",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:21Z",
+   "suggestions": [
+    "uống kẽm đỡ rụng tóc",
+    "uống kẽm đúng cách cho bé",
+    "uống kẽm đẹp da",
+    "uống kẽm được gì",
+    "uống kẽm đau dạ dày",
+    "uống kẽm đi tiểu nhiều",
+    "uống kẽm đau bụng",
+    "uống kẽm đi tiểu màu vàng",
+    "uống kẽm để làm gì",
+    "uống kẽm đúng cách"
+   ],
+   "raw": [
+    "uống kẽm đ",
+    [
+     "uống kẽm đỡ rụng tóc",
+     "uống kẽm đúng cách cho bé",
+     "uống kẽm đẹp da",
+     "uống kẽm được gì",
+     "uống kẽm đau dạ dày",
+     "uống kẽm đi tiểu nhiều",
+     "uống kẽm đau bụng",
+     "uống kẽm đi tiểu màu vàng",
+     "uống kẽm để làm gì",
+     "uống kẽm đúng cách"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm e",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:22Z",
+   "suggestions": [
+    "uống kẽm và vitamin e cùng lúc được không",
+    "kẽm uống trẻ em",
+    "uống kẽm cùng vitamin e có được không",
+    "uống kẽm với vitamin e",
+    "uống kẽm và vitamin e trị mụn",
+    "uống kẽm và vitamin e có tác dụng gì",
+    "uống kẽm cho trẻ em"
+   ],
+   "raw": [
+    "uống kẽm e",
+    [
+     "uống kẽm và vitamin e cùng lúc được không",
+     "kẽm uống trẻ em",
+     "uống kẽm cùng vitamin e có được không",
+     "uống kẽm với vitamin e",
+     "uống kẽm và vitamin e trị mụn",
+     "uống kẽm và vitamin e có tác dụng gì",
+     "uống kẽm cho trẻ em"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm g",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:22Z",
+   "suggestions": [
+    "uống kẽm gây buồn ngủ",
+    "uống kẽm giảm rụng tóc",
+    "uống kẽm gì tốt",
+    "uống kẽm gây mụn",
+    "uống kẽm giờ nào tốt",
+    "uống kẽm gây mất ngủ",
+    "uống kẽm gây táo bón",
+    "uống kẽm giúp gì",
+    "uống kẽm gluconat",
+    "uống kẽm giảm mụn"
+   ],
+   "raw": [
+    "uống kẽm g",
+    [
+     "uống kẽm gây buồn ngủ",
+     "uống kẽm giảm rụng tóc",
+     "uống kẽm gì tốt",
+     "uống kẽm gây mụn",
+     "uống kẽm giờ nào tốt",
+     "uống kẽm gây mất ngủ",
+     "uống kẽm gây táo bón",
+     "uống kẽm giúp gì",
+     "uống kẽm gluconat",
+     "uống kẽm giảm mụn"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm h",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:23Z",
+   "suggestions": [
+    "uống kẽm hàng ngày được không",
+    "uống kẽm hay sắt trước",
+    "uống kẽm hàng ngày có tác dụng gì",
+    "uống kẽm hàng ngày có tốt không",
+    "uống kẽm hỗ trợ gì",
+    "uống kẽm hàm lượng bao nhiêu",
+    "uống kẽm hết hạn có sao không",
+    "uống kẽm hay canxi trước",
+    "uống kẽm hàng ngày",
+    "uống kẽm hết mụn"
+   ],
+   "raw": [
+    "uống kẽm h",
+    [
+     "uống kẽm hàng ngày được không",
+     "uống kẽm hay sắt trước",
+     "uống kẽm hàng ngày có tác dụng gì",
+     "uống kẽm hàng ngày có tốt không",
+     "uống kẽm hỗ trợ gì",
+     "uống kẽm hàm lượng bao nhiêu",
+     "uống kẽm hết hạn có sao không",
+     "uống kẽm hay canxi trước",
+     "uống kẽm hàng ngày",
+     "uống kẽm hết mụn"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm i",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:24Z",
+   "suggestions": [
+    "kẽm imochild uống lúc nào"
+   ],
+   "raw": [
+    "uống kẽm i",
+    [
+     "kẽm imochild uống lúc nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm k",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:24Z",
+   "suggestions": [
+    "uống kẽm khi đói",
+    "uống kẽm khi bụng đói",
+    "uống kẽm khi nào thì tốt",
+    "uống kẽm khi tiêu chảy",
+    "uống kẽm kèm canxi được không",
+    "uống kẽm khi bụng đói được không",
+    "uống kẽm khi nào thì tốt nhất",
+    "uống kẽm kết hợp với canxi được không",
+    "uống kẽm khi đói hay no",
+    "uống kẽm kỵ với gì"
+   ],
+   "raw": [
+    "uống kẽm k",
+    [
+     "uống kẽm khi đói",
+     "uống kẽm khi bụng đói",
+     "uống kẽm khi nào thì tốt",
+     "uống kẽm khi tiêu chảy",
+     "uống kẽm kèm canxi được không",
+     "uống kẽm khi bụng đói được không",
+     "uống kẽm khi nào thì tốt nhất",
+     "uống kẽm kết hợp với canxi được không",
+     "uống kẽm khi đói hay no",
+     "uống kẽm kỵ với gì"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm l",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:25Z",
+   "suggestions": [
+    "uống kẽm lúc nào tốt",
+    "uống kẽm lúc bụng đói",
+    "uống kẽm lúc 6h tối được không",
+    "uống kẽm là gì",
+    "uống kẽm loại nào",
+    "uống kẽm lâu dài được không",
+    "uống kẽm lúc đói hay no",
+    "uống kẽm lúc tối có sao không",
+    "uống kẽm lúc 7h tối được không",
+    "uống kẽm lúc nào"
+   ],
+   "raw": [
+    "uống kẽm l",
+    [
+     "uống kẽm lúc nào tốt",
+     "uống kẽm lúc bụng đói",
+     "uống kẽm lúc 6h tối được không",
+     "uống kẽm là gì",
+     "uống kẽm loại nào",
+     "uống kẽm lâu dài được không",
+     "uống kẽm lúc đói hay no",
+     "uống kẽm lúc tối có sao không",
+     "uống kẽm lúc 7h tối được không",
+     "uống kẽm lúc nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm m",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:26Z",
+   "suggestions": [
+    "uống kẽm mỗi ngày có sao không",
+    "uống kẽm mắc ói",
+    "uống kẽm mấy giờ là tốt nhất",
+    "uống kẽm mỗi ngày có tác dụng gì",
+    "uống kẽm mỗi ngày",
+    "uống kẽm mọc tóc",
+    "uống kẽm mấy tháng thì ngưng",
+    "uống kẽm mỗi ngày có tốt không",
+    "uống kẽm mấy giờ",
+    "uống kẽm mất ngủ"
+   ],
+   "raw": [
+    "uống kẽm m",
+    [
+     "uống kẽm mỗi ngày có sao không",
+     "uống kẽm mắc ói",
+     "uống kẽm mấy giờ là tốt nhất",
+     "uống kẽm mỗi ngày có tác dụng gì",
+     "uống kẽm mỗi ngày",
+     "uống kẽm mọc tóc",
+     "uống kẽm mấy tháng thì ngưng",
+     "uống kẽm mỗi ngày có tốt không",
+     "uống kẽm mấy giờ",
+     "uống kẽm mất ngủ"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm n",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:27Z",
+   "suggestions": [
+    "uống kẽm nhiều có sao không",
+    "uống kẽm nên uống lúc nào",
+    "uống kẽm ngăn rụng tóc",
+    "uống kẽm như thế nào",
+    "uống kẽm nhiều có bị sao không",
+    "uống kẽm nhiều",
+    "uống kẽm ngày mấy lần",
+    "uống kẽm ngủ ngon",
+    "uống kẽm ntn là tốt nhất",
+    "uống kẽm như thế nào là tốt"
+   ],
+   "raw": [
+    "uống kẽm n",
+    [
+     "uống kẽm nhiều có sao không",
+     "uống kẽm nên uống lúc nào",
+     "uống kẽm ngăn rụng tóc",
+     "uống kẽm như thế nào",
+     "uống kẽm nhiều có bị sao không",
+     "uống kẽm nhiều",
+     "uống kẽm ngày mấy lần",
+     "uống kẽm ngủ ngon",
+     "uống kẽm ntn là tốt nhất",
+     "uống kẽm như thế nào là tốt"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm o",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:27Z",
+   "suggestions": [
+    "uống kẽm ở nam giới có tác dụng gì",
+    "uống kẽm và omega 3 cùng lúc được không",
+    "uống kẽm cùng omega 3 được không",
+    "uống kẽm với omega 3",
+    "viên uống kẽm oyster plus zinc",
+    "viên uống kẽm orihiro",
+    "uống kẽm kèm omega 3 được không",
+    "uống kẽm cách omega 3 bao lâu",
+    "uống kẽm và omega 3 cùng lúc",
+    "kẽm uống cùng omega 3"
+   ],
+   "raw": [
+    "uống kẽm o",
+    [
+     "uống kẽm ở nam giới có tác dụng gì",
+     "uống kẽm và omega 3 cùng lúc được không",
+     "uống kẽm cùng omega 3 được không",
+     "uống kẽm với omega 3",
+     "viên uống kẽm oyster plus zinc",
+     "viên uống kẽm orihiro",
+     "uống kẽm kèm omega 3 được không",
+     "uống kẽm cách omega 3 bao lâu",
+     "uống kẽm và omega 3 cùng lúc",
+     "kẽm uống cùng omega 3"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm p",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:28Z",
+   "suggestions": [],
+   "raw": [
+    "uống kẽm p",
+    []
+   ]
+  },
+  {
+   "prefix": "uống kẽm q",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:29Z",
+   "suggestions": [
+    "uống kẽm quá nhiều",
+    "uống kẽm quá liều",
+    "uống kẽm quá liều có sao không",
+    "trẻ uống kẽm quá liều có sao không",
+    "uống nhiều kẽm quá có sao không",
+    "uống kẽm nhiều quá có tốt không",
+    "uống kẽm hiệu quả",
+    "trẻ uống kẽm quá liều",
+    "uống nhiều kẽm quá thì sao",
+    "uống kẽm ăn quýt được không"
+   ],
+   "raw": [
+    "uống kẽm q",
+    [
+     "uống kẽm quá nhiều",
+     "uống kẽm quá liều",
+     "uống kẽm quá liều có sao không",
+     "trẻ uống kẽm quá liều có sao không",
+     "uống nhiều kẽm quá có sao không",
+     "uống kẽm nhiều quá có tốt không",
+     "uống kẽm hiệu quả",
+     "trẻ uống kẽm quá liều",
+     "uống nhiều kẽm quá thì sao",
+     "uống kẽm ăn quýt được không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm r",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:30Z",
+   "suggestions": [
+    "uống kẽm rụng tóc",
+    "uống kẽm rồi uống sữa được không",
+    "uống kẽm rồi ăn sữa chua được không",
+    "uống kẽm chống rụng tóc",
+    "uống kẽm có rụng tóc không",
+    "uống kẽm.rồi uống nước cam được không",
+    "uống kẽm bị rối loạn tiêu hoá",
+    "uống kẽm rồi uống cà phê được không",
+    "uống kẽm có giảm rụng tóc không",
+    "uống kẽm có lâu ra không"
+   ],
+   "raw": [
+    "uống kẽm r",
+    [
+     "uống kẽm rụng tóc",
+     "uống kẽm rồi uống sữa được không",
+     "uống kẽm rồi ăn sữa chua được không",
+     "uống kẽm chống rụng tóc",
+     "uống kẽm có rụng tóc không",
+     "uống kẽm.rồi uống nước cam được không",
+     "uống kẽm bị rối loạn tiêu hoá",
+     "uống kẽm rồi uống cà phê được không",
+     "uống kẽm có giảm rụng tóc không",
+     "uống kẽm có lâu ra không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30,
+       10
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm s",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:30Z",
+   "suggestions": [
+    "uống kẽm sau bữa ăn bao lâu",
+    "uống kẽm sau hay trước ăn",
+    "uống kẽm sau ăn trưa",
+    "uống kẽm sao cho hiệu quả",
+    "uống kẽm sau ăn sáng bao lâu",
+    "uống kẽm sau kháng sinh bao lâu",
+    "uống kẽm sau ăn sáng được không",
+    "uống kẽm sau bao lâu có tác dụng",
+    "uống kẽm sau bữa ăn tối được không",
+    "uống kẽm sau bao lâu thì được ăn"
+   ],
+   "raw": [
+    "uống kẽm s",
+    [
+     "uống kẽm sau bữa ăn bao lâu",
+     "uống kẽm sau hay trước ăn",
+     "uống kẽm sau ăn trưa",
+     "uống kẽm sao cho hiệu quả",
+     "uống kẽm sau ăn sáng bao lâu",
+     "uống kẽm sau kháng sinh bao lâu",
+     "uống kẽm sau ăn sáng được không",
+     "uống kẽm sau bao lâu có tác dụng",
+     "uống kẽm sau bữa ăn tối được không",
+     "uống kẽm sau bao lâu thì được ăn"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm t",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:31Z",
+   "suggestions": [
+    "uống kẽm trước hay sau bữa ăn",
+    "uống kẽm trị mụn như thế nào",
+    "uống kẽm tăng sức đề kháng",
+    "uống kẽm tăng testosterone",
+    "uống kẽm trước bữa ăn được không",
+    "uống kẽm trong lúc ăn được không",
+    "uống kẽm tối có tốt không",
+    "uống kẽm tốt cho cái gì",
+    "uống kẽm thế nào cho đúng",
+    "uống kẽm trước ăn được không"
+   ],
+   "raw": [
+    "uống kẽm t",
+    [
+     "uống kẽm trước hay sau bữa ăn",
+     "uống kẽm trị mụn như thế nào",
+     "uống kẽm tăng sức đề kháng",
+     "uống kẽm tăng testosterone",
+     "uống kẽm trước bữa ăn được không",
+     "uống kẽm trong lúc ăn được không",
+     "uống kẽm tối có tốt không",
+     "uống kẽm tốt cho cái gì",
+     "uống kẽm thế nào cho đúng",
+     "uống kẽm trước ăn được không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm u",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:32Z",
+   "suggestions": [
+    "uống kẽm xong uống sữa được không",
+    "uống kẽm nên uống lúc nào",
+    "uống kẽm cách uống sữa bao lâu",
+    "uống kẽm sau uống sữa được không",
+    "uống kẽm xong uống nước cam được không",
+    "uống kẽm xong uống cafe được không",
+    "uống kẽm sau uống sữa bao lâu",
+    "uống kẽm có uống bia được không",
+    "uống kẽm nên uống trước ăn hay sau ăn",
+    "uống kẽm nên uống buổi nào"
+   ],
+   "raw": [
+    "uống kẽm u",
+    [
+     "uống kẽm xong uống sữa được không",
+     "uống kẽm nên uống lúc nào",
+     "uống kẽm cách uống sữa bao lâu",
+     "uống kẽm sau uống sữa được không",
+     "uống kẽm xong uống nước cam được không",
+     "uống kẽm xong uống cafe được không",
+     "uống kẽm sau uống sữa bao lâu",
+     "uống kẽm có uống bia được không",
+     "uống kẽm nên uống trước ăn hay sau ăn",
+     "uống kẽm nên uống buổi nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm v",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:33Z",
+   "suggestions": [
+    "uống kẽm vào thời gian nào là tốt",
+    "uống kẽm vào buổi trưa được không",
+    "uống kẽm và sắt cùng lúc được không",
+    "uống kẽm và sắt cách nhau bao lâu",
+    "uống kẽm vào buổi tối có sao không",
+    "uống kẽm và magie khi nào",
+    "uống kẽm với omega 3 được không",
+    "uống kẽm vào thời gian nào",
+    "uống kẽm vào giờ nào",
+    "uống kẽm và sắt khi nào"
+   ],
+   "raw": [
+    "uống kẽm v",
+    [
+     "uống kẽm vào thời gian nào là tốt",
+     "uống kẽm vào buổi trưa được không",
+     "uống kẽm và sắt cùng lúc được không",
+     "uống kẽm và sắt cách nhau bao lâu",
+     "uống kẽm vào buổi tối có sao không",
+     "uống kẽm và magie khi nào",
+     "uống kẽm với omega 3 được không",
+     "uống kẽm vào thời gian nào",
+     "uống kẽm vào giờ nào",
+     "uống kẽm và sắt khi nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm x",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:33Z",
+   "suggestions": [
+    "uống kẽm xong uống cà phê được không",
+    "uống kẽm xong đi ngủ có tốt không",
+    "uống kẽm xong thấy buồn nôn",
+    "uống kẽm xong uống sữa được không",
+    "uống kẽm xong ăn chuối được không",
+    "uống kẽm xong ăn trái cây được không",
+    "uống kẽm xong uống bia được không",
+    "uống kẽm xong uống nước dừa được không",
+    "uống kẽm xong ăn sữa chua được không",
+    "uống kẽm xong bao lâu uống sữa"
+   ],
+   "raw": [
+    "uống kẽm x",
+    [
+     "uống kẽm xong uống cà phê được không",
+     "uống kẽm xong đi ngủ có tốt không",
+     "uống kẽm xong thấy buồn nôn",
+     "uống kẽm xong uống sữa được không",
+     "uống kẽm xong ăn chuối được không",
+     "uống kẽm xong ăn trái cây được không",
+     "uống kẽm xong uống bia được không",
+     "uống kẽm xong uống nước dừa được không",
+     "uống kẽm xong ăn sữa chua được không",
+     "uống kẽm xong bao lâu uống sữa"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm y",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:34Z",
+   "suggestions": [
+    "uống kẽm có hết yếu sinh lý không",
+    "uống kẽm có bị yếu sinh lý không",
+    "uống kẽm xong uống yakult được không",
+    "uống kẽm có chữa được yếu sinh lý không",
+    "uống kẽm có cai thiện ysl ko"
+   ],
+   "raw": [
+    "uống kẽm y",
+    [
+     "uống kẽm có hết yếu sinh lý không",
+     "uống kẽm có bị yếu sinh lý không",
+     "uống kẽm xong uống yakult được không",
+     "uống kẽm có chữa được yếu sinh lý không",
+     "uống kẽm có cai thiện ysl ko"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "kẽm có tác dụng",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:35Z",
+   "suggestions": [
+    "kẽm có tác dụng gì với cơ thể",
+    "kẽm có tác dụng gì với da",
+    "kẽm có tác dụng gì với tinh trùng",
+    "kẽm có tác dụng gì trong tập gym",
+    "kẽm có tác dụng gì cho bé",
+    "kẽm có tác dụng gì với đàn ông",
+    "kẽm có tác dụng gì với cơ thể nam giới",
+    "kẽm có tác dụng tăng chiều cao không",
+    "kẽm có tác dụng gì đối với cơ thể con người",
+    "kẽm có tác dụng với nước không"
+   ],
+   "raw": [
+    "kẽm có tác dụng",
+    [
+     "kẽm có tác dụng gì với cơ thể",
+     "kẽm có tác dụng gì với da",
+     "kẽm có tác dụng gì với tinh trùng",
+     "kẽm có tác dụng gì trong tập gym",
+     "kẽm có tác dụng gì cho bé",
+     "kẽm có tác dụng gì với đàn ông",
+     "kẽm có tác dụng gì với cơ thể nam giới",
+     "kẽm có tác dụng tăng chiều cao không",
+     "kẽm có tác dụng gì đối với cơ thể con người",
+     "kẽm có tác dụng với nước không"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "có nên uống kẽm",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:35Z",
+   "suggestions": [
+    "có nên uống kẽm mỗi ngày không",
+    "có nên uống kẽm amagain không",
+    "có nên uống kẽm vào buổi chiều",
+    "có nên uống kẽm cùng canxi",
+    "có nên uống kẽm và vitamin c cùng lúc",
+    "có nên uống kẽm trước khi ngủ",
+    "có nên uống kẽm ada",
+    "có nên uống kẽm trước khi ăn sáng không",
+    "có nên uống kẽm sau ăn",
+    "có nên uống kẽm trước khi ăn"
+   ],
+   "raw": [
+    "có nên uống kẽm",
+    [
+     "có nên uống kẽm mỗi ngày không",
+     "có nên uống kẽm amagain không",
+     "có nên uống kẽm vào buổi chiều",
+     "có nên uống kẽm cùng canxi",
+     "có nên uống kẽm và vitamin c cùng lúc",
+     "có nên uống kẽm trước khi ngủ",
+     "có nên uống kẽm ada",
+     "có nên uống kẽm trước khi ăn sáng không",
+     "có nên uống kẽm sau ăn",
+     "có nên uống kẽm trước khi ăn"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "uống kẽm khi nào",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:36Z",
+   "suggestions": [
+    "uống kẽm khi nào thì tốt",
+    "uống kẽm khi nào tốt nhất",
+    "uống kẽm khi nào có tác dụng",
+    "uống kẽm khi nào trong ngày",
+    "uống kẽm khi nào cho trẻ",
+    "uống kẽm khi nào là tốt nhất cho bé",
+    "uống kẽm khi nào"
+   ],
+   "raw": [
+    "uống kẽm khi nào",
+    [
+     "uống kẽm khi nào thì tốt",
+     "uống kẽm khi nào tốt nhất",
+     "uống kẽm khi nào có tác dụng",
+     "uống kẽm khi nào trong ngày",
+     "uống kẽm khi nào cho trẻ",
+     "uống kẽm khi nào là tốt nhất cho bé",
+     "uống kẽm khi nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "kẽm cho bé",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:37Z",
+   "suggestions": [
+    "kẽm cho bé uống sáng hay tối",
+    "kẽm cho bé tiêu chảy",
+    "kẽm cho bé 12 tuổi",
+    "kẽm cho bé uống buổi tối được không",
+    "kẽm cho bé ăn ngon",
+    "kẽm cho bé 3 tuổi",
+    "kẽm cho bé 2t",
+    "kẽm cho bé uống tối được không",
+    "kẽm cho bé uống buổi chiều được không",
+    "kẽm cho bé nên uống lúc nào"
+   ],
+   "raw": [
+    "kẽm cho bé",
+    [
+     "kẽm cho bé uống sáng hay tối",
+     "kẽm cho bé tiêu chảy",
+     "kẽm cho bé 12 tuổi",
+     "kẽm cho bé uống buổi tối được không",
+     "kẽm cho bé ăn ngon",
+     "kẽm cho bé 3 tuổi",
+     "kẽm cho bé 2t",
+     "kẽm cho bé uống tối được không",
+     "kẽm cho bé uống buổi chiều được không",
+     "kẽm cho bé nên uống lúc nào"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "kẽm cho nam",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:38Z",
+   "suggestions": [
+    "kẽm cho nam",
+    "kẽm cho nam giới của nhật",
+    "kẽm cho nam loại nào tốt",
+    "kẽm cho nam giới có tác dụng gì",
+    "kẽm cho nam giới tốt nhất",
+    "kẽm cho nam giới pharmacity",
+    "kẽm cho nam long châu",
+    "kẽm cho nam giới long châu"
+   ],
+   "raw": [
+    "kẽm cho nam",
+    [
+     "kẽm cho nam",
+     "kẽm cho nam giới của nhật",
+     "kẽm cho nam loại nào tốt",
+     "kẽm cho nam giới có tác dụng gì",
+     "kẽm cho nam giới tốt nhất",
+     "kẽm cho nam giới pharmacity",
+     "kẽm cho nam long châu",
+     "kẽm cho nam giới long châu"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "kẽm cho nữ",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:38Z",
+   "suggestions": [
+    "kẽm cho nữ",
+    "thuốc kẽm cho nữ",
+    "kẽm cho phụ nữ sau sinh",
+    "viên kẽm cho nữ",
+    "kẽm cho phụ nữ mang thai",
+    "kẽm tốt cho nữ",
+    "bổ sung kẽm cho nữ",
+    "bổ sung kẽm cho nữ có tác dụng gì",
+    "kẽm giúp gì cho nữ",
+    "viên uống kẽm cho nữ"
+   ],
+   "raw": [
+    "kẽm cho nữ",
+    [
+     "kẽm cho nữ",
+     "thuốc kẽm cho nữ",
+     "kẽm cho phụ nữ sau sinh",
+     "viên kẽm cho nữ",
+     "kẽm cho phụ nữ mang thai",
+     "kẽm tốt cho nữ",
+     "bổ sung kẽm cho nữ",
+     "bổ sung kẽm cho nữ có tác dụng gì",
+     "kẽm giúp gì cho nữ",
+     "viên uống kẽm cho nữ"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "prefix": "kẽm trị mụn",
+   "httpStatus": 200,
+   "requestedAt": "2026-10-29T12:58:39Z",
+   "suggestions": [
+    "kem trị mụn nội tiết",
+    "kẽm trị mụn zinc",
+    "kẽm trị mụn acnacare",
+    "kẽm trị mụn được không",
+    "kẽm trị mụn viêm",
+    "viên kẽm trị mụn nào tốt",
+    "serum kẽm trị mụn",
+    "uống kẽm trị mụn trong bao lâu",
+    "uống kẽm trị mụn như thế nào",
+    "kẽm trong trị mụn"
+   ],
+   "raw": [
+    "kẽm trị mụn",
+    [
+     "kem trị mụn nội tiết",
+     "kẽm trị mụn zinc",
+     "kẽm trị mụn acnacare",
+     "kẽm trị mụn được không",
+     "kẽm trị mụn viêm",
+     "viên kẽm trị mụn nào tốt",
+     "serum kẽm trị mụn",
+     "uống kẽm trị mụn trong bao lâu",
+     "uống kẽm trị mụn như thế nào",
+     "kẽm trong trị mụn"
+    ],
+    [],
+    {
+     "google:suggestsubtypes": [
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       512
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ],
+      [
+       22,
+       30
+      ]
+     ]
+    }
+   ]
+  }
+ ]
+}

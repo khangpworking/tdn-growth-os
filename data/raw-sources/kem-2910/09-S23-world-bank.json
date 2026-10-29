@@ -1,0 +1,2326 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S23",
+  "sourceName": "Ngân hàng Thế giới",
+  "provider": "World Bank API v2 (source=2)",
+  "reportName": "Ngân hàng Thế giới (World Bank Open Data)",
+  "grade": "A",
+  "usedBy": [
+   "MARKET (bối cảnh vĩ mô)"
+  ],
+  "evidenceFamily": "macro_statistic",
+  "origin": {
+   "method": "EXPORTED_FROM_APP_RUN",
+   "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+   "runCreatedAt": "2026-10-26T01:55:11Z",
+   "runReports": [
+    "MARKET"
+   ],
+   "runRequestedPeriod": {
+    "startDate": "2025-10-26",
+    "endDate": "2026-10-25"
+   },
+   "runOutcome": "COLLECTION PARTIAL, REPORTS FAILED (raw captures complete for this source unless noted)",
+   "indicators": [
+    "NE.CON.PRVT.PC.KD",
+    "SP.POP.TOTL"
+   ]
+  },
+  "period": {
+   "startDate": "1960-01-01",
+   "endDate": "2025-12-31",
+   "timezone": "UTC",
+   "basis": "Chuỗi năm đầy đủ của chỉ số"
+  },
+  "recordShape": "worldbank.observations: [paging, rows[{date, value, unit}]]; worldbank.metadata: mô tả chỉ số.",
+  "limits": [
+   "Không chia theo sản phẩm"
+  ],
+  "recordCount": 4,
+  "recordsSha256": "97d0151b3182135c432449b7860d1a2d0720e5d4b403c88324733577ae6c8925",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": [
+  {
+   "captureId": "world-bank-0001",
+   "operation": "worldbank.observations",
+   "endpoint": "https://api.worldbank.org/v2/country/VN/indicator/NE.CON.PRVT.PC.KD",
+   "method": "GET",
+   "requestParameters": {
+    "format": "json"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:02:25.018Z",
+   "completedAt": "2026-10-26T02:02:25.447Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": null,
+   "billing": "FREE_ACCOUNT_QUERY",
+   "responseSha256": "d7b9527b2c2150fbe4d490321cef423466e4c4e64bb8ecf91d6da081074e0d87",
+   "response": [
+    {
+     "page": 1,
+     "pages": 1,
+     "per_page": 100,
+     "total": 66,
+     "sourceid": "2",
+     "lastupdated": "2026-10-08"
+    },
+    [
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2025",
+      "value": 2381.8882523638,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2024",
+      "value": 2232.99654147988,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2023",
+      "value": 2106.09214536951,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2022",
+      "value": 2057.05698178473,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2021",
+      "value": 1921.17036581274,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2020",
+      "value": 1896.76740474564,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2019",
+      "value": 1907.19316863785,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2018",
+      "value": 1799.43141796785,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2017",
+      "value": 1702.03780766968,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2016",
+      "value": 1607.59975033856,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2015",
+      "value": 1529.33937267271,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2014",
+      "value": 1423.30860866042,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2013",
+      "value": 1355.56667726479,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2012",
+      "value": 1303.86044900408,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2011",
+      "value": 1257.71592530496,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2010",
+      "value": 1208.01982428177,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2009",
+      "value": 1129.46338130452,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2008",
+      "value": 1121.24174597107,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2007",
+      "value": 1060.58990099741,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2006",
+      "value": 983.338966800829,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2005",
+      "value": 927.207546825185,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2004",
+      "value": 872.522555615667,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2003",
+      "value": 822.661744463591,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2002",
+      "value": 769.302134591335,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2001",
+      "value": 722.139750923544,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2000",
+      "value": 698.535823783014,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1999",
+      "value": 685.387225978458,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1998",
+      "value": 676.808476868987,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1997",
+      "value": 657.243519357264,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1996",
+      "value": 629.641466512003,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1995",
+      "value": 586.032861614582,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1994",
+      "value": 555.820883287606,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1993",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1992",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1991",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1990",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1989",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1988",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1987",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1986",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1985",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1984",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1983",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1982",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1981",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1980",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1979",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1978",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1977",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1976",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1975",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1974",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1973",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1972",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1971",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1970",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1969",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1968",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1967",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1966",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1965",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1964",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1963",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1962",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1961",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "NE.CON.PRVT.PC.KD",
+       "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1960",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     }
+    ]
+   ],
+   "step": "COLLECTION",
+   "captureArtifactSha256": "fc653e90481702a1f4d71957c7f21cd21797b6ec1f5642d6bace84a38588223b"
+  },
+  {
+   "captureId": "world-bank-0002",
+   "operation": "worldbank.metadata",
+   "endpoint": "https://api.worldbank.org/v2/indicator/NE.CON.PRVT.PC.KD",
+   "method": "GET",
+   "requestParameters": {
+    "format": "json"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:02:25.447Z",
+   "completedAt": "2026-10-26T02:02:25.856Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": null,
+   "billing": "FREE_ACCOUNT_QUERY",
+   "responseSha256": "00ef39978f8ec566d71fdf86e094e4388e7c6ff177c6c7fa25f10414ceb154f7",
+   "response": [
+    {
+     "page": 1,
+     "pages": 1,
+     "per_page": "50",
+     "total": 1
+    },
+    [
+     {
+      "id": "NE.CON.PRVT.PC.KD",
+      "name": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)",
+      "unit": "",
+      "source": {
+       "id": "2",
+       "value": "World Development Indicators"
+      },
+      "sourceNote": "This field includes expenditure on goods and services by the Household and NPISH sector for the direct satisfaction of human needs or wants, whether individual or collective. The core indicator has been divided by the general population to achieve a per capita estimate.This indicator is expressed in constant prices, meaning the series has been adjusted to account for price changes over time. The reference year for this adjustment is 2015. This indicator is expressed in United States dollars.",
+      "sourceOrganization": "Country official statistics, National Statistical Offices (NSOs);\nNational Accounts data files, Central Banks;\nStaff estimates, World Bank (WB)",
+      "topics": [
+       {
+        "id": "3",
+        "value": "Economy & Growth"
+       }
+      ]
+     }
+    ]
+   ],
+   "step": "COLLECTION",
+   "captureArtifactSha256": "95b075e7df6d9d3ef47bd0a1bf67edf4391d10ab042cecb46fa5c4f284dfa2ed"
+  },
+  {
+   "captureId": "world-bank-0003",
+   "operation": "worldbank.observations",
+   "endpoint": "https://api.worldbank.org/v2/country/VN/indicator/SP.POP.TOTL",
+   "method": "GET",
+   "requestParameters": {
+    "format": "json"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:02:25.857Z",
+   "completedAt": "2026-10-26T02:02:25.961Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": null,
+   "billing": "FREE_ACCOUNT_QUERY",
+   "responseSha256": "16ab0b7d997f99fdafbab64295b1d2bafec4cfdf5290148fb49b0a80f856f795",
+   "response": [
+    {
+     "page": 1,
+     "pages": 1,
+     "per_page": 100,
+     "total": 66,
+     "sourceid": "2",
+     "lastupdated": "2026-10-08"
+    },
+    [
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2025",
+      "value": 101598527,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2024",
+      "value": 100987686,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2023",
+      "value": 100352192,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2022",
+      "value": 99680655,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2021",
+      "value": 98935098,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2020",
+      "value": 98079191,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2019",
+      "value": 97173776,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2018",
+      "value": 96237319,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2017",
+      "value": 95176977,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2016",
+      "value": 94000117,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2015",
+      "value": 92823254,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2014",
+      "value": 91679578,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2013",
+      "value": 90573104,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2012",
+      "value": 89510356,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2011",
+      "value": 88468314,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2010",
+      "value": 87455152,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2009",
+      "value": 86460018,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2008",
+      "value": 85175788,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2007",
+      "value": 83633375,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2006",
+      "value": 82167897,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2005",
+      "value": 81088313,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2004",
+      "value": 80338971,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2003",
+      "value": 79563777,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2002",
+      "value": 78772224,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2001",
+      "value": 77969361,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "2000",
+      "value": 77154011,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1999",
+      "value": 76287452,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1998",
+      "value": 75299660,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1997",
+      "value": 74226889,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1996",
+      "value": 73156447,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1995",
+      "value": 72049940,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1994",
+      "value": 70854391,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1993",
+      "value": 69586384,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1992",
+      "value": 68260337,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1991",
+      "value": 66891775,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1990",
+      "value": 65504552,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1989",
+      "value": 64147348,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1988",
+      "value": 62843228,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1987",
+      "value": 61584651,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1986",
+      "value": 60347048,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1985",
+      "value": 59060622,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1984",
+      "value": 57706067,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1983",
+      "value": 56337921,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1982",
+      "value": 55011289,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1981",
+      "value": 53738141,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1980",
+      "value": 52490101,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1979",
+      "value": 51378211,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1978",
+      "value": 50249552,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1977",
+      "value": 48954872,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1976",
+      "value": 47684931,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1975",
+      "value": 46482903,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1974",
+      "value": 45413537,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1973",
+      "value": 44409861,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1972",
+      "value": 43429168,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1971",
+      "value": 42449276,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1970",
+      "value": 41475230,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1969",
+      "value": 40582096,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1968",
+      "value": 39734609,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1967",
+      "value": 38895080,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1966",
+      "value": 38024836,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1965",
+      "value": 37129656,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1964",
+      "value": 36201563,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1963",
+      "value": 35249101,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1962",
+      "value": 34288560,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1961",
+      "value": 33409059,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     },
+     {
+      "indicator": {
+       "id": "SP.POP.TOTL",
+       "value": "Population, total"
+      },
+      "country": {
+       "id": "VN",
+       "value": "Viet Nam"
+      },
+      "countryiso3code": "VNM",
+      "date": "1960",
+      "value": 32531933,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+     }
+    ]
+   ],
+   "step": "COLLECTION",
+   "captureArtifactSha256": "0480da12a7f1ea251814fa52acd0c2f090628dafa2f210ee231701434b32f28c"
+  },
+  {
+   "captureId": "world-bank-0004",
+   "operation": "worldbank.metadata",
+   "endpoint": "https://api.worldbank.org/v2/indicator/SP.POP.TOTL",
+   "method": "GET",
+   "requestParameters": {
+    "format": "json"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:02:25.961Z",
+   "completedAt": "2026-10-26T02:02:26.057Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": null,
+   "billing": "FREE_ACCOUNT_QUERY",
+   "responseSha256": "2f8491efc00bf2c0995112ff8e87aba69e5e9d22d0880b22f7e3a4ec757ba05c",
+   "response": [
+    {
+     "page": 1,
+     "pages": 1,
+     "per_page": "50",
+     "total": 1
+    },
+    [
+     {
+      "id": "SP.POP.TOTL",
+      "name": "Population, total",
+      "unit": "",
+      "source": {
+       "id": "2",
+       "value": "World Development Indicators"
+      },
+      "sourceNote": "Total population is based on the de facto definition of population, which counts all residents regardless of legal status or citizenship. The values shown are midyear estimates.",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division;\nStatistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices;\nEurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat;\nPopulation and Vital Statistics Report (various years), United Nations (UN), uri: https://unstats.un.org, publisher: UN Statistics Division",
+      "topics": [
+       {
+        "id": "19",
+        "value": "Climate Change"
+       },
+       {
+        "id": "8",
+        "value": "Health "
+       }
+      ]
+     }
+    ]
+   ],
+   "step": "COLLECTION",
+   "captureArtifactSha256": "f21849e04c66c3901fe8a36d38c844e812bac722cff069f34f7d0467132056b7"
+  }
+ ]
+}

@@ -1,0 +1,910 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S14",
+  "sourceName": "Lời nói trong video bán hàng TikTok",
+  "provider": "Gemini (đọc video) + công cụ tải video trên máy chủ",
+  "reportName": "video bán hàng",
+  "grade": "B",
+  "usedBy": [
+   "MARKET (khối video)",
+   "INSIGHT (tiếng nói người bán, không phải lời khách)"
+  ],
+  "evidenceFamily": "seller_statement",
+  "origin": {
+   "method": "EXPORTED_FROM_APP_RUN",
+   "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+   "runCreatedAt": "2026-10-26T01:55:11Z",
+   "runReports": [
+    "MARKET"
+   ],
+   "runRequestedPeriod": {
+    "startDate": "2025-10-26",
+    "endDate": "2026-10-25"
+   },
+   "runOutcome": "COLLECTION PARTIAL, REPORTS FAILED (raw captures complete for this source unless noted)",
+   "note": "Video chọn từ kết quả tìm kiếm site:tiktok.com vì Kalodata video.rank bị từ chối"
+  },
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Video có sẵn lúc thu"
+  },
+  "recordShape": "Mỗi gói video: files[].reading.json = phụ đề/lời nói theo đoạn + giới hạn; kind=modelCall = phản hồi gốc của mô hình.",
+  "limits": [
+   "Lời người bán, không phải ý kiến khách",
+   "Tệp video đã xoá sau 45 ngày, chỉ giữ dấu sha256"
+  ],
+  "usage": [
+   {
+    "operation": "provider.run",
+    "requestCount": 3,
+    "costState": "UNKNOWN",
+    "costUnit": null,
+    "costAmount": null
+   }
+  ],
+  "recordCount": 6,
+  "recordsSha256": "008e2b2ba915b9475008d7b60fe9824f448435d4d39e772ad3e943320278d145",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": [
+  {
+   "packageId": "9406ebcd-e36e-4ec4-9bfe-9adec42daa84",
+   "packageKey": "automation-video-watch:f0f4799a-f9b3-4204-91b2-682ab79d0fce-7642558908799700231-bb01025553d7a84b",
+   "sourceLabel": "Lời nói trong video bán hàng và video đánh giá sản phẩm (ghi lại tự động)",
+   "finalizedAt": "2026-10-26T02:04:31.975Z",
+   "files": [
+    {
+     "logicalPath": "reading.json",
+     "artifactSha256": "bb01025553d7a84b5d0698f4f9e1ac7f617313de6074e063f240224f27ca2619",
+     "mediaType": "application/json",
+     "content": {
+      "candidatesSha256": "fa6e326422c465af17da3b1897c6844e4fe1f83415e9e6ff15cfff1e5df4874d",
+      "captionSource": "MODEL_TRANSCRIBED",
+      "contractVersion": "video-reading-v3",
+      "limitations": [
+       "Ghi lại tự động từ video, chưa có người kiểm tra.",
+       "Đây là lời người bán hoặc người làm video đánh giá, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.",
+       "Chữ trên màn hình chỉ được lưu lại, không đưa vào báo cáo."
+      ],
+      "media": {
+       "byteSize": 2947303,
+       "downloadedAt": "2026-10-26T02:04:01.326Z",
+       "durationSeconds": 48.135,
+       "sha256": "2f6e6b8baf3daeeaabeec119055054d738fb4b8f039083d0a5114c9f43d9eac3"
+      },
+      "model": {
+       "modelId": "gemini-3.8-flash-high",
+       "responseSha256": "d7961c4540a831e2ead3a6e266af790de54d0d33248f3b0de1b95bf1c91331c0"
+      },
+      "onScreenText": [
+       {
+        "endSeconds": 4.5,
+        "startSeconds": 0,
+        "text": "5:30 AM"
+       },
+       {
+        "endSeconds": 9.9,
+        "startSeconds": 7.4,
+        "text": "TẠI SAO PHẢI UỐNG KẼM TRƯỚC ĂN SÁNG"
+       },
+       {
+        "endSeconds": 12.3,
+        "startSeconds": 10.3,
+        "text": "THÌ ĐỂ CHÚNG TA CÓ THỂ"
+       },
+       {
+        "endSeconds": 13.5,
+        "startSeconds": 12.3,
+        "text": "HẤP THỤ VI CHẤT CỦA KẼM TỐT HƠN."
+       },
+       {
+        "endSeconds": 15.6,
+        "startSeconds": 14.1,
+        "text": "BÁC SĨ BIÊN THÌ THƯỜNG UỐNG"
+       },
+       {
+        "endSeconds": 17.1,
+        "startSeconds": 15.6,
+        "text": "KHOẢNG TRƯỚC 30 PHÚT MỘT VIÊN BÉ TÍ NÀY THÔI."
+       },
+       {
+        "endSeconds": 18.9,
+        "startSeconds": 17.1,
+        "text": "NHIỀU NGƯỜI MÀ GẶP PHẢI TÌNH TRẠNG"
+       },
+       {
+        "endSeconds": 19.9,
+        "startSeconds": 18.9,
+        "text": "LÀ HAY NHIỆT MIỆNG NÀY"
+       },
+       {
+        "endSeconds": 21,
+        "startSeconds": 19.9,
+        "text": "HAY MỤN NỘI TIẾT"
+       },
+       {
+        "endSeconds": 22.8,
+        "startSeconds": 21,
+        "text": "CỨ NGHĨ LÀ DO NÓNG TRONG"
+       },
+       {
+        "endSeconds": 24.1,
+        "startSeconds": 22.8,
+        "text": "NHƯNG MÀ HÃY THỬ BỔ SUNG KẼM"
+       },
+       {
+        "endSeconds": 25.4,
+        "startSeconds": 24.1,
+        "text": "LOẠI VIÊN KẼM NÀY"
+       },
+       {
+        "endSeconds": 26.5,
+        "startSeconds": 25.4,
+        "text": "CÓ BỔ SUNG THÊM VITAMIN C"
+       },
+       {
+        "endSeconds": 26.6,
+        "startSeconds": 25.5,
+        "text": "VITAMIN C"
+       },
+       {
+        "endSeconds": 27.8,
+        "startSeconds": 26.5,
+        "text": "XEM CÁI TÌNH TRẠNG MỤN"
+       },
+       {
+        "endSeconds": 29,
+        "startSeconds": 27.8,
+        "text": "RỒI CÁI TÌNH TRẠNG NHIỆT MIỆNG"
+       },
+       {
+        "endSeconds": 29.8,
+        "startSeconds": 29,
+        "text": "NÓ CÓ CẢI THIỆN KHÔNG NHA"
+       },
+       {
+        "endSeconds": 32.2,
+        "startSeconds": 29.8,
+        "text": "TRƯỚC KHI ĂN 30 PHÚT THÌ LÀM VIÊN KẼM ĐÃ."
+       },
+       {
+        "endSeconds": 34.2,
+        "startSeconds": 32.2,
+        "text": "PLAY"
+       },
+       {
+        "endSeconds": 36.3,
+        "startSeconds": 34.2,
+        "text": "LOẠI KẼM BÁC SĨ BIÊN ĐANG DÙNG LÀ KẼM PINO"
+       },
+       {
+        "endSeconds": 37.6,
+        "startSeconds": 36.3,
+        "text": "NHẬP KHẨU TỪ ANH"
+       },
+       {
+        "endSeconds": 39.7,
+        "startSeconds": 37.6,
+        "text": "NÓ LÀ KẼM CITRATE KẼM HỮU CƠ"
+       },
+       {
+        "endSeconds": 41.9,
+        "startSeconds": 39.7,
+        "text": "NÊN LÀ CHÚNG TA CÓ THỂ UỐNG LÚC BỤNG ĐÓI ĐƯỢC"
+       },
+       {
+        "endSeconds": 43.1,
+        "startSeconds": 41.9,
+        "text": "KHÔNG VẤN ĐỀ GÌ CẢ."
+       },
+       {
+        "endSeconds": 44.5,
+        "startSeconds": 43.1,
+        "text": "VỚI NHỮNG AI MÀ UỐNG XONG"
+       },
+       {
+        "endSeconds": 46.1,
+        "startSeconds": 44.5,
+        "text": "CÓ CẢM GIÁC TÌNH TRẠNG LÀ NÔN NAO"
+       },
+       {
+        "endSeconds": 47,
+        "startSeconds": 46.1,
+        "text": "SAU KHI UỐNG"
+       },
+       {
+        "endSeconds": 48.1,
+        "startSeconds": 47,
+        "text": "THÌ CHÚNG TA UỐNG SAU BỮA ĂN."
+       }
+      ],
+      "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+      "registryId": "S14",
+      "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+      "scopeSha256": "8049b115432c6db5d6ddf3454847851b167fb4efa6374f19a5e92ad738361557",
+      "segments": [
+       {
+        "endSeconds": 4.6,
+        "startSeconds": 0,
+        "text": "Bây giờ là 5:30 sáng, trời hôm nay mùa hè nên là sáng rất là sớm."
+       },
+       {
+        "endSeconds": 7.4,
+        "startSeconds": 4.6,
+        "text": "Chúng ta bắt đầu ngày mới bằng một viên kẽm ở đây nhá."
+       },
+       {
+        "endSeconds": 9.9,
+        "startSeconds": 7.4,
+        "text": "Tại sao lại phải uống kẽm trước ăn sáng?"
+       },
+       {
+        "endSeconds": 13.5,
+        "startSeconds": 10.3,
+        "text": "Thì để chúng ta có thể hấp thu vi chất của kẽm tốt hơn."
+       },
+       {
+        "endSeconds": 17.1,
+        "startSeconds": 13.5,
+        "text": "Bác sĩ Biên thì thường uống khoảng trước 30 phút một viên bé tí này thôi."
+       },
+       {
+        "endSeconds": 20.3,
+        "startSeconds": 17.1,
+        "text": "Nhiều người mà gặp phải tình trạng là hay nhiệt miệng này,"
+       },
+       {
+        "endSeconds": 21.6,
+        "startSeconds": 20.3,
+        "text": "hay mụn nội tiết,"
+       },
+       {
+        "endSeconds": 24.3,
+        "startSeconds": 21.6,
+        "text": "cứ nghĩ là do nóng trong, nhưng mà hãy thử bổ sung kẽm."
+       },
+       {
+        "endSeconds": 26.6,
+        "startSeconds": 24.3,
+        "text": "Cái loại viên kẽm này có bổ sung thêm vitamin C,"
+       },
+       {
+        "endSeconds": 29.8,
+        "startSeconds": 26.6,
+        "text": "xem cái tình trạng mụn rồi cái tình trạng nhiệt miệng nó có cải thiện không nha."
+       },
+       {
+        "endSeconds": 32.2,
+        "startSeconds": 29.8,
+        "text": "Trước khi ăn 30 phút thì làm viên kẽm đã."
+       },
+       {
+        "endSeconds": 37.6,
+        "startSeconds": 33.7,
+        "text": "Loại kẽm bác sĩ Biên đang dùng là kẽm Pino nhập khẩu từ Anh."
+       },
+       {
+        "endSeconds": 43.1,
+        "startSeconds": 37.6,
+        "text": "Đấy, nó là kẽm citrate, kẽm hữu cơ, nên là chúng ta có thể uống lúc bụng đói được, không vấn đề gì cả."
+       },
+       {
+        "endSeconds": 48.1,
+        "startSeconds": 43.1,
+        "text": "Với những ai mà uống xong có cảm giác tình trạng là nôn nao sau khi uống thì chúng ta uống sau bữa ăn."
+       }
+      ],
+      "sourceSetSha256": "161771987181fdd3ddf3ef9621d0c3c1ffaa063b8f4befae6ad2d0f5ee060b9b",
+      "state": "PREPARED_NOT_ADMITTED",
+      "video": {
+       "aboutProduct": true,
+       "durationSeconds": 48.135,
+       "origin": "EXPANDED_SEARCH",
+       "videoId": "7642558908799700231",
+       "videoKind": "REVIEW_VIDEO",
+       "videoUrl": "https://www.tiktok.com/@bacsibien/video/7642558908799700231"
+      },
+      "voice": "SELLER",
+      "workspaceId": "bc412bc5-5693-48b1-a949-85215b5cc414"
+     }
+    }
+   ]
+  },
+  {
+   "packageId": "5f235108-f577-4630-900c-44cd892077a9",
+   "packageKey": "automation-video-watch:f0f4799a-f9b3-4204-91b2-682ab79d0fce-7472367489947602194-b6442d423be3c7e4",
+   "sourceLabel": "Lời nói trong video bán hàng và video đánh giá sản phẩm (lấy từ phụ đề có sẵn)",
+   "finalizedAt": "2026-10-26T02:04:43.181Z",
+   "files": [
+    {
+     "logicalPath": "reading.json",
+     "artifactSha256": "b6442d423be3c7e44a4624e22c972e68cfe75bcff916e2499c9b087d4ab52676",
+     "mediaType": "application/json",
+     "content": {
+      "candidatesSha256": "fa6e326422c465af17da3b1897c6844e4fe1f83415e9e6ff15cfff1e5df4874d",
+      "captionSource": "NATIVE_SUBTITLE",
+      "contractVersion": "video-reading-v3",
+      "limitations": [
+       "Lấy từ phụ đề có sẵn của video, chưa có người kiểm tra.",
+       "Đây là lời người bán hoặc người làm video đánh giá, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng."
+      ],
+      "media": {
+       "byteSize": 3222,
+       "downloadedAt": "2026-10-26T02:04:36.278Z",
+       "durationSeconds": 64,
+       "sha256": "6cf05ce74e00364d374ac71e5b8bc8a0d842286cfb5fcc2a8b97a6145ec20f86"
+      },
+      "model": {
+       "modelId": "gemini-3.8-flash-high",
+       "responseSha256": "b4cbfdf96e95bceab0ea708b09f80216bc60097a415d6c4a5ddabeaaca825d71"
+      },
+      "onScreenText": [],
+      "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+      "registryId": "S14",
+      "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+      "scopeSha256": "8049b115432c6db5d6ddf3454847851b167fb4efa6374f19a5e92ad738361557",
+      "segments": [
+       {
+        "endSeconds": 1.32,
+        "startSeconds": 0.16,
+        "text": "bao nhiêu tuổi thì uống được bác"
+       },
+       {
+        "endSeconds": 3.08,
+        "startSeconds": 1.48,
+        "text": "uống kẽm đánh cầu bình thường đúng không ạ"
+       },
+       {
+        "endSeconds": 4.24,
+        "startSeconds": 3.24,
+        "text": "tuổi dậy thì uống được không"
+       },
+       {
+        "endSeconds": 5.28,
+        "startSeconds": 4.36,
+        "text": "làm đêm gì cũng uống được không"
+       },
+       {
+        "endSeconds": 6.88,
+        "startSeconds": 5.32,
+        "text": "uống kẽm dạng nén siêu tiện lợi và tốt"
+       },
+       {
+        "endSeconds": 8.121,
+        "startSeconds": 6.881,
+        "text": "nhưng có phải AI cũng uống được không"
+       },
+       {
+        "endSeconds": 9.4,
+        "startSeconds": 8.2,
+        "text": "bao nhiêu tuổi uống thì hợp lý"
+       },
+       {
+        "endSeconds": 11.12,
+        "startSeconds": 9.44,
+        "text": "các cháu xem hết video này Cho bác nhé"
+       },
+       {
+        "endSeconds": 12.28,
+        "startSeconds": 11.2,
+        "text": "Theo các chuyên gia y tế khuyến cáo"
+       },
+       {
+        "endSeconds": 14.08,
+        "startSeconds": 12.32,
+        "text": "lượng kẽm bổ sung Cho mỗi người lớn tối đa là"
+       },
+       {
+        "endSeconds": 15.28,
+        "startSeconds": 14.16,
+        "text": "40mg trên một ngày"
+       },
+       {
+        "endSeconds": 17.04,
+        "startSeconds": 15.48,
+        "text": "kẽm dạng nén này với hàm lượng kẽm Cao"
+       },
+       {
+        "endSeconds": 18.88,
+        "startSeconds": 17.36,
+        "text": "thường chỉ phù hợp với người trên 15 tuổi"
+       },
+       {
+        "endSeconds": 19.72,
+        "startSeconds": 18.92,
+        "text": "và người trưởng thành thôi"
+       },
+       {
+        "endSeconds": 22.24,
+        "startSeconds": 20.12,
+        "text": "vì dưới 15 tuổi nhu cầu bổ sung kẽm chưa nhiều"
+       },
+       {
+        "endSeconds": 23.48,
+        "startSeconds": 22.36,
+        "text": "vì chỉ cần ăn uống đầy đủ"
+       },
+       {
+        "endSeconds": 25.48,
+        "startSeconds": 23.56,
+        "text": "BA bữa chính là đáp ứng nhu cầu cần nạp rồi"
+       },
+       {
+        "endSeconds": 26.8,
+        "startSeconds": 25.72,
+        "text": "thanh thiên niên và người trưởng thành"
+       },
+       {
+        "endSeconds": 28.08,
+        "startSeconds": 26.84,
+        "text": "thì cần nhiều kẽm hơn"
+       },
+       {
+        "endSeconds": 29.84,
+        "startSeconds": 28.2,
+        "text": "thanh thiên niên là giai đoạn phát triển mạnh mẽ"
+       },
+       {
+        "endSeconds": 31.12,
+        "startSeconds": 29.92,
+        "text": "nên kẽm hỗ trợ phát triển thể chất"
+       },
+       {
+        "endSeconds": 32.64,
+        "startSeconds": 31.24,
+        "text": "tăng cường chiều Cao và phát triển xương"
+       },
+       {
+        "endSeconds": 35,
+        "startSeconds": 32.76,
+        "text": "nhờ tham gia vào quá trình tạo mô và phát triển tế bào"
+       },
+       {
+        "endSeconds": 36,
+        "startSeconds": 35.12,
+        "text": "thúc đẩy phát triển cơ bắp"
+       },
+       {
+        "endSeconds": 37.32,
+        "startSeconds": 36.4,
+        "text": "biệt là ở tuổi dậy thì"
+       },
+       {
+        "endSeconds": 39,
+        "startSeconds": 37.4,
+        "text": "kem cũng hỗ trợ tăng cường hệ thống miễn dịch"
+       },
+       {
+        "endSeconds": 41.56,
+        "startSeconds": 39.12,
+        "text": "giảm nguy cơ cảm cúm nhiễm trùng hỗ trợ chức năng não bộ"
+       },
+       {
+        "endSeconds": 42.84,
+        "startSeconds": 41.68,
+        "text": "tăng cường sự tập trung và trí nhớ"
+       },
+       {
+        "endSeconds": 44.68,
+        "startSeconds": 42.96,
+        "text": "thành thiêu niên thì bác khuyên 2 đến BA ngày mới uống"
+       },
+       {
+        "endSeconds": 46.08,
+        "startSeconds": 44.84,
+        "text": "một viên kẽm còn người trưởng thành"
+       },
+       {
+        "endSeconds": 47,
+        "startSeconds": 46.12,
+        "text": "thì mỗi ngày một viên"
+       },
+       {
+        "endSeconds": 49.8,
+        "startSeconds": 47.08,
+        "text": "bổ sung đúng và đủ phù hợp với nhu cầu của mỗi người thôi"
+       },
+       {
+        "endSeconds": 52.04,
+        "startSeconds": 49.88,
+        "text": "AI có nhu cầu thì tham khảo anh kẽm dsd này nhé"
+       },
+       {
+        "endSeconds": 55.04,
+        "startSeconds": 52.16,
+        "text": "trong mỗi viên kẽm này có chứa 120mg kẽm gluconat"
+       },
+       {
+        "endSeconds": 56.72,
+        "startSeconds": 55.12,
+        "text": "tương đương với 17mg kẽm nguyên tố"
+       },
+       {
+        "endSeconds": 59.16,
+        "startSeconds": 56.84,
+        "text": "chất lượng thì yên tâm vì đã có giấy kiểm định uy tín rồi"
+       },
+       {
+        "endSeconds": 59.801,
+        "startSeconds": 59.161,
+        "text": "hàng chính hãng"
+       },
+       {
+        "endSeconds": 61.241,
+        "startSeconds": 59.802,
+        "text": "các cháu có thể mua trong giỏ hàng của bác"
+       },
+       {
+        "endSeconds": 63.801,
+        "startSeconds": 61.242,
+        "text": "còn cần bác tư vấn gì thêm thì cứ nhắn tin Cho bác nhé"
+       }
+      ],
+      "sourceSetSha256": "161771987181fdd3ddf3ef9621d0c3c1ffaa063b8f4befae6ad2d0f5ee060b9b",
+      "state": "PREPARED_NOT_ADMITTED",
+      "video": {
+       "aboutProduct": true,
+       "durationSeconds": 64,
+       "origin": "EXPANDED_SEARCH",
+       "videoId": "7472367489947602194",
+       "videoKind": "SELLER_VIDEO",
+       "videoUrl": "https://www.tiktok.com/@bacluongdinhduongthan/video/7472367489947602194"
+      },
+      "voice": "SELLER",
+      "workspaceId": "bc412bc5-5693-48b1-a949-85215b5cc414"
+     }
+    }
+   ]
+  },
+  {
+   "packageId": "e45208b4-5042-434c-9003-b6eb751b50f5",
+   "packageKey": "automation-video-watch:f0f4799a-f9b3-4204-91b2-682ab79d0fce-7690943902592912660-1dcc36cf95d3c94c",
+   "sourceLabel": "Lời nói trong video bán hàng và video đánh giá sản phẩm (lấy từ phụ đề có sẵn)",
+   "finalizedAt": "2026-10-26T02:04:49.838Z",
+   "files": [
+    {
+     "logicalPath": "reading.json",
+     "artifactSha256": "1dcc36cf95d3c94c6e65fbbfd831deeef7d7dd6b245a2a95f79c98d07e0899dd",
+     "mediaType": "application/json",
+     "content": {
+      "candidatesSha256": "fa6e326422c465af17da3b1897c6844e4fe1f83415e9e6ff15cfff1e5df4874d",
+      "captionSource": "NATIVE_SUBTITLE",
+      "contractVersion": "video-reading-v3",
+      "limitations": [
+       "Lấy từ phụ đề có sẵn của video, chưa có người kiểm tra.",
+       "Đây là lời người bán hoặc người làm video đánh giá, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng."
+      ],
+      "media": {
+       "byteSize": 2399,
+       "downloadedAt": "2026-10-26T02:04:45.064Z",
+       "durationSeconds": 60,
+       "sha256": "0559dc3c59bcc1c057633f277088781c0ab658c92e7131e71f3d0deac6cecf2c"
+      },
+      "model": {
+       "modelId": "gemini-3.8-flash-high",
+       "responseSha256": "74f3adfc8e40ab34d7e38e4df1033ec50f84463cf892f4459f5b738b34a46ee0"
+      },
+      "onScreenText": [],
+      "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+      "registryId": "S14",
+      "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+      "scopeSha256": "8049b115432c6db5d6ddf3454847851b167fb4efa6374f19a5e92ad738361557",
+      "segments": [
+       {
+        "endSeconds": 3.44,
+        "startSeconds": 0.12,
+        "text": "Cho em Xin hỏi chút ạ cả Nam và nữ có dùng được không chị"
+       },
+       {
+        "endSeconds": 6.12,
+        "startSeconds": 3.64,
+        "text": "thì cái viên uống kẽm của thương hiệu DHC Nhật Bản này"
+       },
+       {
+        "endSeconds": 7.24,
+        "startSeconds": 6.36,
+        "text": "cả Nam và nữ"
+       },
+       {
+        "endSeconds": 10.08,
+        "startSeconds": 7.32,
+        "text": "từ 15 tuổi trở lên là đều có thể sử dụng được nha"
+       },
+       {
+        "endSeconds": 12.48,
+        "startSeconds": 10.48,
+        "text": "đối với các bạn nữ khi mà mình uống kẽm vào"
+       },
+       {
+        "endSeconds": 14.32,
+        "startSeconds": 12.52,
+        "text": "nó sẽ hỗ trợ Cho mình kiềm dầu này"
+       },
+       {
+        "endSeconds": 15.121,
+        "startSeconds": 14.321,
+        "text": "hết mụn này"
+       },
+       {
+        "endSeconds": 17.72,
+        "startSeconds": 15.28,
+        "text": "đẹp da này cải thiện vấn đề tóc rụng và móng giòn"
+       },
+       {
+        "endSeconds": 20.32,
+        "startSeconds": 17.88,
+        "text": "còn đối với Nam giới thì kẽm nó là một cái trợ thủ đắc lực"
+       },
+       {
+        "endSeconds": 22.72,
+        "startSeconds": 20.72,
+        "text": "để hỗ trợ mình nâng Cao sức khỏe phong độ này"
+       },
+       {
+        "endSeconds": 24.48,
+        "startSeconds": 22.88,
+        "text": "giúp mình bớt cái cảm giác mệt mỏi"
+       },
+       {
+        "endSeconds": 26.2,
+        "startSeconds": 24.52,
+        "text": "uể oải khi mà mình vận động nhiều"
+       },
+       {
+        "endSeconds": 28,
+        "startSeconds": 26.4,
+        "text": "hoặc là mình chơi thể thao tập gym"
+       },
+       {
+        "endSeconds": 30.2,
+        "startSeconds": 28.16,
+        "text": "một gói như thế này thì nó sẽ có"
+       },
+       {
+        "endSeconds": 33.04,
+        "startSeconds": 30.36,
+        "text": "30 viên ở bên trong tương đương với 30 ngày sử dụng"
+       },
+       {
+        "endSeconds": 34.36,
+        "startSeconds": 33.32,
+        "text": "tức là mỗi một ngày"
+       },
+       {
+        "endSeconds": 37.8,
+        "startSeconds": 35.6,
+        "text": "mình sẽ uống một viên như thế này nha"
+       },
+       {
+        "endSeconds": 39.6,
+        "startSeconds": 38.16,
+        "text": "đó một viên kẽm như thế này"
+       },
+       {
+        "endSeconds": 40.88,
+        "startSeconds": 39.76,
+        "text": "tính Ra rất là rẻ nha"
+       },
+       {
+        "endSeconds": 42.801,
+        "startSeconds": 40.881,
+        "text": "mỗi ngày mọi người chỉ mất có vài nghìn đồng thôi"
+       },
+       {
+        "endSeconds": 45.001,
+        "startSeconds": 42.802,
+        "text": "rẻ hơn cả một cốc trà đá luôn"
+       },
+       {
+        "endSeconds": 48.16,
+        "startSeconds": 45.16,
+        "text": "hàm lượng kẽm là 15mg trên một ngày và cái hàm lượng này á"
+       },
+       {
+        "endSeconds": 50.44,
+        "startSeconds": 48.44,
+        "text": "thì nó đáp ứng Theo cái tiêu chuẩn khuyến nghị"
+       },
+       {
+        "endSeconds": 51.84,
+        "startSeconds": 50.48,
+        "text": "dành Cho người trưởng thành"
+       },
+       {
+        "endSeconds": 53.8,
+        "startSeconds": 52.24,
+        "text": "nên là mọi người uống nó sẽ rất là an"
+       },
+       {
+        "endSeconds": 55.16,
+        "startSeconds": 53.88,
+        "text": "toàn và không lo dư thừa nhá"
+       },
+       {
+        "endSeconds": 56.6,
+        "startSeconds": 55.28,
+        "text": "và một liệu trình thì mọi người nên"
+       },
+       {
+        "endSeconds": 57.921,
+        "startSeconds": 56.601,
+        "text": "cố gắng uống 23"
+       },
+       {
+        "endSeconds": 60,
+        "startSeconds": 58,
+        "text": "tháng để mình cảm nhận được cái hiệu quả Cao nha"
+       }
+      ],
+      "sourceSetSha256": "161771987181fdd3ddf3ef9621d0c3c1ffaa063b8f4befae6ad2d0f5ee060b9b",
+      "state": "PREPARED_NOT_ADMITTED",
+      "video": {
+       "aboutProduct": true,
+       "durationSeconds": 60,
+       "origin": "EXPANDED_SEARCH",
+       "videoId": "7690943902592912660",
+       "videoKind": "SELLER_VIDEO",
+       "videoUrl": "https://www.tiktok.com/@imochi.vn/video/7690943902592912660"
+      },
+      "voice": "SELLER",
+      "workspaceId": "bc412bc5-5693-48b1-a949-85215b5cc414"
+     }
+    }
+   ]
+  },
+  {
+   "kind": "modelCall",
+   "captureId": "video-watch-0001",
+   "operation": "videowatch.generate",
+   "endpoint": "/v1beta/models/gemini-3.8-flash-high:generateContent",
+   "method": "POST",
+   "requestParameters": {
+    "mimeType": "video/mp4",
+    "model": "gemini-3.8-flash-high",
+    "requestSha256": "fbdc8edc6c454a91eefe5e5962697926ad34630e125dd9f3faa7c11d61471a83",
+    "videoByteSize": 2947303,
+    "videoSha256": "2f6e6b8baf3daeeaabeec119055054d738fb4b8f039083d0a5114c9f43d9eac3"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:04:01.352Z",
+   "completedAt": "2026-10-26T02:04:31.971Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": null,
+   "billing": "PAID_CREDITS",
+   "responseSha256": "d7961c4540a831e2ead3a6e266af790de54d0d33248f3b0de1b95bf1c91331c0",
+   "response": {
+    "candidates": [
+     {
+      "content": {
+       "role": "model",
+       "parts": [
+        {
+         "thoughtSignature": "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",
+         "text": "{\n  \"aboutProduct\": true,\n  \"videoKind\": \"REVIEW_VIDEO\",\n  \"segments\": [\n    {\n      \"startSecond\": 0.0,\n      \"endSecond\": 4.6,\n      \"speech\": \"Bây giờ là 5:30 sáng, trời hôm nay mùa hè nên là sáng rất là sớm.\"\n    },\n    {\n      \"startSecond\": 4.6,\n      \"endSecond\": 7.4,\n      \"speech\": \"Chúng ta bắt đầu ngày mới bằng một viên kẽm ở đây nhá.\"\n    },\n    {\n      \"startSecond\": 7.4,\n      \"endSecond\": 9.9,\n      \"speech\": \"Tại sao lại phải uống kẽm trước ăn sáng?\"\n    },\n    {\n      \"startSecond\": 10.3,\n      \"endSecond\": 13.5,\n      \"speech\": \"Thì để chúng ta có thể hấp thu vi chất của kẽm tốt hơn.\"\n    },\n    {\n      \"startSecond\": 13.5,\n      \"endSecond\": 17.1,\n      \"speech\": \"Bác sĩ Biên thì thường uống khoảng trước 30 phút một viên bé tí này thôi.\"\n    },\n    {\n      \"startSecond\": 17.1,\n      \"endSecond\": 20.3,\n      \"speech\": \"Nhiều người mà gặp phải tình trạng là hay nhiệt miệng này,\"\n    },\n    {\n      \"startSecond\": 20.3,\n      \"endSecond\": 21.6,\n      \"speech\": \"hay mụn nội tiết,\"\n    },\n    {\n      \"startSecond\": 21.6,\n      \"endSecond\": 24.3,\n      \"speech\": \"cứ nghĩ là do nóng trong, nhưng mà hãy thử bổ sung kẽm.\"\n    },\n    {\n      \"startSecond\": 24.3,\n      \"endSecond\": 26.6,\n      \"speech\": \"Cái loại viên kẽm này có bổ sung thêm vitamin C,\"\n    },\n    {\n      \"startSecond\": 26.6,\n      \"endSecond\": 29.8,\n      \"speech\": \"xem cái tình trạng mụn rồi cái tình trạng nhiệt miệng nó có cải thiện không nha.\"\n    },\n    {\n      \"startSecond\": 29.8,\n      \"endSecond\": 32.2,\n      \"speech\": \"Trước khi ăn 30 phút thì làm viên kẽm đã.\"\n    },\n    {\n      \"startSecond\": 33.7,\n      \"endSecond\": 37.6,\n      \"speech\": \"Loại kẽm bác sĩ Biên đang dùng là kẽm Pino nhập khẩu từ Anh.\"\n    },\n    {\n      \"startSecond\": 37.6,\n      \"endSecond\": 43.1,\n      \"speech\": \"Đấy, nó là kẽm citrate, kẽm hữu cơ, nên là chúng ta có thể uống lúc bụng đói được, không vấn đề gì cả.\"\n    },\n    {\n      \"startSecond\": 43.1,\n      \"endSecond\": 48.1,\n      \"speech\": \"Với những ai mà uống xong có cảm giác tình trạng là nôn nao sau khi uống thì chúng ta uống sau bữa ăn.\"\n    }\n  ],\n  \"onScreenText\": [\n    {\n      \"startSecond\": 0.0,\n      \"endSecond\": 4.5,\n      \"text\": \"5:30 AM\"\n    },\n    {\n      \"startSecond\": 7.4,\n      \"endSecond\": 9.9,\n      \"text\": \"TẠI SAO PHẢI UỐNG KẼM TRƯỚC ĂN SÁNG\"\n    },\n    {\n      \"startSecond\": 10.3,\n      \"endSecond\": 12.3,\n      \"text\": \"THÌ ĐỂ CHÚNG TA CÓ THỂ\"\n    },\n    {\n      \"startSecond\": 12.3,\n      \"endSecond\": 13.5,\n      \"text\": \"HẤP THỤ VI CHẤT CỦA KẼM TỐT HƠN.\"\n    },\n    {\n      \"startSecond\": 14.1,\n      \"endSecond\": 15.6,\n      \"text\": \"BÁC SĨ BIÊN THÌ THƯỜNG UỐNG\"\n    },\n    {\n      \"startSecond\": 15.6,\n      \"endSecond\": 17.1,\n      \"text\": \"KHOẢNG TRƯỚC 30 PHÚT MỘT VIÊN BÉ TÍ NÀY THÔI.\"\n    },\n    {\n      \"startSecond\": 17.1,\n      \"endSecond\": 18.9,\n      \"text\": \"NHIỀU NGƯỜI MÀ GẶP PHẢI TÌNH TRẠNG\"\n    },\n    {\n      \"startSecond\": 18.9,\n      \"endSecond\": 19.9,\n      \"text\": \"LÀ HAY NHIỆT MIỆNG NÀY\"\n    },\n    {\n      \"startSecond\": 19.9,\n      \"endSecond\": 21.0,\n      \"text\": \"HAY MỤN NỘI TIẾT\"\n    },\n    {\n      \"startSecond\": 21.0,\n      \"endSecond\": 22.8,\n      \"text\": \"CỨ NGHĨ LÀ DO NÓNG TRONG\"\n    },\n    {\n      \"startSecond\": 22.8,\n      \"endSecond\": 24.1,\n      \"text\": \"NHƯNG MÀ HÃY THỬ BỔ SUNG KẼM\"\n    },\n    {\n      \"startSecond\": 24.1,\n      \"endSecond\": 25.4,\n      \"text\": \"LOẠI VIÊN KẼM NÀY\"\n    },\n    {\n      \"startSecond\": 25.4,\n      \"endSecond\": 26.5,\n      \"text\": \"CÓ BỔ SUNG THÊM VITAMIN C\"\n    },\n    {\n      \"startSecond\": 25.5,\n      \"endSecond\": 26.6,\n      \"text\": \"VITAMIN C\"\n    },\n    {\n      \"startSecond\": 26.5,\n      \"endSecond\": 27.8,\n      \"text\": \"XEM CÁI TÌNH TRẠNG MỤN\"\n    },\n    {\n      \"startSecond\": 27.8,\n      \"endSecond\": 29.0,\n      \"text\": \"RỒI CÁI TÌNH TRẠNG NHIỆT MIỆNG\"\n    },\n    {\n      \"startSecond\": 29.0,\n      \"endSecond\": 29.8,\n      \"text\": \"NÓ CÓ CẢI THIỆN KHÔNG NHA\"\n    },\n    {\n      \"startSecond\": 29.8,\n      \"endSecond\": 32.2,\n      \"text\": \"TRƯỚC KHI ĂN 30 PHÚT THÌ LÀM VIÊN KẼM ĐÃ.\"\n    },\n    {\n      \"startSecond\": 32.2,\n      \"endSecond\": 34.2,\n      \"text\": \"PLAY\"\n    },\n    {\n      \"startSecond\": 34.2,\n      \"endSecond\": 36.3,\n      \"text\": \"LOẠI KẼM BÁC SĨ BIÊN ĐANG DÙNG LÀ KẼM PINO\"\n    },\n    {\n      \"startSecond\": 36.3,\n      \"endSecond\": 37.6,\n      \"text\": \"NHẬP KHẨU TỪ ANH\"\n    },\n    {\n      \"startSecond\": 37.6,\n      \"endSecond\": 39.7,\n      \"text\": \"NÓ LÀ KẼM CITRATE KẼM HỮU CƠ\"\n    },\n    {\n      \"startSecond\": 39.7,\n      \"endSecond\": 41.9,\n      \"text\": \"NÊN LÀ CHÚNG TA CÓ THỂ UỐNG LÚC BỤNG ĐÓI ĐƯỢC\"\n    },\n    {\n      \"startSecond\": 41.9,\n      \"endSecond\": 43.1,\n      \"text\": \"KHÔNG VẤN ĐỀ GÌ CẢ.\"\n    },\n    {\n      \"startSecond\": 43.1,\n      \"endSecond\": 44.5,\n      \"text\": \"VỚI NHỮNG AI MÀ UỐNG XONG\"\n    },\n    {\n      \"startSecond\": 44.5,\n      \"endSecond\": 46.1,\n      \"text\": \"CÓ CẢM GIÁC TÌNH TRẠNG LÀ NÔN NAO\"\n    },\n    {\n      \"startSecond\": 46.1,\n      \"endSecond\": 47.0,\n      \"text\": \"SAU KHI UỐNG\"\n    },\n    {\n      \"startSecond\": 47.0,\n      \"endSecond\": 48.1,\n      \"text\": \"THÌ CHÚNG TA UỐNG SAU BỮA ĂN.\"\n    }\n  ]\n}"
+        }
+       ]
+      },
+      "finishReason": "STOP"
+     }
+    ],
+    "usageMetadata": {
+     "promptTokenCount": 4678,
+     "candidatesTokenCount": 2262,
+     "totalTokenCount": 8276,
+     "thoughtsTokenCount": 1336
+    },
+    "modelVersion": "gemini-3.8-flash-n",
+    "responseId": "FbXeaofvIJfI2roP57KpyAQ"
+   },
+   "step": "COLLECTION",
+   "captureArtifactSha256": "97bf33313cd5753fc98c9b04d6171ea4bd65c1c85dd5bbab0070627725dc167c"
+  },
+  {
+   "kind": "modelCall",
+   "captureId": "video-watch-0001",
+   "operation": "videowatch.generate",
+   "endpoint": "/v1beta/models/gemini-3.8-flash-high:generateContent",
+   "method": "POST",
+   "requestParameters": {
+    "captionChars": 1514,
+    "captionSha256": "470d538d3bac9f3151d15ee9e52b9af35a3f2e35b219027fd4d1a34142403ac6",
+    "model": "gemini-3.8-flash-high",
+    "requestSha256": "5d6018cf48cf72f34327912e28f939790decd3f7edc26467d88eb8075024e71b"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:04:36.280Z",
+   "completedAt": "2026-10-26T02:04:43.176Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": null,
+   "billing": "PAID_CREDITS",
+   "responseSha256": "b4cbfdf96e95bceab0ea708b09f80216bc60097a415d6c4a5ddabeaaca825d71",
+   "response": {
+    "candidates": [
+     {
+      "content": {
+       "role": "model",
+       "parts": [
+        {
+         "thoughtSignature": "EoUFCoIFAWkUfRPFPdFHEo3mbcwF0mqJhD3go0nYeMK6kOzZDfaOX48V3WLp5LwHLzyGky6voombnZ0qLHPAsuW8ntEvkLuu3ml/8izCtBsYhRQx3HRrHccqxeaCaLLot8ankbWZ7rmNltDOb+rH3v8W3mc3R0ENhDCmLTWfywUz8O2Uhiozti37KFOYHog6pD+n6F9xdeTog29EpgF5X5YpGMKU1VgBc9NcfMgiihVzPajYyrBUbgf+pmiY2LvxKEy72PNFAfnAQdAnPrbOAbcZ/IXEzzn+UJXOIezOoa1+w9JaOndq++sGG5bZnYAjeuiaM7e/akA4c+mrrsY+TneuiXR4vnSOr0Xm51bxKiINy5o1ki/7czyHPf3/583UzN6VY77NKD7o+5uZ4ypsQchAvHPCNe1eL16Xo6Sjh9pcTrUx+MdqVhuoxYO4P5p1rElaQVk9bhMVx8SLzEf9av9E5wxcj1SCDwDn1tEEHBh9DJHNICyKblmi6QpIfjyFhzFZUNSrNW9r4sPLe6rGiCSuuqiGimsAC6ZjXF1cWl5kCumrmtpi3lLatwZSCOiv6dwcG7AtXYe1QzirUGrzBNrIRbgUua01QEd9hRmvPs7gN03ahouvZLGVE2McIG7OiW5Sw2N70cusJX6JUIaJON+YScXQfp+lMdYk6UO4U0rszYvKO39hUxdCK5ieypiEAFWt/NqiWMUQPII+Wy2FmjG2Bv00uzxzTxRWeea1pxYz/5WQJI7kZoJ3kkTxasXKmBvBm1BiUBEhR1mwJIH4WItlrfnz8QiZyC7y0rv946jfViovsJD7ctyV6Vp6T2uNVygH5/fbx51JBdvWI9Z6KHd38TQ2yhHn",
+         "text": "{\"aboutProduct\": true, \"videoKind\": \"SELLER_VIDEO\"}"
+        }
+       ]
+      },
+      "finishReason": "STOP"
+     }
+    ],
+    "usageMetadata": {
+     "promptTokenCount": 659,
+     "candidatesTokenCount": 16,
+     "totalTokenCount": 820,
+     "thoughtsTokenCount": 145
+    },
+    "modelVersion": "gemini-3.8-flash-n",
+    "responseId": "OLXeatmgFOTlosUPruSDiAc"
+   },
+   "step": "COLLECTION",
+   "captureArtifactSha256": "9c99c846268ccac7abeb6041efaa1d8c066f24e09a8fba3d0c0a187172edc1fb"
+  },
+  {
+   "kind": "modelCall",
+   "captureId": "video-watch-0001",
+   "operation": "videowatch.generate",
+   "endpoint": "/v1beta/models/gemini-3.8-flash-high:generateContent",
+   "method": "POST",
+   "requestParameters": {
+    "captionChars": 1100,
+    "captionSha256": "b1abd73d74afe5c0ef1c3414f8295f91bc0e960c4fc5f441c6d2af87d5e90cbf",
+    "model": "gemini-3.8-flash-high",
+    "requestSha256": "29a7664d38a11624f5a35b81adb5bf7d30a9db5bfe6e676f49ed92efa1eda5ad"
+   },
+   "queryWindow": null,
+   "productRef": null,
+   "requestedAt": "2026-10-26T02:04:45.066Z",
+   "completedAt": "2026-10-26T02:04:49.823Z",
+   "httpStatus": 200,
+   "outcome": "OK",
+   "providerCode": null,
+   "billing": "PAID_CREDITS",
+   "responseSha256": "74f3adfc8e40ab34d7e38e4df1033ec50f84463cf892f4459f5b738b34a46ee0",
+   "response": {
+    "candidates": [
+     {
+      "content": {
+       "role": "model",
+       "parts": [
+        {
+         "thoughtSignature": "EoIICv8HAWkUfRO5rdg9gqWlEKQ8R4KrwVouG+7eNJAu0FuYr88lkgLPDiJ8WIwgdxevNB/GUc2iUGDjjb+1SQeh06i+RGPBMpjEzNtuJk+umApL0s0ieZD9QTiNPX2LR7Bp7avXjXAr3+QKzzlw2DorlwbHYALHWBc9T5abgQLJL62HOBAZemdCijLeegVWb8kWHp1dETExW/Hwv9cMROaS41imsfdarXaAnIpjRxux9O5fQ9iExT+Itlrq3BfgWgzqQHvukccWEqhxVBVuC2mSaufjX6cQRGcBKFO5zUHziWd0ZKYZEIiP7i8KywkqVFf7W/rQyY6D8qdMQ2ZmBeUaRuNUIGrexmZ110o+aUnsgPsrNoBX189wXcFJKvoKZqf0mkEkAVGyi7NTlUfmoUdczT78RMTWFg5O/9XyCwUEY88SmLI0LYvpvgWfYqliNaTTXX0vTmiKR27AkLCvT1AsgXG24jGPrmBLEHycv78so+nXb6irMmBmjvgVQ6UjkKnr6urjZ9C27+oZpj7Mh/WShWusRnOsLs4evMU+9zN7qOyGHhhPbou5zjdmWEZxXenh3gcrRXF9CM06QMvRrDjojHs60SYsLlDSplCmY1iH+0PVy6bsYt361VKLaKkU7epzQY4VDmEB8KsU+WSs+BNlVUwaHaWRLu53MoB+M0xzxHbotx95U3+OR1aYnajdUVV4KLliQPJrUSuM2Cs3SifZf+SuVI63/9deVbRJj7fCmr9onjndEO5gdh6YWCvEW4qXa9rS/OM4k6wROxsaBHzMpTJi6zdO1gTq5IiIO9feJkYkmLffXFjMDdgOBnxXwG7brNxUq5HmEAl8RkI0ZOhmM8Zb5ChCj9ANIxyDIkSrUAVk6Ry2L7V10pp3rasQQPUEBpmMmf1iLm1oFpmfDAydYtuDR+++SrfyAqbFfoQ4fciWXTOtaLzdeBV91JSo5sG3cy+HfuJtYe5gEkzIqrgLdMuQJ/KuAUcVGHMGtErS0egSjI+kvf0KWYHjOmrrdTqcpL87M4dfwG9A5QxSk8HkYcRyet4LqUomDpyCam0TiKz1qSPb91bid5yPXdkN/LEnt4um3H9qTmEdomodqrY6lFMJcxeFdaV4zJ+IFB3A68mvyFM6wrTv8x+nyu7Bgcb1bWwsyO97ZCCHY3m2+WNaN4frVL/GGC523ym2xhLFrljNMy9E1tHpBmB5NcHqV/zdppLlnuZzo78didXXVKWiUNaFsiCadNs12DJ/P9UrduEk/KYfycsHd6v9PgbESHhDIiCc/eeDb6FMirhiMneXzvit77wybeF18XiS0Qjh7urCoNfsMPXcwu/VdDeV3MwHeTRX3bPUi8DsTH6NcO1wZAAg",
+         "text": "{\"aboutProduct\":true,\"videoKind\":\"SELLER_VIDEO\"}"
+        }
+       ]
+      },
+      "finishReason": "STOP"
+     }
+    ],
+    "usageMetadata": {
+     "promptTokenCount": 547,
+     "candidatesTokenCount": 14,
+     "totalTokenCount": 768,
+     "thoughtsTokenCount": 207
+    },
+    "modelVersion": "gemini-3.8-flash-n",
+    "responseId": "P7Xeat3tCuXirfcPje_L-QI"
+   },
+   "step": "COLLECTION",
+   "captureArtifactSha256": "54cbe5b313e76021dead9e3a7f963f4bdca1c360cc8da3c10d959ae6671b217f"
+  }
+ ]
+}

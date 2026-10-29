@@ -1,0 +1,415 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "describe": "Kết quả Google cho câu «Dhc trang chủ chính hãng»",
+  "parentFile": "07-S19-google-tim-kiem.json",
+  "parentLocation": "records[4]",
+  "sourceCode": "S19 (gồm S13, S26)",
+  "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "provider": "SerpApi engine=google",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Kết quả Google lúc thu"
+  },
+  "limits": [
+   "App chỉ đọc organic_results; các khối khác giữ trong bản gốc",
+   "ai_overview có thể chỉ là page_token (xem file 14)"
+  ],
+  "resultSha256": "81ebd669c9c750612a007dd19bccd4f5d9749a120bd54a0163a91b2b6b4b2670"
+ },
+ "result": {
+  "captureId": "serpapi-expanded-1-serpapi-0001",
+  "operation": "serpapi.google.search",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "engine": "google",
+   "gl": "vn",
+   "hl": "vi",
+   "num": 10,
+   "q": "Dhc trang chủ chính hãng"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:03:07.707Z",
+  "completedAt": "2026-10-26T02:03:08.661Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb4db9361511e5c06fa48",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "6797f46c67a82b2eae543cb6f2590c0ecf6379fe45b4a5c52c358aba8af8c92e",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb4db9361511e5c06fa48",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/fnH9ZXsYipSLaiH23_goyyQmOJURtlCZIhz_KCRRJg8/6adeb4db9361511e5c06fa48.json",
+    "markdown_endpoint": "https://serpapi.com/searches/fnH9ZXsYipSLaiH23_goyyQmOJURtlCZIhz_KCRRJg8/6adeb4db9361511e5c06fa48.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/fnH9ZXsYipSLaiH23_goyyQmOJURtlCZIhz_KCRRJg8/6adeb4db9361511e5c06fa48.json_with_pixel_position",
+    "created_at": "2026-10-26 02:03:07 UTC",
+    "processed_at": "2026-10-26 02:03:07 UTC",
+    "google_url": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&oq=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&hl=vi&gl=vn&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/fnH9ZXsYipSLaiH23_goyyQmOJURtlCZIhz_KCRRJg8/6adeb4db9361511e5c06fa48.html",
+    "total_time_taken": 0.37
+   },
+   "search_parameters": {
+    "engine": "google",
+    "q": "Dhc trang chủ chính hãng",
+    "google_domain": "google.com",
+    "hl": "vi",
+    "gl": "vn",
+    "device": "desktop"
+   },
+   "search_information": {
+    "query_displayed": "Dhc trang chủ chính hãng",
+    "total_results": 177,
+    "time_taken_displayed": 0.2,
+    "organic_results_state": "Results for exact spelling"
+   },
+   "ai_overview": {
+    "page_token": "IRVvZ3iczVXbcqpIFP2BqfmL8JJEUBLFVFGnmoukgSTgJVFfKARsMAIGEEbf5l_mq-ZrTnNRMdGcnLzM7Cro2-59X73__mfpBa___vGnmySr-I4ksyxroDBES6dhhT5pxpvAIufhMo4s9wdasmlAuPjvEXG4jizHs1nLjULfITYpSxNWzFKE47G0OnTMkGZAtHmL1qLGrJzJRqeIQhxrzMzYWWBtfy1i0iDx7_WCFvCiETdSr3Hdpbox0-9Et1mjRbXoxhNp-pgB_BcUQgDxMAD8p2wI9L4mT8SfB8BrbUuvRHOHrUm1EgGfX-BzBScJ5owoP0awtAOTxkyYjAJA0PfWfUIQ6IeFurck1zvIjz-9_JH2XlQB-TxuZ45hKUo_MNVs5D7y7yg7WilYkAaE-o3DjK_01AQXccxVcxkQMgeJDyJXOz5pPO-BpykQOfgZ3075qLuXB_kEq-ZIG-HKpshZhIcm6VmuVUyiOC94ftilQjHYCjrd1Kaj3rajPaZOCpr8-I3rKh1AWjPMtwxN27EN16B-FOtmq9nptqn2zVWBNCveQy2uQ01DXTmR5jfQfWioDa65wxlfJn9n6LEPunLSU8SVET1XLOhd1vZhFbm6MsBXAvo5SDDX5Eg_jyhg1bjyhD9MgIpgvUrF2uwUzgrijib4yqgwE5WIKqiuGeIqgmHdnxoJH71GpYewLknkqvLkc3wXJFWWgfdxhhwsRejvzN07wwlKXkAFzpR15doTqLlv8nLh0bEzCDNAvdqHJfsuMHz9LcjdFSE-E0eYlx_0XCCLlXyk55KVijMf9XoW8_ydJhEJxfv3TRp9iYsDOzy9g0cdVlK2ncYoGLbl4f0qfh1AZuapsrx8HvfBaRiF_uw3Wpb1PwXarqGhMunngWaDLwGtaGingcbtf_WGNirkInQWaFxeeacb2u59PxhxAmhQ7B-AVjU06VxD-32gFc6dB9oOFKeAxg2qs2Ogrc4DLXsPNDgXjxraAWjHDW0HtG82tNH3G1oBPKccjrvbeoHOdjlJ8--RNkylwHWs9H610lvTZKuGyJb0X3a5uZ_c-aa9vDI8-45rycnGvjLwRnjn2MQbK7jWZRKZAbq03AuxecFxF6CTz3n6AgiBe1nO6AAR_jIKWcq8fVnFykh60TrTsWRMI09R50GS2RtGnRpT6ro3NpK0-YYkw5Q9ZbK8XZhqIKWMPGsOBo_bodbzFu3H8Y20iX3xFmp0z3zrTfvXz84608e8xOg9JGd6O11Js8krY8cvU59qGXS6UG82ncVCuO2bzLP80Nau14lbWBWzL0bvOpsgZvRoEX5ksThZN1sk6-AFl2CeYhk_DgquDQWPKh7VkAP6_QTouEHpQojTQ8SWaThxyrZmdIu2u615y7HmJsMQPko2K7ZLEXEQsc2fgB1mcg",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=IRVvZ3iczVXbcqpIFP2BqfmL8JJEUBLFVFGnmoukgSTgJVFfKARsMAIGEEbf5l_mq-ZrTnNRMdGcnLzM7Cro2-59X73__mfpBa___vGnmySr-I4ksyxroDBES6dhhT5pxpvAIufhMo4s9wdasmlAuPjvEXG4jizHs1nLjULfITYpSxNWzFKE47G0OnTMkGZAtHmL1qLGrJzJRqeIQhxrzMzYWWBtfy1i0iDx7_WCFvCiETdSr3Hdpbox0-9Et1mjRbXoxhNp-pgB_BcUQgDxMAD8p2wI9L4mT8SfB8BrbUuvRHOHrUm1EgGfX-BzBScJ5owoP0awtAOTxkyYjAJA0PfWfUIQ6IeFurck1zvIjz-9_JH2XlQB-TxuZ45hKUo_MNVs5D7y7yg7WilYkAaE-o3DjK_01AQXccxVcxkQMgeJDyJXOz5pPO-BpykQOfgZ3075qLuXB_kEq-ZIG-HKpshZhIcm6VmuVUyiOC94ftilQjHYCjrd1Kaj3rajPaZOCpr8-I3rKh1AWjPMtwxN27EN16B-FOtmq9nptqn2zVWBNCveQy2uQ01DXTmR5jfQfWioDa65wxlfJn9n6LEPunLSU8SVET1XLOhd1vZhFbm6MsBXAvo5SDDX5Eg_jyhg1bjyhD9MgIpgvUrF2uwUzgrijib4yqgwE5WIKqiuGeIqgmHdnxoJH71GpYewLknkqvLkc3wXJFWWgfdxhhwsRejvzN07wwlKXkAFzpR15doTqLlv8nLh0bEzCDNAvdqHJfsuMHz9LcjdFSE-E0eYlx_0XCCLlXyk55KVijMf9XoW8_ydJhEJxfv3TRp9iYsDOzy9g0cdVlK2ncYoGLbl4f0qfh1AZuapsrx8HvfBaRiF_uw3Wpb1PwXarqGhMunngWaDLwGtaGingcbtf_WGNirkInQWaFxeeacb2u59PxhxAmhQ7B-AVjU06VxD-32gFc6dB9oOFKeAxg2qs2Ogrc4DLXsPNDgXjxraAWjHDW0HtG82tNH3G1oBPKccjrvbeoHOdjlJ8--RNkylwHWs9H610lvTZKuGyJb0X3a5uZ_c-aa9vDI8-45rycnGvjLwRnjn2MQbK7jWZRKZAbq03AuxecFxF6CTz3n6AgiBe1nO6AAR_jIKWcq8fVnFykh60TrTsWRMI09R50GS2RtGnRpT6ro3NpK0-YYkw5Q9ZbK8XZhqIKWMPGsOBo_bodbzFu3H8Y20iX3xFmp0z3zrTfvXz84608e8xOg9JGd6O11Js8krY8cvU59qGXS6UG82ncVCuO2bzLP80Nau14lbWBWzL0bvOpsgZvRoEX5ksThZN1sk6-AFl2CeYhk_DgquDQWPKh7VkAP6_QTouEHpQojTQ8SWaThxyrZmdIu2u615y7HmJsMQPko2K7ZLEXEQsc2fgB1mcg"
+   },
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "DHC Việt Nam - Đại lý DHC Nhật Bản chính hãng tại Việt Nam",
+     "link": "https://dhcvietnam.com.vn/?srsltid=AYCX9vLPHA9dpwMoJZafft67_IfAMAlPlFPRpH06Ob8bQyKpHizIWmLq",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESlgEB6zswFUY42xMT1WxTL_Y7SlWGGvRZeo2uvRogYkX2CiwML7p3HdIGBA4aCxRwMR_vkPJRRvAzIYIlWWl-aeQA6uS8BuTysCVk5puer1Xcd0c2w8HxlXUFDgxF1BEJFPZocW31HeZ0a7kn-8YLQpHIVoZuDbtG-PPMMiMt2Db_1BQaZHHYlwixZjeaON58wdBShF53OVc&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECCAQAQ&uoh=1",
+     "displayed_link": "https://dhcvietnam.com.vn",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAclBMVEUMTaIJTKIAQZ0AQp4AR6AARJ4APZwASqEARp8yXaljhb3q7_bS3OyftNa2xuDE0OVTdLQAOZpqisDu8_kkWai8yeGLosyIocsANZkALpYAPJxMcLH___97lMT3-vybrNGgstMAMJdCaa9Xerenu9rf5vEahtNqAAAAzUlEQVR4Ae1QBQ4DMQxz-ZiZof3_F8cMok14LiRWONjwZ5BHShkXUu2ldSACkMTmzLqYueN6fhBGcZKG4JHrZTzPC78oxcWjcvO6abu-HkaG2J32vBJxEdKLQ-PmErTo2FDEbHanvjv0wBP-4KCWbk29aRqHMXebY2k8OrRdm06ZDXfvEOOGi0M8DdUwUhIfSyhAEdw3SfvOmfcOe6Jn40kq20JcxkxMqMN8kb3JwVfj2SwwWk-3HnizD5AKIpYESlIQqWxCv6-aEPwUG3bbpw2sCD0JKgAAAABJRU5ErkJggg.png",
+     "snippet": "DHC là thương hiệu Mỹ phẩm & Thực phẩm chức năng số 1 Nhật Bản suốt 20 năm qua. Trang TMĐT DHC Việt Nam là nơi phân phối chính thức sản phẩm DHC Nhật Bản ...",
+     "snippet_highlighted_words": [
+      "DHC",
+      "Trang",
+      "DHC",
+      "chính thức",
+      "DHC"
+     ],
+     "sitelinks": {
+      "expanded": [
+       {
+        "title": "Tất cả sản phẩm",
+        "link": "https://dhcvietnam.com.vn/danh-muc?srsltid=AYCX9vICjmgzzmwIoxIOouQ196nPwhIv_Sntl6m3UWpt0-40EEiNzbsl",
+        "snippet": "Mỹ phẩm và thực phẩm chức năng DHC Nhật Bản chính hãng ..."
+       }
+      ]
+     },
+     "about_this_result": {
+      "source": {
+       "description": "DHC là thương hiệu Mỹ phẩm & Thực phẩm chức năng số 1 Nhật Bản suốt 20 năm qua. Trang TMĐT DHC Việt Nam là nơi phân phối chính thức sản phẩm DHC Nhật Bản ...",
+       "source_info_link": "https://dhcvietnam.com.vn/?srsltid=AYCX9vLPHA9dpwMoJZafft67_IfAMAlPlFPRpH06Ob8bQyKpHizIWmLq",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAclBMVEUMTaIJTKIAQZ0AQp4AR6AARJ4APZwASqEARp8yXaljhb3q7_bS3OyftNa2xuDE0OVTdLQAOZpqisDu8_kkWai8yeGLosyIocsANZkALpYAPJxMcLH___97lMT3-vybrNGgstMAMJdCaa9Xerenu9rf5vEahtNqAAAAzUlEQVR4Ae1QBQ4DMQxz-ZiZof3_F8cMok14LiRWONjwZ5BHShkXUu2ldSACkMTmzLqYueN6fhBGcZKG4JHrZTzPC78oxcWjcvO6abu-HkaG2J32vBJxEdKLQ-PmErTo2FDEbHanvjv0wBP-4KCWbk29aRqHMXebY2k8OrRdm06ZDXfvEOOGi0M8DdUwUhIfSyhAEdw3SfvOmfcOe6Jn40kq20JcxkxMqMN8kb3JwVfj2SwwWk-3HnizD5AKIpYESlIQqWxCv6-aEPwUG3bbpw2sCD0JKgAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtkBL2dvdG8_dXJsPUNBRVNsZ0VCNnpzd0ZkMXlkd2xOcjFudWl6LUpXYmtzR3NzZExYektkVHdSSTZhejdLazlfOUx2REdFbHRTa1R1LXRkNWFod2hzYUtXRkNjbExXeC10LXJfS1pZdVNSeXc1VDRRdTlQQ2RwTnczdm5MU3R1YmdTUUhpdnZBUV9NZkVEUzI1aHVFOXZ4MWgxZFhlLVdRWm1BRWRHX21GSklCeFEwRnZaTlhLWm5nR0pqTTBteFVTTFhLX1BKc1JoUllIVmp2eEZRdG45VWpSTRIICgASABoCCAAapwYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCBBghCEAAYACAAKicKA2RoYxXbAZVAGgPEkWgaBMSRaGMaBsSRaGPEkRoIaXY7ZDtkaGMqTgoFdHJhbmcVAAAAABoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyo9CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViGgVj4bunYSoaCgZjaMOtbmgVImZRQBoLY2jDrW5oaMOjbmcqNgoFaMOjbmcVFDu5PxoFYnJhbmQaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZxoEbmjDoDKBAS9nb3RvP3VybD1DQUVTVlFIck96QVZFMDNwcHRwLXJtNjlodEgxRno5R1JueldVT3RFUUZTOGFka1BpZV8wMURHeVhjVDgyUlRfWEx6MVZ1RlhqWGdGdDVYLThfdUNhSEpEY0tHbjFRSmxYd0JXcklzYVc4STl6aGhGcU1iOWJCQTpfPGI-REhDPC9iPiBWaeG7h3QgTmFtIC0gxJDhuqFpIGzDvSA8Yj5ESEM8L2I-IE5o4bqtdCBC4bqjbiA8Yj5jaMOtbmggaMOjbmc8L2I-IHThuqFpIFZp4buHdCBOYW1C9QE8Yj5ESEM8L2I-IGzDoCB0aMawxqFuZyBoaeG7h3UgTeG7uSBwaOG6qW0gJmFtcDsgVGjhu7FjIHBo4bqpbSBjaOG7qWMgbsSDbmcgc-G7kSAxIE5o4bqtdCBC4bqjbiBzdeG7kXQgMjAgbsSDbSBxdWEuIDxiPlRyYW5nPC9iPiBUTcSQVCA8Yj5ESEM8L2I-IFZp4buHdCBOYW0gbMOgIG7GoWkgcGjDom4gcGjhu5FpIDxiPmNow61uaCB0aOG7qWM8L2I-IHPhuqNuIHBo4bqpbSA8Yj5ESEM8L2I-IE5o4bqtdCBC4bqjbiZuYnNwOy4uLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtkBL2dvdG8_dXJsPUNBRVNsZ0VCNnpzd0ZkMXlkd2xOcjFudWl6LUpXYmtzR3NzZExYektkVHdSSTZhejdLazlfOUx2REdFbHRTa1R1LXRkNWFod2hzYUtXRkNjbExXeC10LXJfS1pZdVNSeXc1VDRRdTlQQ2RwTnczdm5MU3R1YmdTUUhpdnZBUV9NZkVEUzI1aHVFOXZ4MWgxZFhlLVdRWm1BRWRHX21GSklCeFEwRnZaTlhLWm5nR0pqTTBteFVTTFhLX1BKc1JoUllIVmp2eEZRdG45VWpSTRIICgASABoCCAAapwYSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCBBghCEAAYACAAKicKA2RoYxXbAZVAGgPEkWgaBMSRaGMaBsSRaGPEkRoIaXY7ZDtkaGMqTgoFdHJhbmcVAAAAABoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyo9CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViGgVj4bunYSoaCgZjaMOtbmgVImZRQBoLY2jDrW5oaMOjbmcqNgoFaMOjbmcVFDu5PxoFYnJhbmQaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZxoEbmjDoDKBAS9nb3RvP3VybD1DQUVTVlFIck96QVZFMDNwcHRwLXJtNjlodEgxRno5R1JueldVT3RFUUZTOGFka1BpZV8wMURHeVhjVDgyUlRfWEx6MVZ1RlhqWGdGdDVYLThfdUNhSEpEY0tHbjFRSmxYd0JXcklzYVc4STl6aGhGcU1iOWJCQTpfPGI-REhDPC9iPiBWaeG7h3QgTmFtIC0gxJDhuqFpIGzDvSA8Yj5ESEM8L2I-IE5o4bqtdCBC4bqjbiA8Yj5jaMOtbmggaMOjbmc8L2I-IHThuqFpIFZp4buHdCBOYW1C9QE8Yj5ESEM8L2I-IGzDoCB0aMawxqFuZyBoaeG7h3UgTeG7uSBwaOG6qW0gJmFtcDsgVGjhu7FjIHBo4bqpbSBjaOG7qWMgbsSDbmcgc-G7kSAxIE5o4bqtdCBC4bqjbiBzdeG7kXQgMjAgbsSDbSBxdWEuIDxiPlRyYW5nPC9iPiBUTcSQVCA8Yj5ESEM8L2I-IFZp4buHdCBOYW0gbMOgIG7GoWkgcGjDom4gcGjhu5FpIDxiPmNow61uaCB0aOG7qWM8L2I-IHPhuqNuIHBo4bqpbSA8Yj5ESEM8L2I-IE5o4bqtdCBC4bqjbiZuYnNwOy4uLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "DHC Việt Nam"
+    },
+    {
+     "position": 2,
+     "title": "Mua DHC chính hãng ở đâu? Các tiêu chí lựa chọn nơi ...",
+     "link": "https://youmed.vn/tin-tuc/mua-dhc-chinh-hang-o-dau/",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESbgHrOzAVpDIK8OXRmwMg5OGcqHi7BGKzROckjImnB_D8QcDCJAn9GfCyEDNIckHstjJlPxGW1EdU6_SQ-EoODOdTGVqksWBuRM-Y6dE9_xfMkhUN25sKm5PzAWG1YM5E1qfPD9l1RtSrddzWEROR&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECBMQAQ&uoh=1",
+     "displayed_link": "https://youmed.vn › Trang chủ › Sức khỏe tổng quát",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAP1BMVEVHcEwAR8MCSMQCSMQBSMQBR8MAOcEAM8AAP8Kzwujb4vSZrOH____t8fkmWck_ac0CSMT-_v2KoN3Bze1ff9OxJkx_AAAAEXRSTlMAH6fy_1b_____________ncWg9sEAAADCSURBVHgB5dMHEoMwDERRGX-EcETn_meNB1PSL5CdQnnuRURCFXlLrILk1KCNPZM2CnWuB7Tppg9s1qYWCFKhyd27XtmjQ-fuSRkl0vs0Te5zU6yZffsBUQCftixmYLaUT7cNbd61GzQ3udtcEF3dp9L0vL9Nq1IQ67u98l4t9QY7Yrr3VKxV2PFxjA_jfkB0KG16HhaviJE8W8J4R_TmZQqf0P4X4y-sODN4Ts-ZUcJDu2tKq3EmiNQPqvpgtfy8DndMVxZDH0hWpwAAAABJRU5ErkJggg.png",
+     "date": "16 thg 12, 2022",
+     "snippet": "Trang website của hãng DHC;; Shopee: DHC Vietnam Official;; Lazada: DHC LazMall. Các đại lý phân phối các sản phẩm DHC chính hãng.",
+     "snippet_highlighted_words": [
+      "Trang",
+      "DHC",
+      "DHC",
+      "DHC",
+      "DHC chính hãng"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Trang website của hãng DHC;; Shopee: DHC Vietnam Official;; Lazada: DHC LazMall. Các đại lý phân phối các sản phẩm DHC chính hãng.",
+       "source_info_link": "https://youmed.vn/tin-tuc/mua-dhc-chinh-hang-o-dau/",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAP1BMVEVHcEwAR8MCSMQCSMQBSMQBR8MAOcEAM8AAP8Kzwujb4vSZrOH____t8fkmWck_ac0CSMT-_v2KoN3Bze1ff9OxJkx_AAAAEXRSTlMAH6fy_1b_____________ncWg9sEAAADCSURBVHgB5dMHEoMwDERRGX-EcETn_meNB1PSL5CdQnnuRURCFXlLrILk1KCNPZM2CnWuB7Tppg9s1qYWCFKhyd27XtmjQ-fuSRkl0vs0Te5zU6yZffsBUQCftixmYLaUT7cNbd61GzQ3udtcEF3dp9L0vL9Nq1IQ67u98l4t9QY7Yrr3VKxV2PFxjA_jfkB0KG16HhaviJE8W8J4R_TmZQqf0P4X4y-sODN4Ts-ZUcJDu2tKq3EmiNQPqvpgtfy8DndMVxZDH0hWpwAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqIBL2dvdG8_dXJsPUNBRVNiZ0hyT3pBVlBhUU0wa1RUSWJZN2lQQnI4QjZQSXZJS2dnVFQ4S2VzS0MzdVZpOW8zejdoci14SE10aTFHV3UtTTU5ajktMS1SNGxEaWNhdlN4VTE5R200Z3dYWXVjbkJzR0tyRUp0T2QwNDVfcUlPcmhIMEVJN0dBSUhJTU5RMTA0ZVM0VEhaZjRBRHk5a1RsLWlCEgQaAggAGvkFEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNUFCEIQABgAIAAqJwoDZGhjFRapmUAaA8SRaBoExJFoYxoGxJFoY8SRGghpdjtkO2RoYypOCgV0cmFuZxXOQos_GgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nKj0KBWNo4bunFWAlcz4aA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIaBWPhu6dhKhoKBmNow61uaBXsy4BAGgtjaMOtbmhow6NuZyo2CgVow6NuZxWH_nxAGgVicmFuZBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nGgRuaMOgMqIBL2dvdG8_dXJsPUNBRVNiZ0hyT3pBVlBhUU0wa1RUSWJZN2lQQnI4QjZQSXZJS2dnVFQ4S2VzS0MzdVZpOW8zejdoci14SE10aTFHV3UtTTU5ajktMS1SNGxEaWNhdlN4VTE5R200Z3dYWXVjbkJzR0tyRUp0T2QwNDVfcUlPcmhIMEVJN0dBSUhJTU5RMTA0ZVM0VEhaZjRBRHk5a1RsLWlCOlBNdWEgPGI-REhDIGNow61uaCBow6NuZzwvYj4g4bufIMSRw6J1PyBDw6FjIHRpw6p1IGNow60gbOG7sWEgY2jhu41uIC4uLiAtIFlvdU1lZEK3ATxiPlRyYW5nPC9iPiB3ZWJzaXRlIGPhu6dhIGjDo25nIDxiPkRIQzwvYj47OyBTaG9wZWU6IDxiPkRIQzwvYj4gVmlldG5hbSBPZmZpY2lhbDs7IExhemFkYTogPGI-REhDPC9iPiBMYXpNYWxsLiBDw6FjIMSR4bqhaSBsw70gcGjDom4gcGjhu5FpIGPDoWMgc-G6o24gcGjhuqltIDxiPkRIQyBjaMOtbmggaMOjbmc8L2I-LlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqIBL2dvdG8_dXJsPUNBRVNiZ0hyT3pBVlBhUU0wa1RUSWJZN2lQQnI4QjZQSXZJS2dnVFQ4S2VzS0MzdVZpOW8zejdoci14SE10aTFHV3UtTTU5ajktMS1SNGxEaWNhdlN4VTE5R200Z3dYWXVjbkJzR0tyRUp0T2QwNDVfcUlPcmhIMEVJN0dBSUhJTU5RMTA0ZVM0VEhaZjRBRHk5a1RsLWlCEgQaAggAGvkFEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNUFCEIQABgAIAAqJwoDZGhjFRapmUAaA8SRaBoExJFoYxoGxJFoY8SRGghpdjtkO2RoYypOCgV0cmFuZxXOQos_GgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nKj0KBWNo4bunFWAlcz4aA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIaBWPhu6dhKhoKBmNow61uaBXsy4BAGgtjaMOtbmhow6NuZyo2CgVow6NuZxWH_nxAGgVicmFuZBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nGgRuaMOgMqIBL2dvdG8_dXJsPUNBRVNiZ0hyT3pBVlBhUU0wa1RUSWJZN2lQQnI4QjZQSXZJS2dnVFQ4S2VzS0MzdVZpOW8zejdoci14SE10aTFHV3UtTTU5ajktMS1SNGxEaWNhdlN4VTE5R200Z3dYWXVjbkJzR0tyRUp0T2QwNDVfcUlPcmhIMEVJN0dBSUhJTU5RMTA0ZVM0VEhaZjRBRHk5a1RsLWlCOlBNdWEgPGI-REhDIGNow61uaCBow6NuZzwvYj4g4bufIMSRw6J1PyBDw6FjIHRpw6p1IGNow60gbOG7sWEgY2jhu41uIC4uLiAtIFlvdU1lZEK3ATxiPlRyYW5nPC9iPiB3ZWJzaXRlIGPhu6dhIGjDo25nIDxiPkRIQzwvYj47OyBTaG9wZWU6IDxiPkRIQzwvYj4gVmlldG5hbSBPZmZpY2lhbDs7IExhemFkYTogPGI-REhDPC9iPiBMYXpNYWxsLiBDw6FjIMSR4bqhaSBsw70gcGjDom4gcGjhu5FpIGPDoWMgc-G6o24gcGjhuqltIDxiPkRIQyBjaMOtbmggaMOjbmc8L2I-LlIGdGjhu6ljUgZoaeG7h3UiAhABSABYAGgA",
+     "source": "YouMed"
+    },
+    {
+     "position": 3,
+     "title": "THÔNG TIN CHÍNH THỨC TỪ DHC VIỆT NAM 🔹 ✅ Công ...",
+     "link": "https://www.facebook.com/dhcvietnamofficial/posts/-th%C3%B4ng-tin-ch%C3%ADnh-th%E1%BB%A9c-t%E1%BB%AB-dhc-vi%E1%BB%87t-nam-c%C3%B4ng-ty-c%E1%BB%95-ph%E1%BA%A7n-belie-l%C3%A0-%C4%91%C6%A1n-v%E1%BB%8B-duy-nh%E1%BA%A5t-t/1174757468027402/",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESpgIB6zswFYWNyDVxtftUi9w9LbLXpiSgyE1_lm6YBQTrbT6yrc7jiJBYTyZ1Dikuk6813QZo-ofTU55fxFaS3dpItFQpMtQdIjlb5AzD_E-JBB9rKpbrDI4qEZYP4NmTKF1FXQ7_4_9ywk7YRNl30W8oJxnarICwlorYryM8MxUgenlLDcEpGFixe_YpN2dhZViiQDATDINlv1xInUI99fi9elmT77Ef0eN2s6CJyD17PsNEBvnKc-BFg76EzbARTFkL78MQmwqfF40CkQh0OsTFVXq7FPRCi6zz4R_BEfhIO4VTd47fS3Sry0PtjfyctHXCZyLG1SWYk7uRN-M2bzYBomuz3U3AJQeH6ObG9XGCN3JlTqltOcfw112oGud7qX9czxmQUjk&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECCMQAQ&uoh=1",
+     "displayed_link": ">380 lượt thể hiện cảm xúc · 1 năm trước",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "snippet": "THÔNG TIN CHÍNH THỨC TỪ DHC VIỆT NAM ✓ Công ty Cổ phần Belie là đơn vị DUY NHẤT tại Việt Nam được DHC Nhật Bản ủy quyền phân phối ĐỘC ...",
+     "snippet_highlighted_words": [
+      "CHÍNH THỨC",
+      "DHC",
+      "DHC"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "THÔNG TIN CHÍNH THỨC TỪ DHC VIỆT NAM ✓ Công ty Cổ phần Belie là đơn vị DUY NHẤT tại Việt Nam được DHC Nhật Bản ủy quyền phân phối ĐỘC ...",
+       "source_info_link": "https://www.facebook.com/dhcvietnamofficial/posts/-th%C3%B4ng-tin-ch%C3%ADnh-th%E1%BB%A9c-t%E1%BB%AB-dhc-vi%E1%BB%87t-nam-c%C3%B4ng-ty-c%E1%BB%95-ph%E1%BA%A7n-belie-l%C3%A0-%C4%91%C6%A1n-v%E1%BB%8B-duy-nh%E1%BA%A5t-t/1174757468027402/",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpkDL2dvdG8_dXJsPUNBRVNwZ0lCNnpzd0ZhTVJya0FPekIxRU1fZzl5N0tiM215WVB3Y0JEdlBubC1mR0V5SGRzSWVacFlmWmlTbWJ1X3ZuLVJfaFFlUDdISnowb0gwamRyeVdHa1dVb2pvT2ZQZWR5ekRVQ2J4QkJ3V3NqdTJiclJ4anFpYV9uVm1IMnNZS0YxMDI2SnpqZ2haX2JGRzNNdmFHUjNCVy03TEhabW9XWUIyZWhMbWxiWHpKWHRDUHFDcmE3cUJMYXdxdjdiS2dNQzhQLW1sYkw0aVFrOEkycVR6MXZ3RU1ManB0LXJTZ1k4VzVyeXJhcFVoRG5XZ0JKazdLY2o3cHhkSWQ4SjJ2Znc2bFprR1Z6MkNUWUJrQ3lHRFF2THBrVThmZHRiQjVSaDR3NWpzSmpHNkRmRjlUWklfeWRaUldHUHlFN3Z3NV82eFdFNjJ1Y2psTzhMVm1FdXFCSGdSVmFNZkxaM2VJTDhkOEtUT0kzV1p4MWVocWxLSTZXbTJib2x0NlRxTmtleFdEWmN6MHVtTRIEGgIIABqECBIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDgBwhCEAAYACAAKicKA2RoYxVy_bdAGgPEkWgaBMSRaGMaBsSRaGPEkRoIaXY7ZDtkaGMqTgoFdHJhbmcVPAi3PhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyo9CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViGgVj4bunYSoaCgZjaMOtbmgVoxqgQBoLY2jDrW5oaMOjbmcqNgoFaMOjbmcVoF4eQBoFYnJhbmQaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZxoEbmjDoDKZAy9nb3RvP3VybD1DQUVTcGdJQjZ6c3dGYU1ScmtBT3pCMUVNX2c5eTdLYjNteVlQd2NCRHZQbmwtZkdFeUhkc0llWnBZZlppU21idV92bi1SX2hRZVA3SEp6MG9IMGpkcnlXR2tXVW9qb09mUGVkeXpEVUNieEJCd1dzanUyYnJSeGpxaWFfblZtSDJzWUtGMTAyNkp6amdoWl9iRkczTXZhR1IzQlctN0xIWm1vV1lCMmVoTG1sYlh6Slh0Q1BxQ3JhN3FCTGF3cXY3YktnTUM4UC1tbGJMNGlRazhJMnFUejF2d0VNTGpwdC1yU2dZOFc1cnlyYXBVaERuV2dCSms3S2NqN3B4ZElkOEoydmZ3Nmxaa0dWejJDVFlCa0N5R0RRdkxwa1U4ZmR0YkI1Umg0dzVqc0pqRzZEZkY5VFpJX3lkWlJXR1B5RTd2dzVfNnhXRTYydWNqbE84TFZtRXVxQkhnUlZhTWZMWjNlSUw4ZDhLVE9JM1daeDFlaHFsS0k2V20yYm9sdDZUcU5rZXhXRFpjejB1bU06TFRIw5RORyBUSU4gPGI-Q0jDjU5IIFRI4buoQzwvYj4gVOG7qiA8Yj5ESEM8L2I-IFZJ4buGVCBOQU0gQ8O0bmcgdHkgQ-G7lSAuLi5CzwFUSMOUTkcgVElOIDxiPkNIw41OSCBUSOG7qEM8L2I-IFThu6ogPGI-REhDPC9iPiBWSeG7hlQgTkFNIOKckyBDw7RuZyB0eSBD4buVIHBo4bqnbiBCZWxpZSBsw6AgxJHGoW4gduG7iyBEVVkgTkjhuqRUIHThuqFpIFZp4buHdCBOYW0gxJHGsOG7o2MgPGI-REhDPC9iPiBOaOG6rXQgQuG6o24g4buneSBxdXnhu4FuIHBow6JuIHBo4buRaSDEkOG7mEMmbmJzcDsuLi5SBmhp4buHdVIGdGjhu6ljIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpkDL2dvdG8_dXJsPUNBRVNwZ0lCNnpzd0ZhTVJya0FPekIxRU1fZzl5N0tiM215WVB3Y0JEdlBubC1mR0V5SGRzSWVacFlmWmlTbWJ1X3ZuLVJfaFFlUDdISnowb0gwamRyeVdHa1dVb2pvT2ZQZWR5ekRVQ2J4QkJ3V3NqdTJiclJ4anFpYV9uVm1IMnNZS0YxMDI2SnpqZ2haX2JGRzNNdmFHUjNCVy03TEhabW9XWUIyZWhMbWxiWHpKWHRDUHFDcmE3cUJMYXdxdjdiS2dNQzhQLW1sYkw0aVFrOEkycVR6MXZ3RU1ManB0LXJTZ1k4VzVyeXJhcFVoRG5XZ0JKazdLY2o3cHhkSWQ4SjJ2Znc2bFprR1Z6MkNUWUJrQ3lHRFF2THBrVThmZHRiQjVSaDR3NWpzSmpHNkRmRjlUWklfeWRaUldHUHlFN3Z3NV82eFdFNjJ1Y2psTzhMVm1FdXFCSGdSVmFNZkxaM2VJTDhkOEtUT0kzV1p4MWVocWxLSTZXbTJib2x0NlRxTmtleFdEWmN6MHVtTRIEGgIIABqECBIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDgBwhCEAAYACAAKicKA2RoYxVy_bdAGgPEkWgaBMSRaGMaBsSRaGPEkRoIaXY7ZDtkaGMqTgoFdHJhbmcVPAi3PhoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyo9CgVjaOG7pxUAAAAAGgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViGgVj4bunYSoaCgZjaMOtbmgVoxqgQBoLY2jDrW5oaMOjbmcqNgoFaMOjbmcVoF4eQBoFYnJhbmQaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZxoEbmjDoDKZAy9nb3RvP3VybD1DQUVTcGdJQjZ6c3dGYU1ScmtBT3pCMUVNX2c5eTdLYjNteVlQd2NCRHZQbmwtZkdFeUhkc0llWnBZZlppU21idV92bi1SX2hRZVA3SEp6MG9IMGpkcnlXR2tXVW9qb09mUGVkeXpEVUNieEJCd1dzanUyYnJSeGpxaWFfblZtSDJzWUtGMTAyNkp6amdoWl9iRkczTXZhR1IzQlctN0xIWm1vV1lCMmVoTG1sYlh6Slh0Q1BxQ3JhN3FCTGF3cXY3YktnTUM4UC1tbGJMNGlRazhJMnFUejF2d0VNTGpwdC1yU2dZOFc1cnlyYXBVaERuV2dCSms3S2NqN3B4ZElkOEoydmZ3Nmxaa0dWejJDVFlCa0N5R0RRdkxwa1U4ZmR0YkI1Umg0dzVqc0pqRzZEZkY5VFpJX3lkWlJXR1B5RTd2dzVfNnhXRTYydWNqbE84TFZtRXVxQkhnUlZhTWZMWjNlSUw4ZDhLVE9JM1daeDFlaHFsS0k2V20yYm9sdDZUcU5rZXhXRFpjejB1bU06TFRIw5RORyBUSU4gPGI-Q0jDjU5IIFRI4buoQzwvYj4gVOG7qiA8Yj5ESEM8L2I-IFZJ4buGVCBOQU0gQ8O0bmcgdHkgQ-G7lSAuLi5CzwFUSMOUTkcgVElOIDxiPkNIw41OSCBUSOG7qEM8L2I-IFThu6ogPGI-REhDPC9iPiBWSeG7hlQgTkFNIOKckyBDw7RuZyB0eSBD4buVIHBo4bqnbiBCZWxpZSBsw6AgxJHGoW4gduG7iyBEVVkgTkjhuqRUIHThuqFpIFZp4buHdCBOYW0gxJHGsOG7o2MgPGI-REhDPC9iPiBOaOG6rXQgQuG6o24g4buneSBxdXnhu4FuIHBow6JuIHBo4buRaSDEkOG7mEMmbmJzcDsuLi5SBmhp4buHdVIGdGjhu6ljIgIQAUgAWABoAA",
+     "source": "Facebook · DHC Vietnam"
+    },
+    {
+     "position": 4,
+     "title": "DHC | CHÍNH HÃNG Giá Tốt Mọi Thời Điểm",
+     "link": "https://hasaki.vn/thuong-hieu/dhc.html?srsltid=AYCX9vIztzaPC0pW2oCSCdZfzW7l11NPqNZxMDQmVCpkmlhQWMWOXSG0",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESogEB6zswFdOvVHeaY4BGSAoaNCTk1qun4rIH0ZzdxB1fVfcfwsfdQ8KFAPwh1UZIS2oD-ecCn1zpDxxvjJUuiGoO6-0uwWNinJ8se-oiIXd9fRAKfIxz0O_1SP04eKo6UX7PS4m2MuYJcL-pEjZbphepXCIXFagJJ47rRCf0AbCy_IS3rgTRbhD8SUsU5j6ImaZNMlKPmz48WOMZY4eJ1ePTsiU&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECBYQAQ&uoh=1",
+     "displayed_link": "https://hasaki.vn › thuong-hieu › dhc",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAANlBMVEVHcEwvb08vb08vblEwblEwblEwblEvblAvblAwblEvblEvblEwblEvblEubU4wblEvblEvblC3MdocAAAAEnRSTlMADUSFt-L-K1ObrL7JeBbU8GRCsQbaAAABE0lEQVR4AX1TQZbFIAhTgaqAKve_7NDa_9x0ZAUGeCbGsCImQLqeIIQUw46YC1RGYQ9BrlBy3BgoaW0p955Tq15Ajnul4mpfS1B_q32OhkBrP7A14EFrNgOrx_DhFEKq6IXoQMjeWvwUx7zvab0beTKHsGiJIQFVkzmJ5mw5t5WJVYIUoCoUmcI8JqQEczB7WUArBKdlRagV4wWylUZSzIkHQufHxPCA-QbBS-eLFC5JPTb1HlyTnpC22JNc4WIn5MzBcEqtMtEASnbCfIP9UcmMLxqDLjZ71Oln8Lz2fKGXCsLmuam8IoBtnluEL_nwle8sfCwqLP88WciAQ0T147GXTZQ_bbIMxvJtsLM1j6Y-fIc_edUVu2EWsf0AAAAASUVORK5CYII.png",
+     "snippet": "Mua mỹ phẩm DHC N/A HOT nhất như: Viên uống, Tẩy trang, Mặt nạ mắt,... Thương Hiệu DHC ✓ Giá tốt ✓ Giao Nhanh Miễn Phí 2H Từ 90k (Trễ Tặng 100k)",
+     "snippet_highlighted_words": [
+      "DHC",
+      "trang",
+      "DHC"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Mua mỹ phẩm DHC N/A HOT nhất như: Viên uống, Tẩy trang, Mặt nạ mắt,... Thương Hiệu DHC ✓ Giá tốt ✓ Giao Nhanh Miễn Phí 2H Từ 90k (Trễ Tặng 100k)",
+       "source_info_link": "https://hasaki.vn/thuong-hieu/dhc.html?srsltid=AYCX9vIztzaPC0pW2oCSCdZfzW7l11NPqNZxMDQmVCpkmlhQWMWOXSG0",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAANlBMVEVHcEwvb08vb08vblEwblEwblEwblEvblAvblAwblEvblEvblEwblEvblEubU4wblEvblEvblC3MdocAAAAEnRSTlMADUSFt-L-K1ObrL7JeBbU8GRCsQbaAAABE0lEQVR4AX1TQZbFIAhTgaqAKve_7NDa_9x0ZAUGeCbGsCImQLqeIIQUw46YC1RGYQ9BrlBy3BgoaW0p955Tq15Ajnul4mpfS1B_q32OhkBrP7A14EFrNgOrx_DhFEKq6IXoQMjeWvwUx7zvab0beTKHsGiJIQFVkzmJ5mw5t5WJVYIUoCoUmcI8JqQEczB7WUArBKdlRagV4wWylUZSzIkHQufHxPCA-QbBS-eLFC5JPTb1HlyTnpC22JNc4WIn5MzBcEqtMtEASnbCfIP9UcmMLxqDLjZ71Oln8Lz2fKGXCsLmuam8IoBtnluEL_nwle8sfCwqLP88WciAQ0T147GXTZQ_bbIMxvJtsLM1j6Y-fIc_edUVu2EWsf0AAAAASUVORK5CYII.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CukBL2dvdG8_dXJsPUNBRVNvZ0VCNnpzd0ZTVnR0X2lsU3I0a3FwbGc5UUYybVljNmxtNzVLV3RVeTVieUNfVThSVXFvYURiQktibFpJT3plLWVXUHdBQ3JwMXdxV2s2YmZ3NGZQWnBrTURLZjJqazZfQUl6UmkzRVFWTjZSV0ZPdE1GdWpPY3o4UWRVcG8zbWduTXdBb256WmQzSllUbVI3OTViRDhZQldoUDdyMDhsVG1sNVNKWGd3cUc0ZnZsRFZxRktxUk5PVE9zUGFpdjREbTJ0dFp5Q1pLdDlWNjQ5dWpZS0VTWVJFQ3cSBBoCCAAa-gUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDUBQhCEAAYACAAKicKA2RoYxWc5spAGgPEkWgaBMSRaGMaBsSRaGPEkRoIaXY7ZDtkaGMqTgoFdHJhbmcV29SPPxoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyo9CgVjaOG7pxVm8gA_GgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViGgVj4bunYSoaCgZjaMOtbmgVMzPPPxoLY2jDrW5oaMOjbmcqNgoFaMOjbmcVMzPPPxoFYnJhbmQaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZxoEbmjDoDKRAS9nb3RvP3VybD1DQUVTWVFIck96QVZHNDVwSGRHa0tMcHdzM0UwOTZUUUo1U0hwdExfbWdoMXJjRjRzNGREZkhhWFhyOEp3UmtfZHh6Q1ZaZlphdXlFcV9qZlJ4Q3k1MDJfdzlQSHNvUGtsRHk0d3M0WG9MdmNYbHBZNnB0cmpBZi1VM1hfSjlSRldwRHU4UW86TDxiPkRIQzwvYj4gfCA8Yj5DSMONTkggSMODTkc8L2I-IEdpw6EgVOG7kXQgTeG7jWkgVGjhu51pIMSQaeG7g20gfCBIYXNha2kudm5CywFNdWEgbeG7uSBwaOG6qW0gPGI-REhDPC9iPiBOL0EgSE9UIG5o4bqldCBuaMawOiBWacOqbiB14buRbmcsIFThuql5IDxiPnRyYW5nPC9iPiwgTeG6t3QgbuG6oSBt4bqvdCwuLi4gVGjGsMahbmcgSGnhu4d1IDxiPkRIQzwvYj4g4pyTIEdpw6EgdOG7kXQg4pyTIEdpYW8gTmhhbmggTWnhu4VuIFBow60gMkggVOG7qyA5MGsgKFRy4buFIFThurduZyAxMDBrKVIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CukBL2dvdG8_dXJsPUNBRVNvZ0VCNnpzd0ZTVnR0X2lsU3I0a3FwbGc5UUYybVljNmxtNzVLV3RVeTVieUNfVThSVXFvYURiQktibFpJT3plLWVXUHdBQ3JwMXdxV2s2YmZ3NGZQWnBrTURLZjJqazZfQUl6UmkzRVFWTjZSV0ZPdE1GdWpPY3o4UWRVcG8zbWduTXdBb256WmQzSllUbVI3OTViRDhZQldoUDdyMDhsVG1sNVNKWGd3cUc0ZnZsRFZxRktxUk5PVE9zUGFpdjREbTJ0dFp5Q1pLdDlWNjQ5dWpZS0VTWVJFQ3cSBBoCCAAa-gUSAggAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkDUBQhCEAAYACAAKicKA2RoYxWc5spAGgPEkWgaBMSRaGMaBsSRaGPEkRoIaXY7ZDtkaGMqTgoFdHJhbmcV29SPPxoGdHLDoG5nGgZ0csOhbmcaBnRyxINuZxoHdHLhuqFuZxoHdHLhuq9uZxoKdHJhbmdjaOG7pxoKaXY7ZDt0cmFuZyo9CgVjaOG7pxVm8gA_GgNjaHUaA3dlYhoKdHJhbmdjaOG7pxoIaXY7ZDtjaHUaCGl2O2Q7d2ViGgVj4bunYSoaCgZjaMOtbmgVMzPPPxoLY2jDrW5oaMOjbmcqNgoFaMOjbmcVMzPPPxoFYnJhbmQaBmhp4buHdRoGdGjhu6ljGgtjaMOtbmhow6NuZxoEbmjDoDKRAS9nb3RvP3VybD1DQUVTWVFIck96QVZHNDVwSGRHa0tMcHdzM0UwOTZUUUo1U0hwdExfbWdoMXJjRjRzNGREZkhhWFhyOEp3UmtfZHh6Q1ZaZlphdXlFcV9qZlJ4Q3k1MDJfdzlQSHNvUGtsRHk0d3M0WG9MdmNYbHBZNnB0cmpBZi1VM1hfSjlSRldwRHU4UW86TDxiPkRIQzwvYj4gfCA8Yj5DSMONTkggSMODTkc8L2I-IEdpw6EgVOG7kXQgTeG7jWkgVGjhu51pIMSQaeG7g20gfCBIYXNha2kudm5CywFNdWEgbeG7uSBwaOG6qW0gPGI-REhDPC9iPiBOL0EgSE9UIG5o4bqldCBuaMawOiBWacOqbiB14buRbmcsIFThuql5IDxiPnRyYW5nPC9iPiwgTeG6t3QgbuG6oSBt4bqvdCwuLi4gVGjGsMahbmcgSGnhu4d1IDxiPkRIQzwvYj4g4pyTIEdpw6EgdOG7kXQg4pyTIEdpYW8gTmhhbmggTWnhu4VuIFBow60gMkggVOG7qyA5MGsgKFRy4buFIFThurduZyAxMDBrKVIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "Hasaki.vn"
+    },
+    {
+     "position": 5,
+     "title": "Viên uống trắng da DHC nên uống vào lúc nào sẽ hấp thụ tốt",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/vien-uong-trang-da-dhc-nen-uong-vao-luc-nao-tot-cho-co-the.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESowEB6zswFWXar3_dsMxEH2hgkcXXZQ3a8HSqwwSTagHr97GRHMTw3wW0opzOhaUefmQvLWx-m7U2hPW5voTo7DXRHuq_6neA1idnKLNPebDu0Ke8w1I2nl1g2nfuEgjUt6B2WttenAI78ZckzSSdv_a01qd4fwOX1vGJOKwO8Z8Vz5VaXVgrKaAQ3rwY6IEtx49LgPHWqTGEyXpZTfQO2CksLQ7Q&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECBQQAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4db9361511e5c06fa48/images/dx4IJXjLgivpDS8nq_KH0tuGfxRLBSki_YwOczGxmuo.png",
+     "date": "22 thg 8, 2023",
+     "snippet": "Viên uống trắng da DHC Nhật Bản được khuyến nghị sử dụng cho cả nam và nữ từ 16 tuổi trở lên. Nếu bạn sử dụng viên uống trắng da DHC quá sớm, ...",
+     "snippet_highlighted_words": [
+      "trắng",
+      "DHC",
+      "trắng",
+      "DHC"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống trắng da DHC Nhật Bản được khuyến nghị sử dụng cho cả nam và nữ từ 16 tuổi trở lên. Nếu bạn sử dụng viên uống trắng da DHC quá sớm, ...",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/vien-uong-trang-da-dhc-nen-uong-vao-luc-nao-tot-cho-co-the.html",
+       "icon": "https://serpapi.com/searches/6adeb4db9361511e5c06fa48/images/dx4IJXjLgivpDS8nq_KH0l3W9UevW_vhRGS1B_q4QZZINl4QjWafBd0ylVTah-T4.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CuoBL2dvdG8_dXJsPUNBRVNvd0VCNnpzd0Zjb0lBSjFMZGt0M0dkZzRXdExVai01R1QxUGstcXF6QTVaOFcyRmhLQnhsYmFwb1dHY0hTOWpDTGdtNWNYNDNjVVV4VjRFZGdQeXZIMDVLMVlEbDJwS1oxYnR0LTRaZDNKekVqVzRKcGxRc0xiNnFuUDkwcHpuUGl2WnRCb1FTeVQtVnoxNGhKbGdOZWNET2lTZXNtVjB0NjBld0UxVEViSkpDYTdBWkVSZUhMRkZwd2FzUWZ2X2xQV2U4OHc5dndTMlk4SWlYYTNaaUpYM1BRRGg5EgQaAggAGvYGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNIGCEIQABgAIAAqJwoDZGhjFcCTYEAaA8SRaBoExJFoYxoGxJFoY8SRGghpdjtkO2RoYypOCgV0cmFuZxUOH6dAGgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nKj0KBWNo4bunFcNYYj0aA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIaBWPhu6dhKhoKBmNow61uaBWCMow_GgtjaMOtbmhow6NuZyo2CgVow6NuZxU4UWM_GgVicmFuZBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nGgRuaMOgMuoBL2dvdG8_dXJsPUNBRVNvd0VCNnpzd0Zjb0lBSjFMZGt0M0dkZzRXdExVai01R1QxUGstcXF6QTVaOFcyRmhLQnhsYmFwb1dHY0hTOWpDTGdtNWNYNDNjVVV4VjRFZGdQeXZIMDVLMVlEbDJwS1oxYnR0LTRaZDNKekVqVzRKcGxRc0xiNnFuUDkwcHpuUGl2WnRCb1FTeVQtVnoxNGhKbGdOZWNET2lTZXNtVjB0NjBld0UxVEViSkpDYTdBWkVSZUhMRkZwd2FzUWZ2X2xQV2U4OHc5dndTMlk4SWlYYTNaaUpYM1BRRGg5OllWacOqbiB14buRbmcgPGI-dHLhuq9uZzwvYj4gZGEgPGI-REhDPC9iPiBuw6puIHXhu5FuZyB2w6BvIGzDumMgbsOgbyB04buRdCBjaG8gY8ahIHRo4buDP0LjAVZpw6puIHXhu5FuZyA8Yj50cuG6r25nPC9iPiBkYSA8Yj5ESEM8L2I-IE5o4bqtdCBC4bqjbiDEkcaw4bujYyBraHV54bq_biBuZ2jhu4sgc-G7rSBk4bulbmcgY2hvIGPhuqMgbmFtIHbDoCBu4buvIHThu6sgMTYgdHXhu5VpIHRy4bufIGzDqm4uIE7hur91IGLhuqFuIHPhu60gZOG7pW5nIHZpw6puIHXhu5FuZyA8Yj50cuG6r25nPC9iPiBkYSA8Yj5ESEM8L2I-IHF1w6Egc-G7m20sJm5ic3A7Li4uUgZoaeG7h3VSBnRo4bupYyICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CuoBL2dvdG8_dXJsPUNBRVNvd0VCNnpzd0Zjb0lBSjFMZGt0M0dkZzRXdExVai01R1QxUGstcXF6QTVaOFcyRmhLQnhsYmFwb1dHY0hTOWpDTGdtNWNYNDNjVVV4VjRFZGdQeXZIMDVLMVlEbDJwS1oxYnR0LTRaZDNKekVqVzRKcGxRc0xiNnFuUDkwcHpuUGl2WnRCb1FTeVQtVnoxNGhKbGdOZWNET2lTZXNtVjB0NjBld0UxVEViSkpDYTdBWkVSZUhMRkZwd2FzUWZ2X2xQV2U4OHc5dndTMlk4SWlYYTNaaUpYM1BRRGg5EgQaAggAGvYGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNIGCEIQABgAIAAqJwoDZGhjFcCTYEAaA8SRaBoExJFoYxoGxJFoY8SRGghpdjtkO2RoYypOCgV0cmFuZxUOH6dAGgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nKj0KBWNo4bunFcNYYj0aA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIaBWPhu6dhKhoKBmNow61uaBWCMow_GgtjaMOtbmhow6NuZyo2CgVow6NuZxU4UWM_GgVicmFuZBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nGgRuaMOgMuoBL2dvdG8_dXJsPUNBRVNvd0VCNnpzd0Zjb0lBSjFMZGt0M0dkZzRXdExVai01R1QxUGstcXF6QTVaOFcyRmhLQnhsYmFwb1dHY0hTOWpDTGdtNWNYNDNjVVV4VjRFZGdQeXZIMDVLMVlEbDJwS1oxYnR0LTRaZDNKekVqVzRKcGxRc0xiNnFuUDkwcHpuUGl2WnRCb1FTeVQtVnoxNGhKbGdOZWNET2lTZXNtVjB0NjBld0UxVEViSkpDYTdBWkVSZUhMRkZwd2FzUWZ2X2xQV2U4OHc5dndTMlk4SWlYYTNaaUpYM1BRRGg5OllWacOqbiB14buRbmcgPGI-dHLhuq9uZzwvYj4gZGEgPGI-REhDPC9iPiBuw6puIHXhu5FuZyB2w6BvIGzDumMgbsOgbyB04buRdCBjaG8gY8ahIHRo4buDP0LjAVZpw6puIHXhu5FuZyA8Yj50cuG6r25nPC9iPiBkYSA8Yj5ESEM8L2I-IE5o4bqtdCBC4bqjbiDEkcaw4bujYyBraHV54bq_biBuZ2jhu4sgc-G7rSBk4bulbmcgY2hvIGPhuqMgbmFtIHbDoCBu4buvIHThu6sgMTYgdHXhu5VpIHRy4bufIGzDqm4uIE7hur91IGLhuqFuIHPhu60gZOG7pW5nIHZpw6puIHXhu5FuZyA8Yj50cuG6r25nPC9iPiBkYSA8Yj5ESEM8L2I-IHF1w6Egc-G7m20sJm5ic3A7Li4uUgZoaeG7h3VSBnRo4bupYyICEAFIAFgAaAA",
+     "source": "Nhà thuốc Long Châu"
+    },
+    {
+     "position": 6,
+     "title": "Viên Uống Trắng Da DHC Nhật Bản Gói 30 Ngày",
+     "link": "https://mariejapan.vn/dhc-trang-da-30-ngay",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESZQHrOzAVPMbDcwFzD8_b-3v468vlnQntoVQLacdvn7mFqvyoKF5WiOins6d1P8h2r1gOD3I7YwUGQOyrj2NOrQ-HcLsqQ3PU-SOGBcxDtPnRDkR7KoVnSJgQUaFQbTskumUQ2C9g&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECBoQAQ&uoh=1",
+     "displayed_link": "https://mariejapan.vn › dhc-trang-da-30-ngay",
+     "favicon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3RTo6Iys_RD84QzQ2OjcBCgoKDQwNGg8PGjclHyU3LTc3Nzc3Nzc3NzcwNzc3Nzc3MDc3Nzc3NTc3NzU3NzcrNywtNzc3MTcsNysrNzUrOP_AABEIABwAHAMBIgACEQEDEQH_xAAZAAEBAAMBAAAAAAAAAAAAAAAEAgEDBwD_xAAkEAACAgEEAQQDAAAAAAAAAAABAgMRAAQSITETUWFxsSJB0f_EABYBAQEBAAAAAAAAAAAAAAAAAAABAv_EABoRAAMAAwEAAAAAAAAAAAAAAAABEQIhURL_2gAMAwEAAhEDEQA_AO2aicQqDtLMTQUfvPReXafIR3xx95E8bu7GJgsiqArEdc84TQ6mXVaddTFqY5YpU3RHaVscUeRfrlhMs5qCjNJDIBMLVmoMOh6YnAxx6iRgs0ySR1-a7e-_b4xcRuJCTZoc4aCy9KyGrUM8LrKqlkqnA79j95HhExZo5nCmwQGb-8YvIWNFvaoF98d5DV0HaQqog0-53JILmyF-bOKUBVCjoChmFRUvaoF8msrAb4f_2Q.jpeg",
+     "snippet": "- Giúp dưỡng trắng, làm mờ vết thâm, melamin, nám tàn nhang và tăng tông da sau một thời gian kiên trì sử dụng, nuôi dưỡng làn da trắng hồng rạng rỡ. - Cung cấp ...",
+     "snippet_highlighted_words": [
+      "trắng",
+      "trắng"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "- Giúp dưỡng trắng, làm mờ vết thâm, melamin, nám tàn nhang và tăng tông da sau một thời gian kiên trì sử dụng, nuôi dưỡng làn da trắng hồng rạng rỡ. - Cung cấp ...",
+       "source_info_link": "https://mariejapan.vn/dhc-trang-da-30-ngay",
+       "icon": "https://serpapi.com/images/i/_9j_4AAQSkZJRgABAQAAAQABAAD_2wCEAAkGBwgHBgkIBwgKCgkLDRYPDQwMDRsUFRAWIB0iIiAdHx8kKDQsJCYxJx8fLT0tMTU3RTo6Iys_RD84QzQ2OjcBCgoKDQwNGg8PGjclHyU3LTc3Nzc3Nzc3NzcwNzc3Nzc3MDc3Nzc3NTc3NzU3NzcrNywtNzc3MTcsNysrNzUrOP_AABEIABwAHAMBIgACEQEDEQH_xAAZAAEBAAMBAAAAAAAAAAAAAAAEAgEDBwD_xAAkEAACAgEEAQQDAAAAAAAAAAABAgMRAAQSITETUWFxsSJB0f_EABYBAQEBAAAAAAAAAAAAAAAAAAABAv_EABoRAAMAAwEAAAAAAAAAAAAAAAABEQIhURL_2gAMAwEAAhEDEQA_AO2aicQqDtLMTQUfvPReXafIR3xx95E8bu7GJgsiqArEdc84TQ6mXVaddTFqY5YpU3RHaVscUeRfrlhMs5qCjNJDIBMLVmoMOh6YnAxx6iRgs0ySR1-a7e-_b4xcRuJCTZoc4aCy9KyGrUM8LrKqlkqnA79j95HhExZo5nCmwQGb-8YvIWNFvaoF98d5DV0HaQqog0-53JILmyF-bOKUBVCjoChmFRUvaoF8msrAb4f_2Q.jpeg"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpYBL2dvdG8_dXJsPUNBRVNaUUhyT3pBVjZ2b2xxZW9yd1MyVFIyWnJRR05FZ3RiZGx1VXBkLXdST2NGeFVVcHozTWRadlE0dUI2Wm0tcVF4a3p6UW5KMjJhY04xYTBrZ3d1SHBWQ1QwRG9WLXY2T3Mwclo5TThKY2Z2RldVbk1abHdQa2oxT1JseEhmRzdhZG5hWkxSSktvEgQaAggAGpkGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPUFCEIQABgAIAAqJwoDZGhjFdxIlUAaA8SRaBoExJFoYxoGxJFoY8SRGghpdjtkO2RoYypOCgV0cmFuZxU1Z6BAGgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nKj0KBWNo4bunFULz3j4aA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIaBWPhu6dhKhoKBmNow61uaBVJ_gA_GgtjaMOtbmhow6NuZyo2CgVow6NuZxUMucI-GgVicmFuZBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nGgRuaMOgMpYBL2dvdG8_dXJsPUNBRVNaUUhyT3pBVjZ2b2xxZW9yd1MyVFIyWnJRR05FZ3RiZGx1VXBkLXdST2NGeFVVcHozTWRadlE0dUI2Wm0tcVF4a3p6UW5KMjJhY04xYTBrZ3d1SHBWQ1QwRG9WLXY2T3Mwclo5TThKY2Z2RldVbk1abHdQa2oxT1JseEhmRzdhZG5hWkxSSktvOlJWacOqbiBV4buRbmcgPGI-VHLhuq9uZzwvYj4gRGEgPGI-REhDPC9iPiBBZGxheSBFeHRyYWN0IE5o4bqtdCBC4bqjbiBHw7NpIDMwIE5nw6B5QuEBLSBHacO6cCBkxrDhu6FuZyA8Yj50cuG6r25nPC9iPiwgbMOgbSBt4budIHbhur90IHRow6JtLCBtZWxhbWluLCBuw6FtIHTDoG4gbmhhbmcgdsOgIHTEg25nIHTDtG5nIGRhIHNhdSBt4buZdCB0aOG7nWkgZ2lhbiBracOqbiB0csOsIHPhu60gZOG7pW5nLCBudcO0aSBkxrDhu6FuZyBsw6BuIGRhIDxiPnRy4bqvbmc8L2I-IGjhu5NuZyBy4bqhbmcgcuG7oS4gLSBDdW5nIGPhuqVwJm5ic3A7Li4uUgZ0aOG7qWNSBmhp4buHdSICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpYBL2dvdG8_dXJsPUNBRVNaUUhyT3pBVjZ2b2xxZW9yd1MyVFIyWnJRR05FZ3RiZGx1VXBkLXdST2NGeFVVcHozTWRadlE0dUI2Wm0tcVF4a3p6UW5KMjJhY04xYTBrZ3d1SHBWQ1QwRG9WLXY2T3Mwclo5TThKY2Z2RldVbk1abHdQa2oxT1JseEhmRzdhZG5hWkxSSktvEgQaAggAGpkGEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPUFCEIQABgAIAAqJwoDZGhjFdxIlUAaA8SRaBoExJFoYxoGxJFoY8SRGghpdjtkO2RoYypOCgV0cmFuZxU1Z6BAGgZ0csOgbmcaBnRyw6FuZxoGdHLEg25nGgd0cuG6oW5nGgd0cuG6r25nGgp0cmFuZ2No4bunGgppdjtkO3RyYW5nKj0KBWNo4bunFULz3j4aA2NodRoDd2ViGgp0cmFuZ2No4bunGghpdjtkO2NodRoIaXY7ZDt3ZWIaBWPhu6dhKhoKBmNow61uaBVJ_gA_GgtjaMOtbmhow6NuZyo2CgVow6NuZxUMucI-GgVicmFuZBoGaGnhu4d1GgZ0aOG7qWMaC2Now61uaGjDo25nGgRuaMOgMpYBL2dvdG8_dXJsPUNBRVNaUUhyT3pBVjZ2b2xxZW9yd1MyVFIyWnJRR05FZ3RiZGx1VXBkLXdST2NGeFVVcHozTWRadlE0dUI2Wm0tcVF4a3p6UW5KMjJhY04xYTBrZ3d1SHBWQ1QwRG9WLXY2T3Mwclo5TThKY2Z2RldVbk1abHdQa2oxT1JseEhmRzdhZG5hWkxSSktvOlJWacOqbiBV4buRbmcgPGI-VHLhuq9uZzwvYj4gRGEgPGI-REhDPC9iPiBBZGxheSBFeHRyYWN0IE5o4bqtdCBC4bqjbiBHw7NpIDMwIE5nw6B5QuEBLSBHacO6cCBkxrDhu6FuZyA8Yj50cuG6r25nPC9iPiwgbMOgbSBt4budIHbhur90IHRow6JtLCBtZWxhbWluLCBuw6FtIHTDoG4gbmhhbmcgdsOgIHTEg25nIHTDtG5nIGRhIHNhdSBt4buZdCB0aOG7nWkgZ2lhbiBracOqbiB0csOsIHPhu60gZOG7pW5nLCBudcO0aSBkxrDhu6FuZyBsw6BuIGRhIDxiPnRy4bqvbmc8L2I-IGjhu5NuZyBy4bqhbmcgcuG7oS4gLSBDdW5nIGPhuqVwJm5ic3A7Li4uUgZ0aOG7qWNSBmhp4buHdSICEAFIAFgAaAA",
+     "source": "Marie Japan"
+    },
+    {
+     "position": 7,
+     "title": "DHC - MUA SẢN PHẨM DHC CHÍNH HÃNG GIÁ TỐT NHẤT",
+     "link": "https://thegioiskinfood.com/collections/dhc?srsltid=AYCX9vJnfuq9f-J76mpW4PwZRphM8tt1UpuotXwMfazmXk0A2nFnRqI1",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESpwEB6zswFaoGCoku9gLqlSLH5u-_h6Ql-_LI-3tps8RBFZvv1z26fAfCtFiO26Mw8bPE0U7Iy5mOTiXIk7Alc8FTua6K95iBZ75wQjkuSEBqrI-WdsoLmQzTlF2jc78UUrJ_yF0x_6GqdmZFDRK2J6hNm6_SX42F4RUSNVjG9je_L5veBlCdXbhs4MUT7lSaJET4kcXSe6xqWHCejCkCbO_6pNVlgY8mAw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECBIQAQ&uoh=1",
+     "displayed_link": "https://thegioiskinfood.com › collections › dhc",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAXVBMVEVHcEwlP4AiPH4iPH8hO34gO301S4ceOX0kPX9GW5ANMHl4hKgxSIUAG3EAKHW6wNL____l5-5ndJ-VnrqgqMGIkrKvtctGWI7z9PfY3ObIzdsAB2ooQYJXZ5YhPH6V4l5tAAAAH3RSTlMARZDG3_YQ_3sG______________v_________N_-0__R1RQAAActJREFUeAF9kwe2ozAMRfkEouAqcDdx9r_MkZxeztz06KGngocX_sbDNM_TYfwbfnAc4YXx-Bk_wQfj8MoywRfTS5LjDL94KJZZiP8qJiGl0gYIccP0S6ZbfcYi4mo3ijvvvHfBRyfFvdIFEhLZCRIEV2q1xdbqxN1kFIETSNPzK3P1Mc9mgQVlN1ptwbs12hirQxcEMMNwBjAuIriMRFtLRFldQcrI_PUR6ohXQliLlbk6X0MTV48LvSskSnRpV2QlxC40tKwbhQ7DRBYVCbJo9M4V2b1Q2ZobmVgAKndFsHGvHpPGkHeZd0uCuQt6Cqm1rbo4lAo3FH7dS3oILGLlqlcsekN0e8ScdG5scbkJuOakGqESvRrViomL5DaFQ1Ssq6VSIfS-ZkXVGm7zDESimkkXY43OeVmjXUGvxfCgBiB05QyC8m-wtZaa0iYgL5SXBYRCa7rFGqpdLUqjetK-byBIn4Rw0kYZrfW1QeYSYXnc0Nqi4i0bYYi9IfIuTkPn0BURNx4FiXSquKo-5xtzd2nZGtGCsxmLJH-Yl-dtDYz2XNy2JTLi-OvpOgBjwPvHEZiWX0fvHuX6Pnk_vMvwg_PpMhGX03l48g_c9ioCTzl8gQAAAABJRU5ErkJggg.png",
+     "snippet": "DHC là thương hiệu Nhật Bản chuyên về thực phẩm chức năng và chăm sóc da với chất lượng cao,kết hợp giữa khoa học hiện đại và thảo dược.",
+     "snippet_highlighted_words": [
+      "DHC"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "DHC là thương hiệu Nhật Bản chuyên về thực phẩm chức năng và chăm sóc da với chất lượng cao,kết hợp giữa khoa học hiện đại và thảo dược.",
+       "source_info_link": "https://thegioiskinfood.com/collections/dhc?srsltid=AYCX9vJnfuq9f-J76mpW4PwZRphM8tt1UpuotXwMfazmXk0A2nFnRqI1",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAXVBMVEVHcEwlP4AiPH4iPH8hO34gO301S4ceOX0kPX9GW5ANMHl4hKgxSIUAG3EAKHW6wNL____l5-5ndJ-VnrqgqMGIkrKvtctGWI7z9PfY3ObIzdsAB2ooQYJXZ5YhPH6V4l5tAAAAH3RSTlMARZDG3_YQ_3sG______________v_________N_-0__R1RQAAActJREFUeAF9kwe2ozAMRfkEouAqcDdx9r_MkZxeztz06KGngocX_sbDNM_TYfwbfnAc4YXx-Bk_wQfj8MoywRfTS5LjDL94KJZZiP8qJiGl0gYIccP0S6ZbfcYi4mo3ijvvvHfBRyfFvdIFEhLZCRIEV2q1xdbqxN1kFIETSNPzK3P1Mc9mgQVlN1ptwbs12hirQxcEMMNwBjAuIriMRFtLRFldQcrI_PUR6ohXQliLlbk6X0MTV48LvSskSnRpV2QlxC40tKwbhQ7DRBYVCbJo9M4V2b1Q2ZobmVgAKndFsHGvHpPGkHeZd0uCuQt6Cqm1rbo4lAo3FH7dS3oILGLlqlcsekN0e8ScdG5scbkJuOakGqESvRrViomL5DaFQ1Ssq6VSIfS-ZkXVGm7zDESimkkXY43OeVmjXUGvxfCgBiB05QyC8m-wtZaa0iYgL5SXBYRCa7rFGqpdLUqjetK-byBIn4Rw0kYZrfW1QeYSYXnc0Nqi4i0bYYi9IfIuTkPn0BURNx4FiXSquKo-5xtzd2nZGtGCsxmLJH-Yl-dtDYz2XNy2JTLi-OvpOgBjwPvHEZiWX0fvHuX6Pnk_vMvwg_PpMhGX03l48g_c9ioCTzl8gQAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CvABL2dvdG8_dXJsPUNBRVNwd0VCNnpzd0ZVRUltYUU3LU5TUVVYZ0xHN1VnR0ZsMVFlUTZmS3NtdVhNdDRacHhyRExIdEJITkpKNGFxcDB4a1pxM01iN0tpQmttWEI4bHM0TDBQNzBfdk5UN0lJVmNEbzZpbWs0XzFUVHIzdFo1cXoxVFM3ekpKS2RPeWNCT1IyZzJNUHFsT3ctbEZrelFnc3dDaDEyNXV3N0xZOVZ1bnBCWVpqazA2Uk5yMmVNV0xGNUJqV183YjZMUG90Z3FOalM4M1pkR0RKV25KTTZFRkJfeTNvelJLa28zSHBxMEl3EgQaAggAGvAFEgIIABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAygUIQhAAGAAgAConCgNkaGMVXJyCQBoDxJFoGgTEkWhjGgbEkWhjxJEaCGl2O2Q7ZGhjKk4KBXRyYW5nFVZq1D8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqPQoFY2jhu6cVAAAAABoDY2h1GgN3ZWIaCnRyYW5nY2jhu6caCGl2O2Q7Y2h1GghpdjtkO3dlYhoFY-G7p2EqGgoGY2jDrW5oFfAaI0AaC2Now61uaGjDo25nKjYKBWjDo25nFfAaI0AaBWJyYW5kGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcaBG5ow6AymAEvZ290bz91cmw9Q0FFU1pnSHJPekFWdHFwWUczU1VwbW5haDBMdkoyODB3RzRTUVFVVVJsV3U4ZTJpZzNrMGNBeDhhdE54eXd6dE5UMUxYZnN2VHlTcVpGYzZXdWVKdXFtWi1JU2Z0MWFycGR5QkxHdTl2aWpyTFhzdmNETnFqQ20yQ3BZVUN5bzdVZUMxMnRpZ05hVDJZQTpHPGI-REhDPC9iPiAtIE1VQSBT4bqiTiBQSOG6qE0gPGI-REhDIENIw41OSCBIw4NORzwvYj4gR0nDgSBU4buQVCBOSOG6pFRCvwE8Yj5ESEM8L2I-IGzDoCB0aMawxqFuZyBoaeG7h3UgTmjhuq10IELhuqNuIGNodXnDqm4gduG7gSB0aOG7sWMgcGjhuqltIGNo4bupYyBuxINuZyB2w6AgY2jEg20gc8OzYyBkYSB24bubaSBjaOG6pXQgbMaw4bujbmcgY2FvLGvhur90IGjhu6NwIGdp4buvYSBraG9hIGjhu41jIGhp4buHbiDEkeG6oWkgdsOgIHRo4bqjbyBkxrDhu6NjLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CvABL2dvdG8_dXJsPUNBRVNwd0VCNnpzd0ZVRUltYUU3LU5TUVVYZ0xHN1VnR0ZsMVFlUTZmS3NtdVhNdDRacHhyRExIdEJITkpKNGFxcDB4a1pxM01iN0tpQmttWEI4bHM0TDBQNzBfdk5UN0lJVmNEbzZpbWs0XzFUVHIzdFo1cXoxVFM3ekpKS2RPeWNCT1IyZzJNUHFsT3ctbEZrelFnc3dDaDEyNXV3N0xZOVZ1bnBCWVpqazA2Uk5yMmVNV0xGNUJqV183YjZMUG90Z3FOalM4M1pkR0RKV25KTTZFRkJfeTNvelJLa28zSHBxMEl3EgQaAggAGvAFEgIIABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAygUIQhAAGAAgAConCgNkaGMVXJyCQBoDxJFoGgTEkWhjGgbEkWhjxJEaCGl2O2Q7ZGhjKk4KBXRyYW5nFVZq1D8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqPQoFY2jhu6cVAAAAABoDY2h1GgN3ZWIaCnRyYW5nY2jhu6caCGl2O2Q7Y2h1GghpdjtkO3dlYhoFY-G7p2EqGgoGY2jDrW5oFfAaI0AaC2Now61uaGjDo25nKjYKBWjDo25nFfAaI0AaBWJyYW5kGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcaBG5ow6AymAEvZ290bz91cmw9Q0FFU1pnSHJPekFWdHFwWUczU1VwbW5haDBMdkoyODB3RzRTUVFVVVJsV3U4ZTJpZzNrMGNBeDhhdE54eXd6dE5UMUxYZnN2VHlTcVpGYzZXdWVKdXFtWi1JU2Z0MWFycGR5QkxHdTl2aWpyTFhzdmNETnFqQ20yQ3BZVUN5bzdVZUMxMnRpZ05hVDJZQTpHPGI-REhDPC9iPiAtIE1VQSBT4bqiTiBQSOG6qE0gPGI-REhDIENIw41OSCBIw4NORzwvYj4gR0nDgSBU4buQVCBOSOG6pFRCvwE8Yj5ESEM8L2I-IGzDoCB0aMawxqFuZyBoaeG7h3UgTmjhuq10IELhuqNuIGNodXnDqm4gduG7gSB0aOG7sWMgcGjhuqltIGNo4bupYyBuxINuZyB2w6AgY2jEg20gc8OzYyBkYSB24bubaSBjaOG6pXQgbMaw4bujbmcgY2FvLGvhur90IGjhu6NwIGdp4buvYSBraG9hIGjhu41jIGhp4buHbiDEkeG6oWkgdsOgIHRo4bqjbyBkxrDhu6NjLlIGaGnhu4d1UgZ0aOG7qWMiAhABSABYAGgA",
+     "source": "Thế Giới SkinFood"
+    },
+    {
+     "position": 8,
+     "title": "🥳 Muốn mua viên uống dinh dưỡng DHC CHÍNH HÃNG ...",
+     "link": "https://www.facebook.com/hachihachi.japanshop/posts/-mu%E1%BB%91n-mua-vi%C3%AAn-u%E1%BB%91ng-dinh-d%C6%B0%E1%BB%A1ng-dhc-ch%C3%ADnh-h%C3%A3ng-nh%E1%BA%ADt-b%E1%BA%A3n-t%E1%BB%9Bi-ngay-hachi-hachi-nhen/10158825632633696/",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESlwIB6zswFWr-sTa3GdqQ-EusUSJkeZf9GW7m2VBL9fBSs_896dGllilDwRHr3P7qEzkr5HN4aJxqgm9pHUTzSt6Vg-Zzw47P78Jlos3vtCSD3qZ_2d3sbX_fAaly_4FvjZ4_7MEFy2EeqPtQA3KTQTz5thB0lWDd1P_8XddRbvrASMeoE9uIzLeguRAx-ChG94ZYdqCSGCWoLiiWPotEtbo1GHjiGa-mGvrNeu0TASWHCBj0CLB4JyUF2Z4iZ-wGn47pf-hiaP64wL1ttwDjnH6sl0Xe18936j0D1s7aCH13DoPGxikrhF4y4zDrIG5Pf_CDjeguqx7uhn3vkM7PLmooSRD_tH3aDXkJ05CwI6rCyRVJTz0F_rk&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQFnoECB0QAQ&uoh=1",
+     "displayed_link": ">10 lượt thể hiện cảm xúc · 7 năm trước",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "snippet": "2️⃣ Viên uống DHC collagen 60 ngày - Khôi phục vẻ đẹp làn da. 3️⃣ Viên uống DHC vitamin C - cung cấp vtm C sáng da, mờ thâm nám, tăng sức đề ...",
+     "snippet_highlighted_words": [
+      "DHC",
+      "DHC"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "2️⃣ Viên uống DHC collagen 60 ngày - Khôi phục vẻ đẹp làn da. 3️⃣ Viên uống DHC vitamin C - cung cấp vtm C sáng da, mờ thâm nám, tăng sức đề ...",
+       "source_info_link": "https://www.facebook.com/hachihachi.japanshop/posts/-mu%E1%BB%91n-mua-vi%C3%AAn-u%E1%BB%91ng-dinh-d%C6%B0%E1%BB%A1ng-dhc-ch%C3%ADnh-h%C3%A3ng-nh%E1%BA%ADt-b%E1%BA%A3n-t%E1%BB%9Bi-ngay-hachi-hachi-nhen/10158825632633696/",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CoUDL2dvdG8_dXJsPUNBRVNsd0lCNnpzd0ZkbkN1Z000VmU0SEZfOFFRVFNEQ29OVXF3T21NdVVES183UjQzZDBjbDJJT1hlREZFNGxpQnp2SmxOZDNXT2xoSkZkLXpkNlhjSDl1ZHFVYlY0SXlsbkE4X1dNWVh4MklLVjBDcFhHbUpkeWtMRVVZa0ZCemw3TTBibzV3R21ubUdVODVTYTFVYV9mbFAwYWs3UTZTVDRmYU1zREZTV1ByUUFXSDFScllMai1GTC00TnZjbXJKRnZ2Q0dPZ3F2VkE5N2Mwb3NJZzc2QjFTZ3VuMDd5VDZaOXRkZ0oyeVd6djhHbDFzQko4dE50LXBnbzFvOHZ4MUozenJUbldmMUZjZ1hvMERQemI4LTY0TGJibWdYcFZtOS12VXQxV0VhcnJyUGpIbWhuOWNQbjJvYUZ6a090LXY4aWNObU9JOUczVUpFMWxhR0dVTnRlMXZiVXdBcGVLcEJIWHktczhVU24xTDVudXVNZkFkXzJraFUSBBoCCAAa5QcSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAwQcIQhAAGAAgAConCgNkaGMVYC2nQBoDxJFoGgTEkWhjGgbEkWhjxJEaCGl2O2Q7ZGhjKk4KBXRyYW5nFfA6gD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqPQoFY2jhu6cVAAAAABoDY2h1GgN3ZWIaCnRyYW5nY2jhu6caCGl2O2Q7Y2h1GghpdjtkO3dlYhoFY-G7p2EqGgoGY2jDrW5oFRYbakAaC2Now61uaGjDo25nKjYKBWjDo25nFVCickAaBWJyYW5kGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcaBG5ow6AyhQMvZ290bz91cmw9Q0FFU2x3SUI2enN3RmRuQ3VnTTRWZTRIRl84UVFUU0RDb05VcXdPbU11VURLXzdSNDNkMGNsMklPWGVERkU0bGlCenZKbE5kM1dPbGhKRmQtemQ2WGNIOXVkcVViVjRJeWxuQThfV01ZWHgySUtWMENwWEdtSmR5a0xFVVlrRkJ6bDdNMGJvNXdHbW5tR1U4NVNhMVVhX2ZsUDBhazdRNlNUNGZhTXNERlNXUHJRQVdIMVJyWUxqLUZMLTROdmNtckpGdnZDR09ncXZWQTk3YzBvc0lnNzZCMVNndW4wN3lUNlo5dGRnSjJ5V3p2OEdsMXNCSjh0TnQtcGdvMW84dngxSjN6clRuV2YxRmNnWG8wRFB6YjgtNjRMYmJtZ1hwVm05LXZVdDFXRWFycnJQakhtaG45Y1BuMm9hRnprT3QtdjhpY05tT0k5RzNVSkUxbGFHR1VOdGUxdmJVd0FwZUtwQkhYeS1zOFVTbjFMNW51dU1mQWRfMmtoVTpITXXhu5FuIG11YSB2acOqbiB14buRbmcgZGluaCBkxrDhu6FuZyA8Yj5ESEMgQ0jDjU5IIEjDg05HPC9iPiBOSOG6rFQgLi4uQsgBMu-4j-KDoyBWacOqbiB14buRbmcgPGI-REhDPC9iPiBjb2xsYWdlbiA2MCBuZ8OgeSAtIEtow7RpIHBo4bulYyB24bq7IMSR4bq5cCBsw6BuIGRhLiAz77iP4oOjIFZpw6puIHXhu5FuZyA8Yj5ESEM8L2I-IHZpdGFtaW4gQyAtIGN1bmcgY-G6pXAgdnRtIEMgc8OhbmcgZGEsIG3hu50gdGjDom0gbsOhbSwgdMSDbmcgc-G7qWMgxJHhu4EmbmJzcDsuLi5SBnRo4bupY1IGaGnhu4d1IgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CoUDL2dvdG8_dXJsPUNBRVNsd0lCNnpzd0ZkbkN1Z000VmU0SEZfOFFRVFNEQ29OVXF3T21NdVVES183UjQzZDBjbDJJT1hlREZFNGxpQnp2SmxOZDNXT2xoSkZkLXpkNlhjSDl1ZHFVYlY0SXlsbkE4X1dNWVh4MklLVjBDcFhHbUpkeWtMRVVZa0ZCemw3TTBibzV3R21ubUdVODVTYTFVYV9mbFAwYWs3UTZTVDRmYU1zREZTV1ByUUFXSDFScllMai1GTC00TnZjbXJKRnZ2Q0dPZ3F2VkE5N2Mwb3NJZzc2QjFTZ3VuMDd5VDZaOXRkZ0oyeVd6djhHbDFzQko4dE50LXBnbzFvOHZ4MUozenJUbldmMUZjZ1hvMERQemI4LTY0TGJibWdYcFZtOS12VXQxV0VhcnJyUGpIbWhuOWNQbjJvYUZ6a090LXY4aWNObU9JOUczVUpFMWxhR0dVTnRlMXZiVXdBcGVLcEJIWHktczhVU24xTDVudXVNZkFkXzJraFUSBBoCCAAa5QcSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAwQcIQhAAGAAgAConCgNkaGMVYC2nQBoDxJFoGgTEkWhjGgbEkWhjxJEaCGl2O2Q7ZGhjKk4KBXRyYW5nFfA6gD8aBnRyw6BuZxoGdHLDoW5nGgZ0csSDbmcaB3Ry4bqhbmcaB3Ry4bqvbmcaCnRyYW5nY2jhu6caCml2O2Q7dHJhbmcqPQoFY2jhu6cVAAAAABoDY2h1GgN3ZWIaCnRyYW5nY2jhu6caCGl2O2Q7Y2h1GghpdjtkO3dlYhoFY-G7p2EqGgoGY2jDrW5oFRYbakAaC2Now61uaGjDo25nKjYKBWjDo25nFVCickAaBWJyYW5kGgZoaeG7h3UaBnRo4bupYxoLY2jDrW5oaMOjbmcaBG5ow6AyhQMvZ290bz91cmw9Q0FFU2x3SUI2enN3RmRuQ3VnTTRWZTRIRl84UVFUU0RDb05VcXdPbU11VURLXzdSNDNkMGNsMklPWGVERkU0bGlCenZKbE5kM1dPbGhKRmQtemQ2WGNIOXVkcVViVjRJeWxuQThfV01ZWHgySUtWMENwWEdtSmR5a0xFVVlrRkJ6bDdNMGJvNXdHbW5tR1U4NVNhMVVhX2ZsUDBhazdRNlNUNGZhTXNERlNXUHJRQVdIMVJyWUxqLUZMLTROdmNtckpGdnZDR09ncXZWQTk3YzBvc0lnNzZCMVNndW4wN3lUNlo5dGRnSjJ5V3p2OEdsMXNCSjh0TnQtcGdvMW84dngxSjN6clRuV2YxRmNnWG8wRFB6YjgtNjRMYmJtZ1hwVm05LXZVdDFXRWFycnJQakhtaG45Y1BuMm9hRnprT3QtdjhpY05tT0k5RzNVSkUxbGFHR1VOdGUxdmJVd0FwZUtwQkhYeS1zOFVTbjFMNW51dU1mQWRfMmtoVTpITXXhu5FuIG11YSB2acOqbiB14buRbmcgZGluaCBkxrDhu6FuZyA8Yj5ESEMgQ0jDjU5IIEjDg05HPC9iPiBOSOG6rFQgLi4uQsgBMu-4j-KDoyBWacOqbiB14buRbmcgPGI-REhDPC9iPiBjb2xsYWdlbiA2MCBuZ8OgeSAtIEtow7RpIHBo4bulYyB24bq7IMSR4bq5cCBsw6BuIGRhLiAz77iP4oOjIFZpw6puIHXhu5FuZyA8Yj5ESEM8L2I-IHZpdGFtaW4gQyAtIGN1bmcgY-G6pXAgdnRtIEMgc8OhbmcgZGEsIG3hu50gdGjDom0gbsOhbSwgdMSDbmcgc-G7qWMgxJHhu4EmbmJzcDsuLi5SBnRo4bupY1IGaGnhu4d1IgIQAUgAWABoAA",
+     "source": "Facebook · Hachi Hachi Shop"
+    }
+   ],
+   "related_searches": [
+    {
+     "block_position": 1,
+     "query": "DHC 60 viên của Nhật",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=DHC+60+vi%C3%AAn+c%E1%BB%A7a+Nh%E1%BA%ADt&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAgMEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DHC+60+vi%C3%AAn+c%E1%BB%A7a+Nh%E1%BA%ADt"
+    },
+    {
+     "block_position": 1,
+     "query": "DHC chính hãng",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=DHC+ch%C3%ADnh+h%C3%A3ng&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAghEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DHC+ch%C3%ADnh+h%C3%A3ng"
+    },
+    {
+     "block_position": 1,
+     "query": "Tất cả các loại viên uống DHC",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=T%E1%BA%A5t+c%E1%BA%A3+c%C3%A1c+lo%E1%BA%A1i+vi%C3%AAn+u%E1%BB%91ng+DHC&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAgcEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=T%E1%BA%A5t+c%E1%BA%A3+c%C3%A1c+lo%E1%BA%A1i+vi%C3%AAn+u%E1%BB%91ng+DHC"
+    },
+    {
+     "block_position": 1,
+     "query": "DHC công dụng từng loại",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=DHC+c%C3%B4ng+d%E1%BB%A5ng+t%E1%BB%ABng+lo%E1%BA%A1i&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAgYEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DHC+c%C3%B4ng+d%E1%BB%A5ng+t%E1%BB%ABng+lo%E1%BA%A1i"
+    },
+    {
+     "block_position": 1,
+     "query": "Hệ thống đại lý DHC Việt Nam",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=H%E1%BB%87+th%E1%BB%91ng+%C4%91%E1%BA%A1i+l%C3%BD+DHC+Vi%E1%BB%87t+Nam&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAgVEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=H%E1%BB%87+th%E1%BB%91ng+%C4%91%E1%BA%A1i+l%C3%BD+DHC+Vi%E1%BB%87t+Nam"
+    },
+    {
+     "block_position": 1,
+     "query": "DHC Long Châu",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=DHC+Long+Ch%C3%A2u&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAgQEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DHC+Long+Ch%C3%A2u"
+    },
+    {
+     "block_position": 1,
+     "query": "DHC Nhật Bản",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=DHC+Nh%E1%BA%ADt+B%E1%BA%A3n&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAgOEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DHC+Nh%E1%BA%ADt+B%E1%BA%A3n"
+    },
+    {
+     "block_position": 1,
+     "query": "DHC thơm người của Nhật",
+     "link": "https://www.google.com/search?sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&q=DHC+th%C6%A1m+ng%C6%B0%E1%BB%9Di+c%E1%BB%A7a+Nh%E1%BA%ADt&sa=X&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ1QJ6BAgNEAE",
+     "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=DHC+th%C6%A1m+ng%C6%B0%E1%BB%9Di+c%E1%BB%A7a+Nh%E1%BA%ADt"
+    }
+   ],
+   "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=10&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8NMDegQIRhAW",
+    "other_pages": {
+     "2": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=10&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAE",
+     "3": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=20&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAG",
+     "4": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=30&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAI",
+     "5": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=40&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAK",
+     "6": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=50&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAM",
+     "7": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=60&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAO",
+     "8": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=70&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAQ",
+     "9": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=80&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAS",
+     "10": "https://www.google.com/search?q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&sca_esv=2b323d92f2ecfa88&gl=vn&hl=vi&sxsrf=APpeQnt0Y48uXYiFq69X_JtJJug56qBdvA:1792980188055&ei=3LTeao38AryqruEP8peYyQ0&start=90&sa=N&sstk=AS6-VmKBoKz8Vu-BL9Mn5chf6Z48VchTZITw_LdSjZCWCbNIBk5rL1f-nMT1B13_uAxeEL43XPZAHLEdlIMt2aTNZXN1oBt7r4BwPw&ved=2ahUKEwiN2srZy9aXAxU8lSsGHfILJtkQ8tMDegQIRhAU"
+    }
+   },
+   "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+    "other_pages": {
+     "2": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=10",
+     "3": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=20",
+     "4": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=30",
+     "5": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=40",
+     "6": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=50",
+     "7": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=60",
+     "8": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=70",
+     "9": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=80",
+     "10": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=Dhc+trang+ch%E1%BB%A7+ch%C3%ADnh+h%C3%A3ng&start=90"
+    }
+   }
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "edb1ad9711906a7eb00309d9c6b7d18e050deedeedad060754d1249394f5d3df"
+ }
+}

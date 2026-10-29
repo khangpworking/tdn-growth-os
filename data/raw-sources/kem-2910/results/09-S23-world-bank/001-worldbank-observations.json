@@ -1,0 +1,1111 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "09 · S23 · Ngân hàng Thế giới",
+  "describe": "worldbank.observations worldbank.observations",
+  "parentFile": "09-S23-world-bank.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S23",
+  "sourceName": "Ngân hàng Thế giới",
+  "provider": "World Bank API v2 (source=2)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "1960-01-01",
+   "endDate": "2025-12-31",
+   "timezone": "UTC",
+   "basis": "Chuỗi năm đầy đủ của chỉ số"
+  },
+  "limits": [
+   "Không chia theo sản phẩm"
+  ],
+  "resultSha256": "8f9776e43415c40fe12b7421c2856394d6aa57a82be87b88a7c4e64e83226c5a"
+ },
+ "result": {
+  "captureId": "world-bank-0001",
+  "operation": "worldbank.observations",
+  "endpoint": "https://api.worldbank.org/v2/country/VN/indicator/NE.CON.PRVT.PC.KD",
+  "method": "GET",
+  "requestParameters": {
+   "format": "json"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:25.018Z",
+  "completedAt": "2026-10-26T02:02:25.447Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "FREE_ACCOUNT_QUERY",
+  "responseSha256": "d7b9527b2c2150fbe4d490321cef423466e4c4e64bb8ecf91d6da081074e0d87",
+  "response": [
+   {
+    "page": 1,
+    "pages": 1,
+    "per_page": 100,
+    "total": 66,
+    "sourceid": "2",
+    "lastupdated": "2026-10-08"
+   },
+   [
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2025",
+     "value": 2381.8882523638,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2024",
+     "value": 2232.99654147988,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2023",
+     "value": 2106.09214536951,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2022",
+     "value": 2057.05698178473,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2021",
+     "value": 1921.17036581274,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2020",
+     "value": 1896.76740474564,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2019",
+     "value": 1907.19316863785,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2018",
+     "value": 1799.43141796785,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2017",
+     "value": 1702.03780766968,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2016",
+     "value": 1607.59975033856,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2015",
+     "value": 1529.33937267271,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2014",
+     "value": 1423.30860866042,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2013",
+     "value": 1355.56667726479,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2012",
+     "value": 1303.86044900408,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2011",
+     "value": 1257.71592530496,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2010",
+     "value": 1208.01982428177,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2009",
+     "value": 1129.46338130452,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2008",
+     "value": 1121.24174597107,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2007",
+     "value": 1060.58990099741,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2006",
+     "value": 983.338966800829,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2005",
+     "value": 927.207546825185,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2004",
+     "value": 872.522555615667,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2003",
+     "value": 822.661744463591,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2002",
+     "value": 769.302134591335,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2001",
+     "value": 722.139750923544,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "2000",
+     "value": 698.535823783014,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1999",
+     "value": 685.387225978458,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1998",
+     "value": 676.808476868987,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1997",
+     "value": 657.243519357264,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1996",
+     "value": 629.641466512003,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1995",
+     "value": 586.032861614582,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1994",
+     "value": 555.820883287606,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1993",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1992",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1991",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1990",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1989",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1988",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1987",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1986",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1985",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1984",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1983",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1982",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1981",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1980",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1979",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1978",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1977",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1976",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1975",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1974",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1973",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1972",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1971",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1970",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1969",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1968",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1967",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1966",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1965",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1964",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1963",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1962",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1961",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    },
+    {
+     "indicator": {
+      "id": "NE.CON.PRVT.PC.KD",
+      "value": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)"
+     },
+     "country": {
+      "id": "VN",
+      "value": "Viet Nam"
+     },
+     "countryiso3code": "VNM",
+     "date": "1960",
+     "value": null,
+     "unit": "",
+     "obs_status": "",
+     "decimal": 0
+    }
+   ]
+  ],
+  "step": "COLLECTION",
+  "captureArtifactSha256": "fc653e90481702a1f4d71957c7f21cd21797b6ec1f5642d6bace84a38588223b"
+ }
+}

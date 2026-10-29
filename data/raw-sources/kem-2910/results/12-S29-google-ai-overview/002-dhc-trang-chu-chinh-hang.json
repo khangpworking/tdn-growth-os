@@ -1,0 +1,35 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "12 · S29 · Bản tổng hợp AI của Google (AI Overview)",
+  "describe": "Google AI Overview cho câu «Dhc trang chủ chính hãng» (page_token_expired)",
+  "parentFile": "12-S29-google-ai-overview.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S29",
+  "sourceName": "Bản tổng hợp AI của Google (AI Overview)",
+  "provider": "SerpApi engine=google (+ google_ai_overview khi cần page_token)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Câu trả lời của Google lúc thu"
+  },
+  "limits": [
+   "AI không phải bằng chứng; mọi ý phải kiểm lại bằng lời khách thật",
+   "page_token hết hạn sau vài phút nên token của 26/10 không dùng lại được"
+  ],
+  "resultSha256": "2a25cee626bf6bb38e9addf91254db65d477decefb092c05a400311317e6cd90"
+ },
+ "result": {
+  "origin": "SAVED_26_10_RUN",
+  "query": "Dhc trang chủ chính hãng",
+  "engine": "google",
+  "requestedAt": "2026-10-26T02:03:07.707Z",
+  "aiOverviewState": "page_token_expired",
+  "ai_overview": {
+   "page_token": "IRVvZ3iczVXbcqpIFP2BqfmL8JJEUBLFVFGnmoukgSTgJVFfKARsMAIGEEbf5l_mq-ZrTnNRMdGcnLzM7Cro2-59X73__mfpBa___vGnmySr-I4ksyxroDBES6dhhT5pxpvAIufhMo4s9wdasmlAuPjvEXG4jizHs1nLjULfITYpSxNWzFKE47G0OnTMkGZAtHmL1qLGrJzJRqeIQhxrzMzYWWBtfy1i0iDx7_WCFvCiETdSr3Hdpbox0-9Et1mjRbXoxhNp-pgB_BcUQgDxMAD8p2wI9L4mT8SfB8BrbUuvRHOHrUm1EgGfX-BzBScJ5owoP0awtAOTxkyYjAJA0PfWfUIQ6IeFurck1zvIjz-9_JH2XlQB-TxuZ45hKUo_MNVs5D7y7yg7WilYkAaE-o3DjK_01AQXccxVcxkQMgeJDyJXOz5pPO-BpykQOfgZ3075qLuXB_kEq-ZIG-HKpshZhIcm6VmuVUyiOC94ftilQjHYCjrd1Kaj3rajPaZOCpr8-I3rKh1AWjPMtwxN27EN16B-FOtmq9nptqn2zVWBNCveQy2uQ01DXTmR5jfQfWioDa65wxlfJn9n6LEPunLSU8SVET1XLOhd1vZhFbm6MsBXAvo5SDDX5Eg_jyhg1bjyhD9MgIpgvUrF2uwUzgrijib4yqgwE5WIKqiuGeIqgmHdnxoJH71GpYewLknkqvLkc3wXJFWWgfdxhhwsRejvzN07wwlKXkAFzpR15doTqLlv8nLh0bEzCDNAvdqHJfsuMHz9LcjdFSE-E0eYlx_0XCCLlXyk55KVijMf9XoW8_ydJhEJxfv3TRp9iYsDOzy9g0cdVlK2ncYoGLbl4f0qfh1AZuapsrx8HvfBaRiF_uw3Wpb1PwXarqGhMunngWaDLwGtaGingcbtf_WGNirkInQWaFxeeacb2u59PxhxAmhQ7B-AVjU06VxD-32gFc6dB9oOFKeAxg2qs2Ogrc4DLXsPNDgXjxraAWjHDW0HtG82tNH3G1oBPKccjrvbeoHOdjlJ8--RNkylwHWs9H610lvTZKuGyJb0X3a5uZ_c-aa9vDI8-45rycnGvjLwRnjn2MQbK7jWZRKZAbq03AuxecFxF6CTz3n6AgiBe1nO6AAR_jIKWcq8fVnFykh60TrTsWRMI09R50GS2RtGnRpT6ro3NpK0-YYkw5Q9ZbK8XZhqIKWMPGsOBo_bodbzFu3H8Y20iX3xFmp0z3zrTfvXz84608e8xOg9JGd6O11Js8krY8cvU59qGXS6UG82ncVCuO2bzLP80Nau14lbWBWzL0bvOpsgZvRoEX5ksThZN1sk6-AFl2CeYhk_DgquDQWPKh7VkAP6_QTouEHpQojTQ8SWaThxyrZmdIu2u615y7HmJsMQPko2K7ZLEXEQsc2fgB1mcg",
+   "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=IRVvZ3iczVXbcqpIFP2BqfmL8JJEUBLFVFGnmoukgSTgJVFfKARsMAIGEEbf5l_mq-ZrTnNRMdGcnLzM7Cro2-59X73__mfpBa___vGnmySr-I4ksyxroDBES6dhhT5pxpvAIufhMo4s9wdasmlAuPjvEXG4jizHs1nLjULfITYpSxNWzFKE47G0OnTMkGZAtHmL1qLGrJzJRqeIQhxrzMzYWWBtfy1i0iDx7_WCFvCiETdSr3Hdpbox0-9Et1mjRbXoxhNp-pgB_BcUQgDxMAD8p2wI9L4mT8SfB8BrbUuvRHOHrUm1EgGfX-BzBScJ5owoP0awtAOTxkyYjAJA0PfWfUIQ6IeFurck1zvIjz-9_JH2XlQB-TxuZ45hKUo_MNVs5D7y7yg7WilYkAaE-o3DjK_01AQXccxVcxkQMgeJDyJXOz5pPO-BpykQOfgZ3075qLuXB_kEq-ZIG-HKpshZhIcm6VmuVUyiOC94ftilQjHYCjrd1Kaj3rajPaZOCpr8-I3rKh1AWjPMtwxN27EN16B-FOtmq9nptqn2zVWBNCveQy2uQ01DXTmR5jfQfWioDa65wxlfJn9n6LEPunLSU8SVET1XLOhd1vZhFbm6MsBXAvo5SDDX5Eg_jyhg1bjyhD9MgIpgvUrF2uwUzgrijib4yqgwE5WIKqiuGeIqgmHdnxoJH71GpYewLknkqvLkc3wXJFWWgfdxhhwsRejvzN07wwlKXkAFzpR15doTqLlv8nLh0bEzCDNAvdqHJfsuMHz9LcjdFSE-E0eYlx_0XCCLlXyk55KVijMf9XoW8_ydJhEJxfv3TRp9iYsDOzy9g0cdVlK2ncYoGLbl4f0qfh1AZuapsrx8HvfBaRiF_uw3Wpb1PwXarqGhMunngWaDLwGtaGingcbtf_WGNirkInQWaFxeeacb2u59PxhxAmhQ7B-AVjU06VxD-32gFc6dB9oOFKeAxg2qs2Ogrc4DLXsPNDgXjxraAWjHDW0HtG82tNH3G1oBPKccjrvbeoHOdjlJ8--RNkylwHWs9H610lvTZKuGyJb0X3a5uZ_c-aa9vDI8-45rycnGvjLwRnjn2MQbK7jWZRKZAbq03AuxecFxF6CTz3n6AgiBe1nO6AAR_jIKWcq8fVnFykh60TrTsWRMI09R50GS2RtGnRpT6ro3NpK0-YYkw5Q9ZbK8XZhqIKWMPGsOBo_bodbzFu3H8Y20iX3xFmp0z3zrTfvXz84608e8xOg9JGd6O11Js8krY8cvU59qGXS6UG82ncVCuO2bzLP80Nau14lbWBWzL0bvOpsgZvRoEX5ksThZN1sk6-AFl2CeYhk_DgquDQWPKh7VkAP6_QTouEHpQojTQ8SWaThxyrZmdIu2u615y7HmJsMQPko2K7ZLEXEQsc2fgB1mcg"
+  }
+ }
+}

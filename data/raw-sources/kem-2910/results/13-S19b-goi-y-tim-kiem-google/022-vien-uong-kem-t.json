@@ -1,0 +1,97 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm t» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[21]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "bb9c425d61c3c9c0143476cdafa0e03d54ba407c0e5282914791328099051d0e"
+ },
+ "result": {
+  "prefix": "viên uống kẽm t",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:57Z",
+  "suggestions": [
+   "viên uống kẽm trị mụn",
+   "viên uống kẽm tốt nhất hiện nay",
+   "viên uống kẽm trị mụn zinc for acne review",
+   "viên uống kẽm traphaco",
+   "viên uống kẽm trị mụn dhc",
+   "viên uống kẽm tăng cường sinh lý nam",
+   "viên uống kẽm tốt",
+   "viên uống kẽm thorne",
+   "viên uống kẽm tốt cho nam",
+   "viên uống kẽm tốt nhất"
+  ],
+  "raw": [
+   "viên uống kẽm t",
+   [
+    "viên uống kẽm trị mụn",
+    "viên uống kẽm tốt nhất hiện nay",
+    "viên uống kẽm trị mụn zinc for acne review",
+    "viên uống kẽm traphaco",
+    "viên uống kẽm trị mụn dhc",
+    "viên uống kẽm tăng cường sinh lý nam",
+    "viên uống kẽm tốt",
+    "viên uống kẽm thorne",
+    "viên uống kẽm tốt cho nam",
+    "viên uống kẽm tốt nhất"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,102 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm s» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[20]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "0864ffd6f8dc6b5bedc99c2981139a61919be52cdd3d30ba28001b8e8cf2d624"
+ },
+ "result": {
+  "prefix": "viên uống kẽm s",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:56Z",
+  "suggestions": [
+   "viên uống kẽm sắt",
+   "viên uống kẽm selen",
+   "viên kẽm uống sáng hay tối",
+   "viên uống kẽm bổ sung",
+   "viên uống kẽm và sắt",
+   "viên uống kẽm và selen",
+   "viên uống bổ sung kẽm cho nam giới",
+   "viên uống bổ sung kẽm của nhật",
+   "viên uống bổ sung kẽm cho người lớn",
+   "viên uống bổ sung kẽm dhc"
+  ],
+  "raw": [
+   "viên uống kẽm s",
+   [
+    "viên uống kẽm sắt",
+    "viên uống kẽm selen",
+    "viên kẽm uống sáng hay tối",
+    "viên uống kẽm bổ sung",
+    "viên uống kẽm và sắt",
+    "viên uống kẽm và selen",
+    "viên uống bổ sung kẽm cho nam giới",
+    "viên uống bổ sung kẽm của nhật",
+    "viên uống bổ sung kẽm cho người lớn",
+    "viên uống bổ sung kẽm dhc"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

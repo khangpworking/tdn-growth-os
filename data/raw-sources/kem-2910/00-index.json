@@ -1,0 +1,484 @@
+{
+ "formatVersion": "kem-raw-v1",
+ "keyword": "viên uống kẽm",
+ "productTopic": "thực phẩm chức năng viên kẽm",
+ "builtOn": "2026-10-29",
+ "baseRun": "f0f4799a-f9b3-4204-91b2-682ab79d0fce (26/10/2026, Market)",
+ "files": [
+  {
+   "file": "01-S01-metric-so-ban-shopee-tiktok.json",
+   "sourceCode": "S01",
+   "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+   "provider": "Metric (web, OpenCLI)",
+   "usedBy": [
+    "MARKET",
+    "INSIGHT (chọn sản phẩm, link Shopee)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": "2026-09-21",
+    "endDate": "2026-10-20",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+   },
+   "recordCount": 5,
+   "resultNote": null,
+   "cost": {
+    "unit": "executorCalls",
+    "note": "Không tính tiền theo lượt"
+   },
+   "byteSize": 2104504,
+   "fileSha256": "b63b6b819dbebee0790376914c33c2a2857a31c57b02638e9d44c0caac33824e",
+   "check": "OK"
+  },
+  {
+   "file": "02-S02-kalodata-san-pham-tiktok-shop.json",
+   "sourceCode": "S02",
+   "sourceName": "Sản phẩm và số bán TikTok Shop",
+   "provider": "Kalodata Open API",
+   "usedBy": [
+    "MARKET",
+    "INSIGHT (tên, mô tả sản phẩm; chọn sản phẩm)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": "2025-10-26",
+    "endDate": "2026-10-25",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "product.rank: 30 ngày 26/09–25/10/2026; product.detail: từng cửa sổ 30 ngày nối nhau trong 12 tháng (xem queryWindow mỗi bản ghi)"
+   },
+   "recordCount": 66,
+   "resultNote": null,
+   "cost": null,
+   "byteSize": 655755,
+   "fileSha256": "047dbb727088974c76b43d66116226c8cadbf7475df9f686f9d98657d3b1c1fe",
+   "check": "OK"
+  },
+  {
+   "file": "03-S05-shopee-danh-gia.json",
+   "sourceCode": "S05",
+   "sourceName": "Đánh giá Shopee",
+   "provider": "Dịch vụ review công khai Shopee (gói S, shopee-public-review)",
+   "usedBy": [
+    "INSIGHT (lời khách, mã chủ đề)",
+    "MARKET (chỉ đếm)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-26",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Mọi đánh giá có trên trang tới lúc thu, tối đa 300 mỗi sản phẩm; ngày đánh giá không bị giới hạn theo kỳ"
+   },
+   "recordCount": 6,
+   "resultNote": null,
+   "cost": null,
+   "byteSize": 808246,
+   "fileSha256": "4d6ddcf417e5a2ad5c51b6cdeecd8caeba1e9d296d93eb34f6df7e11c58cb250",
+   "check": "OK"
+  },
+  {
+   "file": "04-S14-video-ban-hang-loi-noi.json",
+   "sourceCode": "S14",
+   "sourceName": "Lời nói trong video bán hàng TikTok",
+   "provider": "Gemini (đọc video) + công cụ tải video trên máy chủ",
+   "usedBy": [
+    "MARKET (khối video)",
+    "INSIGHT (tiếng nói người bán, không phải lời khách)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-26",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Video có sẵn lúc thu"
+   },
+   "recordCount": 6,
+   "resultNote": null,
+   "cost": null,
+   "byteSize": 42308,
+   "fileSha256": "0bacc38bb2511748f330abca3ba8fc446ba4bba13a9e8320006a834b55d20ae8",
+   "check": "OK"
+  },
+  {
+   "file": "05-S15-meta-thu-vien-quang-cao.json",
+   "sourceCode": "S15",
+   "sourceName": "Thư viện quảng cáo Meta (máy tự đọc, không đăng nhập)",
+   "provider": "Meta Ad Library qua OpenCLI",
+   "usedBy": [
+    "MARKET (bảng 7.2)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-26",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Quảng cáo đang/đã chạy, mọi trạng thái"
+   },
+   "recordCount": 1,
+   "resultNote": "KẾT QUẢ RỖNG: thương hiệu 1 (Dhc) STOPPED, 0 quảng cáo; thương hiệu 2 (Acnacare) NOT_READ. Dùng làm ca rỗng cho test.",
+   "cost": null,
+   "byteSize": 9673,
+   "fileSha256": "0cb3c6e0f1e4a4095c330b6e09f51918efc32fee9941beb912524d317e34dc29",
+   "check": "OK"
+  },
+  {
+   "file": "06-S16-tiktok-quang-cao-noi-bat.json",
+   "sourceCode": "S16",
+   "sourceName": "Quảng cáo nổi bật TikTok (Creative Center)",
+   "provider": "TikTok Creative Center qua OpenCLI",
+   "usedBy": [
+    "MARKET"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": "2026-09-26",
+    "endDate": "2026-10-25",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "period=30 của Creative Center"
+   },
+   "recordCount": 1,
+   "resultNote": "KẾT QUẢ RỖNG: trang đòi đăng nhập (stop=LOGIN_REQUIRED), 0 thẻ quảng cáo. Dùng làm ca rỗng/chặn cho test.",
+   "cost": null,
+   "byteSize": 11445,
+   "fileSha256": "1ed7bca797573113c206f7fe250c395fc9a3680fe07661366e118461fa2e3ffc",
+   "check": "OK"
+  },
+  {
+   "file": "07-S19-google-tim-kiem.json",
+   "sourceCode": "S19 (gồm S13, S26)",
+   "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+   "provider": "SerpApi engine=google",
+   "usedBy": [
+    "MARKET",
+    "INSIGHT"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-26",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Kết quả Google lúc thu"
+   },
+   "recordCount": 8,
+   "resultNote": null,
+   "cost": null,
+   "byteSize": 503390,
+   "fileSha256": "b345d41eada2141efda02b904ffc4327cc2d06e2a8795a9bf9f8cc00a6bf683f",
+   "check": "OK"
+  },
+  {
+   "file": "08-S20-google-trends.json",
+   "sourceCode": "S20 + S20b",
+   "sourceName": "Mức quan tâm tìm kiếm Google Trends (theo thời gian + theo tỉnh)",
+   "provider": "SerpApi engine=google_trends",
+   "usedBy": [
+    "MARKET (biểu đồ, bảng tỉnh)",
+    "INSIGHT (đề xuất: vùng ưu tiên, chưa nối)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": "2025-10-26",
+    "endDate": "2026-10-25",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "12 tháng, geo=VN"
+   },
+   "recordCount": 2,
+   "resultNote": null,
+   "cost": null,
+   "byteSize": 25371,
+   "fileSha256": "b0efc87dc65dd7c16093604eaf4364c1f80b288ecfba9c2015c13d95353af5af",
+   "check": "OK"
+  },
+  {
+   "file": "09-S23-world-bank.json",
+   "sourceCode": "S23",
+   "sourceName": "Ngân hàng Thế giới",
+   "provider": "World Bank API v2 (source=2)",
+   "usedBy": [
+    "MARKET (bối cảnh vĩ mô)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": "1960-01-01",
+    "endDate": "2025-12-31",
+    "timezone": "UTC",
+    "basis": "Chuỗi năm đầy đủ của chỉ số"
+   },
+   "recordCount": 4,
+   "resultNote": null,
+   "cost": null,
+   "byteSize": 54513,
+   "fileSha256": "d8b6073b15d6f483a6e954f19e15f9cf898d074ab1eb1c786eb5243c3ea4ccb2",
+   "check": "OK"
+  },
+  {
+   "file": "10-S24-un-comtrade.json",
+   "sourceCode": "S24",
+   "sourceName": "Thương mại quốc tế (HS 210690)",
+   "provider": "UN Comtrade public preview API",
+   "usedBy": [
+    "MARKET (biểu đồ cột theo nước báo cáo)"
+   ],
+   "method": "EXPORTED_FROM_APP_RUN",
+   "period": {
+    "startDate": "2025-01-01",
+    "endDate": "2025-12-31",
+    "timezone": "UTC",
+    "basis": "period=2025, năm"
+   },
+   "recordCount": 4,
+   "resultNote": null,
+   "cost": null,
+   "byteSize": 72442,
+   "fileSha256": "e391bd9bf9dbff05c103d649405fb313d296b4ad07320b1706fc3f46ada8628c",
+   "check": "OK"
+  },
+  {
+   "file": "11-S06-tiktok-shop-danh-gia.json",
+   "sourceCode": "S06",
+   "sourceName": "Đánh giá TikTok Shop (bản gom bình luận của Kalodata)",
+   "provider": "Kalodata Open API /tiktok/product/comment/insight",
+   "usedBy": [
+    "INSIGHT (lời khách, mã chủ đề; không in nguyên văn)"
+   ],
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-29",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Bản gom mới nhất của nguồn tại lúc thu; cột ngày đánh giá chưa đọc được định dạng"
+   },
+   "recordCount": 5,
+   "resultNote": null,
+   "cost": {
+    "unit": "điểm Kalodata",
+    "balanceBefore": 32.5,
+    "spent": 2.0
+   },
+   "byteSize": 1022472,
+   "fileSha256": "d282d4f1c48fe8eb3f6194c95cf0bd2e1fb3b9f75897659e2ca9ee0a89bc68b0",
+   "check": "OK"
+  },
+  {
+   "file": "12-S29-google-ai-overview.json",
+   "sourceCode": "S29",
+   "sourceName": "Bản tổng hợp AI của Google (AI Overview)",
+   "provider": "SerpApi engine=google (+ google_ai_overview khi cần page_token)",
+   "usedBy": [
+    "INSIGHT (giả thuyết nhóm khách, nỗi lo; chưa nối vào app)"
+   ],
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-29",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Câu trả lời của Google lúc thu"
+   },
+   "recordCount": 6,
+   "resultNote": null,
+   "cost": {
+    "unit": "lượt SerpApi",
+    "spent": 2
+   },
+   "byteSize": 147965,
+   "fileSha256": "6a637a78cde80be84417ae37a235ca7ef4846a6e82f86257eafad6128c85675c",
+   "check": "OK"
+  },
+  {
+   "file": "13-S19b-goi-y-tim-kiem-google.json",
+   "sourceCode": "S19b",
+   "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+   "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+   "usedBy": [
+    "INSIGHT (nỗi lo khi tìm I08, nhóm quan tâm I02; chưa nối vào app)"
+   ],
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-29",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Gợi ý của Google lúc thu"
+   },
+   "recordCount": 79,
+   "resultNote": null,
+   "cost": {
+    "unit": "USD",
+    "spent": 0
+   },
+   "byteSize": 119864,
+   "fileSha256": "afd5378010a4027e017ae446f241ff97f1a584a6fd09c4ddfaa24ee242293c98",
+   "check": "OK"
+  },
+  {
+   "file": "14-S21-S22-tong-cuc-thong-ke.json",
+   "sourceCode": "S21 + S22",
+   "sourceName": "Số liệu Cục Thống kê (bảng tháng + chỉ số giá CPI theo tỉnh)",
+   "provider": "nso.gov.vn (WordPress media API + tệp .xlsx)",
+   "usedBy": [
+    "MARKET (bối cảnh vĩ mô, giá theo tỉnh)"
+   ],
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-29",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Tệp tháng mới nhất trên trang tại lúc thu (tháng ghi trong tên tệp)"
+   },
+   "recordCount": 3,
+   "resultNote": null,
+   "cost": {
+    "unit": "USD",
+    "spent": 0
+   },
+   "byteSize": 17323,
+   "fileSha256": "44a5ef70930869dd88be597c3c449dc47cae7c5765650298ed48a0b83f8c60b2",
+   "check": "OK"
+  },
+  {
+   "file": "15-S25-bao-cao-nganh-pdf.json",
+   "sourceCode": "S25",
+   "sourceName": "Báo cáo ngành, tài liệu PDF",
+   "provider": "Tìm bằng SerpApi (lượt 26/10) + tải trực tiếp",
+   "usedBy": [
+    "MARKET (phần tài liệu, đọc qua PageIndex)"
+   ],
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-29",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Tài liệu có trên mạng lúc thu; năm phát hành ghi trong tài liệu"
+   },
+   "recordCount": 4,
+   "resultNote": null,
+   "cost": {
+    "unit": "USD",
+    "spent": 0
+   },
+   "byteSize": 6426,
+   "fileSha256": "82e17c00074705604a3b0c9644a5720f6a7f3aca05311ee88a31ff8c839a573c",
+   "check": "OK"
+  },
+  {
+   "file": "16-S28-nemotron-ho-so-nguoi-viet.json",
+   "sourceCode": "S28",
+   "sourceName": "Hồ sơ người Việt do AI viết (dữ liệu tổng hợp, 1 triệu hồ sơ)",
+   "provider": "NVIDIA Nemotron-Personas-Vietnam (CC BY 4.0), bản tải về máy chủ 17/10",
+   "usedBy": [
+    "INSIGHT (lớp ngầm: cột toàn dân, gợi ý tình huống cần tìm)"
+   ],
+   "method": "LOCAL_DATASET_QUERY",
+   "period": {
+    "startDate": null,
+    "endDate": null,
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Dữ liệu tổng hợp, không có kỳ"
+   },
+   "recordCount": 4,
+   "resultNote": null,
+   "cost": {
+    "unit": "USD",
+    "spent": 0
+   },
+   "byteSize": 1807310,
+   "fileSha256": "8c0e6d4903969c83f9a4b1c1e191b84776b5c469924a3145bc413a55e90d3149",
+   "check": "OK"
+  },
+  {
+   "file": "17-S07-tiktok-binh-luan.json",
+   "sourceCode": "S07",
+   "sourceName": "Bình luận dưới video TikTok",
+   "provider": "Apify clockworks/tiktok-comments-scraper",
+   "usedBy": [
+    "INSIGHT (chủ đề I10, điểm tiếp xúc I12) — chủ bấm chạy, không tự chạy"
+   ],
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "period": {
+    "startDate": null,
+    "endDate": "2026-10-29",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "Bình luận có dưới video lúc thu (createTimeISO mỗi bình luận)"
+   },
+   "recordCount": 2,
+   "resultNote": null,
+   "cost": {
+    "unit": "USD (Apify monthly usage)",
+    "before": 2.372649234971475,
+    "after": 2.700149620539021,
+    "spent": 0.328,
+    "cap": 0.5
+   },
+   "byteSize": 212119,
+   "fileSha256": "0b059f6a18d29fd958d135bfc375968b54d52c95897044b79204663d2769b195",
+   "check": "OK"
+  },
+  {
+   "file": "18-S17-google-quang-cao.json",
+   "sourceCode": "S17",
+   "sourceName": "Thư viện quảng cáo trên công cụ tìm kiếm (Google Ads Transparency)",
+   "provider": "SerpApi engine=google_ads_transparency_center",
+   "usedBy": [
+    "MARKET (bảng 7.x)"
+   ],
+   "method": "NOT_COLLECTED",
+   "period": {
+    "startDate": null,
+    "endDate": null,
+    "timezone": "Asia/Ho_Chi_Minh",
+    "basis": "—"
+   },
+   "recordCount": 0,
+   "resultNote": null,
+   "cost": {
+    "unit": "lượt SerpApi",
+    "spent": 0
+   },
+   "byteSize": 1473,
+   "fileSha256": "bbcd94fabf5b6663fda2b62360d798f7413f65b4e32c3d22cf817ef3bc51e6ab",
+   "check": "OK"
+  }
+ ],
+ "notCollected": [
+  {
+   "sourceCode": "S03",
+   "sourceName": "Số nhập khẩu theo lô hàng (TradeInt)",
+   "reason": "Cần tài khoản hợp lệ"
+  },
+  {
+   "sourceCode": "S08",
+   "sourceName": "Bài đăng Facebook",
+   "reason": "Chủ tạm dừng"
+  },
+  {
+   "sourceCode": "S09",
+   "sourceName": "Instagram",
+   "reason": "Không có công cụ"
+  },
+  {
+   "sourceCode": "S10",
+   "sourceName": "Bài đăng X",
+   "reason": "Làm sau cùng, giá trị thấp"
+  },
+  {
+   "sourceCode": "S11",
+   "sourceName": "Bình luận YouTube",
+   "reason": "Chủ bỏ 17/10"
+  },
+  {
+   "sourceCode": "S12",
+   "sourceName": "Dữ liệu shop của chủ",
+   "reason": "Chủ quyết không gửi tay"
+  },
+  {
+   "sourceCode": "S18",
+   "sourceName": "Trang Facebook thương hiệu",
+   "reason": "Chờ chủ quyết; 0/6 trang đọc được khi thử"
+  },
+  {
+   "sourceCode": "S27",
+   "sourceName": "Đánh giá qua dịch vụ thứ ba (Dami)",
+   "reason": "Không thu"
+  }
+ ]
+}

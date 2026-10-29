@@ -1,0 +1,270 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "04 · S14 · Lời nói trong video bán hàng TikTok",
+  "describe": "Lời nói trong video bán hàng và video đánh giá sản phẩm (lấy từ phụ đề có sẵn) automation-video-watch",
+  "parentFile": "04-S14-video-ban-hang-loi-noi.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S14",
+  "sourceName": "Lời nói trong video bán hàng TikTok",
+  "provider": "Gemini (đọc video) + công cụ tải video trên máy chủ",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Video có sẵn lúc thu"
+  },
+  "limits": [
+   "Lời người bán, không phải ý kiến khách",
+   "Tệp video đã xoá sau 45 ngày, chỉ giữ dấu sha256"
+  ],
+  "resultSha256": "e2e61c8092369be1001db73bdff69de254f46aa15441476a48cbd604e3e78bc3"
+ },
+ "result": {
+  "packageId": "5f235108-f577-4630-900c-44cd892077a9",
+  "packageKey": "automation-video-watch:f0f4799a-f9b3-4204-91b2-682ab79d0fce-7472367489947602194-b6442d423be3c7e4",
+  "sourceLabel": "Lời nói trong video bán hàng và video đánh giá sản phẩm (lấy từ phụ đề có sẵn)",
+  "finalizedAt": "2026-10-26T02:04:43.181Z",
+  "files": [
+   {
+    "logicalPath": "reading.json",
+    "artifactSha256": "b6442d423be3c7e44a4624e22c972e68cfe75bcff916e2499c9b087d4ab52676",
+    "mediaType": "application/json",
+    "content": {
+     "candidatesSha256": "fa6e326422c465af17da3b1897c6844e4fe1f83415e9e6ff15cfff1e5df4874d",
+     "captionSource": "NATIVE_SUBTITLE",
+     "contractVersion": "video-reading-v3",
+     "limitations": [
+      "Lấy từ phụ đề có sẵn của video, chưa có người kiểm tra.",
+      "Đây là lời người bán hoặc người làm video đánh giá, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng."
+     ],
+     "media": {
+      "byteSize": 3222,
+      "downloadedAt": "2026-10-26T02:04:36.278Z",
+      "durationSeconds": 64,
+      "sha256": "6cf05ce74e00364d374ac71e5b8bc8a0d842286cfb5fcc2a8b97a6145ec20f86"
+     },
+     "model": {
+      "modelId": "gemini-3.8-flash-high",
+      "responseSha256": "b4cbfdf96e95bceab0ea708b09f80216bc60097a415d6c4a5ddabeaaca825d71"
+     },
+     "onScreenText": [],
+     "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+     "registryId": "S14",
+     "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+     "scopeSha256": "8049b115432c6db5d6ddf3454847851b167fb4efa6374f19a5e92ad738361557",
+     "segments": [
+      {
+       "endSeconds": 1.32,
+       "startSeconds": 0.16,
+       "text": "bao nhiêu tuổi thì uống được bác"
+      },
+      {
+       "endSeconds": 3.08,
+       "startSeconds": 1.48,
+       "text": "uống kẽm đánh cầu bình thường đúng không ạ"
+      },
+      {
+       "endSeconds": 4.24,
+       "startSeconds": 3.24,
+       "text": "tuổi dậy thì uống được không"
+      },
+      {
+       "endSeconds": 5.28,
+       "startSeconds": 4.36,
+       "text": "làm đêm gì cũng uống được không"
+      },
+      {
+       "endSeconds": 6.88,
+       "startSeconds": 5.32,
+       "text": "uống kẽm dạng nén siêu tiện lợi và tốt"
+      },
+      {
+       "endSeconds": 8.121,
+       "startSeconds": 6.881,
+       "text": "nhưng có phải AI cũng uống được không"
+      },
+      {
+       "endSeconds": 9.4,
+       "startSeconds": 8.2,
+       "text": "bao nhiêu tuổi uống thì hợp lý"
+      },
+      {
+       "endSeconds": 11.12,
+       "startSeconds": 9.44,
+       "text": "các cháu xem hết video này Cho bác nhé"
+      },
+      {
+       "endSeconds": 12.28,
+       "startSeconds": 11.2,
+       "text": "Theo các chuyên gia y tế khuyến cáo"
+      },
+      {
+       "endSeconds": 14.08,
+       "startSeconds": 12.32,
+       "text": "lượng kẽm bổ sung Cho mỗi người lớn tối đa là"
+      },
+      {
+       "endSeconds": 15.28,
+       "startSeconds": 14.16,
+       "text": "40mg trên một ngày"
+      },
+      {
+       "endSeconds": 17.04,
+       "startSeconds": 15.48,
+       "text": "kẽm dạng nén này với hàm lượng kẽm Cao"
+      },
+      {
+       "endSeconds": 18.88,
+       "startSeconds": 17.36,
+       "text": "thường chỉ phù hợp với người trên 15 tuổi"
+      },
+      {
+       "endSeconds": 19.72,
+       "startSeconds": 18.92,
+       "text": "và người trưởng thành thôi"
+      },
+      {
+       "endSeconds": 22.24,
+       "startSeconds": 20.12,
+       "text": "vì dưới 15 tuổi nhu cầu bổ sung kẽm chưa nhiều"
+      },
+      {
+       "endSeconds": 23.48,
+       "startSeconds": 22.36,
+       "text": "vì chỉ cần ăn uống đầy đủ"
+      },
+      {
+       "endSeconds": 25.48,
+       "startSeconds": 23.56,
+       "text": "BA bữa chính là đáp ứng nhu cầu cần nạp rồi"
+      },
+      {
+       "endSeconds": 26.8,
+       "startSeconds": 25.72,
+       "text": "thanh thiên niên và người trưởng thành"
+      },
+      {
+       "endSeconds": 28.08,
+       "startSeconds": 26.84,
+       "text": "thì cần nhiều kẽm hơn"
+      },
+      {
+       "endSeconds": 29.84,
+       "startSeconds": 28.2,
+       "text": "thanh thiên niên là giai đoạn phát triển mạnh mẽ"
+      },
+      {
+       "endSeconds": 31.12,
+       "startSeconds": 29.92,
+       "text": "nên kẽm hỗ trợ phát triển thể chất"
+      },
+      {
+       "endSeconds": 32.64,
+       "startSeconds": 31.24,
+       "text": "tăng cường chiều Cao và phát triển xương"
+      },
+      {
+       "endSeconds": 35,
+       "startSeconds": 32.76,
+       "text": "nhờ tham gia vào quá trình tạo mô và phát triển tế bào"
+      },
+      {
+       "endSeconds": 36,
+       "startSeconds": 35.12,
+       "text": "thúc đẩy phát triển cơ bắp"
+      },
+      {
+       "endSeconds": 37.32,
+       "startSeconds": 36.4,
+       "text": "biệt là ở tuổi dậy thì"
+      },
+      {
+       "endSeconds": 39,
+       "startSeconds": 37.4,
+       "text": "kem cũng hỗ trợ tăng cường hệ thống miễn dịch"
+      },
+      {
+       "endSeconds": 41.56,
+       "startSeconds": 39.12,
+       "text": "giảm nguy cơ cảm cúm nhiễm trùng hỗ trợ chức năng não bộ"
+      },
+      {
+       "endSeconds": 42.84,
+       "startSeconds": 41.68,
+       "text": "tăng cường sự tập trung và trí nhớ"
+      },
+      {
+       "endSeconds": 44.68,
+       "startSeconds": 42.96,
+       "text": "thành thiêu niên thì bác khuyên 2 đến BA ngày mới uống"
+      },
+      {
+       "endSeconds": 46.08,
+       "startSeconds": 44.84,
+       "text": "một viên kẽm còn người trưởng thành"
+      },
+      {
+       "endSeconds": 47,
+       "startSeconds": 46.12,
+       "text": "thì mỗi ngày một viên"
+      },
+      {
+       "endSeconds": 49.8,
+       "startSeconds": 47.08,
+       "text": "bổ sung đúng và đủ phù hợp với nhu cầu của mỗi người thôi"
+      },
+      {
+       "endSeconds": 52.04,
+       "startSeconds": 49.88,
+       "text": "AI có nhu cầu thì tham khảo anh kẽm dsd này nhé"
+      },
+      {
+       "endSeconds": 55.04,
+       "startSeconds": 52.16,
+       "text": "trong mỗi viên kẽm này có chứa 120mg kẽm gluconat"
+      },
+      {
+       "endSeconds": 56.72,
+       "startSeconds": 55.12,
+       "text": "tương đương với 17mg kẽm nguyên tố"
+      },
+      {
+       "endSeconds": 59.16,
+       "startSeconds": 56.84,
+       "text": "chất lượng thì yên tâm vì đã có giấy kiểm định uy tín rồi"
+      },
+      {
+       "endSeconds": 59.801,
+       "startSeconds": 59.161,
+       "text": "hàng chính hãng"
+      },
+      {
+       "endSeconds": 61.241,
+       "startSeconds": 59.802,
+       "text": "các cháu có thể mua trong giỏ hàng của bác"
+      },
+      {
+       "endSeconds": 63.801,
+       "startSeconds": 61.242,
+       "text": "còn cần bác tư vấn gì thêm thì cứ nhắn tin Cho bác nhé"
+      }
+     ],
+     "sourceSetSha256": "161771987181fdd3ddf3ef9621d0c3c1ffaa063b8f4befae6ad2d0f5ee060b9b",
+     "state": "PREPARED_NOT_ADMITTED",
+     "video": {
+      "aboutProduct": true,
+      "durationSeconds": 64,
+      "origin": "EXPANDED_SEARCH",
+      "videoId": "7472367489947602194",
+      "videoKind": "SELLER_VIDEO",
+      "videoUrl": "https://www.tiktok.com/@bacluongdinhduongthan/video/7472367489947602194"
+     },
+     "voice": "SELLER",
+     "workspaceId": "bc412bc5-5693-48b1-a949-85215b5cc414"
+    }
+   }
+  ]
+ }
+}

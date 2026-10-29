@@ -1,0 +1,329 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "describe": "Kết quả Google cho câu «viên uống kẽm site:tiktok.com»",
+  "parentFile": "07-S19-google-tim-kiem.json",
+  "parentLocation": "records[3]",
+  "sourceCode": "S19 (gồm S13, S26)",
+  "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "provider": "SerpApi engine=google",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Kết quả Google lúc thu"
+  },
+  "limits": [
+   "App chỉ đọc organic_results; các khối khác giữ trong bản gốc",
+   "ai_overview có thể chỉ là page_token (xem file 14)"
+  ],
+  "resultSha256": "5dcb27e57cbf311d559ed866eef0ea220e678c6592b5a7599bcaab7b214f1257"
+ },
+ "result": {
+  "captureId": "serpapi-expanded-3-serpapi-0001",
+  "operation": "serpapi.google.search",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "engine": "google",
+   "gl": "vn",
+   "hl": "vi",
+   "num": 10,
+   "q": "viên uống kẽm site:tiktok.com"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:23.809Z",
+  "completedAt": "2026-10-26T02:02:25.018Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb4af2691db118382994a",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "c709e8ba03585cb9e505b5997cc3095210c516b40c238cd843757989b31afc83",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb4af2691db118382994a",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/NvmxA4etpFgApsW-uorw7RiOsnVYYx6s0oEozMkC9Po/6adeb4af2691db118382994a.json",
+    "markdown_endpoint": "https://serpapi.com/searches/NvmxA4etpFgApsW-uorw7RiOsnVYYx6s0oEozMkC9Po/6adeb4af2691db118382994a.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/NvmxA4etpFgApsW-uorw7RiOsnVYYx6s0oEozMkC9Po/6adeb4af2691db118382994a.json_with_pixel_position",
+    "created_at": "2026-10-26 02:02:23 UTC",
+    "processed_at": "2026-10-26 02:02:23 UTC",
+    "google_url": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&oq=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&hl=vi&gl=vn&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/NvmxA4etpFgApsW-uorw7RiOsnVYYx6s0oEozMkC9Po/6adeb4af2691db118382994a.html",
+    "total_time_taken": 0.84
+   },
+   "search_parameters": {
+    "engine": "google",
+    "q": "viên uống kẽm site:tiktok.com",
+    "google_domain": "google.com",
+    "hl": "vi",
+    "gl": "vn",
+    "device": "desktop"
+   },
+   "search_information": {
+    "query_displayed": "viên uống kẽm site:tiktok.com",
+    "total_results": 64600,
+    "time_taken_displayed": 0.28,
+    "organic_results_state": "Results for exact spelling"
+   },
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "Bao nhiêu tuổi thì được uống kẽm? Uống ngày mấy viên là vừa ...",
+     "link": "https://www.tiktok.com/@bacluongdinhduongthan/video/7644545695881366791",
+     "displayed_link": ">4,1 Tr lượt xem: · 5 tháng trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4af2691db118382994a/images/40lL9YWOmB4BuXP3oBiwPgMau6pTDYwrU34qttTSXxk.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Bao nhiêu tuổi thì được uống kẽm? Uống ngày mấy viên là vừa? Xem hết video này bác sẽ giải đáp nhé! Đặc biệt bác bật mí một loại kẽm giúp ...",
+     "duration": "1:53",
+     "about_this_result": {
+      "source": {
+       "description": "Bao nhiêu tuổi thì được uống kẽm? Uống ngày mấy viên là vừa? Xem hết video này bác sẽ giải đáp nhé! Đặc biệt bác bật mí một loại kẽm giúp ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cr4BL2dvdG8_dXJsPUNBRVNnZ0VCNnpzd0Zhd2FsSVB4R2x4TFpnbDVuRFZORTk4WjJHVDdfal9aQ2UtcHJSazh6YTdfaEV3LUZtam5YdDNLeHM5UGpOTTF2WGVHY1BJRndXSnFIUlVVdjJRTkViN2hjR19vS3ZIT181cEVQQnZtYkh1cV9tc3dtaUN1R05zTlVJdlJ2VkxfYmw3N3d2VDJVX1U5MDhnN0ZFcm8tUDI4bUlFVGRUWWlhVG5BYXNBaRIWChAKBAgwSAIKBAhISAIKAgg_GgIIABokEgAaACIAKgAyADoAQgBKAFoOCAESCnRpa3Rvay5jb21yAHoAIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cr4BL2dvdG8_dXJsPUNBRVNnZ0VCNnpzd0Zhd2FsSVB4R2x4TFpnbDVuRFZORTk4WjJHVDdfal9aQ2UtcHJSazh6YTdfaEV3LUZtam5YdDNLeHM5UGpOTTF2WGVHY1BJRndXSnFIUlVVdjJRTkViN2hjR19vS3ZIT181cEVQQnZtYkh1cV9tc3dtaUN1R05zTlVJdlJ2VkxfYmw3N3d2VDJVX1U5MDhnN0ZFcm8tUDI4bUlFVGRUWWlhVG5BYXNBaRIWChAKBAgwSAIKBAhISAIKAgg_GgIIABokEgAaACIAKgAyADoAQgBKAFoOCAESCnRpa3Rvay5jb21yAHoAIgIQAUgAWABoAA",
+     "source": "TikTok · Bác Lượng dinh dưỡng thận"
+    },
+    {
+     "position": 2,
+     "title": "DHC Kẽm Zinc Nhật Bản Chính Hãng, Viên Uống Bổ Sung ...",
+     "link": "https://shop-vn.tiktok.com/pdp/1729723840094571207",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESbQHrOzAV-Y9PQTVWOZ5Dwyr6iSqCzIpEY6D4sdvCckTcPjINp3AzqfQuitflsy_J1dcB19fXgJ_IouzIkbtz1-2ysnAUeWDjmUUCX51qmaji4XEqZUm-n_vcsazt3FZxwJPo0u2_IBq74PV6jGc&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQFnoECBQQAQ&uoh=1",
+     "displayed_link": "https://shop-vn.tiktok.com › pdp",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Viên uống Kẽm DHC:Hạn sử dụng: 36 thángBảo quản: Nơi khô ráo, thoáng mát, tránh ánh sáng mặt trời.Thương hiệu: DHCXuất xứ: Made in JapanViên kẽm DHC là thực ...",
+     "snippet_highlighted_words": [
+      "Viên uống Kẽm DHC"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống Kẽm DHC:Hạn sử dụng: 36 thángBảo quản: Nơi khô ráo, thoáng mát, tránh ánh sáng mặt trời.Thương hiệu: DHCXuất xứ: Made in JapanViên kẽm DHC là thực ...",
+       "source_info_link": "https://shop-vn.tiktok.com/pdp/1729723840094571207",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqEBL2dvdG8_dXJsPUNBRVNiUUhyT3pBVjBhZU1PcWR5ckM4N2xZbkV4M3ZRVGpELXU3SW40NjNXS25aZGFxN0NpWjh4WW0tX2NDXzNlTE5FeTFkS1hicEpBOEx1c0l4Rmc2X0wxSFMtWXRwTUMxbG9iUzFLOEhPNXJyVGtmc1U0dGNpY2JjdkpoTUhCd09rc0VCenRyVDdQalBkc2xoRjJla00SBBoCCAAa1AQSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAsAQIQhAAGAAgACoZCgV2acOqbhV20G1AGgt2acOqbnXhu5FuZyoaCgZ14buRbmcVHL5pQBoLdmnDqm514buRbmcqDAoFa-G6vW0VEKWUQDKhAS9nb3RvP3VybD1DQUVTYlFIck96QVYwYWVNT3FkeXJDODdsWW5FeDN2UVRqRC11N0luNDYzV0tuWmRhcTdDaVo4eFltLV9jQ18zZUxORXkxZEtYYnBKQThMdXNJeEZnNl9MMUhTLVl0cE1DMWxvYlMxSzhITzVyclRrZnNVNHRjaWNiY3ZKaE1IQndPa3NFQnp0clQ3UGpQZHNsaEYyZWtNOmRESEMgPGI-S-G6vW08L2I-IFppbmMgTmjhuq10IELhuqNuIENow61uaCBIw6NuZywgPGI-VmnDqm4gVeG7kW5nPC9iPiBC4buVIFN1bmcgPGI-S-G6vW08L2I-IEjhu5cgLi4uQtYBPGI-VmnDqm4gdeG7kW5nIEvhur1tIERIQzwvYj46SOG6oW4gc-G7rSBk4bulbmc6IDM2IHRow6FuZ0LhuqNvIHF14bqjbjogTsahaSBraMO0IHLDoW8sIHRob8OhbmcgbcOhdCwgdHLDoW5oIMOhbmggc8OhbmcgbeG6t3QgdHLhu51pLlRoxrDGoW5nIGhp4buHdTogREhDWHXhuqV0IHjhu6k6IE1hZGUgaW4gSmFwYW5WacOqbiBr4bq9bSBESEMgbMOgIHRo4buxYyZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqEBL2dvdG8_dXJsPUNBRVNiUUhyT3pBVjBhZU1PcWR5ckM4N2xZbkV4M3ZRVGpELXU3SW40NjNXS25aZGFxN0NpWjh4WW0tX2NDXzNlTE5FeTFkS1hicEpBOEx1c0l4Rmc2X0wxSFMtWXRwTUMxbG9iUzFLOEhPNXJyVGtmc1U0dGNpY2JjdkpoTUhCd09rc0VCenRyVDdQalBkc2xoRjJla00SBBoCCAAa1AQSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAsAQIQhAAGAAgACoZCgV2acOqbhV20G1AGgt2acOqbnXhu5FuZyoaCgZ14buRbmcVHL5pQBoLdmnDqm514buRbmcqDAoFa-G6vW0VEKWUQDKhAS9nb3RvP3VybD1DQUVTYlFIck96QVYwYWVNT3FkeXJDODdsWW5FeDN2UVRqRC11N0luNDYzV0tuWmRhcTdDaVo4eFltLV9jQ18zZUxORXkxZEtYYnBKQThMdXNJeEZnNl9MMUhTLVl0cE1DMWxvYlMxSzhITzVyclRrZnNVNHRjaWNiY3ZKaE1IQndPa3NFQnp0clQ3UGpQZHNsaEYyZWtNOmRESEMgPGI-S-G6vW08L2I-IFppbmMgTmjhuq10IELhuqNuIENow61uaCBIw6NuZywgPGI-VmnDqm4gVeG7kW5nPC9iPiBC4buVIFN1bmcgPGI-S-G6vW08L2I-IEjhu5cgLi4uQtYBPGI-VmnDqm4gdeG7kW5nIEvhur1tIERIQzwvYj46SOG6oW4gc-G7rSBk4bulbmc6IDM2IHRow6FuZ0LhuqNvIHF14bqjbjogTsahaSBraMO0IHLDoW8sIHRob8OhbmcgbcOhdCwgdHLDoW5oIMOhbmggc8OhbmcgbeG6t3QgdHLhu51pLlRoxrDGoW5nIGhp4buHdTogREhDWHXhuqV0IHjhu6k6IE1hZGUgaW4gSmFwYW5WacOqbiBr4bq9bSBESEMgbMOgIHRo4buxYyZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "TikTok"
+    },
+    {
+     "position": 3,
+     "title": "Viên uống DHC Kẽm và Vitamin C Nhật Bản có tác dụng gì? ...",
+     "link": "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+     "displayed_link": ">26,4 N lượt xem: · 5 tháng trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4af2691db118382994a/images/40lL9YWOmB4BuXP3oBiwPvh7Vp469JdjwVLRgetfhmA.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Uống cùng lúc với nhau được không? #imochi #creatorsearchinsights #vitaminc #zinc #vienuongdhc Vitamin C Mit Ceramide KombinierenKẽm Nhung Ở ...",
+     "duration": "1:29",
+     "about_this_result": {
+      "source": {
+       "description": "Uống cùng lúc với nhau được không? #imochi #creatorsearchinsights #vitaminc #zinc #vienuongdhc Vitamin C Mit Ceramide KombinierenKẽm Nhung Ở ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVllsUFVCOUpkMTNCLXpOV19aWHp1a09Yd2cyajZQX0tTSzkxeElfUFZNeXdFQnItS0x6dUNzRjY3cTNZR2Z6dUZUS2NzZnRxbVp2Nml1T0RSdlptUlBqMzVuZWlINHBWWk9QMDBDUnZXbUdLMFNuNmNoOEhONzJLUDhLYWI0ZFFfbW9DdVdadmJSME5NaDRRYW9LdEdkWGMSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVllsUFVCOUpkMTNCLXpOV19aWHp1a09Yd2cyajZQX0tTSzkxeElfUFZNeXdFQnItS0x6dUNzRjY3cTNZR2Z6dUZUS2NzZnRxbVp2Nml1T0RSdlptUlBqMzVuZWlINHBWWk9QMDBDUnZXbUdLMFNuNmNoOEhONzJLUDhLYWI0ZFFfbW9DdVdadmJSME5NaDRRYW9LdEdkWGMSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "source": "TikTok · Imochi"
+    },
+    {
+     "position": 4,
+     "title": "Kẽm dạng viên nén tốt cho cơ thể nhưng có phải ai cũng uống ...",
+     "link": "https://www.tiktok.com/@bacluongdinhduongthan/video/7472367489947602194",
+     "displayed_link": ">6,1 Tr lượt xem: · 1 năm trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4af2691db118382994a/images/40lL9YWOmB4BuXP3oBiwPr4G4lHzOj1r2Fp2Q4B7V1c.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "... K Lượt thích,780 Bình luận.Video TikTok từ Bác Lượng dinh dưỡng thận (@bacluongdinhduongthan): \"Kẽm dạng viên ... uống thêm kẽm này. Giờ tóc dày ...",
+     "duration": "1:04",
+     "about_this_result": {
+      "source": {
+       "description": "... K Lượt thích,780 Bình luận.Video TikTok từ Bác Lượng dinh dưỡng thận (@bacluongdinhduongthan): \"Kẽm dạng viên ... uống thêm kẽm này. Giờ tóc dày ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cr4BL2dvdG8_dXJsPUNBRVNnZ0VCNnpzd0ZaS3EtclhIT3ZSMFZPTFpIei15SjRnZDV3V01lNDVEVzd6Y00tYVM5b2puTHhyNG93TV9faU5xdGNwWVBMVEg3V1pZR01SRGxSSlZNVVgzMEhkdUhEWmxZT25vaVk4SDltUFpieTRTeTRGbG1lc3QwVzU1MG5lNURTRnJ1Q1Y1UEZOa2dvS1ZRT0RJQXRuMC1odWlmcTl2TXJJeEcyZ2ZiMXNCQkJSNRIWChAKBAgwSAIKBAhISAIKAgg_GgIIABokEgAaACIAKgAyADoAQgBKAFoOCAESCnRpa3Rvay5jb21yAHoAIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cr4BL2dvdG8_dXJsPUNBRVNnZ0VCNnpzd0ZaS3EtclhIT3ZSMFZPTFpIei15SjRnZDV3V01lNDVEVzd6Y00tYVM5b2puTHhyNG93TV9faU5xdGNwWVBMVEg3V1pZR01SRGxSSlZNVVgzMEhkdUhEWmxZT25vaVk4SDltUFpieTRTeTRGbG1lc3QwVzU1MG5lNURTRnJ1Q1Y1UEZOa2dvS1ZRT0RJQXRuMC1odWlmcTl2TXJJeEcyZ2ZiMXNCQkJSNRIWChAKBAgwSAIKBAhISAIKAgg_GgIIABokEgAaACIAKgAyADoAQgBKAFoOCAESCnRpa3Rvay5jb21yAHoAIgIQAUgAWABoAA",
+     "video_link": "https://encrypted-vtbn0.gstatic.com/video?q=tbn:ANd9GcQrdy-jUg_JoYq9g_ecV8piu9s1YWj-5knurw",
+     "source": "TikTok · Bác Lượng dinh dưỡng thận"
+    },
+    {
+     "position": 5,
+     "title": "Viên uống kẽm Zinc DHC Nhật Bản cả nam và nữ có dùng ...",
+     "link": "https://www.tiktok.com/@imochi.vn/video/7690943902592912660",
+     "displayed_link": ">7,8 N lượt xem: · 3 tuần trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4af2691db118382994a/images/40lL9YWOmB4BuXP3oBiwPoxz9VqFm4TlfShPHlBevUU.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Viên uống kẽm Zinc DHC Nhật Bản cả nam và nữ có dùng được không? Dùng sao cho đúng?#imochi #zin #dhczinc #vienuongdhc #creatorsearchinsights.",
+     "duration": "1:00",
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống kẽm Zinc DHC Nhật Bản cả nam và nữ có dùng được không? Dùng sao cho đúng?#imochi #zin #dhczinc #vienuongdhc #creatorsearchinsights.",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVlh3Si1tSVdCZU5BZ1FOQU1VaE9lR2pZSDllRndZTU0xWHlpbTlZaUJCMGRmWWxUOTN2UlZIYUQ2QnY3amg1aVNpREppRDZXVnJ6MWhLUkhLaWcxTmJ1R3NHVzdKcFV0ZU9qRzJnQVBxcHRjenNicFhmY1pIeV9laDlaQkRfYnVYTFRTY0t2Y0pDOUdfSmVIVmk4aFpaTUkSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVlh3Si1tSVdCZU5BZ1FOQU1VaE9lR2pZSDllRndZTU0xWHlpbTlZaUJCMGRmWWxUOTN2UlZIYUQ2QnY3amg1aVNpREppRDZXVnJ6MWhLUkhLaWcxTmJ1R3NHVzdKcFV0ZU9qRzJnQVBxcHRjenNicFhmY1pIeV9laDlaQkRfYnVYTFRTY0t2Y0pDOUdfSmVIVmk4aFpaTUkSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "source": "TikTok · Imochi"
+    },
+    {
+     "position": 6,
+     "title": "viên uống dhc kẽm và rau củ",
+     "link": "https://shop.tiktok.com/vn/k/vien-uong-dhc-kem-va-rau-cu",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEScwHrOzAVpqDVdKrHHCq2MBYErxKuL7j69ZXJNz_CYIRZ-lZwZ3sz5n2RadzFbqWxmVb-bTne4XzHxaOyfKWN0q5dPVtNvBwaGsfPTHkG3M94jjTCT8IAolyfHrJ-EGuKc8fiCbYW3yNSa421DK3KcxyeHkg&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQFnoECBoQAQ&uoh=1",
+     "displayed_link": "https://shop.tiktok.com › ... › Mua sắm tất cả hạng mục",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "[ĐQ] Viên uống DHC Kẽm ZinC hỗ trợ duy trì sức khỏe, giúp cơ thể khỏe mạnh 60 Ngày - TPBVSK DHC ZinC. 4.8. 69023 sold. ₫105.000 ...",
+     "snippet_highlighted_words": [
+      "Viên uống",
+      "Kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "[ĐQ] Viên uống DHC Kẽm ZinC hỗ trợ duy trì sức khỏe, giúp cơ thể khỏe mạnh 60 Ngày - TPBVSK DHC ZinC. 4.8. 69023 sold. ₫105.000 ...",
+       "source_info_link": "https://shop.tiktok.com/vn/k/vien-uong-dhc-kem-va-rau-cu",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqkBL2dvdG8_dXJsPUNBRVNjd0hyT3pBVlhkanVnQVlDSmRQTC05amxLQXRjMFhnd1NsTGdSVy04LXpJbEZvZXRsdHNSX3FjUzRKNkFDc193SEgyT25yMUExeXRKLXhyNWpmQ3JZZzFYOV93M1kyT090TGpyM3UxWUtLTmhRUWh3OVNpcDVveWRUMnJsNjN1RVNRSTlaemxwd01UWWxGbjVpM19qUVlnU3lpbxIEGgIIABqZBBIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkD1AwhCEAAYACAAKhkKBXZpw6puFTw-qUAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVCeaZAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRWDU6FAMqkBL2dvdG8_dXJsPUNBRVNjd0hyT3pBVlhkanVnQVlDSmRQTC05amxLQXRjMFhnd1NsTGdSVy04LXpJbEZvZXRsdHNSX3FjUzRKNkFDc193SEgyT25yMUExeXRKLXhyNWpmQ3JZZzFYOV93M1kyT090TGpyM3UxWUtLTmhRUWh3OVNpcDVveWRUMnJsNjN1RVNRSTlaemxwd01UWWxGbjVpM19qUVlnU3lpbzpHPGI-dmnDqm4gdeG7kW5nPC9iPiBkaGMgPGI-a-G6vW08L2I-IHbDoCByYXUgY-G7pyAtIFRpa1RvayBTaG9wIFZpZXRuYW1CsAFbxJBRXSA8Yj5WacOqbiB14buRbmc8L2I-IERIQyA8Yj5L4bq9bTwvYj4gWmluQyBo4buXIHRy4bujIGR1eSB0csOsIHPhu6ljIGto4buPZSwgZ2nDunAgY8ahIHRo4buDIGto4buPZSBt4bqhbmggNjAgTmfDoHkgLSBUUEJWU0sgREhDIFppbkMuIDQuOC4gNjkwMjMgc29sZC4g4oKrMTA1LjAwMCZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqkBL2dvdG8_dXJsPUNBRVNjd0hyT3pBVlhkanVnQVlDSmRQTC05amxLQXRjMFhnd1NsTGdSVy04LXpJbEZvZXRsdHNSX3FjUzRKNkFDc193SEgyT25yMUExeXRKLXhyNWpmQ3JZZzFYOV93M1kyT090TGpyM3UxWUtLTmhRUWh3OVNpcDVveWRUMnJsNjN1RVNRSTlaemxwd01UWWxGbjVpM19qUVlnU3lpbxIEGgIIABqZBBIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkD1AwhCEAAYACAAKhkKBXZpw6puFTw-qUAaC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxVCeaZAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRWDU6FAMqkBL2dvdG8_dXJsPUNBRVNjd0hyT3pBVlhkanVnQVlDSmRQTC05amxLQXRjMFhnd1NsTGdSVy04LXpJbEZvZXRsdHNSX3FjUzRKNkFDc193SEgyT25yMUExeXRKLXhyNWpmQ3JZZzFYOV93M1kyT090TGpyM3UxWUtLTmhRUWh3OVNpcDVveWRUMnJsNjN1RVNRSTlaemxwd01UWWxGbjVpM19qUVlnU3lpbzpHPGI-dmnDqm4gdeG7kW5nPC9iPiBkaGMgPGI-a-G6vW08L2I-IHbDoCByYXUgY-G7pyAtIFRpa1RvayBTaG9wIFZpZXRuYW1CsAFbxJBRXSA8Yj5WacOqbiB14buRbmc8L2I-IERIQyA8Yj5L4bq9bTwvYj4gWmluQyBo4buXIHRy4bujIGR1eSB0csOsIHPhu6ljIGto4buPZSwgZ2nDunAgY8ahIHRo4buDIGto4buPZSBt4bqhbmggNjAgTmfDoHkgLSBUUEJWU0sgREhDIFppbkMuIDQuOC4gNjkwMjMgc29sZC4g4oKrMTA1LjAwMCZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "TikTok Shop"
+    },
+    {
+     "position": 7,
+     "title": "Uống kẽm DHC của Nhật lúc nào cho hiệu quả? Cùng tìm hiểu ...",
+     "link": "https://www.tiktok.com/@imochi.vn/video/7500214221850955015",
+     "displayed_link": ">204,6 N lượt xem: · 1 năm trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4af2691db118382994a/images/40lL9YWOmB4BuXP3oBiwPoOY4RIHhoxIhjv6gxluck4.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Uống kẽm DHC của Nhật lúc nào cho hiệu quả? Cùng tìm hiểu với Imochi nhé!#imochi #vienuongdhc #zinc #dhczinc Kẽm Ở Hàn QuốcHướng Dẫn Làm Nhẫn ...",
+     "duration": "0:46",
+     "about_this_result": {
+      "source": {
+       "description": "Uống kẽm DHC của Nhật lúc nào cho hiệu quả? Cùng tìm hiểu với Imochi nhé!#imochi #vienuongdhc #zinc #dhczinc Kẽm Ở Hàn QuốcHướng Dẫn Làm Nhẫn ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVnJMTWZpMjdBX2VLd25ZcG5Qb1lkaUE1VDd4UGktM3J2RnY2RlNaSGJOQ2J4dGYzUXhqdlN6RGFvbk94eTFfWDdMWVpVMFFWX2d6OFBLNnFqMHluUlh3cklZRUF1ZHpVZDFRandyVW12Wjg3NkZUNEhrY21lcGVmeHAtblh1YjVEWUhXWmtHdkFDZFFZZlo0bVBsLUtVUncSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVnJMTWZpMjdBX2VLd25ZcG5Qb1lkaUE1VDd4UGktM3J2RnY2RlNaSGJOQ2J4dGYzUXhqdlN6RGFvbk94eTFfWDdMWVpVMFFWX2d6OFBLNnFqMHluUlh3cklZRUF1ZHpVZDFRandyVW12Wjg3NkZUNEhrY21lcGVmeHAtblh1YjVEWUhXWmtHdkFDZFFZZlo0bVBsLUtVUncSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "source": "TikTok · Imochi"
+    },
+    {
+     "position": 8,
+     "title": "Review nghiêm túc : Viên uống Kẽm DHC #dangbeoo ...",
+     "link": "https://www.tiktok.com/@dangbeo9/video/7654885827079638293",
+     "displayed_link": ">811,5 N lượt xem: · 4 tháng trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4af2691db118382994a/images/40lL9YWOmB4BuXP3oBiwPrPH82CfBXmGRU_b0MowkK4.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "2276 Lượt thích,35 Bình luận.Video TikTok từ Hoàng Hải Đăng (@dangbeo9): \" Review nghiêm túc : Viên uống Kẽm DHC #dangbeoo #dangbeooprogym ...",
+     "duration": "1:27",
+     "about_this_result": {
+      "source": {
+       "description": "2276 Lượt thích,35 Bình luận.Video TikTok từ Hoàng Hải Đăng (@dangbeo9): \" Review nghiêm túc : Viên uống Kẽm DHC #dangbeoo #dangbeooprogym ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqwBL2dvdG8_dXJsPUNBRVNkUUhyT3pBVmt0eUgwQm8tczhMYWNRUFdqbzg0RnRIMVNMZXYyN1BqZVdmb3YzYXl5RWNNMHk3RkxfdVNHSmQ4S2JlTVJIZ1kyd01OLXJZSVlOcHpkYzFaU1JqajdaWTZkaElCR1oyNFF1RkdlNE10R3Ewc2tQWE9xNFpxVy1mVDFrWVFZLW0wUU44Y1Z1TXBTYk1uRnZjR0NBZnYzURIWChAKBAgwSAIKBAhISAIKAgg_GgIIABokEgAaACIAKgAyADoAQgBKAFoOCAESCnRpa3Rvay5jb21yAHoAIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqwBL2dvdG8_dXJsPUNBRVNkUUhyT3pBVmt0eUgwQm8tczhMYWNRUFdqbzg0RnRIMVNMZXYyN1BqZVdmb3YzYXl5RWNNMHk3RkxfdVNHSmQ4S2JlTVJIZ1kyd01OLXJZSVlOcHpkYzFaU1JqajdaWTZkaElCR1oyNFF1RkdlNE10R3Ewc2tQWE9xNFpxVy1mVDFrWVFZLW0wUU44Y1Z1TXBTYk1uRnZjR0NBZnYzURIWChAKBAgwSAIKBAhISAIKAgg_GgIIABokEgAaACIAKgAyADoAQgBKAFoOCAESCnRpa3Rvay5jb21yAHoAIgIQAUgAWABoAA",
+     "source": "TikTok · Hoàng Hải Đăng"
+    },
+    {
+     "position": 9,
+     "title": "Viên kẽm Pino/DHC: Nên uống lúc nào để bắt đầu ngày mới?",
+     "link": "https://www.tiktok.com/@bacsibien/video/7642558908799700231",
+     "displayed_link": ">15 N lượt xem: · 5 tháng trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4af2691db118382994a/images/40lL9YWOmB4BuXP3oBiwPrrjNbaTgejKgWvj_oA9314.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Các dạng nổi bật trên thị trường bao gồm viên kẽm Pino và kẽm DHC. Khi nào nên uống kẽm? - Thời điểm phổ biến: buổi sáng sau ăn. Uống viên kẽm ...",
+     "duration": "0:48",
+     "about_this_result": {
+      "source": {
+       "description": "Các dạng nổi bật trên thị trường bao gồm viên kẽm Pino và kẽm DHC. Khi nào nên uống kẽm? - Thời điểm phổ biến: buổi sáng sau ăn. Uống viên kẽm ...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVlZ5V3hZZzJtYXBUaE9JdWNnODdzUjQxdWNBbk1tMzZVcm92bVpXTmZhWkxiV2tNZ3RCZ1hOeTdRQ2UyY29uZUM4bWV0cGxkdnpwMnpzVW1vMmZXQUl1aXNQMWJyaWNqVTJJNGZlTUMxTFhZQW5DUzlpZlgwa2ZwRGVwLUFzTVUxeVFOT0lHWlZNNzJRM0g5eWlKOTRPVHMSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cq0BL2dvdG8_dXJsPUNBRVNkZ0hyT3pBVlZ5V3hZZzJtYXBUaE9JdWNnODdzUjQxdWNBbk1tMzZVcm92bVpXTmZhWkxiV2tNZ3RCZ1hOeTdRQ2UyY29uZUM4bWV0cGxkdnpwMnpzVW1vMmZXQUl1aXNQMWJyaWNqVTJJNGZlTUMxTFhZQW5DUzlpZlgwa2ZwRGVwLUFzTVUxeVFOT0lHWlZNNzJRM0g5eWlKOTRPVHMSFgoQCgQIMEgCCgQISEgCCgIIPxoCCAAaJBIAGgAiACoAMgA6AEIASgBaDggBEgp0aWt0b2suY29tcgB6ACICEAFIAFgAaAA",
+     "source": "TikTok · Bác sĩ Biên"
+    },
+    {
+     "position": 10,
+     "title": "Ở nhà có mỗi gói kẽm DHC nên cầm tạm làm ví dụ chứ em ...",
+     "link": "https://www.tiktok.com/@skincaredungcach.byson/video/7254552304442035458",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESgwEB6zswFf0sklXh1EXMxcXapxF8dpniZ5wBjHCOdFIwlz7ljCGp8NqO3gHjEnE3F7x2--uEfxevxcB9uAe6Y9ByJ8geCi-XoRlQETmUIlFmj_f8XmgYOlBcrx7XCqk0aPS8DkqpJpmFrXV3d0b4wWlp6C8_rkLUsdDnN87o816kMa9l-g&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQFnoECBUQAQ&uoh=1",
+     "displayed_link": ">2,6 Tr lượt xem: · 3 năm trước",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "snippet": "Còn k để an toàn thì cứ xài SERUM KẼM đi an toàn lành tính k tác dụng phụ mà kiềm dầu giảm mụn cũng đỉnh chóp lắm!! Serum Kẽm Ekseption mãi ...",
+     "snippet_highlighted_words": [
+      "KẼM",
+      "Kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Còn k để an toàn thì cứ xài SERUM KẼM đi an toàn lành tính k tác dụng phụ mà kiềm dầu giảm mụn cũng đỉnh chóp lắm!! Serum Kẽm Ekseption mãi ...",
+       "source_info_link": "https://www.tiktok.com/@skincaredungcach.byson/video/7254552304442035458",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CsABL2dvdG8_dXJsPUNBRVNnd0VCNnpzd0ZaVXg4Q3dfTFBoOTliY3VKR2tybmZraGdHSV9wVmN2dVZNWEo4Nkp0cUVIZFZKakZydjdHMDd4NmEwS3psSzFZSlFEbkFmRkFRYlpMNG1Lc3A0M01fVGNybDhXQXU5MjVQWDQ3YXZ6b2lBZURxYkxjVmlGYm1iNjIybjFuOUN6T1RoUi1PbkF2NkZkblBKaVd4a2xza19MaFA0S0dZc25sVnlUWXZLRTBnEgQaAggAGugEEgIIABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoOCAESCnRpa3Rvay5jb21yAHoAgkC0BAhCEAAYACAAKhkKBXZpw6puFSi4RD8aC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxW7kClAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRXYKIFAMsABL2dvdG8_dXJsPUNBRVNnd0VCNnpzd0ZaVXg4Q3dfTFBoOTliY3VKR2tybmZraGdHSV9wVmN2dVZNWEo4Nkp0cUVIZFZKakZydjdHMDd4NmEwS3psSzFZSlFEbkFmRkFRYlpMNG1Lc3A0M01fVGNybDhXQXU5MjVQWDQ3YXZ6b2lBZURxYkxjVmlGYm1iNjIybjFuOUN6T1RoUi1PbkF2NkZkblBKaVd4a2xza19MaFA0S0dZc25sVnlUWXZLRTBnOlbhu54gbmjDoCBjw7MgbeG7l2kgZ8OzaSA8Yj5r4bq9bTwvYj4gREhDIG7Dqm4gY-G6p20gdOG6oW0gbMOgbSB2w60gZOG7pSBjaOG7qSBlbSBrIC4uLkLJAUPDsm4gayDEkeG7gyBhbiB0b8OgbiB0aMOsIGPhu6kgeMOgaSBTRVJVTSA8Yj5L4bq8TTwvYj4gxJFpIGFuIHRvw6BuIGzDoG5oIHTDrW5oIGsgdMOhYyBk4bulbmcgcGjhu6UgbcOgIGtp4buBbSBk4bqndSBnaeG6o20gbeG7pW4gY8WpbmcgxJHhu4luaCBjaMOzcCBs4bqvbSEhIFNlcnVtIDxiPkvhur1tPC9iPiBFa3NlcHRpb24gbcOjaSZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CsABL2dvdG8_dXJsPUNBRVNnd0VCNnpzd0ZaVXg4Q3dfTFBoOTliY3VKR2tybmZraGdHSV9wVmN2dVZNWEo4Nkp0cUVIZFZKakZydjdHMDd4NmEwS3psSzFZSlFEbkFmRkFRYlpMNG1Lc3A0M01fVGNybDhXQXU5MjVQWDQ3YXZ6b2lBZURxYkxjVmlGYm1iNjIybjFuOUN6T1RoUi1PbkF2NkZkblBKaVd4a2xza19MaFA0S0dZc25sVnlUWXZLRTBnEgQaAggAGugEEgIIABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoOCAESCnRpa3Rvay5jb21yAHoAgkC0BAhCEAAYACAAKhkKBXZpw6puFSi4RD8aC3Zpw6pudeG7kW5nKhoKBnXhu5FuZxW7kClAGgt2acOqbnXhu5FuZyoMCgVr4bq9bRXYKIFAMsABL2dvdG8_dXJsPUNBRVNnd0VCNnpzd0ZaVXg4Q3dfTFBoOTliY3VKR2tybmZraGdHSV9wVmN2dVZNWEo4Nkp0cUVIZFZKakZydjdHMDd4NmEwS3psSzFZSlFEbkFmRkFRYlpMNG1Lc3A0M01fVGNybDhXQXU5MjVQWDQ3YXZ6b2lBZURxYkxjVmlGYm1iNjIybjFuOUN6T1RoUi1PbkF2NkZkblBKaVd4a2xza19MaFA0S0dZc25sVnlUWXZLRTBnOlbhu54gbmjDoCBjw7MgbeG7l2kgZ8OzaSA8Yj5r4bq9bTwvYj4gREhDIG7Dqm4gY-G6p20gdOG6oW0gbMOgbSB2w60gZOG7pSBjaOG7qSBlbSBrIC4uLkLJAUPDsm4gayDEkeG7gyBhbiB0b8OgbiB0aMOsIGPhu6kgeMOgaSBTRVJVTSA8Yj5L4bq8TTwvYj4gxJFpIGFuIHRvw6BuIGzDoG5oIHTDrW5oIGsgdMOhYyBk4bulbmcgcGjhu6UgbcOgIGtp4buBbSBk4bqndSBnaeG6o20gbeG7pW4gY8WpbmcgxJHhu4luaCBjaMOzcCBs4bqvbSEhIFNlcnVtIDxiPkvhur1tPC9iPiBFa3NlcHRpb24gbcOjaSZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "TikTok · Skincare Đúng Cách"
+    }
+   ],
+   "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=10&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8NMDegQILBAW",
+    "other_pages": {
+     "2": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=10&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAE",
+     "3": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=20&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAG",
+     "4": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=30&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAI",
+     "5": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=40&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAK",
+     "6": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=50&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAM",
+     "7": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=60&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAO",
+     "8": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=70&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAQ",
+     "9": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=80&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAS",
+     "10": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site:tiktok.com&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&sxsrf=APpeQnvlnmf0j5bKq5NuSq1eSHRnei8mCg:1792980144252&ei=sLTeat_0Du3CkPIPnrvUgQk&start=90&sa=N&sstk=AS6-VmLBvSBLAr9eriUJDCM44rYA5t6qgfAz6t54SKX1iHQpRWegwn54DJKSERf5RPwtF9-P6jRkI1M2zMeu-wdrgEU4zi7WeshDVQ&ved=2ahUKEwjfjNnEy9aXAxVtIUQIHZ4dNZAQ8tMDegQILBAU"
+    }
+   },
+   "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=10",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=10",
+    "other_pages": {
+     "2": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=10",
+     "3": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=20",
+     "4": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=30",
+     "5": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=40",
+     "6": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=50",
+     "7": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=60",
+     "8": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=70",
+     "9": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=80",
+     "10": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm+site%3Atiktok.com&start=90"
+    }
+   }
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "dbdd11b45202479ac186a545475300de92911903e42aca74d782a3d240654e9f"
+ }
+}

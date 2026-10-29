@@ -1,0 +1,287 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "04 · S14 · Lời nói trong video bán hàng TikTok",
+  "describe": "Lời nói trong video bán hàng và video đánh giá sản phẩm (ghi lại tự động) automation-video-watch",
+  "parentFile": "04-S14-video-ban-hang-loi-noi.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S14",
+  "sourceName": "Lời nói trong video bán hàng TikTok",
+  "provider": "Gemini (đọc video) + công cụ tải video trên máy chủ",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Video có sẵn lúc thu"
+  },
+  "limits": [
+   "Lời người bán, không phải ý kiến khách",
+   "Tệp video đã xoá sau 45 ngày, chỉ giữ dấu sha256"
+  ],
+  "resultSha256": "0c51657c8a9b1d47a0576159b433c11b971d35328e5fc6d4eedfa6e891bf48d3"
+ },
+ "result": {
+  "packageId": "9406ebcd-e36e-4ec4-9bfe-9adec42daa84",
+  "packageKey": "automation-video-watch:f0f4799a-f9b3-4204-91b2-682ab79d0fce-7642558908799700231-bb01025553d7a84b",
+  "sourceLabel": "Lời nói trong video bán hàng và video đánh giá sản phẩm (ghi lại tự động)",
+  "finalizedAt": "2026-10-26T02:04:31.975Z",
+  "files": [
+   {
+    "logicalPath": "reading.json",
+    "artifactSha256": "bb01025553d7a84b5d0698f4f9e1ac7f617313de6074e063f240224f27ca2619",
+    "mediaType": "application/json",
+    "content": {
+     "candidatesSha256": "fa6e326422c465af17da3b1897c6844e4fe1f83415e9e6ff15cfff1e5df4874d",
+     "captionSource": "MODEL_TRANSCRIBED",
+     "contractVersion": "video-reading-v3",
+     "limitations": [
+      "Ghi lại tự động từ video, chưa có người kiểm tra.",
+      "Đây là lời người bán hoặc người làm video đánh giá, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.",
+      "Chữ trên màn hình chỉ được lưu lại, không đưa vào báo cáo."
+     ],
+     "media": {
+      "byteSize": 2947303,
+      "downloadedAt": "2026-10-26T02:04:01.326Z",
+      "durationSeconds": 48.135,
+      "sha256": "2f6e6b8baf3daeeaabeec119055054d738fb4b8f039083d0a5114c9f43d9eac3"
+     },
+     "model": {
+      "modelId": "gemini-3.8-flash-high",
+      "responseSha256": "d7961c4540a831e2ead3a6e266af790de54d0d33248f3b0de1b95bf1c91331c0"
+     },
+     "onScreenText": [
+      {
+       "endSeconds": 4.5,
+       "startSeconds": 0,
+       "text": "5:30 AM"
+      },
+      {
+       "endSeconds": 9.9,
+       "startSeconds": 7.4,
+       "text": "TẠI SAO PHẢI UỐNG KẼM TRƯỚC ĂN SÁNG"
+      },
+      {
+       "endSeconds": 12.3,
+       "startSeconds": 10.3,
+       "text": "THÌ ĐỂ CHÚNG TA CÓ THỂ"
+      },
+      {
+       "endSeconds": 13.5,
+       "startSeconds": 12.3,
+       "text": "HẤP THỤ VI CHẤT CỦA KẼM TỐT HƠN."
+      },
+      {
+       "endSeconds": 15.6,
+       "startSeconds": 14.1,
+       "text": "BÁC SĨ BIÊN THÌ THƯỜNG UỐNG"
+      },
+      {
+       "endSeconds": 17.1,
+       "startSeconds": 15.6,
+       "text": "KHOẢNG TRƯỚC 30 PHÚT MỘT VIÊN BÉ TÍ NÀY THÔI."
+      },
+      {
+       "endSeconds": 18.9,
+       "startSeconds": 17.1,
+       "text": "NHIỀU NGƯỜI MÀ GẶP PHẢI TÌNH TRẠNG"
+      },
+      {
+       "endSeconds": 19.9,
+       "startSeconds": 18.9,
+       "text": "LÀ HAY NHIỆT MIỆNG NÀY"
+      },
+      {
+       "endSeconds": 21,
+       "startSeconds": 19.9,
+       "text": "HAY MỤN NỘI TIẾT"
+      },
+      {
+       "endSeconds": 22.8,
+       "startSeconds": 21,
+       "text": "CỨ NGHĨ LÀ DO NÓNG TRONG"
+      },
+      {
+       "endSeconds": 24.1,
+       "startSeconds": 22.8,
+       "text": "NHƯNG MÀ HÃY THỬ BỔ SUNG KẼM"
+      },
+      {
+       "endSeconds": 25.4,
+       "startSeconds": 24.1,
+       "text": "LOẠI VIÊN KẼM NÀY"
+      },
+      {
+       "endSeconds": 26.5,
+       "startSeconds": 25.4,
+       "text": "CÓ BỔ SUNG THÊM VITAMIN C"
+      },
+      {
+       "endSeconds": 26.6,
+       "startSeconds": 25.5,
+       "text": "VITAMIN C"
+      },
+      {
+       "endSeconds": 27.8,
+       "startSeconds": 26.5,
+       "text": "XEM CÁI TÌNH TRẠNG MỤN"
+      },
+      {
+       "endSeconds": 29,
+       "startSeconds": 27.8,
+       "text": "RỒI CÁI TÌNH TRẠNG NHIỆT MIỆNG"
+      },
+      {
+       "endSeconds": 29.8,
+       "startSeconds": 29,
+       "text": "NÓ CÓ CẢI THIỆN KHÔNG NHA"
+      },
+      {
+       "endSeconds": 32.2,
+       "startSeconds": 29.8,
+       "text": "TRƯỚC KHI ĂN 30 PHÚT THÌ LÀM VIÊN KẼM ĐÃ."
+      },
+      {
+       "endSeconds": 34.2,
+       "startSeconds": 32.2,
+       "text": "PLAY"
+      },
+      {
+       "endSeconds": 36.3,
+       "startSeconds": 34.2,
+       "text": "LOẠI KẼM BÁC SĨ BIÊN ĐANG DÙNG LÀ KẼM PINO"
+      },
+      {
+       "endSeconds": 37.6,
+       "startSeconds": 36.3,
+       "text": "NHẬP KHẨU TỪ ANH"
+      },
+      {
+       "endSeconds": 39.7,
+       "startSeconds": 37.6,
+       "text": "NÓ LÀ KẼM CITRATE KẼM HỮU CƠ"
+      },
+      {
+       "endSeconds": 41.9,
+       "startSeconds": 39.7,
+       "text": "NÊN LÀ CHÚNG TA CÓ THỂ UỐNG LÚC BỤNG ĐÓI ĐƯỢC"
+      },
+      {
+       "endSeconds": 43.1,
+       "startSeconds": 41.9,
+       "text": "KHÔNG VẤN ĐỀ GÌ CẢ."
+      },
+      {
+       "endSeconds": 44.5,
+       "startSeconds": 43.1,
+       "text": "VỚI NHỮNG AI MÀ UỐNG XONG"
+      },
+      {
+       "endSeconds": 46.1,
+       "startSeconds": 44.5,
+       "text": "CÓ CẢM GIÁC TÌNH TRẠNG LÀ NÔN NAO"
+      },
+      {
+       "endSeconds": 47,
+       "startSeconds": 46.1,
+       "text": "SAU KHI UỐNG"
+      },
+      {
+       "endSeconds": 48.1,
+       "startSeconds": 47,
+       "text": "THÌ CHÚNG TA UỐNG SAU BỮA ĂN."
+      }
+     ],
+     "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+     "registryId": "S14",
+     "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+     "scopeSha256": "8049b115432c6db5d6ddf3454847851b167fb4efa6374f19a5e92ad738361557",
+     "segments": [
+      {
+       "endSeconds": 4.6,
+       "startSeconds": 0,
+       "text": "Bây giờ là 5:30 sáng, trời hôm nay mùa hè nên là sáng rất là sớm."
+      },
+      {
+       "endSeconds": 7.4,
+       "startSeconds": 4.6,
+       "text": "Chúng ta bắt đầu ngày mới bằng một viên kẽm ở đây nhá."
+      },
+      {
+       "endSeconds": 9.9,
+       "startSeconds": 7.4,
+       "text": "Tại sao lại phải uống kẽm trước ăn sáng?"
+      },
+      {
+       "endSeconds": 13.5,
+       "startSeconds": 10.3,
+       "text": "Thì để chúng ta có thể hấp thu vi chất của kẽm tốt hơn."
+      },
+      {
+       "endSeconds": 17.1,
+       "startSeconds": 13.5,
+       "text": "Bác sĩ Biên thì thường uống khoảng trước 30 phút một viên bé tí này thôi."
+      },
+      {
+       "endSeconds": 20.3,
+       "startSeconds": 17.1,
+       "text": "Nhiều người mà gặp phải tình trạng là hay nhiệt miệng này,"
+      },
+      {
+       "endSeconds": 21.6,
+       "startSeconds": 20.3,
+       "text": "hay mụn nội tiết,"
+      },
+      {
+       "endSeconds": 24.3,
+       "startSeconds": 21.6,
+       "text": "cứ nghĩ là do nóng trong, nhưng mà hãy thử bổ sung kẽm."
+      },
+      {
+       "endSeconds": 26.6,
+       "startSeconds": 24.3,
+       "text": "Cái loại viên kẽm này có bổ sung thêm vitamin C,"
+      },
+      {
+       "endSeconds": 29.8,
+       "startSeconds": 26.6,
+       "text": "xem cái tình trạng mụn rồi cái tình trạng nhiệt miệng nó có cải thiện không nha."
+      },
+      {
+       "endSeconds": 32.2,
+       "startSeconds": 29.8,
+       "text": "Trước khi ăn 30 phút thì làm viên kẽm đã."
+      },
+      {
+       "endSeconds": 37.6,
+       "startSeconds": 33.7,
+       "text": "Loại kẽm bác sĩ Biên đang dùng là kẽm Pino nhập khẩu từ Anh."
+      },
+      {
+       "endSeconds": 43.1,
+       "startSeconds": 37.6,
+       "text": "Đấy, nó là kẽm citrate, kẽm hữu cơ, nên là chúng ta có thể uống lúc bụng đói được, không vấn đề gì cả."
+      },
+      {
+       "endSeconds": 48.1,
+       "startSeconds": 43.1,
+       "text": "Với những ai mà uống xong có cảm giác tình trạng là nôn nao sau khi uống thì chúng ta uống sau bữa ăn."
+      }
+     ],
+     "sourceSetSha256": "161771987181fdd3ddf3ef9621d0c3c1ffaa063b8f4befae6ad2d0f5ee060b9b",
+     "state": "PREPARED_NOT_ADMITTED",
+     "video": {
+      "aboutProduct": true,
+      "durationSeconds": 48.135,
+      "origin": "EXPANDED_SEARCH",
+      "videoId": "7642558908799700231",
+      "videoKind": "REVIEW_VIDEO",
+      "videoUrl": "https://www.tiktok.com/@bacsibien/video/7642558908799700231"
+     },
+     "voice": "SELLER",
+     "workspaceId": "bc412bc5-5693-48b1-a949-85215b5cc414"
+    }
+   }
+  ]
+ }
+}

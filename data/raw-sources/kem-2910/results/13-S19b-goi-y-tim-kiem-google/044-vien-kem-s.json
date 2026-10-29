@@ -1,0 +1,99 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm s» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[43]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "93a1e49598311822c2bbf450a7e612088a83c732a87b9a910b10e547c6db6485"
+ },
+ "result": {
+  "prefix": "viên kẽm s",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:13Z",
+  "suggestions": [
+   "viên kẽm sủi",
+   "viên kẽm sắt magie",
+   "viên kẽm sao thái dương",
+   "viên kẽm sắt",
+   "viên kẽm swisse",
+   "viên kẽm solgar",
+   "viên kẽm selen",
+   "viên kẽm sinh lý",
+   "viên kẽm siberian",
+   "viên kẽm sds"
+  ],
+  "raw": [
+   "viên kẽm s",
+   [
+    "viên kẽm sủi",
+    "viên kẽm sắt magie",
+    "viên kẽm sao thái dương",
+    "viên kẽm sắt",
+    "viên kẽm swisse",
+    "viên kẽm solgar",
+    "viên kẽm selen",
+    "viên kẽm sinh lý",
+    "viên kẽm siberian",
+    "viên kẽm sds"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

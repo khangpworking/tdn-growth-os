@@ -1,0 +1,94 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm m» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[60]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "542f4d95388e6c55d7da909e256b9cb5b23b568763756d1861e67ac177b5d010"
+ },
+ "result": {
+  "prefix": "uống kẽm m",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:26Z",
+  "suggestions": [
+   "uống kẽm mỗi ngày có sao không",
+   "uống kẽm mắc ói",
+   "uống kẽm mấy giờ là tốt nhất",
+   "uống kẽm mỗi ngày có tác dụng gì",
+   "uống kẽm mỗi ngày",
+   "uống kẽm mọc tóc",
+   "uống kẽm mấy tháng thì ngưng",
+   "uống kẽm mỗi ngày có tốt không",
+   "uống kẽm mấy giờ",
+   "uống kẽm mất ngủ"
+  ],
+  "raw": [
+   "uống kẽm m",
+   [
+    "uống kẽm mỗi ngày có sao không",
+    "uống kẽm mắc ói",
+    "uống kẽm mấy giờ là tốt nhất",
+    "uống kẽm mỗi ngày có tác dụng gì",
+    "uống kẽm mỗi ngày",
+    "uống kẽm mọc tóc",
+    "uống kẽm mấy tháng thì ngưng",
+    "uống kẽm mỗi ngày có tốt không",
+    "uống kẽm mấy giờ",
+    "uống kẽm mất ngủ"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

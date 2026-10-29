@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm v» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[69]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "660d8fec6edd3cc0b5ab57f1020eacf42c3341a2fc861cff30df83f4c7b4f3fc"
+ },
+ "result": {
+  "prefix": "uống kẽm v",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:33Z",
+  "suggestions": [
+   "uống kẽm vào thời gian nào là tốt",
+   "uống kẽm vào buổi trưa được không",
+   "uống kẽm và sắt cùng lúc được không",
+   "uống kẽm và sắt cách nhau bao lâu",
+   "uống kẽm vào buổi tối có sao không",
+   "uống kẽm và magie khi nào",
+   "uống kẽm với omega 3 được không",
+   "uống kẽm vào thời gian nào",
+   "uống kẽm vào giờ nào",
+   "uống kẽm và sắt khi nào"
+  ],
+  "raw": [
+   "uống kẽm v",
+   [
+    "uống kẽm vào thời gian nào là tốt",
+    "uống kẽm vào buổi trưa được không",
+    "uống kẽm và sắt cùng lúc được không",
+    "uống kẽm và sắt cách nhau bao lâu",
+    "uống kẽm vào buổi tối có sao không",
+    "uống kẽm và magie khi nào",
+    "uống kẽm với omega 3 được không",
+    "uống kẽm vào thời gian nào",
+    "uống kẽm vào giờ nào",
+    "uống kẽm và sắt khi nào"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

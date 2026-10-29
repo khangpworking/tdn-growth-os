@@ -1,0 +1,101 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm h» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[10]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "3b3557994ab3c9103c61acbb89d0e32dc39bc0331a345d4cd0a0e0c4457ba027"
+ },
+ "result": {
+  "prefix": "viên uống kẽm h",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:49Z",
+  "suggestions": [
+   "viên uống kẽm hàn quốc",
+   "viên uống kẽm hữu cơ",
+   "viên uống kẽm hàu",
+   "viên uống kẽm hỗ trợ trị mụn",
+   "viên uống kẽm hasaki",
+   "uống viên kẽm hàng ngày có tốt không",
+   "viên kẽm uống hàng ngày",
+   "viên uống kẽm chính hãng",
+   "viên uống kẽm tổng hợp",
+   "uống viên kẽm có hại thận không"
+  ],
+  "raw": [
+   "viên uống kẽm h",
+   [
+    "viên uống kẽm hàn quốc",
+    "viên uống kẽm hữu cơ",
+    "viên uống kẽm hàu",
+    "viên uống kẽm hỗ trợ trị mụn",
+    "viên uống kẽm hasaki",
+    "uống viên kẽm hàng ngày có tốt không",
+    "viên kẽm uống hàng ngày",
+    "viên uống kẽm chính hãng",
+    "viên uống kẽm tổng hợp",
+    "uống viên kẽm có hại thận không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}
