@@ -1,4 +1,6 @@
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,7 +11,10 @@ import { insightReaderFixture, readerOwner, readerRunId, readerWorkspaceId, read
 import { fixtureDisplayRules } from './content-package-fixture.js';
 import { AnalysisInsightReportStatementQuery, InsightReportStatementService } from '../../src/modules/analysis/insight-report-statements.js';
 import { AutomationReaderReports } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
-import { canonicalBytes, registerContentManifest } from '../../src/modules/flow/content-artifacts.js';
+import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
+import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
+import { syntheticProductSource } from './research-synthetic-sources.js';
 import { ContentBrandService } from '../../src/modules/flow/content-brand-service.js';
 import { ContentCatalogService } from '../../src/modules/flow/content-catalog-service.js';
 import { ContentCampaignService } from '../../src/modules/flow/content-campaign-service.js';
@@ -62,32 +67,60 @@ export async function cihFixture(t: TestContext, options: { pre62?: boolean } = 
     await decide(built.revision.revisionId, 'APPROVED');
     const s = statement(built.revision.revisionId, patch); statements.retainStatement(s); return s;
   };
-  // Independent synthetic ledger fixtures exercise query states, including states
-  // that the existing publisher's approved-latest guard cannot currently produce.
-  // These are not owner-service publication receipts. Decisions still use Box 2.
-  const appendReader = async (options: { kind?: 'INSIGHT' | 'MARKET'; runId?: string; createdAt?: string; keyword?: string; period?: { startDate: string; endDate: string } | null } = {}) => {
-    const base = f.db.prepare('SELECT * FROM analysis_reader_report_revisions WHERE revision_id=?').get(built.revision.revisionId) as Record<string, string | bigint | null>;
-    const runId = options.runId ?? readerRunId;
-    if (runId !== readerRunId && !f.db.prepare('SELECT 1 FROM analysis_research_automation_runs WHERE run_id=?').get(runId)) {
-      const run = f.db.prepare('SELECT * FROM analysis_research_automation_runs WHERE run_id=?').get(readerRunId) as Record<string, string | bigint | null>;
-      run.run_id = runId;
-      insert(f.db, 'analysis_research_automation_runs', run);
+  // Publish each additional report through the owning service in its own real run.
+  // Multiple pending revisions may be built before the final one is approved.
+  const appendReader = async (options: { kind?: 'INSIGHT' | 'MARKET'; runId?: string; createdAt?: string; keyword?: string; revisionCount?: number } = {}) => {
+    const kind = options.kind ?? 'INSIGHT', runId = options.runId ?? randomUUID();
+    const now = () => new Date(options.createdAt ?? at);
+    const discovery = new DiscoveryWorkspaceService({ db: f.db, artifactStore: f.artifacts, now });
+    const service = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, now, uuid: () => runId,
+      workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), source: syntheticProductSource(), readerReportFlint: false,
+      metricAttachmentStore: new RequestScopedArtifactStore(f.artifactRoot) });
+    const period = kind === 'MARKET' ? { startDate: '2026-01-01', endDate: '2026-01-29' } : { startDate: '2025-10-01', endDate: '2026-09-30' };
+    await service.start(readerWorkspaceId, { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: 'PRODUCT',
+      keyword: options.keyword ?? 'Synthetic Insight reader', requestedPeriod: period, reports: [kind] });
+    await service.processNext();
+    const expectedRevision = (await service.getRun(readerWorkspaceId, runId)).revision;
+    const scope = { definition: 'Synthetic native listing only', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
+      exactShopeeUrls: ['https://shopee.vn/product/78085196/17678138164'] };
+    let packageId: string | undefined;
+    if (kind === 'MARKET') {
+      const workbook = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], { input: JSON.stringify({ profile: 'v2' }), maxBuffer: 4 * 1024 * 1024 });
+      assert.equal(workbook.status, 0, workbook.stderr.toString());
+      const prepared = await service.prepareMetricSource(readerWorkspaceId, runId, { contractVersion: 'automation-metric-prepare-v1', requestKey: randomUUID(),
+        expectedRevision, scope, sourceLabel: 'Synthetic operator export', sourceContext: 'Synthetic fixture export',
+        measurementPeriod: { ...period, basis: 'Synthetic declared period' }, selection: 'UNSPECIFIED', acquiredAt: null,
+        precision: { revenue: 'unknown', units: 'unknown' } }, workbook.stdout);
+      packageId = prepared.packageId;
     }
-    const kind = options.kind ?? 'INSIGHT', revisionId = randomUUID();
-    const n = f.db.prepare('SELECT coalesce(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind=?').get(runId, kind) as { n: bigint };
-    const createdAt = options.createdAt ?? at;
-    const record = JSON.parse((await f.artifacts.read(String(base.input_sha256))).toString());
-    Object.assign(record, { revisionId, createdAt }); record.input.runId = runId;
-    if (options.keyword !== undefined) record.input.scope.keyword = options.keyword;
-    if (options.period !== undefined) record.input.scope.requestedPeriod = options.period;
-    const stored = await f.artifacts.put(canonicalBytes(record)); registerContentManifest(f.db, stored, createdAt, 'application/json');
-    Object.assign(base, { revision_id: revisionId, run_id: runId, revision_number: n.n, request_key: randomUUID(), input_sha256: stored.sha256, created_at: createdAt, report_kind: kind });
-    if (kind === 'MARKET') Object.assign(base, { semantic_sha256: null, source_report_sha256: null, metric_package_id: id(900), platforms: 'shopee', profile_status: 'proposed', profile_sha256: stored.sha256 });
-    insert(f.db, 'analysis_reader_report_revisions', base);
+    await service.confirmScope(readerWorkspaceId, runId, packageId
+      ? { contractVersion: 'research-automation-confirm-v2', requestKey: randomUUID(), expectedRevision, ...scope,
+          sources: { metric: { decision: 'USE_PREPARED', packageId }, nativeReview: 'SKIP' } }
+      : { contractVersion: 'research-automation-confirm-v1', requestKey: randomUUID(), expectedRevision, ...scope });
+    for (let i = 0; i < 10 && (await service.getRun(readerWorkspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
+    assert.equal((await service.getRun(readerWorkspaceId, runId)).status, 'DRAFT_READY');
+    if (packageId) {
+      const built = await service.buildReaderReport(readerWorkspaceId, runId, { contractVersion: 'reader-report-build-v1', requestKey: randomUUID(),
+        metricPackageId: packageId, platforms: ['shopee'], cover: null,
+        profile: { slug: 'synthetic-jar', product: 'Hũ thử nghiệm', status: 'proposed', segments: { S1: 'Hũ nhỏ', N1: 'Hàng khác' },
+          short: { S1: 'Nhỏ' }, core: ['S1'], non: ['N1'], rules: [{ seg: 'S1', when: {} }], signals: [] },
+        source: { measurementPeriod: { start: period.startDate, end: period.endDate }, rowCap: 5000,
+          displayedHeadlines: { revenueVnd: 200, soldListings: 2, shops: 2, units: 4 }, platformBreakdown: { shopee: { displayedRevenueVnd: 200 } } } }, readerOwner);
+      return built.revision.revisionId;
+    }
+    const original = (await service.listReportVersions(readerWorkspaceId, runId))[0]!;
+    const revision = await service.requestReportRevision(readerWorkspaceId, runId, { contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(),
+      previousPairId: original.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } });
+    await service.processNext();
+    const pair = (await service.listReportVersions(readerWorkspaceId, runId)).find(row => row.attemptId === revision.attemptId)!;
+    const report = await service.readReport(readerWorkspaceId, runId, 'INSIGHT', false, pair.pairId);
+    let revisionId = '';
+    for (let i = 0; i < (options.revisionCount ?? 1); i++) {
+      const built = await service.buildInsightReaderReport(readerWorkspaceId, runId, { contractVersion: 'insight-reader-build-v1', reportKind: 'INSIGHT',
+        requestKey: randomUUID(), draftPairId: pair.pairId, semanticSha256: report.versionId }, readerOwner);
+      revisionId = built.revision.revisionId;
+    }
     return revisionId;
   };
   return { ...f, ...content, statements, query, readers, revisionId: built.revision.revisionId, approved, decide, appendReader };
-}
-function insert(db: Database.Database, table: string, row: Record<string, string | bigint | null>) {
-  const names = Object.keys(row); db.prepare(`INSERT INTO ${table}(${names.join(',')}) VALUES (${names.map(() => '?').join(',')})`).run(...names.map(n => row[n]));
 }

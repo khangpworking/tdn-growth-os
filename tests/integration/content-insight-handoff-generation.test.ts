@@ -44,7 +44,7 @@ test('CIH-Q26 report approval cannot substitute for real B10 product clearance',
   }
 });
 
-test('CIH-Q23 / CIH-Q30 locked report snapshot reaches actual fake-gateway Big Idea/Angle inputs with unchanged prompt bytes', async t => {
+test('CIH-Q23 / R-C07 locked report snapshot reaches actual fake-gateway Big Idea/Angle inputs with unchanged prompt bytes', async t => {
   const f = await cihFixture(t), s = await f.approved(), c = await f.createCampaign();
   const gateway = createFakeCreativeGateway({ text: Array.from({ length: 7 }, (_, i) => ({ result: { text: JSON.stringify(i === 2 ? { post: 'Synthetic retained caption stays unchanged.' } : i === 1 ? { name: 'Synthetic angle', concept: 'Synthetic angle concept' } : { concept: `Synthetic concept ${i}`, expression: `Synthetic expression ${i}` }), latencyMs: 1 } })) });
   const library = new ContentPromptLibrary(), prompts = new ContentPromptService({ db: f.db, artifactStore: f.artifacts, library });
@@ -82,7 +82,8 @@ test('CIH-Q23 / CIH-Q30 locked report snapshot reaches actual fake-gateway Big I
   await packages.generate({ contractVersion: '1.0.0', packageId, requestId: randomUUID(), part: 'CAPTION', plannedCallCount: 1 }, 'owner:synthetic');
   const captionBefore = canonicalBytes(await packages.readPackage(packageId));
   const bytes = artifacts.map(canonicalBytes); const files = inventory(f.artifactRoot).map(file => [file, fs.readFileSync(file)] as const);
-  const newer = await f.appendReader(); await f.decide(newer, 'APPROVED');
+  // Later data is a separate run; saved campaign, generation and caption bytes stay frozen.
+  const otherReport = await f.appendReader(); await f.decide(otherReport, 'APPROVED');
   assert.deepEqual(canonicalBytes(await ideas.readIdea(first.ideaId)), bytes[0]); assert.equal((await ideas.generate(bigInput, 'owner:synthetic')).deduplicated, true); assert.equal(gateway.calls.length, 3);
   assert.deepEqual(canonicalBytes(await packages.readPackage(packageId)), captionBefore);
   for (const [file, before] of files) assert.deepEqual(fs.readFileSync(file), before);

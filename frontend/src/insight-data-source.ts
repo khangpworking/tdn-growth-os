@@ -1,4 +1,4 @@
-import { insightReportStatement, insightReportMetadata } from './generated/report-validators.generated.js';
+import { insightReportStatement } from './generated/report-validators.generated.js';
 import type {
   ContentInsightContent,
   ContentInsightDetailResponse,
@@ -106,7 +106,7 @@ function b10(value: unknown): boolean {
 export async function loadInsight(campaignId: string, fetcher: typeof fetch = fetch): Promise<InsightDetail | null> {
   const value = await readJson(`/api/content/campaigns/${encodeURIComponent(campaignId)}/insight`, fetcher);
   if (value === null) return null;
-  const optional = (['latest', 'lock', 'stpSuggestion', 'newerApprovedRevision', 'reportQueryUnavailable'] as const).filter((key) => record(value) && key in value);
+  const optional = (['latest', 'lock', 'stpSuggestion'] as const).filter((key) => record(value) && key in value);
   if (!record(value) || !exactKeys(value, ['campaignDeleted', 'campaignId', 'campaignVersion', 'contractVersion', 'gate', 'history', ...optional]) || value.contractVersion !== '1.0.0'
     || value.campaignId !== campaignId || !positiveVersion(value.campaignVersion) || typeof value.campaignDeleted !== 'boolean' || !gate(value.gate)) invalid();
   const history = value.history;
@@ -120,8 +120,6 @@ export async function loadInsight(campaignId: string, fetcher: typeof fetch = fe
   const suggestion = value.stpSuggestion;
   if (suggestion !== undefined && (!record(suggestion) || !exactKeys(suggestion, ['customer', 'insight', 'lockedStpId']) || !uuid(suggestion.lockedStpId)
     || !trimmed(suggestion.customer, 500) || !trimmed(suggestion.insight, 2000))) invalid();
-  if (value.newerApprovedRevision !== undefined && !insightReportMetadata(value.newerApprovedRevision)) invalid();
-  if (value.reportQueryUnavailable !== undefined && typeof value.reportQueryUnavailable !== 'boolean') invalid();
   return value as unknown as InsightDetail;
 }
 

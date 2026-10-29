@@ -506,8 +506,6 @@
             "reason": { "type": "string" }
           }
         },
-        "newerApprovedRevision": { "$ref": "content-insight-reports-api.schema.json#/$defs/report" },
-        "reportQueryUnavailable": { "type": "boolean" },
         "stpSuggestion": {
           "title": "ContentInsightStpSuggestion",
           "type": "object",

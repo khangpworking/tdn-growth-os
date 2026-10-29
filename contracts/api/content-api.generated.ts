@@ -594,8 +594,6 @@ export interface ContentInsightDetailResponse {
   history: ContentInsightHistoryItem[];
   lock?: ContentInsightLockView;
   gate: ContentInsightGate;
-  newerApprovedRevision?: ContentInsightReport;
-  reportQueryUnavailable?: boolean;
   stpSuggestion?: ContentInsightStpSuggestion;
 }
 export interface ContentInsightRecord {
@@ -681,18 +679,6 @@ export interface ContentInsightGate {
   productWorkspaceId?: Uuid;
   effectiveDecision?: 'APPROVE' | 'HOLD' | 'REJECT';
   reason?: string;
-}
-export interface ContentInsightReport {
-  revisionId: string;
-  runId: string;
-  reportKind: 'INSIGHT';
-  revisionNumber: number;
-  createdAt: string;
-  keyword: string;
-  period: null | {
-    startDate: string;
-    endDate: string;
-  };
 }
 export interface ContentInsightStpSuggestion {
   lockedStpId: Uuid;

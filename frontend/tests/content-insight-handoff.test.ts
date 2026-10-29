@@ -132,14 +132,6 @@ test('CIH-Q29 edited labels track each field and disappear only when that field 
   await change(h.container.querySelector('#insight-pain')!, s.conflict); assert.equal((h.container.textContent!.match(/Đã sửa so với báo cáo/g) ?? []).length, 2); assert.ok(h.container.textContent!.includes(s.conflict)); assert.equal(h.posts.length, 0);
 });
 
-test('CIH-Q32 newer notice never changes text; explicit choice/cancel keeps draft', async t => {
-  const newer = statement(id(110), { statementId: id(111), insight: 'They explicitly choose a newer sentence.' });
-  const h = await page(t, detail(insight(), { newerApprovedRevision: report({ revisionId: id(110), revisionNumber: 3 }) }), [newer]);
-  assert.match(h.container.textContent!, /Có bản Insight mới/); assert.equal((h.container.querySelector('#insight-text') as HTMLTextAreaElement).value, s.insight); assert.equal(h.posts.length, 0);
-  await click(button(h.container, 'Chọn câu từ bản mới')); await choose(h.container, newer.statementId); await click(button(h.container, 'Hủy')); assert.equal(h.posts.length, 0); assert.equal((h.container.querySelector('#insight-text') as HTMLTextAreaElement).value, s.insight);
-  await click(button(h.container, 'Dùng câu insight')); await click(button(h.container, 'Thay Insight')); assert.equal(h.posts[0]!.body.revisionId, id(110));
-});
-
 test('CIH-Q33 empty feature stays visible/disabled and connection errors never claim an empty list', async t => {
   let fail = false; const h = await harness(t, async url => String(url).includes('/reader-reports/') ? json({ contractVersion: 'reader-report-list-v2', workspaceId, runId, revisions: [] }) : fail ? json({ error: 'synthetic failure' }, 500) : json({ contractVersion: '1.0.0', reports: [] }));
   await h.render(createElement(h.default, { disabled: false, onApply: () => undefined })); assert.match(h.container.textContent!, /Chưa có báo cáo nào có câu insight/); assert.equal(h.container.querySelector('select')!.disabled, true);
@@ -168,16 +160,4 @@ test('CIH-Q25 locked Insight disables the picker and stale submit shows the exac
   assert.equal((h.container.querySelector('section[aria-label="Chọn câu từ báo cáo Insight"] select') as HTMLSelectElement).disabled, true); assert.equal(button(h.container, 'Dùng câu insight').disabled, true); assert.equal(h.posts.length, 0);
   const { sendReport } = await import('../src/insight-report-data-source');
   await assert.rejects(sendReport(campaignId, { contractVersion: '1.0.0', expectedVersion: 1, revisionId, statementId: s.statementId, confirmReplacement: true }, 'synthetic-token', async () => json({ error: { code: 'conflict', message: 'Insight đã chốt, hãy tạo chiến dịch mới' } }, 409)), /Insight đã chốt, hãy tạo chiến dịch mới/);
-});
-
-test('CIH-Q30 query-unavailable warning keeps the frozen saved reference visible', async t => {
-  const h = await page(t, detail(insight(), { reportQueryUnavailable: true }));
-  assert.match(h.container.querySelector('[role=alert]')!.textContent!, /Bản gốc đã lưu vẫn được giữ/);
-  assert.equal((h.container.querySelector('#insight-text') as HTMLTextAreaElement).value, s.insight); assert.ok(h.container.querySelector('[aria-label="Từ báo cáo"]')!.textContent!.includes(s.hiddenTruth)); assert.equal(h.posts.length, 0);
-});
-
-test('CIH-Q32 newer notice with no selectable statement offers no handoff or automatic update', async t => {
-  const none = statement(id(110), { statementId: id(111), confidence: { level: 'NONE', hypothesis: false } });
-  const h = await page(t, detail(insight(), { newerApprovedRevision: report({ revisionId: id(110), revisionNumber: 3 }) }), [none]);
-  await click(button(h.container, 'Chọn câu từ bản mới')); assert.match(h.container.textContent!, /Không có câu insight có thể chọn/); assert.equal(button(h.container, 'Dùng câu insight').disabled, true); assert.equal(h.posts.length, 0); assert.equal((h.container.querySelector('#insight-text') as HTMLTextAreaElement).value, s.insight);
 });

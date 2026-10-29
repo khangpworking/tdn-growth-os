@@ -11,7 +11,7 @@ Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử
 - [x] 2.1 Hợp đồng JSON Schema đóng cho câu insight 9 trường; sinh type (R-C01)
 - [x] 2.2 Migration số kế tiếp: bảng câu insight, nối với bản báo cáo loại INSIGHT (R-C01)
 - [x] 2.3 Từ chối câu thiếu trường bắt buộc hoặc chứa nguyên văn bình luận (R-C01)
-- [x] 2.4 Giao diện truy vấn cho Box 4: danh sách bản đã duyệt có câu insight, câu của một bản, bản duyệt mới hơn của cùng báo cáo (R-C02)
+- [x] 2.4 Giao diện truy vấn cho Box 4: danh sách bản đã duyệt có câu insight, câu của một bản (R-C02; bỏ truy vấn bản mới hơn theo F294)
 
 ## 3. Insight chiến dịch (Box 4)
 

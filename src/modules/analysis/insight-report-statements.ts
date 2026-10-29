@@ -43,7 +43,6 @@ export interface InsightReportStatementQuery {
   listApprovedReports(): Promise<ContentInsightReport[]>;
   readApprovedStatements(revisionId: string): Promise<{ report: ContentInsightReport; statements: InsightReportStatement[] } | undefined>;
   readApprovedStatement(revisionId: string, statementId: string): Promise<InsightReportStatement | undefined>;
-  findNewerApprovedRevision(revisionId: string): Promise<ContentInsightReport | undefined>;
 }
 interface ReportRow { revisionId: string; runId: string; revisionNumber: number | bigint; createdAt: string }
 const SELECT = `SELECT v.revision_id revisionId,v.run_id runId,v.revision_number revisionNumber,v.created_at createdAt
@@ -77,11 +76,5 @@ export class AnalysisInsightReportStatementQuery implements InsightReportStateme
   }
   async readApprovedStatement(revisionId: string, statementId: string) {
     return (await this.readApprovedStatements(revisionId))?.statements.find(statement => statement.statementId === statementId);
-  }
-  async findNewerApprovedRevision(revisionId: string) {
-    const row = this.db.prepare(`${SELECT} AND v.run_id=(SELECT run_id FROM analysis_reader_report_revisions WHERE revision_id=?)
-      AND v.revision_number>(SELECT revision_number FROM analysis_reader_report_revisions WHERE revision_id=?)
-      ORDER BY v.revision_number DESC LIMIT 1`).get(revisionId, revisionId) as ReportRow | undefined;
-    return row ? this.#report(row) : undefined;
   }
 }

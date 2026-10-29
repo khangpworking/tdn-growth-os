@@ -88,7 +88,6 @@ export default function InsightPage(props: InsightPageProps) {
   const [notice, setNotice] = useState<{ readonly message: string; readonly reload: boolean; readonly discard?: boolean } | null>(null);
   const [confirmingLock, setConfirmingLock] = useState(false);
   const [reportChoice, setReportChoice] = useState<InsightReportStatement | null>(null);
-  const [pickerRevision, setPickerRevision] = useState('');
   const mountedRef = useRef(true);
   // The saved state the draft was last taken from, and whether the next newer state must keep the draft (409 reload).
   const appliedBaseRef = useRef<string | null>(null);
@@ -237,9 +236,7 @@ export default function InsightPage(props: InsightPageProps) {
     {mode === 'demo' && <div className="demo-banner" role="note">{DEMO_BANNER}</div>}
     <nav className="crumb" aria-label="Đường dẫn"><a href={routeToHash.content()}>Chiến dịch</a><span aria-hidden="true">/</span><a href={routeToHash.campaign(campaignId)}>{campaign.campaign.campaign.name}</a><span aria-hidden="true">/</span><span>Insight</span></nav>
     <div className="heading"><div><h1>Insight</h1><p>Khách hàng là ai, họ đang đau ở đâu, và sự thật nào khiến thông điệp chạm tới họ.</p></div></div>
-    {view.newerApprovedRevision && <div role="status"><p>Có bản Insight mới · bản {view.newerApprovedRevision.revisionNumber}</p>{editable && <button type="button" className="button" disabled={!!pending} onClick={() => setPickerRevision(view.newerApprovedRevision!.revisionId)}>Chọn câu từ bản mới</button>}</div>}
-    {view.reportQueryUnavailable && <p role="alert">Chưa kiểm tra được bản Insight mới. Bản gốc đã lưu vẫn được giữ.</p>}
-    {mode === 'real' && <InsightReportPicker disabled={!editable || !writable || !!pending} initialRevisionId={pickerRevision} onApply={chooseReport} />}
+    {mode === 'real' && <InsightReportPicker disabled={!editable || !writable || !!pending} onApply={chooseReport} />}
     {reportSource && <InsightReportReference source={reportSource} current={current} />}
     {reportChoice && <ConfirmDialog titleId="report-replace-title" descriptionId="report-replace-description" title="Thay Insight nháp?" confirmLabel="Thay Insight" pending={!!pending} onCancel={() => setReportChoice(null)} onConfirm={() => void applyReport(reportChoice, true)}><p id="report-replace-description">Câu đã chọn sẽ thay nội dung đang soạn. Bản đã lưu trước đó vẫn được giữ trong lịch sử.</p></ConfirmDialog>}
     <StepIndicator campaignId={props.campaignId} locked={stage === 'locked'} />

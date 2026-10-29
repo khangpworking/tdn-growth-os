@@ -437,11 +437,6 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           if (latest.version !== history.length + 1) throw new Error('Insight history is not sequential');
           history.push({ version: latest.version, sourceKind: latest.insight.source.kind, createdAt: latest.createdAt });
         }
-        let reportStatus: Pick<ContentInsightDetailResponse, 'newerApprovedRevision' | 'reportQueryUnavailable'> = {};
-        if (latest?.insight.source.kind === 'INSIGHT_REPORT') {
-          try { const newer = await reportStatements.findNewerApprovedRevision(latest.insight.source.revisionId); if (newer) reportStatus = { newerApprovedRevision: newer }; }
-          catch { reportStatus = { reportQueryUnavailable: true }; }
-        }
         const lock = await insights.readLock(campaignId);
         const workspaceId = campaign.campaign.researchProductWorkspaceId;
         const gate = await insights.gate(workspaceId);
@@ -449,7 +444,6 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
         const suggestion = b9?.state === 'LOCKED' ? stpSuggestion(b9.locked) : undefined;
         return {
           contractVersion: '1.0.0', campaignId, campaignVersion: campaign.version, campaignDeleted: campaigns.lifecycleState(campaignId).deleted !== undefined,
-          ...reportStatus,
           ...(latest ? { latest: { version: latest.version, insight: latest.insight, createdAt: latest.createdAt } } : {}),
           history,
           ...(lock ? { lock: { insightVersion: lock.insightVersion, campaignVersion: lock.campaignVersion, lockedAt: lock.lockedAt, ...(lock.b10 ? { b10: lock.b10 } : {}) } } : {}),

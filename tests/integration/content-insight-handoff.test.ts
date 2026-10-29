@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import test, { type TestContext } from 'node:test';
 import { cihFixture, statement, handoff, expectedInsight, campaignContent, typed, lockRequest, rows, inventory, id, at, fullSentence } from '../helpers/content-insight-handoff-fixture.js';
 import { locked, lockId, workspaceId } from '../helpers/content-insight-handoff-b10.js';
+import { readerWorkspaceId, readerRunId, readerOwner } from '../helpers/insight-reader-fixture.js';
 import { InsightReportStatementError } from '../../src/modules/analysis/insight-report-statements.js';
 import { ContentInsightService, ContentInsightReferenceError, ContentInsightConflictError } from '../../src/modules/flow/content-insight-service.js';
 import { validateContentInsightRevisionRequest } from '../../src/modules/flow/validation.js';
@@ -181,9 +182,10 @@ test('CIH-Q12 feature reads on a statement-empty runtime seed nothing and dispat
 });
 
 test('CIH-Q13 R-C02 approved-only exact revision eligibility excludes pending/rejected/Market/empty', async t => {
-  const f = await cihFixture(t); const first = await f.approved();
+  const f = await cihFixture(t); const eligible = await f.appendReader(); await f.decide(eligible, 'APPROVED'); const first = statement(eligible); f.statements.retainStatement(first);
   const rejected = await f.appendReader(); f.statements.retainStatement(statement(rejected)); await f.decide(rejected, 'REJECTED');
-  const superseded = await f.appendReader(); f.statements.retainStatement(statement(superseded));
+  const superseded = f.revisionId; f.statements.retainStatement(statement(superseded));
+  await f.service.buildInsightReaderReport(readerWorkspaceId, readerRunId, { contractVersion: 'insight-reader-build-v1', reportKind: 'INSIGHT', requestKey: randomUUID(), draftPairId: f.pair.pairId, semanticSha256: f.report.versionId }, readerOwner);
   const pending = await f.appendReader(); f.statements.retainStatement(statement(pending));
   const empty = await f.appendReader(); await f.decide(empty, 'APPROVED');
   const market = await f.appendReader({ kind: 'MARKET' }); await f.decide(market, 'APPROVED');
@@ -208,8 +210,8 @@ test('CIH-Q14 direct IDs cannot bypass undecided/rejected approval or spoof it i
 
 test('CIH-Q16 report order uses frozen creation time, revision, UUID ties and scope', async t => {
   const f = await cihFixture(t); const first = await f.approved();
-  const second = await f.appendReader({ keyword: 'Same keyword', createdAt: '2026-10-09T00:00:00.000Z' }); await f.decide(second, 'APPROVED'); f.statements.retainStatement(statement(second));
-  const third = await f.appendReader({ keyword: 'Same keyword', createdAt: '2026-10-09T00:00:00.000Z' }); await f.decide(third, 'APPROVED'); f.statements.retainStatement(statement(third));
+  const second = await f.appendReader({ revisionCount: 2, keyword: 'Same keyword', createdAt: '2026-10-09T00:00:00.000Z' }); await f.decide(second, 'APPROVED'); f.statements.retainStatement(statement(second));
+  const third = await f.appendReader({ revisionCount: 3, keyword: 'Same keyword', createdAt: '2026-10-09T00:00:00.000Z' }); await f.decide(third, 'APPROVED'); f.statements.retainStatement(statement(third));
   const other = await f.appendReader({ runId: id(70), keyword: 'Same keyword', createdAt: '2026-10-09T00:00:00.000Z' }); await f.decide(other, 'APPROVED'); f.statements.retainStatement(statement(other));
   const tied = await f.appendReader({ runId: id(71), keyword: 'Same keyword', createdAt: '2026-10-09T00:00:00.000Z' }); await f.decide(tied, 'APPROVED'); f.statements.retainStatement(statement(tied));
   assert.deepEqual((await f.query.listApprovedReports()).map(r => r.revisionId), [third, second, ...[other, tied].sort(), first.revisionId]);
@@ -299,33 +301,8 @@ test('CIH-Q29 each editable field appends with the original snapshot and rejects
   let version = 1; const content = expectedInsight(s);
   for (const field of ['customer', 'painPoint', 'insight'] as const) { content[field] = `Edited ${field}`; await f.insights.reviseInsight({ contractVersion: '1.0.0', campaignId: c.campaignId, expectedVersion: version++, insight: content }); assert.deepEqual((await f.insights.readInsight(c.campaignId)).insight.source, expectedInsight(s).source); }
   await assert.rejects(f.insights.reviseInsight({ contractVersion: '1.0.0', campaignId: c.campaignId, expectedVersion: version, insight: { ...content, source: { ...content.source, snapshot: { ...s, customer: 'Forged original' } } } }), /snapshot differs/);
-});
-
-test('CIH-Q30 saved snapshot replays with no source query and survives newer reports', async t => {
-  const f = await cihFixture(t), s = await f.approved(), c = await f.createCampaign(); await f.insights.receiveReport(c.campaignId, handoff(s));
-  const before = canonicalBytes(await f.insights.readInsight(c.campaignId)); const newer = await f.appendReader(); await f.decide(newer, 'APPROVED');
   const offline = new ContentInsightService({ db: f.db, artifactStore: f.artifacts, campaigns: f.campaigns });
-  assert.deepEqual(canonicalBytes(await offline.readInsight(c.campaignId)), before);
-  const a = await api(t, f); const detail = await (await a.get(detailRoute(c.campaignId))).json() as any; assert.equal(detail.newerApprovedRevision.revisionId, newer); assert.deepEqual(detail.latest.insight, expectedInsight(s));
-  assert.deepEqual(canonicalBytes(await f.insights.readInsight(c.campaignId)), before);
-});
-
-test('CIH-Q31 newer means same run/kind, greater number and APPROVED even with no cards', async t => {
-  const f = await cihFixture(t), s = await f.approved(); assert.equal(await f.query.findNewerApprovedRevision(s.revisionId), undefined);
-  const foreign = await f.appendReader({ runId: id(70) }); await f.decide(foreign, 'APPROVED'); assert.equal(await f.query.findNewerApprovedRevision(s.revisionId), undefined);
-  const market = await f.appendReader({ kind: 'MARKET' }); await f.decide(market, 'APPROVED'); assert.equal(await f.query.findNewerApprovedRevision(s.revisionId), undefined);
-  const rejected = await f.appendReader(); await f.decide(rejected, 'REJECTED'); assert.equal(await f.query.findNewerApprovedRevision(s.revisionId), undefined);
-  const pending = await f.appendReader(); assert.equal(await f.query.findNewerApprovedRevision(s.revisionId), undefined); await f.decide(pending, 'APPROVED');
-  assert.equal((await f.query.findNewerApprovedRevision(s.revisionId))!.revisionId, pending); assert.equal(await f.query.findNewerApprovedRevision(pending), undefined); assert.equal(await f.query.readApprovedStatements(pending), undefined);
-});
-
-test('CIH-Q32 newer selection changes drafts only after explicit confirmed handoff; lock still refuses', async t => {
-  const f = await cihFixture(t), old = await f.approved(), c = await f.createCampaign(); await f.insights.receiveReport(c.campaignId, handoff(old));
-  const newer = await f.appendReader(); await f.decide(newer, 'APPROVED'); const s = statement(newer, { insight: 'They explicitly select a different complete insight.' }); f.statements.retainStatement(s);
-  const before = canonicalBytes(await f.insights.readInsight(c.campaignId)); await f.query.findNewerApprovedRevision(old.revisionId); assert.deepEqual(canonicalBytes(await f.insights.readInsight(c.campaignId)), before);
-  await assert.rejects(f.insights.receiveReport(c.campaignId, handoff(s, 1)), /Confirm/); assert.deepEqual(canonicalBytes(await f.insights.readInsight(c.campaignId)), before);
-  await f.insights.receiveReport(c.campaignId, handoff(s, 1, true)); assert.deepEqual((await f.insights.readInsight(c.campaignId)).insight, expectedInsight(s));
-  await f.insights.lockInsight(lockRequest(c.campaignId, 2)); await assert.rejects(f.insights.receiveReport(c.campaignId, handoff(old, 2, true)), /Insight đã chốt, hãy tạo chiến dịch mới/);
+  assert.deepEqual((await offline.readInsight(c.campaignId)).insight, content);
 });
 
 test('CIH-Q33 empty, approved-zero and rejected-only APIs return true empty lists; eligible twin appears', async t => {
