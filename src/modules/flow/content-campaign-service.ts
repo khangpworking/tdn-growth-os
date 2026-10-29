@@ -91,13 +91,21 @@ export class ContentCampaignService {
   }
 
   async createCampaign(untrustedInput: unknown): Promise<ContentCampaignExecution> {
+    const prepared = await this.prepareCampaignCreate(untrustedInput);
+    const result = prepared.commit();
+    if (result.deduplicated) await this.readCampaign(result.campaignId, 1);
+    return result;
+  }
+
+  /** Stage validated artifacts before a coordinating Box 4 transaction commits. */
+  async prepareCampaignCreate(untrustedInput: unknown): Promise<{ campaignId: string; commit: () => ContentCampaignExecution }> {
     const input = canonicalSnapshot(validateContentCampaignCreateRequest(untrustedInput));
     const requestSha256 = canonicalDigest(input);
     const existing = this.#byKey(input.campaignKey);
     if (existing) {
       const result = this.#retry(requestSha256, this.#versionOne(existing.campaignId));
       await this.readCampaign(result.campaignId, 1);
-      return result;
+      return { campaignId: result.campaignId, commit: () => result };
     }
     await this.#assertReferences(input.brandId, input.campaign);
 
@@ -115,9 +123,7 @@ export class ContentCampaignService {
       databaseMutations += this.#insertRevision(campaignId, 1, input.campaign.name, requestSha256, stored.sha256, createdAt);
       return { campaignId, campaignArtifactSha256: stored.sha256, version: 1, deduplicated: false, databaseMutations };
     });
-    const result = execute();
-    if (result.deduplicated) await this.readCampaign(result.campaignId, 1);
-    return result;
+    return { campaignId, commit: execute };
   }
 
   async reviseCampaign(untrustedInput: unknown): Promise<ContentCampaignExecution> {

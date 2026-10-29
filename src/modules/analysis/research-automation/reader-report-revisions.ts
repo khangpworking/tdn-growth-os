@@ -523,6 +523,13 @@ export class AutomationReaderReports {
     return receipt(this.#byId(binding.runId, row.revision_id)!, false);
   }
 
+  /** Exact frozen scope for the declared Content handoff query; no rendering or upstream replay. */
+  async insightScope(runId: string, revisionId: string) {
+    const row = this.#byId(runId, revisionId);
+    if (!row || row.report_kind !== 'INSIGHT') throw new ResearchAutomationValidationError('Insight revision not found');
+    return (await this.#verifiedInsightInput(row)).scope;
+  }
+
   list(binding: ReaderBinding): ResearchAutomationReaderRevisionList {
     const rows = this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.workspace_id=? AND v.report_kind='MARKET' ORDER BY v.revision_number`).all(binding.runId, binding.workspaceId) as RevisionRow[];
     return { contractVersion: 'reader-report-list-v1', workspaceId: binding.workspaceId, runId: binding.runId, revisions: rows.map(r => this.#project(r)) };

@@ -40,6 +40,18 @@
           "additionalProperties": false,
           "required": ["kind", "lockedStpId"],
           "properties": { "kind": { "const": "STP" }, "lockedStpId": { "type": "string", "format": "uuid" } }
+        },
+        {
+          "title": "ContentInsightReportSource",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "revisionId", "statementId", "snapshot"],
+          "properties": {
+            "kind": { "const": "INSIGHT_REPORT" },
+            "revisionId": { "type": "string", "format": "uuid" },
+            "statementId": { "type": "string", "format": "uuid" },
+            "snapshot": { "$ref": "../analysis/insight-report-statement.schema.json" }
+          }
         }
       ]
     }

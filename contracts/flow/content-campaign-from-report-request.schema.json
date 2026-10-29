@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "campaignKey",
+    "brandId",
+    "campaign",
+    "revisionId",
+    "statementId"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "1.0.0"
+    },
+    "campaignKey": {
+      "$ref": "content-campaign-create-request.schema.json#/properties/campaignKey"
+    },
+    "brandId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "campaign": {
+      "$ref": "content-campaign-create-request.schema.json#/properties/campaign"
+    },
+    "revisionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "statementId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContentCampaignFromReportRequest",
+  "$id": "https://tdn.local/contracts/flow/content-campaign-from-report-request.schema.json"
+}

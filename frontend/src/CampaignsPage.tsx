@@ -1,3 +1,6 @@
+import type { InsightReportStatement } from '../../contracts/analysis/insight-report-statement.generated';
+import { StatementLabels } from './InsightReportPicker';
+import { createCampaignFromReport, loadReportStatements, type ReportSelection } from './insight-report-data-source';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import type { Dispatch, FormEvent } from 'react';
 import type {
@@ -67,6 +70,7 @@ export interface ProductWorkspaceOption {
 }
 
 export interface CampaignsPageProps {
+  readonly reportSelection?: ReportSelection;
   readonly mode: 'real' | 'demo';
   readonly campaignId: string | null;
   readonly creating: boolean;
@@ -83,6 +87,7 @@ export interface CampaignsPageProps {
 }
 
 export interface CampaignFormProps {
+  readonly reportSelection?: ReportSelection;
   readonly mode: 'real' | 'demo';
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
@@ -236,6 +241,20 @@ function CampaignListView(props: {
 export function CampaignForm(props: CampaignFormProps) {
   const { mode, ownerToken, writesAvailable, brands, catalogItems, productWorkspaces, editor, dispatch } = props;
   const { draft, base: current, saving: pending, notice } = editor;
+  const [attachedStatement, setAttachedStatement] = useState<InsightReportStatement | null>(null);
+  const [attachmentError, setAttachmentError] = useState('');
+  useEffect(() => {
+    setAttachedStatement(null); setAttachmentError('');
+    if (!props.reportSelection) return;
+    let active = true;
+    const selection = props.reportSelection;
+    loadReportStatements(selection.revisionId).then(value => {
+      if (!active) return;
+      const statement = value.statements.find(entry => entry.statementId === selection.statementId && entry.confidence.level !== 'NONE');
+      if (statement) setAttachedStatement(statement); else setAttachmentError('Câu đã chọn không còn dùng được.');
+    }).catch(() => { if (active) setAttachmentError('Chưa đọc được câu insight đã gắn.'); });
+    return () => { active = false; };
+  }, [props.reportSelection?.revisionId, props.reportSelection?.statementId]);
   const inFlight = useRef<number | null>(null);
   const blocker = campaignDraftBlocker(draft);
   const unchanged = current !== null && sameCampaignContent(draft, current.draft);
@@ -272,6 +291,7 @@ export function CampaignForm(props: CampaignFormProps) {
       const campaign = campaignRequestFromDraft(draft);
       const receipt = current
         ? await submitCampaignRevision({ campaignId: current.campaignId, expectedVersion: current.version, campaign, token: ownerToken! })
+        : props.reportSelection ? await createCampaignFromReport({ campaignKey: editor.newKey ?? generatedCampaignKey(), brandId: draft.brandId, campaign, token: ownerToken!, selection: props.reportSelection })
         : await submitCampaignCreate({ campaignKey: editor.newKey ?? generatedCampaignKey(), brandId: draft.brandId, campaign, token: ownerToken! });
       const message = receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo chiến dịch.';
       if (props.isActiveSession(session)) {
@@ -305,6 +325,7 @@ export function CampaignForm(props: CampaignFormProps) {
   };
 
   return <form className="brand-form campaign-form" onSubmit={(event) => void submit(event)} noValidate>
+    {props.reportSelection && <div role="note"><p>Câu insight đã gắn. Lưu biểu mẫu để tạo chiến dịch và Insight nháp.</p>{attachedStatement && <><StatementLabels statement={attachedStatement} /><p>{attachedStatement.insight}</p></>}{attachmentError && <p role="alert">{attachmentError}</p>}</div>}
     <header className="brand-form-head"><div><h2>{current ? `Sửa chiến dịch · tạo phiên bản ${current.version + 1}` : 'Chiến dịch mới'}</h2><p className="muted">{mode === 'demo' ? 'Dữ liệu minh họa, chỉ tồn tại trong phiên này.' : 'Chiến dịch dùng các phiên bản sản phẩm đã được ghim.'}</p></div></header>
     <fieldset className="catalog-fields" disabled={pending || !writable}>
       <legend className="visually-hidden">Thông tin chiến dịch</legend>
@@ -484,7 +505,8 @@ export default function CampaignsPage(props: CampaignsPageProps) {
     catalogItems: catalogState.status === 'ready' ? catalogState.value : [], catalogLoading: catalogState.status === 'loading', catalogError: catalogState.status === 'failed' ? catalogState.message : null,
     productWorkspaces: props.productWorkspaces, editor, dispatch, demoCampaigns, setDemoCampaigns: props.setDemoCampaigns, notify: props.notify,
     onCancel: () => { setEditing(null); props.navigate(routeToHash.content()); }, onConflict: reload, isActiveSession, onStaleSettled: reload,
-    onSaved: (id: string) => { setEditing(null); reload(); props.navigate(routeToHash.campaign(id)); },
+    onSaved: (id: string) => { setEditing(null); reload(); props.navigate(props.reportSelection ? routeToHash.campaignInsight(id) : routeToHash.campaign(id)); },
+    ...(props.reportSelection ? { reportSelection: props.reportSelection } : {}),
   } satisfies CampaignFormProps : null;
 
   const editorHiddenByDeletion = editing === 'edit' && detail?.lifecycle.deleted !== undefined;

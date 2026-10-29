@@ -476,7 +476,7 @@
             "required": ["version", "sourceKind", "createdAt"],
             "properties": {
               "version": { "type": "integer", "minimum": 1 },
-              "sourceKind": { "enum": ["TYPED", "STP"] },
+              "sourceKind": { "enum": ["TYPED", "STP", "INSIGHT_REPORT"] },
               "createdAt": { "$ref": "#/$defs/dateTime" }
             }
           }

@@ -1,3 +1,5 @@
+import statementSchema from '../../contracts/analysis/insight-report-statement.schema.json' with { type: 'json' };
+import reportApiSchema from '../../contracts/api/content-insight-reports-api.schema.json' with { type: 'json' };
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import fs from 'node:fs';
@@ -304,7 +306,7 @@ test('OWNER Insight schemas are closed and route responses satisfy their JSON co
   const ajv = new Ajv2020({ allErrors: true, strict: true }); addFormats(ajv);
   ajv.addSchema(contentCampaignCreateSchema); ajv.addSchema(contentCampaignDefaultsSchema); ajv.addSchema(contentCatalogItemCreateSchema);
   ajv.addSchema(contentIdeaGenerateSchema); ajv.addSchema(contentIdeaStateSchema); ajv.addSchema(contentPackageCreateSchema); ajv.addSchema(contentPromptCreateSchema); ajv.addSchema(contentPurposeTagSchema);
-  ajv.addSchema(contentInsightRevisionSchema); ajv.addSchema(contentInsightLockSchema); ajv.addSchema(contentInsightLockArtifactSchema); ajv.addSchema(contentApiSchema); ajv.addSchema(ownerContentInsightApiSchema);
+  ajv.addSchema(statementSchema); ajv.addSchema(reportApiSchema); ajv.addSchema(contentInsightRevisionSchema); ajv.addSchema(contentInsightLockSchema); ajv.addSchema(contentInsightLockArtifactSchema); ajv.addSchema(contentApiSchema); ajv.addSchema(ownerContentInsightApiSchema);
   const revisionRequest = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/revisionRequest`)!;
   const lockRequest = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/lockRequest`)!;
   const insightDetail = ajv.getSchema(`${contentApiSchema.$id}#/$defs/insightDetail`)!;

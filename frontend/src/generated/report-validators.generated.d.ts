@@ -108,3 +108,7 @@ export declare const shopeeCitedSynthesis: PrecompiledValidator;
 export declare const shopeeCodingContext: PrecompiledValidator;
 export declare const shopeeSampleSelection: PrecompiledValidator;
 export declare const shopeeReaderBuild: PrecompiledValidator;
+export declare const insightReportStatement: PrecompiledValidator;
+export declare const insightReportList: PrecompiledValidator;
+export declare const insightReportStatements: PrecompiledValidator;
+export declare const insightReportMetadata: PrecompiledValidator;

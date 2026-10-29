@@ -56,16 +56,19 @@ function insertLock(db: ReturnType<typeof openDatabase>['db'], campaignId: strin
     .run(campaignId, insightVersion, campaignVersion, 'd'.repeat(64), artifactSha, at);
 }
 
-test('migration 0026 creates the two immutable insight tables and all sequence/latest guards', async () => {
+test('migrations 0026/0062 create immutable insight tables and all sequence/latest guards', async () => {
   const state = await setup();
-  assert.equal(state.migration.currentVersion, 61);
+  assert.equal(state.migration.currentVersion, 62);
   assert.deepEqual(
-    (state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('flow_content_insight_revisions', 'flow_content_insight_locks') ORDER BY name").all() as { name: string }[]).map((row) => row.name),
-    ['flow_content_insight_locks', 'flow_content_insight_revisions'],
+    (state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('analysis_insight_report_statements', 'flow_content_insight_revisions', 'flow_content_insight_locks') ORDER BY name").all() as { name: string }[]).map((row) => row.name),
+    ['analysis_insight_report_statements', 'flow_content_insight_locks', 'flow_content_insight_revisions'],
   );
   assert.deepEqual(
-    (state.db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'flow_content_insight_%' ORDER BY name").all() as { name: string }[]).map((row) => row.name),
+    (state.db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND (name LIKE 'flow_content_insight_%' OR name LIKE 'analysis_insight_report_statements_%') ORDER BY name").all() as { name: string }[]).map((row) => row.name),
     [
+      'analysis_insight_report_statements_kind',
+      'analysis_insight_report_statements_no_delete',
+      'analysis_insight_report_statements_no_update',
       'flow_content_insight_locks_latest_campaign',
       'flow_content_insight_locks_latest_insight',
       'flow_content_insight_locks_no_delete',

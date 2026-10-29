@@ -1,3 +1,5 @@
+import statementSchema from '../../contracts/analysis/insight-report-statement.schema.json' with { type: 'json' };
+import reportApiSchema from '../../contracts/api/content-insight-reports-api.schema.json' with { type: 'json' };
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -70,7 +72,7 @@ function validateContracts(): { readonly owner: (value: unknown) => boolean; rea
   for (const schema of [packageCreateSchema, ideaGenerateSchema, packageGenerateSchema, packageStateSchema, packageVersionArtifactSchema]) ownerAjv.addSchema(schema);
   const contentAjv = new Ajv2020({ allErrors: true, strict: true }); addFormats(contentAjv);
   for (const schema of [catalogCreateSchema, promptCreateSchema, campaignCreateSchema, insightRevisionSchema, insightLockArtifactSchema, ideaGenerateSchema, ideaStateSchema, purposeTagSchema, packageCreateSchema, defaultsSchema]) contentAjv.addSchema(schema);
-  return { owner: ownerAjv.compile(ownerContentPackageApiSchema), content: contentAjv.compile(contentApiSchema) };
+  return { owner: ownerAjv.compile(ownerContentPackageApiSchema), content: contentAjv.addSchema(statementSchema).addSchema(reportApiSchema).compile(contentApiSchema) };
 }
 
 test('Task 051 schemas are in the contract generator inventory', () => {

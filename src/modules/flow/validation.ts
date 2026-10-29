@@ -1,3 +1,4 @@
+import statementSchema from '../../../contracts/analysis/insight-report-statement.schema.json' with { type: 'json' };
 import { createRequire } from 'node:module';
 import requestSchema from '../../../contracts/flow/approved-proposal-intake-request.schema.json' with { type: 'json' };
 import type { ApprovedProposalIntakeRequest } from '../../../contracts/flow/approved-proposal-intake-request.generated.js';
@@ -152,6 +153,7 @@ const validateContentCampaignCreate = ajv.compile<ContentCampaignCreateRequest>(
 const validateContentCampaignRevision = ajv.compile<ContentCampaignRevisionRequest>(contentCampaignRevisionSchema);
 const validateContentCampaignLifecycle = ajv.compile<ContentCampaignLifecycleRequest>(contentCampaignLifecycleSchema);
 const validateContentCampaignEnvelope = ajv.compile<ContentCampaignArtifact>(contentCampaignArtifactSchema);
+ajv.addSchema(statementSchema);
 const validateContentInsightRevision = ajv.compile<ContentInsightRevisionRequest>(contentInsightRevisionSchema);
 const validateContentInsightEnvelope = ajv.compile<ContentInsightArtifact>(contentInsightArtifactSchema);
 const validateContentInsightLock = ajv.compile<ContentInsightLockRequest>(contentInsightLockSchema);

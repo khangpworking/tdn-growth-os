@@ -1,3 +1,6 @@
+import InsightReportPicker, { InsightReportReference } from './InsightReportPicker';
+import { sendReport } from './insight-report-data-source';
+import type { InsightReportStatement } from '../../contracts/analysis/insight-report-statement.generated';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ContentDataSourceError } from './content-data-source';
@@ -72,7 +75,7 @@ function InsightSummary({ insight }: { readonly insight: InsightDetail }) {
     <div><dt>Khách hàng mục tiêu</dt><dd>{latest.insight.customer}</dd></div>
     <div><dt>Nỗi đau</dt><dd>{latest.insight.painPoint}</dd></div>
     <div><dt>Insight</dt><dd>{latest.insight.insight}</dd></div>
-    <div><dt>Nguồn</dt><dd>{latest.insight.source.kind === 'STP' ? 'Khách hàng từ STP đã khóa' : 'Tự nhập'} · v{latest.version}</dd></div>
+    <div><dt>Nguồn</dt><dd>{latest.insight.source.kind === 'INSIGHT_REPORT' ? 'Từ báo cáo Insight' : latest.insight.source.kind === 'STP' ? 'Khách hàng từ STP đã khóa' : 'Tự nhập'} · v{latest.version}</dd></div>
   </dl>;
 }
 
@@ -84,6 +87,7 @@ export default function InsightPage(props: InsightPageProps) {
   const [pending, setPending] = useState<'save' | 'lock' | null>(null);
   const [notice, setNotice] = useState<{ readonly message: string; readonly reload: boolean; readonly discard?: boolean } | null>(null);
   const [confirmingLock, setConfirmingLock] = useState(false);
+  const [reportChoice, setReportChoice] = useState<InsightReportStatement | null>(null);
   const mountedRef = useRef(true);
   // The saved state the draft was last taken from, and whether the next newer state must keep the draft (409 reload).
   const appliedBaseRef = useRef<string | null>(null);
@@ -212,10 +216,29 @@ export default function InsightPage(props: InsightPageProps) {
     } catch (error) { fail(error, 'Không thể khóa Insight.', session); } finally { if (isActiveSession(session)) setPending(null); }
   };
 
+  const applyReport = async (statement: InsightReportStatement, confirmReplacement: boolean) => {
+    if (!writable || !editable || pending || !props.ownerToken) return;
+    const session = sessionRef.current;
+    setPending('save'); setNotice(null);
+    try {
+      const receipt = await sendReport(campaignId, { contractVersion: '1.0.0', expectedVersion: latestVersion, revisionId: statement.revisionId, statementId: statement.statementId, confirmReplacement }, props.ownerToken);
+      if (isActiveSession(session)) { setReportChoice(null); keepDraftRef.current = false; props.notify(`Đã lưu Insight v${receipt.version}.`); reload(); }
+    } catch (error) { fail(error, 'Không gửi được câu insight.', session); }
+    finally { if (isActiveSession(session)) setPending(null); }
+  };
+  const chooseReport = (statement: InsightReportStatement) => {
+    if (view.latest || !sameInsightContent(current, saved)) setReportChoice(statement);
+    else void applyReport(statement, false);
+  };
+  const reportSource = current.reportSource;
+
   return <article className="insight-page">
     {mode === 'demo' && <div className="demo-banner" role="note">{DEMO_BANNER}</div>}
     <nav className="crumb" aria-label="Đường dẫn"><a href={routeToHash.content()}>Chiến dịch</a><span aria-hidden="true">/</span><a href={routeToHash.campaign(campaignId)}>{campaign.campaign.campaign.name}</a><span aria-hidden="true">/</span><span>Insight</span></nav>
     <div className="heading"><div><h1>Insight</h1><p>Khách hàng là ai, họ đang đau ở đâu, và sự thật nào khiến thông điệp chạm tới họ.</p></div></div>
+    {mode === 'real' && <InsightReportPicker disabled={!editable || !writable || !!pending} onApply={chooseReport} />}
+    {reportSource && <InsightReportReference source={reportSource} current={current} />}
+    {reportChoice && <ConfirmDialog titleId="report-replace-title" descriptionId="report-replace-description" title="Thay Insight nháp?" confirmLabel="Thay Insight" pending={!!pending} onCancel={() => setReportChoice(null)} onConfirm={() => void applyReport(reportChoice, true)}><p id="report-replace-description">Câu đã chọn sẽ thay nội dung đang soạn. Bản đã lưu trước đó vẫn được giữ trong lịch sử.</p></ConfirmDialog>}
     <StepIndicator campaignId={props.campaignId} locked={stage === 'locked'} />
     {stage === 'deleted' && <div className="deleted-banner" role="status"><p>Chiến dịch đã bị xóa. Khôi phục chiến dịch để tiếp tục soạn Insight.</p><a className="button" href={routeToHash.campaign(campaignId)}>Mở chiến dịch</a></div>}
     {stage === 'locked' && view.lock && <section className="surface surface-pad insight-locked" aria-labelledby="insight-locked-title">
@@ -246,6 +269,6 @@ export default function InsightPage(props: InsightPageProps) {
       {stage !== 'blocked' && lockReason && view.latest && <p className="decision-note">{lockReason}</p>}
     </form>}
     {confirmingLock && <ConfirmDialog titleId="insight-lock-title" descriptionId="insight-lock-description" title={`Khóa Insight v${latestVersion}?`} confirmLabel="Khóa Insight" pending={pending === 'lock'} onCancel={() => setConfirmingLock(false)} onConfirm={() => void lock()}><p id="insight-lock-description">Insight v{latestVersion} và chiến dịch v{view.campaignVersion} sẽ được ghim. Sau khi khóa không thể sửa Insight, sản phẩm hay liên kết nghiên cứu của chiến dịch.</p></ConfirmDialog>}
-    {view.history.length > 0 && <section className="brand-history" aria-labelledby="insight-history-title"><h3 id="insight-history-title">Lịch sử phiên bản</h3><ol className="timeline">{[...view.history].reverse().map((entry) => <li key={entry.version}>v{entry.version} · {entry.sourceKind === 'STP' ? 'Từ STP' : 'Tự nhập'} · {formatDateTime(entry.createdAt)}</li>)}</ol></section>}
+    {view.history.length > 0 && <section className="brand-history" aria-labelledby="insight-history-title"><h3 id="insight-history-title">Lịch sử phiên bản</h3><ol className="timeline">{[...view.history].reverse().map((entry) => <li key={entry.version}>v{entry.version} · {entry.sourceKind === 'INSIGHT_REPORT' ? 'Từ báo cáo Insight' : entry.sourceKind === 'STP' ? 'Từ STP' : 'Tự nhập'} · {formatDateTime(entry.createdAt)}</li>)}</ol></section>}
   </article>;
 }

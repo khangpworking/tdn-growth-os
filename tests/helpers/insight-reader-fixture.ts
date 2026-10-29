@@ -20,10 +20,10 @@ export const readerOwner = { actorId: 'owner:synthetic', role: 'OWNER' as const 
 export const readerNow = () => new Date('2026-10-08T00:00:00.000Z');
 
 /** Actual source intake/run/literal revision, fake transport only, no Metric file. */
-export async function insightReaderFixture(t: TestContext, default21 = false, options: { sourceRegistry?: boolean; injectedRendererScope?: boolean; familyDraft?: boolean } = {}) {
+export async function insightReaderFixture(t: TestContext, default21 = false, options: { sourceRegistry?: boolean; injectedRendererScope?: boolean; familyDraft?: boolean; migrationsDirectory?: string } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-insight-reader-'));
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
-  const db = openDatabase({ databasePath, now: readerNow }).db;
+  const db = openDatabase({ databasePath, now: readerNow, ...(options.migrationsDirectory ? { migrationsDirectory: options.migrationsDirectory } : {}) }).db;
   const artifacts = new ContentAddressedArtifactStore(artifactRoot);
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => readerWorkspaceId, now: readerNow });
