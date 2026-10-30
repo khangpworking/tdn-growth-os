@@ -19,6 +19,6 @@ Báo cáo Market có số chuỗi thô từ bản lưu SHALL NOT in giá suy t�
 - **WHEN** báo cáo có số chuỗi thô và không chỗ nào in doanh số chia lượt bán
 - **THEN** quy tắc R-M34 đạt
 
-#### Scenario: Báo cáo cũ có tên mới và chú thích
+#### Scenario: Có tên mới và chú thích
 - **WHEN** báo cáo không có số chuỗi thô, ô giá ghi «giá bán trung bình» và dòng «Chú thích:» nêu cách tính
 - **THEN** quy tắc R-M34 đạt
