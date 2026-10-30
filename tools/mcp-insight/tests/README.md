@@ -350,6 +350,5 @@ or weakening the independent acceptance oracles.
    structural `Phần 6` references with the lexical phrase `thị phần`; neither
    CONTRACT.md nor the specs are changed by this test branch.
 
-Validation and baseline limitations are recorded in `HANDOFF-P3.md`. Collection
-does not prove the concurrently authored P3 implementation passes, and this
-branch does not mark absent features skipped or xfailed.
+Collection alone does not prove P3 behavioral acceptance. This branch does not
+mark absent features skipped or xfailed.

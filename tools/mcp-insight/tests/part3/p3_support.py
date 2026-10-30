@@ -165,9 +165,9 @@ class Part3(Part2):
         return result
 
     def section(self, text="Khách kể lại cân nhắc giá [^c1].", row=None, part=8, claims=None):
-        row = row or self.theme()
-        return self.call("submit_section", part=part, text=text,
-                         claims=[claim(row)] if claims is None else claims)
+        if claims is None:
+            claims = [claim(self.theme() if row is None else row)]
+        return self.call("submit_section", part=part, text=text, claims=claims)
 
     def submit(self, value=None, **kwargs):
         return self.call("submit_statement", statement=statement(self.theme()) if value is None else value, **kwargs)
