@@ -3446,11 +3446,15 @@ def render_report(run_id: str) -> dict:
                               "hypothesis": confidence["hypothesis"], "layer": line["layer"],
                               "explanation": line["note"] if line["supports"] == "why" else None,
                               "items": [line]})
-            marks.setdefault(line["supports"], []).append(len(footnotes))
+            marks.setdefault(line["supports"], []).append((line, len(footnotes)))
             numbers.append(len(footnotes))
         page.append("<dl>")
         for key, name in FIELD_NAMES:
-            refs = "".join(f'<sup><a href="#fn-{k}">{k}</a></sup>' for k in marks.get(key, []))
+            refs = ""
+            for line, k in marks.get(key, []):
+                link = f'<sup><a href="#fn-{k}">{k}</a></sup>'
+                refs += (f'<p class="evidence-note">{_h(line["note"])}{link}</p>'
+                         if _text(line["note"]) else link)
             page.append(f"<dt>{name}</dt><dd>{_h(statement[key])}{refs}</dd>")
         if statement["three_c"] is not None:
             three_c = "; ".join(f"{name}: {statement['three_c'][key]}" for key, name in THREE_C_NAMES)

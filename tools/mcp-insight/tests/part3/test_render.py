@@ -224,6 +224,24 @@ def test_im_q114_short_chain_renders_only_supported_layers(coded_p3):
         assert len(appendix.all(id=target)) == 1
 
 
+def test_im_q96_q110_statement_qualifiers_in_side_notes_survive_render(coded_p3):
+    """NC: displaying only why notes loses accepted short-chain and retold qualifiers."""
+    p3 = coded_p3
+    value = statement(p3.theme())
+    value["hidden_truth"] = "Khách cân nhắc tính phù hợp"
+    value["motivation"] = "Khách cân nhắc giá"
+    note = "kể lại; chưa đủ bằng chứng; <ghi chú>"
+    value["evidence"][1]["note"] = note
+    accepted(p3.submit(value))
+    p3.render()
+    block = p3.page().root.all("section", id="statements")[0]
+    assert note in block.text
+    assert "&lt;ghi chú&gt;" in p3.artifacts()["report.html"].decode()
+    assert not block.all("ghi")
+    assert all(p3.page().section(18).all(id=a.attrs["href"].removeprefix("#"))
+               for a in block.all("a"))
+
+
 def test_im_q116_labels_are_inline_for_data_synthesis_and_statement(coded_p3):
     """NC: labels only in appendix and a label-everything renderer fail independently."""
     p3 = coded_p3
