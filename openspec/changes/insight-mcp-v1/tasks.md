@@ -30,10 +30,10 @@ PR 2 merge ngày 30/10/2026: #429 → `1f6f6943` (Sol 6.1 xhigh PASS tại `3882
 
 ## 4. PR 3: viết, kiểm và đầu ra
 
-- [ ] 4.1 `submit_section` với 8 lý do từ chối; lưu theo phiên bản (R-IM10)
-- [ ] 4.2 `submit_statement` 9 trường theo R-I39 (R-IM11)
-- [ ] 4.3 `render_report`: HTML, JSON số tổng, lưu SQLite, bỏ bản trùng (R-IM12)
-- [ ] 4.4 README: cách đăng ký MCP cho Claude, Codex, OpenCode; một skill ngắn mô tả các bước gọi
+- [x] 4.1 `submit_section` với 8 lý do từ chối; lưu theo phiên bản (R-IM10)
+- [x] 4.2 `submit_statement` 9 trường theo R-I39 (R-IM11)
+- [x] 4.3 `render_report`: HTML, JSON số tổng, lưu SQLite, bỏ bản trùng (R-IM12)
+- [x] 4.4 README: cách đăng ký MCP cho Claude, Codex, OpenCode; một skill ngắn mô tả các bước gọi
 
 ## 5. Kiểm thử và hợp nhất (mỗi PR)
 
