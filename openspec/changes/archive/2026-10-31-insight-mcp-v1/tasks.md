@@ -35,20 +35,24 @@ PR 2 merge ngày 30/10/2026: #429 → `1f6f6943` (Sol 6.1 xhigh PASS tại `3882
 - [x] 4.3 `render_report`: HTML, JSON số tổng, lưu SQLite, bỏ bản trùng (R-IM12)
 - [x] 4.4 README: cách đăng ký MCP cho Claude, Codex, OpenCode; một skill ngắn mô tả các bước gọi
 
+PR 3 merge ngày 30/10/2026: #430 → `138c9934` (Sol 6.1 xhigh FAIL tại `93fdbaad`, sửa, PASS phần sửa tại `2445c413`, CI xanh).
+
 ## 5. Kiểm thử và hợp nhất (mỗi PR)
 
-- [ ] 5.1 Kiểm thử chạy không mạng, dùng dữ liệu giả; mỗi ca có một ca đối chứng âm
-- [ ] 5.2 Kiểm thử theo dòng hợp đồng; CI Linux xanh tại SHA cuối là cổng cuối; không chạy cả bộ trên máy
-- [ ] 5.3 Merge khi Sol 6.1 xhigh PASS tại đúng SHA đầu và CI xanh; không dùng merge tự động
-- [ ] 5.4 Không cần triển khai: mã chỉ nằm trong `tools/`
+- [x] 5.1 Kiểm thử chạy không mạng, dùng dữ liệu giả; mỗi ca có một ca đối chứng âm
+- [x] 5.2 Kiểm thử theo dòng hợp đồng; CI Linux xanh tại SHA cuối là cổng cuối; không chạy cả bộ trên máy
+- [x] 5.3 Merge khi Sol 6.1 xhigh PASS tại đúng SHA đầu và CI xanh; không dùng merge tự động
+- [x] 5.4 Không cần triển khai: mã chỉ nằm trong `tools/`
 
 ## 6. Chạy thật (cần chủ đồng ý)
 
 - [x] 6.1 Chủ chấm 30 mẫu của bộ chủ đề v2. Lần 1 xong 30/10/2026 (F312): 49 nhãn, 42 đúng (86%); 24/30 lời đúng hoàn toàn (80%, đúng ngưỡng §11). Sửa 4 định nghĩa → bản `2026-10-30.3`, vẫn DRAFT. Kết quả: `outputs/insight-mcp-3010/ket-qua-cham-30.md`. Chủ chọn giữ nháp, không chạy lại (F313)
 - [x] 6.2 Chủ đồng ý gọi Jev cho canxi và kẽm, đủ khoảng 2.400 lượt, không chấm mẫu: «chốt 2400 mẫu luôn» (30/10/2026, F308). Ước tính 0,5–1 USD.
-- [ ] 6.3 Một agent dựng báo cáo canxi và kẽm qua MCP; ghi mức tin từng phần và lỗi cổng kiểm đã gặp
+- [x] 6.3 Một agent dựng báo cáo canxi và kẽm qua MCP; ghi mức tin từng phần và lỗi cổng kiểm đã gặp. Xong 30/10/2026: 2.469 lượt Jev, 0 lỗi; mỗi bản 16 phần đạt + 1 phần thiếu dữ liệu, 3 câu insight; mọi ý mức Yếu; 7 lỗi cổng kiểm (5 chặn câu đúng, 2 cho câu sai qua). Kết quả: `outputs/insight-mcp-3010/chay-that-3010/`. Chủ chấp nhận sai số, duyệt mức ở R-IM10, không sửa code (F314, F315)
 
 ## 7. Kết thúc
 
-- [ ] 7.1 Ghi mã kiểm thật (file, hàm) vào dòng «Mã kiểm» của R-IM01 đến R-IM12
-- [ ] 7.2 `/opsx:archive` change insight-mcp-v1
+- [x] 7.1 Ghi mã kiểm thật (file, hàm) vào dòng «Mã kiểm» của R-IM01 đến R-IM12
+Đóng change ngày 30/10/2026 theo F315.
+
+- [x] 7.2 `/opsx:archive` change insight-mcp-v1
