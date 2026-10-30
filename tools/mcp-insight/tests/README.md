@@ -225,11 +225,11 @@ exports solely for tests or weakening the contract assertions.
    columns are allowed except for the expressly forbidden global `run_id`
    columns and review-text copies. Historical registry snapshots continue to
    use part 1's reconciled `numbers_json` representation.
-6. Part 1's Q1 schema test still asserts exactly five tools. It is deliberately
-   unchanged here, as requested. It passes on this part 1 implementation; once
-   the new nine-tool implementation lands it needs the explicitly authorized
-   IM-Q52 amendment during integration. The new Q52 test already owns that
-   nine-tool schema. This is a test-compatibility conflict, not a rule change.
+6. Resolved at integration (firstmate approval, 30/10/2026): part 1's Q1
+   schema test now expects the nine tools of IM-Q52 (which amends IM-Q1), with
+   the same argument names and types as the Q52 test. It is still an exact-set
+   check, and both of its mutant assertions are unchanged. No other part 1 test
+   changed.
 
 Q73 separately checks the now-accepted `.4` overlap wording; the original
 part 1 tests that left that wording pending remain unchanged.

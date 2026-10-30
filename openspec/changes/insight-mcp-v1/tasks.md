@@ -22,9 +22,9 @@ PR 1 merge ngày 30/10/2026: #428 → `c8fc5cda` (Sol 6.1 xhigh PASS tại `f68a
 
 ## 3. PR 2: khung báo cáo và mức tin
 
-- [ ] 3.1 Bảng vai trò nguồn R-I34 là file dữ liệu; `report_plan` 18 phần (R-IM07)
-- [ ] 3.2 Mức tin trần theo 4 câu kiểm; sổ «cách đo ổn trên bao nhiêu sản phẩm» (R-IM08)
-- [ ] 3.3 `find_reason_links`, `read_reviews` (R-IM09)
+- [x] 3.1 Bảng vai trò nguồn R-I34 là file dữ liệu; `report_plan` 18 phần (R-IM07)
+- [x] 3.2 Mức tin trần theo 4 câu kiểm; sổ «cách đo ổn trên bao nhiêu sản phẩm» (R-IM08)
+- [x] 3.3 `find_reason_links`, `read_reviews` (R-IM09)
 
 ## 4. PR 3: viết, kiểm và đầu ra
 
