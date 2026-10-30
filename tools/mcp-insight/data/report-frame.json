@@ -1,0 +1,460 @@
+{
+  "contractVersion": "insight-report-frame-v1",
+  "version": "frame-2026-10-30.1",
+  "status": "UNREVIEWED",
+  "source": "R-I30, R-I31, R-I32, R-I34 in openspec/changes/insight-method-v1 (owner-approved page v9, 22/10/2026, F117). Questions, part titles, source roles and the TikTok Shop revenue gate are transcribed from R-I30 and R-I34. Source names and notes, the steps of sources R-I31 does not name, count_tools, warehouse_sources, basis_parts and partial_questions were written for this MCP and are not owner-approved (CONTRACT.md open question 16).",
+  "steps": [
+    "Biết đến",
+    "Quan tâm",
+    "Muốn mua",
+    "Mua",
+    "Sau mua",
+    "Chưa rõ bước"
+  ],
+  "questions": [
+    {
+      "no": 1,
+      "text": "Ai dùng, ai mua?"
+    },
+    {
+      "no": 2,
+      "text": "Băn khoăn gì trước khi mua?"
+    },
+    {
+      "no": 3,
+      "text": "Chọn sản phẩm dựa vào đâu?"
+    },
+    {
+      "no": 4,
+      "text": "Dùng xong thấy thế nào?"
+    },
+    {
+      "no": 5,
+      "text": "Nhóm khách nào bị bỏ ngỏ?"
+    }
+  ],
+  "sources": [
+    {
+      "key": "product_names",
+      "name": "Tên sản phẩm trên sàn",
+      "step": "Muốn mua",
+      "roles": {
+        "1": "Phụ",
+        "2": null,
+        "3": "Phụ",
+        "4": null,
+        "5": "Phụ"
+      },
+      "partial_questions": [
+        1,
+        3,
+        5
+      ],
+      "warehouse_sources": [
+        "tiktok_shop_product_names",
+        "shopee_product_names"
+      ],
+      "count_tools": [],
+      "note": "Lời chào hàng của người bán, không phải lý do khách chọn (R-I34)."
+    },
+    {
+      "key": "sales_numbers",
+      "name": "Số bán trên sàn",
+      "step": "Mua",
+      "roles": {
+        "1": null,
+        "2": null,
+        "3": "Phụ",
+        "4": null,
+        "5": null
+      },
+      "partial_questions": [
+        3
+      ],
+      "warehouse_sources": [],
+      "count_tools": [],
+      "note": null
+    },
+    {
+      "key": "tiktok_video_subtitles",
+      "name": "Phụ đề video bán chạy TikTok Shop",
+      "step": "Muốn mua",
+      "roles": {
+        "1": null,
+        "2": null,
+        "3": "Phụ",
+        "4": null,
+        "5": "Phụ"
+      },
+      "partial_questions": [
+        3,
+        5
+      ],
+      "warehouse_sources": [],
+      "count_tools": [],
+      "note": "Lời chào hàng của người bán; tối đa 5 video (R-I34)."
+    },
+    {
+      "key": "shopee_reviews",
+      "name": "Đánh giá Shopee",
+      "step": "Sau mua",
+      "roles": {
+        "1": "Chính",
+        "2": "Phụ",
+        "3": "Chính",
+        "4": "Chính",
+        "5": "Chính"
+      },
+      "partial_questions": [
+        2
+      ],
+      "warehouse_sources": [
+        "shopee_reviews"
+      ],
+      "count_tools": [
+        "theme_counts",
+        "portrait_counts"
+      ],
+      "note": "Đánh giá viết sau khi mua; lý do mua trong đánh giá là «kể lại» (R-I31)."
+    },
+    {
+      "key": "tiktok_shop_reviews",
+      "name": "Đánh giá TikTok Shop",
+      "step": "Sau mua",
+      "roles": {
+        "1": null,
+        "2": "Phụ",
+        "3": null,
+        "4": "Phụ",
+        "5": "Phụ"
+      },
+      "partial_questions": [
+        2
+      ],
+      "usable_when": {
+        "revenue_share_platform": "tiktok_shop",
+        "min_percent": 50
+      },
+      "warehouse_sources": [
+        "tiktok_shop_reviews"
+      ],
+      "count_tools": [
+        "theme_counts",
+        "portrait_counts"
+      ],
+      "note": "Chỉ dùng khi TikTok Shop chiếm từ 50% doanh thu (R-I34)."
+    },
+    {
+      "key": "search_suggestions",
+      "name": "Gợi ý tìm kiếm",
+      "step": "Quan tâm",
+      "roles": {
+        "1": "Phụ",
+        "2": "Chính",
+        "3": "Phụ",
+        "4": null,
+        "5": "Phụ"
+      },
+      "partial_questions": [
+        1,
+        3,
+        5
+      ],
+      "warehouse_sources": [
+        "keywords"
+      ],
+      "count_tools": [
+        "keyword_counts"
+      ],
+      "note": "Chỉ cho biết người tìm hỏi gì; không làm bằng chứng về động cơ hay rào cản của khách (R-I34, R-L12)."
+    },
+    {
+      "key": "search_results",
+      "name": "Kết quả tìm kiếm",
+      "step": "Quan tâm",
+      "roles": {
+        "1": null,
+        "2": null,
+        "3": "Phụ",
+        "4": null,
+        "5": null
+      },
+      "partial_questions": [
+        3
+      ],
+      "warehouse_sources": [],
+      "count_tools": [],
+      "note": null
+    },
+    {
+      "key": "search_trends",
+      "name": "Mức quan tâm tìm kiếm theo tỉnh",
+      "step": "Chưa rõ bước",
+      "roles": {
+        "1": "Phụ",
+        "2": null,
+        "3": null,
+        "4": null,
+        "5": "Phụ"
+      },
+      "partial_questions": [
+        1,
+        5
+      ],
+      "warehouse_sources": [
+        "trends"
+      ],
+      "count_tools": [],
+      "note": "Mức so sánh 0–100, không phải số người (R-I35)."
+    },
+    {
+      "key": "population_stats",
+      "name": "Số dân toàn quốc",
+      "step": "Chưa rõ bước",
+      "roles": {
+        "1": "Phụ",
+        "2": null,
+        "3": null,
+        "4": null,
+        "5": null
+      },
+      "partial_questions": [
+        1
+      ],
+      "warehouse_sources": [],
+      "count_tools": [],
+      "note": "Số «toàn dân», chỉ làm mốc so sánh (R-I35)."
+    },
+    {
+      "key": "simulated_personas",
+      "name": "Hồ sơ dân số mô phỏng",
+      "step": "Chưa rõ bước",
+      "roles": {
+        "1": "Phụ",
+        "2": null,
+        "3": null,
+        "4": null,
+        "5": null
+      },
+      "partial_questions": [
+        1
+      ],
+      "warehouse_sources": [],
+      "count_tools": [],
+      "note": "Chỉ làm mốc so sánh toàn dân; không làm bằng chứng về khách, không đặt tên nhân vật (R-I35)."
+    },
+    {
+      "key": "ai_answer",
+      "name": "Câu trả lời AI trên trang tìm kiếm",
+      "step": "Chưa rõ bước",
+      "roles": {
+        "1": null,
+        "2": "Gợi ý",
+        "3": "Gợi ý",
+        "4": null,
+        "5": null
+      },
+      "partial_questions": [],
+      "warehouse_sources": [],
+      "count_tools": [],
+      "note": "Chỉ gợi ý giả thuyết, không làm bằng chứng (R-I34)."
+    }
+  ],
+  "parts": [
+    {
+      "part": 1,
+      "title": "Kết luận chính",
+      "kind": "synthesis",
+      "question": null,
+      "basis_parts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    {
+      "part": 2,
+      "title": "Câu hỏi kinh doanh",
+      "kind": "frame"
+    },
+    {
+      "part": 3,
+      "title": "Phạm vi và cách làm",
+      "kind": "frame"
+    },
+    {
+      "part": 4,
+      "title": "Khách hàng là ai",
+      "kind": "data",
+      "question": 1,
+      "count_tools": [
+        "portrait_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 5,
+      "title": "Khác biệt giữa các nhóm",
+      "kind": "data",
+      "question": 1,
+      "count_tools": [
+        "portrait_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 6,
+      "title": "Chủ đề quan tâm",
+      "kind": "data",
+      "question": 2,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 7,
+      "title": "Nỗi lo trước khi mua",
+      "kind": "data",
+      "question": 2,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 8,
+      "title": "Lý do chọn",
+      "kind": "data",
+      "question": 3,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 9,
+      "title": "Thương hiệu và đối thủ",
+      "kind": "data",
+      "question": 3,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 10,
+      "title": "Hành trình mua",
+      "kind": "data",
+      "question": 3,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 11,
+      "title": "Khách gặp sản phẩm ở đâu",
+      "kind": "data",
+      "question": 3,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 12,
+      "title": "Cách mua và dùng",
+      "kind": "data",
+      "question": 3,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 13,
+      "title": "Cảm nhận",
+      "kind": "data",
+      "question": 4,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 14,
+      "title": "Điều khách chê",
+      "kind": "data",
+      "question": 4,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 15,
+      "title": "Nhu cầu chưa đáp ứng",
+      "kind": "data",
+      "question": 5,
+      "count_tools": [
+        "theme_counts",
+        "keyword_counts"
+      ]
+    },
+    {
+      "part": 16,
+      "title": "Hướng cơ hội",
+      "kind": "synthesis",
+      "question": 5,
+      "basis_parts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    {
+      "part": 17,
+      "title": "Thử nghiệm và đo lường",
+      "kind": "synthesis",
+      "question": 5,
+      "basis_parts": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    {
+      "part": 18,
+      "title": "Phụ lục: nguồn của từng con số",
+      "kind": "frame"
+    }
+  ]
+}
