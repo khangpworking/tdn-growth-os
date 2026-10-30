@@ -1,0 +1,11 @@
+# Distinct normalized search suggestions per keyword group.
+name: keyword_group
+sql_table: v_keyword_group
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: groups_version, sql: groups_version, type: TEXT}
+  - {name: group_key, sql: group_key, type: TEXT}
+  - {name: keyword, sql: keyword, type: TEXT}
+measures:
+  - {name: n_keywords, formula: count_distinct(keyword)}

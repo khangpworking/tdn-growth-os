@@ -1,0 +1,3 @@
+# Test runner for the offline suite in tests/ (pytest fixtures in tests/conftest.py).
+-r requirements.txt
+pytest==9.2.0

@@ -1,0 +1,11 @@
+# Gender and age-band guesses, one row per distinct known writer.
+name: writer_guess
+sql_table: v_writer_guess
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: gender, sql: gender, type: TEXT}
+  - {name: age_band, sql: age_band, type: TEXT}
+  - {name: writer_key, sql: writer_key, type: TEXT}
+measures:
+  - {name: n_writers, formula: count_distinct(writer_key)}

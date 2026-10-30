@@ -1,0 +1,49 @@
+{
+  "version": "kwg-2026-10-30.1",
+  "status": "UNREVIEWED",
+  "approvedBy": null,
+  "approvedAt": null,
+  "groups": [
+    {
+      "group_key": "tac_dung_phu",
+      "group_name": "Tác dụng phụ, an toàn",
+      "step": "Quan tâm",
+      "regex": "tác dụng phụ|có hại|có độc|nóng trong|táo bón|sỏi thận|an toàn không|nguy hiểm"
+    },
+    {
+      "group_key": "so_sanh",
+      "group_name": "So sánh",
+      "step": "Quan tâm",
+      "regex": "so sánh|\\bvs\\b|khác gì|khác nhau|hay hơn|tốt hơn"
+    },
+    {
+      "group_key": "cach_dung",
+      "group_name": "Cách dùng, khi nào dùng",
+      "step": "Chưa rõ bước",
+      "regex": "cách uống|cách dùng|cách sử dụng|uống lúc nào|uống khi nào|khi nào|lúc nào|liều|bao nhiêu viên|mấy viên|uống bao lâu|trước hay sau|hướng dẫn"
+    },
+    {
+      "group_key": "cho_ai",
+      "group_name": "Cho ai dùng",
+      "step": "Quan tâm",
+      "regex": "cho bà bầu|bà bầu|mẹ bầu|sau sinh|cho bé|trẻ em|trẻ sơ sinh|cho trẻ|người già|người cao tuổi|người lớn tuổi|cho mẹ|cho con|tuổi dậy thì"
+    },
+    {
+      "group_key": "co_nen",
+      "group_name": "Có nên dùng",
+      "step": "Quan tâm",
+      "regex": "có nên|có tốt không|có tác dụng không|có hiệu quả|có thật không|review|đánh giá"
+    },
+    {
+      "group_key": "loai_nao",
+      "group_name": "Loại nào, hãng nào",
+      "step": "Quan tâm",
+      "regex": "loại nào|loại gì|hãng nào|nào tốt|tốt nhất|thương hiệu|của nhật|của mỹ|của úc|của đức|dạng nước|dạng viên|dạng sữa|nano|hữu cơ"
+    }
+  ],
+  "fallback": {
+    "group_key": "khac",
+    "group_name": "Khác",
+    "step": "Chưa rõ bước"
+  }
+}

@@ -203,11 +203,11 @@ Báo cáo Insight SHALL tách riêng sự thật, quan sát và insight (G4). M�
 - Mỗi bước mua SHALL có câu insight riêng, SHALL NOT viết một insight chung cho mọi bước (G9).
 - Mỗi tầng SHALL có số chú thích trỏ về nguồn gốc ở Phụ lục, kèm một câu diễn giải để người duyệt mở trang gốc kiểm tra. Báo cáo SHALL NOT trích nguyên văn bình luận của khách (R-I11).
 
-Vế nào thiếu bằng chứng thì câu đó SHALL mang nhãn Giả thuyết. Mâu thuẫn SHALL được ghi riêng từng sàn (R-I06). Câu insight SHALL chỉ giữ động cơ và rào cản có trong lời khách: công dụng, giá, quy cách, chất lượng, giao hàng; SHALL NOT làm insight cảm xúc, văn hóa cho chiến dịch quảng cáo (R-I22).
+Vế nào thiếu bằng chứng thì câu đó SHALL mang nhãn Giả thuyết. Mâu thuẫn SHALL được ghi riêng từng sàn (R-I06). Câu insight SHALL chỉ giữ động cơ và rào cản có trong lời khách: công dụng, giá, quy cách, chất lượng; SHALL NOT làm insight cảm xúc, văn hóa cho chiến dịch quảng cáo (R-I22).
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 22/10/2026 Astra duyệt trang cho sếp với điều kiện làm xong G5–G7 trước báo cáo thật (F111). Yêu cầu «tầng nào cũng có bằng chứng» và «cả hai vế đều có bằng chứng» là nhóm tự thêm, chặt hơn tài liệu gốc, vì báo cáo không hỏi trực tiếp được khách. Insight không làm insight cảm xúc hay sáng tạo quảng cáo (R-I22). Không trích nguyên văn lời khách (R-I11).
+- Vì sao: Ngày 22/10/2026 Astra duyệt trang cho sếp với điều kiện làm xong G5–G7 trước báo cáo thật (F111). Yêu cầu «tầng nào cũng có bằng chứng» và «cả hai vế đều có bằng chứng» là nhóm tự thêm, chặt hơn tài liệu gốc, vì báo cáo không hỏi trực tiếp được khách. Insight không làm insight cảm xúc hay sáng tạo quảng cáo (R-I22). Không trích nguyên văn lời khách (R-I11). Ngày 30/10/2026 chủ viết: «bỏ tag, vì nó liên quan đến logistic và thương mại điện tử, không phục vụ insight. Vẫn lấy comment, nhưng không hiện và tổng hợp, phân loại hay xử lý cho các loại tag này» (F310).
 
 3C tạm dùng như một giả định vì tài liệu gốc mới đọc được 1/3 (mục 4.1, 4.2 của trang bản 9). Chưa có bằng chứng quy ước của nhóm về bằng chứng ở mọi tầng và cả hai vế cho insight tốt hơn.
 

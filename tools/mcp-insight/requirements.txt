@@ -1,0 +1,5 @@
+# Versions taken from the reviewed SLAYER 1.4.1 environment (pip show mcp motley-slayer).
+mcp==1.30.0
+motley-slayer==1.4.1
+# YAML loader for the semantic models (also a SLAYER dependency).
+PyYAML>=6.0
