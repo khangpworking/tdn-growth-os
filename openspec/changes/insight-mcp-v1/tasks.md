@@ -15,7 +15,7 @@ Chia thành 3 PR nối tiếp. PR sau bắt đầu khi PR trước đã merge.
 - [ ] 2.4 Mô hình SLAYER khai báo sẵn; câu SQL đối chiếu cho mỗi số đo (R-IM04)
 - [ ] 2.5 `theme_counts`, `keyword_counts` với ngưỡng R-I33 và mã số đếm (R-IM05)
 - [ ] 2.6 `portrait_counts` (R-IM06)
-- [ ] 2.7 Bộ chủ đề bản `2026-10-30.1` không có Giao hàng, Đóng gói, Dịch vụ shop; MCP từ chối bộ chủ đề còn 3 chủ đề này (R-IM03, F310)
+- [ ] 2.7 Bộ chủ đề bản `2026-10-30.2` không có Giao hàng, Đóng gói, Dịch vụ shop; vẻ ngoài bao bì thuộc Kiểu dáng, màu sắc, thiết kế; MCP từ chối bộ chủ đề còn 3 chủ đề này (R-IM03, F310, F311)
 - [ ] 2.8 Sửa R-I39 trong `openspec/changes/insight-method-v1/specs/insight-report/spec.md`: bỏ «giao hàng» khỏi danh sách động cơ và rào cản; thêm câu của chủ ngày 30/10/2026 vào dòng «Vì sao» (F310)
 
 ## 3. PR 2: khung báo cáo và mức tin

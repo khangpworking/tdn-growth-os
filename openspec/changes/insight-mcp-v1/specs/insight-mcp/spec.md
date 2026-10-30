@@ -31,11 +31,11 @@ Công cụ `build_warehouse(run_id)` SHALL dựng một file SQLite cho lần ch
 - **THEN** quy tắc R-IM02 bị vi phạm
 
 ### Requirement: R-IM03 Gán chủ đề bằng Jev và bộ chủ đề v2
-Công cụ `code_reviews(run_id, dry_run)` SHALL gán chủ đề cho đánh giá bằng Jev, theo bộ chủ đề là file dữ liệu có `version` và `status`. Bộ chủ đề SHALL chọn khối theo ngành theo thứ tự: chủ chọn, nhãn ngành của lần chạy, từ khóa, rồi chỉ chủ đề lõi. Với `dry_run`, MCP SHALL trả số đánh giá và số lượt gọi dự tính, SHALL NOT gọi Jev. Khi gọi thật, MCP SHALL dừng ở trần lượt gọi do agent truyền vào và SHALL dừng ở lỗi đầu tiên. Mỗi nhãn SHALL lưu phiên bản bộ chủ đề, xác suất, cực (khen, chê, trung tính) và bước mua (R-I31). Nhãn dưới ngưỡng xác suất của bộ chủ đề SHALL ghi «chưa rõ», SHALL NOT bị đếm vào chủ đề. Khi bộ chủ đề có `status` khác APPROVED, câu kiểm 3 của R-I32 SHALL tính là thiếu với mọi kết luận dựa trên nhãn. Bộ chủ đề SHALL NOT có chủ đề Giao hàng, Đóng gói, Dịch vụ shop và tư vấn. MCP SHALL NOT hỏi Jev, gán, đếm, tổng hợp hay hiện các chủ đề này ở bất kỳ công cụ nào. Đánh giá chỉ nói về các chủ đề này vẫn được thu và lưu, và không mang chủ đề nào.
+Công cụ `code_reviews(run_id, dry_run)` SHALL gán chủ đề cho đánh giá bằng Jev, theo bộ chủ đề là file dữ liệu có `version` và `status`. Bộ chủ đề SHALL chọn khối theo ngành theo thứ tự: chủ chọn, nhãn ngành của lần chạy, từ khóa, rồi chỉ chủ đề lõi. Với `dry_run`, MCP SHALL trả số đánh giá và số lượt gọi dự tính, SHALL NOT gọi Jev. Khi gọi thật, MCP SHALL dừng ở trần lượt gọi do agent truyền vào và SHALL dừng ở lỗi đầu tiên. Mỗi nhãn SHALL lưu phiên bản bộ chủ đề, xác suất, cực (khen, chê, trung tính) và bước mua (R-I31). Nhãn dưới ngưỡng xác suất của bộ chủ đề SHALL ghi «chưa rõ», SHALL NOT bị đếm vào chủ đề. Khi bộ chủ đề có `status` khác APPROVED, câu kiểm 3 của R-I32 SHALL tính là thiếu với mọi kết luận dựa trên nhãn. Bộ chủ đề SHALL NOT có chủ đề Giao hàng, Đóng gói, Dịch vụ shop và tư vấn. MCP SHALL NOT hỏi Jev, gán, đếm, tổng hợp hay hiện các chủ đề này ở bất kỳ công cụ nào. Đánh giá chỉ nói về các chủ đề này vẫn được thu và lưu, và không mang chủ đề nào. Riêng vẻ ngoài của bao bì (đẹp, xấu, bắt mắt) SHALL thuộc chủ đề Kiểu dáng, màu sắc, thiết kế.
 
 - Loại kiểm: Mã
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 30/10/2026 chủ chọn «Jev + bộ chủ đề v2» (F306). Ngày 26/10/2026 chủ yêu cầu bộ chủ đề «tính tới universal» (F256). Ngày 26/10/2026 Jev gán 1.233/1.248 đánh giá canxi; AI của app gán 8/100. Ngày 30/10/2026 chủ viết: «bỏ tag, vì nó liên quan đến logistic và thương mại điện tử, không phục vụ insight. Vẫn lấy comment, nhưng không hiện và tổng hợp, phân loại hay xử lý cho các loại tag này» (F310).
+- Vì sao: Ngày 30/10/2026 chủ chọn «Jev + bộ chủ đề v2» (F306). Ngày 26/10/2026 chủ yêu cầu bộ chủ đề «tính tới universal» (F256). Ngày 26/10/2026 Jev gán 1.233/1.248 đánh giá canxi; AI của app gán 8/100. Ngày 30/10/2026 chủ viết: «bỏ tag, vì nó liên quan đến logistic và thương mại điện tử, không phục vụ insight. Vẫn lấy comment, nhưng không hiện và tổng hợp, phân loại hay xử lý cho các loại tag này» (F310). Cùng ngày, khi được hỏi «bao bì bắt mắt» thuộc chủ đề nào, chủ chọn gộp vào chủ đề «Kiểu dáng, màu sắc, thiết kế» (F311).
 
 #### Scenario: Chủ đề hậu cần bị loại
 - **WHEN** bộ chủ đề dùng cho một lần chạy có chủ đề Giao hàng
@@ -44,6 +44,10 @@ Công cụ `code_reviews(run_id, dry_run)` SHALL gán chủ đề cho đánh gi�
 #### Scenario: Đánh giá chỉ nói về giao hàng
 - **WHEN** một đánh giá chỉ khen giao nhanh
 - **THEN** đánh giá vẫn có trong kho nhưng không có nhãn chủ đề nào, và không công cụ đếm nào trả số về giao hàng
+
+#### Scenario: Bao bì bắt mắt
+- **WHEN** một đánh giá khen hộp sản phẩm đẹp, bắt mắt
+- **THEN** đánh giá mang chủ đề Kiểu dáng, màu sắc, thiết kế
 
 #### Scenario: Chạy thử không tốn lượt
 - **WHEN** agent gọi `code_reviews` với `dry_run` cho lần chạy canxi

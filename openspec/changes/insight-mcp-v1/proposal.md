@@ -13,7 +13,7 @@ Ngày 30/10/2026 chủ viết: «ok giờ thì hoàn thành ý tưởng của t�
 3. Agent gọi MCP viết câu chữ; MCP kiểm từng câu.
 4. Thử trên canxi và kẽm, chỉ dùng dữ liệu đã lưu.
 
-Cũng ngày 30/10/2026 chủ bỏ 3 chủ đề Giao hàng, Đóng gói, Dịch vụ shop và tư vấn: «bỏ tag, vì nó liên quan đến logistic và thương mại điện tử, không phục vụ insight. Vẫn lấy comment, nhưng không hiện và tổng hợp, phân loại hay xử lý cho các loại tag này» (F310). Change này vì vậy sửa luôn R-I39 trong change `insight-method-v1`: bỏ «giao hàng» khỏi danh sách động cơ và rào cản được giữ.
+Cũng ngày 30/10/2026 chủ bỏ 3 chủ đề Giao hàng, Đóng gói, Dịch vụ shop và tư vấn: «bỏ tag, vì nó liên quan đến logistic và thương mại điện tử, không phục vụ insight. Vẫn lấy comment, nhưng không hiện và tổng hợp, phân loại hay xử lý cho các loại tag này» (F310). Change này vì vậy sửa luôn R-I39 trong change `insight-method-v1`: bỏ «giao hàng» khỏi danh sách động cơ và rào cản được giữ. Vẻ ngoài của bao bì («bao bì bắt mắt») chuyển vào chủ đề Kiểu dáng, màu sắc, thiết kế (F311).
 
 ## What Changes
 
