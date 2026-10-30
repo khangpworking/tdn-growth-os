@@ -5,7 +5,7 @@ Kiểm ngày 30/10/2026 trên main `3f85531a`:
 - Đánh giá do bộ thu miễn phí lưu không có tên người viết. Trường `attribution` chỉ ghi tên nguồn.
 - `tools/mcp-market` là mẫu: FastMCP, Python, gọi owner API, ghi bị chặn nếu thiếu cờ, kiểm thử chạy không mạng.
 - SLAYER 1.4.1 có `slayer mcp` cho hỏi tự do. Bản thử `mcp-proto` (26/10/2026) dùng cách này.
-- Jev (TypeSafe System One) có bộ chủ đề v2 dạng dữ liệu, trạng thái DRAFT. Bản `2026-10-30.2` có 13 chủ đề lõi và 5 khối theo ngành, sau khi chủ bỏ Giao hàng, Đóng gói, Dịch vụ shop (F310) và gộp vẻ ngoài bao bì vào Kiểu dáng, màu sắc, thiết kế (F311). Mỗi đánh giá khoảng 14 đến 17 câu hỏi.
+- Jev (TypeSafe System One) có bộ chủ đề v2 dạng dữ liệu, trạng thái DRAFT. Bản `2026-10-30.3` có 13 chủ đề lõi và 5 khối theo ngành, sau khi chủ bỏ Giao hàng, Đóng gói, Dịch vụ shop (F310) và gộp vẻ ngoài bao bì vào Kiểu dáng, màu sắc, thiết kế (F311). Mỗi đánh giá khoảng 14 đến 17 câu hỏi.
 
 ## Quyết định kỹ thuật
 
