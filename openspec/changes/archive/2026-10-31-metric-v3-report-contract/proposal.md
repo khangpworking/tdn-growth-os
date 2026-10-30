@@ -6,3 +6,5 @@ unchanged. This mode differs from R-M01/02/05/07/09/11/13 and R-P10;
 main specs remain untouched. Number trace, provider-name exclusion,
 comparison notes and proposal labels remain mandatory. Unsupported historical
 v2 amounts are omitted.
+
+> Lưu trữ ngày 31/10/2026 không kèm spec delta (`archive --skip-specs`). Lý do: mọi việc trong tasks.md đã xong, và proposal nói rõ spec chính giữ nguyên. Spec chính không đổi.
