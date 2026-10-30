@@ -11,7 +11,7 @@ Behavior rows: `CONTRACT.md` (IM-Q1 to IM-Q51).
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `INSIGHT_MCP_APP_DB` | yes, for `build_warehouse` | The app SQLite file. No default. Opened read-only (`?mode=ro`). |
+| `INSIGHT_MCP_APP_DB` | yes, for `build_warehouse` | The app SQLite file. No default. Opened read-only (`?mode=ro`). When set, the other tools also resolve `run_id` against it (`RUN_NOT_FOUND`, `RUN_AMBIGUOUS`). |
 | `INSIGHT_MCP_APP_ARTIFACTS` | no | Artifact root (`sha256/<2 chars>/<sha>`). Default: `artifacts/` next to the app DB. Read-only. |
 | `INSIGHT_MCP_APP_CAPTURES` | no | Metric capture root holding `<run_id>/scope.json`. Default: `metric-captures/` next to the app DB. Read-only. |
 | `INSIGHT_MCP_DATA_DIR` | no | Where run warehouses live (`runs/<run_id>.sqlite`). Default: `tools/mcp-insight/out/` (gitignored). |
@@ -35,8 +35,9 @@ The module sets `DO_NOT_TRACK=1` and `SLAYER_USAGE_REPORTING=off` for its own pr
   the R-I33 threshold, check 2 and check 3 flags and a count ID. `question` filters one theme code.
 - `keyword_counts(run_id)` — distinct search suggestions per keyword group from `data/keyword-groups.json`
   (`UNREVIEWED`, not owner-approved), with the 5-keyword threshold and `step_totals`.
-- `portrait_counts(run_id)` — «Ai dùng» and «Mua cho ai» group rows, and gender and age-band totals guessed from
-  account names (label `Giả thuyết`, at most `Yếu`). Totals only; never a per-person result.
+- `portrait_counts(run_id)` — `rows`: «Ai dùng» and «Mua cho ai» group rows, and gender and age-band rows guessed
+  from account names (label `Giả thuyết`, at most `Yếu`); `demographics[platform]`: known writers per dimension, or
+  `"Chưa có dữ liệu"`. Totals only; never a per-person result.
 
 Every count is computed twice, by SLAYER (models in `semantic/`) and by a fixed reference SQL; any difference
 returns `SLAYER_SQL_MISMATCH` and no numbers. Errors are `{"error": "<CODE>", "message": "<text>"}` and never carry
@@ -45,9 +46,12 @@ rejected (`CODEBOOK_EXCLUDED_THEME`).
 
 ## Test seams
 
-- `JEV_TRANSPORT(body, key, timeout) -> (http_status, raw_bytes)` is the only network path. Tests replace it with
-  an offline fake.
-- `_slayer_rows(...)` runs one SLAYER query; tests can patch it to force a mismatch.
+- `_jev_transport(request, api_key) -> (http_status, raw_bytes)` is the only network path. `request` holds only
+  the IM-Q20 fields (`text`, `platform`, `product_name`, `block_label`, `codebook_version`, `questions` with `code`,
+  `name`, `include`, `exclude`, `options`); the transport turns it into the Jev wire body. Tests replace it with an
+  offline fake.
+- `_slayer_query(...)` runs one SLAYER query; tests can patch it to force a mismatch or an exception.
+- `_load_semantic_models(directory)` loads the YAML models and raises `ValueError` on a measure named like a column.
 - `CODEBOOK_PATH`, `KEYWORD_GROUPS_PATH` and `SEMANTIC_DIR` name the data files.
 
 SLAYER runs in-process. Its asyncio event loop opens a local `AF_UNIX` socket pair for its own wake-up pipe; no
@@ -56,13 +60,15 @@ tool connects, binds or resolves a host.
 ## Install
 
 ```sh
-python3 -m pip install -r tools/mcp-insight/requirements.txt
+python3 -m pip install -r tools/mcp-insight/requirements.txt       # server
+python3 -m pip install -r tools/mcp-insight/requirements-test.txt  # server + pytest
 ```
 
 ## Run the tests
 
 ```sh
-python3 -m unittest discover -s tools/mcp-insight/tests
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest tools/mcp-insight/tests -p no:cacheprovider
 ```
 
-The suite is offline with synthetic fixtures. No app call, no Jev call, no write to the app home.
+The suite is offline with synthetic fixtures. No app call, no Jev call, no write to the app home. `tests/README.md`
+lists the internal names the harness relies on ("Contract gaps").

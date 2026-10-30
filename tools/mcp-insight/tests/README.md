@@ -135,3 +135,15 @@ The codebook copy assertion excludes the disputed `overlaps` metadata. All
 other JSON data is compared to the F312 snapshot, including DRAFT/null approval
 metadata. This avoids deciding the owner-pending overlap wording while still
 checking the versioned data that the implementation actually uses.
+
+### Reconciled with the implementation (code author, 30/10/2026)
+
+Production took the harness names for points 1–7, 9–11 (`_jev_transport(request, api_key)` with the structured
+IM-Q20 request, `_slayer_query`, `_load_semantic_models` raising `ValueError`, tables `run_facts`, `keyword`,
+`trend`, `count_registry.numbers_json`, `writer_guess(writer_key, gender, age_band, year_basis)`, no label
+surrogate ID, `reviews_by_platform`, `sources.keywords`/`trends`, portrait `rows` and `demographics`). The
+harness moved to the real stored source shapes, checked on stored runs (keys only): Shopee page rows carry
+`ratingStar`; TikTok Shop comments carry the text in `review.display_text` and `is_anonymous` on the comment
+item; Trends GEO_MAP rows carry `location` and `extracted_value`; stored Metric rows are in
+`<capture root>/<run_id>/run<N>/raw-responses.json` (point 8). The leak scanner skips whitespace-only fixture
+names (IM-Q41), which identify no one and would match every space. No assertion or negative control changed.

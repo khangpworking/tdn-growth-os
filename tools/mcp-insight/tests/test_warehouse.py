@@ -28,7 +28,7 @@ def test_im_q7_full_uuid_unique_prefix_and_ambiguous_prefix(subject, sandbox):
 def test_im_q8_stored_sources_are_scoped_and_missing_is_not_zero(subject, sandbox):
     """NC: foreign run captures cannot leak; an absent platform is not 0."""
     sandbox.seed([review(1)], keywords=["canxi cho bé", "cách uống kẽm"],
-                 trends=[{"geoName": "Tỉnh thử A", "value": 23}], scope=scope_record())
+                 trends=[{"location": "Tỉnh thử A", "extracted_value": 23}], scope=scope_record())
     sandbox.metric_products({"2": "Sản phẩm thử A"})
     sandbox.seed([review(900, platform="tiktok_shop", name="synthetic_foreign_writer")],
                  run_id=OTHER, keywords=["foreign synthetic keyword"])
@@ -195,7 +195,7 @@ def test_im_q41_absent_name_field_is_unknown(subject, sandbox):
     sandbox.seed([])
     sandbox.capture(RUN, "kalodata", "kalodata.product.comment.insight", {"success": True, "data": {
         "product_id": "1", "original_comments": [{"review_user": {}, "review": {
-            "review_id": "99", "comment": "zqv99 mẫu thử"}}]}}, {"product_id": "1"})
+            "review_id": "99", "display_text": "zqv99 mẫu thử"}}]}}, {"product_id": "1"})
     assert "error" not in sandbox.call("build_warehouse")
     row = sandbox.rows("review")[0]
     assert row["writer_key"] == row["review_id"] == "tiktok_shop:99" and row["writer_known"] == 0

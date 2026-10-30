@@ -311,9 +311,9 @@ def portrait_groups(text: str) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 SOURCE_SCHEMA = """
-CREATE TABLE run_fact(run_id TEXT PRIMARY KEY, keyword TEXT NOT NULL, created_at TEXT NOT NULL, run_year INTEGER NOT NULL,
-  applied_keywords TEXT NOT NULL, applied_category TEXT, scope_capture INTEGER, category_evidence TEXT,
-  category_reason TEXT, content_sha256 TEXT NOT NULL, built_at TEXT NOT NULL);
+CREATE TABLE run_facts(run_id TEXT PRIMARY KEY, keyword TEXT NOT NULL, created_at TEXT NOT NULL, run_year INTEGER NOT NULL,
+  applied_keywords TEXT NOT NULL, applied_category TEXT, scope_capture INTEGER, category_evidence_label TEXT,
+  category_evidence_reason TEXT, content_sha256 TEXT NOT NULL, built_at TEXT NOT NULL);
 CREATE TABLE source_status(source TEXT PRIMARY KEY, platform TEXT NOT NULL, captured INTEGER NOT NULL,
   row_count INTEGER NOT NULL);
 CREATE TABLE review(review_id TEXT PRIMARY KEY, platform TEXT NOT NULL, source_review_id TEXT NOT NULL,
@@ -321,15 +321,15 @@ CREATE TABLE review(review_id TEXT PRIMARY KEY, platform TEXT NOT NULL, source_r
   rating INTEGER);
 CREATE TABLE review_text(review_id TEXT PRIMARY KEY REFERENCES review(review_id), text TEXT NOT NULL);
 CREATE TABLE product(product_key TEXT PRIMARY KEY, platform TEXT NOT NULL, product_name TEXT);
-CREATE TABLE writer_guess(writer_key TEXT PRIMARY KEY, platform TEXT NOT NULL, gender TEXT NOT NULL,
+CREATE TABLE writer_guess(writer_key TEXT PRIMARY KEY, gender TEXT NOT NULL,
   age_band TEXT NOT NULL, year_basis TEXT NOT NULL);
-CREATE TABLE search_keyword(keyword TEXT PRIMARY KEY, platform TEXT NOT NULL);
-CREATE TABLE trends_region(location TEXT NOT NULL, value INTEGER, query TEXT, PRIMARY KEY(location, query));
+CREATE TABLE keyword(keyword TEXT PRIMARY KEY, platform TEXT NOT NULL);
+CREATE TABLE trend(location TEXT NOT NULL, value INTEGER, query TEXT, PRIMARY KEY(location, query));
 CREATE TABLE portrait_label(review_id TEXT NOT NULL, dimension TEXT NOT NULL, grp TEXT NOT NULL,
   PRIMARY KEY(review_id, dimension, grp));
 """
-SOURCE_TABLES = ("run_fact", "source_status", "review", "review_text", "product", "writer_guess", "search_keyword",
-                 "trends_region", "portrait_label")
+SOURCE_TABLES = ("run_facts", "source_status", "review", "review_text", "product", "writer_guess", "keyword",
+                 "trend", "portrait_label")
 
 STATE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS coding_target(target_id INTEGER PRIMARY KEY AUTOINCREMENT, codebook_version TEXT NOT NULL,
@@ -339,7 +339,7 @@ CREATE TABLE IF NOT EXISTS coding_state(review_id TEXT NOT NULL, codebook_versio
   PRIMARY KEY(review_id, codebook_version, block_norm));
 CREATE TABLE IF NOT EXISTS review_input(review_id TEXT NOT NULL, codebook_version TEXT NOT NULL,
   block_norm TEXT NOT NULL, input_sha256 TEXT NOT NULL, PRIMARY KEY(review_id, codebook_version, block_norm));
-CREATE TABLE IF NOT EXISTS label(label_id INTEGER PRIMARY KEY AUTOINCREMENT, review_id TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS label(review_id TEXT NOT NULL,
   theme_code TEXT NOT NULL, codebook_version TEXT NOT NULL, block_key TEXT, block_norm TEXT NOT NULL,
   p_yes REAL NOT NULL, polarity TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('kept', 'unclear')),
   step TEXT NOT NULL, text_ref TEXT NOT NULL, text_start INTEGER NOT NULL, text_end INTEGER NOT NULL,
@@ -347,7 +347,7 @@ CREATE TABLE IF NOT EXISTS label(label_id INTEGER PRIMARY KEY AUTOINCREMENT, rev
 CREATE TABLE IF NOT EXISTS keyword_group(keyword TEXT NOT NULL, groups_version TEXT NOT NULL, group_key TEXT NOT NULL,
   PRIMARY KEY(keyword, groups_version));
 CREATE TABLE IF NOT EXISTS count_registry(count_id TEXT PRIMARY KEY, tool TEXT NOT NULL, row_key TEXT NOT NULL,
-  rules_version TEXT NOT NULL, numbers TEXT NOT NULL, state_sha256 TEXT NOT NULL, created_at TEXT NOT NULL);
+  rules_version TEXT NOT NULL, numbers_json TEXT NOT NULL, state_sha256 TEXT NOT NULL, created_at TEXT NOT NULL);
 DROP VIEW IF EXISTS v_theme_label;
 CREATE VIEW v_theme_label AS
   SELECT r.platform, l.theme_code, l.polarity, l.step, l.codebook_version, l.block_norm, r.review_id, r.writer_key,
@@ -372,11 +372,13 @@ CREATE VIEW v_portrait AS
   SELECT r.platform, p.dimension, p.grp, r.review_id, r.writer_key, 1 - r.writer_known AS writer_unknown, r.product_key
   FROM portrait_label p JOIN review r ON r.review_id = p.review_id;
 DROP VIEW IF EXISTS v_writer_guess;
-CREATE VIEW v_writer_guess AS SELECT platform, gender, age_band, writer_key FROM writer_guess;
+CREATE VIEW v_writer_guess AS
+  SELECT DISTINCT r.platform, w.gender, w.age_band, w.writer_key
+  FROM writer_guess w JOIN review r ON r.writer_key = w.writer_key;
 DROP VIEW IF EXISTS v_keyword_group;
 CREATE VIEW v_keyword_group AS
   SELECT k.platform, g.groups_version, g.group_key, k.keyword
-  FROM search_keyword k JOIN keyword_group g ON g.keyword = k.keyword;
+  FROM keyword k JOIN keyword_group g ON g.keyword = k.keyword;
 """
 
 
@@ -385,6 +387,15 @@ def _runs_dir() -> Path:
 
 
 def _find_warehouse(run_id: str) -> Path:
+    """The run's warehouse. A run_id names an app run: when the app DB is configured, the ID is resolved there
+    first (read-only), so an unknown or ambiguous ID gives RUN_NOT_FOUND or RUN_AMBIGUOUS in every tool."""
+    value = os.environ.get("INSIGHT_MCP_APP_DB")
+    if value and Path(value).expanduser().is_file():
+        con = open_app_db(Path(value).expanduser())
+        try:
+            run_id = _resolve_run(con, run_id)[0]
+        finally:
+            con.close()
     runs = _runs_dir()
     matches = sorted(runs.glob(run_id + "*.sqlite")) if runs.is_dir() else []
     if not matches:
@@ -760,7 +771,7 @@ def build_warehouse(run_id: str) -> dict:
     for review in reviews:
         if review["writer_known"] and review["writer_key"] not in guesses:
             birth, basis = guess_birth_year(review["name"])
-            guesses[review["writer_key"]] = (review["platform"], guess_gender(review["name"]),
+            guesses[review["writer_key"]] = (guess_gender(review["name"]),
                                              age_band(run_year, birth), basis or "Không có")
     portrait = sorted({(r["review_id"], d, g) for r in reviews for d, g in portrait_groups(r["text"])})
 
@@ -772,15 +783,15 @@ def build_warehouse(run_id: str) -> dict:
     trend_rows = list(trends or [])
     fact = {"run_id": full_id, "keyword": keyword, "created_at": created_at, "run_year": run_year, **scope}
     content_sha256 = _sha256(_canonical({
-        "review": review_rows, "review_text": text_rows, "product": product_rows, "search_keyword": keyword_rows,
-        "trends_region": trend_rows, "run_fact": fact}))
+        "review": review_rows, "review_text": text_rows, "product": product_rows, "keyword": keyword_rows,
+        "trend": trend_rows, "run_facts": fact}))
     sources = {
         "shopee_reviews": ("shopee", None if shopee is None else len(shopee)),
         "tiktok_shop_reviews": ("tiktok_shop", None if tiktok is None else len(tiktok)),
         "tiktok_shop_product_names": ("tiktok_shop", None if tiktok_names is None else len(tiktok_names)),
         "shopee_product_names": ("shopee", None if shopee_names is None else len(shopee_names)),
-        "search_suggestions": ("google", None if keywords is None else len(keywords)),
-        "trends_regions": ("google", None if trends is None else len(trends)),
+        "keywords": ("google", None if keywords is None else len(keywords)),
+        "trends": ("google", None if trends is None else len(trends)),
     }
 
     runs = _runs_dir()
@@ -797,7 +808,7 @@ def build_warehouse(run_id: str) -> dict:
             for statement in STATE_SCHEMA.strip().split(";\n"):
                 if statement.strip():
                     wh.execute(statement)
-            wh.execute("INSERT INTO run_fact VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+            wh.execute("INSERT INTO run_facts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
                 full_id, keyword, created_at, run_year, _canonical(scope["applied_keywords"]),
                 scope["applied_category"], scope["scope_capture"], scope["category_evidence"],
                 scope["category_reason"], content_sha256, datetime.now(timezone.utc).isoformat(timespec="seconds")))
@@ -806,10 +817,10 @@ def build_warehouse(run_id: str) -> dict:
             wh.executemany("INSERT INTO review VALUES (?, ?, ?, ?, ?, ?, ?)", review_rows)
             wh.executemany("INSERT INTO review_text VALUES (?, ?)", text_rows)
             wh.executemany("INSERT INTO product VALUES (?, ?, ?)", product_rows)
-            wh.executemany("INSERT INTO writer_guess VALUES (?, ?, ?, ?, ?)",
+            wh.executemany("INSERT INTO writer_guess VALUES (?, ?, ?, ?)",
                            [(k, *v) for k, v in sorted(guesses.items())])
-            wh.executemany("INSERT INTO search_keyword VALUES (?, ?)", keyword_rows)
-            wh.executemany("INSERT INTO trends_region VALUES (?, ?, ?)", trend_rows)
+            wh.executemany("INSERT INTO keyword VALUES (?, ?)", keyword_rows)
+            wh.executemany("INSERT INTO trend VALUES (?, ?, ?)", trend_rows)
             wh.executemany("INSERT INTO portrait_label VALUES (?, ?, ?)", portrait)
             _invalidate_changed(wh, reviews)
     finally:
@@ -833,7 +844,7 @@ def build_warehouse(run_id: str) -> dict:
         "content_sha256": content_sha256,
         "scope": {"applied_keywords": scope["applied_keywords"], "applied_category": scope["applied_category"],
                   "scope_capture": scope["scope_capture"], "category_evidence": scope["category_evidence"]},
-        "reviews": per_platform(count),
+        "reviews_by_platform": per_platform(count),
         "products": per_platform(product_count),
         "writer_known": per_platform(known),
         "sources": {k: _count_or_no_data(n) for k, (_, n) in sources.items()},
@@ -879,34 +890,43 @@ def select_block(book: dict, keywords: list[str], category, block_override=None)
 
 
 def build_request(book: dict, selection: dict, review: dict) -> dict:
-    """One Jev request: review text, platform, product name, block label, codebook version, and the questions."""
-    block = book["blocks"][selection["blockKey"]]["label"] if selection["blockKey"] else "Chỉ chủ đề lõi"
-    state = (f"Nền tảng: {review['platform']}. Sản phẩm: {review['product_name'] or 'không rõ'}. "
-             f"Nhóm ngành: {block}. Bộ chủ đề: {book['version']}. Đánh giá: {review['text']}")
-    criteria = {o["key"]: o["meaning"] for o in book["options"]}
+    """One Jev request (IM-Q20): review text, platform, product name, block label, codebook version, and the
+    questions built from the codebook. Nothing else: no review ID, writer key, name or URL."""
+    block = book["blocks"][selection["blockKey"]]["label"] if selection["blockKey"] else None
+    options = [{"key": o["key"], "meaning": o["meaning"]} for o in book["options"]]
+    return {"text": review["text"], "platform": review["platform"], "product_name": review["product_name"],
+            "block_label": block, "codebook_version": book["version"],
+            "questions": [{"code": t["code"], "name": t["name"], "include": t["include"],
+                           "exclude": t.get("exclude") or "", "options": [dict(o) for o in options]}
+                          for t in selection["_questions"]]}
+
+
+def _wire_body(request: dict) -> dict:
+    """The Jev wire form of one request: one choice question per theme, each with the review as its state."""
+    state = (f"Nền tảng: {request['platform']}. Sản phẩm: {request['product_name'] or 'không rõ'}. "
+             f"Nhóm ngành: {request['block_label'] or 'Chỉ chủ đề lõi'}. Bộ chủ đề: {request['codebook_version']}. "
+             f"Đánh giá: {request['text']}")
     questions, states = {}, {}
-    for theme in selection["_questions"]:
-        instructions = f"{theme['code']} {theme['name']}. Tính khi: {theme['include']}."
-        if theme.get("exclude"):
-            instructions += f" Không tính khi: {theme['exclude']}."
-        questions[theme["code"]] = {"type": "choice", "instructions": instructions, "criteria": dict(criteria)}
-        states[theme["code"]] = state
+    for question in request["questions"]:
+        instructions = f"{question['code']} {question['name']}. Tính khi: {question['include']}."
+        if question["exclude"]:
+            instructions += f" Không tính khi: {question['exclude']}."
+        questions[question["code"]] = {"type": "choice", "instructions": instructions,
+                                       "criteria": {o["key"]: o["meaning"] for o in question["options"]}}
+        states[question["code"]] = state
     return {"model": JEV_MODEL, "state": states, "questions": questions}
 
 
-def _http_transport(body: dict, key: str, timeout: float):
-    """POST one request to Jev. Returns (HTTP status, raw response bytes)."""
-    request = urllib.request.Request(JEV_ENDPOINT, data=json.dumps(body).encode("utf-8"), method="POST",
-                                     headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+def _jev_transport(request: dict, api_key: str):
+    """The only network path: POST one request to Jev. Returns (HTTP status, raw response bytes).
+    Injectable: tests replace it with an offline fake."""
+    http = urllib.request.Request(JEV_ENDPOINT, data=json.dumps(_wire_body(request)).encode("utf-8"), method="POST",
+                                  headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(http, timeout=JEV_TIMEOUT_SECONDS) as response:
             return response.status, response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, b""
-
-
-# Injectable: tests replace this with an offline fake.
-JEV_TRANSPORT = _http_transport
 
 
 class _CallFailed(Exception):
@@ -927,14 +947,17 @@ def parse_answer(book: dict, body: dict, status, raw) -> dict:
         payload = json.loads(raw)
     except (TypeError, ValueError):
         raise _CallFailed("JEV_THEME_UNAVAILABLE") from None
-    if not isinstance(payload, dict) or payload.get("model") != JEV_MODEL or not isinstance(payload.get("answers"), dict):
+    if not isinstance(payload, dict):
         raise _CallFailed("JEV_THEME_UNAVAILABLE")
+    if payload.get("model") != JEV_MODEL or not isinstance(payload.get("answers"), dict):
+        raise _CallFailed("JEV_THEME_INVALID")
     answers = payload["answers"]
-    if set(answers) != set(body["questions"]):
+    asked = [q["code"] for q in body["questions"]]
+    if set(answers) != set(asked):
         raise _CallFailed("JEV_THEME_INVALID")
     tolerance = book["thresholds"]["probabilitySumTolerance"]
     out = {}
-    for code in body["questions"]:
+    for code in asked:
         answer = answers[code]
         if not isinstance(answer, dict) or answer.get("type") != "choice" or answer.get("choice") not in OPTION_KEYS:
             raise _CallFailed("JEV_THEME_INVALID")
@@ -982,7 +1005,7 @@ def _read_key() -> str:
 
 
 def _run_scope(wh) -> tuple[list[str], object]:
-    keywords, category = wh.execute("SELECT applied_keywords, applied_category FROM run_fact").fetchone()
+    keywords, category = wh.execute("SELECT applied_keywords, applied_category FROM run_facts").fetchone()
     return json.loads(keywords), category
 
 
@@ -1003,14 +1026,14 @@ def code_reviews(run_id: str, dry_run: bool = True, max_calls: int | None = None
     if not isinstance(dry_run, bool):
         raise InsightError("INVALID_ARGUMENT", "dry_run must be true or false")
     if max_calls is not None and (not isinstance(max_calls, int) or isinstance(max_calls, bool)):
-        raise InsightError("INVALID_ARGUMENT", "max_calls must be an integer or null")
+        raise InsightError("MAX_CALLS_INVALID", "max_calls must be an integer or null")
     if block_override is not None and (not isinstance(block_override, str) or not BLOCK_KEY_RE.match(block_override)):
         raise InsightError("BLOCK_UNKNOWN", "block_override is not a block of the codebook")
     book = load_codebook()
     path = _find_warehouse(run_id)
     wh = _open_warehouse(path)
     try:
-        full_id = wh.execute("SELECT run_id FROM run_fact").fetchone()[0]
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
         keywords, category = _run_scope(wh)
         selection = select_block(book, keywords, category, block_override)
         version, block_key = book["version"], selection["blockKey"]
@@ -1050,7 +1073,7 @@ def code_reviews(run_id: str, dry_run: bool = True, max_calls: int | None = None
             calls += 1
             try:
                 try:
-                    status, raw = JEV_TRANSPORT(body, key, JEV_TIMEOUT_SECONDS)
+                    status, raw = _jev_transport(body, key)
                 except Exception:  # noqa: BLE001 - any transport failure; its text may hold the key
                     raise _CallFailed("JEV_THEME_UNAVAILABLE") from None
                 answers = parse_answer(book, body, status, raw)
@@ -1085,7 +1108,7 @@ def code_reviews(run_id: str, dry_run: bool = True, max_calls: int | None = None
 # SLAYER and reference SQL
 # ---------------------------------------------------------------------------
 
-def load_semantic_models(directory: Path | None = None) -> list[dict]:
+def _load_semantic_models(directory: Path | None = None) -> list[dict]:
     """Repo YAML models. A measure named like a column of its model is rejected."""
     import yaml
     directory = SEMANTIC_DIR if directory is None else directory
@@ -1095,7 +1118,7 @@ def load_semantic_models(directory: Path | None = None) -> list[dict]:
         columns = {c["name"] for c in model.get("columns", [])}
         clash = [m["name"] for m in model.get("measures", []) if m.get("name") in columns]
         if clash:
-            raise InsightError("SEMANTIC_MODEL_INVALID", f"model {model.get('name')} has a measure named like a column")
+            raise ValueError(f"model {model.get('name')}: measure named like a column (collision): {', '.join(clash)}")
         models.append(model)
     return models
 
@@ -1111,7 +1134,10 @@ class _Slayer:
             from slayer.engine.query_engine import SlayerQueryEngine
             from slayer.storage.yaml_storage import YAMLStorage
             storage = YAMLStorage(base_dir=os.path.join(self.dir, "store"))
-            models = load_semantic_models()
+            try:
+                models = _load_semantic_models()
+            except ValueError:
+                raise InsightError("SEMANTIC_MODEL_INVALID", "a semantic model has a measure named like a column") from None
 
             async def setup():
                 await storage.save_datasource(DatasourceConfig(name="warehouse", type="sqlite", database=str(warehouse)))
@@ -1127,7 +1153,7 @@ class _Slayer:
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
-def _slayer_rows(slayer: _Slayer, model: str, measures: list[str], dimensions: list[str], filters: list[str]) -> list[dict]:
+def _slayer_query(slayer: _Slayer, model: str, measures: list[str], dimensions: list[str], filters: list[str]) -> list[dict]:
     from slayer.core.query import SlayerQuery
     response = slayer.engine.execute_sync(SlayerQuery(source_model=model, measures=list(measures),
                                                       dimensions=list(dimensions), filters=list(filters)))
@@ -1142,7 +1168,7 @@ def _sql_literal(value: str) -> str:
 def _verified(slayer, warehouse, model, measures, dimensions, filters, sql, params) -> list[dict]:
     """Run one count through SLAYER and through its reference SQL; any difference is an error with no numbers."""
     try:
-        slayer_rows = _slayer_rows(slayer, model, measures, dimensions, filters)
+        slayer_rows = _slayer_query(slayer, model, measures, dimensions, filters)
     except Exception:  # noqa: BLE001 - SLAYER error text is not returned
         raise InsightError("SLAYER_FAILED", f"SLAYER could not compute {model}; no numbers returned") from None
     sql_rows = [dict(zip(dimensions + measures, row)) for row in warehouse.execute(sql, params).fetchall()]
@@ -1187,10 +1213,14 @@ SELECT r.platform, p.dimension, p.grp, COUNT(DISTINCT r.review_id), COUNT(DISTIN
 FROM portrait_label p JOIN review r ON r.review_id = p.review_id
 GROUP BY r.platform, p.dimension, p.grp
 """
-REF_WRITER = "SELECT platform, {dim}, COUNT(DISTINCT writer_key) FROM writer_guess GROUP BY platform, {dim}"
+REF_WRITER = """
+SELECT r.platform, w.{dim}, COUNT(DISTINCT w.writer_key)
+FROM writer_guess w JOIN review r ON r.writer_key = w.writer_key
+GROUP BY r.platform, w.{dim}
+"""
 REF_KEYWORD = """
 SELECT k.platform, g.group_key, COUNT(DISTINCT k.keyword)
-FROM search_keyword k JOIN keyword_group g ON g.keyword = k.keyword
+FROM keyword k JOIN keyword_group g ON g.keyword = k.keyword
 WHERE g.groups_version = ?
 GROUP BY k.platform, g.group_key
 """
@@ -1201,7 +1231,7 @@ GROUP BY k.platform, g.group_key
 # ---------------------------------------------------------------------------
 
 def _state_sha(wh) -> str:
-    content = wh.execute("SELECT content_sha256 FROM run_fact").fetchone()[0]
+    content = wh.execute("SELECT content_sha256 FROM run_facts").fetchone()[0]
     labels = wh.execute("SELECT review_id, theme_code, codebook_version, block_norm, p_yes, polarity, status, step, "
                         "text_ref, text_start, text_end, text_sha256 FROM label ORDER BY 1, 2, 3, 4").fetchall()
     states = wh.execute("SELECT review_id, codebook_version, block_norm, input_sha256, status FROM coding_state "
@@ -1226,7 +1256,7 @@ def _register(wh, run_id, tool, rules_version, rows, key_fields, number_fields) 
         if count_id in seen:
             raise InsightError("COUNT_ID_CONFLICT", "two rows in one response got the same count ID")
         seen.add(count_id)
-        stored = wh.execute("SELECT numbers FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
+        stored = wh.execute("SELECT numbers_json FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
         if stored is not None and stored[0] != _canonical(numbers):
             raise InsightError("COUNT_ID_CONFLICT", "a count ID is already stored with different numbers")
         pending.append((count_id, tool, _canonical(row_key), rules_version, _canonical(numbers), state))
@@ -1270,7 +1300,7 @@ def theme_counts(run_id: str, question: str | None = None) -> dict:
     path = _find_warehouse(run_id)
     wh = _open_warehouse(path)
     try:
-        full_id = wh.execute("SELECT run_id FROM run_fact").fetchone()[0]
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
         target = wh.execute("SELECT block_key FROM coding_target ORDER BY target_id DESC LIMIT 1").fetchone()
         if target is None:
             raise InsightError("NOT_CODED", "no review of this run is coded yet")
@@ -1289,7 +1319,9 @@ def theme_counts(run_id: str, question: str | None = None) -> dict:
             if not any(coded_reviews.values()):
                 raise InsightError("NOT_CODED", "no review of this run is coded under the current coding target")
             measures = ["n_reviews", "n_writers", "n_products", "n_unknown_writer_labels"]
-            filters = target_filters + [f"theme_code in ({theme_list})"]
+            # SLAYER does not parse a one-item IN list, so a single theme uses `=`.
+            theme_filter = f"theme_code = {theme_list}" if len(allowed) == 1 else f"theme_code in ({theme_list})"
+            filters = target_filters + [theme_filter]
             all_rows = _verified(slayer, wh, "theme_label", measures, ["platform", "theme_code"], filters,
                                  REF_THEME.format(pol_col="", themes=theme_list), (version, norm))
             pol_rows = _verified(slayer, wh, "theme_label", measures, ["platform", "theme_code", "polarity"], filters,
@@ -1327,8 +1359,8 @@ def keyword_counts(run_id: str) -> dict:
     path = _find_warehouse(run_id)
     wh = _open_warehouse(path)
     try:
-        full_id = wh.execute("SELECT run_id FROM run_fact").fetchone()[0]
-        captured = wh.execute("SELECT captured FROM source_status WHERE source = 'search_suggestions'").fetchone()
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        captured = wh.execute("SELECT captured FROM source_status WHERE source = 'keywords'").fetchone()
         base = {"run_id": full_id, "keyword_groups_version": groups["version"],
                 "keyword_groups_status": groups["status"]}
         if not captured or not captured[0]:
@@ -1336,7 +1368,7 @@ def keyword_counts(run_id: str) -> dict:
         meta = {g["group_key"]: g for g in groups["groups"]}
         meta[groups["fallback"]["group_key"]] = groups["fallback"]
         assignments = []
-        for (keyword,) in wh.execute("SELECT keyword FROM search_keyword ORDER BY keyword").fetchall():
+        for (keyword,) in wh.execute("SELECT keyword FROM keyword ORDER BY keyword").fetchall():
             group = next((g["group_key"] for g, rx in groups["_compiled"] if rx.search(keyword)),
                          groups["fallback"]["group_key"])
             assignments.append((keyword, groups["version"], group))
@@ -1374,7 +1406,7 @@ def portrait_counts(run_id: str) -> dict:
     path = _find_warehouse(run_id)
     wh = _open_warehouse(path)
     try:
-        full_id = wh.execute("SELECT run_id FROM run_fact").fetchone()[0]
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
         platforms = [r[0] for r in wh.execute("SELECT DISTINCT platform FROM review ORDER BY 1")]
         slayer = _Slayer(path)
         try:
@@ -1405,17 +1437,18 @@ def portrait_counts(run_id: str) -> dict:
                   ("reviews", "writers", "products", "threshold_count", "threshold_met", "check2_missing"))
         _register(wh, full_id, "portrait_counts", PORTRAIT_RULES_VERSION, demo_rows,
                   ("platform", "dimension", "group"), ("writers",))
-        out = []
+        demographics = {}
         for platform in platforms:
-            gender_rows = [r for r in demo_rows if r["platform"] == platform and r["dimension"] == "Giới"]
-            age_rows = [r for r in demo_rows if r["platform"] == platform and r["dimension"] == "Nhóm tuổi"]
-            out.append({"platform": platform,
-                        "groups": [r for r in group_rows if r["platform"] == platform],
-                        "gender": gender_rows or NO_DATA, "age": age_rows or NO_DATA})
-        return {"run_id": full_id, "portrait_rules_version": PORTRAIT_RULES_VERSION, "platforms": out}
+            cells = {}
+            for dimension in ("Giới", "Nhóm tuổi"):
+                known = sum(r["writers"] for r in demo_rows if r["platform"] == platform and r["dimension"] == dimension)
+                cells[dimension] = known or NO_DATA
+            demographics[platform] = cells
+        return {"run_id": full_id, "portrait_rules_version": PORTRAIT_RULES_VERSION,
+                "rows": group_rows + demo_rows, "demographics": demographics}
     finally:
         wh.close()
 
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(transport="stdio")

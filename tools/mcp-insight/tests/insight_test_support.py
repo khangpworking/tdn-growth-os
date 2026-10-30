@@ -199,7 +199,7 @@ class Sandbox:
         shopee = [r for r in rows if r["platform"] == "shopee"]
         if shopee:
             packet_rows = [{"reviewId": r["id"], "itemId": r["product"], "shopId": "700",
-                            "rating": r["rating"], "comment": r["text"], "attributes": r["attributes"],
+                            "ratingStar": r["rating"], "comment": r["text"], "attributes": r["attributes"],
                             "attribution": "synthetic"} for r in shopee]
             page = self.artifact(packet_rows)
             packet = {"contractVersion": "4.0.0", "runKey": "auto-" + run_id,
@@ -214,8 +214,8 @@ class Sandbox:
                            (run_id, "auto-" + run_id, "0" * 64, digest, "fixture", "2026-10-30T00:00:00Z"))
         tiktok = [r for r in rows if r["platform"] == "tiktok_shop"]
         for product in sorted({r["product"] for r in tiktok}):
-            comments = [{"product_id": product, "review_user": {"name": r["name"], "is_anonymous": r["anonymous"]},
-                         "review": {"review_id": r["id"], "comment": r["text"], "rating": r["rating"]},
+            comments = [{"product_id": product, "review_user": {"name": r["name"]}, "is_anonymous": r["anonymous"],
+                         "review": {"review_id": r["id"], "display_text": r["text"], "rating": r["rating"]},
                          "sku_specification": "synthetic"}
                         for r in tiktok if r["product"] == product]
             self.capture(run_id, "kalodata", "kalodata.product.comment.insight",
@@ -262,7 +262,7 @@ class Sandbox:
 
     def metric_products(self, names):
         """Stored Metric response entries use the app's product_base_id identity."""
-        path = self.captures / self.run_id / "capture1" / "responses.json"
+        path = self.captures / self.run_id / "run1" / "raw-responses.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         products = [{"product_base_id": "1__" + item + "__700", "product_name": name,
                      "revenue": 100, "bee_categories": []} for item, name in names.items()]
@@ -314,7 +314,8 @@ class Sandbox:
                 result.extend(re.findall(r"zqv\w+", text))
                 words = re.findall(r"\w+", text.casefold())
                 result.extend(" ".join(words[i:i + 8]) for i in range(len(words) - 7))
-            if r["name"]:
+            # A whitespace-only name (IM-Q41) identifies no one; as a substring it would match every space.
+            if r["name"] and r["name"].strip():
                 result.append(r["name"])
             result.extend(r["attributes"])
             for attribute in r["attributes"]:
