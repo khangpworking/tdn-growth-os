@@ -15,6 +15,8 @@ Chia thành 3 PR nối tiếp. PR sau bắt đầu khi PR trước đã merge.
 - [ ] 2.4 Mô hình SLAYER khai báo sẵn; câu SQL đối chiếu cho mỗi số đo (R-IM04)
 - [ ] 2.5 `theme_counts`, `keyword_counts` với ngưỡng R-I33 và mã số đếm (R-IM05)
 - [ ] 2.6 `portrait_counts` (R-IM06)
+- [ ] 2.7 Bộ chủ đề bản `2026-10-30.1` không có Giao hàng, Đóng gói, Dịch vụ shop; MCP từ chối bộ chủ đề còn 3 chủ đề này (R-IM03, F310)
+- [ ] 2.8 Sửa R-I39 trong `openspec/changes/insight-method-v1/specs/insight-report/spec.md`: bỏ «giao hàng» khỏi danh sách động cơ và rào cản; thêm câu của chủ ngày 30/10/2026 vào dòng «Vì sao» (F310)
 
 ## 3. PR 2: khung báo cáo và mức tin
 
@@ -39,7 +41,7 @@ Chia thành 3 PR nối tiếp. PR sau bắt đầu khi PR trước đã merge.
 ## 6. Chạy thật (cần chủ đồng ý)
 
 - [ ] 6.1 Chủ chấm 30 mẫu của bộ chủ đề v2
-- [ ] 6.2 Chủ đồng ý gọi Jev cho canxi và kẽm (khoảng 2.400 lượt)
+- [x] 6.2 Chủ đồng ý gọi Jev cho canxi và kẽm, đủ khoảng 2.400 lượt, không chấm mẫu: «chốt 2400 mẫu luôn» (30/10/2026, F308). Ước tính 0,5–1 USD.
 - [ ] 6.3 Một agent dựng báo cáo canxi và kẽm qua MCP; ghi mức tin từng phần và lỗi cổng kiểm đã gặp
 
 ## 7. Kết thúc

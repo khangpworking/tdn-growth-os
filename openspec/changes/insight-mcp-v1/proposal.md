@@ -13,6 +13,8 @@ Ngày 30/10/2026 chủ viết: «ok giờ thì hoàn thành ý tưởng của t�
 3. Agent gọi MCP viết câu chữ; MCP kiểm từng câu.
 4. Thử trên canxi và kẽm, chỉ dùng dữ liệu đã lưu.
 
+Cũng ngày 30/10/2026 chủ bỏ 3 chủ đề Giao hàng, Đóng gói, Dịch vụ shop và tư vấn: «bỏ tag, vì nó liên quan đến logistic và thương mại điện tử, không phục vụ insight. Vẫn lấy comment, nhưng không hiện và tổng hợp, phân loại hay xử lý cho các loại tag này» (F310). Change này vì vậy sửa luôn R-I39 trong change `insight-method-v1`: bỏ «giao hàng» khỏi danh sách động cơ và rào cản được giữ.
+
 ## What Changes
 
 Thêm công cụ MCP `tdn-insight` trong `tools/mcp-insight`, chạy cục bộ, theo đúng chuỗi chủ đề xuất:
