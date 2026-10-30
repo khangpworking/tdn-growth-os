@@ -145,12 +145,19 @@ def test_im_q85_keyword_certain_and_lowest_item(coded_p3, p3_groups):
     p3.method("keyword_counts:search_suggestions:" + groups["version"])
     accepted(p3.section("Chủ đề hỏi cách chọn [^c1].", part=6,
                         claims=[claim(kw, confidence="Chắc")]))
-    c = claim(kw, confidence="Khá")
-    # Same step and same part; only the second group's missing threshold differs.
+    c = claim(kw, confidence="Khá", conclusion=False, part=6)
+    # Both items are Quan tâm. In part 4 the second item misses check 1
+    # (secondary source) and check 2 (below threshold), giving Yếu under Q67.
     weak = next(r for r in p3.call("keyword_counts")["rows"] if r["group_key"] == "loai_nao")
-    c["evidence"].append(dict(count_id=weak["count_id"], part=None))
-    result = p3.section("Quan sát dưới ngưỡng [^c1].", part=6, claims=[dict(c, conclusion=False)])
-    assert "CONFIDENCE_ABOVE_CEILING" in codes(result)
+    weak_grade = p3.confidence(weak, 4)
+    assert weak_grade["ceiling"] == "Yếu"
+    assert weak_grade["items"][0]["checks"]["1"] == dict(missing=True, reason="SECONDARY_SOURCE")
+    assert weak_grade["items"][0]["checks"]["2"] == dict(missing=True, reason="BELOW_THRESHOLD")
+    c["evidence"].append(dict(count_id=weak["count_id"], part=4))
+    result = p3.section("Quan sát dưới ngưỡng [^c1].", part=1, claims=[c])
+    assert codes(result) == ["CONFIDENCE_ABOVE_CEILING"]
+    c["confidence"] = "Yếu"
+    accepted(p3.section("Quan sát dưới ngưỡng [^c1].", part=1, claims=[c]))
 
 
 @pytest.mark.parametrize("hypothesis,ok", [(False, False), (True, True)])
