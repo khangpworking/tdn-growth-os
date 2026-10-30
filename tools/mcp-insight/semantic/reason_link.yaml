@@ -1,0 +1,16 @@
+# Reviews with current kept labels for both themes of a pair (theme_lo < theme_hi) and a reason connector, with the
+# state of the latest person's reading of the current text: linked, candidate (no reading) or not_linked.
+name: reason_link
+sql_table: v_reason_link
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: codebook_version, sql: codebook_version, type: TEXT}
+  - {name: block_norm, sql: block_norm, type: TEXT}
+  - {name: theme_lo, sql: theme_lo, type: TEXT}
+  - {name: theme_hi, sql: theme_hi, type: TEXT}
+  - {name: rules_version, sql: rules_version, type: TEXT}
+  - {name: review_id, sql: review_id, type: TEXT}
+  - {name: link_state, sql: link_state, type: TEXT}
+measures:
+  - {name: n_reviews, formula: count_distinct(review_id)}

@@ -1,6 +1,6 @@
 {
   "contractVersion": "insight-theme-codebook-v1",
-  "version": "2026-10-30.3",
+  "version": "2026-10-30.4",
   "status": "DRAFT",
   "approvedBy": null,
   "approvedAt": null,
@@ -322,7 +322,7 @@
     {
       "a": "T-THIETKE",
       "b": "T-CHINHHANG",
-      "rule": "Màu sắc, kiểu dáng, thiết kế của chính sản phẩm (đẹp/xấu, sang/trông rẻ, hợp mắt) = T-THIETKE. Màu hoặc kiểu khác ảnh/mô tả = T-CHINHHANG. Bao bì/hộp: no theme (F310)."
+      "rule": "Màu sắc, kiểu dáng, thiết kế của chính sản phẩm (đẹp/xấu, sang/trông rẻ, hợp mắt) = T-THIETKE. Màu hoặc kiểu khác ảnh/mô tả = T-CHINHHANG. Vẻ ngoài bao bì/hộp (đẹp, xấu, bắt mắt) = T-THIETKE (F311). Cách gói, chèn, seal: no theme (F310)."
     },
     {
       "a": "T-THANHPHAN",

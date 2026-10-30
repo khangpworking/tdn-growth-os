@@ -1,8 +1,9 @@
-# tdn-insight — Insight MCP over stored run data (part 1)
+# tdn-insight — Insight MCP over stored run data (parts 1 and 2)
 
-Stdio FastMCP server (`insight_tools.py`) for the Insight report data half: stored run data → run warehouse →
-Jev theme coding → SLAYER semantic layer → counts. Spec: OpenSpec change `insight-mcp-v1`, rules R-IM01 to R-IM06.
-Behavior rows: `CONTRACT.md` (IM-Q1 to IM-Q51).
+Stdio FastMCP server (`insight_tools.py`) for the Insight report: stored run data → run warehouse → Jev theme
+coding → SLAYER semantic layer → counts (part 1), then the 18-part report plan, the confidence ceiling and reason
+links (part 2). Spec: OpenSpec change `insight-mcp-v1`, rules R-IM01 to R-IM09. Behavior rows: `CONTRACT.md`
+(IM-Q1 to IM-Q78).
 
 **Owner rule: no paid call without the owner's OK.** `code_reviews` is a dry run by default. A real Jev call needs
 `INSIGHT_MCP_ALLOW_PAID=1` and an explicit `max_calls`; the flag is a safety net, not an authorization.
@@ -38,6 +39,38 @@ The module sets `DO_NOT_TRACK=1` and `SLAYER_USAGE_REPORTING=off` for its own pr
 - `portrait_counts(run_id)` — `rows`: «Ai dùng» and «Mua cho ai» group rows, and gender and age-band rows guessed
   from account names (label `Giả thuyết`, at most `Yếu`); `demographics[platform]`: known writers per dimension, or
   `"Chưa có dữ liệu"`. Totals only; never a per-person result.
+- `report_plan(run_id)` — the 18 parts of R-I30 from `data/report-frame.json` (`UNREVIEWED`, not owner-approved):
+  per part the question, kind, label (`Khung`, `Chưa có dữ liệu`), steps and ceiling; per data part one cell per
+  source with a role for its question (R-I34), with status, count IDs and steps from the count rows. TikTok Shop
+  reviews are `Chưa dùng được` until a recorded revenue share is 50% or more. `unanswered` lists every cell
+  without data («Những gì báo cáo chưa trả lời được», R-I37). Synthesis parts 1, 16 and 17 have no ceiling, only
+  `potential_ceiling`.
+- `confidence_ceiling(run_id, part, evidence, hypothesis=False)` — grades each cited count ID by the 4 checks of
+  R-I32 (right source, sample size and brand diversity, owner sample review of the rules, method stable on 3 or
+  more products) and returns the lowest item level: `Chắc`, `Khá`, `Yếu` or `Không`. Partial answers and
+  hypotheses are capped at `Yếu`. Writes nothing.
+- `find_reason_links(run_id, theme_a, theme_b)` — per platform, the reviews with current labels for both themes,
+  a reason word (`vì`, `nên`, `do`, `để`) and a person's reading of the current text saying the customer joins the
+  two themes with a reason. Reviews with no reading are `candidates` (no count, no ID).
+- `read_reviews(run_id, ids)` — the stored text of 1 to 20 reviews, for reading on the host only. Never put it
+  in a report (R-I11).
+
+## Shared store
+
+`<data dir>/insight-shared.sqlite` holds evidence from people that a run warehouse cannot hold: owner sample
+reviews, the method ledger, brand-diversity checks, revenue shares and reason readings. Tools open it read-only and
+never create it; a missing store reads as empty. Only these module functions write it, for the owner or the
+coordinator; they are not MCP tools:
+
+- `record_sample_review(rules_kind, rules_version, reviewed_by, reviewed_at, sample_size, passed)`
+- `record_method_approval(method_key, subject_key, run_id, approved_by, approved_at)`
+- `record_diversity_check(count_id, brands, checked_by, checked_at)`
+- `record_revenue_share(run_id, platform, share_percent, recorded_by, recorded_at)`
+- `record_reason_check(run_id, review_id, theme_a, theme_b, linked, checked_by, checked_at)` (stores the sha256 of
+  the review's current text, never the text)
+
+Invalid arguments raise `ValueError` and write nothing. No record is seeded, so with the current data no claim is
+above `Yếu`.
 
 Every count is computed twice, by SLAYER (models in `semantic/`) and by a fixed reference SQL; any difference
 returns `SLAYER_SQL_MISMATCH` and no numbers. Errors are `{"error": "<CODE>", "message": "<text>"}` and never carry
@@ -52,7 +85,7 @@ rejected (`CODEBOOK_EXCLUDED_THEME`).
   offline fake.
 - `_slayer_query(...)` runs one SLAYER query; tests can patch it to force a mismatch or an exception.
 - `_load_semantic_models(directory)` loads the YAML models and raises `ValueError` on a measure named like a column.
-- `CODEBOOK_PATH`, `KEYWORD_GROUPS_PATH` and `SEMANTIC_DIR` name the data files.
+- `CODEBOOK_PATH`, `KEYWORD_GROUPS_PATH`, `REPORT_FRAME_PATH` and `SEMANTIC_DIR` name the data files.
 
 SLAYER runs in-process. Its asyncio event loop opens a local `AF_UNIX` socket pair for its own wake-up pipe; no
 tool connects, binds or resolves a host.

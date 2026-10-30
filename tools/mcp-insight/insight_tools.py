@@ -1,8 +1,11 @@
-"""Local stdio MCP server `tdn-insight`, part 1: run warehouse, Jev theme coding, SLAYER counts.
+"""Local stdio MCP server `tdn-insight`: run warehouse, Jev theme coding, SLAYER counts (part 1); report plan,
+confidence ceiling and reason links (part 2).
 
 Reads stored run data only. The app DB is opened read-only (INSIGHT_MCP_APP_DB, no default); the
 artifact store and capture root are read-only. Each run gets its own warehouse file under
-INSIGHT_MCP_DATA_DIR. A real Jev call needs INSIGHT_MCP_ALLOW_PAID=1 and a call cap; everything
+INSIGHT_MCP_DATA_DIR. Evidence from people (sample reviews, method approvals, brand checks, revenue shares,
+reason readings) lives in the shared store `<data dir>/insight-shared.sqlite`, written only by the `record_*`
+functions, which are not tools. A real Jev call needs INSIGHT_MCP_ALLOW_PAID=1 and a call cap; everything
 else, including `code_reviews(dry_run=True)`, makes no network call. Contract: CONTRACT.md.
 """
 
@@ -23,6 +26,7 @@ import urllib.request
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NotRequired, TypedDict
 
 # Set before SLAYER is ever imported (it is imported lazily, per call).
 os.environ["DO_NOT_TRACK"] = "1"
@@ -33,6 +37,7 @@ from mcp.server.fastmcp import FastMCP  # noqa: E402
 HERE = Path(__file__).resolve().parent
 CODEBOOK_PATH = HERE / "data" / "insight-theme-codebook.json"
 KEYWORD_GROUPS_PATH = HERE / "data" / "keyword-groups.json"
+REPORT_FRAME_PATH = HERE / "data" / "report-frame.json"
 SEMANTIC_DIR = HERE / "semantic"
 DEFAULT_DATA_DIR = HERE / "out"
 DEFAULT_KEY_FILE = "~/.config/tdn-growth-os/secrets/typesafe-jev.env"
@@ -95,6 +100,46 @@ FEMALE_NAMES = tuple(sorted(x for x in _F_NAMES - AMBIGUOUS_NAMES if len(x) >= 4
 MALE_NAMES = tuple(sorted(x for x in _M_NAMES - AMBIGUOUS_NAMES if len(x) >= 4))
 GENDER_UNKNOWN = "Không đoán được"
 AGE_BANDS = ("Dưới 20", "20–29", "30–39", "40–49", "50 trở lên")
+
+# Part 2: report frame, confidence levels, shared store, reason links.
+FRAME_CONTRACT_VERSION = "insight-report-frame-v1"
+FRAME_KINDS = ("frame", "data", "synthesis")
+ROLES = ("Chính", "Phụ", "Gợi ý")
+LEVELS = ("Không", "Yếu", "Khá", "Chắc")  # low to high
+COUNT_TOOLS = ("theme_counts", "keyword_counts", "portrait_counts")
+COUNT_ROW_SOURCES = ("shopee_reviews", "tiktok_shop_reviews", "search_suggestions")
+PLATFORM_NAMES = {"shopee": "Shopee", "tiktok_shop": "TikTok Shop"}
+STATUS_DATA = "Có dữ liệu"
+STATUS_BLOCKED = "Chưa dùng được"
+LABEL_FRAME = "Khung"
+MAX_EVIDENCE = 50
+MAX_READ_REVIEWS = 20
+SHARED_STORE_NAME = "insight-shared.sqlite"
+SAMPLE_RULES_KINDS = ("codebook", "keyword_groups", "portrait_rules")
+REASON_RULES_VERSION = "reason-2026-10-30.1"
+REASON_CONNECTORS = ("vì", "nên", "do", "để")
+REASON_RE = re.compile(r"(?<![^\W_])(?:" + "|".join(REASON_CONNECTORS) + r")(?![^\W_])")
+LINK_BASIS = "CHECKED_READING"
+COUNT_ID_RE = re.compile(r"^IMC-[0-9a-f]{12}$")
+READ_NOTICE = "Chỉ để đọc trên máy chủ. Không đưa chữ này vào báo cáo (R-I11)."
+
+# R-L01 / R-I29: the 26 names of HIDDEN_NAMES in src/modules/analysis/report-language/hidden-names.ts, in its order,
+# plus World Bank and SLAYER. A test reads that file as text and checks every app name is here.
+HIDDEN_NAMES = (
+    "Metric", "Kalodata", "TradeInt", "Dami",
+    "SerpApi", "Apify", "PageIndex", "Agent-Reach", "OpenCLI", "zen-studio",
+    "Jev", "TypeSafe", "CLIProxy", "OpenAI", "Anthropic", "GLM", "Gemini", "Google", "Nemotron", "NVIDIA",
+    "CloakBrowser", "Cloak Browser", "cloak-browser", "cloak_browser", "ShopeePublicReviewCollector",
+    "shopee-public-review",
+    "World Bank", "SLAYER",
+)
+# The app's READER rule: a whole name with Unicode edges (no letter, digit or `_` next to it), case-insensitive;
+# `Metric` only as `Metric` or `METRIC`.
+_HIDDEN_PATTERNS = tuple(
+    re.compile(r"(?<!\w)(?:Metric|METRIC)(?!\w)") if name == "Metric"
+    else re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)", re.I)
+    for name in HIDDEN_NAMES)
+_MODEL_ID = re.compile(r"\b(?:gpt|claude)-[A-Za-z0-9]", re.I)
 
 mcp = FastMCP("tdn-insight")
 
@@ -422,7 +467,29 @@ DROP VIEW IF EXISTS v_keyword_group;
 CREATE VIEW v_keyword_group AS
   SELECT k.platform, g.groups_version, g.group_key, k.keyword
   FROM keyword k JOIN keyword_group g ON g.keyword = k.keyword;
+""" + """
+CREATE TABLE IF NOT EXISTS reason_flag(review_id TEXT NOT NULL, rules_version TEXT NOT NULL,
+  PRIMARY KEY(review_id, rules_version));
+CREATE TABLE IF NOT EXISTS reason_verdict(review_id TEXT NOT NULL, theme_pair TEXT NOT NULL,
+  linked INTEGER NOT NULL CHECK(linked IN (0, 1)), PRIMARY KEY(review_id, theme_pair));
+CREATE VIEW IF NOT EXISTS v_reason_link AS
+  SELECT r.platform, l1.codebook_version, l1.block_norm, l1.theme_code AS theme_lo, l2.theme_code AS theme_hi,
+         f.rules_version, r.review_id,
+         CASE WHEN v.linked = 1 THEN 'linked' WHEN v.linked IS NULL THEN 'candidate' ELSE 'not_linked' END AS link_state
+  FROM label l1
+  JOIN label l2 ON l2.review_id = l1.review_id AND l2.codebook_version = l1.codebook_version
+       AND l2.block_norm = l1.block_norm AND l2.theme_code > l1.theme_code AND l2.status = 'kept'
+  JOIN review r ON r.review_id = l1.review_id
+  JOIN coding_state s ON s.review_id = l1.review_id AND s.codebook_version = l1.codebook_version
+       AND s.block_norm = l1.block_norm AND s.status = 'done'
+  JOIN review_input i ON i.review_id = s.review_id AND i.codebook_version = s.codebook_version
+       AND i.block_norm = s.block_norm AND i.input_sha256 = s.input_sha256
+  JOIN reason_flag f ON f.review_id = r.review_id
+  LEFT JOIN reason_verdict v ON v.review_id = r.review_id AND v.theme_pair = l1.theme_code || '|' || l2.theme_code
+  WHERE l1.status = 'kept';
 """
+# The reason-link part of STATE_SCHEMA; `find_reason_links` runs it so a warehouse built before part 2 gets it too.
+REASON_SCHEMA = STATE_SCHEMA[STATE_SCHEMA.index("CREATE TABLE IF NOT EXISTS reason_flag"):]
 
 
 def _runs_dir() -> Path:
@@ -1345,7 +1412,11 @@ def theme_counts(run_id: str, question: str | None = None) -> dict:
     codes = _theme_codes(book)
     if question is not None and (not isinstance(question, str) or question not in codes):
         raise InsightError("INVALID_ARGUMENT", "question must be a theme code of the codebook")
-    path = _find_warehouse(run_id)
+    return _theme_counts_at(_find_warehouse(run_id), book, question)
+
+
+def _theme_counts_at(path: Path, book: dict, question=None) -> dict:
+    codes = _theme_codes(book)
     wh = _open_warehouse(path)
     try:
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
@@ -1404,7 +1475,10 @@ def keyword_counts(run_id: str) -> dict:
     """Search-suggestion keywords per frozen keyword group (UNREVIEWED groups), with the 5-keyword threshold."""
     run_id = _check_run_id(run_id)
     groups = load_keyword_groups()
-    path = _find_warehouse(run_id)
+    return _keyword_counts_at(_find_warehouse(run_id), groups)
+
+
+def _keyword_counts_at(path: Path, groups: dict) -> dict:
     wh = _open_warehouse(path)
     try:
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
@@ -1451,7 +1525,10 @@ def portrait_counts(run_id: str) -> dict:
     """Customer portrait totals per platform: «Ai dùng», «Mua cho ai», and gender and age guesses from
     account names (Giả thuyết, at most Yếu). Totals only, never per person."""
     run_id = _check_run_id(run_id)
-    path = _find_warehouse(run_id)
+    return _portrait_counts_at(_find_warehouse(run_id))
+
+
+def _portrait_counts_at(path: Path) -> dict:
     wh = _open_warehouse(path)
     try:
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
@@ -1496,6 +1573,726 @@ def portrait_counts(run_id: str) -> dict:
                 "rows": group_rows + demo_rows, "demographics": demographics}
     finally:
         wh.close()
+
+
+# ---------------------------------------------------------------------------
+# Part 2: hidden names and the report frame (R-IM07)
+# ---------------------------------------------------------------------------
+
+def hidden_name_hits(text) -> list[str]:
+    """Hidden names and model IDs in one reader text, by the app's READER rule (R-L01)."""
+    if not isinstance(text, str):
+        return []
+    hits = [name for name, pattern in zip(HIDDEN_NAMES, _HIDDEN_PATTERNS) if pattern.search(text)]
+    if _MODEL_ID.search(text):
+        hits.append("MODEL_ID")
+    return hits
+
+
+def _int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _text(value) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _frame_invalid(message: str) -> InsightError:
+    return InsightError("FRAME_INVALID", message)
+
+
+def _check_frame_source(source, steps, seen: set) -> None:
+    if not isinstance(source, dict) or not isinstance(source.get("key"), str) or not BLOCK_KEY_RE.match(source["key"]) \
+            or source["key"] in seen:
+        raise _frame_invalid("the frame source keys are missing, malformed or repeated")
+    seen.add(source["key"])
+    if not _text(source.get("name")) or source.get("step") not in steps:
+        raise _frame_invalid("a frame source has no name or an unknown step")
+    roles = source.get("roles")
+    if not isinstance(roles, dict) or set(roles) != {"1", "2", "3", "4", "5"} \
+            or not all(role is None or role in ROLES for role in roles.values()):
+        raise _frame_invalid("a frame source must have a role (Chính, Phụ, Gợi ý or null) for each of the 5 questions")
+    partial = source.get("partial_questions")
+    if not isinstance(partial, list) or len(set(partial)) != len(partial) \
+            or not all(_int(q) and 1 <= q <= 5 and roles[str(q)] == "Phụ" for q in partial):
+        raise _frame_invalid("partial_questions must list questions where the source's role is Phụ")
+    gate = source.get("usable_when")
+    if gate is not None and not (
+            isinstance(gate, dict) and set(gate) == {"revenue_share_platform", "min_percent"}
+            and gate["revenue_share_platform"] in PLATFORMS and _number(gate["min_percent"])
+            and 0 <= gate["min_percent"] <= 100):
+        raise _frame_invalid("usable_when must name a review platform and a min_percent from 0 to 100")
+    if not isinstance(source.get("warehouse_sources"), list) or not all(_text(w) for w in source["warehouse_sources"]):
+        raise _frame_invalid("a frame source has malformed warehouse_sources")
+    if not isinstance(source.get("count_tools"), list) or not all(t in COUNT_TOOLS for t in source["count_tools"]):
+        raise _frame_invalid("a frame source names an unknown count tool")
+    if source.get("note") is not None and not isinstance(source["note"], str):
+        raise _frame_invalid("a frame source note is not text")
+
+
+def _check_frame_part(part, index: int, data_parts: set) -> None:
+    if not isinstance(part, dict) or not _int(part.get("part")) or part["part"] != index:
+        raise _frame_invalid("the frame must have 18 parts numbered 1 to 18 in order")
+    if not _text(part.get("title")) or part.get("kind") not in FRAME_KINDS:
+        raise _frame_invalid(f"part {index} has no title or an unknown kind")
+    question = part.get("question")
+    if part["kind"] == "frame":
+        if set(part) != {"part", "title", "kind"}:
+            raise _frame_invalid(f"frame part {index} must have no question, tools or basis")
+    elif part["kind"] == "data":
+        if not (_int(question) and 1 <= question <= 5) or "basis_parts" in part:
+            raise _frame_invalid(f"data part {index} must have a question from 1 to 5")
+        if not isinstance(part.get("count_tools"), list) or not all(t in COUNT_TOOLS for t in part["count_tools"]):
+            raise _frame_invalid(f"data part {index} names an unknown count tool")
+    else:
+        if "question" not in part or not (question is None or (_int(question) and 1 <= question <= 5)):
+            raise _frame_invalid(f"synthesis part {index} must have a question from 1 to 5, or null")
+        basis = part.get("basis_parts")
+        if not isinstance(basis, list) or not basis or len(set(basis)) != len(basis) \
+                or not all(_int(n) and n in data_parts for n in basis):
+            raise _frame_invalid(f"synthesis part {index} must have basis_parts that are data parts")
+
+
+def load_frame(path: Path | None = None) -> dict:
+    """Load and check the 18-part report frame (IM-Q55). Any defect is FRAME_INVALID."""
+    path = REPORT_FRAME_PATH if path is None else path
+    try:
+        frame = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise _frame_invalid("the report frame cannot be read as JSON") from None
+    if not isinstance(frame, dict) or frame.get("contractVersion") != FRAME_CONTRACT_VERSION:
+        raise _frame_invalid(f"the report frame is not {FRAME_CONTRACT_VERSION}")
+    if not _text(frame.get("version")) or not _text(frame.get("status")):
+        raise _frame_invalid("the report frame has no version or status")
+    steps = frame.get("steps")
+    if not isinstance(steps, list) or not steps or not all(_text(s) for s in steps) or len(set(steps)) != len(steps):
+        raise _frame_invalid("the report frame steps are missing or repeated")
+    questions = frame.get("questions")
+    if not isinstance(questions, list) or len(questions) != 5 or not all(
+            isinstance(q, dict) and _int(q.get("no")) and q["no"] == n and _text(q.get("text"))
+            for n, q in enumerate(questions, 1)):
+        raise _frame_invalid("the report frame must have 5 questions numbered 1 to 5")
+    sources = frame.get("sources")
+    if not isinstance(sources, list) or not sources:
+        raise _frame_invalid("the report frame has no sources")
+    seen = set()
+    for source in sources:
+        _check_frame_source(source, steps, seen)
+    parts = frame.get("parts")
+    if not isinstance(parts, list) or len(parts) != 18:
+        raise _frame_invalid("the frame must have 18 parts numbered 1 to 18 in order")
+    data_parts = {p.get("part") for p in parts if isinstance(p, dict) and p.get("kind") == "data"}
+    for index, part in enumerate(parts, 1):
+        _check_frame_part(part, index, data_parts)
+    texts = [p["title"] for p in parts] + [q["text"] for q in questions] + [s["name"] for s in sources] \
+        + [s["note"] for s in sources if s.get("note")]
+    if any(hidden_name_hits(text) for text in texts):
+        raise _frame_invalid("a frame text holds a hidden provider or tool name (R-L01)")
+    frame["_parts"] = {p["part"]: p for p in parts}
+    frame["_sources"] = {s["key"]: s for s in sources}
+    frame["_questions"] = {q["no"]: q["text"] for q in questions}
+    return frame
+
+
+# ---------------------------------------------------------------------------
+# Shared store (design decision 6): evidence from people, written only by the record_* functions
+# ---------------------------------------------------------------------------
+
+SHARED_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sample_review(rules_kind TEXT, rules_version TEXT, reviewed_by TEXT, reviewed_at TEXT,
+  sample_size INTEGER, passed INTEGER);
+CREATE TABLE IF NOT EXISTS method_ledger(method_key TEXT, subject_key TEXT, run_id TEXT, approved_by TEXT,
+  approved_at TEXT);
+CREATE TABLE IF NOT EXISTS diversity_check(count_id TEXT, brands INTEGER, checked_by TEXT, checked_at TEXT);
+CREATE TABLE IF NOT EXISTS revenue_share(run_id TEXT, platform TEXT, share_percent REAL, recorded_by TEXT,
+  recorded_at TEXT);
+CREATE TABLE IF NOT EXISTS reason_check(run_id TEXT, review_id TEXT, theme_pair TEXT, text_sha256 TEXT, linked INTEGER,
+  checked_by TEXT, checked_at TEXT);
+"""
+
+
+def _shared_store_path() -> Path:
+    return _data_dir() / SHARED_STORE_NAME
+
+
+def _iso(value) -> bool:
+    if not _text(value):
+        return False
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _full_run_id(value) -> bool:
+    return isinstance(value, str) and len(value) == 36 and RUN_ID_RE.match(value) is not None
+
+
+def _method_key_ok(value) -> bool:
+    parts = value.split(":", 2) if isinstance(value, str) else []
+    return len(parts) == 3 and parts[0] in COUNT_TOOLS and parts[1] in COUNT_ROW_SOURCES and _text(parts[2])
+
+
+def _pair_ok(value) -> bool:
+    codes = value.split("|") if isinstance(value, str) else []
+    return len(codes) == 2 and all(THEME_CODE_RE.match(c) for c in codes) and codes[0] < codes[1]
+
+
+def _signed(by, at) -> bool:
+    return _text(by) and _iso(at)
+
+
+@contextmanager
+def _warehouse_ro(path: Path):
+    """A read-only connection; the file is never created or changed."""
+    con = sqlite3.connect("file:" + urllib.parse.quote(str(path)) + "?mode=ro", uri=True)
+    try:
+        yield con
+    finally:
+        con.close()
+
+
+def _store_rows(con, table: str, columns: str) -> list[tuple]:
+    try:
+        return con.execute(f"SELECT {columns} FROM {table} ORDER BY rowid").fetchall()
+    except sqlite3.DatabaseError:
+        return []
+
+
+def load_shared_store(run_id: str) -> dict:
+    """The valid shared-store evidence for one run (IM-Q77 rules; invalid rows are ignored). Read-only; a missing
+    store reads as empty and is not created. The latest valid row applies per key."""
+    out = {"samples": set(), "ledger": {}, "diversity": {}, "revenue": {}, "reasons": {}}
+    path = _shared_store_path()
+    if not path.is_file():
+        return out
+    with _warehouse_ro(path) as con:
+        for kind, version, by, at, size, passed in _store_rows(
+                con, "sample_review", "rules_kind, rules_version, reviewed_by, reviewed_at, sample_size, passed"):
+            if kind in SAMPLE_RULES_KINDS and _text(version) and _signed(by, at) and _int(size) and size >= 1 \
+                    and _int(passed) and passed == 1:
+                out["samples"].add((kind, version))
+        for key, subject, run, by, at in _store_rows(
+                con, "method_ledger", "method_key, subject_key, run_id, approved_by, approved_at"):
+            if _method_key_ok(key) and _text(subject) and _full_run_id(run) and _signed(by, at):
+                out["ledger"].setdefault(key, set()).add(subject)
+        for count_id, brands, by, at in _store_rows(con, "diversity_check", "count_id, brands, checked_by, checked_at"):
+            if isinstance(count_id, str) and COUNT_ID_RE.match(count_id) and _int(brands) and brands >= 1 \
+                    and _signed(by, at):
+                out["diversity"][count_id] = brands
+        for run, platform, share, by, at in _store_rows(
+                con, "revenue_share", "run_id, platform, share_percent, recorded_by, recorded_at"):
+            if run == run_id and platform in PLATFORMS and _number(share) and 0 <= share <= 100 and _signed(by, at):
+                out["revenue"][platform] = share
+        for run, review_id, pair, text_sha, linked, by, at in _store_rows(
+                con, "reason_check", "run_id, review_id, theme_pair, text_sha256, linked, checked_by, checked_at"):
+            if run == run_id and _text(review_id) and _pair_ok(pair) and isinstance(text_sha, str) \
+                    and re.fullmatch(r"[0-9a-f]{64}", text_sha) and _int(linked) and linked in (0, 1) and _signed(by, at):
+                out["reasons"][(review_id, pair, text_sha)] = linked
+    return out
+
+
+def _need(ok: bool, message: str) -> None:
+    if not ok:
+        raise ValueError(message)
+
+
+def _need_signed(by_name: str, by, at_name: str, at) -> None:
+    _need(_text(by), f"{by_name} must be a non-empty string")
+    _need(_iso(at), f"{at_name} must be an ISO 8601 date or date-time")
+
+
+def _writer_run(run_id) -> tuple[str, Path]:
+    """Resolve a writer's run_id like the tools do; any failure is a ValueError."""
+    try:
+        path = _find_warehouse(_check_run_id(run_id))
+    except InsightError as exc:
+        raise ValueError(f"run_id cannot be used: {exc.code}") from None
+    with _warehouse_ro(path) as wh:
+        return wh.execute("SELECT run_id FROM run_facts").fetchone()[0], path
+
+
+def _store_insert(table: str, values: tuple) -> None:
+    path = _shared_store_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(str(path), isolation_level=None)
+    try:
+        with _tx(con):
+            for statement in SHARED_SCHEMA.strip().split(";\n"):
+                if statement.strip():
+                    con.execute(statement)
+            con.execute(f"INSERT INTO {table} VALUES ({', '.join('?' for _ in values)})", values)
+    finally:
+        con.close()
+
+
+def record_sample_review(rules_kind, rules_version, reviewed_by, reviewed_at, sample_size, passed) -> None:
+    """An owner review of a sample of one automatic classification (check 3). Not an MCP tool."""
+    _need(rules_kind in SAMPLE_RULES_KINDS, "rules_kind must be codebook, keyword_groups or portrait_rules")
+    _need(_text(rules_version), "rules_version must be a non-empty string")
+    _need_signed("reviewed_by", reviewed_by, "reviewed_at", reviewed_at)
+    _need(_int(sample_size) and sample_size >= 1, "sample_size must be an integer of at least 1")
+    _need(isinstance(passed, bool), "passed must be true or false")
+    _store_insert("sample_review", (rules_kind, rules_version, reviewed_by, reviewed_at, sample_size, int(passed)))
+
+
+def record_method_approval(method_key, subject_key, run_id, approved_by, approved_at) -> None:
+    """One owner-approved report that used a method on one researched product (check 4). Not an MCP tool."""
+    _need(_method_key_ok(method_key), "method_key must be <count tool>:<source key>:<rules version>")
+    _need(_text(subject_key), "subject_key must be a non-empty string")
+    _need_signed("approved_by", approved_by, "approved_at", approved_at)
+    full_id, _ = _writer_run(run_id)
+    _store_insert("method_ledger", (method_key, subject_key, full_id, approved_by, approved_at))
+
+
+def record_diversity_check(count_id, brands, checked_by, checked_at) -> None:
+    """A person counted the brands behind one count ID (check 2 diversity). Not an MCP tool."""
+    _need(isinstance(count_id, str) and COUNT_ID_RE.match(count_id) is not None, "count_id must be IMC- and 12 hex")
+    _need(_int(brands) and brands >= 1, "brands must be an integer of at least 1")
+    _need_signed("checked_by", checked_by, "checked_at", checked_at)
+    _store_insert("diversity_check", (count_id, brands, checked_by, checked_at))
+
+
+def record_revenue_share(run_id, platform, share_percent, recorded_by, recorded_at) -> None:
+    """A platform's share of the run's revenue, copied from the Market numbers (R-I34 gate). Not an MCP tool."""
+    _need(platform in PLATFORMS, "platform must be shopee or tiktok_shop")
+    _need(_number(share_percent) and 0 <= share_percent <= 100, "share_percent must be a number from 0 to 100")
+    _need_signed("recorded_by", recorded_by, "recorded_at", recorded_at)
+    full_id, _ = _writer_run(run_id)
+    _store_insert("revenue_share", (full_id, platform, share_percent, recorded_by, recorded_at))
+
+
+def record_reason_check(run_id, review_id, theme_a, theme_b, linked, checked_by, checked_at) -> None:
+    """A person read one review on the host and judged whether the customer joins the two themes with a reason.
+    The reading is bound to the sha256 of the review's current text. Not an MCP tool."""
+    _need(_text(review_id), "review_id must be a non-empty string")
+    _need(isinstance(linked, bool), "linked must be true or false")
+    _need_signed("checked_by", checked_by, "checked_at", checked_at)
+    try:
+        pair = _theme_pair(load_codebook(), theme_a, theme_b)
+    except InsightError as exc:
+        raise ValueError(f"themes cannot be used: {exc.code}") from None
+    full_id, path = _writer_run(run_id)
+    with _warehouse_ro(path) as wh:
+        row = wh.execute("SELECT text FROM review_text WHERE review_id = ?", (review_id,)).fetchone()
+    _need(row is not None, "review_id is not a review of this run")
+    _store_insert("reason_check", (full_id, review_id, pair, _sha256(row[0]), int(linked), checked_by, checked_at))
+
+
+# ---------------------------------------------------------------------------
+# Count rows and the 4 checks (R-IM08)
+# ---------------------------------------------------------------------------
+
+def _row_info(tool: str, row: dict, book: dict, groups: dict) -> dict:
+    if tool == "keyword_counts":
+        return {"count_id": row["count_id"], "tool": tool, "source": "search_suggestions", "platform": row["platform"],
+                "step": row["step"], "kind": "keyword", "rules": ("keyword_groups", groups["version"]), "row": row}
+    if tool == "theme_counts":
+        kind, rules, step = "theme", ("codebook", book["version"]), row["step"]
+    else:
+        kind = "portrait_guess" if row.get("label") == "Giả thuyết" else "portrait_group"
+        rules, step = ("portrait_rules", PORTRAIT_RULES_VERSION), STEP_AFTER_PURCHASE
+    return {"count_id": row["count_id"], "tool": tool, "source": row["platform"] + "_reviews",
+            "platform": row["platform"], "step": step, "kind": kind, "rules": rules, "row": row}
+
+
+def _count_rows(path: Path, book: dict, groups: dict) -> tuple[list[dict], bool]:
+    """Every current count row of the run, as the three count tools return it now (same IDs, same registry rows).
+    The second value is false when theme_counts gives NOT_CODED; any other count error is raised."""
+    try:
+        themes = _theme_counts_at(path, book)["rows"]
+    except InsightError as exc:
+        if exc.code != "NOT_CODED":
+            raise
+        themes = None
+    keywords = _keyword_counts_at(path, groups)["rows"]
+    portraits = _portrait_counts_at(path)["rows"]
+    infos = [_row_info(tool, row, book, groups) for tool, rows in
+             (("theme_counts", themes or []), ("keyword_counts", keywords), ("portrait_counts", portraits))
+             for row in rows]
+    return infos, themes is not None
+
+
+def _revenue_gate(source: dict, store: dict):
+    """None when the source may be used; otherwise the IM-Q75 reason."""
+    gate = source.get("usable_when")
+    if not gate:
+        return None
+    share = store["revenue"].get(gate["revenue_share_platform"])
+    if share is None:
+        return "REVENUE_SHARE_UNKNOWN"
+    return "REVENUE_SHARE_BELOW_MIN" if share < gate["min_percent"] else None
+
+
+def _codebook_approved(book: dict) -> bool:
+    return book["status"] == "APPROVED" and _text(book.get("approvedBy")) and _text(book.get("approvedAt"))
+
+
+def _rank(level: str) -> int:
+    return LEVELS.index(level)
+
+
+def _check(reason) -> dict:
+    return {"missing": reason is not None, "reason": reason}
+
+
+def _grade(ctx: dict, info: dict, part_no: int, hypothesis: bool) -> tuple[dict, bool]:
+    """One evidence item graded by the 4 checks of R-I32 (IM-Q63 to IM-Q67, IM-Q75, IM-Q76).
+    Returns the item and whether it is a hypothesis."""
+    frame, store, row = ctx["frame"], ctx["store"], info["row"]
+    question = frame["_parts"][part_no]["question"]
+    source = frame["_sources"].get(info["source"])
+    role = source["roles"][str(question)] if source else None
+    partial = bool(source) and question in source["partial_questions"]
+    blocked = None
+    if role == "Chính":
+        check1 = None
+    elif role == "Phụ":
+        check1 = "SECONDARY_SOURCE"
+    elif role == "Gợi ý":
+        check1, hypothesis = "HINT_ONLY", True
+    else:
+        check1 = blocked = "SOURCE_NOT_FOR_QUESTION"
+    if blocked is None and source:
+        blocked = _revenue_gate(source, store)
+
+    if info["kind"] == "portrait_guess":
+        check2, hypothesis = "HYPOTHESIS_ROW", True
+    elif info["kind"] != "keyword" and row["writer_basis"] == "review":
+        check2 = "WRITER_UNKNOWN"
+    elif not row["threshold_met"]:
+        check2 = "BELOW_THRESHOLD"
+    else:
+        brands = store["diversity"].get(info["count_id"])
+        check2 = "DIVERSITY_NOT_VERIFIED" if brands is None else ("ONE_BRAND" if brands < 2 else None)
+
+    if info["kind"] == "theme" and not _codebook_approved(ctx["book"]):
+        check3 = "CODEBOOK_NOT_APPROVED"
+    elif info["kind"] == "keyword" and ctx["groups"]["status"] != "APPROVED":
+        check3 = "KEYWORD_GROUPS_NOT_APPROVED"
+    else:
+        check3 = None if info["rules"] in store["samples"] else "NO_OWNER_SAMPLE_REVIEW"
+
+    method_key = f"{info['tool']}:{info['source']}:{info['rules'][1]}"
+    products = len(store["ledger"].get(method_key, ()))
+    check4 = None if products >= 3 else f"METHOD_ON_{products}_PRODUCTS"
+
+    checks = {str(n): _check(reason) for n, reason in enumerate((check1, check2, check3, check4), 1)}
+    missing = sum(c["missing"] for c in checks.values())
+    if blocked:
+        ceiling = "Không"
+    else:
+        ceiling = ("Chắc", "Khá", "Yếu")[min(missing, 2)]
+        if (partial or hypothesis) and _rank(ceiling) > _rank("Yếu"):
+            ceiling = "Yếu"
+    item = {"count_id": info["count_id"], "part": part_no, "tool": info["tool"], "source": info["source"],
+            "platform": info["platform"], "step": info["step"], "role": role, "partial": partial, "blocked": blocked,
+            "checks": checks, "missing_count": missing, "ceiling": ceiling}
+    return item, hypothesis
+
+
+# ---------------------------------------------------------------------------
+# report_plan (R-IM07)
+# ---------------------------------------------------------------------------
+
+def _ordered_steps(frame: dict, steps) -> list[str]:
+    steps = set(steps)
+    return [s for s in frame["steps"] if s in steps] + sorted(steps - set(frame["steps"]))
+
+
+def _percent(value) -> str:
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
+def _unanswered(part: dict, source: dict, cell: dict) -> dict:
+    reason, name = cell["reason"], source["name"]
+    platform = PLATFORM_NAMES.get((source.get("usable_when") or {}).get("revenue_share_platform"), "")
+    why, needs = {
+        "NOT_COLLECTED": ("Bản 1 chưa thu nguồn này", f"Thu {name} cho lần chạy"),
+        "NOT_CAPTURED": ("Lần chạy chưa thu nguồn này", f"Thu {name} cho lần chạy"),
+        "EMPTY_CAPTURE": ("Lần chạy có thu nhưng không có dòng nào", f"Thu {name} cho lần chạy"),
+        "REVENUE_SHARE_UNKNOWN": (f"Chưa biết {platform} chiếm bao nhiêu doanh thu",
+                                  f"Ghi tỉ lệ doanh thu {platform} cho lần chạy"),
+        "REVENUE_SHARE_BELOW_MIN": (
+            f"{platform} chiếm dưới {_percent((source.get('usable_when') or {}).get('min_percent', 0))}% doanh thu",
+            None),
+    }[reason]
+    return {"part": part["part"], "source": source["key"], "unknown": f"Phần {part['part']} «{part['title']}»: {name}",
+            "step": source["step"], "reason": reason, "why": why, "needs": needs}
+
+
+def _plan_cell(ctx: dict, part: dict, source: dict, status: dict, infos: list[dict], theme_coded: bool) -> dict:
+    cell = {"source": source["key"], "name": source["name"], "role": source["roles"][str(part["question"])],
+            "partial": part["question"] in source["partial_questions"], "default_step": source["step"],
+            "steps": [], "status": NO_DATA, "reason": None, "note": source.get("note"), "count_items": [],
+            "count_ids": [], "ceiling": "Không"}
+    captured = [status.get(w, (0, 0)) for w in source["warehouse_sources"]]
+    if not source["warehouse_sources"]:
+        cell["reason"] = "NOT_COLLECTED"
+    elif not any(c for c, _ in captured):
+        cell["reason"] = "NOT_CAPTURED"
+    elif not any(c and n >= 1 for c, n in captured):
+        cell["reason"] = "EMPTY_CAPTURE"
+    elif _revenue_gate(source, ctx["store"]):
+        cell["status"], cell["reason"] = STATUS_BLOCKED, _revenue_gate(source, ctx["store"])
+    else:
+        tools = [t for t in part["count_tools"] if t in source["count_tools"]]
+        items = [i for t in tools for i in infos if i["tool"] == t and i["source"] == source["key"]]
+        cell.update(status=STATUS_DATA, reason="NOT_CODED" if "theme_counts" in tools and not theme_coded else None,
+                    count_items=[{"count_id": i["count_id"], "tool": i["tool"], "step": i["step"]} for i in items],
+                    count_ids=[i["count_id"] for i in items], steps=_ordered_steps(ctx["frame"], [i["step"] for i in items]))
+        levels = [_grade(ctx, i, part["part"], False)[0]["ceiling"] for i in items]
+        cell["ceiling"] = max(levels, key=_rank, default="Không")
+    return cell
+
+
+@mcp.tool()
+@_tool
+def report_plan(run_id: str) -> dict:
+    """The 18 report parts (R-I30) with question, steps, source roles (R-I34), usable count IDs, ceilings and the
+    «Những gì báo cáo chưa trả lời được» lines (R-I37)."""
+    run_id = _check_run_id(run_id)
+    frame = load_frame()
+    book, groups = load_codebook(), load_keyword_groups()
+    path = _find_warehouse(run_id)
+    infos, theme_coded = _count_rows(path, book, groups)
+    with _warehouse_ro(path) as wh:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        status = {s: (c, n) for s, c, n in wh.execute("SELECT source, captured, row_count FROM source_status")}
+    ctx = {"frame": frame, "store": load_shared_store(full_id), "book": book, "groups": groups}
+    parts, unanswered, ceilings = [], [], {}
+    for part in frame["parts"]:
+        question = part.get("question")
+        out = {"part": part["part"], "title": part["title"], "question_no": question,
+               "question": frame["_questions"].get(question), "kind": part["kind"]}
+        if part["kind"] == "frame":
+            out.update(label=LABEL_FRAME, steps=None, sources=[], ceiling=None)
+        elif part["kind"] == "synthesis":
+            out.update(label=None, steps=None, sources=[], ceiling=None, basis_parts=list(part["basis_parts"]))
+        else:
+            cells = []
+            for source in frame["sources"]:
+                if source["roles"][str(question)] is None:
+                    continue
+                cell = _plan_cell(ctx, part, source, status, infos, theme_coded)
+                cells.append(cell)
+                if cell["status"] != STATUS_DATA:
+                    unanswered.append(_unanswered(part, source, cell))
+            has_data = any(c["status"] == STATUS_DATA for c in cells)
+            ceilings[part["part"]] = max((c["ceiling"] for c in cells), key=_rank, default="Không")
+            out.update(label=None if has_data else NO_DATA,
+                       steps=_ordered_steps(frame, [s for c in cells for s in c["steps"]]), sources=cells,
+                       ceiling=ceilings[part["part"]])
+        parts.append(out)
+    for out in parts:
+        if out["kind"] == "synthesis":
+            out["potential_ceiling"] = max((ceilings[n] for n in out["basis_parts"]), key=_rank, default="Không")
+    return {"run_id": full_id, "frame_version": frame["version"], "frame_status": frame["status"], "parts": parts,
+            "unanswered": unanswered}
+
+
+# ---------------------------------------------------------------------------
+# confidence_ceiling (R-IM08)
+# ---------------------------------------------------------------------------
+
+class EvidenceItem(TypedDict):
+    count_id: str
+    part: NotRequired[int | None]
+
+
+@contextmanager
+def _warehouse_copy(path: Path):
+    """A per-call byte copy of the warehouse, so recomputing the current count IDs writes nothing to the real file."""
+    directory = Path(tempfile.mkdtemp(prefix="insight-ceiling-"))
+    try:
+        copy = directory / "warehouse.sqlite"
+        _copy_bytes(path, copy)
+        yield copy
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def _evidence_items(frame: dict, part: int, evidence) -> list[tuple[str, int]]:
+    spec = frame["_parts"][part]
+    if not isinstance(evidence, list) or len(evidence) > MAX_EVIDENCE:
+        raise InsightError("INVALID_ARGUMENT", f"evidence must be a list of at most {MAX_EVIDENCE} items")
+    items = []
+    for item in evidence:
+        if not isinstance(item, dict) or not set(item) <= {"count_id", "part"} \
+                or not isinstance(item.get("count_id"), str):
+            raise InsightError("INVALID_ARGUMENT", "each evidence item is {count_id, part}")
+        item_part = item.get("part")
+        if item_part is not None and not _int(item_part):
+            raise InsightError("INVALID_ARGUMENT", "an evidence item's part must be an integer or null")
+        if spec["kind"] == "data":
+            if item_part is not None and item_part != part:
+                raise InsightError("INVALID_ARGUMENT", "an evidence item of a data part must have that part or null")
+            item_part = part
+        elif item_part not in spec["basis_parts"]:
+            raise InsightError("INVALID_ARGUMENT", "an evidence item of a synthesis part must name one of its basis parts")
+        items.append((item["count_id"], item_part))
+    return items
+
+
+@mcp.tool()
+@_tool
+def confidence_ceiling(run_id: str, part: int, evidence: list[EvidenceItem], hypothesis: bool = False) -> dict:
+    """The highest confidence a claim in `part` may have, from the 4 checks of R-I32 on each cited count ID. A
+    synthesis claim cites items of its basis parts and gets the lowest of their ceilings. Writes nothing."""
+    run_id = _check_run_id(run_id)
+    frame = load_frame()
+    if not _int(part) or not 1 <= part <= 18:
+        raise InsightError("INVALID_ARGUMENT", "part must be an integer from 1 to 18")
+    if frame["_parts"][part]["kind"] == "frame":
+        raise InsightError("INVALID_ARGUMENT", "frame parts (2, 3, 18) are not graded")
+    if not isinstance(hypothesis, bool):
+        raise InsightError("INVALID_ARGUMENT", "hypothesis must be true or false")
+    items = _evidence_items(frame, part, evidence)
+    book, groups = load_codebook(), load_keyword_groups()
+    path = _find_warehouse(run_id)
+    with _warehouse_copy(path) as copy:
+        with _warehouse_ro(copy) as wh:
+            full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        if not items:
+            return {"run_id": full_id, "part": part, "hypothesis": hypothesis, "ceiling": "Không",
+                    "reason": "NO_EVIDENCE", "items": []}
+        infos, _ = _count_rows(copy, book, groups)
+        current = {i["count_id"]: i for i in infos}
+        with _warehouse_ro(copy) as wh:
+            for count_id, _ in items:
+                if count_id in current:
+                    continue
+                stored = wh.execute("SELECT tool FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
+                if stored is not None and stored[0] == "find_reason_links":
+                    raise InsightError("INVALID_ARGUMENT", "a reason-link ID is evidence for R-IM11, not a count")
+                if stored is not None:
+                    raise InsightError("COUNT_ID_STALE", "the count ID is no longer current; call the count tool again")
+                raise InsightError("COUNT_ID_UNKNOWN", "the count ID is not a count of this run")
+    ctx = {"frame": frame, "store": load_shared_store(full_id), "book": book, "groups": groups}
+    graded = [_grade(ctx, current[count_id], item_part, hypothesis) for count_id, item_part in items]
+    return {"run_id": full_id, "part": part, "hypothesis": hypothesis or any(h for _, h in graded),
+            "ceiling": min((g["ceiling"] for g, _ in graded), key=_rank), "reason": None,
+            "items": [g for g, _ in graded]}
+
+
+# ---------------------------------------------------------------------------
+# find_reason_links and read_reviews (R-IM09)
+# ---------------------------------------------------------------------------
+
+REF_REASON = """
+SELECT r.platform,
+       CASE WHEN v.linked = 1 THEN 'linked' WHEN v.linked IS NULL THEN 'candidate' ELSE 'not_linked' END AS link_state,
+       {select}
+FROM label l1
+JOIN label l2 ON l2.review_id = l1.review_id AND l2.codebook_version = l1.codebook_version
+     AND l2.block_norm = l1.block_norm AND l2.status = 'kept'
+JOIN review r ON r.review_id = l1.review_id
+JOIN coding_state s ON s.review_id = l1.review_id AND s.codebook_version = l1.codebook_version
+     AND s.block_norm = l1.block_norm AND s.status = 'done'
+JOIN review_input i ON i.review_id = s.review_id AND i.codebook_version = s.codebook_version
+     AND i.block_norm = s.block_norm AND i.input_sha256 = s.input_sha256
+JOIN reason_flag f ON f.review_id = r.review_id
+LEFT JOIN reason_verdict v ON v.review_id = r.review_id AND v.theme_pair = ?
+WHERE l1.status = 'kept' AND l1.codebook_version = ? AND l1.block_norm = ? AND l1.theme_code = ? AND l2.theme_code = ?
+      AND f.rules_version = ?
+{tail}
+"""
+
+
+def _theme_pair(book: dict, theme_a, theme_b) -> str:
+    codes = _theme_codes(book)
+    if not isinstance(theme_a, str) or not isinstance(theme_b, str) or theme_a not in codes or theme_b not in codes \
+            or theme_a == theme_b:
+        raise InsightError("INVALID_ARGUMENT", "theme_a and theme_b must be two different theme codes of the codebook")
+    return "|".join(sorted((theme_a, theme_b)))
+
+
+@mcp.tool()
+@_tool
+def find_reason_links(run_id: str, theme_a: str, theme_b: str) -> dict:
+    """Per platform, the reviews where a person checked that the customer joins the two themes with a reason
+    (R-IM09, R-I39). Reviews with both labels and a reason word but no reading are candidates: not counted."""
+    run_id = _check_run_id(run_id)
+    book = load_codebook()
+    pair = _theme_pair(book, theme_a, theme_b)
+    low, high = pair.split("|")
+    path = _find_warehouse(run_id)
+    wh = _open_warehouse(path)
+    try:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        target = wh.execute("SELECT block_key FROM coding_target ORDER BY target_id DESC LIMIT 1").fetchone()
+        if target is None:
+            raise InsightError("NOT_CODED", "no review of this run is coded yet")
+        version, norm = book["version"], _block_norm(target[0])
+        texts = wh.execute("SELECT review_id, text FROM review_text ORDER BY review_id").fetchall()
+        flags = [(review_id, REASON_RULES_VERSION) for review_id, text in texts if REASON_RE.search(_nz(text))]
+        current_sha = {review_id: _sha256(text) for review_id, text in texts}
+        verdicts = sorted((review_id, theme_pair, linked) for (review_id, theme_pair, text_sha), linked
+                          in load_shared_store(full_id)["reasons"].items() if current_sha.get(review_id) == text_sha)
+        with _tx(wh):
+            for statement in REASON_SCHEMA.strip().split(";\n"):
+                if statement.strip():
+                    wh.execute(statement)
+            wh.execute("DELETE FROM reason_flag")
+            wh.executemany("INSERT INTO reason_flag VALUES (?, ?)", flags)
+            wh.execute("DELETE FROM reason_verdict")
+            wh.executemany("INSERT INTO reason_verdict VALUES (?, ?, ?)", verdicts)
+        params = (pair, version, norm, low, high, REASON_RULES_VERSION)
+        filters = [f"codebook_version = {_sql_literal(version)}", f"block_norm = {_sql_literal(norm)}",
+                   f"theme_lo = {_sql_literal(low)}", f"theme_hi = {_sql_literal(high)}",
+                   f"rules_version = {_sql_literal(REASON_RULES_VERSION)}"]
+        slayer = _Slayer(path)
+        try:
+            counted = _verified(slayer, wh, "reason_link", ["n_reviews"], ["platform", "link_state"], filters,
+                                REF_REASON.format(select="COUNT(DISTINCT r.review_id)", tail="GROUP BY 1, 2"), params)
+        finally:
+            slayer.close()
+        listed = wh.execute(REF_REASON.format(select="r.review_id", tail="ORDER BY 1, 2, 3"), params).fetchall()
+        platforms = [r[0] for r in wh.execute("SELECT DISTINCT platform FROM review ORDER BY 1")]
+        totals = {(row["platform"], row["link_state"]): row["n_reviews"] for row in counted}
+        rows, candidates = [], []
+        for platform in platforms:
+            ids = {state: sorted({rid for p, s, rid in listed if p == platform and s == state})
+                   for state in ("linked", "candidate")}
+            if any(len(ids[state]) != totals.get((platform, state), 0) for state in ids):
+                raise InsightError("SLAYER_SQL_MISMATCH", "SLAYER and the reference SQL disagree on reason_link")
+            rows.append({"platform": platform, "theme_pair": [low, high], "reviews": len(ids["linked"]),
+                         "review_ids": ids["linked"]})
+            candidates.append({"platform": platform, "review_ids": ids["candidate"]})
+        _register(wh, full_id, "find_reason_links", f"{REASON_RULES_VERSION}+{version}", rows,
+                  ("platform", "theme_pair"), ("reviews", "review_ids"))
+        for row in rows:
+            del row["theme_pair"]
+        return {"run_id": full_id, "theme_a": theme_a, "theme_b": theme_b, "connectors": list(REASON_CONNECTORS),
+                "link_basis": LINK_BASIS, "rules_version": REASON_RULES_VERSION, "rows": rows,
+                "candidates": candidates}
+    finally:
+        wh.close()
+
+
+@mcp.tool()
+@_tool
+def read_reviews(run_id: str, ids: list[str]) -> dict:
+    """The stored text of 1 to 20 reviews, for reading on the host only (R-IM09). Never put it in a report (R-I11)."""
+    run_id = _check_run_id(run_id)
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise InsightError("INVALID_ARGUMENT", "ids must be a non-empty list of review IDs")
+    unique = list(dict.fromkeys(ids))
+    if len(unique) > MAX_READ_REVIEWS:
+        raise InsightError("INVALID_ARGUMENT", f"at most {MAX_READ_REVIEWS} distinct review IDs per call")
+    path = _find_warehouse(run_id)
+    reviews, not_found = [], []
+    with _warehouse_ro(path) as wh:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        for review_id in unique:
+            row = wh.execute("SELECT r.platform, t.text FROM review r JOIN review_text t ON t.review_id = r.review_id "
+                             "WHERE r.review_id = ?", (review_id,)).fetchone()
+            if row is None:
+                not_found.append(review_id)
+            else:
+                reviews.append({"review_id": review_id, "platform": row[0], "text": row[1]})
+    return {"run_id": full_id, "reviews": reviews, "not_found": not_found, "notice": READ_NOTICE}
 
 
 if __name__ == "__main__":

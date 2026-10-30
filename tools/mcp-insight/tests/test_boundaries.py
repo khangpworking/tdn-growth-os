@@ -30,6 +30,12 @@ def schemas(tools):
         "theme_counts": {"run_id": {"string"}, "question": {"string", "null"}},
         "keyword_counts": {"run_id": {"string"}},
         "portrait_counts": {"run_id": {"string"}},
+        # IM-Q52 (amends IM-Q1): the four PR 2 tools.
+        "report_plan": {"run_id": {"string"}},
+        "confidence_ceiling": {"run_id": {"string"}, "part": {"integer"}, "evidence": {"array"},
+                               "hypothesis": {"boolean"}},
+        "find_reason_links": {"run_id": {"string"}, "theme_a": {"string"}, "theme_b": {"string"}},
+        "read_reviews": {"run_id": {"string"}, "ids": {"array"}},
     }
     assert set(tools) == set(expected)
     for name, arguments in expected.items():
