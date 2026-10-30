@@ -144,7 +144,7 @@ _HIDDEN_PATTERNS = tuple(
     re.compile(r"(?<!\w)(?:Metric|METRIC)(?!\w)") if name == "Metric"
     else re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)", re.I)
     for name in HIDDEN_NAMES)
-_MODEL_ID = re.compile(r"\b(?:gpt|claude)-[A-Za-z0-9]", re.I)
+_MODEL_ID = re.compile(r"\b(?:gpt|claude)-[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", re.I)
 
 mcp = FastMCP("tdn-insight")
 
@@ -1589,8 +1589,7 @@ def hidden_name_hits(text) -> list[str]:
     if not isinstance(text, str):
         return []
     hits = [name for name, pattern in zip(HIDDEN_NAMES, _HIDDEN_PATTERNS) if pattern.search(text)]
-    if _MODEL_ID.search(text):
-        hits.append("MODEL_ID")
+    hits += dict.fromkeys(m.group(0) for m in _MODEL_ID.finditer(text))
     return hits
 
 
@@ -3237,7 +3236,7 @@ def submit_statement(run_id: str, statement: dict, replaces: str | None = None) 
     for line, g in zip(statement["evidence"], graded):
         info = cited[line["count_id"]]
         lines.append({**line, **_cited(info, book, numbers[line["count_id"]]), "ceiling": g["ceiling"],
-                      "blocked": g["blocked"], "missing_count": g["missing_count"]})
+                      "blocked": g["blocked"], "checks": g["checks"], "missing_count": g["missing_count"]})
         if info["kind"] == "reason":
             lines[-1]["pair"] = info["themes"]
     with _report_store() as con:
@@ -3348,8 +3347,8 @@ def _source_rows(frame: dict, status: dict, scope: dict) -> list[str]:
     return rows
 
 
-def _json_file(rows: list) -> str:
-    return json.dumps({"rows": rows}, ensure_ascii=False, indent=2) + "\n"
+def _json_file(value: dict) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
 
 
 @mcp.tool()
@@ -3489,12 +3488,12 @@ def render_report(run_id: str) -> dict:
 
     keyword_source = frame["_sources"]["search_suggestions"]["name"]
     totals = {
-        "themes": themes_rows,
-        "keywords": [{"source": keyword_source, **{k: row[k] for k in (
+        "themes": {"rows": themes_rows},
+        "keywords": {"rows": [{"source": keyword_source, **{k: row[k] for k in (
             "group_key", "group_name", "step", "keywords", "threshold_met", "threshold_note", "count_id")}}
-                     for row in keyword_rows],
-        "portraits": portrait_rows,
-        "parts": parts_rows,
+            for row in keyword_rows]},
+        "portraits": {"rows": portrait_rows},
+        "parts": {"rows": parts_rows},
     }
     payloads = [entry["payload"] for entry in ordered]
     archive_id = _sha256(_canonical({"run_id": full_id, "html": page_html, "totals": totals, "statements": payloads,
@@ -3513,7 +3512,7 @@ def render_report(run_id: str) -> dict:
     for name in REPORT_FILES:
         (out_dir / name).write_bytes(contents[name].encode("utf-8"))
     return {"run_id": full_id, "archive_id": archive_id, "stored": stored,
-            "parts": {"written": written, "missing": missing, "stale": stale}, "statements": len(ordered),
+            "parts": {"written": len(written), "missing": len(missing), "stale": len(stale)}, "statements": len(ordered),
             "files": list(REPORT_FILES), "versions": {str(p): s["version"] for p, s in sorted(sections.items())},
             "statement_versions": {e["id"]: e["version"] for e in ordered}}
 
