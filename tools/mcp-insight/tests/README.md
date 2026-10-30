@@ -147,3 +147,14 @@ harness moved to the real stored source shapes, checked on stored runs (keys onl
 item; Trends GEO_MAP rows carry `location` and `extracted_value`; stored Metric rows are in
 `<capture root>/<run_id>/run<N>/raw-responses.json` (point 8). The leak scanner skips whitespace-only fixture
 names (IM-Q41), which identify no one and would match every space. No assertion or negative control changed.
+
+### Review of PR 428 and the IM-Q39 snapshot (owner update IMCP-P1E, 30/10/2026)
+
+The reviewer's regressions are kept as written: count tools through FastMCP (IM-Q1), failed captures are
+missing, not zero (IM-Q8), a fractional SLAYER difference (IM-Q23), artifact bytes against their digest (IM-Q13).
+`test_im_q39_wal_app_siblings_are_byte_identical` holds a writer open on a WAL fixture, with rows committed only
+in the WAL. `build_warehouse` must read those rows, and `app.sqlite`, `-wal` and `-shm` must be byte-identical
+afterwards. Its `live_open` case is the negative control: the old `mode=ro` open of the live DB changes the app home.
+`test_im_q39_torn_snapshot_is_retried_then_refused` covers one torn copy (retried) and four (`SOURCE_SNAPSHOT_FAILED`).
+IM-Q2 now checks the module's app connection, which is the per-call snapshot. It also fails if any connection
+opens the live DB path. The `mode=rw` negative control is unchanged and still fails.

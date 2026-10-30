@@ -75,12 +75,19 @@ def test_im_q22_real_local_slayer_executes_all_fixed_measure_families(subject, s
 
 
 @pytest.mark.parametrize("tool", ["theme_counts", "keyword_counts"])
-def test_im_q23_one_numeric_slayer_difference_refuses_all_numbers(subject, sandbox, monkeypatch, tool):
+@pytest.mark.parametrize("difference", [1, 0.5])
+def test_im_q23_one_numeric_slayer_difference_refuses_all_numbers(subject, sandbox, monkeypatch, tool, difference):
     """NC: perturb one actual result; reference SQL must detect it."""
     build_and_code(sandbox, [review(i) for i in range(1, 6)], keywords=["canxi cho bé"])
     assert "error" not in sandbox.call(tool)
     real = subject._slayer_query
-    monkeypatch.setattr(subject, "_slayer_query", lambda *a, **k: perturb(sync(real(*a, **k))))
+    def changed(*args, **kwargs):
+        rows = copy.deepcopy(sync(real(*args, **kwargs)))
+        measure = next(key for key, value in rows[0].items() if type(value) in (int, float))
+        rows[0][measure] += difference
+        return rows
+
+    monkeypatch.setattr(subject, "_slayer_query", changed)
     error(sandbox.call(tool), "SLAYER_SQL_MISMATCH")
 
 

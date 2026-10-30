@@ -169,9 +169,52 @@ def _app_db_path() -> Path:
 
 
 def open_app_db(path: Path) -> sqlite3.Connection:
-    """The only way the module opens the app DB: read-only URI, never a creating open."""
+    """The only way the module opens an app DB snapshot: read-only URI, never a creating open."""
     uri = "file:" + urllib.parse.quote(str(path)) + "?mode=ro"
     return sqlite3.connect(uri, uri=True)
+
+
+SNAPSHOT_RETRIES = 3
+
+
+def _copy_bytes(source: Path, target: Path) -> None:
+    with open(source, "rb") as reader, open(target, "wb") as writer:
+        shutil.copyfileobj(reader, writer)
+
+
+@contextmanager
+def app_db_snapshot(path: Path):
+    """A read-only connection to a per-call copy of the app DB (IM-Q39). The live DB is never opened by SQLite:
+    even a mode=ro reader changes a WAL database's -shm file. The DB and its -wal are copied with plain byte reads,
+    the copy must pass PRAGMA quick_check, and the copy is removed when the call ends."""
+    directory = Path(tempfile.mkdtemp(prefix="insight-app-"))
+    try:
+        copy = directory / "app.sqlite"
+        wal = Path(str(path) + "-wal")
+        for _ in range(1 + SNAPSHOT_RETRIES):
+            for stale in directory.iterdir():
+                stale.unlink()
+            con = None
+            try:
+                _copy_bytes(path, copy)
+                if wal.is_file():
+                    _copy_bytes(wal, Path(str(copy) + "-wal"))
+                con = open_app_db(copy)
+                if con.execute("PRAGMA quick_check").fetchone() == ("ok",):
+                    break
+            except (OSError, sqlite3.DatabaseError):
+                pass
+            if con is not None:
+                con.close()
+            con = None
+        if con is None:
+            raise InsightError("SOURCE_SNAPSHOT_FAILED", "the app DB could not be copied into a consistent snapshot")
+        try:
+            yield con
+        finally:
+            con.close()
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -388,14 +431,11 @@ def _runs_dir() -> Path:
 
 def _find_warehouse(run_id: str) -> Path:
     """The run's warehouse. A run_id names an app run: when the app DB is configured, the ID is resolved there
-    first (read-only), so an unknown or ambiguous ID gives RUN_NOT_FOUND or RUN_AMBIGUOUS in every tool."""
+    first (in a read-only snapshot), so an unknown or ambiguous ID gives RUN_NOT_FOUND or RUN_AMBIGUOUS in every tool."""
     value = os.environ.get("INSIGHT_MCP_APP_DB")
     if value and Path(value).expanduser().is_file():
-        con = open_app_db(Path(value).expanduser())
-        try:
+        with app_db_snapshot(Path(value).expanduser()) as con:
             run_id = _resolve_run(con, run_id)[0]
-        finally:
-            con.close()
     runs = _runs_dir()
     matches = sorted(runs.glob(run_id + "*.sqlite")) if runs.is_dir() else []
     if not matches:
@@ -441,9 +481,12 @@ def _read_artifact(root: Path, sha: str) -> bytes:
     path = root / "sha256" / sha[:2] / sha
     try:
         with open(path, "rb") as handle:
-            return handle.read()
+            data = handle.read()
     except FileNotFoundError:
         raise InsightError("ARTIFACT_MISSING", f"stored artifact {sha[:12]} is missing from the artifact store") from None
+    if _sha256(data) != sha:
+        raise InsightError("ARTIFACT_INVALID", f"stored artifact {sha[:12]} does not match its sha256")
+    return data
 
 
 def _artifact_json(root: Path, sha: str):
@@ -565,9 +608,12 @@ def _tiktok_reviews(con, root: Path, run_id: str):
     shas = _captures(con, run_id, "kalodata.product.comment.insight")
     if not shas:
         return None
-    reviews = {}
+    reviews, available = {}, False
     for sha in shas:
         response = _capture_response(root, sha)
+        if response is None:
+            continue
+        available = True
         data = response.get("data") if isinstance(response, dict) else None
         for item in (data or {}).get("original_comments") or []:
             review = item.get("review") if isinstance(item, dict) else None
@@ -590,18 +636,21 @@ def _tiktok_reviews(con, root: Path, run_id: str):
                 "rating": rating if isinstance(rating, int) and not isinstance(rating, bool) else None,
                 "text": text, "name": name if known else None,
             }
-    return list(reviews.values())
+    return list(reviews.values()) if available else None
 
 
 def _tiktok_product_names(con, root: Path, run_id: str):
     shas = _captures(con, run_id, "kalodata.product.detail")
-    names = {}
+    names, available = {}, False
     for sha in shas:
         response = _capture_response(root, sha)
+        if response is None:
+            continue
+        available = True
         data = response.get("data") if isinstance(response, dict) else None
         if isinstance(data, dict) and data.get("product_id") and isinstance(data.get("product_name"), str):
             names.setdefault(f"tiktok_shop:{data['product_id']}", data["product_name"])
-    return names if shas else None
+    return names if available else None
 
 
 def _shopee_product_names(capture_root: Path, run_id: str):
@@ -615,7 +664,7 @@ def _shopee_product_names(capture_root: Path, run_id: str):
         try:
             stack = [json.loads(path.read_text(encoding="utf-8"))]
         except (OSError, ValueError):
-            raise InsightError("ARTIFACT_INVALID", "a stored Metric response file cannot be read") from None
+            raise InsightError("ARTIFACT_INVALID", "a stored product response file cannot be read") from None
         while stack:
             node = stack.pop()
             if isinstance(node, list):
@@ -633,11 +682,12 @@ def _search_keywords(con, root: Path, run_id: str):
     shas = _captures(con, run_id, "serpapi.google.search")
     if not shas:
         return None
-    keywords = set()
+    keywords, available = set(), False
     for sha in shas:
         response = _capture_response(root, sha)
         if not isinstance(response, dict):
             continue
+        available = True
         texts = [x.get("query") for x in response.get("related_searches") or [] if isinstance(x, dict)]
         texts += [x.get("question") for x in response.get("related_questions") or [] if isinstance(x, dict)]
         for text in texts:
@@ -645,7 +695,7 @@ def _search_keywords(con, root: Path, run_id: str):
                 normalized = re.sub(r"\s+", " ", _nz(text).strip())
                 if normalized:
                     keywords.add(normalized)
-    return sorted(keywords)
+    return sorted(keywords) if available else None
 
 
 def _trends_regions(con, root: Path, run_id: str):
@@ -657,17 +707,18 @@ def _trends_regions(con, root: Path, run_id: str):
             shas.append(sha)
     if not shas:
         return None
-    rows = {}
+    rows, available = {}, False
     for sha in shas:
         response = _capture_response(root, sha)
         if not isinstance(response, dict):
             continue
+        available = True
         query = (response.get("search_parameters") or {}).get("q") if isinstance(response.get("search_parameters"), dict) else None
         for item in response.get("interest_by_region") or []:
             if isinstance(item, dict) and isinstance(item.get("location"), str):
                 value = item.get("extracted_value")
                 rows.setdefault((item["location"], query), value if isinstance(value, int) else None)
-    return sorted((loc, val, q) for (loc, q), val in rows.items())
+    return sorted((loc, val, q) for (loc, q), val in rows.items()) if available else None
 
 
 def _run_year(created_at: str) -> int:
@@ -747,8 +798,7 @@ def build_warehouse(run_id: str) -> dict:
     run_id = _check_run_id(run_id)
     app_db = _app_db_path()
     artifacts, captures = _artifact_root(app_db), _capture_root(app_db)
-    con = open_app_db(app_db)
-    try:
+    with app_db_snapshot(app_db) as con:
         full_id, keyword, created_at = _resolve_run(con, run_id)
         scope = _scope(captures, full_id, keyword)
         shopee = _shopee_reviews(con, artifacts, full_id)
@@ -756,8 +806,6 @@ def build_warehouse(run_id: str) -> dict:
         tiktok_names = _tiktok_product_names(con, artifacts, full_id)
         keywords = _search_keywords(con, artifacts, full_id)
         trends = _trends_regions(con, artifacts, full_id)
-    finally:
-        con.close()
     shopee_names = _shopee_product_names(captures, full_id)
     run_year = _run_year(created_at)
 
@@ -1129,7 +1177,7 @@ class _Slayer:
     def __init__(self, warehouse: Path):
         self.dir = tempfile.mkdtemp(prefix="insight-slayer-")
         try:
-            import asyncio
+            from slayer.async_utils import run_sync
             from slayer.core.models import DatasourceConfig, SlayerModel
             from slayer.engine.query_engine import SlayerQueryEngine
             from slayer.storage.yaml_storage import YAMLStorage
@@ -1143,7 +1191,7 @@ class _Slayer:
                 await storage.save_datasource(DatasourceConfig(name="warehouse", type="sqlite", database=str(warehouse)))
                 for model in models:
                     await storage.save_model(SlayerModel(**model))
-            asyncio.run(setup())
+            run_sync(setup())
             self.engine = SlayerQueryEngine(storage=storage)
         except BaseException:
             self.close()
@@ -1174,7 +1222,7 @@ def _verified(slayer, warehouse, model, measures, dimensions, filters, sql, para
     sql_rows = [dict(zip(dimensions + measures, row)) for row in warehouse.execute(sql, params).fetchall()]
 
     def key(rows):
-        return sorted(tuple((k, None if row.get(k) is None else (int(row[k]) if k in measures else str(row[k])))
+        return sorted(tuple((k, None if row.get(k) is None else (row[k] if k in measures else str(row[k])))
                             for k in dimensions + measures) for row in rows)
     try:
         same = key(slayer_rows) == key(sql_rows)

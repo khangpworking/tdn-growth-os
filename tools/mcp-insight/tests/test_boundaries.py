@@ -11,6 +11,7 @@ import sqlite3
 import subprocess
 import sys
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -67,15 +68,18 @@ def test_im_q1_fastmcp_surface_and_stdio(subject, sandbox):
 
 
 def test_im_q2_app_connection_is_uri_readonly(subject, sandbox, monkeypatch):
-    """NC: switching to mode=rw makes the actual INSERT assertion fail."""
+    """NC: switching to mode=rw makes the actual INSERT assertion fail; opening the live DB fails too.
+    The module's app connection is its per-call snapshot of the app DB (IM-Q39 note)."""
     sandbox.seed()
     before = tree_snapshot(sandbox.app)
     connect = sqlite3.connect
-    observed = []
+    observed, live = [], []
 
     def checked_connect(database, *args, **kwargs):
         db = connect(database, *args, **kwargs)
         if str(sandbox.db) in str(database):
+            live.append(str(database))
+        if "insight-app-" in str(database):
             observed.append(str(database))
             with pytest.raises(sqlite3.OperationalError, match="readonly|read-only"):
                 db.execute("INSERT INTO analysis_research_automation_runs(run_id) VALUES ('synthetic-write')")
@@ -98,9 +102,27 @@ def test_im_q2_app_connection_is_uri_readonly(subject, sandbox, monkeypatch):
         sys.modules.pop(name, None)
     assert "error" not in result
     assert observed and all(uri.startswith("file:") and "mode=ro" in uri for uri in observed)
+    assert not live
     assert tree_snapshot(sandbox.app) == before
     assert not Path(str(sandbox.db) + "-wal").exists()
     assert not Path(str(sandbox.db) + "-journal").exists()
+
+
+@pytest.mark.parametrize("tool,field,expected", [
+    ("theme_counts", "reviews", 5),
+    ("keyword_counts", "keywords", 1),
+    ("portrait_counts", "reviews", 5),
+])
+def test_im_q1_count_tools_execute_through_fastmcp(subject, sandbox, tool, field, expected):
+    """NC: nested asyncio.run fails through MCP even when direct Python calls work."""
+    sandbox.seed([review(i, text=f"zqvproto{i} mua cho mẹ") for i in range(1, 6)],
+                 keywords=["có nên uống canxi"])
+    assert "error" not in sandbox.call("build_warehouse")
+    sandbox.code(label_all())
+    blocks = sync(subject.mcp.call_tool(tool, {"run_id": RUN}))
+    result = json.loads(next(block.text for block in blocks if block.type == "text"))
+    assert "error" not in result
+    assert any(row.get(field) == expected for row in result["rows"])
 
 
 def tool_calls(box):
@@ -121,7 +143,7 @@ def test_im_q3_every_offline_tool_is_socket_and_dns_free(built):
         patch.setattr(built.module, "code_reviews", dns_mutant)
         with built.guard.expected_violation(), pytest.raises(AssertionError, match="NETWORK_FORBIDDEN"):
             built.call("code_reviews")
-    with socket.socket() as sock:
+    with socket.socket(socket.AF_UNIX) as sock:
         with built.guard.expected_violation(), pytest.raises(AssertionError, match="LISTEN_FORBIDDEN"):
             sock.listen()
     assert not built.guard.violations
@@ -310,6 +332,63 @@ def test_im_q39_tools_cannot_write_app_mutate_env_or_spawn(built, failure):
         built.guard.strict = False
     assert os.environ["DO_NOT_TRACK"] == "1"
     assert os.environ["SLAYER_USAGE_REPORTING"] == "off"
+
+
+@pytest.mark.parametrize("live_open", [False, True])
+def test_im_q39_wal_app_siblings_are_byte_identical(subject, sandbox, monkeypatch, live_open):
+    """NC: the old path, a mode=ro open of the live WAL DB, changes app.sqlite-shm and fails."""
+    sandbox.seed()
+    writer = sqlite3.connect(sandbox.db)
+    try:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        # These rows are committed only in the WAL while the writer stays open.
+        sandbox.seed([review(i) for i in range(1, 4)])
+        if live_open:
+            @contextmanager
+            def live(path):
+                con = subject.open_app_db(path)
+                try:
+                    yield con
+                finally:
+                    con.close()
+            monkeypatch.setattr(subject, "app_db_snapshot", live)
+        before = tree_snapshot(sandbox.app)
+        assert {"app.sqlite", "app.sqlite-wal", "app.sqlite-shm"} <= {Path(k).name for k in before}
+        result = sandbox.call("build_warehouse")
+        assert result["reviews_by_platform"]["shopee"] == 3
+        if live_open:
+            assert tree_snapshot(sandbox.app) != before
+        else:
+            assert tree_snapshot(sandbox.app) == before
+            assert not list(sandbox.tmp.glob("insight-app-*"))
+    finally:
+        writer.close()
+
+
+@pytest.mark.parametrize("torn_copies,expected", [(1, None), (4, "SOURCE_SNAPSHOT_FAILED")])
+def test_im_q39_torn_snapshot_is_retried_then_refused(subject, sandbox, monkeypatch, torn_copies, expected):
+    """NC: one torn copy is retried; a copy that never passes quick_check is refused, not read."""
+    sandbox.seed([review(1)])
+    before = tree_snapshot(sandbox.app)
+    real, torn = subject._copy_bytes, []
+
+    def copy_bytes(source, target):
+        real(source, target)
+        if Path(source) == sandbox.db and len(torn) < torn_copies:
+            torn.append(target)
+            data = Path(target).read_bytes()
+            Path(target).write_bytes(data[:100] + b"\xff" * (len(data) - 100))
+
+    monkeypatch.setattr(subject, "_copy_bytes", copy_bytes)
+    result = sandbox.call("build_warehouse")
+    if expected is None:
+        assert result["reviews_by_platform"]["shopee"] == 1
+    else:
+        error(result, expected)
+    assert len(torn) == torn_copies
+    assert tree_snapshot(sandbox.app) == before
+    assert not list(sandbox.tmp.glob("insight-app-*"))
 
 
 def test_im_q40_all_public_surfaces_and_logs_are_counts_only(subject, sandbox, capsys, caplog):

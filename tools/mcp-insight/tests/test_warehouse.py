@@ -49,6 +49,33 @@ def test_im_q8_stored_sources_are_scoped_and_missing_is_not_zero(subject, sandbo
     assert "foreign synthetic keyword" not in "\n".join(sandbox.dump())
 
 
+@pytest.mark.parametrize("available", [False, True])
+def test_im_q8_unavailable_capture_is_not_observed_zero(subject, sandbox, available):
+    """NC: successful empty responses are zero; failed responses have no data."""
+    sandbox.seed([])
+    sources = [
+        ("kalodata", "kalodata.product.comment.insight", {}, {"data": {"original_comments": []}}),
+        ("kalodata", "kalodata.product.detail", {}, {"data": {}}),
+        ("serpapi", "serpapi.google.search", {}, {}),
+        ("serpapi", "serpapi.google.trends", {"data_type": "GEO_MAP"}, {"interest_by_region": []}),
+    ]
+    for provider, operation, parameters, payload in sources:
+        digest = sandbox.capture(RUN, provider, operation, payload, parameters)
+        if not available:
+            path = sandbox.artifacts / "sha256" / digest[:2] / digest
+            envelope = json.loads(path.read_text())
+            envelope.update(outcome="HTTP_ERROR", responseBytesBase64=None)
+            replacement = sandbox.artifact(envelope)
+            with sqlite3.connect(sandbox.db) as db:
+                db.execute("UPDATE analysis_research_automation_captures SET artifact_sha256=? "
+                           "WHERE artifact_sha256=?", (replacement, digest))
+    result = sandbox.call("build_warehouse")
+    expected = 0 if available else NO_DATA
+    assert result["reviews_by_platform"]["tiktok_shop"] == expected
+    for source in ("tiktok_shop_reviews", "tiktok_shop_product_names", "keywords", "trends"):
+        assert result["sources"][source] == expected
+
+
 @pytest.mark.parametrize("version", ["autorun-scope-record-v1", "autorun-scope-record-v2"])
 @pytest.mark.parametrize("outcome,expected_category,expected_keywords", [
     ("AWAITING_KEYWORD2", None, ["canxi"]), ("PENDING", None, ["canxi"]),
@@ -157,6 +184,21 @@ def test_im_q12_shopee_pages_deduplicate_and_excluded_is_not_ingested(subject, s
         db.execute("UPDATE foundation_shopee_collections SET artifact_sha256=?", (digest,))
     assert "error" not in sandbox.call("build_warehouse")
     assert [r["review_id"] for r in sandbox.rows("review")] == ["shopee:12"]
+
+
+def test_im_q13_artifact_bytes_must_match_stored_digest(subject, sandbox):
+    """NC: a valid JSON page with an altered rating cannot reuse its old digest."""
+    sandbox.seed([review(1)])
+    assert "error" not in sandbox.call("build_warehouse")
+    with sqlite3.connect(sandbox.db) as db:
+        digest = db.execute("SELECT artifact_sha256 FROM foundation_shopee_collections").fetchone()[0]
+    packet = json.loads((sandbox.artifacts / "sha256" / digest[:2] / digest).read_text())
+    page_digest = packet["pages"][0]["sha256"]
+    page_path = sandbox.artifacts / "sha256" / page_digest[:2] / page_digest
+    page = json.loads(page_path.read_text())
+    page[0]["ratingStar"] = 1
+    page_path.write_text(json.dumps(page, ensure_ascii=False))
+    error(sandbox.call("build_warehouse"), "ARTIFACT_INVALID")
 
 
 def test_im_q13_build_hash_is_deterministic_but_rating_sensitive(built):
