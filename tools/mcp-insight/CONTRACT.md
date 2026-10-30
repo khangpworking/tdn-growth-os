@@ -1,4 +1,4 @@
-# tdn-insight contract rows, PR 1 (R-IM01 to R-IM06) and PR 2 (R-IM07 to R-IM09)
+# tdn-insight contract rows, PR 1 (R-IM01 to R-IM06), PR 2 (R-IM07 to R-IM09) and PR 3 (R-IM10 to R-IM12)
 
 Source of truth: `openspec/changes/insight-mcp-v1` (spec, design decisions 1 to 5), `openspec/changes/insight-method-v1`
 (R-I30 to R-I34, R-I37, R-I39) and `openspec/specs/insight-report/spec.md` (R-I05, R-I06, R-I11). This table is what the tests
@@ -15,11 +15,12 @@ update F312, theme definitions only); no row's behavior changes. Revision 8 (30/
 IM-Q72 for R-IM07 to R-IM09 and moves the codebook to `2026-10-30.4` (owner update F311, one overlap line; closes open
 question 15). Revision 9 (30/10/2026) applies the 13 findings of the PR 2 row review: rows IM-Q54 to IM-Q72
 change, rows IM-Q74 to IM-Q78 are added, and open questions 16, 17, 18, 21 and 22 are revised (23 is new). Revision 10 (30/10/2026)
-applies the round 2 re-review findings R2-1 and R2-2 (IM-Q69, IM-Q70, IM-Q77). Old rows are not renumbered. All mappings are at the end of this file.
+applies the round 2 re-review findings R2-1 and R2-2 (IM-Q69, IM-Q70, IM-Q77). Revision 11 (30/10/2026, PR 3) adds rows
+IM-Q79 to IM-Q107 for R-IM10 to R-IM12 and task 4.4, and open questions 24 to 34. Old rows are not renumbered. All mappings are at the end of this file.
 
 Out of scope for PR 1: R-IM07 to R-IM12. PR 2 adds R-IM07 to R-IM09 (`report_plan`, `confidence_ceiling`,
 `find_reason_links`, `read_reviews`). Out of scope for PR 2: R-IM10 to R-IM12 (`submit_section`, `submit_statement`,
-`render_report`).
+`render_report`). PR 3 adds R-IM10 to R-IM12 and the README and skill of task 4.4.
 
 ## Conventions used by the rows
 
@@ -246,6 +247,147 @@ Note to IM-Q39, item 4 (owner update IMCP-P1E, 30/10/2026): the app runs its DB 
 |---|---|---|
 | IM-Q73 | The repo codebook and the test reference copy are `2026-10-30.4`, copied from the owner's draft `jev-bo-chu-de-2610.json` with LF line endings. The only changes from `2026-10-30.3` are `version` and the `T-THIETKE` / `T-CHINHHANG` overlap rule, which now reads «Màu sắc, kiểu dáng, thiết kế của chính sản phẩm (đẹp/xấu, sang/trông rẻ, hợp mắt) = T-THIETKE. Màu hoặc kiểu khác ảnh/mô tả = T-CHINHHANG. Vẻ ngoài bao bì/hộp (đẹp, xấu, bắt mắt) = T-THIETKE (F311). Cách gói, chèn, seal: no theme (F310).» No overlap rule contains «Bao bì/hộp: no theme». `overlaps` is still not sent to Jev (IM-Q20), so no other row changes. This closes open question 15. | A codebook copy with the old sentence «Bao bì/hộp: no theme (F310).» fails the overlap check. A copy with `version = 2026-10-30.3` fails IM-Q14. |
 
+## PR 3 conventions (R-IM10 to R-IM12, task 4.4)
+
+- Three new tools (IM-Q79): `submit_section(run_id, part, text, claims)`, `submit_statement(run_id, statement,
+  replaces=None)` and `render_report(run_id)`.
+- New report store `<data dir>/insight-report.sqlite` («SQLite lưu trữ» of R-IM12, the MCP's own file, never the app
+  DB). Only the three new tools write it, and only on success: an accepted section, an accepted statement, or a
+  render. Tables:
+  - `section_version(run_id, part, version, text, claims_json, graded_json, frame_version, codebook_version,
+    submitted_at)`, primary key `(run_id, part, version)`.
+  - `statement_version(statement_id, version, run_id, step, statement_json, evidence_json, app_payload_json,
+    codebook_version, submitted_at)`, primary key `(statement_id, version)`.
+  - `render_archive(archive_id, run_id, html, totals_json, statements_json, codebook_version, frame_version,
+    rendered_at)`, primary key `archive_id`.
+  Each table has `BEFORE UPDATE` and `BEFORE DELETE` triggers that abort: a stored row is never changed or removed.
+  `run_id` is always the full run ID. No column holds review text (IM-Q81).
+- Report files: `render_report` writes `<data dir>/reports/<full run id>/` with `report.html`, `themes.json`,
+  `keywords.json`, `portraits.json` and `parts.json` (IM-Q102, IM-Q104). It writes nothing else.
+- Current count IDs. As in IM-Q62, a count ID is current when the count tool, called now on the run, returns a row
+  with that ID. The new tools work out the current rows on a per-call byte copy of the warehouse (as
+  `confidence_ceiling` does), so the warehouse file is not changed (IM-Q80). A reason-link ID (`find_reason_links`
+  in `count_registry`) is current when `find_reason_links` for its stored pair, run on that copy, returns it.
+- The numbers of a count ID are the integer values of its `count_registry.numbers_json` under the keys `reviews`,
+  `writers`, `products`, `keywords` and `threshold_count` (booleans are not numbers). Its threshold is
+  `numbers_json.threshold_met` when that key exists.
+- Steps: the six report steps `Biết đến`, `Quan tâm`, `Muốn mua`, `Mua`, `Sau mua`, `Chưa rõ bước` (frozen frame
+  order). A statement takes one of the first five (R-C01).
+- Confidence levels: `Chắc`, `Khá`, `Yếu`, `Không` (R-I32). A level is above a ceiling when it is higher in this
+  order.
+- Text rules. They are applied to `nz(text)` (NFC, then lower case) unless stated:
+  - Marker: `[^<ref>]`, where `<ref>` matches `^[a-z0-9][a-z0-9_-]{0,15}$`. Markers are removed before the number,
+    quote and phrase checks.
+  - Sentence: the text is cut at each line break, and after each `.`, `!`, `?` or `…` that is followed by
+    whitespace or by the end of the text. A sentence "has" a marker when the marker was in it before removal.
+  - Number token: `\d+(?:[.,]\d+)*` (ASCII digits) not preceded by a letter, digit, `_` or `-` (so `R-I33`,
+    `zqv01`, `IMC-1a2b…` hold no number token). Value: a token that matches `^\d{1,3}(?:\.\d{3})+$` is an integer
+    with the dots removed (`1.248` is 1248); any other token with `.` or `,` is not an integer; a plain digit run is
+    an integer. A token matches a count number only when its value is an integer equal to it.
+  - Words: the maximal runs of `[^\W_]` (Unicode letters and digits) in `nz(text)`. Diacritics are kept;
+    punctuation, symbols and spacing are not words (design decision 8).
+  - Whole phrase: a frozen phrase matches when it occurs with no letter, digit or `_` right before or after it.
+- Frozen phrase lists (after `nz`):
+  - `CONVERSION_PHRASES`: `chuyển đổi`, `conversion`, `tỷ lệ chuyển`, `tỉ lệ chuyển`; plus the pattern
+    `từ <step> (sang|đến|tới) <step>` where each `<step>` is one of `biết đến`, `quan tâm`, `muốn mua`, `mua`,
+    `sau mua` and the two steps differ.
+  - `MARKET_TERMS`: `doanh thu`, `doanh số`, `thị phần`, `gmv`, `revenue`, `market share`.
+  - Currency amount: a number token followed (optional spaces) by an optional scale `k`, `nghìn`, `ngàn`, `triệu`,
+    `tr`, `tỷ`, `tỉ` and then a unit `đ`, `₫`, `vnđ`, `vnd`, `đồng`; or a number token followed directly by `k`
+    (`150k`).
+  - `STAR_TERMS`: a number token followed (optional spaces) by `sao`, `★` or `⭐`; and the phrases `số sao`,
+    `điểm sao`, `sao trung bình`, `điểm đánh giá`, `rating`, `★`, `⭐`.
+  - `RANK_TERMS`: `xếp hạng`, `hạng`, `cao hơn`, `thấp hơn`, `tốt hơn`, `kém hơn`, `hơn`, `đứng đầu`, `dẫn đầu`,
+    `top`, `nhất`.
+  - `BUYER_TERMS`: `người mua`, `buyer`, `buyers`.
+  - `FIRST_PERSON`: `tôi`, `mình`, `tớ`, `tao`, `chúng tôi`, `chúng mình`, `chúng ta`, `bọn mình`, `bọn tôi`, `i`,
+    `me`, `my`, `we`, `our`.
+  - `CAMPAIGN_TERMS`: `chiến dịch`, `ý tưởng quảng cáo`, `campaign`.
+  - `SHORT_CHAIN_NOTE`: `chưa đủ bằng chứng`. `BELOW_NOTE`: `dưới ngưỡng`.
+- Gate results. A submission that breaks an input rule returns an error (`{"error", "message"}`, nothing stored).
+  A well-formed submission returns `accepted` (boolean) and `reasons`, the list of every gate it fails, in the order
+  of the tables below and then claim or line order. Each reason is `{"code", "claim", "detail"}`: `claim` is the
+  claim `ref` (sections), the evidence line index from 0 (statements) or null; `detail` is a short text of the MCP
+  that never holds review words (IM-Q81). `accepted` is true exactly when `reasons` is empty. In the rows, "X
+  fails" means code X is in `reasons`, and "passes" means X is not (other codes may be present).
+- Review text. `submit_section` and `submit_statement` read `review_text` in memory, only for `VERBATIM_QUOTE`; they
+  store and return none of it.
+
+Section reason codes (R-IM10, one per spec bullet, plus one R-I31 code):
+
+| Code | Spec bullet |
+|---|---|
+| `NUMBER_MISMATCH` | a number in the text does not match the count ID it points to |
+| `CONFIDENCE_ABOVE_CEILING` | confidence above the R-IM08 ceiling («mức tin cao hơn bằng chứng») |
+| `BELOW_THRESHOLD_CONCLUSION` | a below-threshold item written as a conclusion (R-I33) |
+| `VERBATIM_QUOTE` | 8 consecutive words equal to a review |
+| `CONVERSION_RATE` | a conversion rate between purchase steps (R-I31) |
+| `MARKET_NUMBER` | Market revenue or share (R-I36), or a brand ranking by stars |
+| `HIDDEN_NAME` | a banned provider name (R-L01, R-I29) |
+| `BUYER_WORD` | a number called «người mua» (R-I35) |
+| `STEP_NOT_FROM_EVIDENCE` | (not a spec bullet) a claim's step is not the step of the data it cites (R-I31) |
+
+Statement reason codes (R-IM11): `NO_EVIDENCE`, `NO_CONFLICT`, `HYPOTHESIS_REQUIRED`, `WHY_LAYER_WITHOUT_EVIDENCE`,
+`WHY_CHAIN_SHORT_UNMARKED`, `FIRST_PERSON`, `MIXED_STEPS`, `PLATFORM_MISMATCH`, `NOT_CUSTOMER_WORDS`, `CAMPAIGN_IDEA`,
+`CONFIDENCE_ABOVE_CEILING`, then the text gates `NUMBER_MISMATCH`, `VERBATIM_QUOTE`, `CONVERSION_RATE`,
+`MARKET_NUMBER`, `HIDDEN_NAME`, `BUYER_WORD`.
+
+## Contract rows, PR 3
+
+### R-IM01 extended to the PR 3 tools
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q79 | (Amends IM-Q52.) The registered tools are exactly twelve: the nine of IM-Q52 plus `submit_section(run_id, part, text, claims)`, `submit_statement(run_id, statement, replaces=None)` and `render_report(run_id)`. Input schema types: `run_id`, `text` string; `part` integer; `claims` an array of objects; `statement` an object; `replaces` string or null. No argument takes SQL, a SLAYER query, a formula, a file path or an output directory. The five shared-store writers are still not tools. | A mutant that registers `record_method_approval` fails the tool-name-set test. A mutant that adds an `out_dir` argument to `render_report` fails the input-schema test. |
+| IM-Q80 | (Extends IM-Q53.) The three new tools open no socket, resolve no host, start no subprocess and change no environment variable. The app home is byte-identical before and after each call, on success and on every error and rejection path. The run warehouse file's sha256 is unchanged by each call (current IDs are worked out on a copy). The shared store is opened read-only and never created. `submit_section` and `submit_statement` write only the report store, and only when they accept; a rejection or an error leaves the report store byte-identical, and creates no report store when there was none. `render_report` writes only the report store and the five report files. | (a) A mutant whose `submit_section` computes the count rows on the real warehouse (it registers IDs there) changes the warehouse sha256 and fails. (b) A mutant that creates the report store before running the gates leaves a store file after a rejected first submission and fails. (c) A mutant that opens a socket in `render_report` trips the audit hook. (d) A mutant whose `submit_statement` creates the shared store fails the "no file created" check. |
+| IM-Q81 | (Extends IM-Q54.) No review text and no per-person result leaves the warehouse. For the three new tools, on success and on every rejection and error path, none of these holds a fixture review nonce, a whole short review, an 8-word run of a long review, a fixture writer name, a `writer_key` or a warehouse review ID: the JSON result, every reason `detail`, the error `message`, stdout, stderr, `logging`, every report store table, `report.html` and the four JSON files. A `VERBATIM_QUOTE` reason gives the position of the first word of the run in the section or field (a word index), never the words. Reason-link lines are shown by count and count ID only, never with their `review_ids`. | (a) A full synthetic flow (sections, a statement with why layers, a render) passes the scan, which skips only the warehouse `review_text` table. (b) Mutants that each fail: a `VERBATIM_QUOTE` detail that echoes the matched words; an appendix that lists a reason link's `review_ids`; a rejected text written to a log at DEBUG; `themes.json` rows that carry `review_ids`. |
+
+### R-IM10: agent writes, MCP checks each part
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q82 | `submit_section(run_id, part, text, claims)` input rules; each failure is `INVALID_ARGUMENT` with nothing stored and no `version`. `part` is an integer 1 to 17 (part 18, the appendix, is built by `render_report`). `text` is a non-blank string of at most 20000 characters. `claims` is a list of at most 50 objects with exactly the keys `ref`, `evidence`, `confidence`, `step`, `hypothesis`, `conclusion`: `ref` a marker ref (PR 3 conventions), unique in the list; `evidence` a non-empty list under the IM-Q62 rules (same item shape, at most 50 items, data and synthesis part rules, a reason-link ID is `INVALID_ARGUMENT`; a non-current ID gives `COUNT_ID_STALE` and any other unknown ID `COUNT_ID_UNKNOWN`); `confidence` one of the four levels; `step` one of the six steps; `hypothesis` and `conclusion` booleans. Frame parts 2 and 3 take `claims = []` only. Each claim's marker appears exactly once in `text`, and every marker in `text` names a claim. `WAREHOUSE_NOT_BUILT`, `RUN_NOT_FOUND` and `RUN_AMBIGUOUS` are as in `theme_counts`. | Each gives `INVALID_ARGUMENT` and an unchanged report store: part 18; part 0; a claim in part 2; a claim with an extra key `numbers`; two claims with ref `c1`; a marker `[^c2]` with no claim; a claim whose marker is missing or appears twice; `confidence: "Cao"`; `hypothesis: 1`; empty `evidence`. Part 8 citing an old ID after IM-Q30's label move gives `COUNT_ID_STALE`. A mutant that accepts part 18 fails. |
+| IM-Q83 | Gate result. A well-formed submission returns `{run_id, part, accepted, reasons}` and, when accepted, `version` and `claims` (one `{ref, confidence, ceiling, hypothesis}` per claim, `ceiling` and `hypothesis` as `confidence_ceiling` gives them for the claim's evidence and flag). Every failing gate is listed (PR 3 conventions), not only the first. All gates apply to every part 1 to 17, except the IM-Q84 rule for numbers outside claim sentences, which does not apply to frame parts 2 and 3. | One text that breaks `NUMBER_MISMATCH`, `HIDDEN_NAME` and `BUYER_WORD` at once returns exactly those three codes in that order. A mutant that stops at the first failing gate fails. |
+| IM-Q84 | `NUMBER_MISMATCH` (R-IM10 bullet 1). A number token in a sentence that has markers must match a number of a count ID cited by one of the claims marked in that sentence. In a data or synthesis part, a number token in a sentence with no marker matches no count ID and also fails. `detail` names the token and the claim refs of the sentence. | Theme row `(shopee, T-VI, all)` with `reviews = 6`, `writers = 6`, `products = 3`. Accepted: «6 đánh giá trên 3 sản phẩm nhắc vị [^c1].» Rejected: «7 đánh giá nhắc vị [^c1].»; «60% khách khen vị [^c1].»; «6,5 đánh giá [^c1].»; a second sentence «Có 12 đánh giá.» with no marker. Not numbers (accepted): `R-I33`, `zqv01`, `T-VI`. `1.248` is read as 1248. A mutant that checks only the first number of a sentence, and one that skips sentences without a marker, each fail. |
+| IM-Q85 | `CONFIDENCE_ABOVE_CEILING` (bullet 2, spec scenario «Mức tin cao hơn trần»). For each claim, the ceiling is `confidence_ceiling(run_id, part, claim.evidence, claim.hypothesis)`. The claim fails when its `confidence` is above that ceiling, or when that result has `hypothesis = true` and the claim's `hypothesis` is false. `detail` names the ceiling. | Repo DRAFT codebook, empty shared store: a part 8 claim `Khá` on a Shopee theme row (ceiling `Yếu`) fails; `Yếu` passes; `Không` passes. With the IM-Q68 full setup a keyword claim `Chắc` in part 6 passes. A portrait gender row claim with `hypothesis = false` at `Yếu` fails; with `hypothesis = true` it passes. A mutant that compares with the highest item, not the lowest, fails a two-item claim (`Chắc` item and `Yếu` item, claim `Khá`). |
+| IM-Q86 | `BELOW_THRESHOLD_CONCLUSION` (bullet 3, R-I33). A claim that cites a count ID whose threshold is not met must have `conclusion = false`, and its sentence must hold `BELOW_NOTE` («dưới ngưỡng»). Otherwise it fails. A claim whose cited IDs all meet the threshold, or have no threshold (portrait gender and age rows), is not checked here. | A 4-keyword `co_nen` row: `conclusion = true` fails; `conclusion = false` without «dưới ngưỡng» fails; `conclusion = false` with «4 từ khóa hỏi có nên dùng, dưới ngưỡng [^c1].» passes. A 5-keyword row with `conclusion = true` passes. A mutant that reads only `conclusion` fails the second case. |
+| IM-Q87 | `VERBATIM_QUOTE` (bullet 4, spec scenario «Trích nguyên văn», design decision 8). The section text fails when any 8 consecutive words of it equal 8 consecutive words of any `review_text.text` of the run (words per PR 3 conventions). Matching ignores case, spacing and punctuation, not diacritics. | Synthetic long review `zqv90 uống viên này hai tuần thấy ngủ ngon hơn hẳn mọi khi`: a text holding «Uống viên này, hai tuần thấy ngủ NGON hơn» (8 words, other case and punctuation) fails; a 7-word run passes; the same 8 words without diacritics («uong vien nay hai tuan thay ngu ngon») pass. A review of another run's warehouse does not count. A mutant that compares raw substrings misses the case and punctuation variant and fails. |
+| IM-Q88 | `CONVERSION_RATE` (bullet 5, R-I31). The text fails when it holds a whole phrase of `CONVERSION_PHRASES` or the `từ <step> sang <step>` pattern with two different steps. | Fails: «tỷ lệ chuyển đổi»; «từ quan tâm sang mua»; «Từ Biết đến tới Sau mua». Passes: «từ quan tâm» alone; «khách chuyển sang dạng viên» (no listed phrase). A mutant that only looks for «chuyển đổi» fails the second case. |
+| IM-Q89 | `MARKET_NUMBER` (bullet 6, R-I36). The text fails when a sentence holds a `MARKET_TERMS` phrase and a number token; or when the text holds a currency amount; or when a sentence holds a `STAR_TERMS` match and a `RANK_TERMS` phrase. A sentence that points to the Market report with no number passes. | Fails: «Thị phần 35%»; «doanh thu 120 triệu»; «giá 150k»; «giá 150.000 đ»; «thương hiệu A xếp hạng cao hơn vì 4,9 sao». Passes: «Doanh thu và thị phần xem ở báo cáo Market.»; «tại sao khách chọn» (`sao` with no number or star phrase). A mutant without the currency rule fails «giá 150k». |
+| IM-Q90 | `HIDDEN_NAME` (bullet 7, R-L01, R-I29). The text fails when `hidden_name_hits` finds a name (PR 2 conventions, READER rule, model IDs included). `detail` names the hits. | Fails, one at a time: `Google`, `METRIC`, `Jev`, `OpenAI`, `World Bank`, `gpt-4o`. Passes: `metric tons`, `Shopee`, `TikTok Shop`. A mutant using a 4-name list fails `OpenAI`. |
+| IM-Q91 | `BUYER_WORD` (bullet 8, R-I35). A sentence that holds a `BUYER_TERMS` phrase and a number token or a marker fails. A sentence about buyers with neither passes. | Fails: «12 người mua khen vị [^c1].»; «Người mua nói về giá [^c1].». Passes: «Chưa có dữ liệu về người mua thật.» A mutant that rejects every «người mua» fails the last case. |
+| IM-Q92 | `STEP_NOT_FROM_EVIDENCE` (R-I31). A claim's `step` must equal the step of every count ID it cites (PR 2 conventions: theme and portrait rows `Sau mua`, keyword rows the group's step). A claim citing rows of two steps fails, whatever its `step`. | Part 6 claim on a `co_nen` row with step `Quan tâm` passes and with `Sau mua` fails. A part 12 claim on a `cach_dung` row passes only with `Chưa rõ bước`. A part 1 claim citing a `Quan tâm` keyword row (part 6) and a `Sau mua` theme row (part 8) fails with either step. |
+| IM-Q93 | Versions (spec scenario «Phần đạt»). An accepted section is stored as a new `section_version` row with `version` = 1 + the highest stored version of that run and part (1 when none), and the result returns it. A re-submit of the same part, even with the same text, adds a row and never changes an older one. A rejection or error stores nothing and does not use up a version number. The stored row holds the text, the claims, the graded claims, and the frame and codebook versions. | Submit part 8 (accepted, version 1), a rejected part 8, then part 8 again: versions 1 and 2, with version 1 byte-identical. A direct SQL `UPDATE` or `DELETE` on `section_version` aborts (trigger). A mutant that replaces the row (`INSERT OR REPLACE`) fails. A mutant that numbers versions per run, not per part, fails when part 4 is submitted between. |
+
+### R-IM11: the 9-field insight statement
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q94 | `submit_statement(run_id, statement, replaces=None)` input rules; each failure is `INVALID_ARGUMENT` with nothing stored. `statement` has exactly the 9 keys of R-C01: `step` (one of `Biết đến`, `Quan tâm`, `Muốn mua`, `Mua`, `Sau mua`), `customer`, `hidden_truth`, `motivation`, `conflict`, `insight` (strings of at most 2000 characters; only `conflict` may be blank, see IM-Q95), `three_c` (null or an object with exactly the non-blank strings `customer`, `brand`, `category`), `evidence` (a list of at most 50 lines) and `confidence` (`{level, hypothesis}`: a level and a boolean). An evidence line has exactly `supports` (`hidden_truth`, `motivation`, `conflict` or `why`), `layer` (an integer 1 to 10 when `supports = why`, otherwise null), `platform` (`shopee` or `tiktok_shop`), `count_id`, `part` and `note` (null or a string of at most 500 characters). For a reason-link ID `part` is null; for any other ID it is a data part 4 to 15. IDs resolve as in IM-Q82 (`COUNT_ID_STALE`, `COUNT_ID_UNKNOWN`). `replaces` is null or the `statement_id` of a stored statement of the same run. | Each gives `INVALID_ARGUMENT`: a tenth key `title`; a missing `conflict` key; `step: "Chưa rõ bước"`; `three_c` with only `customer`; a line `supports: "why"` with `layer: null`; a `why` line with `layer: 11`; a count-row line with `part: 2`; `replaces` naming an unknown ID or a statement of another run. |
+| IM-Q95 | Conflict and the three sides (R-I39 G6, spec scenario «Vế nhưng không có bằng chứng»). `NO_CONFLICT` when `conflict` is blank. `NO_EVIDENCE` when `evidence` is empty (the app shape needs one line). A side (`hidden_truth`, `motivation`, `conflict`) has evidence when at least one line with that `supports` cites an ID whose `reviews` is at least 1. When a side has no evidence, the statement must have `confidence.hypothesis = true` and a level of `Yếu` or `Không`; otherwise `HYPOTHESIS_REQUIRED`, with the side in `detail`. | No line for `conflict`: `hypothesis = false` fails; `hypothesis = true` at `Khá` fails; `hypothesis = true` at `Yếu` is stored. A `conflict` line on a reason-link row with `reviews = 0` does not count as evidence. A mutant that checks only `motivation` and `conflict` fails a statement whose `hidden_truth` has no line. |
+| IM-Q96 | The «Tại sao» chain (R-I39 G5, R-IM09). `why` lines must cite reason-link IDs; a `why` line with another count ID is `WHY_LAYER_WITHOUT_EVIDENCE`. The layers used must be 1 to n with no gap, and each layer needs at least one line whose reason-link row has `reviews ≥ 1`; otherwise `WHY_LAYER_WITHOUT_EVIDENCE` names the layer. When n < 3 (n = 0 when there is no `why` line), some text field or note must hold `SHORT_CHAIN_NOTE` («chưa đủ bằng chứng»); otherwise `WHY_CHAIN_SHORT_UNMARKED`. | With IM-Q69's R1 counted (`shopee.reviews = 1`): layers 1, 2, 3 each on that row pass. Layers 1 and 3 (no 2) fail. Layer 2 on a row with `reviews = 0` fails. Layers 1 and 2 without the note fail; with «chưa đủ bằng chứng» in `hidden_truth` they pass. A `why` line citing a theme row fails. A mutant that counts candidates as evidence (reason row with 0 counted, 3 candidates) fails. |
+| IM-Q97 | `FIRST_PERSON` (R-I39, spec scenario «Câu ngôi thứ nhất»). A text field or note that holds a whole `FIRST_PERSON` phrase fails. | «Tôi muốn uống canxi mà không bị táo bón» in `insight` fails; «mình» in `motivation` fails. «Khách muốn uống canxi mà không bị táo bón» passes. «Người tiêu dùng» passes (no whole phrase). A mutant that checks only `insight` fails the `motivation` case. |
+| IM-Q98 | One step per statement and per-platform evidence (R-I39 G9, R-I06). `MIXED_STEPS` when a cited count row's step (reason-link rows: `Sau mua`) differs from `statement.step`. `PLATFORM_MISMATCH` when a line's `platform` differs from its row's platform. | `step: "Quan tâm"` with a Shopee theme line fails `MIXED_STEPS`; `Sau mua` passes. A line `platform: "shopee"` on a TikTok Shop theme row fails `PLATFORM_MISMATCH`. A mutant that ignores reason-link rows' step passes `Quan tâm` with only `why` lines and fails. |
+| IM-Q99 | Motives and barriers only from customer words (R-I22, R-L12). `NOT_CUSTOMER_WORDS` when a line cites a keyword row or a portrait gender or age row (only theme rows, portrait group rows and reason-link rows are customer words). `CAMPAIGN_IDEA` when a text field or note holds a `CAMPAIGN_TERMS` phrase. Which themes count as «công dụng, giá, quy cách, chất lượng» is not checked (open question 26). | A `motivation` line on a `co_nen` keyword row fails; on a Shopee theme row passes. A `customer` line on a portrait «Mua cho ai» group row passes; on a gender row fails. «ý tưởng chiến dịch Tết» in `insight` fails. |
+| IM-Q100 | Confidence and text gates. The statement's ceiling is the lowest `confidence_ceiling` level of its count-row lines, each graded alone with its line `part` and `confidence.hypothesis` (`Không` when there is no count-row line; reason-link lines are not graded). `CONFIDENCE_ABOVE_CEILING` as in IM-Q85. The section text gates `VERBATIM_QUOTE`, `CONVERSION_RATE`, `MARKET_NUMBER`, `HIDDEN_NAME` and `BUYER_WORD` apply to each text field and note on its own; `NUMBER_MISMATCH` applies to any number token in a text field or note (counts belong to the evidence lines, R-I39). | A statement whose only count line is a Shopee theme row at `Khá` fails (ceiling `Yếu`); at `Yếu` it passes. A statement with only `why` lines at `Yếu` fails (ceiling `Không`). An 8-word review run in a `note` fails `VERBATIM_QUOTE`. «6 khách» in `customer` fails `NUMBER_MISMATCH`. `Google` in `three_c.category` fails `HIDDEN_NAME`. A mutant that skips notes fails the note case. |
+| IM-Q101 | Storage for import (R-IM11, R-C01). An accepted statement is a new `statement_version` row. `replaces = null` makes a new `statement_id` (a UUID) with version 1; `replaces = <id>` adds version n+1 of that ID and never changes older rows. `app_payload_json` follows `contracts/analysis/insight-report-statement.schema.json` without `revisionId` (added by the app at import): `contractVersion "1.0.0"`, `statementId`, `purchaseStage` (`Biết đến` AWARENESS, `Quan tâm` INTEREST, `Muốn mua` DESIRE, `Mua` PURCHASE, `Sau mua` POST_PURCHASE), `customer`, `hiddenTruth`, `motivation`, `conflict`, `insight`, `threeC` (null or `{customer, brand, category}`), `evidence` (one `{platform: "shopee"\|"tiktok", count}` per line, in line order, `count` = the row's `reviews`), `confidence` (`Chắc` CERTAIN, `Khá` FAIR, `Yếu` WEAK, `Không` NONE, and `hypothesis`). `evidence_json` keeps each line with its `count_id`, the row's numbers and the graded ceiling. No app table and no app file is written. The result is `{run_id, accepted, reasons}`, plus `statement_id`, `version` and `ceiling` when accepted. | (a) The stored `app_payload_json` plus a synthetic `revisionId` validates against the app schema file read as JSON. A mutant that writes `tiktok_shop` as the payload platform fails. (b) Submit, then re-submit with `replaces`: same `statement_id`, versions 1 and 2, version 1 unchanged; `UPDATE` and `DELETE` abort. (c) The app DB of the fixture is byte-identical. |
+
+### R-IM12: output and archive
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q102 | `render_report(run_id)` writes `report.html`, a static page in UTF-8 with no script and no external resource. It has, in this order: a header (full run ID, frame version and status, codebook version and status); one `<section id="part-<n>">` per part 1 to 17 in R-I30 order, with the heading `Phần <n>. <title>` (frozen titles) and the latest accepted version's text, HTML-escaped, with each marker shown as a footnote number linking to the appendix; a section `id="statements"` «Câu insight» with the latest version of each statement in step order, then first-submission order; a section `id="unanswered"` «Những gì báo cáo chưa trả lời được» with one item per `report_plan` `unanswered` line (`unknown`, `step`, `why`, `needs`); and `<section id="part-18">` with the appendix (IM-Q103). A part with no accepted version shows only «Chưa viết»; it is never left out and never filled from other data. No timestamp is written into the page. | (a) Spec scenario «Phần chưa viết»: with parts 4 and 8 written and part 15 not, the page has 18 part sections in order and part 15's body is exactly «Chưa viết». A mutant that skips unwritten parts, and one that fills them with the plan's cell labels, each fail. (b) Text `<script>x</script>` is shown escaped. (c) After a re-submit, the page shows version 2's text and not version 1's. |
+| IM-Q103 | Appendix «Phụ lục: nguồn của từng con số» (R-I30, R-I39). One row per footnote of the rendered sections (numbered from 1 in part then marker order) and one row per statement evidence line. A row gives: the part or statement, the claim ref or line, the step, the confidence and ceiling, the hypothesis flag, and per count ID: the count ID, the source's frozen neutral name, the platform name (`Shopee`, `TikTok Shop`) or none for keywords, the row label (theme name, keyword group name, or portrait dimension and group), the numbers from `count_registry`, the threshold note, and whether the ID is still current. A section or statement that cites an ID that is no longer current is marked «Cần gửi lại: số liệu đã đổi» in its part or statement block; it is still shown with the numbers it was written with. | (a) Each footnote number in the parts has exactly one appendix row with the cited count ID and its registry numbers. (b) Move a label after part 8 is accepted (IM-Q30): part 8 shows «Cần gửi lại: số liệu đã đổi», its appendix row says the ID is not current and keeps the old numbers. A mutant that drops stale parts, or shows the new numbers, fails. |
+| IM-Q104 | Totals for the dashboard. `render_report` writes four JSON files, each exactly `{"rows": [...]}`: `themes.json` (the current `theme_counts` rows; `[]` when `NOT_CODED`), `keywords.json` (the current `keyword_counts` rows), `portraits.json` (the current `portrait_counts` rows) and `parts.json` (one row per part 1 to 18: `part`, `title`, `status` (`Đã viết`, `Chưa viết`, `Cần gửi lại` or, for part 18, `Tự dựng`), `version` (null when not written), `claims` (an integer) and `lowest_confidence` (null when no claim)). Count rows are copied as the tools return them; no file has a cross-platform total, a review ID, a writer key or a per-person row. | (a) Each file parses to an object whose only key is `rows`. `themes.json` rows equal a direct `theme_counts` call. (b) An uncoded run gives `themes.json` `{"rows": []}` and still renders. (c) With part 15 unsent, its `parts.json` row is `Chưa viết` with `version: null`. A mutant that adds a `total` key fails (a). |
+| IM-Q105 | Archive (spec scenario «Lưu hai lần cùng nội dung», F303). Each call stores one `render_archive` row: `html`, `totals_json` (the four files' content), `statements_json` (the app payloads of the rendered statements), `codebook_version`, `frame_version`. `archive_id` is the sha256 of the canonical JSON of the run ID, `html`, the totals, the statements and the codebook version; `rendered_at` is not part of it. A call whose `archive_id` is already stored adds no row. The result is `{run_id, archive_id, stored, parts: {written, missing, stale}, statements, files}`, where `stored` is false for a duplicate and `files` names the five written files. | (a) Two calls on the same accepted parts: one archive row, the second `stored: false`, the same `archive_id`, and byte-equal `report.html`. (b) A re-submit of part 8 with new text, then a render: a second row. (c) A mutant that writes a timestamp into the page stores two rows in (a) and fails. |
+| IM-Q106 | Output names and text (R-L01, R-I29, R-I11, R-IM06). `report.html`, every attribute and hidden text in it, and the four JSON files hold no hidden name under the READER rule; the MCP's own wording (headings, labels, source names, notes) is neutral. The page holds no review text and no per-person guess (IM-Q81): portrait gender and age appear only as totals in `portraits.json` and as cited rows in the appendix. | (a) A full synthetic render passes the hidden-name scan of the whole file text (attributes included). (b) Mutants that each fail: one that writes `SLAYER` into an HTML comment; one that writes `Jev` into an `alt` or `title` attribute. |
+
+### Task 4.4: registration and the call-order skill
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q107 | `README.md` has a section «Register the MCP» with one subsection each for Claude Code, Codex and OpenCode. Each gives a config snippet (JSON for Claude Code and OpenCode, TOML for Codex) or a command that registers a server named `tdn-insight` running `tools/mcp-insight/insight_tools.py` over stdio with `INSIGHT_MCP_APP_DB`; no snippet sets `INSIGHT_MCP_ALLOW_PAID` or holds a key. `.mcp.json.example` stays valid JSON for the same server. The skill file `tools/mcp-insight/skills/tdn-insight-report/SKILL.md` has front matter `name: tdn-insight-report` and a `description`, at most 60 lines, and names the tools in this call order (first mention): `report_plan`, then the count tools (`theme_counts`, `keyword_counts`, `portrait_counts`), then `find_reason_links`, then `submit_section` and `submit_statement`, then `render_report`. It says that `code_reviews` with `dry_run=False` needs the owner's OK. | (a) Each snippet parses, and the Codex one is valid TOML with `[mcp_servers.tdn-insight]`. A README copy whose OpenCode snippet sets `INSIGHT_MCP_ALLOW_PAID` fails. (b) A skill copy that names `render_report` before `submit_section` fails the order check. A 61-line copy fails. |
+
 ## Frozen keyword groups (IM-Q31 oracle)
 
 The file `tools/mcp-insight/data/keyword-groups.json` holds exactly this data. It has `version: "kwg-2026-10-30.1"`,
@@ -446,6 +588,35 @@ With this frame, data parts 4 to 15 have 65 source cells. 27 of them are sources
 23. The shared store's five tables and writers (PR 2 conventions, IM-Q77) are an engineering representation of
    evidence from people: sample reviews, method approvals, brand diversity, revenue share and reason readings. No
    approval tool or UI is added (no R-IM12 work), and no record is seeded in the repo.
+24. **Claim shape (IM-Q82).** R-IM10 lists a count ID, a confidence, a step and a hypothesis flag per claim. This
+   table adds `ref` (the claim's marker `[^ref]`, which ties the claim to its sentence for the number check) and
+   `conclusion` (whether the claim is written as a conclusion, needed for the R-I33 gate). A claim may cite several
+   count IDs, as in `confidence_ceiling`.
+25. **Numbers (IM-Q84).** Only digit tokens are checked; number words («sáu») are not. A claim can cite only the
+   integer numbers of its count rows, so percentages and denominators (for example coded reviews) cannot be written
+   in v1. Numbers in frame parts 2 and 3 (scope, dates, sample sizes) are not checked against counts.
+26. **Kept motives and barriers (IM-Q99).** R-I39 keeps only «công dụng, giá, quy cách, chất lượng». The codebook has
+   no mapping from its themes to these four kinds, so the MCP checks only that the evidence comes from customer words
+   (review theme rows, portrait group rows, reason links). A theme mapping needs an owner decision.
+27. **Phrase lists (PR 3 conventions).** The conversion, Market, star ranking, buyer, first-person and campaign
+   checks are frozen phrase lists, not meaning checks. They can miss a reworded case, and they can reject an innocent
+   sentence (for example «doanh thu» next to a count); the agent then splits or rewords the sentence.
+28. **`STEP_NOT_FROM_EVIDENCE` (IM-Q92)** is a ninth section code. It is not one of the eight R-IM10 bullets; it
+   enforces R-I31 («bước của kết luận là bước của dữ liệu»).
+29. **Statement evidence (IM-Q94 to IM-Q101).** Only Shopee and TikTok Shop rows can be statement evidence, because
+   the app shape has only those platforms and R-L12 takes motives and barriers from customer words. The app
+   `denominator` is not filled. `replaces` is an added optional argument that gives a statement its identity across
+   versions; the 9 fields stay exactly R-C01.
+30. **Short reviews (IM-Q87).** The 8-word rule (design decision 8) does not catch a whole review shorter than 8
+   words copied into the text.
+31. **Page layout (IM-Q102).** The statements and the «chưa trả lời được» section sit between Phần 17 and the
+   appendix (Phần 18). The appendix shows reason links by count and count ID only, not review IDs; a reviewer checks
+   a link on the host with `find_reason_links` and `read_reviews`.
+32. **Stale parts (IM-Q103).** A part written on counts that later changed is shown with its old numbers and marked
+   «Cần gửi lại», not dropped and not recomputed.
+33. **Versions (IM-Q93, IM-Q101).** A re-submit with the same content still makes a new version (R-IM10 as written).
+   The archive does not depend on version numbers, so it is not duplicated by such a re-submit.
+34. **«kể lại» (R-I31).** A claim from reviews about why a customer bought is not checked for the «kể lại» note.
 
 ## Review findings applied (revision 2)
 
@@ -549,3 +720,13 @@ The fresh row review of revision 8 found 8 must-fix and 5 should-fix items and n
 |---|---|---|
 | R2-1 (must) | A reason reading is bound to the sha256 of the review text that was read (`reason_check.text_sha256`, taken from the warehouse by `record_reason_check`). It applies only while the current text has that hash. Controls: changed text, then rebuild and successful recode (candidate only); a fresh reading of the new text; unchanged text kept across a rebuild | IM-Q69, IM-Q70, IM-Q77, PR 2 conventions |
 | R2-2 (should) | Run ID resolution applies only to the three writers that take `run_id`; `record_sample_review` is scoped by rules version and `record_diversity_check` by count ID | IM-Q77 |
+
+## PR 3 rows applied (revision 11)
+
+| Item | Rows |
+|---|---|
+| R-IM01 extended: twelve tools, no app, warehouse or shared-store write from the new tools, no review text out | IM-Q79 (amends IM-Q52), IM-Q80, IM-Q81 |
+| R-IM10 / task 4.1: `submit_section`, the 8 reasons plus the step check, versions | IM-Q82 to IM-Q93, PR 3 conventions, open questions 24, 25, 27, 28, 30, 33, 34 |
+| R-IM11 / task 4.2: `submit_statement`, 9 fields, R-I39 checks, app import shape | IM-Q94 to IM-Q101, open questions 26, 29 |
+| R-IM12 / task 4.3: `render_report`, HTML, totals JSON, archive without duplicates | IM-Q102 to IM-Q106, open questions 31, 32 |
+| Task 4.4: README registration, call-order skill | IM-Q107 |
