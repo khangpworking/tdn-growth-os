@@ -1,9 +1,10 @@
-# tdn-insight — Insight MCP over stored run data (parts 1 and 2)
+# tdn-insight — Insight MCP over stored run data (parts 1 to 3)
 
 Stdio FastMCP server (`insight_tools.py`) for the Insight report: stored run data → run warehouse → Jev theme
 coding → SLAYER semantic layer → counts (part 1), then the 18-part report plan, the confidence ceiling and reason
-links (part 2). Spec: OpenSpec change `insight-mcp-v1`, rules R-IM01 to R-IM09. Behavior rows: `CONTRACT.md`
-(IM-Q1 to IM-Q78).
+links (part 2), then the checked report parts and insight statements the agent writes, and the rendered report
+(part 3). Spec: OpenSpec change `insight-mcp-v1`, rules R-IM01 to R-IM12. Behavior rows: `CONTRACT.md` (IM-Q1 to
+IM-Q125). The call order for an agent is in `skills/tdn-insight-report/SKILL.md`.
 
 **Owner rule: no paid call without the owner's OK.** `code_reviews` is a dry run by default. A real Jev call needs
 `INSIGHT_MCP_ALLOW_PAID=1` and an explicit `max_calls`; the flag is a safety net, not an authorization.
@@ -15,7 +16,7 @@ links (part 2). Spec: OpenSpec change `insight-mcp-v1`, rules R-IM01 to R-IM09. 
 | `INSIGHT_MCP_APP_DB` | yes, for `build_warehouse` | The app SQLite file. No default. Opened read-only (`?mode=ro`). When set, the other tools also resolve `run_id` against it (`RUN_NOT_FOUND`, `RUN_AMBIGUOUS`). |
 | `INSIGHT_MCP_APP_ARTIFACTS` | no | Artifact root (`sha256/<2 chars>/<sha>`). Default: `artifacts/` next to the app DB. Read-only. |
 | `INSIGHT_MCP_APP_CAPTURES` | no | Metric capture root holding `<run_id>/scope.json`. Default: `metric-captures/` next to the app DB. Read-only. |
-| `INSIGHT_MCP_DATA_DIR` | no | Where run warehouses live (`runs/<run_id>.sqlite`). Default: `tools/mcp-insight/out/` (gitignored). |
+| `INSIGHT_MCP_DATA_DIR` | no | Where run warehouses (`runs/<run_id>.sqlite`), the shared store, the report store and the rendered reports (`reports/<run_id>/`) live. Default: `tools/mcp-insight/out/` (gitignored). |
 | `INSIGHT_MCP_ALLOW_PAID` | no | Exactly `1` allows a real Jev call. Any other value refuses before the key file is read. |
 | `INSIGHT_MCP_JEV_KEY_FILE` | no | File with a `TYPESAFE_API_KEY=` line. Default: the project secret file under `~/.config/tdn-growth-os/secrets/`. Read in-process; never logged or returned. |
 
@@ -54,6 +55,19 @@ The module sets `DO_NOT_TRACK=1` and `SLAYER_USAGE_REPORTING=off` for its own pr
   two themes with a reason. Reviews with no reading are `candidates` (no count, no ID).
 - `read_reviews(run_id, ids)` — the stored text of 1 to 20 reviews, for reading on the host only. Never put it
   in a report (R-I11).
+- `submit_section(run_id, part, text, claims)` — one report part (1 to 17) written by the agent. Each claim is
+  `{ref, evidence, confidence, step, hypothesis, conclusion}` and is tied to its sentence by the marker `[^ref]`.
+  The MCP checks numbers against the cited counts, the confidence ceiling, thresholds, copied review words,
+  conversion rates, Market numbers, hidden names, «người mua», steps, «kể lại», sentences without a claim and banned
+  ideas (R-IM10, R-I31, R-I22). It returns every failed reason code, or stores the part as a new version.
+- `submit_statement(run_id, statement, replaces=None)` — one insight statement in the 9 fields of R-C01 (R-IM11),
+  with evidence lines on count rows or reason links («Tại sao» layers). Accepted statements are stored as versions,
+  with a payload in the app's import shape (`contracts/analysis/insight-report-statement.schema.json`, without
+  `revisionId`). No app table is written.
+- `render_report(run_id)` — writes `reports/<run_id>/report.html` (static, no script) and `themes.json`,
+  `keywords.json`, `portraits.json`, `parts.json` from the latest accepted versions (R-IM12). Parts never accepted
+  show «Chưa viết»; parts whose counts changed show «Cần gửi lại: số liệu đã đổi». The same content is archived
+  once.
 
 ## Shared store
 
@@ -70,7 +84,16 @@ coordinator; they are not MCP tools:
   the review's current text, never the text)
 
 Invalid arguments raise `ValueError` and write nothing. No record is seeded, so with the current data no claim is
-above `Yếu`.
+above `Yếu`. A reason-link method approval uses the key
+`find_reason_links:<review source>:<codebook version>+reason-2026-10-30.1` (IM-Q124).
+
+## Report store
+
+`<data dir>/insight-report.sqlite` is the MCP's own archive, never the app DB. Only the three part 3 tools write it,
+and only on success: `section_version` (accepted parts), `statement_version` (accepted statements) and
+`render_archive` (one row per distinct rendered report). Triggers abort every `UPDATE` and `DELETE`: a re-submit is
+a new version, never an overwrite. A rejection writes nothing and does not create the store. No table holds review
+text.
 
 Every count is computed twice, by SLAYER (models in `semantic/`) and by a fixed reference SQL; any difference
 returns `SLAYER_SQL_MISMATCH` and no numbers. Errors are `{"error": "<CODE>", "message": "<text>"}` and never carry
@@ -86,9 +109,72 @@ rejected (`CODEBOOK_EXCLUDED_THEME`).
 - `_slayer_query(...)` runs one SLAYER query; tests can patch it to force a mismatch or an exception.
 - `_load_semantic_models(directory)` loads the YAML models and raises `ValueError` on a measure named like a column.
 - `CODEBOOK_PATH`, `KEYWORD_GROUPS_PATH`, `REPORT_FRAME_PATH` and `SEMANTIC_DIR` name the data files.
+- `_now()` is the only clock of the part 3 tools (UTC); it is written only into `submitted_at` and `rendered_at`.
 
 SLAYER runs in-process. Its asyncio event loop opens a local `AF_UNIX` socket pair for its own wake-up pipe; no
 tool connects, binds or resolves a host.
+
+## Register the MCP
+
+Each client runs `insight_tools.py` over stdio as a server named `tdn-insight`. Replace the app DB placeholder
+with the path of the app SQLite file. The paths below are relative to the repository root; use absolute paths
+when the client starts elsewhere. Never add `INSIGHT_MCP_ALLOW_PAID` or a key to a client config: a paid coding
+run is a separate, owner-approved step.
+
+### Claude Code
+
+Project config `.mcp.json` at the repository root (same as `.mcp.json.example`):
+
+```json
+{
+  "mcpServers": {
+    "tdn-insight": {
+      "command": "python3",
+      "args": ["tools/mcp-insight/insight_tools.py"],
+      "env": {
+        "INSIGHT_MCP_APP_DB": "<path to the app SQLite file>"
+      }
+    }
+  }
+}
+```
+
+Or register it with a command:
+
+```sh
+claude mcp add tdn-insight --scope project -e INSIGHT_MCP_APP_DB="<path to the app SQLite file>" -- python3 tools/mcp-insight/insight_tools.py
+```
+
+### Codex
+
+`~/.codex/config.toml`:
+
+```toml
+[mcp_servers.tdn-insight]
+command = "python3"
+args = ["tools/mcp-insight/insight_tools.py"]
+env = { INSIGHT_MCP_APP_DB = "<path to the app SQLite file>" }
+```
+
+### OpenCode
+
+`opencode.json` at the repository root:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "tdn-insight": {
+      "type": "local",
+      "command": ["python3", "tools/mcp-insight/insight_tools.py"],
+      "enabled": true,
+      "environment": {
+        "INSIGHT_MCP_APP_DB": "<path to the app SQLite file>"
+      }
+    }
+  }
+}
+```
 
 ## Install
 

@@ -36,6 +36,10 @@ def schemas(tools):
                                "hypothesis": {"boolean"}},
         "find_reason_links": {"run_id": {"string"}, "theme_a": {"string"}, "theme_b": {"string"}},
         "read_reviews": {"run_id": {"string"}, "ids": {"array"}},
+        # IM-Q79 amends Q52's registry (and Q1's inherited exact set).
+        "submit_section": {"run_id": {"string"}, "part": {"integer"}, "text": {"string"}, "claims": {"array"}},
+        "submit_statement": {"run_id": {"string"}, "statement": {"object"}, "replaces": {"string", "null"}},
+        "render_report": {"run_id": {"string"}},
     }
     assert set(tools) == set(expected)
     for name, arguments in expected.items():

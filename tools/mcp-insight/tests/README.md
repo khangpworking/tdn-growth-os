@@ -240,3 +240,115 @@ the behavioral environment was built outside Git from cached wheels only
 (`pip --no-index --no-cache-dir`; no network). See `HANDOFF-P2.md` for commands
 and results. Collection does not establish that the concurrent part 2
 implementation passes; absent interfaces are expected baseline failures.
+
+## Part 3: revision 15, IM-Q79–IM-Q125
+
+`part3/` is independently written from reviewed commit
+`ee88004221a918575d6bd834b6eb016b3e64f5a4` and the complete five-round review at
+`/home/pkhang/firstmate/data/insight-mcp-p3-review/report.md`. It covers tasks
+4.1–4.4 only. It neither imports app code nor calls providers. New fake-coding
+fixtures reuse P2's in-memory `_read_key` replacement and fake transport; no
+key file is opened. App DBs, codebooks, owner receipts, review text and writers
+are synthetic and live under the task's pytest temporary directory.
+
+| Module | Contract rows |
+|---|---|
+| `part3/test_boundaries_p3.py` | Q79–Q81, Q107 |
+| `part3/test_sections.py` | Q82–Q93, Q108–Q110, Q117, Q120, Q123 |
+| `part3/test_scope_and_quotes.py` | Q111, Q121 |
+| `part3/test_statements.py` | Q94–Q101, Q109–Q110, Q112–Q115, Q122, Q124 |
+| `part3/test_render.py` | Q102–Q106, Q114, Q116, Q118–Q119, Q125 |
+
+Each test names its row and explains its credible negative control. Paired
+inputs exercise real public tools, current registry IDs, real local SLAYER,
+real receipt writers/readers and SQLite files. Rejected text is never used to
+fabricate a successful stored version. Report table UPDATE/DELETE probes,
+whole-file hidden-name scans and deliberately corrupt document copies protect
+distinct persistence and documentation boundaries.
+
+The later review controls are explicit:
+
+- Q120 rejects arbitrary headings, mixed missing-data claims and the old
+  inference tail; finite part-title, platform and age-topic forms pass.
+- Q121 uses collected/coded 40/38 on Shopee, 60/55 on TikTok Shop, 3/2 products
+  and 25 keywords. It tests swapped platforms, direct negation, both disputed
+  colon headings, the matching-value 38 heading and comma carryover, alongside
+  the three accepted inline forms. Missing coding completion rows create the
+  uncoded reviews; no count or registry result is manufactured.
+- Q111 rejects whole reviews of one through seven words before storage;
+  Q87 separately protects exactly eight words and the seven-word control.
+- Q122 requires both reason-pair endpoints to be kept kinds. Q124 records
+  version-bound reason-method approvals through the real writer/reader and
+  rejects `find_reason_links` in both source and data-part frame copies.
+- Q125 successfully renders the two generated-wording collisions without
+  changing the placeholder or theme rows, then rejects the same overlapping
+  words in agent prose. Only generated occurrences are masked for its output
+  scan; agent submissions receive the full quote check.
+- Q105/Q118 use distinct deterministic clock instants, preserving append-only
+  submission history while identical substantive content reuses one archive.
+
+Only two old test helpers change: the exact tool inventories in
+`test_boundaries.py::schemas` and `part2/test_boundaries_p2.py::assert_surface`
+include Q79's three added tools and their exact argument types. Q79 explicitly
+amends Q52, which already amended Q1. All original schema assertions and mutant
+controls remain; no old behavior test or fixture is removed or weakened. Their
+historical test names remain unchanged. Q124 needs no alteration to old tests.
+
+The existing parent teardown scanner predates Q125. The P3-only
+`collision_p3` adapter replaces **only** `theme_name == "Chất lượng, độ bền"`
+in the harness's captured copies of P1 count results. The actual count rows,
+new-tool results, files and archive are independently checked unchanged by
+Q125. No agent field or quote rejection is masked by this adapter. New-tool
+privacy scans use only new-tool results; P2's authorized reason-link membership
+results are not incorrectly treated as new-tool leaks.
+
+## contract gaps (part 3)
+
+These narrow representation choices are adapters, not additional business
+rules. Reconcile them with the implementation without adding production hooks
+or weakening the independent acceptance oracles.
+
+1. The three explicitly named tools remain module-level callables and use the
+   existing `mcp` instance. `sync` accepts synchronous or awaitable results. The
+   public `_now()` seam is named by the contract; tests supply UTC ISO strings.
+2. Q104 does not name the canonical container keys for `content_sha256`.
+   The test reads "text and claims" as `{"text": text, "claims": claims}` with
+   the established UTF-8, sorted-key, compact canonical JSON encoding. It does
+   not guess an undocumented exact recipe for `archive_id`.
+3. Q105 does not name `totals_json`'s container keys. Tests use filename stems
+   `themes`, `keywords`, `portraits`, `parts`, each holding the complete
+   `{"rows": [...]}` file object. `statements_json` is the ordered array of app
+   payloads. The `files` receipt may be a list of names/paths or a mapping to
+   names/paths; the five basenames must match the actual files.
+4. Q103 prescribes an appendix row per footnote but not its HTML tag. The
+   helper accepts any element with the marker target `id="fn-<k>"` inside
+   part 18. Statement block tag/class and surrounding layout are unspecified;
+   tests inspect the statements section without inventing CSS classes. Q116's
+   explicit claim span and link shape is asserted directly.
+5. The internal keys of each saved `evidence_json` grade are unspecified.
+   Tests require the count ID, retained ceiling and named missing-check reasons
+   without inventing private grading helper names or object keys.
+6. The worked Q84 Shopee example says nine reviews/eight writers. Existing P1
+   Shopee input intentionally has no writer identity, so nine synthetic reviews
+   yield nine fallback writers. The fixture preserves the discriminating
+   review counts 6/9, product count 3 and denominator 40 without forging writer
+   identities. Wrong-unit, swapped-citation and denominator controls remain.
+7. Accepted statement fixtures use `Sau mua`: under Q98/Q99 the currently
+   available eligible customer-word evidence has that step. No fake registry
+   evidence is inserted to manufacture accepted statements at the other four
+   steps. An out-of-enum step is rejected, and the full reachable import
+   payload is validated against the app JSON Schema without importing app
+   code. The four other purchase-stage mappings lack a reachable accepted
+   fixture under the current evidence rules.
+8. Inbox 001 identifies a convention conflict: the generic number-token rule
+   excludes a digit run after the whole word `phần` as a structural reference,
+   but Q89 explicitly requires `MARKET_NUMBER` for `Thị phần 35%`. Applied
+   literally, the reference exclusion can hide 35 from both the Q84 percent
+   check and Q89's Market-term-plus-number check. The test preserves Q89's
+   explicit `MARKET_NUMBER` control and does **not** invent an additional
+   `NUMBER_MISMATCH` requirement for that sentence. The author must reconcile
+   structural `Phần 6` references with the lexical phrase `thị phần`; neither
+   CONTRACT.md nor the specs are changed by this test branch.
+
+Collection alone does not prove P3 behavioral acceptance. This branch does not
+mark absent features skipped or xfailed.

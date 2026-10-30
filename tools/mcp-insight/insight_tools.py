@@ -1,17 +1,19 @@
 """Local stdio MCP server `tdn-insight`: run warehouse, Jev theme coding, SLAYER counts (part 1); report plan,
-confidence ceiling and reason links (part 2).
+confidence ceiling and reason links (part 2); checked report parts, insight statements and the rendered report (part 3).
 
 Reads stored run data only. The app DB is opened read-only (INSIGHT_MCP_APP_DB, no default); the
 artifact store and capture root are read-only. Each run gets its own warehouse file under
 INSIGHT_MCP_DATA_DIR. Evidence from people (sample reviews, method approvals, brand checks, revenue shares,
 reason readings) lives in the shared store `<data dir>/insight-shared.sqlite`, written only by the `record_*`
 functions, which are not tools. A real Jev call needs INSIGHT_MCP_ALLOW_PAID=1 and a call cap; everything
-else, including `code_reviews(dry_run=True)`, makes no network call. Contract: CONTRACT.md.
+else, including `code_reviews(dry_run=True)`, makes no network call. Accepted report parts, statements and rendered
+reports live in the report store `<data dir>/insight-report.sqlite`, never in the app DB. Contract: CONTRACT.md.
 """
 
 import base64
 import functools
 import hashlib
+import html
 import json
 import math
 import os
@@ -23,6 +25,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -108,6 +111,8 @@ ROLES = ("Chính", "Phụ", "Gợi ý")
 LEVELS = ("Không", "Yếu", "Khá", "Chắc")  # low to high
 COUNT_TOOLS = ("theme_counts", "keyword_counts", "portrait_counts")
 COUNT_ROW_SOURCES = ("shopee_reviews", "tiktok_shop_reviews", "search_suggestions")
+REVIEW_SOURCES = ("shopee_reviews", "tiktok_shop_reviews")
+REASON_TOOL = "find_reason_links"
 PLATFORM_NAMES = {"shopee": "Shopee", "tiktok_shop": "TikTok Shop"}
 STATUS_DATA = "Có dữ liệu"
 STATUS_BLOCKED = "Chưa dùng được"
@@ -139,7 +144,7 @@ _HIDDEN_PATTERNS = tuple(
     re.compile(r"(?<!\w)(?:Metric|METRIC)(?!\w)") if name == "Metric"
     else re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)", re.I)
     for name in HIDDEN_NAMES)
-_MODEL_ID = re.compile(r"\b(?:gpt|claude)-[A-Za-z0-9]", re.I)
+_MODEL_ID = re.compile(r"\b(?:gpt|claude)-[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", re.I)
 
 mcp = FastMCP("tdn-insight")
 
@@ -1584,8 +1589,7 @@ def hidden_name_hits(text) -> list[str]:
     if not isinstance(text, str):
         return []
     hits = [name for name, pattern in zip(HIDDEN_NAMES, _HIDDEN_PATTERNS) if pattern.search(text)]
-    if _MODEL_ID.search(text):
-        hits.append("MODEL_ID")
+    hits += dict.fromkeys(m.group(0) for m in _MODEL_ID.finditer(text))
     return hits
 
 
@@ -1730,8 +1734,15 @@ def _full_run_id(value) -> bool:
 
 
 def _method_key_ok(value) -> bool:
+    """`<count tool>:<source>:<rules version>`, or the reason-link form
+    `find_reason_links:<review source>:<codebook version>+<reason rules version>` (IM-Q124)."""
     parts = value.split(":", 2) if isinstance(value, str) else []
-    return len(parts) == 3 and parts[0] in COUNT_TOOLS and parts[1] in COUNT_ROW_SOURCES and _text(parts[2])
+    if len(parts) != 3 or parts[1] not in COUNT_ROW_SOURCES or not _text(parts[2]):
+        return False
+    if parts[0] in COUNT_TOOLS:
+        return True
+    codebook, plus, rules = parts[2].partition("+")
+    return parts[0] == REASON_TOOL and parts[1] in REVIEW_SOURCES and bool(plus) and _text(codebook) and _text(rules)
 
 
 def _pair_ok(value) -> bool:
@@ -1839,7 +1850,8 @@ def record_sample_review(rules_kind, rules_version, reviewed_by, reviewed_at, sa
 
 def record_method_approval(method_key, subject_key, run_id, approved_by, approved_at) -> None:
     """One owner-approved report that used a method on one researched product (check 4). Not an MCP tool."""
-    _need(_method_key_ok(method_key), "method_key must be <count tool>:<source key>:<rules version>")
+    _need(_method_key_ok(method_key), "method_key must be <count tool>:<source key>:<rules version> or "
+                                      "find_reason_links:<review source>:<codebook version>+<reason rules version>")
     _need(_text(subject_key), "subject_key must be a non-empty string")
     _need_signed("approved_by", approved_by, "approved_at", approved_at)
     full_id, _ = _writer_run(run_id)
@@ -1897,21 +1909,28 @@ def _row_info(tool: str, row: dict, book: dict, groups: dict) -> dict:
             "platform": row["platform"], "step": step, "kind": kind, "rules": rules, "row": row}
 
 
-def _count_rows(path: Path, book: dict, groups: dict) -> tuple[list[dict], bool]:
-    """Every current count row of the run, as the three count tools return it now (same IDs, same registry rows).
-    The second value is false when theme_counts gives NOT_CODED; any other count error is raised."""
+def _count_responses(path: Path, book: dict, groups: dict) -> dict:
+    """The three count tools' responses for the run now (same IDs, same registry rows), plus one row info per
+    count row. `themes` is None when theme_counts gives NOT_CODED; any other count error is raised."""
     try:
-        themes = _theme_counts_at(path, book)["rows"]
+        themes = _theme_counts_at(path, book)
     except InsightError as exc:
         if exc.code != "NOT_CODED":
             raise
         themes = None
-    keywords = _keyword_counts_at(path, groups)["rows"]
-    portraits = _portrait_counts_at(path)["rows"]
+    keywords = _keyword_counts_at(path, groups)
+    portraits = _portrait_counts_at(path)
     infos = [_row_info(tool, row, book, groups) for tool, rows in
-             (("theme_counts", themes or []), ("keyword_counts", keywords), ("portrait_counts", portraits))
+             (("theme_counts", themes["rows"] if themes else []), ("keyword_counts", keywords["rows"]),
+              ("portrait_counts", portraits["rows"]))
              for row in rows]
-    return infos, themes is not None
+    return {"themes": themes, "keywords": keywords, "portraits": portraits, "infos": infos}
+
+
+def _count_rows(path: Path, book: dict, groups: dict) -> tuple[list[dict], bool]:
+    """Every current count row of the run. The second value is false when theme_counts gives NOT_CODED."""
+    counted = _count_responses(path, book, groups)
+    return counted["infos"], counted["themes"] is not None
 
 
 def _revenue_gate(source: dict, store: dict):
@@ -1957,7 +1976,9 @@ def _grade(ctx: dict, info: dict, part_no: int, hypothesis: bool) -> tuple[dict,
     if blocked is None and source:
         blocked = _revenue_gate(source, store)
 
-    if info["kind"] == "portrait_guess":
+    if info["kind"] == "reason":
+        check2 = "REASON_LINK_NO_THRESHOLD"
+    elif info["kind"] == "portrait_guess":
         check2, hypothesis = "HYPOTHESIS_ROW", True
     elif info["kind"] != "keyword" and row["writer_basis"] == "review":
         check2 = "WRITER_UNKNOWN"
@@ -1967,14 +1988,19 @@ def _grade(ctx: dict, info: dict, part_no: int, hypothesis: bool) -> tuple[dict,
         brands = store["diversity"].get(info["count_id"])
         check2 = "DIVERSITY_NOT_VERIFIED" if brands is None else ("ONE_BRAND" if brands < 2 else None)
 
-    if info["kind"] == "theme" and not _codebook_approved(ctx["book"]):
+    if info["kind"] in ("theme", "reason") and not _codebook_approved(ctx["book"]):
         check3 = "CODEBOOK_NOT_APPROVED"
     elif info["kind"] == "keyword" and ctx["groups"]["status"] != "APPROVED":
         check3 = "KEYWORD_GROUPS_NOT_APPROVED"
     else:
         check3 = None if info["rules"] in store["samples"] else "NO_OWNER_SAMPLE_REVIEW"
 
-    method_key = f"{info['tool']}:{info['source']}:{info['rules'][1]}"
+    if info["kind"] == "reason":
+        method_key = f"{REASON_TOOL}:{info['source']}:{info['rules'][1]}+{REASON_RULES_VERSION}"
+        if blocked is None and not row["reviews"]:
+            blocked = "NO_LINKED_REVIEW"
+    else:
+        method_key = f"{info['tool']}:{info['source']}:{info['rules'][1]}"
     products = len(store["ledger"].get(method_key, ()))
     check4 = None if products >= 3 else f"METHOD_ON_{products}_PRODUCTS"
 
@@ -2055,8 +2081,13 @@ def report_plan(run_id: str) -> dict:
     run_id = _check_run_id(run_id)
     frame = load_frame()
     book, groups = load_codebook(), load_keyword_groups()
-    path = _find_warehouse(run_id)
-    infos, theme_coded = _count_rows(path, book, groups)
+    return _plan(_find_warehouse(run_id), frame, book, groups)
+
+
+def _plan(path: Path, frame: dict, book: dict, groups: dict, counted: dict | None = None) -> dict:
+    """The report_plan result for one warehouse file (`render_report` passes its per-call copy)."""
+    counted = _count_responses(path, book, groups) if counted is None else counted
+    infos, theme_coded = counted["infos"], counted["themes"] is not None
     with _warehouse_ro(path) as wh:
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
         status = {s: (c, n) for s, c, n in wh.execute("SELECT source, captured, row_count FROM source_status")}
@@ -2135,6 +2166,46 @@ def _evidence_items(frame: dict, part: int, evidence) -> list[tuple[str, int]]:
     return items
 
 
+def _reason_infos(copy: Path, book: dict, row_key: str, cache: dict) -> dict:
+    """The current reason-link rows of a stored row key's pair, by count ID (computed once per pair and call)."""
+    try:
+        _, themes = json.loads(row_key)
+        pair = _theme_pair(book, *themes)
+    except (ValueError, TypeError, InsightError):
+        return {}
+    if pair not in cache:
+        try:
+            _, rows, _ = _reason_links_at(copy, book, pair)
+        except InsightError as exc:
+            if exc.code != "NOT_CODED":
+                raise
+            rows = []
+        cache[pair] = {row["count_id"]: {
+            "count_id": row["count_id"], "tool": REASON_TOOL, "source": row["platform"] + "_reviews",
+            "platform": row["platform"], "step": STEP_AFTER_PURCHASE, "kind": "reason",
+            "rules": ("codebook", book["version"]), "row": row, "themes": pair.split("|")} for row in rows}
+    return cache[pair]
+
+
+def _resolve_id(copy: Path, current: dict, count_id: str, book: dict, reasons: dict | None = None) -> dict:
+    """The row info of a current count ID (PR 2 conventions). A reason-link ID is refused with INVALID_ARGUMENT
+    unless a per-call `reasons` cache is given; then it is current when find_reason_links for its stored pair,
+    run on the copy, returns it."""
+    if count_id in current:
+        return current[count_id]
+    with _warehouse_ro(copy) as wh:
+        stored = wh.execute("SELECT tool, row_key FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
+    if stored is None:
+        raise InsightError("COUNT_ID_UNKNOWN", "the count ID is not a count of this run")
+    if stored[0] == REASON_TOOL:
+        if reasons is None:
+            raise InsightError("INVALID_ARGUMENT", "a reason-link ID is evidence for R-IM11, not a count")
+        info = _reason_infos(copy, book, stored[1], reasons).get(count_id)
+        if info is not None:
+            return info
+    raise InsightError("COUNT_ID_STALE", "the count ID is no longer current; call the count tool again")
+
+
 @mcp.tool()
 @_tool
 def confidence_ceiling(run_id: str, part: int, evidence: list[EvidenceItem], hypothesis: bool = False) -> dict:
@@ -2159,16 +2230,8 @@ def confidence_ceiling(run_id: str, part: int, evidence: list[EvidenceItem], hyp
                     "reason": "NO_EVIDENCE", "items": []}
         infos, _ = _count_rows(copy, book, groups)
         current = {i["count_id"]: i for i in infos}
-        with _warehouse_ro(copy) as wh:
-            for count_id, _ in items:
-                if count_id in current:
-                    continue
-                stored = wh.execute("SELECT tool FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
-                if stored is not None and stored[0] == "find_reason_links":
-                    raise InsightError("INVALID_ARGUMENT", "a reason-link ID is evidence for R-IM11, not a count")
-                if stored is not None:
-                    raise InsightError("COUNT_ID_STALE", "the count ID is no longer current; call the count tool again")
-                raise InsightError("COUNT_ID_UNKNOWN", "the count ID is not a count of this run")
+        for count_id, _ in items:
+            _resolve_id(copy, current, count_id, book)
     ctx = {"frame": frame, "store": load_shared_store(full_id), "book": book, "groups": groups}
     graded = [_grade(ctx, current[count_id], item_part, hypothesis) for count_id, item_part in items]
     return {"run_id": full_id, "part": part, "hypothesis": hypothesis or any(h for _, h in graded),
@@ -2216,8 +2279,14 @@ def find_reason_links(run_id: str, theme_a: str, theme_b: str) -> dict:
     run_id = _check_run_id(run_id)
     book = load_codebook()
     pair = _theme_pair(book, theme_a, theme_b)
+    full_id, rows, candidates = _reason_links_at(_find_warehouse(run_id), book, pair)
+    return {"run_id": full_id, "theme_a": theme_a, "theme_b": theme_b, "connectors": list(REASON_CONNECTORS),
+            "link_basis": LINK_BASIS, "rules_version": REASON_RULES_VERSION, "rows": rows, "candidates": candidates}
+
+
+def _reason_links_at(path: Path, book: dict, pair: str) -> tuple[str, list[dict], list[dict]]:
+    """Reason-link rows and candidates of one sorted pair, registered in this warehouse file's count_registry."""
     low, high = pair.split("|")
-    path = _find_warehouse(run_id)
     wh = _open_warehouse(path)
     try:
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
@@ -2264,9 +2333,7 @@ def find_reason_links(run_id: str, theme_a: str, theme_b: str) -> dict:
                   ("platform", "theme_pair"), ("reviews", "review_ids"))
         for row in rows:
             del row["theme_pair"]
-        return {"run_id": full_id, "theme_a": theme_a, "theme_b": theme_b, "connectors": list(REASON_CONNECTORS),
-                "link_basis": LINK_BASIS, "rules_version": REASON_RULES_VERSION, "rows": rows,
-                "candidates": candidates}
+        return full_id, rows, candidates
     finally:
         wh.close()
 
@@ -2293,6 +2360,1165 @@ def read_reviews(run_id: str, ids: list[str]) -> dict:
             else:
                 reviews.append({"review_id": review_id, "platform": row[0], "text": row[1]})
     return {"run_id": full_id, "reviews": reviews, "not_found": not_found, "notice": READ_NOTICE}
+
+
+# ---------------------------------------------------------------------------
+# Part 3: frozen wording and the text rules (R-IM10, R-IM11; CONTRACT.md PR 3 conventions)
+# ---------------------------------------------------------------------------
+
+REPORT_STORE_NAME = "insight-report.sqlite"
+REPORT_FILES = ("report.html", "themes.json", "keywords.json", "portraits.json", "parts.json")
+STEPS = ("Biết đến", "Quan tâm", "Muốn mua", "Mua", "Sau mua", "Chưa rõ bước")
+STATEMENT_STEPS = STEPS[:5]
+PURCHASE_STAGES = dict(zip(STATEMENT_STEPS, ("AWARENESS", "INTEREST", "DESIRE", "PURCHASE", "POST_PURCHASE")))
+APP_LEVELS = {"Chắc": "CERTAIN", "Khá": "FAIR", "Yếu": "WEAK", "Không": "NONE"}
+APP_PLATFORMS = {"shopee": "shopee", "tiktok_shop": "tiktok"}
+STATEMENT_CONTRACT_VERSION = "1.0.0"
+MAX_SECTION_CHARS = 20000
+MAX_CLAIMS = 50
+MAX_FIELD_CHARS = 2000
+MAX_NOTE_CHARS = 500
+MAX_WHY_LAYER = 10
+QUOTE_WORDS = 8
+SCOPE_PARTS = (2, 3)
+REASON_PART = 8
+APPENDIX_PART = 18
+CLAIM_KEYS = frozenset({"ref", "evidence", "confidence", "step", "hypothesis", "conclusion"})
+STATEMENT_KEYS = frozenset({"step", "customer", "hidden_truth", "motivation", "conflict", "insight", "three_c",
+                            "evidence", "confidence"})
+LINE_KEYS = frozenset({"supports", "layer", "themes", "platform", "count_id", "part", "note"})
+THREE_C_KEYS = ("customer", "brand", "category")
+TEXT_FIELDS = ("customer", "hidden_truth", "motivation", "conflict", "insight")
+SIDES = ("hidden_truth", "motivation", "conflict")
+SUPPORTS = SIDES + ("why",)
+# R-I39: the four kinds of motive and barrier, frozen here; a new codebook version does not change them.
+KEPT_KINDS = {"công dụng": "T-CONGDUNG", "giá": "T-GIA", "quy cách": "T-QUYCACH", "chất lượng": "T-CHATLUONG"}
+NUMBER_KEYS = ("reviews", "writers", "products", "keywords", "threshold_count")
+REVIEW_KINDS = ("theme", "portrait_group", "reason")
+STATUS_WRITTEN, STATUS_MISSING, STATUS_RESUBMIT, STATUS_BUILT = "Đã viết", "Chưa viết", "Cần gửi lại", "Tự dựng"
+MARK_STALE = "Cần gửi lại: số liệu đã đổi"
+LABEL_HYPOTHESIS = "Giả thuyết"
+PORTRAIT_DIMENSIONS = ("ai dùng", "mua cho ai", "giới tính", "tuổi")
+NO_DATA_EXTRA_TOPICS = ("người mua thật", "lý do mua", "doanh thu", "thị phần")
+
+UNIT_WORDS = {"đánh giá": "reviews", "người viết": "writers", "sản phẩm": "products", "từ khóa": "keywords",
+              "từ khoá": "keywords"}
+NUMBER_WORDS = ("một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín", "mười", "mươi", "chục", "trăm",
+                "nghìn", "ngàn")
+CODED_WORDS = ("mã hóa", "mã hoá", "gắn nhãn")
+SCOPE_NEGATIONS = ("không", "chưa", "chẳng", "chả")
+CONVERSION_PHRASES = ("chuyển đổi", "conversion", "tỷ lệ chuyển", "tỉ lệ chuyển")
+CONVERSION_STEPS = ("biết đến", "quan tâm", "muốn mua", "mua", "sau mua")
+MARKET_TERMS = ("doanh thu", "doanh số", "thị phần", "gmv", "revenue", "market share")
+CURRENCY_SCALES = ("k", "nghìn", "ngàn", "triệu", "tr", "tỷ", "tỉ")
+CURRENCY_UNITS = ("đ", "₫", "vnđ", "vnd", "đồng")
+STAR_PHRASES = ("số sao", "điểm sao", "sao trung bình", "điểm đánh giá", "rating", "★", "⭐")
+RANK_TERMS = ("xếp hạng", "hạng", "cao hơn", "thấp hơn", "tốt hơn", "kém hơn", "hơn", "đứng đầu", "dẫn đầu", "top",
+              "nhất")
+BUYER_TERMS = ("người mua", "buyer", "buyers")
+FIRST_PERSON = ("tôi", "mình", "tớ", "tao", "chúng tôi", "chúng mình", "chúng ta", "bọn mình", "bọn tôi", "i", "me",
+                "my", "we", "our")
+BANNED_IDEAS = {
+    "campaign": ("chiến dịch", "ý tưởng quảng cáo", "quảng cáo cảm xúc", "insight cảm xúc", "campaign"),
+    "competitor": ("đối thủ nên", "khuyên đối thủ", "gợi ý cho đối thủ", "lời khuyên cho đối thủ"),
+    "trial_order": ("đơn thử", "đặt thử", "đặt hàng thử", "mua thử để"),
+}
+BUYING_REASON = ("lý do chọn", "lý do mua", "vì sao chọn", "vì sao mua", "tại sao chọn", "tại sao mua", "chọn vì",
+                 "mua vì", "quyết định mua")
+RETOLD_NOTE = "kể lại"
+SHORT_CHAIN_NOTE = "chưa đủ bằng chứng"
+NO_DATA_NOTE = "chưa có dữ liệu"
+DENIAL_SUBJECTS = ("báo cáo", "báo cáo này", "phần này", "số liệu", "dữ liệu")
+DENIAL_LINKS = ("tính", "đưa", "ra", "nêu", "có", "dùng", "làm", "đề", "xuất", "gợi", "ý", "đo", "so", "sánh")
+DENIAL_STOP = ("nhưng", "mà", "và", "còn", "thì", "rồi", "nên", "hãy", "cần", "vẫn")
+
+SECTION_CODES = ("NUMBER_MISMATCH", "CONFIDENCE_ABOVE_CEILING", "BELOW_THRESHOLD_CONCLUSION", "VERBATIM_QUOTE",
+                 "CONVERSION_RATE", "MARKET_NUMBER", "HIDDEN_NAME", "BUYER_WORD", "STEP_NOT_FROM_EVIDENCE",
+                 "RETOLD_NOT_MARKED", "UNSUPPORTED_SENTENCE", "BANNED_IDEA")
+STATEMENT_CODES = ("NO_EVIDENCE", "NO_CONFLICT", "HYPOTHESIS_REQUIRED", "BELOW_THRESHOLD_CONCLUSION",
+                   "WHY_LAYER_WITHOUT_EVIDENCE", "WHY_LAYER_WRONG_PAIR", "WHY_LAYER_UNEXPLAINED",
+                   "WHY_CHAIN_SHORT_UNMARKED", "FIRST_PERSON", "MIXED_STEPS", "PLATFORM_MISMATCH",
+                   "NOT_CUSTOMER_WORDS", "MOTIVE_KIND_NOT_KEPT", "RETOLD_NOT_MARKED", "BANNED_IDEA",
+                   "CONFIDENCE_ABOVE_CEILING", "NUMBER_MISMATCH", "VERBATIM_QUOTE", "CONVERSION_RATE",
+                   "MARKET_NUMBER", "HIDDEN_NAME", "BUYER_WORD")
+
+
+def _alts(phrases) -> str:
+    """One regex alternation of frozen phrases after nz, longest first; a space matches any run of spaces."""
+    items = sorted({_nz(p) for p in phrases}, key=len, reverse=True)
+    return "|".join(re.escape(p).replace(r"\ ", r"\s+") for p in items)
+
+
+def _phrase_re(phrases) -> re.Pattern:
+    """Whole phrase: no letter, digit or `_` right before or after it."""
+    return re.compile(r"(?<!\w)(?:" + _alts(phrases) + r")(?!\w)")
+
+
+_NUM = r"(?<![\w-])[0-9]+(?:[.,][0-9]+)*"
+MARKER_RE = re.compile(r"\[\^([a-z0-9][a-z0-9_-]{0,15})\]")
+MARKER_ANY_CASE_RE = re.compile(r"\[\^([A-Za-z0-9][A-Za-z0-9_-]{0,15})\]")
+REF_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,15}")
+HEADING_RE = re.compile(r"#{1,3}\s(.+)")
+SENTENCE_END_RE = re.compile(r"(?<=[.!?…])(?=\s|$)")
+CLAUSE_CUT_RE = re.compile(r";|,(?![0-9])|(?<![0-9]),|:(?![0-9])|(?<![0-9]):")
+WORD_RE = re.compile(r"[^\W_]+")
+NUMBER_GROUP_RE = re.compile(_NUM + r"(?:/[0-9]+(?:[.,][0-9]+)*)*")
+DOTTED_INTEGER_RE = re.compile(r"[0-9]{1,3}(?:\.[0-9]{3})+")
+REFERENCE_BEFORE_RE = re.compile(r"(?<!\w)(?:phần|câu|tầng)\s*$")
+# «phần» of the Market term «thị phần» is not a reference word, so «Thị phần 35%» keeps its number (IM-Q89).
+MARKET_SHARE_BEFORE_RE = re.compile(r"(?<!\w)thị\s+phần\s*$")
+UNIT_KEYS = {_nz(k): v for k, v in UNIT_WORDS.items()}
+UNIT_AFTER_RE = re.compile(r"\s*(?:(?P<unit>" + _alts(UNIT_WORDS) + r")(?!\w)|(?P<percent>%|phần\s+trăm(?!\w)))")
+NUMBER_WORD_RE = re.compile(r"(?<!\w)(?:" + _alts(NUMBER_WORDS) + r")\s*(?:" + _alts(UNIT_WORDS) + r")(?!\w)")
+PLATFORM_RE = re.compile(r"(?<!\w)(shopee|tiktok\s+shop)(?!\w)")
+CODED_RE = _phrase_re(CODED_WORDS)
+SCOPE_NEGATION_RE = _phrase_re(SCOPE_NEGATIONS)
+CONVERSION_RE = _phrase_re(CONVERSION_PHRASES)
+STEP_PAIR_RE = re.compile(r"(?<!\w)từ\s+(" + _alts(CONVERSION_STEPS) + r")\s+(?:sang|đến|tới)\s+("
+                          + _alts(CONVERSION_STEPS) + r")(?!\w)")
+MARKET_RE = _phrase_re(MARKET_TERMS)
+CURRENCY_RE = re.compile(_NUM + r"(?:\s*(?:(?:" + _alts(CURRENCY_SCALES) + r")\s*)?(?:" + _alts(CURRENCY_UNITS)
+                         + r")(?!\w)|k(?!\w))")
+STAR_RE = _phrase_re(STAR_PHRASES)
+STAR_NUMBER_RE = re.compile(_NUM + r"\s*(?:sao(?!\w)|★|⭐)")
+RANK_RE = _phrase_re(RANK_TERMS)
+BUYER_RE = _phrase_re(BUYER_TERMS)
+FIRST_PERSON_RE = _phrase_re(FIRST_PERSON)
+BANNED_RES = {kind: _phrase_re(phrases) for kind, phrases in BANNED_IDEAS.items()}
+BUYING_REASON_RE = _phrase_re(BUYING_REASON)
+RETOLD_RE = _phrase_re((RETOLD_NOTE,))
+SHORT_CHAIN_RE = _phrase_re((SHORT_CHAIN_NOTE,))
+BELOW_RE = _phrase_re((NOTE_BELOW,))
+NEGATION_RE = _phrase_re(("không", "chưa"))
+DENIAL_STOP_RE = _phrase_re(DENIAL_STOP)
+DENIAL_PREFIX_RE = re.compile(r"\W*(?:" + _alts(DENIAL_SUBJECTS) + r")\s+(?:không|chưa)(?:\s+(?:"
+                              + _alts(DENIAL_LINKS) + r")){0,2}\s+")
+
+
+def _now() -> datetime:
+    """The only clock of the part 3 tools (UTC). It is written only into submitted_at and rendered_at."""
+    return datetime.now(timezone.utc)
+
+
+def _stamp() -> str:
+    moment = _now()
+    return moment.isoformat() if isinstance(moment, datetime) else str(moment)
+
+
+def _strip_markers(text: str) -> tuple[str, list[tuple[int, str]]]:
+    """The text without markers, and each marker's ref with its position in that text."""
+    plain, marks, last, length = [], [], 0, 0
+    for match in MARKER_RE.finditer(text):
+        plain.append(text[last:match.start()])
+        length += match.start() - last
+        marks.append((length, match.group(1)))
+        last = match.end()
+    plain.append(text[last:])
+    return "".join(plain), marks
+
+
+def _value(token: str):
+    """The integer value of a number token, or None when it is not an integer (`6,5`)."""
+    if DOTTED_INTEGER_RE.fullmatch(token):
+        return int(token.replace(".", ""))
+    return None if "." in token or "," in token else int(token)
+
+
+def _numbers(text: str) -> list[dict]:
+    """Number tokens and fractions (PR 3 conventions) of a marker-free nz text; references («Phần 8») are left out.
+    A date (three or more tokens joined by `/`) gives one token per piece, with no unit."""
+    out = []
+    for match in NUMBER_GROUP_RE.finditer(text):
+        before = text[:match.start()]
+        if REFERENCE_BEFORE_RE.search(before) and not MARKET_SHARE_BEFORE_RE.search(before):
+            continue
+        pieces = match.group().split("/")
+        unit = None
+        after = UNIT_AFTER_RE.match(text, match.end())
+        if after and len(pieces) <= 2:
+            unit = "percent" if after.group("percent") else UNIT_KEYS[re.sub(r"\s+", " ", after.group("unit"))]
+        base = {"start": match.start(), "end": match.end(), "raw": match.group()}
+        if len(pieces) == 1:
+            out.append({**base, "kind": "token", "values": [_value(pieces[0])], "unit": unit})
+        elif len(pieces) == 2:
+            out.append({**base, "kind": "fraction", "values": [_value(p) for p in pieces], "unit": unit})
+        else:
+            out.extend({**base, "kind": "token", "values": [_value(p)], "unit": None} for p in pieces)
+    return out
+
+
+def _units(text: str, titles=frozenset()) -> list[dict]:
+    """Headings and sentences of an nz text (PR 3 conventions). Sentences are numbered from 0."""
+    units, index = [], 0
+    for line in _nz(text).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        heading = HEADING_RE.fullmatch(line)
+        if heading and not MARKER_RE.search(line) and not _numbers(line) and heading.group(1).strip() in titles:
+            units.append({"kind": "heading"})
+            continue
+        for piece in SENTENCE_END_RE.split(line):
+            piece = piece.strip()
+            if piece:
+                plain, marks = _strip_markers(piece)
+                units.append({"kind": "sentence", "index": index, "text": plain, "markers": marks})
+                index += 1
+    return units
+
+
+def _sentences(text: str, titles=frozenset()) -> list[dict]:
+    return [u for u in _units(text, titles) if u["kind"] == "sentence"]
+
+
+def _words(text: str) -> tuple:
+    return tuple(WORD_RE.findall(_strip_markers(_nz(text))[0]))
+
+
+def _platforms(text: str) -> set:
+    return {"shopee" if m.group(1) == "shopee" else "tiktok_shop" for m in PLATFORM_RE.finditer(text)}
+
+
+def _structural_titles(frame: dict, book: dict, groups: dict, part: int) -> frozenset:
+    titles = [frame["_parts"][part]["title"], *STEPS, "shopee", "tiktok shop",
+              *(s["name"] for s in frame["sources"]), *_theme_codes(book).values(),
+              *(g["group_name"] for g in groups["groups"]), groups["fallback"]["group_name"]]
+    return frozenset(_nz(t).strip() for t in titles)
+
+
+def _no_data_re(frame: dict, book: dict, groups: dict) -> re.Pattern:
+    """The complete missing-data sentence with a topic from the closed NO_DATA_TOPICS table (IM-Q120)."""
+    topics = [p["title"] for p in frame["parts"]] + list(STEPS) + [s["name"] for s in frame["sources"]] \
+        + list(_theme_codes(book).values()) + [g["group_name"] for g in groups["groups"]] \
+        + [groups["fallback"]["group_name"]] + list(PORTRAIT_DIMENSIONS) + list(NO_DATA_EXTRA_TOPICS)
+    topic = "|".join(re.escape(t) for t in sorted({_nz(t) for t in topics}, key=len, reverse=True))
+    return re.compile(re.escape(NO_DATA_NOTE) + r"(?: (?:về|cho) (?:" + topic + r"))?(?: (?:trên|ở) (?:shopee|tiktok shop))?"
+                      r"[.!…]?")
+
+
+# ---------------------------------------------------------------------------
+# Part 3: gates shared by sections and statements
+# ---------------------------------------------------------------------------
+
+def _denial(unit: dict, starts: list[int]) -> bool:
+    """The complete denial form for one gate (IM-Q117, IM-Q123); `starts` are that gate's match positions."""
+    text = unit["text"]
+    if not starts or unit["markers"] or re.search(r"[,;:]", text) or _numbers(text) or DENIAL_STOP_RE.search(text) \
+            or len(NEGATION_RE.findall(text)) != 1:
+        return False
+    return DENIAL_PREFIX_RE.fullmatch(text[:min(starts)]) is not None
+
+
+def _conversion_starts(text: str) -> list[int]:
+    starts = [m.start() for m in CONVERSION_RE.finditer(text)]
+    for match in STEP_PAIR_RE.finditer(text):
+        if re.sub(r"\s+", " ", match.group(1)) != re.sub(r"\s+", " ", match.group(2)):
+            starts.append(match.start())
+    return starts
+
+
+def _conversion_fails(sentences: list[dict]) -> list[int]:
+    return [u["index"] for u in sentences
+            if (starts := _conversion_starts(u["text"])) and not _denial(u, starts)]
+
+
+def _market_fails(sentences: list[dict]) -> list[tuple[int, str]]:
+    out = []
+    for unit in sentences:
+        text = unit["text"]
+        if MARKET_RE.search(text) and _numbers(text):
+            out.append((unit["index"], "market number"))
+        elif CURRENCY_RE.search(text):
+            out.append((unit["index"], "currency amount"))
+        else:
+            stars = [m.start() for m in STAR_RE.finditer(text)] + [m.start() for m in STAR_NUMBER_RE.finditer(text)]
+            ranks = [m.start() for m in RANK_RE.finditer(text)]
+            if stars and ranks and not _denial(unit, stars + ranks):
+                out.append((unit["index"], "star ranking"))
+    return out
+
+
+def _buyer_fails(sentences: list[dict]) -> list[int]:
+    return [u["index"] for u in sentences if BUYER_RE.search(u["text"]) and (_numbers(u["text"]) or u["markers"])]
+
+
+def _banned_fails(sentences: list[dict]) -> list[tuple[int, str]]:
+    out = []
+    for unit in sentences:
+        found = {kind: [m.start() for m in rx.finditer(unit["text"])] for kind, rx in BANNED_RES.items()}
+        starts = [s for hits in found.values() for s in hits]
+        if starts and not _denial(unit, starts):
+            out.extend((unit["index"], kind) for kind, hits in found.items() if hits)
+    return out
+
+
+def _review_words(path: Path) -> dict:
+    """The run's review words for VERBATIM_QUOTE, held in memory only: every 8-word run of a long review and every
+    whole review of 1 to 7 words (IM-Q87, IM-Q111)."""
+    runs, short = set(), {}
+    with _warehouse_ro(path) as wh:
+        for (text,) in wh.execute("SELECT text FROM review_text"):
+            words = tuple(WORD_RE.findall(_nz(text)))
+            if len(words) >= QUOTE_WORDS:
+                runs.update(words[i:i + QUOTE_WORDS] for i in range(len(words) - QUOTE_WORDS + 1))
+            elif words:
+                short.setdefault(len(words), set()).add(words)
+    return {"runs": runs, "short": short}
+
+
+def _quote_at(text: str, reviews: dict):
+    """The word index where a review run or a whole short review starts in the text, or None."""
+    words = _words(text)
+    for i in range(len(words)):
+        if words[i:i + QUOTE_WORDS] in reviews["runs"]:
+            return i
+        if any(words[i:i + n] in group for n, group in reviews["short"].items()):
+            return i
+    return None
+
+
+def _text_gates(text: str, reviews: dict, add, claim, label: str, *, numbers: bool, titles=frozenset()) -> None:
+    """VERBATIM_QUOTE, CONVERSION_RATE, MARKET_NUMBER, HIDDEN_NAME, BUYER_WORD (and, for statement texts, the
+    any-number NUMBER_MISMATCH rule) on one text. `label` prefixes each detail; no detail holds the text."""
+    sentences = _sentences(text, titles)
+    if numbers:
+        for unit in sentences:
+            for number in _numbers(unit["text"]):
+                add("NUMBER_MISMATCH", claim, f"{label} sentence {unit['index']}: number {number['raw']} in text; "
+                                              "counts belong to the evidence lines")
+            for _ in NUMBER_WORD_RE.finditer(unit["text"]):
+                add("NUMBER_MISMATCH", claim, f"{label} sentence {unit['index']}: a number word before a unit")
+    at = _quote_at(text, reviews)
+    if at is not None:
+        add("VERBATIM_QUOTE", claim, f"{label} word {at}: matches the words of a stored review")
+    for index in _conversion_fails(sentences):
+        add("CONVERSION_RATE", claim, f"{label} sentence {index}: a conversion rate between steps")
+    for index, kind in _market_fails(sentences):
+        add("MARKET_NUMBER", claim, f"{label} sentence {index}: {kind}")
+    hits = hidden_name_hits(unicodedata.normalize("NFC", text))
+    if hits:
+        add("HIDDEN_NAME", claim, f"{label} hidden names: {', '.join(hits)}")
+    for index in _buyer_fails(sentences):
+        add("BUYER_WORD", claim, f"{label} sentence {index}: «người mua» with a number or a claim")
+
+
+class _Reasons:
+    """Gate results in the frozen code order, then claim or line order (PR 3 conventions)."""
+
+    def __init__(self, codes):
+        self.found = {code: [] for code in codes}
+
+    def add(self, code: str, claim, detail: str) -> None:
+        self.found[code].append({"code": code, "claim": claim, "detail": detail})
+
+    def ordered(self) -> list[dict]:
+        return [reason for reasons in self.found.values() for reason in reasons]
+
+
+def _registry_numbers(path: Path, count_ids) -> dict:
+    """The numbers of each count ID (PR 3 conventions), from count_registry; never `review_ids`."""
+    out = {}
+    with _warehouse_ro(path) as wh:
+        for count_id in count_ids:
+            row = wh.execute("SELECT numbers_json FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
+            stored = json.loads(row[0]) if row else {}
+            numbers = {k: stored[k] for k in NUMBER_KEYS if _int(stored.get(k))}
+            if isinstance(stored.get("threshold_met"), bool):
+                numbers["threshold_met"] = stored["threshold_met"]
+            out[count_id] = numbers
+    return out
+
+
+POLARITY_NAMES = {"all": "mọi hướng", "khen": "khen", "che": "chê", "ke": "kể", "khong_ro_huong": "không rõ hướng"}
+
+
+def _row_label(info: dict, book: dict) -> str:
+    row = info["row"]
+    if info["kind"] == "theme":
+        return f"{row['theme_name']} ({POLARITY_NAMES.get(row['polarity'], row['polarity'])})"
+    if info["kind"] == "keyword":
+        return row["group_name"]
+    if info["kind"] == "reason":
+        names = _theme_codes(book)
+        return " + ".join(names.get(code, code) for code in info["themes"])
+    return f"{row['dimension']}: {row['group']}"
+
+
+def _cited(info: dict, book: dict, numbers: dict) -> dict:
+    """What the report store keeps about one cited count ID, so a stale citation still shows its old numbers."""
+    return {"count_id": info["count_id"], "tool": info["tool"], "kind": info["kind"], "source": info["source"],
+            "platform": info["platform"], "step": info["step"], "label": _row_label(info, book), "numbers": numbers,
+            "threshold_note": info["row"].get("threshold_note")}
+
+
+def _scope_numbers(path: Path, themes) -> dict:
+    """Scope numbers of the run (PR 3 conventions): (unit, platform, measure) to value."""
+    with _warehouse_ro(path) as wh:
+        rows = {s: n for s, _, n in wh.execute("SELECT source, captured, row_count FROM source_status")}
+        products = dict(wh.execute("SELECT platform, COUNT(*) FROM product GROUP BY platform").fetchall())
+    scope = {("keywords", None, "collected"): rows.get("keywords", 0)}
+    for platform in PLATFORMS:
+        scope[("reviews", platform, "collected")] = rows.get(f"{platform}_reviews", 0)
+        scope[("products", platform, "collected")] = products.get(platform, 0)
+        scope[("reviews", platform, "coded")] = themes["coded_reviews"].get(platform, 0) if themes else 0
+    return scope
+
+
+def _scope_fails(sentences: list[dict], scope: dict) -> list[str]:
+    """NUMBER_MISMATCH for frame parts 2 and 3: each number with a unit equals the scope number of its unit,
+    platform and measure (IM-Q84, IM-Q121). Affirmative forms only."""
+    out = []
+    for unit in sentences:
+        text, where = unit["text"], f"sentence {unit['index']}"
+        cuts = [m.start() for m in CLAUSE_CUT_RE.finditer(text)]
+        starts, ends = [0] + [c + 1 for c in cuts], cuts + [len(text)]
+        for number in _numbers(text):
+            kind = number["unit"]
+            if kind is None:
+                continue
+            if kind == "percent":
+                out.append(f"{where}: {number['raw']} is a percent, not a scope number")
+                continue
+            clause = next(i for i, end in enumerate(ends) if number["start"] <= end)
+            own, earlier = text[starts[clause]:ends[clause]], text[:starts[clause]]
+            if SCOPE_NEGATION_RE.search(own):
+                out.append(f"{where}: {number['raw']} {kind} is in a negated clause")
+                continue
+            if CODED_RE.search(own):
+                measure = "coded"
+            elif CODED_RE.search(earlier) or SCOPE_NEGATION_RE.search(earlier):
+                out.append(f"{where}: {number['raw']} {kind} has its measure or negation in an earlier clause")
+                continue
+            else:
+                measure = "collected"
+            if kind == "keywords":
+                platform = None
+                if _platforms(own):
+                    out.append(f"{where}: {number['raw']} keywords in a clause that names a platform")
+                    continue
+            else:
+                place = _platforms(own) or _platforms(text)
+                platform = next(iter(place)) if len(place) == 1 else None
+            expected = scope.get((kind, platform, measure))
+            if expected is None or any(v != expected for v in number["values"]):
+                out.append(f"{where}: {number['raw']} {kind}, platform {platform or 'none'}, measure {measure}")
+        for _ in NUMBER_WORD_RE.finditer(text):
+            out.append(f"{where}: a number word before a unit")
+    return out
+
+
+def _claim_number_fails(sentences: list[dict], claims: dict, cited: dict, numbers: dict, denominators: dict):
+    """NUMBER_MISMATCH for parts 1 and 4 to 17 (IM-Q84): each number binds to one claim and equals its count."""
+    out = []
+    for unit in sentences:
+        marks, where = unit["markers"], f"sentence {unit['index']}"
+        for number in _numbers(unit["text"]):
+            if not marks:
+                out.append((None, f"{where}: number {number['raw']} is in a sentence with no claim marker"))
+                continue
+            ref = next((r for pos, r in marks if pos >= number["end"]), None) \
+                or [r for pos, r in marks if pos <= number["start"]][-1]
+            ids = list(dict.fromkeys(item[0] for item in claims[ref]["_items"]))
+            kind, ok = number["unit"], False
+            if kind not in (None, "percent") and len(ids) == 1:
+                counted, info = numbers[ids[0]], cited[ids[0]]
+                if number["kind"] == "token":
+                    ok = number["values"][0] is not None and counted.get(kind) == number["values"][0]
+                else:
+                    ok = kind == "reviews" and info["tool"] == "theme_counts" \
+                        and number["values"] == [counted.get("reviews"), denominators.get(info["platform"])]
+            if not ok:
+                out.append((ref, f"{where}: {number['raw']} {kind or 'no unit'} bound to claim {ref}"))
+        for _ in NUMBER_WORD_RE.finditer(unit["text"]):
+            out.append((None, f"{where}: a number word before a unit"))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Part 3: report store (R-IM10 to R-IM12): versions and archives are never changed or removed
+# ---------------------------------------------------------------------------
+
+REPORT_TABLES = ("section_version", "statement_version", "render_archive")
+REPORT_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS section_version(run_id TEXT NOT NULL, part INTEGER NOT NULL, version INTEGER NOT NULL, "
+    "text TEXT NOT NULL, claims_json TEXT NOT NULL, graded_json TEXT NOT NULL, frame_version TEXT NOT NULL, "
+    "codebook_version TEXT NOT NULL, submitted_at TEXT NOT NULL, PRIMARY KEY(run_id, part, version))",
+    "CREATE TABLE IF NOT EXISTS statement_version(statement_id TEXT NOT NULL, version INTEGER NOT NULL, "
+    "run_id TEXT NOT NULL, step TEXT NOT NULL, statement_json TEXT NOT NULL, evidence_json TEXT NOT NULL, "
+    "app_payload_json TEXT NOT NULL, codebook_version TEXT NOT NULL, submitted_at TEXT NOT NULL, "
+    "PRIMARY KEY(statement_id, version))",
+    "CREATE TABLE IF NOT EXISTS render_archive(archive_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, html TEXT NOT NULL, "
+    "totals_json TEXT NOT NULL, statements_json TEXT NOT NULL, codebook_version TEXT NOT NULL, "
+    "frame_version TEXT NOT NULL, rendered_at TEXT NOT NULL)",
+) + tuple(
+    f"CREATE TRIGGER IF NOT EXISTS {table}_no_{action.lower()} BEFORE {action} ON {table} "
+    f"BEGIN SELECT RAISE(ABORT, '{table} rows are never changed or removed'); END"
+    for table in REPORT_TABLES for action in ("UPDATE", "DELETE"))
+
+
+def _report_store_path() -> Path:
+    return _data_dir() / REPORT_STORE_NAME
+
+
+@contextmanager
+def _report_store():
+    """One write transaction on the report store, created when needed. Used only after a submission is accepted,
+    or by render_report."""
+    path = _report_store_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(str(path), isolation_level=None)
+    try:
+        with _tx(con):
+            for statement in REPORT_SCHEMA:
+                con.execute(statement)
+            yield con
+    finally:
+        con.close()
+
+
+def _report_rows(sql: str, params: tuple) -> list[tuple]:
+    """Read-only rows of the report store; a missing store reads as empty and is not created."""
+    path = _report_store_path()
+    if not path.is_file():
+        return []
+    with _warehouse_ro(path) as con:
+        try:
+            return con.execute(sql, params).fetchall()
+        except sqlite3.DatabaseError:
+            return []
+
+
+@contextmanager
+def _current_state(run_id: str, book: dict, groups: dict):
+    """The current count rows of the run, worked out on a per-call byte copy of the warehouse (IM-Q80)."""
+    path = _find_warehouse(run_id)
+    with _warehouse_copy(path) as copy:
+        counted = _count_responses(copy, book, groups)
+        with _warehouse_ro(copy) as wh:
+            counted["run_id"] = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        counted["current"] = {i["count_id"]: i for i in counted["infos"]}
+        counted["copy"] = copy
+        yield counted
+
+
+# ---------------------------------------------------------------------------
+# submit_section (R-IM10)
+# ---------------------------------------------------------------------------
+
+def _check_section(frame: dict, part, text, claims) -> list[dict]:
+    """IM-Q82 input rules; any failure is INVALID_ARGUMENT. Returns the claims with their evidence items."""
+    if not _int(part) or not 1 <= part <= 17:
+        raise InsightError("INVALID_ARGUMENT", "part must be an integer from 1 to 17; part 18 is built by render_report")
+    if not isinstance(text, str) or not text.strip() or len(text) > MAX_SECTION_CHARS:
+        raise InsightError("INVALID_ARGUMENT", f"text must be a non-blank string of at most {MAX_SECTION_CHARS} characters")
+    if not isinstance(claims, list) or len(claims) > MAX_CLAIMS:
+        raise InsightError("INVALID_ARGUMENT", f"claims must be a list of at most {MAX_CLAIMS} objects")
+    if part in SCOPE_PARTS and claims:
+        raise InsightError("INVALID_ARGUMENT", "frame parts 2 and 3 take no claims")
+    out = []
+    for claim in claims:
+        if not isinstance(claim, dict) or set(claim) != CLAIM_KEYS:
+            raise InsightError("INVALID_ARGUMENT", "a claim has exactly ref, evidence, confidence, step, hypothesis, "
+                                                   "conclusion")
+        if not isinstance(claim["ref"], str) or not REF_RE.fullmatch(claim["ref"]) \
+                or claim["ref"] in {c["ref"] for c in out}:
+            raise InsightError("INVALID_ARGUMENT", "each claim ref is a unique marker ref ([a-z0-9][a-z0-9_-]{0,15})")
+        if not isinstance(claim["evidence"], list) or not claim["evidence"]:
+            raise InsightError("INVALID_ARGUMENT", "a claim needs at least one evidence item")
+        items = _evidence_items(frame, part, claim["evidence"])
+        if claim["confidence"] not in LEVELS or claim["step"] not in STEPS:
+            raise InsightError("INVALID_ARGUMENT", "a claim's confidence is one of the 4 levels and its step one of the "
+                                                   "6 steps")
+        if not isinstance(claim["hypothesis"], bool) or not isinstance(claim["conclusion"], bool):
+            raise InsightError("INVALID_ARGUMENT", "a claim's hypothesis and conclusion are true or false")
+        out.append({**claim, "_items": items})
+    marks = MARKER_RE.findall(_nz(text))
+    if any(marks.count(c["ref"]) != 1 for c in out) or not set(marks) <= {c["ref"] for c in out}:
+        raise InsightError("INVALID_ARGUMENT", "each claim's marker [^ref] appears exactly once in the text, and every "
+                                               "marker names a claim")
+    return out
+
+
+def _section_gates(ctx: dict, part: int, text: str, claims: list[dict], state: dict) -> tuple[list[dict], dict]:
+    frame, book, groups = ctx["frame"], ctx["book"], ctx["groups"]
+    cited, numbers = state["cited"], state["numbers"]
+    titles = _structural_titles(frame, book, groups, part)
+    sentences = _sentences(text, titles)
+    by_ref = {c["ref"]: c for c in claims}
+    sentence_of = {ref: unit for unit in sentences for _, ref in unit["markers"]}
+    reasons = _Reasons(SECTION_CODES)
+
+    if part in SCOPE_PARTS:
+        for detail in _scope_fails(sentences, state["scope"]):
+            reasons.add("NUMBER_MISMATCH", None, detail)
+    else:
+        for ref, detail in _claim_number_fails(sentences, by_ref, cited, numbers, state["denominators"]):
+            reasons.add("NUMBER_MISMATCH", ref, detail)
+
+    graded = {}
+    for claim in claims:
+        ref = claim["ref"]
+        items = [_grade(ctx, cited[count_id], item_part, claim["hypothesis"]) for count_id, item_part in claim["_items"]]
+        ceiling = min((g["ceiling"] for g, _ in items), key=_rank)
+        hypothesis = claim["hypothesis"] or any(h for _, h in items)
+        graded[ref] = {"ref": ref, "ceiling": ceiling, "hypothesis": hypothesis,
+                       "items": [{**g, **_cited(cited[g["count_id"]], book, numbers[g["count_id"]])} for g, _ in items]}
+        if _rank(claim["confidence"]) > _rank(ceiling) or (hypothesis and not claim["hypothesis"]):
+            reasons.add("CONFIDENCE_ABOVE_CEILING", ref,
+                        f"claim {ref}: ceiling {ceiling}" + (", hypothesis required" if hypothesis else ""))
+
+    for claim in claims:
+        below = [i for i, _ in claim["_items"] if numbers[i].get("threshold_met") is False]
+        if below and (claim["conclusion"] or not BELOW_RE.search(sentence_of[claim["ref"]]["text"])):
+            reasons.add("BELOW_THRESHOLD_CONCLUSION", claim["ref"],
+                        f"claim {claim['ref']}: below threshold; conclusion must be false and the sentence must say "
+                        f"«{NOTE_BELOW}»")
+
+    _text_gates(text, state["reviews"], reasons.add, None, "text", numbers=False, titles=titles)
+
+    for claim in claims:
+        steps = {cited[i]["step"] for i, _ in claim["_items"]}
+        if steps != {claim["step"]}:
+            reasons.add("STEP_NOT_FROM_EVIDENCE", claim["ref"],
+                        f"claim {claim['ref']}: step {claim['step']}; evidence steps {', '.join(_ordered_steps(frame, steps))}")
+
+    for claim in claims:
+        sentence = sentence_of[claim["ref"]]["text"]
+        if any(cited[i]["kind"] in REVIEW_KINDS for i, _ in claim["_items"]) and not RETOLD_RE.search(sentence) \
+                and (part == REASON_PART or BUYING_REASON_RE.search(sentence)):
+            reasons.add("RETOLD_NOT_MARKED", claim["ref"], f"claim {claim['ref']}: a buying reason from reviews needs "
+                                                           f"«{RETOLD_NOTE}»")
+
+    if part not in SCOPE_PARTS:
+        no_data = _no_data_re(frame, book, groups)
+        for unit in sentences:
+            if not unit["markers"] and not no_data.fullmatch(unit["text"]):
+                reasons.add("UNSUPPORTED_SENTENCE", None, f"sentence {unit['index']}: no claim marker")
+
+    for index, kind in _banned_fails(sentences):
+        reasons.add("BANNED_IDEA", None, f"sentence {index}: {kind}")
+    return reasons.ordered(), graded
+
+
+@mcp.tool()
+@_tool
+def submit_section(run_id: str, part: int, text: str, claims: list[dict]) -> dict:
+    """Submit one report part (1 to 17) written by the agent. The MCP checks it (R-IM10) and, when every gate
+    passes, stores it as a new version. A rejection lists every reason code; nothing is stored."""
+    run_id = _check_run_id(run_id)
+    frame = load_frame()
+    claims = _check_section(frame, part, text, claims)
+    book, groups = load_codebook(), load_keyword_groups()
+    with _current_state(run_id, book, groups) as state:
+        cited = {}
+        for claim in claims:
+            for count_id, _ in claim["_items"]:
+                cited[count_id] = _resolve_id(state["copy"], state["current"], count_id, book)
+        themes = state["themes"]
+        gate_state = {"cited": cited, "numbers": _registry_numbers(state["copy"], cited),
+                      "reviews": _review_words(state["copy"]), "scope": _scope_numbers(state["copy"], themes),
+                      "denominators": themes["coded_reviews"] if themes else {}}
+        full_id = state["run_id"]
+    ctx = {"frame": frame, "store": load_shared_store(full_id), "book": book, "groups": groups}
+    reasons, graded = _section_gates(ctx, part, text, claims, gate_state)
+    result = {"run_id": full_id, "part": part, "accepted": not reasons, "reasons": reasons}
+    if reasons:
+        return result
+    stored_claims = [{k: v for k, v in c.items() if k != "_items"} for c in claims]
+    with _report_store() as con:
+        version = 1 + con.execute("SELECT COALESCE(MAX(version), 0) FROM section_version WHERE run_id = ? AND part = ?",
+                                  (full_id, part)).fetchone()[0]
+        con.execute("INSERT INTO section_version VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+            full_id, part, version, text, _canonical(stored_claims), _canonical([graded[c["ref"]] for c in claims]),
+            frame["version"], book["version"], _stamp()))
+    result.update(version=version, claims=[{"ref": c["ref"], "confidence": c["confidence"],
+                                            "ceiling": graded[c["ref"]]["ceiling"],
+                                            "hypothesis": graded[c["ref"]]["hypothesis"]} for c in claims])
+    return result
+
+
+# ---------------------------------------------------------------------------
+# submit_statement (R-IM11)
+# ---------------------------------------------------------------------------
+
+def _check_statement(frame: dict, book: dict, statement, replaces) -> None:
+    """IM-Q94 input rules; any failure is INVALID_ARGUMENT."""
+    def need(ok: bool, message: str) -> None:
+        if not ok:
+            raise InsightError("INVALID_ARGUMENT", message)
+
+    need(isinstance(statement, dict) and set(statement) == STATEMENT_KEYS,
+         "statement has exactly the 9 fields of R-C01: step, customer, hidden_truth, motivation, conflict, insight, "
+         "three_c, evidence, confidence")
+    need(statement["step"] in STATEMENT_STEPS, "step is one of Biết đến, Quan tâm, Muốn mua, Mua, Sau mua")
+    for name in TEXT_FIELDS:
+        value = statement[name]
+        need(isinstance(value, str) and len(value) <= MAX_FIELD_CHARS and (name == "conflict" or bool(value.strip())),
+             f"{name} must be a non-blank string of at most {MAX_FIELD_CHARS} characters")
+    three_c = statement["three_c"]
+    need(three_c is None or (isinstance(three_c, dict) and set(three_c) == set(THREE_C_KEYS) and all(
+        _text(three_c[k]) and len(three_c[k]) <= MAX_FIELD_CHARS for k in THREE_C_KEYS)),
+        "three_c is null or exactly the non-blank strings customer, brand, category")
+    evidence = statement["evidence"]
+    need(isinstance(evidence, list) and len(evidence) <= MAX_EVIDENCE,
+         f"evidence must be a list of at most {MAX_EVIDENCE} lines")
+    codes = _theme_codes(book)
+    for line in evidence:
+        need(isinstance(line, dict) and set(line) == LINE_KEYS,
+             "an evidence line has exactly supports, layer, themes, platform, count_id, part, note")
+        need(line["supports"] in SUPPORTS, "supports is hidden_truth, motivation, conflict or why")
+        why = line["supports"] == "why"
+        need(_int(line["layer"]) and 1 <= line["layer"] <= MAX_WHY_LAYER if why else line["layer"] is None,
+             f"layer is an integer 1 to {MAX_WHY_LAYER} on a why line and null otherwise")
+        themes = line["themes"]
+        need(isinstance(themes, list) and len(themes) == 2 and all(isinstance(t, str) and t in codes for t in themes)
+             and themes[0] != themes[1] if why else themes is None,
+             "themes is two different theme codes of the codebook on a why line and null otherwise")
+        need(line["platform"] in PLATFORMS, "platform is shopee or tiktok_shop")
+        need(isinstance(line["count_id"], str), "count_id is a string")
+        need(_int(line["part"]) and frame["_parts"].get(line["part"], {}).get("kind") == "data",
+             "part is a data part (4 to 15)")
+        need(line["note"] is None or (isinstance(line["note"], str) and len(line["note"]) <= MAX_NOTE_CHARS),
+             f"note is null or a string of at most {MAX_NOTE_CHARS} characters")
+    confidence = statement["confidence"]
+    need(isinstance(confidence, dict) and set(confidence) == {"level", "hypothesis"}
+         and confidence["level"] in LEVELS and isinstance(confidence["hypothesis"], bool),
+         "confidence is {level, hypothesis}: one of the 4 levels and true or false")
+    need(replaces is None or isinstance(replaces, str), "replaces is null or a statement_id")
+
+
+def _statement_texts(statement: dict) -> list[tuple[str, object, str]]:
+    """Each text field and note on its own: (label, line index or None, text)."""
+    out = [(name, None, statement[name]) for name in TEXT_FIELDS]
+    if statement["three_c"] is not None:
+        out += [(f"three_c.{k}", None, statement["three_c"][k]) for k in THREE_C_KEYS]
+    out += [(f"evidence[{i}].note", i, line["note"]) for i, line in enumerate(statement["evidence"])
+            if line["note"] is not None]
+    return out
+
+
+def _statement_gates(ctx: dict, statement: dict, cited: dict, numbers: dict, reviews: dict):
+    lines, texts = statement["evidence"], _statement_texts(statement)
+    level, flag = statement["confidence"]["level"], statement["confidence"]["hypothesis"]
+    infos = [cited[line["count_id"]] for line in lines]
+    reasons = _Reasons(STATEMENT_CODES)
+    add = reasons.add
+
+    if not lines:
+        add("NO_EVIDENCE", None, "the statement has no evidence line")
+    if not statement["conflict"].strip():
+        add("NO_CONFLICT", None, "conflict is blank")
+    side_lines = {side: [i for i, line in enumerate(lines) if line["supports"] == side] for side in SIDES}
+    evidenced = {side: any((numbers[lines[i]["count_id"]].get("reviews") or 0) >= 1 for i in side_lines[side])
+                 for side in SIDES}
+    for side in SIDES:
+        if not evidenced[side] and not (flag and level in ("Yếu", "Không")):
+            add("HYPOTHESIS_REQUIRED", None, f"{side} has no evidence; it needs hypothesis true at Yếu or Không")
+    for side in SIDES:
+        if evidenced[side] and not any(numbers[lines[i]["count_id"]].get("threshold_met") is True
+                                       for i in side_lines[side]):
+            notes = [statement[side]] + [lines[i]["note"] or "" for i in side_lines[side]]
+            if not (flag and any(BELOW_RE.search(_nz(t)) for t in notes)):
+                add("BELOW_THRESHOLD_CONCLUSION", None,
+                    f"{side} is below the threshold; it needs hypothesis true and «{NOTE_BELOW}»")
+
+    why = [(i, line, infos[i]) for i, line in enumerate(lines) if line["supports"] == "why"]
+    layers = sorted({line["layer"] for _, line, _ in why})
+    depth = max(layers, default=0)
+    for i, line, info in why:
+        if info["kind"] != "reason":
+            add("WHY_LAYER_WITHOUT_EVIDENCE", i, f"layer {line['layer']}: the line cites a count row, not a reason link")
+    for k in range(1, depth + 1):
+        if k not in layers:
+            add("WHY_LAYER_WITHOUT_EVIDENCE", None, f"layer {k} has no line")
+        elif not any(info["kind"] == "reason" and info["row"]["reviews"] >= 1
+                     for _, line, info in why if line["layer"] == k):
+            add("WHY_LAYER_WITHOUT_EVIDENCE", None, f"layer {k} has no reason link with a linked review")
+    pairs = {}
+    for k in layers:
+        group = [(line, info) for _, line, info in why if line["layer"] == k]
+        declared = {frozenset(line["themes"]) for line, _ in group}
+        wrong = len(declared) != 1 or any(info["kind"] == "reason" and frozenset(info["themes"]) != frozenset(line["themes"])
+                                          for line, info in group)
+        pair = next(iter(declared)) if len(declared) == 1 else None
+        previous = pairs.get(k - 1)
+        if pair is not None and previous is not None and (pair == previous or len(pair & previous) != 1):
+            wrong = True
+        pairs[k] = pair
+        if wrong:
+            add("WHY_LAYER_WRONG_PAIR", None, f"layer {k}: its pair must be the reason link's pair and share exactly "
+                                              "one theme with the layer before")
+    for i, line, _ in why:
+        if not _text(line["note"]):
+            add("WHY_LAYER_UNEXPLAINED", i, f"layer {line['layer']}: the note must explain how the two ideas join")
+    if depth < 3 and not any(SHORT_CHAIN_RE.search(_nz(t)) for _, _, t in texts):
+        add("WHY_CHAIN_SHORT_UNMARKED", None, f"the «Tại sao» chain has {depth} layers; say «{SHORT_CHAIN_NOTE}»")
+
+    for label, claim, text in texts:
+        if FIRST_PERSON_RE.search(_strip_markers(_nz(text))[0]):
+            add("FIRST_PERSON", claim, f"{label}: first person")
+    for i, (line, info) in enumerate(zip(lines, infos)):
+        if info["step"] != statement["step"]:
+            add("MIXED_STEPS", i, f"line {i}: the row's step is {info['step']}")
+    for i, (line, info) in enumerate(zip(lines, infos)):
+        if line["platform"] != info["platform"]:
+            add("PLATFORM_MISMATCH", i, f"line {i}: the row is not a {line['platform']} row")
+    for i, info in enumerate(infos):
+        if info["kind"] not in REVIEW_KINDS:
+            add("NOT_CUSTOMER_WORDS", i, f"line {i}: the row is not from customer reviews")
+    kept = set(KEPT_KINDS.values())
+    for i, (line, info) in enumerate(zip(lines, infos)):
+        if line["supports"] in ("motivation", "conflict") and (
+                (info["kind"] == "theme" and info["row"]["theme_code"] not in kept) or info["kind"] == "portrait_group"
+                or (info["kind"] == "reason" and not set(info["themes"]) <= kept)):
+            add("MOTIVE_KIND_NOT_KEPT", i, f"line {i}: a {line['supports']} must be công dụng, giá, quy cách or "
+                                           "chất lượng")
+    motives = side_lines["motivation"]
+    if motives and not any(RETOLD_RE.search(_nz(t)) for t in
+                           [statement["motivation"]] + [lines[i]["note"] or "" for i in motives]):
+        add("RETOLD_NOT_MARKED", None, f"motivation: a buying reason from reviews needs «{RETOLD_NOTE}»")
+    for label, claim, text in texts:
+        for index, kind in _banned_fails(_sentences(text)):
+            add("BANNED_IDEA", claim, f"{label} sentence {index}: {kind}")
+
+    graded = [_grade(ctx, info, line["part"], flag) for line, info in zip(lines, infos)]
+    ceiling = min((g["ceiling"] for g, _ in graded), key=_rank, default="Không")
+    hypothesis = flag or any(h for _, h in graded)
+    if _rank(level) > _rank(ceiling) or (hypothesis and not flag):
+        add("CONFIDENCE_ABOVE_CEILING", None, f"ceiling {ceiling}" + (", hypothesis required" if hypothesis else ""))
+
+    for label, claim, text in texts:
+        _text_gates(text, reviews, add, claim, label, numbers=True)
+    return reasons.ordered(), ceiling, [g for g, _ in graded]
+
+
+def _app_payload(statement_id: str, statement: dict, numbers: dict) -> dict:
+    """The app import shape (contracts/analysis/insight-report-statement.schema.json) without revisionId."""
+    three_c = statement["three_c"]
+    return {
+        "contractVersion": STATEMENT_CONTRACT_VERSION, "statementId": statement_id,
+        "purchaseStage": PURCHASE_STAGES[statement["step"]], "customer": statement["customer"],
+        "hiddenTruth": statement["hidden_truth"], "motivation": statement["motivation"],
+        "conflict": statement["conflict"], "insight": statement["insight"],
+        "threeC": None if three_c is None else {k: three_c[k] for k in THREE_C_KEYS},
+        "evidence": [{"platform": APP_PLATFORMS[line["platform"]], "count": numbers[line["count_id"]].get("reviews", 0)}
+                     for line in statement["evidence"]],
+        "confidence": {"level": APP_LEVELS[statement["confidence"]["level"]],
+                       "hypothesis": statement["confidence"]["hypothesis"]},
+    }
+
+
+@mcp.tool()
+@_tool
+def submit_statement(run_id: str, statement: dict, replaces: str | None = None) -> dict:
+    """Submit one insight statement in the 9 fields of R-C01 (R-IM11). The MCP checks it and, when every gate
+    passes, stores it as a new version (`replaces` names the statement it revises) with a payload the app can
+    import later. A rejection lists every reason code; nothing is stored."""
+    run_id = _check_run_id(run_id)
+    frame, book, groups = load_frame(), load_codebook(), load_keyword_groups()
+    _check_statement(frame, book, statement, replaces)
+    with _current_state(run_id, book, groups) as state:
+        full_id, reasons_cache, cited = state["run_id"], {}, {}
+        if replaces is not None and not _report_rows(
+                "SELECT 1 FROM statement_version WHERE statement_id = ? AND run_id = ?", (replaces, full_id)):
+            raise InsightError("INVALID_ARGUMENT", "replaces names no stored statement of this run")
+        for line in statement["evidence"]:
+            cited[line["count_id"]] = _resolve_id(state["copy"], state["current"], line["count_id"], book,
+                                                  reasons_cache)
+        numbers = _registry_numbers(state["copy"], cited)
+        reviews = _review_words(state["copy"])
+    ctx = {"frame": frame, "store": load_shared_store(full_id), "book": book, "groups": groups}
+    reasons, ceiling, graded = _statement_gates(ctx, statement, cited, numbers, reviews)
+    result = {"run_id": full_id, "accepted": not reasons, "reasons": reasons}
+    if reasons:
+        return result
+    lines = []
+    for line, g in zip(statement["evidence"], graded):
+        info = cited[line["count_id"]]
+        lines.append({**line, **_cited(info, book, numbers[line["count_id"]]), "ceiling": g["ceiling"],
+                      "blocked": g["blocked"], "checks": g["checks"], "missing_count": g["missing_count"]})
+        if info["kind"] == "reason":
+            lines[-1]["pair"] = info["themes"]
+    with _report_store() as con:
+        if replaces is None:
+            statement_id, version = str(uuid.uuid4()), 1
+        else:
+            statement_id = replaces
+            version = 1 + con.execute("SELECT MAX(version) FROM statement_version WHERE statement_id = ?",
+                                      (statement_id,)).fetchone()[0]
+        con.execute("INSERT INTO statement_version VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+            statement_id, version, full_id, statement["step"], _canonical(statement), _canonical(lines),
+            _canonical(_app_payload(statement_id, statement, numbers)), book["version"], _stamp()))
+    result.update(statement_id=statement_id, version=version, ceiling=ceiling)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# render_report (R-IM12)
+# ---------------------------------------------------------------------------
+
+PAGE_TITLE = "Báo cáo insight"
+PAGE_STYLE = ("body{font-family:sans-serif;max-width:60rem;margin:0 auto;padding:1rem;line-height:1.5}"
+              ".claim{color:#555;font-size:.9em}.stale{color:#a00;font-weight:bold}.missing{color:#777}"
+              "table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:.3rem;vertical-align:top}")
+FIELD_NAMES = (("customer", "Khách hàng"), ("hidden_truth", "Sự thật ngầm"), ("motivation", "Động lực"),
+               ("conflict", "Xung đột"), ("insight", "Câu insight"))
+THREE_C_NAMES = (("customer", "Khách"), ("brand", "Thương hiệu"), ("category", "Ngành"))
+NUMBER_NAMES = {"reviews": "đánh giá", "writers": "người viết", "products": "sản phẩm", "keywords": "từ khóa",
+                "threshold_count": "số tính ngưỡng"}
+SOURCE_PLATFORM = {"shopee_reviews": "shopee", "tiktok_shop_reviews": "tiktok_shop"}
+
+
+def _h(value) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def _numbers_text(numbers: dict) -> str:
+    parts = [f"{numbers[k]} {NUMBER_NAMES[k]}" for k in NUMBER_KEYS if k in numbers]
+    if "threshold_met" in numbers:
+        parts.append("đạt ngưỡng" if numbers["threshold_met"] else NOTE_BELOW)
+    return "; ".join(parts)
+
+
+def _claim_label(hypothesis: bool, confidence: str, step: str) -> str:
+    return " · ".join(([LABEL_HYPOTHESIS] if hypothesis else []) + [confidence, step])
+
+
+def _render_text(text: str, titles: frozenset, claims: dict, footnote) -> str:
+    """A part body: the agent's text, HTML-escaped, with each marker shown in place as its label and footnote."""
+    out = []
+    for line in unicodedata.normalize("NFC", text).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if _units(line, titles) == [{"kind": "heading"}]:
+            out.append(f"<h3>{_h(line.lstrip('#').strip())}</h3>")
+            continue
+        pieces, last = [], 0
+        for match in MARKER_ANY_CASE_RE.finditer(line):
+            pieces.append(_h(line[last:match.start()]))
+            claim = claims.get(match.group(1).lower())
+            if claim is None:
+                pieces.append(_h(match.group()))
+            else:
+                k = footnote(claim)
+                label = _claim_label(claim["hypothesis"], claim["confidence"], claim["step"])
+                pieces.append(f'<span class="claim">({_h(label)})<sup><a href="#fn-{k}">{k}</a></sup></span>')
+            last = match.end()
+        pieces.append(_h(line[last:]))
+        out.append("<p>" + "".join(pieces) + "</p>")
+    return "\n".join(out)
+
+
+def _appendix_row(row: dict, frame: dict, current: set) -> str:
+    items = []
+    for item in row["items"]:
+        source = frame["_sources"].get(item["source"], {}).get("name", item["source"])
+        platform = PLATFORM_NAMES.get(item["platform"], "—")
+        state = "còn hiện hành" if item["count_id"] in current else "không còn hiện hành"
+        cells = [item["count_id"], source, platform, item["label"], _numbers_text(item["numbers"]),
+                 item.get("threshold_note") or "", state]
+        items.append("<li>" + " · ".join(_h(c) for c in cells if c != "") + "</li>")
+    why = "" if row["layer"] is None else f"Tầng {row['layer']}: {row['explanation'] or ''}"
+    cells = [row["where"], row["ref"], row["step"], f"{row['confidence']} (trần {row['ceiling']})",
+             LABEL_HYPOTHESIS if row["hypothesis"] else "", why]
+    return (f'<tr id="fn-{row["k"]}"><td>{row["k"]}</td>' + "".join(f"<td>{_h(c)}</td>" for c in cells)
+            + f"<td><ul>{''.join(items)}</ul></td></tr>")
+
+
+def _source_rows(frame: dict, status: dict, scope: dict) -> list[str]:
+    """One appendix row per frame source the run captured, with its scope numbers (IM-Q103)."""
+    rows = []
+    for source in frame["sources"]:
+        captured = [w for w in source["warehouse_sources"] if status.get(w, (0, 0))[0]]
+        if not captured:
+            continue
+        platform = SOURCE_PLATFORM.get(source["key"])
+        if platform:
+            numbers = [f"đã thu {scope[('reviews', platform, 'collected')]} đánh giá",
+                       f"đã mã hóa {scope[('reviews', platform, 'coded')]} đánh giá",
+                       f"{scope[('products', platform, 'collected')]} sản phẩm"]
+        elif source["key"] == "search_suggestions":
+            numbers = [f"đã thu {scope[('keywords', None, 'collected')]} từ khóa"]
+        else:
+            numbers = [f"{sum(status[w][1] for w in captured)} dòng"]
+        rows.append(f"<tr><td>{_h(source['name'])}</td><td>{_h(PLATFORM_NAMES.get(platform, '—'))}</td>"
+                    f"<td>{_h('; '.join(numbers))}</td></tr>")
+    return rows
+
+
+def _json_file(value: dict) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+
+
+@mcp.tool()
+@_tool
+def render_report(run_id: str) -> dict:
+    """Render the report of a run from its latest accepted parts and statements (R-IM12): `report.html`, four JSON
+    files of totals for the dashboard, and an archive row in the report store (an identical report is stored once).
+    Parts that were never accepted show «Chưa viết»; nothing is filled in from other data."""
+    run_id = _check_run_id(run_id)
+    frame, book, groups = load_frame(), load_codebook(), load_keyword_groups()
+    with _current_state(run_id, book, groups) as state:
+        full_id, copy = state["run_id"], state["copy"]
+        plan = _plan(copy, frame, book, groups, state)
+        scope = _scope_numbers(copy, state["themes"])
+        with _warehouse_ro(copy) as wh:
+            status = {s: (c, n) for s, c, n in wh.execute("SELECT source, captured, row_count FROM source_status")}
+        sections = {}
+        for part, version, text, claims_json, graded_json in _report_rows(
+                "SELECT part, version, text, claims_json, graded_json FROM section_version WHERE run_id = ? "
+                "ORDER BY part, version", (full_id,)):
+            sections[part] = {"version": version, "text": text, "claims": json.loads(claims_json),
+                              "graded": json.loads(graded_json)}
+        statements = {}
+        for statement_id, version, step, statement_json, evidence_json, payload_json in _report_rows(
+                "SELECT statement_id, version, step, statement_json, evidence_json, app_payload_json "
+                "FROM statement_version WHERE run_id = ? ORDER BY rowid", (full_id,)):
+            first = statements.get(statement_id, {}).get("first", len(statements))
+            statements[statement_id] = {"id": statement_id, "version": version, "step": step, "first": first,
+                                        "statement": json.loads(statement_json), "lines": json.loads(evidence_json),
+                                        "payload": json.loads(payload_json)}
+        current, reasons_cache = set(state["current"]), {}
+        for entry in statements.values():
+            for line in entry["lines"]:
+                if line["tool"] == REASON_TOOL and line["count_id"] not in current:
+                    row_key = _canonical([line["platform"], line["pair"]])
+                    current |= set(_reason_infos(copy, book, row_key, reasons_cache))
+        themes_rows = state["themes"]["rows"] if state["themes"] else []
+        keyword_rows = state["keywords"]["rows"]
+        portrait_rows = state["portraits"]["rows"]
+
+    footnotes = []
+    page = ["<!DOCTYPE html>", '<html lang="vi">', "<head>", '<meta charset="utf-8">', f"<title>{PAGE_TITLE}</title>",
+            f"<style>{PAGE_STYLE}</style>", "</head>", "<body>", "<header>", f"<h1>{PAGE_TITLE}</h1>",
+            f"<p>Lần chạy: {_h(full_id)}</p>", f"<p>Khung báo cáo: {_h(frame['version'])} ({_h(frame['status'])})</p>",
+            f"<p>Bộ chủ đề: {_h(book['version'])} ({_h(book['status'])})</p>", "</header>"]
+    parts_rows, written, missing, stale = [], [], [], []
+    for spec in frame["parts"][:APPENDIX_PART - 1]:
+        part = spec["part"]
+        page.append(f'<section id="part-{part}">')
+        page.append(f"<h2>Phần {part}. {_h(spec['title'])}</h2>")
+        section = sections.get(part)
+        if section is None:
+            missing.append(part)
+            page.append(f'<p class="missing">{STATUS_MISSING}</p>')
+            parts_rows.append({"part": part, "title": spec["title"], "status": STATUS_MISSING,
+                               "content_sha256": None, "claims": 0, "lowest_confidence": None})
+        else:
+            written.append(part)
+            graded = {g["ref"]: g for g in section["graded"]}
+            is_stale = any(item["count_id"] not in current for g in graded.values() for item in g["items"])
+            if is_stale:
+                stale.append(part)
+                page.append(f'<p class="stale">{MARK_STALE}</p>')
+            claims = {c["ref"]: c for c in section["claims"]}
+
+            def footnote(claim, part=part, graded=graded):
+                g = graded[claim["ref"]]
+                footnotes.append({"k": len(footnotes) + 1, "where": f"Phần {part}", "ref": f"ý {claim['ref']}",
+                                  "step": claim["step"], "confidence": claim["confidence"], "ceiling": g["ceiling"],
+                                  "hypothesis": g["hypothesis"], "layer": None, "explanation": None,
+                                  "items": g["items"]})
+                return len(footnotes)
+
+            page.append(_render_text(section["text"], _structural_titles(frame, book, groups, part), claims, footnote))
+            levels = [c["confidence"] for c in section["claims"]]
+            parts_rows.append({
+                "part": part, "title": spec["title"], "status": STATUS_RESUBMIT if is_stale else STATUS_WRITTEN,
+                "content_sha256": _sha256(_canonical({"text": section["text"], "claims": section["claims"]})),
+                "claims": len(levels), "lowest_confidence": min(levels, key=_rank) if levels else None})
+        page.append("</section>")
+
+    page += ['<section id="statements">', "<h2>Câu insight</h2>"]
+    ordered = sorted(statements.values(), key=lambda e: (STEPS.index(e["step"]), e["first"]))
+    for n, entry in enumerate(ordered, 1):
+        statement, lines = entry["statement"], entry["lines"]
+        confidence = statement["confidence"]
+        page.append(f'<article class="statement" id="statement-{_h(entry["id"])}">')
+        page.append(f'<p class="label">{_h(_claim_label(confidence["hypothesis"], confidence["level"], statement["step"]))}</p>')
+        if any(line["count_id"] not in current for line in lines):
+            page.append(f'<p class="stale">{MARK_STALE}</p>')
+        marks, numbers = {}, []
+        for i, line in enumerate(lines):
+            footnotes.append({"k": len(footnotes) + 1, "where": f"Câu insight {n}", "ref": f"dòng {i}",
+                              "step": statement["step"], "confidence": confidence["level"], "ceiling": line["ceiling"],
+                              "hypothesis": confidence["hypothesis"], "layer": line["layer"],
+                              "explanation": line["note"] if line["supports"] == "why" else None,
+                              "items": [line]})
+            marks.setdefault(line["supports"], []).append((line, len(footnotes)))
+            numbers.append(len(footnotes))
+        page.append("<dl>")
+        for key, name in FIELD_NAMES:
+            refs = ""
+            for line, k in marks.get(key, []):
+                link = f'<sup><a href="#fn-{k}">{k}</a></sup>'
+                refs += (f'<p class="evidence-note">{_h(line["note"])}{link}</p>'
+                         if _text(line["note"]) else link)
+            page.append(f"<dt>{name}</dt><dd>{_h(statement[key])}{refs}</dd>")
+        if statement["three_c"] is not None:
+            three_c = "; ".join(f"{name}: {statement['three_c'][key]}" for key, name in THREE_C_NAMES)
+            page.append(f"<dt>3C</dt><dd>{_h(three_c)}</dd>")
+        page.append("</dl>")
+        why = [(line, k) for line, k in zip(lines, numbers) if line["supports"] == "why"]
+        if why:
+            page.append("<h3>Tại sao</h3>")
+            page.append("<ol class=\"why\">")
+            for layer in sorted({line["layer"] for line, _ in why}):
+                notes = "; ".join(f'{_h(line["note"])}<sup><a href="#fn-{k}">{k}</a></sup>'
+                                  for line, k in why if line["layer"] == layer)
+                page.append(f"<li>Tầng {layer}: {notes}</li>")
+            page.append("</ol>")
+        page.append("</article>")
+    page.append("</section>")
+
+    page += ['<section id="unanswered">', "<h2>Những gì báo cáo chưa trả lời được</h2>", "<ul>"]
+    for line in plan["unanswered"]:
+        needs = f" Cần: {line['needs']}." if line["needs"] else ""
+        page.append(f"<li>{_h(line['unknown'])} (bước {_h(line['step'])}): {_h(line['why'])}.{_h(needs)}</li>")
+    page += ["</ul>", "</section>"]
+
+    appendix = frame["_parts"][APPENDIX_PART]
+    page += [f'<section id="part-{APPENDIX_PART}">', f"<h2>Phần {APPENDIX_PART}. {_h(appendix['title'])}</h2>",
+             "<h3>Nguồn đã thu</h3>", "<table>", "<tr><th>Nguồn</th><th>Sàn</th><th>Số đã dùng</th></tr>",
+             *_source_rows(frame, status, scope), "</table>", "<h3>Nguồn của từng con số</h3>", "<table>",
+             "<tr><th>Số</th><th>Ở đâu</th><th>Ý hoặc dòng</th><th>Bước</th><th>Mức tin</th><th>Giả thuyết</th>"
+             "<th>Tầng</th><th>Số đếm</th></tr>",
+             *(_appendix_row(row, frame, current) for row in footnotes), "</table>", "</section>",
+             "</body>", "</html>"]
+    page_html = "\n".join(page) + "\n"
+    parts_rows.append({"part": APPENDIX_PART, "title": appendix["title"], "status": STATUS_BUILT,
+                       "content_sha256": None, "claims": 0, "lowest_confidence": None})
+
+    keyword_source = frame["_sources"]["search_suggestions"]["name"]
+    totals = {
+        "themes": {"rows": themes_rows},
+        "keywords": {"rows": [{"source": keyword_source, **{k: row[k] for k in (
+            "group_key", "group_name", "step", "keywords", "threshold_met", "threshold_note", "count_id")}}
+            for row in keyword_rows]},
+        "portraits": {"rows": portrait_rows},
+        "parts": {"rows": parts_rows},
+    }
+    payloads = [entry["payload"] for entry in ordered]
+    archive_id = _sha256(_canonical({"run_id": full_id, "html": page_html, "totals": totals, "statements": payloads,
+                                     "codebook_version": book["version"]}))
+    with _report_store() as con:
+        stored = con.execute("SELECT 1 FROM render_archive WHERE archive_id = ?", (archive_id,)).fetchone() is None
+        if stored:
+            con.execute("INSERT INTO render_archive VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
+                archive_id, full_id, page_html, _canonical(totals), _canonical(payloads), book["version"],
+                frame["version"], _stamp()))
+    contents = {"report.html": page_html, "themes.json": _json_file(totals["themes"]),
+                "keywords.json": _json_file(totals["keywords"]), "portraits.json": _json_file(totals["portraits"]),
+                "parts.json": _json_file(totals["parts"])}
+    out_dir = _data_dir() / "reports" / full_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name in REPORT_FILES:
+        (out_dir / name).write_bytes(contents[name].encode("utf-8"))
+    return {"run_id": full_id, "archive_id": archive_id, "stored": stored,
+            "parts": {"written": len(written), "missing": len(missing), "stale": len(stale)}, "statements": len(ordered),
+            "files": list(REPORT_FILES), "versions": {str(p): s["version"] for p, s in sorted(sections.items())},
+            "statement_versions": {e["id"]: e["version"] for e in ordered}}
 
 
 if __name__ == "__main__":
