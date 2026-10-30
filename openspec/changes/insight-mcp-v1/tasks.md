@@ -26,6 +26,8 @@ PR 1 merge ngày 30/10/2026: #428 → `c8fc5cda` (Sol 6.1 xhigh PASS tại `f68a
 - [x] 3.2 Mức tin trần theo 4 câu kiểm; sổ «cách đo ổn trên bao nhiêu sản phẩm» (R-IM08)
 - [x] 3.3 `find_reason_links`, `read_reviews` (R-IM09)
 
+PR 2 merge ngày 30/10/2026: #429 → `1f6f6943` (Sol 6.1 xhigh PASS tại `3882dcba`, CI xanh).
+
 ## 4. PR 3: viết, kiểm và đầu ra
 
 - [ ] 4.1 `submit_section` với 8 lý do từ chối; lưu theo phiên bản (R-IM10)
