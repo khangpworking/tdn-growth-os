@@ -1,0 +1,21 @@
+# Counted theme labels: kept labels whose review has a done coding state on the same codebook version and block,
+# with the review's current coding input. tools/mcp-insight/insight_tools.py filters the current target and themes.
+name: theme_label
+sql_table: v_theme_label
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: theme_code, sql: theme_code, type: TEXT}
+  - {name: polarity, sql: polarity, type: TEXT}
+  - {name: step, sql: step, type: TEXT}
+  - {name: codebook_version, sql: codebook_version, type: TEXT}
+  - {name: block_norm, sql: block_norm, type: TEXT}
+  - {name: review_id, sql: review_id, type: TEXT}
+  - {name: writer_key, sql: writer_key, type: TEXT}
+  - {name: writer_unknown, sql: writer_unknown, type: INT}
+  - {name: product_key, sql: product_key, type: TEXT}
+measures:
+  - {name: n_reviews, formula: count_distinct(review_id)}
+  - {name: n_writers, formula: count_distinct(writer_key)}
+  - {name: n_products, formula: count_distinct(product_key)}
+  - {name: n_unknown_writer_labels, formula: sum(writer_unknown)}

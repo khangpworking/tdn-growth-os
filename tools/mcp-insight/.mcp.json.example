@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tdn-insight": {
+      "command": "python3",
+      "args": ["tools/mcp-insight/insight_tools.py"],
+      "env": {
+        "INSIGHT_MCP_APP_DB": "<path to the app SQLite file>"
+      }
+    }
+  }
+}

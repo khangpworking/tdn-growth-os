@@ -1,0 +1,17 @@
+# Portrait groups («Ai dùng», «Mua cho ai») per review.
+name: portrait_group
+sql_table: v_portrait
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: dimension, sql: dimension, type: TEXT}
+  - {name: grp, sql: grp, type: TEXT}
+  - {name: review_id, sql: review_id, type: TEXT}
+  - {name: writer_key, sql: writer_key, type: TEXT}
+  - {name: writer_unknown, sql: writer_unknown, type: INT}
+  - {name: product_key, sql: product_key, type: TEXT}
+measures:
+  - {name: n_reviews, formula: count_distinct(review_id)}
+  - {name: n_writers, formula: count_distinct(writer_key)}
+  - {name: n_products, formula: count_distinct(product_key)}
+  - {name: n_unknown_writer_labels, formula: sum(writer_unknown)}

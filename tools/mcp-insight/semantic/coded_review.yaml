@@ -1,0 +1,11 @@
+# Reviews with a done coding state whose inputs are still current.
+name: coded_review
+sql_table: v_coded_review
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: codebook_version, sql: codebook_version, type: TEXT}
+  - {name: block_norm, sql: block_norm, type: TEXT}
+  - {name: review_id, sql: review_id, type: TEXT}
+measures:
+  - {name: n_reviews, formula: count_distinct(review_id)}

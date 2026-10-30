@@ -25,6 +25,7 @@ jobs:
       mode: ${{ steps.scope.outputs.mode }}
       backend-shards: ${{ steps.shards.outputs.matrix }}
       market-mcp: ${{ steps.market.outputs.changed }}
+      insight-mcp: ${{ steps.market.outputs.insight }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -109,7 +110,7 @@ jobs:
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "Validation scope: $mode" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Detect Market MCP changes
+      - name: Detect Market and Insight MCP changes
         id: market
         env:
           EVENT: ${{ github.event_name }}
@@ -120,6 +121,7 @@ jobs:
         shell: bash
         run: |
           changed=false
+          insight=false
           range=""
           if [[ "$EVENT" == pull_request && -n "$BASE_SHA" && -n "$HEAD_SHA" ]]; then
             git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA" >/dev/null 2>&1 || true
@@ -127,21 +129,28 @@ jobs:
           elif [[ "$EVENT" == push && -n "$BEFORE_SHA" && ! "$BEFORE_SHA" =~ ^0+$ ]]; then
             range="$BEFORE_SHA..$AFTER_SHA"
           else
-            # No comparable range: run the suite instead of silently skipping it.
+            # No comparable range: run the suites instead of silently skipping them.
             changed=true
+            insight=true
           fi
           if [[ -n "$range" ]]; then
             if diff_output="$(git diff --name-only --no-renames "$range")"; then
               if grep -q '^tools/mcp-market/' <<< "$diff_output"; then
                 changed=true
               fi
+              if grep -q '^tools/mcp-insight/' <<< "$diff_output"; then
+                insight=true
+              fi
             else
-              echo "Changed-path comparison failed; running the Market MCP suite."
+              echo "Changed-path comparison failed; running the Market and Insight MCP suites."
               changed=true
+              insight=true
             fi
           fi
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "insight=$insight" >> "$GITHUB_OUTPUT"
           echo "Market MCP suite: $changed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Insight MCP suite: $insight" >> "$GITHUB_STEP_SUMMARY"
 
   research:
     needs: scope
@@ -198,6 +207,30 @@ jobs:
 
       - name: Run Market MCP offline tests
         run: python3 -m unittest discover -s tools/mcp-market/tests -v
+
+  insight-mcp:
+    needs: scope
+    if: needs.scope.outputs.insight-mcp == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/mcp-insight/requirements.txt
+
+      - name: Install pinned dependencies
+        run: python3 -m pip install -r tools/mcp-insight/requirements.txt
+
+      - name: Run Insight MCP offline tests
+        run: python3 -m unittest discover -s tools/mcp-insight/tests -v
 
   prep:
     needs: scope
@@ -324,7 +357,7 @@ jobs:
 
   check:
     name: check
-    needs: [scope, research, market-mcp, prep, backend, frontend]
+    needs: [scope, research, market-mcp, insight-mcp, prep, backend, frontend]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -335,18 +368,23 @@ jobs:
           MODE: ${{ needs.scope.outputs.mode }}
           RESEARCH_RESULT: ${{ needs.research.result }}
           MARKET_MCP_RESULT: ${{ needs.market-mcp.result }}
+          INSIGHT_MCP_RESULT: ${{ needs.insight-mcp.result }}
           PREP_RESULT: ${{ needs.prep.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
         shell: bash
         run: |
-          echo "scope=$SCOPE_RESULT mode=$MODE research=$RESEARCH_RESULT market-mcp=$MARKET_MCP_RESULT prep=$PREP_RESULT backend=$BACKEND_RESULT frontend=$FRONTEND_RESULT"
+          echo "scope=$SCOPE_RESULT mode=$MODE research=$RESEARCH_RESULT market-mcp=$MARKET_MCP_RESULT insight-mcp=$INSIGHT_MCP_RESULT prep=$PREP_RESULT backend=$BACKEND_RESULT frontend=$FRONTEND_RESULT"
           if [[ "$SCOPE_RESULT" != success ]]; then
             echo "::error::scope job did not succeed ($SCOPE_RESULT)"
             exit 1
           fi
           if [[ "$MARKET_MCP_RESULT" != success && "$MARKET_MCP_RESULT" != skipped ]]; then
             echo "::error::market-mcp job result: $MARKET_MCP_RESULT"
+            exit 1
+          fi
+          if [[ "$INSIGHT_MCP_RESULT" != success && "$INSIGHT_MCP_RESULT" != skipped ]]; then
+            echo "::error::insight-mcp job result: $INSIGHT_MCP_RESULT"
             exit 1
           fi
           case "$MODE" in

@@ -1,0 +1,402 @@
+{
+  "contractVersion": "insight-theme-codebook-v1",
+  "version": "2026-10-30.3",
+  "status": "DRAFT",
+  "approvedBy": null,
+  "approvedAt": null,
+  "coreRule": "A theme is in the core only when it applies to at least 3 of the 5 categories. Chủ đề hậu cần và dịch vụ sàn (giao hàng, đóng gói, dịch vụ shop) bị loại theo F310.",
+  "core": [
+    {
+      "code": "T-CHINHHANG",
+      "name": "Chính hãng, đúng mô tả",
+      "include": "hàng thật, tem, mã vạch, đúng mẫu, đúng công bố, đúng ảnh, không phải hàng giả hoặc hàng nhái; lệch mô tả hoặc ảnh",
+      "exclude": "kiểu dáng, màu sắc hoặc thiết kế của chính sản phẩm (T-THIETKE); chất lượng hoặc độ bền (T-CHATLUONG); thành phần hoặc vật liệu (T-THANHPHAN)"
+    },
+    {
+      "code": "T-THIETKE",
+      "name": "Kiểu dáng, màu sắc, thiết kế",
+      "include": "kiểu dáng, màu sắc, mẫu mã, thiết kế của chính sản phẩm; đẹp hoặc xấu, sang hoặc trông rẻ, hợp mắt; vẻ ngoài của bao bì, hộp, nhãn: đẹp, xấu, bắt mắt, sang (F311)",
+      "exclude": "bao bì móp, rách, hỏng (T-LOI); cách gói, chèn, seal, mở hộp (không gán chủ đề, F310); màu hoặc kiểu khác ảnh/mô tả (T-CHINHHANG); size hoặc vừa vặn (T-SIZE)"
+    },
+    {
+      "code": "T-GIA",
+      "name": "Giá, khuyến mãi, quà tặng",
+      "include": "giá, đắt hoặc rẻ, voucher, freeship, sale, đáng tiền, so giá, quà tặng, tặng kèm, mẫu thử",
+      "exclude": "phí vận chuyển (không gán chủ đề, F310); số lượng trong một gói (T-QUYCACH)"
+    },
+    {
+      "code": "T-CHATLUONG",
+      "name": "Chất lượng, độ bền",
+      "include": "độ bền, độ hoàn thiện, cảm giác chắc chắn, hỏng sớm, hao mòn",
+      "exclude": "một lỗi cụ thể (T-LOI); thành phần hoặc vật liệu (T-THANHPHAN); công dụng hoặc hiệu quả (T-CONGDUNG); khen chung không nói rõ chất lượng gì, ví dụ «hàng tốt», «thấy ổn», «hài lòng» (không gán chủ đề, chủ chấm 30/10)"
+    },
+    {
+      "code": "T-CONGDUNG",
+      "name": "Công dụng, hiệu quả",
+      "include": "tác dụng, kết quả sau khi dùng, hiệu quả, công suất, khả năng làm việc",
+      "exclude": "cảm giác tức thời khi dùng (T-CAMGIAC); độ bền (T-CHATLUONG); sản phẩm có thêm chất gì hoặc hợp với ai, khi khách chưa nói kết quả sau khi dùng (T-THANHPHAN hoặc không gán; chủ chấm 30/10)"
+    },
+    {
+      "code": "T-MUALAI",
+      "name": "Mua lại, giới thiệu",
+      "include": "sẽ mua lại, mua tiếp, giới thiệu người khác, quay lại ủng hộ",
+      "exclude": "khen chung (T-CHATLUONG); chỉ kể đã mua một lần"
+    },
+    {
+      "code": "T-LOI",
+      "name": "Hàng lỗi, thiếu, sai",
+      "include": "giao sai hoặc thiếu, hàng hỏng, móp, vỡ hoặc ướt do vận chuyển, hết hạn, không dùng được, sai mẫu",
+      "exclude": "đổi trả hoặc hoàn tiền (T-DOITRA); chất lượng chung (T-CHATLUONG); bao bì còn nguyên vẹn (không gán chủ đề, F310)"
+    },
+    {
+      "code": "T-DOITRA",
+      "name": "Đổi trả, hoàn tiền, bảo hành",
+      "include": "đổi, trả, hoàn tiền, bảo hành, sửa chữa, hỗ trợ sau mua",
+      "exclude": "lỗi sản phẩm (T-LOI); tư vấn trước mua (không gán chủ đề, F310)"
+    },
+    {
+      "code": "T-TONKHO",
+      "name": "Tồn kho, sẵn có",
+      "include": "hết hàng, còn hàng, đặt trước, giao sau, đủ hoặc thiếu số lượng, khó mua",
+      "exclude": "giao hàng (không gán chủ đề, F310); số lượng trong một gói (T-QUYCACH)"
+    },
+    {
+      "code": "T-QUYCACH",
+      "name": "Quy cách, kích thước, dung tích, số lượng",
+      "include": "kích thước, dung tích, khối lượng, số lượng, số đơn vị, dùng được bao lâu, đủ hoặc thiếu so với công bố",
+      "exclude": "vừa vặn với cơ thể (T-SIZE); vẻ ngoài bao bì (T-THIETKE, F311); tồn kho (T-TONKHO)"
+    },
+    {
+      "code": "T-CAMGIAC",
+      "name": "Cảm giác khi dùng",
+      "include": "dễ chịu, thoải mái, đau, nóng, buồn nôn, ngủ, đói, nhẹ bụng, đầy hơi, nặng, bí, dễ uống hoặc khó uống, dễ nuốt (chủ chấm 30/10)",
+      "exclude": "kết quả dài hạn (T-CONGDUNG); kích ứng (T-KICHUNG); vị (T-VI)"
+    },
+    {
+      "code": "T-THANHPHAN",
+      "name": "Thành phần, chất liệu, an toàn",
+      "include": "thành phần, hàm lượng, vật liệu, nguồn gốc, an toàn, dị ứng, chất cấm, BPA",
+      "exclude": "độ bền (T-CHATLUONG); kích ứng (T-KICHUNG)"
+    },
+    {
+      "code": "T-DEUDUNG",
+      "name": "Dễ dùng, lắp đặt, hướng dẫn",
+      "include": "dễ dùng, lắp đặt, hướng dẫn, điều khiển, thao tác, cồng kềnh, di chuyển, vệ sinh",
+      "exclude": "dịch vụ shop (không gán chủ đề, F310); công suất (T-CONGSUAT)"
+    }
+  ],
+  "blocks": {
+    "thuc_pham": {
+      "label": "Ăn uống, thực phẩm chức năng",
+      "match": {
+        "categoryLabels": [
+          "Sức Khoẻ",
+          "Bách Hoá - Thực Phẩm",
+          "Thực Phẩm",
+          "Đồ Uống"
+        ],
+        "keywords": [
+          "thực phẩm",
+          "thực phẩm chức năng",
+          "đồ uống",
+          "sữa",
+          "canxi",
+          "kẽm",
+          "vitamin",
+          "tpcn",
+          "ngũ cốc",
+          "thuốc bổ"
+        ]
+      },
+      "themes": [
+        {
+          "code": "T-VI",
+          "name": "Vị",
+          "include": "mùi vị, ngọt, mặn, chua, thơm, đậm, tan, lợn cợn, dễ uống hoặc khó uống, hậu vị",
+          "exclude": "mùi hương khi dùng trên da (T-MUI); cảm giác khi dùng (T-CAMGIAC); thành phần (T-THANHPHAN)"
+        },
+        {
+          "code": "T-HANDUNG",
+          "name": "Hạn sử dụng",
+          "include": "hạn còn dài hoặc ngắn, date mới hoặc cũ, hết hạn, mốc, tem date",
+          "exclude": "đóng gói (không gán chủ đề, F310); lỗi (T-LOI)"
+        }
+      ]
+    },
+    "dien_may": {
+      "label": "Điện máy, điện gia dụng",
+      "match": {
+        "categoryLabels": [
+          "Điện Gia Dụng",
+          "Điện Máy",
+          "Thiết Bị Điện",
+          "Đồ Điện"
+        ],
+        "keywords": [
+          "điện gia dụng",
+          "điện máy",
+          "quạt",
+          "nồi",
+          "máy",
+          "thiết bị điện"
+        ]
+      },
+      "themes": [
+        {
+          "code": "T-DONO",
+          "name": "Độ ồn",
+          "include": "ồn, êm, tiếng máy, rung, tiếng gió",
+          "exclude": "công suất (T-CONGSUAT); độ bền (T-CHATLUONG)"
+        },
+        {
+          "code": "T-CONGSUAT",
+          "name": "Công suất, hiệu năng",
+          "include": "mạnh hoặc yếu, nhanh hoặc chậm, làm lạnh hoặc nóng, pin, hiệu năng",
+          "exclude": "công dụng chung (T-CONGDUNG); điện năng (T-DIENNANG)"
+        },
+        {
+          "code": "T-DIENNANG",
+          "name": "Điện năng, tiêu thụ",
+          "include": "tốn điện, tiết kiệm điện, hoá đơn, pin lâu",
+          "exclude": "công suất (T-CONGSUAT); độ bền (T-CHATLUONG)"
+        }
+      ]
+    },
+    "thoi_trang": {
+      "label": "Thời trang, giày dép",
+      "match": {
+        "categoryLabels": [
+          "Thời Trang",
+          "Giày Dép",
+          "Phụ Kiện Thời Trang"
+        ],
+        "keywords": [
+          "thời trang",
+          "giày",
+          "dép",
+          "quần áo",
+          "áo",
+          "quần",
+          "phụ kiện"
+        ]
+      },
+      "themes": [
+        {
+          "code": "T-SIZE",
+          "name": "Size, vừa vặn",
+          "include": "rộng hoặc chật, đúng size, form, chiều cao, cân nặng, dài hoặc ngắn so với cơ thể",
+          "exclude": "kích thước công bố (T-QUYCACH); chất liệu (T-THANHPHAN); màu, kiểu hoặc thiết kế của chính sản phẩm (T-THIETKE); lệch ảnh/mô tả (T-CHINHHANG)"
+        }
+      ]
+    },
+    "my_pham": {
+      "label": "Mỹ phẩm",
+      "match": {
+        "categoryLabels": [
+          "Làm Đẹp",
+          "Mỹ Phẩm",
+          "Chăm Sóc Da",
+          "Trang Điểm"
+        ],
+        "keywords": [
+          "mỹ phẩm",
+          "son",
+          "kem",
+          "sữa rửa mặt",
+          "trang điểm",
+          "chăm sóc da"
+        ]
+      },
+      "themes": [
+        {
+          "code": "T-MUI",
+          "name": "Mùi hương",
+          "include": "mùi thơm, nồng, khó chịu, lưu hương, mùi nguyên liệu",
+          "exclude": "vị (T-VI); kích ứng (T-KICHUNG)"
+        },
+        {
+          "code": "T-KICHUNG",
+          "name": "Kích ứng",
+          "include": "nổi mẩn, đỏ, ngứa, rát, dị ứng, bong tróc khi dùng trên da",
+          "exclude": "cảm giác khi dùng (T-CAMGIAC); thành phần (T-THANHPHAN)"
+        },
+        {
+          "code": "T-KETCAU",
+          "name": "Kết cấu, độ bám, độ bền màu",
+          "include": "lì, bóng, dễ tán, vón, trôi, lâu trôi, bền màu, bám",
+          "exclude": "màu, kiểu hoặc thiết kế của chính sản phẩm (T-THIETKE); lệch ảnh/mô tả (T-CHINHHANG); dưỡng (T-DUONGCAT)"
+        },
+        {
+          "code": "T-DUONGCAT",
+          "name": "Dưỡng, cấp ẩm",
+          "include": "mềm, ẩm, khô, căng, sáng da, mịn",
+          "exclude": "công dụng chung (T-CONGDUNG); kích ứng (T-KICHUNG)"
+        }
+      ]
+    },
+    "gia_dung": {
+      "label": "Gia dụng, bình giữ nhiệt",
+      "match": {
+        "categoryLabels": [
+          "Nhà Cửa",
+          "Đồ Bếp",
+          "Gia Dụng",
+          "Bình Giữ Nhiệt"
+        ],
+        "keywords": [
+          "bình giữ nhiệt",
+          "đồ bếp",
+          "nhà cửa",
+          "dao",
+          "thớt"
+        ]
+      },
+      "themes": [
+        {
+          "code": "T-GIUNHIET",
+          "name": "Giữ nóng, giữ lạnh",
+          "include": "giữ nóng hoặc lạnh bao lâu, giữ nhiệt, tan đá, kín",
+          "exclude": "độ kín hoặc rò rỉ (T-DOKIN); vật liệu (T-THANHPHAN)"
+        },
+        {
+          "code": "T-DOKIN",
+          "name": "Độ kín, rò rỉ",
+          "include": "rò, tràn, kín, nắp, chảy nước",
+          "exclude": "giữ nhiệt (T-GIUNHIET); dung tích (T-QUYCACH)"
+        }
+      ]
+    }
+  },
+  "otherCode": {
+    "code": "T-KHAC",
+    "name": "Khác",
+    "rule": "Not a question. Receives themes outside the selected revision and themes below the E15 threshold. Never used for a theme that already exists."
+  },
+  "options": [
+    {
+      "key": "CO_KHEN",
+      "label": "Có, khen",
+      "meaning": "The review mentions this theme and praises it, is satisfied, or says something good."
+    },
+    {
+      "key": "CO_CHE",
+      "label": "Có, chê",
+      "meaning": "The review mentions this theme and criticises it, is dissatisfied, or says something bad."
+    },
+    {
+      "key": "CO_KE",
+      "label": "Có, chỉ kể",
+      "meaning": "The review mentions this theme as a fact, without praise or criticism."
+    },
+    {
+      "key": "KHONG_NHAC",
+      "label": "Không nhắc",
+      "meaning": "The review does not mention this theme."
+    }
+  ],
+  "thresholds": {
+    "keep": 0.7,
+    "unclear": 0.5,
+    "direction": 0.5,
+    "probabilitySumTolerance": 0.05
+  },
+  "limits": {
+    "maxCoreThemes": 16,
+    "maxBlockThemes": 5,
+    "maxTotalQuestions": 20,
+    "maxQuestionsPerCall": 20,
+    "maxCallsPerRun": 1500,
+    "maxInFlight": 4
+  },
+  "overlaps": [
+    {
+      "a": "(đóng gói, bỏ theo F310)",
+      "b": "T-LOI",
+      "rule": "Hộp móp, rách, ướt, vỡ hoặc hỏng trên đường giao = T-LOI only. A review that only talks about the packing itself (hộp, túi, seal, chèn, cách gói, mở hộp) gets no theme (F310). Bao bì đẹp, xấu hoặc bắt mắt = T-THIETKE (F311)."
+    },
+    {
+      "a": "T-CHINHHANG",
+      "b": "T-CHATLUONG",
+      "rule": "Hàng giả, hàng nhái, tem, mã vạch, đúng mô tả, đúng ảnh, màu hoặc kiểu lệch ảnh/mô tả = T-CHINHHANG. Độ bền, độ hoàn thiện, cảm giác chắc chắn = T-CHATLUONG."
+    },
+    {
+      "a": "T-THIETKE",
+      "b": "T-CHINHHANG",
+      "rule": "Màu sắc, kiểu dáng, thiết kế của chính sản phẩm (đẹp/xấu, sang/trông rẻ, hợp mắt) = T-THIETKE. Màu hoặc kiểu khác ảnh/mô tả = T-CHINHHANG. Bao bì/hộp: no theme (F310)."
+    },
+    {
+      "a": "T-THANHPHAN",
+      "b": "T-CHATLUONG",
+      "rule": "Thành phần, hàm lượng, vật liệu, nguồn gốc, an toàn = T-THANHPHAN. Độ bền, độ hoàn thiện, hao mòn = T-CHATLUONG."
+    },
+    {
+      "a": "T-CHATLUONG",
+      "b": "T-LOI",
+      "rule": "Hao mòn, hỏng sớm, độ bền chung = T-CHATLUONG. Một lỗi cụ thể khi nhận (móp, vỡ, ướt, sai, thiếu, hết hạn) = T-LOI."
+    },
+    {
+      "a": "T-CONGDUNG",
+      "b": "T-CAMGIAC",
+      "rule": "Kết quả hoặc tác dụng = T-CONGDUNG. Cảm giác tức thời khi dùng (dễ chịu, đau, nóng, buồn nôn, nhẹ bụng, đầy hơi) = T-CAMGIAC."
+    },
+    {
+      "a": "T-DEUDUNG",
+      "b": "(dịch vụ shop, bỏ theo F310)",
+      "rule": "Tự lắp, dễ dùng, hướng dẫn, điều khiển, vệ sinh = T-DEUDUNG. Shop tư vấn, trả lời, chăm sóc, xử lý đơn: no theme (F310)."
+    },
+    {
+      "a": "T-QUYCACH",
+      "b": "T-SIZE",
+      "rule": "Kích thước, dung tích, khối lượng, số lượng công bố = T-QUYCACH. Vừa vặn với cơ thể (rộng, chật, form, chiều cao, cân nặng) = T-SIZE."
+    }
+  ],
+  "discovery": {
+    "trigger": {
+      "khacSharePerPlatformOver": 0.2,
+      "allNoMentionSharePerPlatformOver": 0.2
+    },
+    "maxReviews": 50,
+    "maxCandidates": 5,
+    "candidateStatus": "PROPOSED_PENDING_OWNER",
+    "rule": "After a run, per platform. Take up to 50 reviews where the review has no theme or lands in Khác. The current AI proposes up to 5 candidate themes (name, include, exclude). A candidate that applies to 3 or more categories cannot become a block; it must merge into an existing core theme. Owner approval creates a new block version. Nothing enters the codebook without owner approval."
+  },
+  "blockSelection": {
+    "inputs": [
+      "scopeCategoryLabel",
+      "keyword1",
+      "keyword2",
+      "interviewProductType",
+      "ownerBlockOverride"
+    ],
+    "order": "ownerBlockOverride > exact category label > longest keyword or product-type match > no match",
+    "tieBreak": "When two blocks match, use the longer matched alias; if equal, use the block order in this file.",
+    "noMatch": "Core only; blockKey = null; matchBasis = NO_MATCH.",
+    "storedWithProposal": [
+      "codebookVersion",
+      "blockKey",
+      "matchBasis",
+      "matchedTerm"
+    ]
+  },
+  "excluded": {
+    "codes": [
+      {
+        "code": "T-GIAOHANG",
+        "name": "Giao hàng",
+        "include": "tốc độ giao, thời gian chờ, đơn vị vận chuyển, người giao, giao đúng hẹn hoặc trễ hẹn, cách giao"
+      },
+      {
+        "code": "T-DONGGOI",
+        "name": "Đóng gói",
+        "include": "hộp, túi, seal, chèn chống sốc, cách gói, cách mở hộp (vẻ ngoài bao bì chuyển sang T-THIETKE, F311)"
+      },
+      {
+        "code": "T-DICHVU",
+        "name": "Dịch vụ shop, tư vấn",
+        "include": "trả lời, tư vấn, thái độ, xử lý đơn, chăm sóc, phản hồi"
+      }
+    ],
+    "rule": "Không hỏi Jev, không gán, không đếm, không hiện các chủ đề này. Đánh giá vẫn được thu và lưu. Lời chỉ nói về giao hàng, đóng gói hay dịch vụ shop không thuộc chủ đề nào còn lại. Riêng vẻ ngoài của bao bì (đẹp, xấu, bắt mắt) gán T-THIETKE (F311).",
+    "why": "Chủ 30/10/2026 (F310): «bỏ tag, vì nó liên quan đến logistic và thương mại điện tử, không phục vụ insight. Vẫn lấy comment, nhưng không hiện và tổng hợp, phân loại hay xử lý cho các loại tag này»."
+  }
+}
