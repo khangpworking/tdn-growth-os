@@ -2,7 +2,7 @@
 
 These tests are independently authored from CONTRACT.md revision 6 (IM-Q1–IM-Q51),
 the revisions 4/5 and 6 review notes, and Firstmate's F312 steering message 001.
-F312 updates the default codebook version to **2026-10-30.3**, still DRAFT; the
+F312 updates the default codebook version to **2026-10-30.3** (PR 2: **2026-10-30.4**), still DRAFT; the
 five revised theme definitions are read as data, not copied into assertions.
 The reference JSON is a normalized-LF snapshot of the supplied codebook. No
 assertion interprets the `overlaps` list or decides owner question 15.

@@ -22,7 +22,7 @@ from pathlib import Path
 RUN = "aaaaaaaa-1111-4111-8111-111111111111"
 OTHER = "bbbbbbbb-2222-4222-8222-222222222222"
 AMBIGUOUS = "aaaaaaaa-3333-4333-8333-333333333333"
-VERSION = "2026-10-30.3"
+VERSION = "2026-10-30.4"
 NO_DATA = "Chưa có dữ liệu"
 UNKNOWN_NOTE = "đếm theo đánh giá, nguồn không có tên người viết"
 EXCLUDED = {"T-GIAOHANG", "T-DONGGOI", "T-DICHVU"}

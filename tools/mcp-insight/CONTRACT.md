@@ -1,7 +1,7 @@
-# tdn-insight contract rows, PR 1 (R-IM01 to R-IM06)
+# tdn-insight contract rows, PR 1 (R-IM01 to R-IM06) and PR 2 (R-IM07 to R-IM09)
 
 Source of truth: `openspec/changes/insight-mcp-v1` (spec, design decisions 1 to 5), `openspec/changes/insight-method-v1`
-(R-I31, R-I32, R-I33, R-I39) and `openspec/specs/insight-report/spec.md` (R-I05, R-I06, R-I11). This table is what the tests
+(R-I30 to R-I34, R-I37, R-I39) and `openspec/specs/insight-report/spec.md` (R-I05, R-I06, R-I11). This table is what the tests
 are written from. Each row names one behavior and one negative control: an input or a one-check-removed module copy
 (a mutant) that must make the row's test fail or flip its result.
 
@@ -11,10 +11,13 @@ owner scope update F310 (tasks 2.7 and 2.8): the three logistics themes Giao hà
 dropped. It also applies the re-review finding R3-1. Revision 5 (30/10/2026) applies the owner's answer IMCP-O1 (IM-Q27,
 IM-Q28, IM-Q50). Revision 6 (30/10/2026) applies the owner update F311: the looks of packaging belong to
 `T-THIETKE` (codebook `2026-10-30.2`, IM-Q51). Revision 7 (30/10/2026) moves the codebook to `2026-10-30.3` (owner
-update F312, theme definitions only); no row's behavior changes. All mappings are at the end of this file.
+update F312, theme definitions only); no row's behavior changes. Revision 8 (30/10/2026, PR 2) adds rows IM-Q52 to
+IM-Q72 for R-IM07 to R-IM09 and moves the codebook to `2026-10-30.4` (owner update F311, one overlap line; closes open
+question 15). Old rows are not renumbered. All mappings are at the end of this file.
 
-Out of scope for PR 1: R-IM07 to R-IM12 (`report_plan`, confidence ceilings, reason links, `read_reviews`,
-`submit_section`, `submit_statement`, `render_report`).
+Out of scope for PR 1: R-IM07 to R-IM12. PR 2 adds R-IM07 to R-IM09 (`report_plan`, `confidence_ceiling`,
+`find_reason_links`, `read_reviews`). Out of scope for PR 2: R-IM10 to R-IM12 (`submit_section`, `submit_statement`,
+`render_report`).
 
 ## Conventions used by the rows
 
@@ -40,7 +43,7 @@ Out of scope for PR 1: R-IM07 to R-IM12 (`report_plan`, confidence ceilings, rea
 - Fixtures are synthetic. They contain no real review text, names or IDs. Every synthetic review text contains a
   unique nonce token (for example `zqv01`). Some reviews are short (the nonce plus one or two words), so a leak check
   can find a whole short review, not only long runs of words.
-- The five tools and their only arguments:
+- The five PR 1 tools and their only arguments (PR 2 adds four tools, IM-Q52):
   - `build_warehouse(run_id)`.
   - `code_reviews(run_id, dry_run=True, max_calls=None, block_override=None)`.
   - `theme_counts(run_id, question=None)`.
@@ -54,7 +57,7 @@ Out of scope for PR 1: R-IM07 to R-IM12 (`report_plan`, confidence ceilings, rea
 
 | Row | Behavior | Negative control |
 |---|---|---|
-| IM-Q1 | The server is named `tdn-insight` and runs over stdio. The registered tools are exactly the five tools above. The MCP input schema of each tool has exactly the argument names listed above, with these types: `run_id` string, `dry_run` boolean, `max_calls` integer or null, `block_override` and `question` string or null. No argument takes SQL, a SLAYER query, a measure or a formula. | Two mutants, two separate assertions. A mutant that adds a tool `query` fails the tool-name-set test. A mutant that adds a `sql` argument to `theme_counts` (tool names unchanged) fails the per-tool input-schema test. |
+| IM-Q1 | The server is named `tdn-insight` and runs over stdio. The registered tools are exactly the five tools above (PR 2: plus the four tools of IM-Q52). The MCP input schema of each tool has exactly the argument names listed above, with these types: `run_id` string, `dry_run` boolean, `max_calls` integer or null, `block_override` and `question` string or null. No argument takes SQL, a SLAYER query, a measure or a formula. | Two mutants, two separate assertions. A mutant that adds a tool `query` fails the tool-name-set test. A mutant that adds a `sql` argument to `theme_counts` (tool names unchanged) fails the per-tool input-schema test. |
 | IM-Q2 | The app DB is opened only as `file:<path>?mode=ro` (URI). An `INSERT` through the module's app connection raises `sqlite3.OperationalError` (read-only). After `build_warehouse`, the app DB file's sha256 is unchanged and no `-wal` or `-journal` file was created by the module. | A mutant that opens with `mode=rw`: the `INSERT` succeeds, and the test must fail. |
 | IM-Q3 | `build_warehouse`, `code_reviews(dry_run=True)`, `theme_counts`, `keyword_counts` and `portrait_counts` open no socket and resolve no host (audit hook). The module never binds or listens on a port. | A mutant that does a DNS lookup inside `code_reviews(dry_run=True)`: the audit hook trips. |
 | IM-Q4 | `code_reviews(run_id, dry_run=False, max_calls=N)` without `INSIGHT_MCP_ALLOW_PAID` set to exactly `1` (unset, `true`, ` 1`, `0`) returns `refused: true`, `reason: "PAID_FLAG_MISSING"`, `eligible_reviews` (an integer count) and `planned_calls` (an integer). The Jev transport is called 0 times and the key file is not opened. | With the flag set to `1`, a key file present and a fake transport, the same call reaches the transport. This proves that the flag is what blocks. |
@@ -83,7 +86,7 @@ Note to IM-Q39, item 4 (owner update IMCP-P1E, 30/10/2026): the app runs its DB 
 
 | Row | Behavior | Negative control |
 |---|---|---|
-| IM-Q14 | The codebook is the repo data file `tools/mcp-insight/data/insight-theme-codebook.json`, copied from the v2 draft `version 2026-10-30.3` (`status DRAFT`, `approvedBy` and `approvedAt` null). The JSON content is unchanged; the file is stored with LF line endings (the draft has CRLF). It has 13 core themes, 5 blocks (`thuc_pham` 2 themes, `dien_may` 3, `thoi_trang` 1, `my_pham` 4, `gia_dung` 2) and an `excluded` list with `T-GIAOHANG`, `T-DONGGOI` and `T-DICHVU`. Under F311, `T-THIETKE` includes the looks of packaging, and the `T-DONGGOI` entry keeps only the packing itself (IM-Q51). The loader rejects a codebook that is missing `version` or `status`, and returns `CODEBOOK_INVALID`. The excluded themes are handled by IM-Q46 to IM-Q48. | A codebook copy without `status` is rejected. The repo file has `version = 2026-10-30.3` and 13 core theme codes, none of them in the `excluded` list. |
+| IM-Q14 | The codebook is the repo data file `tools/mcp-insight/data/insight-theme-codebook.json`, copied from the v2 draft `version 2026-10-30.4` (`status DRAFT`, `approvedBy` and `approvedAt` null). The JSON content is unchanged; the file is stored with LF line endings (the draft has CRLF). It has 13 core themes, 5 blocks (`thuc_pham` 2 themes, `dien_may` 3, `thoi_trang` 1, `my_pham` 4, `gia_dung` 2) and an `excluded` list with `T-GIAOHANG`, `T-DONGGOI` and `T-DICHVU`. Under F311, `T-THIETKE` includes the looks of packaging, and the `T-DONGGOI` entry keeps only the packing itself (IM-Q51). The loader rejects a codebook that is missing `version` or `status`, and returns `CODEBOOK_INVALID`. The excluded themes are handled by IM-Q46 to IM-Q48. | A codebook copy without `status` is rejected. The repo file has `version = 2026-10-30.4` and 13 core theme codes, none of them in the `excluded` list. |
 | IM-Q15 | Block selection (R-IM03 order). Inputs: the owner's `block_override` argument, the run's applied category (IM-Q8) and the run's applied keywords (IM-Q8). There is no caller category argument. The category evidence and a proposed keyword 2 or category that was not applied are not inputs. Precedence, first that applies wins:<br>1. `block_override`: `matchBasis = OVERRIDE`. An unknown key gives `BLOCK_UNKNOWN`.<br>2. The applied category exactly equal to one of a block's `match.categoryLabels`: `matchBasis = CATEGORY_LABEL`. An applied category that matches no block falls through to step 3.<br>3. Keywords: a block term matches when it occurs as whole words in an NFC-normalized, lowercased applied keyword (no letter or digit right before or after it). The longest matched term over all applied keywords wins. On equal length, the earlier block in file order wins. `matchBasis = KEYWORD`, `matchedTerm` is that term.<br>4. Otherwise core only: `blockKey = null`, `matchBasis = NO_MATCH`.<br>The result carries `codebookVersion`, `blockKey`, `matchBasis`, `matchedTerm` and `questions_per_call` (core themes plus the block's themes, at most `limits.maxQuestionsPerCall`). | With the real v2 codebook and synthetic runs, these must hold:<br>- Override `thoi_trang`, applied category `Sức Khoẻ` (outcome `OK`), keyword `canxi`: `thoi_trang`/`OVERRIDE`.<br>- Applied category `Điện Máy` (outcome `OK`), keywords `[canxi]`, no override: `dien_may`/`CATEGORY_LABEL`.<br>- No scope file, run keyword `canxi`: `thuc_pham`/`KEYWORD`, `questions_per_call = 15`.<br>- Applied category `Đồ Chơi` (outcome `OK`, no block has it), keywords `[canxi]`: `thuc_pham`/`KEYWORD`.<br>- Outcome fixtures (R3-1). Each has `keyword1 = canxi`, `capture2.keywords = [canxi, sữa rửa mặt]`, `capture2.category = Làm Đẹp` and category evidence `Làm Đẹp`:<br>&nbsp;&nbsp;- `AWAITING_KEYWORD2`, `PENDING` and `CATEGORY_NOT_SELECTABLE` each give `thuc_pham`/`KEYWORD`, `matchedTerm = canxi`.<br>&nbsp;&nbsp;- `OK` gives `my_pham`/`CATEGORY_LABEL`.<br>&nbsp;&nbsp;- `OK` with `capture2.category = null` gives `my_pham`/`KEYWORD`, `matchedTerm = sữa rửa mặt`.<br>- Run keyword `sữa rửa mặt cho da dầu`: `my_pham` (`sữa rửa mặt` is longer than `sữa`).<br>- Run keyword `giày quạt`: `dien_may` (both terms have 4 letters; `dien_may` comes first in the file).<br>- Run keyword `cháo yến`: `NO_MATCH` with 13 questions (`áo` is inside a word).<br>- Override `khong_co`: `BLOCK_UNKNOWN`.<br>A mutant that checks the keywords before the applied category fails the second case. A mutant that ignores the scope record also fails the second case. A mutant that uses every non-null `capture2` (keywords or category) gives `my_pham` for the three non-`OK` outcomes and fails. A mutant that uses the category evidence as the applied category gives `my_pham`/`CATEGORY_LABEL` for them and fails. |
 | IM-Q16 | `dry_run` defaults to `True`. A dry run returns `eligible_reviews` (an integer: reviews with non-empty text that are not coded under IM-Q43), `eligible_by_platform` (an object `{platform: integer}`), `already_coded` (an integer), `planned_calls` (an integer: one per eligible review, capped by `max_calls` when given, and by `limits.maxCallsPerRun`) and the block selection. It works without the paid flag and without a key file. Jev calls = 0. | A transport that raises if called: the dry run must not raise. A mutant that returns the list of eligible review IDs instead of the count fails the type check. |
 | IM-Q17 | A real run (paid flag set) requires `max_calls`, an integer from 1 to `limits.maxCallsPerRun`; otherwise `MAX_CALLS_INVALID` and no call. The run stops when `max_calls` calls have been made, and returns `stopped: "CAP_REACHED"` and `calls_made`. | Cap 3 on 5 eligible reviews: exactly 3 transport calls. |
@@ -118,7 +121,7 @@ Note to IM-Q39, item 4 (owner update IMCP-P1E, 30/10/2026): the app runs its DB 
 | Row | Behavior | Negative control |
 |---|---|---|
 | IM-Q26 | `theme_counts(run_id, question=None)` returns `coded_reviews` (an object `{platform: integer}`, one entry per review platform present in the warehouse, never a cross-platform sum) and one row per (platform, theme code, polarity) that has at least one counted label (IM-Q45). It also returns `coding_target` (`codebook_version`, `block_key`; IM-Q45). Polarity is `all`, `khen`, `che`, `ke` or `khong_ro_huong`. Row fields: `platform`, `theme_code`, `theme_name`, `polarity`, `step`, `reviews`, `writers`, `products`, `writer_basis`, `threshold_count`, `threshold_met`, `threshold_note`, `check2_missing`, `check2_reason`, `check3_missing`, `check3_reason`, `count_id`. `question` is an optional theme code filter. A run with no coded review (IM-Q43) on any platform returns `NOT_CODED`. A run whose reviews are all coded with no counted label returns non-zero `coded_reviews` and an empty row list, not `NOT_CODED`. | An `unclear` label does not change `reviews`. An uncoded run returns `NOT_CODED`. The all-`KHONG_NHAC` run of IM-Q43 returns rows `[]`. A run with 2 coded Shopee and 3 coded TikTok Shop reviews, all `KHONG_NHAC`, returns `coded_reviews = {"shopee": 2, "tiktok_shop": 3}`; a mutant that returns the scalar 5 (or any field equal to 5) fails. |
-| IM-Q45 | Only labels of the current coding state count. The current coding target is the repo codebook version and the block of the latest paid `code_reviews` call on the run, stored in the warehouse table `coding_target` when that call starts. A label counts in `theme_counts` only when all of these hold: its status is `kept`; its review has a `done` `coding_state` row equal to the current target (`codebook_version`, `block_key`) and to the review's current `input_sha256` (IM-Q43); and the label's own `codebook_version` and `block_key` equal that row's. The SLAYER model and the reference SQL both apply this join. Older labels may stay in the warehouse as history but never count. | Fixture: reviews R1 to R5 (5 named writers, 3 products) coded under the keyword block `thuc_pham`, each with a kept `T-GIA` label. Then a paid call with `block_override = my_pham` whose fake transport fails on call 2, so only R1 is coded under `my_pham` (kept `T-GIA`). Expected: the `T-GIA` `all` row has `reviews = 1`, `threshold_met = false`, and the result's `coding_target` is (`2026-10-30.3`, `my_pham`). A mutant without the current-state join counts 5 reviews (threshold met) and fails. |
+| IM-Q45 | Only labels of the current coding state count. The current coding target is the repo codebook version and the block of the latest paid `code_reviews` call on the run, stored in the warehouse table `coding_target` when that call starts. A label counts in `theme_counts` only when all of these hold: its status is `kept`; its review has a `done` `coding_state` row equal to the current target (`codebook_version`, `block_key`) and to the review's current `input_sha256` (IM-Q43); and the label's own `codebook_version` and `block_key` equal that row's. The SLAYER model and the reference SQL both apply this join. Older labels may stay in the warehouse as history but never count. | Fixture: reviews R1 to R5 (5 named writers, 3 products) coded under the keyword block `thuc_pham`, each with a kept `T-GIA` label. Then a paid call with `block_override = my_pham` whose fake transport fails on call 2, so only R1 is coded under `my_pham` (kept `T-GIA`). Expected: the `T-GIA` `all` row has `reviews = 1`, `threshold_met = false`, and the result's `coding_target` is (`2026-10-30.4`, `my_pham`). A mutant without the current-state join counts 5 reviews (threshold met) and fails. |
 | IM-Q44 | A kept label with polarity `khong_ro_huong` counts in the `all` row and in a `khong_ro_huong` row of its theme. It does not count in `khen`, `che` or `ke`. | A fake answer `CO_KHEN 0.40, CO_CHE 0.35, CO_KE 0.00, KHONG_NHAC 0.25`: P(yes) 0.75 is kept, and no option reaches 0.5. The theme's `all` and `khong_ro_huong` rows have `reviews = 1`, and there is no `khen` row. A mutant that takes the highest option without the direction threshold makes a `khen` row and fails. |
 | IM-Q27 | Review threshold (R-I33): `threshold_met` is true only when `threshold_count` ≥ 5 and `products` ≥ 3, where `threshold_count` is always `writers` (IM-Q28, IMCP-O1). Otherwise `threshold_note` contains «dưới ngưỡng». | All named writers: 4 writers on 3 products gives false with «dưới ngưỡng»; 5 on 2 gives false; 5 on 3 gives true. A mutant that uses `>` for either comparison fails the 5-on-3 case, and a mutant that drops the products check fails the 5-on-2 case. |
 | IM-Q28 | Owner rule IMCP-O1 (design decision 3, R-IM05). `writers` = the distinct `writer_key` values of the named reviews (`writer_known = 1`) plus one per review with `writer_known = 0`. Because an unnamed review's `writer_key` is its review ID (IM-Q9, IM-Q41), this equals the count of distinct `writer_key` in the row. `threshold_count = writers` for every row. Rows with no name and mixed rows follow the same rule:<br>- A row with only named reviews: `writer_basis = "writer"`, and the note never contains «đếm theo đánh giá, nguồn không có tên người viết».<br>- A row with at least one `writer_known = 0` review (all unnamed, or mixed): `writer_basis = "review"`, and `threshold_note` contains «đếm theo đánh giá, nguồn không có tên người viết».<br>Check 2 of R-I32 (sample large and diverse) is never claimed as passed in PR 1: every row has `check2_missing = true`. `check2_reason` is `WRITER_UNKNOWN` when any review in the row has `writer_known = 0`, otherwise `BELOW_THRESHOLD` when `threshold_met` is false, otherwise `DIVERSITY_NOT_ASSESSED` (the diversity part of check 2 belongs to R-IM08). | Fixtures, each on 3 products:<br>- Named only, below: TikTok Shop, 5 reviews by 2 named writers. Expect `writers = 2`, basis `writer`, `threshold_met = false`, `check2_missing = true`, `check2_reason = BELOW_THRESHOLD`.<br>- Named only, met: 5 named writers. Expect true, `check2_missing = true`, `DIVERSITY_NOT_ASSESSED`.<br>- Unknown only: Shopee, 5 reviews. Expect `writers = 5`, basis `review`, `threshold_count = 5`, true, the note, `check2_missing = true`, `WRITER_UNKNOWN`.<br>- Mixed, below: TikTok Shop, 4 reviews by one named writer plus 1 review with no name. Expect `reviews = 5`, `writers = 2`, basis `review`, `threshold_count = 2`, `threshold_met = false` with «dưới ngưỡng», the note, `check2_missing = true`, `WRITER_UNKNOWN`.<br>- The named-only cases have no «đếm theo đánh giá…» note.<br>A mutant that sets `check2_missing = false` for all-named rows fails the first two cases. A mutant that always uses `reviews` as the threshold count fails the first case and the mixed case (5, met). A mutant that adds the note to all-named rows fails the first two cases. |
@@ -137,6 +140,76 @@ Note to IM-Q39, item 4 (owner update IMCP-P1E, 30/10/2026): the app runs its DB 
 | IM-Q35 | A platform with no known writer (Shopee, or TikTok Shop where every name is missing or masked) gets `"Chưa có dữ liệu"` for gender and age, with no numbers. | A Shopee-only fixture, and the IM-Q41 TikTok Shop fixture, have no numeric gender or age rows. |
 | IM-Q36 | No per-person result: the output has no `writer_key`, review ID, name or list keyed by person. The warehouse stores guesses only per `writer_key` (never the name). | Scan the output for every fixture name, `writer_key` and review ID. A mutant that returns a per-writer list fails the scan. |
 | IM-Q37 | The portrait counts go through the same SLAYER and SQL comparison as IM-Q23. | A mismatch monkeypatch on a portrait measure returns `SLAYER_SQL_MISMATCH`. |
+
+## PR 2 conventions (R-IM07 to R-IM09)
+
+- New data file `tools/mcp-insight/data/report-frame.json`: the 18 parts (R-I30, R-I31) and the source role table
+  (R-I34). It holds exactly the data frozen in "Frozen report frame" below. The module path constant is
+  `REPORT_FRAME_PATH`; tests point it at a copy.
+- New shared store `<data dir>/insight-shared.sqlite` (design decision 6). It has two tables:
+  - `sample_review(rules_kind, rules_version, reviewed_by, reviewed_at, sample_size, passed)`: an owner review of a
+    sample of an automatic classification. `rules_kind` is `codebook`, `keyword_groups` or `portrait_rules`.
+  - `method_ledger(method_key, subject_key, run_id, approved_by, approved_at)`: one row per owner-approved report
+    that used a method, on one researched product (`subject_key`, for example `canxi`). `method_key` is
+    `<tool>:<source key>:<rules version>`, for example `theme_counts:shopee_reviews:2026-10-30.4`.
+  Only two module functions write it, `record_sample_review(...)` and `record_method_approval(...)`, for the owner or
+  the coordinator. They are not MCP tools. No MCP tool writes the shared store, and no tool creates it when it is
+  missing (a missing store reads as empty).
+- Confidence levels, high to low: `Chắc`, `Khá`, `Yếu`, `Không` (R-I32). Labels: `Khung`, `Chưa có dữ liệu`,
+  `Giả thuyết`.
+- A "count row" is one row of `theme_counts`, `keyword_counts` or `portrait_counts` with its `count_id`. Its
+  source is: `shopee_reviews` or `tiktok_shop_reviews` by the row's platform (theme and portrait rows), or
+  `search_suggestions` (keyword rows).
+- A count ID is "current" when the producing tool, called now on the same run, returns a row with that ID.
+
+## Contract rows, PR 2
+
+### R-IM01 extended to the PR 2 tools
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q52 | (Amends IM-Q1.) The registered tools are exactly nine: the five PR 1 tools plus `report_plan(run_id)`, `confidence_ceiling(run_id, part, evidence, hypothesis=False)`, `find_reason_links(run_id, theme_a, theme_b)` and `read_reviews(run_id, ids)`. Input schema types: `run_id`, `theme_a`, `theme_b` string; `part` integer; `hypothesis` boolean; `evidence` an array of objects `{"count_id": string, "part": integer or null}`; `ids` an array of strings. No argument takes SQL, a SLAYER query, a measure, a formula or a file path. `record_sample_review` and `record_method_approval` are not registered tools. | A mutant that registers `record_method_approval` as a tool fails the tool-name-set test. A mutant that adds a `sql` argument to `find_reason_links` fails the input-schema test. |
+| IM-Q53 | (Extends IM-Q3, IM-Q38, IM-Q39.) The four new tools open no socket, resolve no host, start no subprocess and change no environment variable. The app home is byte-identical before and after each call, on success and on every error path. `confidence_ceiling` and `read_reviews` write nothing: the warehouse file's sha256 is unchanged and no shared store file is created. `report_plan` and `find_reason_links` write only the warehouse tables `count_registry`, `keyword_group` and `reason_flag` (IM-Q70). | (a) A mutant that opens a socket in `report_plan` trips the audit hook. (b) A mutant whose `read_reviews` opens the warehouse read-write and runs the PR 1 schema statements changes the warehouse sha256 and fails. (c) A mutant whose `confidence_ceiling` creates an empty shared store when it is missing fails the "no file created" check. |
+| IM-Q54 | (Extends IM-Q40.) `report_plan`, `confidence_ceiling` and `find_reason_links` follow IM-Q40 on success and on every error path: no fixture review nonce, whole short review, 8-word run of a long review or writer name in the JSON result, the error `message`, stdout, stderr or `logging`. `read_reviews` is the only tool whose result holds review text, and only in `reviews[].text` for the requested IDs. Its error messages, stdout, stderr, logs, the warehouse and the shared store hold no review text. | A mutant that logs the text of each review read by `read_reviews` at DEBUG, and a mutant whose `find_reason_links` puts the matched connector sentence into the result. Both fail the scan. |
+
+### R-IM07: the 18-part frame
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q55 | The report frame is the data file `data/report-frame.json` (frozen below), not code. The loader requires `contractVersion = "insight-report-frame-v1"`, `version`, `status`, 5 questions numbered 1 to 5, 18 parts numbered 1 to 18 in order, a `kind` per part (`frame`, `data` or `synthesis`), a `question` (1 to 5) on every `data` part, `basis_parts` (data parts only) on every `synthesis` part, unique source keys, and for each source a role per question that is `Chính`, `Phụ`, `Gợi ý` or null. Anything else gives `FRAME_INVALID` and no parts. `report_plan` returns `frame_version` and `frame_status`. | (a) A frame copy that changes the role of `search_suggestions` for question 2 from `Chính` to `Phụ` changes that cell's `role` in the output of parts 6 and 7. A mutant with the roles written in code fails. (b) A copy with a role `Chinh` (no diacritics), a copy with 17 parts, and a copy with parts 6 and 7 swapped each give `FRAME_INVALID`. |
+| IM-Q56 | `report_plan(run_id)` returns `parts`, a list of exactly 18 objects in the order 1 to 18 (R-I30), with: `part`, `title`, `question_no` (null for parts 1, 2, 3 and 18), `question` (the question text, or null), `kind`, `label`, `steps`, `sources`, `ceiling`. Parts 2, 3 and 18 are `frame`: `label = "Khung"`, `ceiling = null` (R-I32: frame parts are not graded), `sources = []`. Parts 1, 16 and 17 are `synthesis`: `label = null`, `sources = []`, `steps = null` (R-I31: they keep the steps of the items inside), plus `basis_parts`. Parts 4 to 15 are `data`. Titles and question texts are byte-equal to the frozen frame. | A run fixture with every PR 1 source captured. Check the 18 numbers, titles, kinds and question numbers against the frozen table. A mutant that numbers the appendix 0, or that drops part 18, fails. A mutant that gives part 2 a ceiling fails. |
+| IM-Q57 | Source cells (R-I34). A data part's `sources` has one cell per source whose role for the part's question is not null, in frozen file order. A cell has `source` (key), `name`, `role`, `step`, `status`, `reason`, `note`, `count_ids`, `ceiling`. A source is available when at least one of its `warehouse_sources` has `captured = 1` and `row_count ≥ 1` in `source_status`. Then `status = "Có dữ liệu"`, `reason = null` or `NOT_CODED` (IM-Q58). Otherwise `status = "Chưa có dữ liệu"`, `count_ids = []`, `ceiling = "Không"`, and `reason` is `NOT_COLLECTED` (the source has no `warehouse_sources`), `NOT_CAPTURED` (no capture) or `EMPTY_CAPTURE` (captured, 0 rows). A data part whose cells are all `Chưa có dữ liệu` has `label = "Chưa có dữ liệu"`; otherwise `label = null`. A part's `steps` is the distinct `step` values of its cells, in the frozen step order. | Fixture with Shopee reviews and keywords, no TikTok capture, no Trends capture, no product names. Part 4 has 6 cells (question 1): `shopee_reviews` and `search_suggestions` have data; `product_names` and `search_trends` are `NOT_CAPTURED`; `population_stats` and `simulated_personas` are `NOT_COLLECTED`. Part 13 has 2 cells, and `tiktok_shop_reviews` is `NOT_CAPTURED`. A mutant that lists all 11 sources in every part fails the cell count. A mutant that treats a captured source with 0 rows as available fails an `EMPTY_CAPTURE` fixture. |
+| IM-Q58 | Count IDs per cell. Inside `report_plan`, the module computes `theme_counts`, `keyword_counts` and `portrait_counts` for the run (same rows, same IDs, same `count_registry` rows as calling those tools). A cell's `count_ids` lists, in tool row order, the IDs of rows from the tools in `part.count_tools ∩ source.count_tools` whose source is the cell's source. When `theme_counts` gives `NOT_CODED`, theme IDs are left out, and each cell whose source lists `theme_counts` and that would use it in this part gets `reason = "NOT_CODED"`. Other errors of the count tools (`SLAYER_SQL_MISMATCH`, `COUNT_ID_CONFLICT`, `CODEBOOK_EXCLUDED_THEME`, …) make `report_plan` return that error with no parts. Two calls on the same state give byte-equal results. | (a) On a coded fixture, every ID in part 8's `shopee_reviews` cell equals a Shopee row ID from a direct `theme_counts` call, and part 4's `shopee_reviews` cell holds exactly the Shopee `portrait_counts` IDs. A mutant that puts portrait IDs into part 8 fails. (b) An uncoded fixture gives part 8's `shopee_reviews` cell `reason = NOT_CODED` and `count_ids = []`, and `report_plan` does not return `NOT_CODED`. (c) A monkeypatched SLAYER mismatch gives `SLAYER_SQL_MISMATCH` and no `parts` key. |
+| IM-Q59 | «Những gì báo cáo chưa trả lời được» (R-I37). `report_plan` returns `unanswered`, with one line per cell whose status is `Chưa có dữ liệu`, in part then cell order. A line has `part`, `source`, `unknown` (`"Phần <n> «<title>»: <name>"`), `step` (the cell's step), `reason` (the cell's reason), `why` and `needs`. `why` is `"Bản 1 chưa thu nguồn này"` for `NOT_COLLECTED`, `"Lần chạy chưa thu nguồn này"` for `NOT_CAPTURED`, and `"Lần chạy có thu nhưng không có dòng nào"` for `EMPTY_CAPTURE`. `needs` is `"Thu <name> cho lần chạy"`. A cell with `reason = NOT_CODED` has data and gets no line. | Spec scenario «Nguồn chưa thu»: a run with every PR 1 source captured except TikTok Shop reviews. Every `tiktok_shop_reviews` cell (parts 6, 7, 13, 14, 15) is `Chưa có dữ liệu` with `NOT_CAPTURED`, and `unanswered` has exactly one line for each of them (5 lines with `source = tiktok_shop_reviews`). With the frozen frame, `unanswered` has 32 lines in total (27 `NOT_COLLECTED` and 5 `NOT_CAPTURED`). The same run with TikTok Shop reviews captured has 27 lines and no `tiktok_shop_reviews` line. A mutant that writes one line per source, not per cell, gives 7 lines (6 not collected + 1) and fails. |
+| IM-Q60 | Part ceilings (R-IM08 at plan level). A cell's `ceiling` is the highest `confidence_ceiling` level of its count IDs, each evaluated alone with the cell's part (`hypothesis = false`). It is `"Không"` when the cell has no count ID. A data part's `ceiling` is the highest of its cells' ceilings. A synthesis part's `ceiling` is the highest of its `basis_parts` ceilings: the best any claim in it can reach, since a synthesis claim's own ceiling is the lowest of what it cites (IM-Q67). A data part with `label = "Chưa có dữ liệu"` has `ceiling = "Không"`. | Fixture: Shopee reviews coded on the repo DRAFT codebook, an empty shared store, keywords captured. Every data part ceiling is `Yếu` or `Không`, never `Khá` or `Chắc`. With the IM-Q68 "Khá" setup, part 6's `search_suggestions` cell ceiling is `Khá`, part 6's ceiling is `Khá`, and parts 1, 16 and 17 have `Khá`. A mutant that takes the lowest cell ceiling gives part 6 `Không` (from a source with no count IDs) and fails. |
+| IM-Q61 | Errors and names. `report_plan` gives `WAREHOUSE_NOT_BUILT`, `RUN_NOT_FOUND` and `RUN_AMBIGUOUS` like `theme_counts`, with no `parts`. Its result holds no provider or tool name in the text fields (`title`, `question`, `name`, `note`, `unknown`, `why`, `needs`): a case-insensitive scan finds none of `Google`, `World Bank`, `NVIDIA`, `Nemotron`, `SerpApi`, `Kalodata`, `Jev`, `TypeSafe`, `SLAYER`, and a case-sensitive scan finds no `Metric` (R-L01, R-I29). Source keys are neutral too (`search_suggestions`, not `google_suggest`). | A frame copy whose `search_suggestions` name is `Gợi ý tìm kiếm Google` must fail the scan. (The module does not filter names; the frozen frame is clean, and the test checks the repo frame through the tool output.) |
+
+### R-IM08: confidence ceiling from the 4 checks
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q62 | `confidence_ceiling(run_id, part, evidence, hypothesis=False)` checks its input. `part` must be 1 to 18; a `frame` part (2, 3, 18) gives `INVALID_ARGUMENT` (frame parts are not graded). `evidence` has 0 to 50 items. For a data part, an item's `part` is null or equal to `part`. For a synthesis part, every item's `part` must be one of its `basis_parts` (null is not allowed). Each `count_id` must be a current count ID of the run (PR 2 conventions): an ID that is in `count_registry` but not current gives `COUNT_ID_STALE`; any other ID gives `COUNT_ID_UNKNOWN`; a `find_reason_links` ID gives `INVALID_ARGUMENT` (reason links are evidence for R-IM11, not counts for a claim). An error result has no `ceiling`. Empty `evidence` gives `ceiling = "Không"` with `reason = "NO_EVIDENCE"`. | (a) Move one label (IM-Q30's change), then pass the old ID: `COUNT_ID_STALE`. A mutant that resolves IDs from `count_registry` alone accepts it and fails. (b) Part 1 with an item `part: 2`: `INVALID_ARGUMENT`. (c) Part 8 with an item `part: 13`: `INVALID_ARGUMENT`. (d) `IMC-000000000000`: `COUNT_ID_UNKNOWN`. |
+| IM-Q63 | Check 1 (right source for the question). For each item, the role is the frozen role of the item's source for the question of the item's part (the item's own `part` for synthesis claims). `Chính` passes. `Phụ` is missing with `SECONDARY_SOURCE`. `Gợi ý` is missing with `HINT_ONLY` and makes the item a hypothesis (IM-Q67). A null role makes the item's ceiling `Không` with `SOURCE_NOT_FOR_QUESTION`, whatever the other checks give. | A Shopee theme row in part 8 (question 3, `Chính`): check 1 passes. The same row in part 6 (question 2, `Phụ`): `SECONDARY_SOURCE`. A TikTok Shop theme row in part 8 (question 3, null): `Không`. A mutant that treats every available source as `Chính` fails the part 6 case. |
+| IM-Q64 | Check 2 (sample large and diverse). Theme and portrait group rows: missing with `WRITER_UNKNOWN` when the row's `writer_basis` is `review`, otherwise `BELOW_THRESHOLD` when `threshold_met` is false, otherwise `BRANDS_NOT_STORED` (the warehouse stores no brand, so "not only one brand" cannot be shown; open question 17). So check 2 never passes for review rows in PR 2. Keyword rows: passes when `threshold_met` (≥ 5 keywords), otherwise `BELOW_THRESHOLD`. Portrait gender and age rows: missing with `HYPOTHESIS_ROW`. | Named-only TikTok Shop theme row with 5 writers on 3 products, in part 13: `BRANDS_NOT_STORED`. A mutant that passes check 2 whenever `threshold_met` is true fails. 5 distinct `co_nen` keywords pass; 4 give `BELOW_THRESHOLD`. |
+| IM-Q65 | Check 3 (an owner reviewed a sample of the automatic classification). It passes only when the shared store has a `sample_review` row with `passed = 1` for the rules that made the row, and those rules are approved: theme rows need `rules_kind = codebook`, `rules_version` = the codebook version, and codebook `status = APPROVED` with non-null `approvedBy` and `approvedAt`; keyword rows need `keyword_groups`, the keyword-group version, and group `status = APPROVED`; portrait rows (groups, gender, age) need `portrait_rules` and `PORTRAIT_RULES_VERSION`. Reasons, first that applies: `CODEBOOK_NOT_APPROVED` or `KEYWORD_GROUPS_NOT_APPROVED`, then `NO_OWNER_SAMPLE_REVIEW`. The PR 1 row fields `check3_missing` and `check3_reason` of `theme_counts` are unchanged (IM-Q32). | (a) Repo DRAFT codebook plus a passed `codebook` sample row: `CODEBOOK_NOT_APPROVED`. (b) A codebook copy with `APPROVED`, `approvedBy` and `approvedAt` set, and no sample row: `NO_OWNER_SAMPLE_REVIEW`. (c) The same with a sample row for another version, or with `passed = 0`: `NO_OWNER_SAMPLE_REVIEW`. (d) The same with a passed sample row for the current version: passes. A mutant that reads only `status` fails (b). |
+| IM-Q66 | Check 4 (the method gave stable results on 3 or more products). It passes when `method_ledger` has rows for the item's `method_key` (`<tool>:<source>:<rules version>`) on at least 3 distinct `subject_key` values. Otherwise it is missing with `METHOD_ON_<n>_PRODUCTS`, where n is the distinct count (0 when the shared store is missing). `record_method_approval(method_key, subject_key, run_id, approved_by, approved_at)` and `record_sample_review(rules_kind, rules_version, reviewed_by, reviewed_at, sample_size, passed)` create the store when needed and insert one row. They reject empty strings and unknown `rules_kind` with `ValueError`. | Ledger rows for `canxi` and `kem`: `METHOD_ON_2_PRODUCTS`. Adding a second `canxi` run still gives 2. Adding `sat` passes. A ledger row for another rules version does not count. A mutant that counts runs, not subjects, passes at 3 rows of 2 products and fails. |
+| IM-Q67 | Level (R-I32, R-IM08). For each item: ceiling `Không` when check 1's role is null (IM-Q63); otherwise `Chắc` with 0 checks missing, `Khá` with exactly 1, `Yếu` with 2 or more. Then the item is capped at `Yếu` when it is a hypothesis: the call's `hypothesis = true`, a `Gợi ý` source, or a portrait gender or age row (IM-Q34). The claim's `ceiling` is the lowest item ceiling. For a synthesis part this is "the lowest of the claims it relies on". The result has `run_id`, `part`, `hypothesis` (true when any item is a hypothesis or the argument is true), `ceiling`, and `items`: each with `count_id`, `part`, `tool`, `source`, `platform`, `role`, `checks` (`{"1": {"missing": bool, "reason": str or null}, … "4": …}`), `missing_count`, `ceiling`. | Spec scenario «Thiếu câu kiểm 3 và 4»: a theme row that meets the threshold, the DRAFT codebook, and a ledger with 2 products gives `Yếu`. (Check 2 is also missing in PR 2, so `missing_count = 3`.) Keyword rows (IM-Q68) give `Chắc` with 0 missing. A keyword item `Chắc` with `hypothesis = true` gives `Yếu`. A TikTok Shop portrait age row in part 4 gives `Không` (TikTok Shop reviews have no role for question 1); with a frame copy that gives them `Phụ` for question 1, it gives `Yếu` and `hypothesis = true`. Part 1 citing one `Chắc` keyword item (part 6) and one `Yếu` theme item (part 8) gives `Yếu`. A mutant that takes the highest item fails. A mutant that maps 2 missing to `Khá` fails. |
+| IM-Q68 | (Spec R-I32 scenario «Thiếu đúng một câu».) A keyword row with 5 or more distinct keywords, used in part 6 (question 2, `Chính`), with a keyword-group copy whose `status = APPROVED` and a ledger with 3 products for its method key, but no passed `keyword_groups` sample row: checks 1, 2 and 4 pass, check 3 is missing (`NO_OWNER_SAMPLE_REVIEW`), ceiling `Khá`. Adding the passed sample row gives `Chắc`. | (a) A mutant that ignores check 3 gives `Chắc` without the sample row and fails. (b) With the sample row but only 2 ledger products the expected ceiling is `Khá` (`METHOD_ON_2_PRODUCTS`); a mutant that ignores check 4 gives `Chắc` and fails. (c) With neither the sample row nor a third product the expected ceiling is `Yếu`. |
+
+### R-IM09: evidence for the «Tại sao» chain
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q69 | `find_reason_links(run_id, theme_a, theme_b)` counts, per platform, the reviews that (1) have a counted label (IM-Q45: kept, current coding state) for `theme_a` and one for `theme_b`, and (2) whose stored text, after NFC and lower case, has a reason connector as a whole word: `vì`, `nên`, `do` or `để` (no letter or digit right before or after it, Unicode word rule). Rule version `REASON_RULES_VERSION = "reason-2026-10-30.1"`. The pair is unordered: (A, B) and (B, A) give the same rows and IDs. It returns `run_id`, `theme_a`, `theme_b` (as given), `connectors`, `link_basis = "BOTH_THEMES_AND_CONNECTOR"`, and `rows`: one per review platform present in the warehouse, `{platform, reviews, review_ids (sorted), count_id}`, with `reviews = 0` and `review_ids = []` for a platform with none. Reviews that only share the two themes, with no connector, are not counted (spec scenario «Cùng xuất hiện, không có lý do»). | Synthetic Shopee reviews coded under block `thuc_pham` (which has `T-VI`), all with kept current labels unless stated: R1 `zqv70 ngon vì chính hãng` with T-CHINHHANG and T-VI: counted. R2 `zqv71 ngon và chính hãng` with both themes: not counted (no connector). R3 `zqv72 rẻ nên mua` with T-GIA only: not counted. R4 with both themes and text `zqv73 dona hàng ổn`: not counted (`do` inside a word). R5 with both themes, connector, but the T-VI label `unclear`: not counted. A TikTok Shop review like R1: counted only in the `tiktok_shop` row. Expected `shopee.reviews = 1`, `review_ids = ["shopee:…R1"]`. Mutants that each fail: counting co-occurrence alone (R2), substring connector search (R4), counting unclear labels (R5), one cross-platform total. |
+| IM-Q70 | Validation and storage. `theme_a` and `theme_b` must be core or block theme codes of the codebook (an F310 code is not, IM-Q48) and must differ; otherwise `INVALID_ARGUMENT`. A run with no coding target gives `NOT_CODED`. The per-review connector result is stored as the warehouse table `reason_flag(review_id, rules_version)` (rows only for reviews with a connector; no text), rebuilt for the rule version on each call. Counts go through SLAYER (model `reason_link`) and a reference SQL on the base tables, as in IM-Q23: any difference gives `SLAYER_SQL_MISMATCH` and no rows. | `T-GIAOHANG` as `theme_b`: `INVALID_ARGUMENT`. `theme_a = theme_b`: `INVALID_ARGUMENT`. A SLAYER result monkeypatched off by one: `SLAYER_SQL_MISMATCH` and no `rows`. The `reason_flag` table has no TEXT cell holding a nonce (IM-Q10 scan extended to it). |
+| IM-Q71 | Reason-link count IDs follow IM-Q30: `IMC-` + 12 hex over the run ID, the tool `find_reason_links`, the row key (platform, the two theme codes sorted), the rules version (`reason-2026-10-30.1` plus the codebook version), the numbers (`reviews`, `review_ids`) and `state_sha256`. They are stored in `count_registry`. Same state, same IDs. | Add one counted label that makes a second Shopee review count: that row's `reviews`, `review_ids` and `count_id` change, and the old ID stays in `count_registry` with its old numbers. |
+| IM-Q72 | `read_reviews(run_id, ids)` returns the stored text of 1 to 20 reviews of the run, for reading on the host machine only. `ids` are warehouse review IDs (`<platform>:<source id>`); duplicates collapse to one, in first-seen order. More than 20 distinct IDs, an empty list, or an ID that is not a string gives `INVALID_ARGUMENT` and no text. IDs not in the warehouse are listed in `not_found` (IDs only). The result is `{run_id, reviews: [{review_id, platform, text}], not_found, notice}`, where `text` is byte-equal to `review_text.text` and `notice` is `"Chỉ để đọc trên máy chủ. Không đưa chữ này vào báo cáo (R-I11)."`. It holds no `writer_key`, writer name, product key or count ID. The warehouse is opened read-only (IM-Q53). | (a) 21 distinct IDs: `INVALID_ARGUMENT`, and the error has no text. A mutant that truncates to 20 fails. (b) 20 IDs plus 5 repeats: 20 reviews. (c) One ID of another run's warehouse: in `not_found`. (d) The result for a TikTok Shop review with a named writer has no fixture writer name and no `w:` key. |
+
+### Codebook `2026-10-30.4` (F311 overlap line)
+
+| Row | Behavior | Negative control |
+|---|---|---|
+| IM-Q73 | The repo codebook and the test reference copy are `2026-10-30.4`, copied from the owner's draft `jev-bo-chu-de-2610.json` with LF line endings. The only changes from `2026-10-30.3` are `version` and the `T-THIETKE` / `T-CHINHHANG` overlap rule, which now reads «Màu sắc, kiểu dáng, thiết kế của chính sản phẩm (đẹp/xấu, sang/trông rẻ, hợp mắt) = T-THIETKE. Màu hoặc kiểu khác ảnh/mô tả = T-CHINHHANG. Vẻ ngoài bao bì/hộp (đẹp, xấu, bắt mắt) = T-THIETKE (F311). Cách gói, chèn, seal: no theme (F310).» No overlap rule contains «Bao bì/hộp: no theme». `overlaps` is still not sent to Jev (IM-Q20), so no other row changes. This closes open question 15. | A codebook copy with the old sentence «Bao bì/hộp: no theme (F310).» fails the overlap check. A copy with `version = 2026-10-30.3` fails IM-Q14. |
 
 ## Frozen keyword groups (IM-Q31 oracle)
 
@@ -174,6 +247,84 @@ Membership examples (synthetic keywords and the group each must get):
 | `canxi của nhật` | `loai_nao` | |
 | `cách uống kẽm` | `cach_dung` | |
 | `canxi giá bao nhiêu` | `khac` | no group matches |
+
+## Frozen report frame (IM-Q55 to IM-Q61 oracle)
+
+The file `tools/mcp-insight/data/report-frame.json` holds exactly this data, with `contractVersion:
+"insight-report-frame-v1"`, `version: "frame-2026-10-30.1"` and `status: "UNREVIEWED"`, plus a free-text `source`
+field. The questions, part titles and source roles are transcribed from R-I30 and R-I34. The source names and notes,
+the steps of sources that R-I31 does not name, `count_tools`, `warehouse_sources` and `basis_parts` were written for
+this MCP. **They are not owner-approved** (open question 16).
+
+`steps` (the order used for a part's `steps`): `Biết đến`, `Quan tâm`, `Muốn mua`, `Mua`, `Sau mua`, `Chưa rõ bước`.
+
+Questions (`questions[]`, `{no, text}`):
+
+| no | text |
+|---|---|
+| 1 | Ai dùng, ai mua? |
+| 2 | Băn khoăn gì trước khi mua? |
+| 3 | Chọn sản phẩm dựa vào đâu? |
+| 4 | Dùng xong thấy thế nào? |
+| 5 | Nhóm khách nào bị bỏ ngỏ? |
+
+Parts (`parts[]`, in this order). Frame parts have no other field. Synthesis parts have `basis_parts = [4, 5, …, 15]`.
+Data parts have `question` and `count_tools`.
+
+| part | title | kind | question | count_tools |
+|---|---|---|---|---|
+| 1 | Kết luận chính | synthesis | | |
+| 2 | Câu hỏi kinh doanh | frame | | |
+| 3 | Phạm vi và cách làm | frame | | |
+| 4 | Khách hàng là ai | data | 1 | `portrait_counts`, `keyword_counts` |
+| 5 | Khác biệt giữa các nhóm | data | 1 | `portrait_counts`, `keyword_counts` |
+| 6 | Chủ đề quan tâm | data | 2 | `theme_counts`, `keyword_counts` |
+| 7 | Nỗi lo trước khi mua | data | 2 | `theme_counts`, `keyword_counts` |
+| 8 | Lý do chọn | data | 3 | `theme_counts`, `keyword_counts` |
+| 9 | Thương hiệu và đối thủ | data | 3 | `theme_counts`, `keyword_counts` |
+| 10 | Hành trình mua | data | 3 | `theme_counts`, `keyword_counts` |
+| 11 | Khách gặp sản phẩm ở đâu | data | 3 | `theme_counts`, `keyword_counts` |
+| 12 | Cách mua và dùng | data | 3 | `theme_counts`, `keyword_counts` |
+| 13 | Cảm nhận | data | 4 | `theme_counts`, `keyword_counts` |
+| 14 | Điều khách chê | data | 4 | `theme_counts`, `keyword_counts` |
+| 15 | Nhu cầu chưa đáp ứng | data | 5 | `theme_counts`, `keyword_counts` |
+| 16 | Hướng cơ hội | synthesis | | |
+| 17 | Thử nghiệm và đo lường | synthesis | | |
+| 18 | Phụ lục: nguồn của từng con số | frame | | |
+
+Sources (`sources[]`, in this order). Roles per question 1 to 5; `—` is JSON null (R-I34 «không dùng»). The R-I34
+row name is given only to map each key back to the spec table; it is not in the file.
+
+| key | R-I34 row | name | step | Q1 | Q2 | Q3 | Q4 | Q5 | warehouse_sources | count_tools |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `product_names` | Tên sản phẩm trên sàn | Tên sản phẩm trên sàn | Muốn mua | Phụ | — | Phụ | — | Phụ | `tiktok_shop_product_names`, `shopee_product_names` | |
+| `sales_numbers` | Số bán trên sàn | Số bán trên sàn | Mua | — | — | Phụ | — | — | | |
+| `tiktok_video_subtitles` | Phụ đề video bán chạy TikTok Shop | Phụ đề video bán chạy TikTok Shop | Muốn mua | — | — | Phụ | — | Phụ | | |
+| `shopee_reviews` | Đánh giá Shopee | Đánh giá Shopee | Sau mua | Chính | Phụ | Chính | Chính | Chính | `shopee_reviews` | `theme_counts`, `portrait_counts` |
+| `tiktok_shop_reviews` | Đánh giá TikTok Shop | Đánh giá TikTok Shop | Sau mua | — | Phụ | — | Phụ | Phụ | `tiktok_shop_reviews` | `theme_counts`, `portrait_counts` |
+| `search_suggestions` | Gợi ý tìm kiếm Google | Gợi ý tìm kiếm | Quan tâm | Phụ | Chính | Phụ | — | Phụ | `keywords` | `keyword_counts` |
+| `search_results` | Kết quả tìm kiếm Google | Kết quả tìm kiếm | Quan tâm | — | — | Phụ | — | — | | |
+| `search_trends` | Google Trends theo tỉnh | Mức quan tâm tìm kiếm theo tỉnh | Chưa rõ bước | Phụ | — | — | — | Phụ | `trends` | |
+| `population_stats` | World Bank | Số dân toàn quốc | Chưa rõ bước | Phụ | — | — | — | — | | |
+| `simulated_personas` | NVIDIA Nemotron-Personas Vietnam | Hồ sơ dân số mô phỏng | Chưa rõ bước | Phụ | — | — | — | — | | |
+| `ai_answer` | Google AI Overview | Câu trả lời AI trên trang tìm kiếm | Chưa rõ bước | — | Gợi ý | Gợi ý | — | — | | |
+
+Source notes (`note`; null where not listed):
+
+| key | note |
+|---|---|
+| `product_names` | Lời chào hàng của người bán, không phải lý do khách chọn (R-I34). |
+| `tiktok_video_subtitles` | Lời chào hàng của người bán; tối đa 5 video (R-I34). |
+| `shopee_reviews` | Đánh giá viết sau khi mua; lý do mua trong đánh giá là «kể lại» (R-I31). |
+| `tiktok_shop_reviews` | Chỉ dùng khi TikTok Shop chiếm từ 50% doanh thu (R-I34); bản 1 chưa có số này. |
+| `search_suggestions` | Chỉ cho biết người tìm hỏi gì; không làm bằng chứng về động cơ hay rào cản của khách (R-I34, R-L12). |
+| `search_trends` | Mức so sánh 0–100, không phải số người (R-I35). |
+| `population_stats` | Số «toàn dân», chỉ làm mốc so sánh (R-I35). |
+| `simulated_personas` | Chỉ làm mốc so sánh toàn dân; không làm bằng chứng về khách, không đặt tên nhân vật (R-I35). |
+| `ai_answer` | Chỉ gợi ý giả thuyết, không làm bằng chứng (R-I34). |
+
+With this frame, data parts 4 to 15 have 65 source cells. 27 of them are sources that no PR 1 tool collects
+(`NOT_COLLECTED`), and 5 are `tiktok_shop_reviews` cells (parts 6, 7, 13, 14, 15).
 
 ## Open questions (assumptions in this table)
 
@@ -213,11 +364,41 @@ Membership examples (synthetic keywords and the group each must get):
 14. Whether a real review about packaging looks gets `T-THIETKE`, and one about packing gets no theme, depends on
    Jev reading the F311 `include`/`exclude` text. PR 1 tests what is sent and how answers are stored (IM-Q51), not
    Jev's judgement. The owner's sample (task 6.1) checks it on real answers.
-15. **Gap in codebook `2026-10-30.2` and `2026-10-30.3` (not changed here).** The overlap rule `T-THIETKE` / `T-CHINHHANG` still ends
-   with «Bao bì/hộp: no theme (F310)». This disagrees with F311, with the `T-THIETKE` `include` text and with the
-   updated `(đóng gói)` / `T-LOI` overlap rule («Bao bì đẹp, xấu hoặc bắt mắt = T-THIETKE (F311)»). The codebook is
-   copied unchanged, and `overlaps` is not sent to Jev in PR 1 (IM-Q20), so this does not change any row. The
-   codebook owner should fix that sentence in a later version.
+15. **Closed in revision 8 (codebook `2026-10-30.4`, IM-Q73).** Codebooks `2026-10-30.2` and `2026-10-30.3` had an
+   overlap rule `T-THIETKE` / `T-CHINHHANG` that ended with «Bao bì/hộp: no theme (F310)», which disagreed with F311.
+   The owner's `2026-10-30.4` changes only that line: packaging looks belong to `T-THIETKE` (F311), and packing
+   itself gets no theme (F310).
+16. The report frame (IM-Q55) is new data written for this MCP, marked `UNREVIEWED`. Roles and texts come from
+   R-I30 and R-I34. The choices that are not in the spec: neutral source names (R-L01); the step of Trends,
+   population data, simulated personas and AI answers (`Chưa rõ bước`, R-I31 does not name them); which count tools
+   serve which parts; and `basis_parts = 4 to 15` for all three synthesis parts. Part 18 is the appendix (R-I30 counts
+   it as the 18th part).
+17. **Check 2 and brands (IM-Q64).** R-I32 check 2 asks for a sample that is not from one product or one brand. The
+   warehouse stores no brand, so check 2 never passes for review rows in PR 2 (`BRANDS_NOT_STORED`). Free Shopee
+   reviews also have no writer name (`WRITER_UNKNOWN`). So no review-based claim can be above `Yếu` in PR 2 while
+   the codebook is DRAFT and the ledger is empty. This matches the design risk «Mức Chắc chưa thể có ở bản 1».
+   Keyword rows can reach `Khá` or `Chắc` once the keyword groups are approved and sampled.
+18. **Reason links without spans (IM-Q69). This needs the owner's view.** R-IM09 asks to count reviews where the
+   customer joins the two themes with a reason word. Jev labels the whole review and returns no span, so the MCP
+   cannot tell which words carry which theme. PR 2 counts a review when it has both theme labels and a reason word
+   anywhere in its text (`link_basis = BOTH_THEMES_AND_CONNECTOR`). Pure co-occurrence with no reason word is not
+   counted, as the spec scenario requires. A reason word that joins two other ideas in the same review is still
+   counted. The agent reads the review IDs with `read_reviews` to confirm. A stricter rule needs spans or a pairwise
+   Jev question (paid) and is not in PR 2. The word list is the spec's four words. `nên` and `để` also have
+   non-reason uses («nên dùng», «để lâu»), and text typed without diacritics (`vi`, `nen`) is not matched.
+19. Check 4 (IM-Q66) counts researched products by `subject_key` (for example `canxi`, `kem`), not by product listing.
+   The method key includes the rules version, so a new codebook version starts at 0 products. The ledger is written
+   only by `record_method_approval`, which the owner or the coordinator calls when the owner approves a report. No
+   report approval flow exists before R-IM12.
+20. Check 3 (IM-Q65) needs both an approved rules file and an owner sample-review record for that exact version. The
+   owner's 30-review check of the codebook (task 6.1, F312) was on `2026-10-30.2` and the owner kept it DRAFT
+   (F313), so no record is seeded.
+21. A claim's ceiling is the lowest of its evidence items (IM-Q67). A claim that cites one `Chính` row and one `Phụ`
+   row gets the `Phụ` row's level. This reads «Khi một kết luận khớp hai mức, báo cáo SHALL lấy mức thấp hơn» (R-I32)
+   as applying across evidence items.
+22. R-I34 says TikTok Shop reviews are used only when TikTok Shop has 50% or more of revenue. The MCP has no revenue
+   data, so it does not apply this gate. It shows the rule in the cell `note`. Also, R-I34 gives TikTok Shop reviews no
+   role for question 1. So gender and age guesses, which only TikTok Shop names allow, get `Không` in parts 4 and 5.
 
 ## Review findings applied (revision 2)
 
@@ -283,3 +464,13 @@ Membership examples (synthetic keywords and the group each must get):
 | Item | Rows |
 |---|---|
 | Codebook `2026-10-30.3` (definitions of `T-CHATLUONG`, `T-CONGDUNG`, `T-VI`, `T-CAMGIAC`, `T-HANDUNG` changed; same codes, blocks, thresholds, limits and excluded list) | IM-Q14, IM-Q45 (version only); open question 15 still open (the stale overlap line is still in `2026-10-30.3`) |
+
+## PR 2 rows and owner update applied (revision 8)
+
+| Item | Rows |
+|---|---|
+| R-IM01 extended: nine tools, no write from the read tools, text only in `read_reviews` | IM-Q52 (amends IM-Q1), IM-Q53, IM-Q54 |
+| R-IM07 / task 3.1: frame data file, 18 parts, source cells, count IDs, unanswered section, part ceilings | IM-Q55 to IM-Q61, frozen report frame, open questions 16 and 22 |
+| R-IM08 / task 3.2: 4 checks, shared store with sample reviews and the method ledger, levels | IM-Q62 to IM-Q68, open questions 17, 19, 20 and 21 |
+| R-IM09 / task 3.3: `find_reason_links`, `read_reviews` | IM-Q69 to IM-Q72, open question 18 |
+| Codebook `2026-10-30.4` (F311 overlap line) | IM-Q73, IM-Q14 and IM-Q45 (version only), open question 15 closed |
