@@ -133,10 +133,11 @@ HIDDEN_NAMES = (
     "shopee-public-review",
     "World Bank", "SLAYER",
 )
-# The app's READER rule: a whole name with Unicode edges, case-insensitive; `Metric` only as `Metric` or `METRIC`.
+# The app's READER rule: a whole name with Unicode edges (no letter, digit or `_` next to it), case-insensitive;
+# `Metric` only as `Metric` or `METRIC`.
 _HIDDEN_PATTERNS = tuple(
-    re.compile(r"(?<![^\W_])(?:Metric|METRIC)(?![^\W_])") if name == "Metric"
-    else re.compile(r"(?<![^\W_])" + re.escape(name) + r"(?![^\W_])", re.I)
+    re.compile(r"(?<!\w)(?:Metric|METRIC)(?!\w)") if name == "Metric"
+    else re.compile(r"(?<!\w)" + re.escape(name) + r"(?!\w)", re.I)
     for name in HIDDEN_NAMES)
 _MODEL_ID = re.compile(r"\b(?:gpt|claude)-[A-Za-z0-9]", re.I)
 
