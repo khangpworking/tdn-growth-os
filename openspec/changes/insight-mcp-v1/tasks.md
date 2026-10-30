@@ -1,7 +1,7 @@
 ## 1. Tài liệu
 
 - [x] 1.1 Viết change này: proposal với sơ đồ, design, spec R-IM01 đến R-IM12, tasks.md (chủ chọn 4 phương án ngày 30/10/2026, F306)
-- [ ] 1.2 `openspec validate insight-mcp-v1` qua
+- [x] 1.2 `openspec validate insight-mcp-v1` qua
 
 Cách chia việc: Opus 5.5 medium viết mã (Sol 6.1 medium nếu máy chủ hết lượt Claude). Sol 6.1 xhigh viết kiểm thử ở phiên riêng. Một phiên Sol 6.1 xhigh mới khác rà soát. Trước khi viết mã, phiên viết mã soạn bảng dòng hợp đồng đánh số (IM-Q1…). Mỗi dòng ghi quy tắc R-IM, hành vi và một ca đối chứng âm. Một phiên Sol rà bảng trước khi viết mã.
 
@@ -9,14 +9,16 @@ Chia thành 3 PR nối tiếp. PR sau bắt đầu khi PR trước đã merge.
 
 ## 2. PR 1: kho, gán chủ đề, semantic layer
 
-- [ ] 2.1 Khung `tools/mcp-insight` giống `tools/mcp-market`; chỉ đọc app; cờ trả phí; khóa từ file (R-IM01)
-- [ ] 2.2 `build_warehouse`: đánh giá, gợi ý tìm kiếm, Trends, tên sản phẩm; `writer_key`, `writer_known`; chữ khách ở bảng riêng (R-IM02)
-- [ ] 2.3 Bộ chủ đề v2 là file dữ liệu trong repo; `code_reviews` có `dry_run`, trần lượt gọi, dừng ở lỗi đầu tiên (R-IM03)
-- [ ] 2.4 Mô hình SLAYER khai báo sẵn; câu SQL đối chiếu cho mỗi số đo (R-IM04)
-- [ ] 2.5 `theme_counts`, `keyword_counts` với ngưỡng R-I33 và mã số đếm (R-IM05)
-- [ ] 2.6 `portrait_counts` (R-IM06)
-- [ ] 2.7 Bộ chủ đề bản `2026-10-30.3` không có Giao hàng, Đóng gói, Dịch vụ shop; vẻ ngoài bao bì thuộc Kiểu dáng, màu sắc, thiết kế; MCP từ chối bộ chủ đề còn 3 chủ đề này (R-IM03, F310, F311)
-- [ ] 2.8 Sửa R-I39 trong `openspec/changes/insight-method-v1/specs/insight-report/spec.md`: bỏ «giao hàng» khỏi danh sách động cơ và rào cản; thêm câu của chủ ngày 30/10/2026 vào dòng «Vì sao» (F310)
+- [x] 2.1 Khung `tools/mcp-insight` giống `tools/mcp-market`; chỉ đọc app; cờ trả phí; khóa từ file (R-IM01)
+- [x] 2.2 `build_warehouse`: đánh giá, gợi ý tìm kiếm, Trends, tên sản phẩm; `writer_key`, `writer_known`; chữ khách ở bảng riêng (R-IM02)
+- [x] 2.3 Bộ chủ đề v2 là file dữ liệu trong repo; `code_reviews` có `dry_run`, trần lượt gọi, dừng ở lỗi đầu tiên (R-IM03)
+- [x] 2.4 Mô hình SLAYER khai báo sẵn; câu SQL đối chiếu cho mỗi số đo (R-IM04)
+- [x] 2.5 `theme_counts`, `keyword_counts` với ngưỡng R-I33 và mã số đếm (R-IM05)
+- [x] 2.6 `portrait_counts` (R-IM06)
+- [x] 2.7 Bộ chủ đề bản `2026-10-30.3` không có Giao hàng, Đóng gói, Dịch vụ shop; vẻ ngoài bao bì thuộc Kiểu dáng, màu sắc, thiết kế; MCP từ chối bộ chủ đề còn 3 chủ đề này (R-IM03, F310, F311)
+- [x] 2.8 Sửa R-I39 trong `openspec/changes/insight-method-v1/specs/insight-report/spec.md`: bỏ «giao hàng» khỏi danh sách động cơ và rào cản; thêm câu của chủ ngày 30/10/2026 vào dòng «Vì sao» (F310)
+
+PR 1 merge ngày 30/10/2026: #428 → `c8fc5cda` (Sol 6.1 xhigh PASS tại `f68ac76f`, CI xanh).
 
 ## 3. PR 2: khung báo cáo và mức tin
 
@@ -40,7 +42,7 @@ Chia thành 3 PR nối tiếp. PR sau bắt đầu khi PR trước đã merge.
 
 ## 6. Chạy thật (cần chủ đồng ý)
 
-- [ ] 6.1 Chủ chấm 30 mẫu của bộ chủ đề v2. Lần 1 xong 30/10/2026 (F312): 49 nhãn, 42 đúng (86%); 24/30 lời đúng hoàn toàn (80%, đúng ngưỡng §11). Sửa 4 định nghĩa → bản `2026-10-30.3`, vẫn DRAFT. Kết quả: `outputs/insight-mcp-3010/ket-qua-cham-30.md`
+- [x] 6.1 Chủ chấm 30 mẫu của bộ chủ đề v2. Lần 1 xong 30/10/2026 (F312): 49 nhãn, 42 đúng (86%); 24/30 lời đúng hoàn toàn (80%, đúng ngưỡng §11). Sửa 4 định nghĩa → bản `2026-10-30.3`, vẫn DRAFT. Kết quả: `outputs/insight-mcp-3010/ket-qua-cham-30.md`. Chủ chọn giữ nháp, không chạy lại (F313)
 - [x] 6.2 Chủ đồng ý gọi Jev cho canxi và kẽm, đủ khoảng 2.400 lượt, không chấm mẫu: «chốt 2400 mẫu luôn» (30/10/2026, F308). Ước tính 0,5–1 USD.
 - [ ] 6.3 Một agent dựng báo cáo canxi và kẽm qua MCP; ghi mức tin từng phần và lỗi cổng kiểm đã gặp
 
