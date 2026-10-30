@@ -32,6 +32,10 @@ def assert_surface(tools):
         "confidence_ceiling": {"run_id": {"string"}, "part": {"integer"}, "evidence": {"array"}, "hypothesis": {"boolean"}},
         "find_reason_links": {"run_id": {"string"}, "theme_a": {"string"}, "theme_b": {"string"}},
         "read_reviews": {"run_id": {"string"}, "ids": {"array"}},
+        # IM-Q79 explicitly amends Q52; keep exact-set and all old schema checks.
+        "submit_section": {"run_id": {"string"}, "part": {"integer"}, "text": {"string"}, "claims": {"array"}},
+        "submit_statement": {"run_id": {"string"}, "statement": {"object"}, "replaces": {"string", "null"}},
+        "render_report": {"run_id": {"string"}},
     }
     assert set(tools) == set(expected)
     for tool, arguments in expected.items():
