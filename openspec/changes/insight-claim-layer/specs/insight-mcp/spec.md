@@ -5,7 +5,7 @@ Mỗi chủ đề có đủ đánh giá SHALL có một danh mục «ý con». M
 
 Danh mục SHALL được hai máy chấm độc lập: Astra (gpt-6-astra, xhigh, chỉ đọc) và Opus 5.5. Vòng 1: mỗi máy chấm riêng danh mục, mẫu gán và nhóm gần trùng. Vòng 2: mỗi máy xem từng chỗ khác với máy kia và quyết định giữ hay theo máy kia. Chỗ cả hai cùng giữ ý mình là «tranh chấp». Chủ không chấm mẫu (F322, chọn 2B).
 
-Danh mục SHALL đạt khi: không còn ý con nào bị cả hai máy chấm là chồng nghĩa, quá rộng hoặc sai tên; và ít nhất 80% đánh giá trong mẫu đã thống nhất được gán đúng và đủ. Danh mục chưa đạt SHALL mang nhãn «danh mục nháp». Mọi câu dùng danh mục nháp SHALL có mức tin trần Yếu.
+Danh mục SHALL đạt khi: không còn ý con nào bị cả hai máy chấm là lỗi, tức một trong năm kết luận chồng nghĩa, quá rộng, quá hẹp, sai tên hoặc ngoài chủ đề (hai máy có thể chấm hai lỗi khác nhau); và ít nhất 80% đánh giá trong mẫu đã thống nhất được gán đúng và đủ. Danh mục chưa đạt SHALL mang nhãn «danh mục nháp». Mọi câu dùng danh mục nháp SHALL có mức tin trần Yếu.
 
 - Loại kiểm: Mã
 - Mã kiểm: Chưa có mã kiểm
