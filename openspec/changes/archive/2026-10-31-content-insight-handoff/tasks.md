@@ -2,7 +2,7 @@
 
 - [x] 1.1 Viết change này: proposal với sơ đồ, design, spec R-C01 đến R-C07 và R-C09, tasks.md (chủ chốt thiết kế ngày 29/10/2026, F292)
 - [x] 1.2 `openspec validate content-insight-handoff` qua
-- [ ] 1.3 Chủ duyệt PR này và change này
+- [x] 1.3 Chủ duyệt PR này và change này
 
 Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử ở phiên riêng. Một phiên Sol 6.1 xhigh mới khác rà soát. Trước khi viết mã, phiên viết mã soạn bảng dòng hợp đồng đánh số (CIH-Q1…). Mỗi dòng ghi quy tắc R-C, hành vi và một ca đối chứng âm. Một phiên Sol rà bảng trước khi viết mã.
 
@@ -31,13 +31,15 @@ Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử
 
 ## 5. Kiểm thử và hợp nhất
 
-- [ ] 5.1 Opus 5.5 medium viết mã
-- [ ] 5.2 Sol 6.1 xhigh viết kiểm thử ở phiên riêng, với câu insight giả; mỗi ca có một ca đối chứng âm
-- [ ] 5.3 Một phiên Sol 6.1 xhigh mới khác rà soát
-- [ ] 5.4 Kiểm thử theo dòng hợp đồng; CI Linux xanh tại SHA cuối là cổng cuối; không chạy cả bộ trên máy
-- [ ] 5.5 Merge chỉ khi chủ đồng ý; triển khai chỉ khi chủ viết «deploy <SHA>»
+- [x] 5.1 Opus 5.5 medium viết mã. Thực tế Sol 6.1 medium viết mã vì Claude trên Fedora hết credit, theo tiền lệ F288 (PR #427)
+- [x] 5.2 Sol 6.1 xhigh viết kiểm thử ở phiên riêng, với câu insight giả; mỗi ca có một ca đối chứng âm. 49 ca phủ CIH-Q1–Q14, Q16–Q36 (`docs/handoffs/content-insight-handoff-tests.md`)
+- [x] 5.3 Một phiên Sol 6.1 xhigh mới khác rà soát (`docs/handoffs/content-insight-handoff-review-2.md`)
+- [x] 5.4 Kiểm thử theo dòng hợp đồng; CI Linux xanh tại SHA cuối là cổng cuối; không chạy cả bộ trên máy
+- [x] 5.5 Merge chỉ khi chủ đồng ý; triển khai chỉ khi chủ viết «deploy <SHA>». PR #427 merge ngày 29/10/2026 → `3f85531a`; triển khai lên bản thật `3f85531a` theo lệnh của chủ (F295)
 
 ## 6. Kết thúc
 
-- [ ] 6.1 Viết mã kiểm thật (file, hàm) vào dòng «Mã kiểm» của R-C01 đến R-C07 và R-C09
-- [ ] 6.2 `/opsx:archive` change content-insight-handoff
+- [x] 6.1 Viết mã kiểm thật (file, hàm) vào dòng «Mã kiểm» của R-C01 đến R-C07 và R-C09
+Đóng change ngày 31/10/2026: mã đã merge (#427) và đã triển khai.
+
+- [x] 6.2 `/opsx:archive` change content-insight-handoff
