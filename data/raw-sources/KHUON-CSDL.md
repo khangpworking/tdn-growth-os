@@ -1,13 +1,15 @@
-# Khuôn cơ sở dữ liệu cho từng nguồn gốc (kem-db-v1)
+# Khuôn cơ sở dữ liệu cho từng nguồn gốc (db-v1)
 
-Bản 1 · 29/10/2026 · đi kèm bộ dữ liệu `kem-raw-v1`.
+Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gốc `raw-v1` (và bản đầu `kem-raw-v1`). Quy tắc nghiệp vụ: quy chuẩn dữ liệu đầu vào, Phần 6.2. Bản 1 (`kem-db-v1`, 29/10/2026) nằm ở lịch sử của `kem-2910/KHUON-CSDL.md`.
 
 ## TL;DR
 
 - File này nói: khi thu một nguồn, mỗi bản ghi gốc được lưu vào bảng nào, cột nào, kiểu gì, đơn vị gì.
-- Mỗi bảng có cột «Lấy từ bản gốc»: đường dẫn tới trường trong tệp `kem-raw-v1`.
+- Mỗi bảng có cột «Lấy từ bản gốc»: đường dẫn tới trường trong tệp `raw-v1`. Ví dụ lấy từ bộ kẽm (`kem-2910/`).
 - Lời khách của 3 nguồn (đánh giá Shopee, đánh giá TikTok Shop, bình luận TikTok) dùng **một bảng chung `review`**.
-- Mỗi người viết có hai cột: `reviewer_key` (mã ẩn danh, `NULL` nếu nguồn không cung cấp danh tính) và `reviewer_name` (tên thật khi có, chỉ trong cơ sở dữ liệu riêng).
+- Mỗi người viết có hai cột: `reviewer_key` (HMAC của mã tác giả do nguồn trả về; `NULL` nếu nguồn không trả mã tác giả) và `reviewer_name` (tên thật khi có, chỉ trong cơ sở dữ liệu riêng).
+- Bản 2 thêm 4 bảng: `run_review` (lần chạy ↔ đánh giá), `codebook` và `review_code` (chủ đề đã gán và ai duyệt), `video` (video ↔ sản phẩm).
+- Kho của MCP Insight dùng tên khác. Bảng đối chiếu ở Phần 3.4.
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -49,7 +51,7 @@ Mỗi lần gọi nhà cung cấp (một trang, một API, một lần mở tran
 | billing | TEXT | Không | `FREE_ACCOUNT_QUERY`, `PAID_CREDITS`, `PAID_SEARCH_UNLESS_CACHED` | `records[].billing` |
 | cost_unit, cost_amount | TEXT, REAL | Không | Đơn vị và lượng chi | `declare.cost`, `declare.usage` |
 | response_sha256 | TEXT | Không | Dấu của phản hồi gốc | `records[].responseSha256` |
-| raw_path | TEXT | Không | Tệp gốc + vị trí | tên tệp `kem-raw-v1` + chỉ số bản ghi |
+| raw_path | TEXT | Không | Tệp gốc + vị trí | tên tệp `raw-v1` + chỉ số bản ghi |
 
 ### 2.2 `product` — sản phẩm trên sàn
 
@@ -120,9 +122,9 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | platform | TEXT | Có | Nơi viết | `shopee` | `tiktok_shop` | `tiktok` |
 | kind | TEXT | Có | `product_review` hoặc `video_comment` | product_review | product_review | video_comment |
 | external_id | TEXT | Có | Mã gốc của nguồn | `reviewId` | `review.review_id` | `cid` |
-| product_key | TEXT | Không | Sản phẩm được đánh giá | `shopee:` + `itemId` | `tiktok_shop:` + `product_id` | `NULL` |
+| product_key | TEXT | Không | Sản phẩm được đánh giá | `shopee:` + `itemId` | `tiktok_shop:` + `product_id` | `NULL`; sản phẩm của video nằm ở bảng `video` |
 | video_url | TEXT | Không | Video có bình luận | — | — | `videoWebUrl` |
-| reviewer_key | TEXT | Không | Mã ẩn danh ổn định của người viết (HMAC-SHA256, khoá bí mật của hệ thống) | từ tên thật khi có; nếu không có thì `NULL` | `review_user` (đã là chuỗi mã ẩn danh trong bộ công khai) | từ `uid` |
+| reviewer_key | TEXT | Không | HMAC-SHA256 của **mã tác giả do nguồn trả về** (khoá bí mật của hệ thống). Không tính từ tên hiển thị khi nguồn có mã tác giả | **`NULL`**: bộ thu gói S chưa giữ mã tác giả (change `shopee-public-review-writer-key`) | từ `review_user` (nguồn không có mã số; bộ công khai đã thay bằng `anon-…`) | từ `uid` |
 | reviewer_name | TEXT | Không | **Tên thật. Chỉ lưu trong cơ sở dữ liệu riêng.** Không xuất ra kho công khai, không in vào báo cáo | **Chưa có**: bộ thu hiện bỏ trường này | **Không có trong bộ công khai**: `review_user` đã là mã ẩn danh | **Không có trong bộ công khai**: `uniqueId` đã là mã ẩn danh |
 | reviewer_name_state | TEXT | Có | `real`, `masked_by_source`, `not_provided` | `not_provided` | `masked_by_source` | `real` |
 | rating_star | INTEGER | Không | Số sao 1–5. `NULL` với bình luận | `ratingStar` | `review.rating` (chuỗi → số) | `NULL` |
@@ -141,11 +143,12 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 
 **Quy tắc cho bảng `review`:**
 
-1. Một người viết nhiều lần thì cùng `reviewer_key`. Nhờ vậy ta đếm được «≥ 5 người viết» mà không cần tên.
+1. Một người viết nhiều lần thì cùng `reviewer_key`. Nhờ vậy ta đếm được «≥ 5 người viết» mà không cần tên. Khi `reviewer_key` là `NULL`, mỗi đánh giá được đếm là một người viết và báo cáo ghi «đếm theo đánh giá» (luật L2, view `writer_count`).
 2. Khoá HMAC nằm ngoài cơ sở dữ liệu. Ai có bản sao cơ sở dữ liệu cũng không dò ngược được tên từ `reviewer_key`.
 3. Khi xuất ra kho công khai hoặc gửi người khác: bỏ `reviewer_name`, che số điện thoại, email, @nhắc tên trong `text`.
 4. Báo cáo không in nguyên văn `text`. Báo cáo chỉ dùng chủ đề đã mã hoá.
-5. Muốn có `reviewer_name` cho Shopee thì phải sửa bộ thu Shopee để giữ tên người viết. Đây là việc riêng, cần chủ duyệt.
+5. Shopee: bộ thu gói S chưa giữ mã tác giả. Change `shopee-public-review-writer-key` đề xuất giữ HMAC của mã tác giả (không giữ tên). Change này chờ chủ duyệt.
+6. Một đánh giá chỉ có một dòng, dù nhiều lần chạy thu lại. Lần chạy nào có đánh giá nào thì ghi ở bảng `run_review`.
 
 ### 3.1 `review_point` — ý khen, chê do AI của nguồn gom (S06)
 
@@ -161,6 +164,58 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | capture_id | TEXT | Nguồn gốc | — |
 
 Ý của AI nguồn chỉ để đối chiếu. Ý này không phải bằng chứng. Khi in thì ghi «AI của nguồn nêu».
+
+### 3.2 `run_review` — lần chạy nào có đánh giá nào
+
+Một đánh giá có thể được thu lại ở nhiều lần chạy. Bảng `review` giữ một dòng cho mỗi đánh giá (`UNIQUE (source_code, external_id)`). Bảng này ghi lần chạy nào thấy đánh giá nào. Nhờ vậy, báo cáo của một lần chạy đếm đúng tập đánh giá của lần chạy đó.
+
+| Cột | Kiểu | Nghĩa |
+|---|---|---|
+| run_id | TEXT | Mã lần chạy của app, hoặc mã bộ dữ liệu thử (ví dụ `kem-2910`) |
+| review_key | TEXT | Đánh giá |
+| capture_id | TEXT | Lần thu của lần chạy này |
+| source_position | TEXT | Vị trí trong bản gốc của lần thu này |
+
+### 3.3 `codebook` và `review_code` — chủ đề đã gán
+
+`codebook`: một bộ chủ đề một dòng.
+
+| Cột | Kiểu | Nghĩa |
+|---|---|---|
+| codebook_version | TEXT | Bản bộ chủ đề, ví dụ `2026-10-30.4` |
+| status | TEXT | `DRAFT` hoặc `APPROVED` |
+| approved_by, approved_at | TEXT | Ai duyệt, lúc nào. `NULL` khi còn nháp |
+| definition_sha256 | TEXT | Dấu của tệp định nghĩa bộ chủ đề |
+
+`review_code`: một chủ đề gán cho một đánh giá một dòng.
+
+| Cột | Kiểu | Nghĩa |
+|---|---|---|
+| review_key | TEXT | Đánh giá |
+| codebook_version | TEXT | Bộ chủ đề đã dùng |
+| theme_code | TEXT | Mã chủ đề |
+| polarity | TEXT | `positive`, `negative`, `neutral`, `mixed` |
+| journey_step | TEXT | Bước mua: `aware`, `interest`, `desire`, `purchase`, `after_purchase` |
+| status | TEXT | `kept` (được đếm) hoặc `unclear` (không đếm) |
+| confidence | REAL | Xác suất mô hình trả (0–1); `NULL` khi người gán |
+| coder | TEXT | Mô hình hoặc người đã gán |
+| text_sha256 | TEXT | Dấu của đoạn lời được gán; không chép lại lời khách |
+| coded_at | TEXT | Lúc gán |
+
+Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản phát hành (quy chuẩn, Phần 7 mục 8 và L3). Bản nháp được đếm nhưng ghi «đề xuất, chờ chủ duyệt».
+
+### 3.4 Đối chiếu với kho của MCP Insight
+
+| `db-v1` | Kho MCP Insight (`tools/mcp-insight`) |
+|---|---|
+| `review.review_key` | `review.review_id` |
+| `review.external_id` | `review.source_review_id` |
+| `review.reviewer_key` (`NULL` khi thiếu) | MCP luôn có `review.writer_key`: khi thiếu danh tính thì dùng `platform:source_review_id` và `writer_known = 0`. TikTok Shop có tên dùng `w:` + 16 ký tự đầu SHA-256 của tên đã chuẩn hoá và `writer_known = 1`; đây chưa phải HMAC của mã tác giả như `db-v1` |
+| `review.rating_star` | `review.rating` |
+| `review.text` | `review_text.text` |
+| `review_code` | `label`: `theme_code`, `polarity`, `status`, `text_sha256` giữ tên; `journey_step` → `step`, `confidence` → `p_yes`. MCP còn phân biệt `block_norm`; nhãn chỉ được đếm khi `coding_state.status = 'done'` và dấu đầu vào khớp `review_input`. `coder`, `coded_at` không có cột tương ứng trong `label` |
+| `codebook.codebook_version`, `status`, `approved_by`, `approved_at` | Tệp `tools/mcp-insight/data/insight-theme-codebook.json`: `version`, `status`, `approvedBy`, `approvedAt`. Phiên bản còn nằm trong `label` và `coding_state`. `sample_review` ở kho chung ghi người rà mẫu (`reviewed_by`, `reviewed_at`, `sample_size`, `passed`), tách với việc duyệt bộ chủ đề |
+| `run_review` | Mỗi lần chạy có một kho MCP riêng, nên kho MCP không cần bảng này |
 
 ## 4. Các nguồn khác
 
@@ -184,6 +239,23 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | capture_id | TEXT | Nguồn gốc | — |
 
 `video_segment`: `video_id`, `seq`, `segment_type` (`speech` từ `segments[]`, `on_screen` từ `onScreenText[]`), `start_s`, `end_s`, `text`.
+
+### 4.1a `video` — video và sản phẩm
+
+Một video một dòng, dùng chung cho S07 (bình luận), S14 (lời người bán) và S02 (video bán chạy).
+
+| Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
+|---|---|---|---|
+| video_url | TEXT | Link video, khoá chính | S07 `videoWebUrl`; S14 `video.videoUrl` |
+| video_id | TEXT | Mã video của nền tảng | S14 `video.videoId`; S07 phần số cuối của `videoWebUrl` |
+| platform | TEXT | `tiktok` | — |
+| product_key | TEXT | Sản phẩm mà video bán. `NULL` khi chưa biết | sản phẩm S02 gắn với video, nếu nguồn có |
+| brand | TEXT | Thương hiệu của sản phẩm | từ `product.brand` |
+| author_key | TEXT | HMAC của mã tác giả video | — |
+| link_basis | TEXT | Vì sao nối với sản phẩm: `PROVIDER_LINK` (nguồn ghi sẵn), `SELECTED_FROM_PRODUCT` (chọn từ trang sản phẩm), `UNKNOWN` | — |
+| capture_id | TEXT | Nguồn gốc | — |
+
+Bình luận S07 nối với sản phẩm qua `review.video_url` → `video.product_key`. Khi `link_basis` là `UNKNOWN`, không đếm bình luận đó theo sản phẩm hay thương hiệu.
 
 ### 4.2 `ad_read` và `ad` — quảng cáo (S15, S16, S17)
 
@@ -395,6 +467,50 @@ CREATE TABLE review (
 CREATE INDEX review_by_product  ON review(product_key);
 CREATE INDEX review_by_reviewer ON review(reviewer_key);
 
+CREATE TABLE run_review (
+  run_id          TEXT NOT NULL,
+  review_key      TEXT NOT NULL REFERENCES review(review_key),
+  capture_id      TEXT NOT NULL REFERENCES raw_capture(capture_id),
+  source_position TEXT,
+  PRIMARY KEY (run_id, review_key)
+);
+
+CREATE TABLE codebook (
+  codebook_version  TEXT PRIMARY KEY,
+  status            TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED')),
+  approved_by       TEXT,
+  approved_at       TEXT,
+  definition_sha256 TEXT NOT NULL,
+  CHECK (status = 'DRAFT' OR (approved_by IS NOT NULL AND approved_at IS NOT NULL))
+);
+
+CREATE TABLE review_code (
+  review_key       TEXT NOT NULL REFERENCES review(review_key),
+  codebook_version TEXT NOT NULL REFERENCES codebook(codebook_version),
+  theme_code       TEXT NOT NULL,
+  polarity         TEXT NOT NULL CHECK (polarity IN ('positive','negative','neutral','mixed')),
+  journey_step     TEXT CHECK (journey_step IN ('aware','interest','desire','purchase','after_purchase')),
+  status           TEXT NOT NULL CHECK (status IN ('kept','unclear')),
+  confidence       REAL CHECK (confidence BETWEEN 0 AND 1),
+  coder            TEXT NOT NULL,
+  text_sha256      TEXT NOT NULL,
+  coded_at         TEXT NOT NULL,
+  PRIMARY KEY (review_key, codebook_version, theme_code)
+);
+CREATE INDEX review_code_by_theme ON review_code(codebook_version, theme_code);
+
+CREATE TABLE video (
+  video_url   TEXT PRIMARY KEY,
+  video_id    TEXT,
+  platform    TEXT NOT NULL DEFAULT 'tiktok',
+  product_key TEXT REFERENCES product(product_key),
+  brand       TEXT,
+  author_key  TEXT,
+  link_basis  TEXT NOT NULL CHECK (link_basis IN ('PROVIDER_LINK','SELECTED_FROM_PRODUCT','UNKNOWN')),
+  capture_id  TEXT NOT NULL REFERENCES raw_capture(capture_id),
+  CHECK (link_basis = 'UNKNOWN' OR product_key IS NOT NULL)
+);
+
 CREATE TABLE review_point (
   point_id       TEXT PRIMARY KEY,
   product_key    TEXT NOT NULL REFERENCES product(product_key),
@@ -582,12 +698,26 @@ SELECT p.product_key,
           ORDER BY s.window_end DESC LIMIT 1)                    AS reviews_on_platform,
        (SELECT count(*) FROM review r WHERE r.product_key = p.product_key) AS reviews_collected,
        (SELECT count(DISTINCT r.reviewer_key) FROM review r
-          WHERE r.product_key = p.product_key)                   AS distinct_reviewers
+          WHERE r.product_key = p.product_key)                   AS distinct_reviewers,
+       (SELECT count(*) FROM review r
+          WHERE r.product_key = p.product_key AND r.reviewer_key IS NULL) AS reviews_without_writer
 FROM product p;
+
+-- Writers per product under rule L2: a review without a writer key counts as one writer.
+CREATE VIEW writer_count AS
+SELECT r.platform,
+       r.product_key,
+       count(DISTINCT r.reviewer_key) + sum(r.reviewer_key IS NULL) AS writers,
+       sum(r.reviewer_key IS NULL) > 0                               AS counted_by_review
+FROM review r
+WHERE r.product_key IS NOT NULL
+GROUP BY r.platform, r.product_key;
 ```
 
 ## 6. Điều còn để ngỏ
 
-- **Tên người viết Shopee:** bộ thu hiện không giữ tên. Muốn có thì cần sửa bộ thu (việc riêng, chủ duyệt).
+- **Mã người viết Shopee:** bộ thu gói S chưa giữ mã tác giả. Change `shopee-public-review-writer-key` chờ chủ duyệt. Cách băm dùng lại cách của bộ thu riêng cũ (`shopee-author-id-hmac-v1`).
+- **Nối video với sản phẩm (S07):** bộ kẽm chưa có dữ liệu nối. Mọi video của bộ kẽm có `link_basis` = `UNKNOWN`.
+- **`review_code` của bộ kẽm:** chủ đề của bộ kẽm nằm trong kho MCP riêng. Bộ công khai không có dòng `review_code`.
 - **Bảng tính Cục Thống kê (S21, S22):** mỗi tệp có nhiều bảng con. Bản này chỉ định khuôn chung `official_stat`. Cách đọc từng bảng con theo bộ đọc của app.
 - **Bảng `ad`:** bộ kẽm chưa có quảng cáo nào đọc được, nên các cột của bảng `ad` là đề xuất. Cần kiểm lại khi có lượt đọc thật.

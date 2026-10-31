@@ -7,8 +7,10 @@ Từ khoá: «viên uống kẽm». Chủ đề: thực phẩm chức năng viê
 - 18 tệp nguồn. Mỗi tệp có cùng hai phần: `declare` (khai báo) và `records` (bản ghi gốc); `00-index.json` là mục lục riêng.
 - 10 tệp lấy từ một lượt chạy thật ngày 26/10/2026. 8 tệp bổ sung ngày 29/10/2026, gồm thu mới, truy vấn cục bộ và ca không thu.
 - Đã ẩn danh: mọi người viết đánh giá và người bình luận được thay bằng mã `anon-…`. Xem mục 4.
-- Kiểm định dạng từ gốc repo: `python3 data/raw-sources/kem-2910/tools/validate.py data/raw-sources/kem-2910`. Kết quả mong đợi: `failed 0`.
-- Khuôn cơ sở dữ liệu cho từng nguồn (bảng, cột, SQL SQLite): [`KHUON-CSDL.md`](KHUON-CSDL.md). Thử: `python3 tools/test_schema.py KHUON-CSDL.md .`
+- Khuôn `kem-raw-v1` là bản đầu của khuôn chung `raw-v1` (quy chuẩn dữ liệu đầu vào bản 1.48, Phần 6.1). Xem [`../README.md`](../README.md).
+- Kiểm định dạng từ gốc repo: `python3 data/raw-sources/tools/validate_raw.py data/raw-sources/kem-2910`. Kết quả mong đợi: `failed 0`; các dòng `WARN` là chỗ bộ này khác `raw-v1`.
+- `tools/validate.py` dựng lại mục lục `00-index.json`.
+- Khuôn cơ sở dữ liệu cho từng nguồn (bảng, cột, SQL SQLite) đã chuyển thành khuôn chung `db-v1`: [`../KHUON-CSDL.md`](../KHUON-CSDL.md). Thử: `python3 data/raw-sources/tools/test_schema.py data/raw-sources/KHUON-CSDL.md data/raw-sources/kem-2910`.
 - Từng kết quả gốc trong tệp riêng (một lần tìm, một bản AI Overview, một lần gọi API, đánh giá của một sản phẩm…): [`results/`](results/README.md).
 
 ## 1. Cấu trúc một tệp
@@ -28,7 +30,7 @@ Các trường theo khuôn «Mỗi tệp gốc phải mang» của quy chuẩn d
 
 | Trường | Nghĩa |
 |---|---|
-| `formatVersion` | Luôn là `kem-raw-v1` |
+| `formatVersion` | Luôn là `kem-raw-v1` (bản đầu của `raw-v1`) |
 | `sourceCode` | Mã nguồn (S01…S29) |
 | `sourceName`, `provider` | Tên nguồn và nhà cung cấp, cách gọi |
 | `reportName` | Tên nguồn được hiện trong báo cáo |
@@ -95,6 +97,7 @@ Nguồn không có tệp (dừng, chưa có công cụ, cần tài khoản): S03
 - **Ca rỗng hoặc bị chặn:** 05, 06, 18. App phải ghi «chưa có dữ liệu». App không được bịa số.
 - **Ca lỗi một phần:** 11 (1/3 sản phẩm lỗi), 02 (`video.rank` bị từ chối). App dùng phần đạt và ghi rõ phần thiếu.
 - **Ca tài liệu yếu:** 15. App loại hoặc ghi mức Yếu.
+- **Ca khuôn cũ:** cả 18 tệp. Bộ kiểm `validate_raw.py` phải báo `WARN`, không báo `FAIL`.
 
 ## 6. Giới hạn
 
