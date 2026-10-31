@@ -107,6 +107,33 @@ for (url,) in db.execute("select distinct video_url from review where source_cod
     db.execute("insert into video(video_url,video_id,link_basis,capture_id) values(?,?,?,?)", (url, url.rsplit("/", 1)[-1], "UNKNOWN", "S07-apify"))
 db.execute("insert into codebook(codebook_version,status,definition_sha256) values('test-draft','DRAFT',?)", ("0" * 64,))
 
+# L2: repeated known writers collapse; each missing key counts once and sets the flag.
+db.execute("SAVEPOINT l2_contract")
+cap("l2-test", "S05", "fixture", "test", "2026-10-31")
+for platform, writers in (("shopee", ["known", "known", None, None]), ("tiktok_shop", ["known", "known"])):
+    product_key = platform + ":l2-test"
+    db.execute("insert into product(product_key,platform,item_id,product_name,first_capture_id) values(?,?,?,?,?)",
+               (product_key, platform, "l2-test", "Synthetic L2 product", "l2-test"))
+    for i, writer in enumerate(writers):
+        key = product_key + ":" + str(i)
+        db.execute("""insert into review(review_key,source_code,platform,kind,external_id,product_key,reviewer_key,
+                      reviewer_name_state,collected_at,capture_id,source_position) values(?,?,?,?,?,?,?,?,?,?,?)""",
+                   (key, "S05" if platform == "shopee" else "S06", platform, "product_review", key, product_key,
+                    writer, "not_provided", "2026-10-31", "l2-test", str(i)))
+actual = db.execute("select platform,writers,counted_by_review from writer_count where product_key like '%:l2-test' order by platform").fetchall()
+expected = [("shopee", 3, 1), ("tiktok_shop", 1, 0)]
+l2_ok = actual == expected
+print("L2 writer counts:", "OK" if l2_ok else f"WRONG: {actual!r}, expected {expected!r}")
+db.execute("insert into codebook values(?,?,?,?,?)", ("test-approved", "APPROVED", "synthetic-owner", "2026-10-31", "0" * 64))
+db.execute("""insert into review_code(review_key,codebook_version,theme_code,polarity,status,coder,text_sha256,coded_at)
+              values(?,?,?,?,?,?,?,?)""", ("shopee:l2-test:0", "test-approved", "T", "positive", "kept", "synthetic-coder", "0" * 64, "2026-10-31"))
+db.execute("insert into video(video_url,product_key,link_basis,capture_id) values(?,?,?,?)",
+           ("https://example.invalid/video/test", "tiktok_shop:l2-test", "PROVIDER_LINK", "l2-test"))
+for run in ("test-run-1", "test-run-2"):
+    db.execute("insert into run_review(run_id,review_key,capture_id) values(?,?,?)", (run, "shopee:l2-test:0", "l2-test"))
+db.execute("ROLLBACK TO l2_contract")
+db.execute("RELEASE l2_contract")
+
 # Negative controls: each insert breaks one db-v1 rule and must be refused.
 bad = {
     "APPROVED codebook without approver": "insert into codebook(codebook_version,status,definition_sha256) values('x','APPROVED','0')",
@@ -136,4 +163,4 @@ for row in db.execute("select product_name, product_url, reviews_on_platform, re
 print("coverage (tiktok_shop, collected>0):", db.execute("select product_key, reviews_collected, distinct_reviewers from review_coverage where product_key like 'tiktok_shop:%' and reviews_collected>0").fetchall())
 fk = db.execute("pragma foreign_key_check").fetchall()
 print("FK check:", fk)
-sys.exit(0 if not fk and refused == len(bad) else 1)
+sys.exit(0 if l2_ok and not fk and refused == len(bad) else 1)

@@ -22,7 +22,7 @@ FAMILIES = {"sales_estimate", "customer_review", "social_comment", "seller_state
             "published_document", "synthetic_population_baseline"}
 # Names a report must never show (input standard, Part 3 rule 7). Shopee, TikTok, Google are platform names, not tools.
 TOOL_NAMES = re.compile(r"\b(metric|kalodata|serpapi|apify|tradeint|dami|nemotron|nvidia|gemini|pageindex|opencli|jev)\b", re.I)
-SOURCE_CODE = re.compile(r"^S\d\d[a-z]?$")
+SOURCE_CODE = re.compile(r"S(?:0[1-9]|1[0-9]|2[0-9]|19b|20b)")
 LIMIT_CODE = re.compile(r"^[a-z0-9_]+$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -50,8 +50,10 @@ def base_errors(d, dec, recs):
     if not re.match(r"^S\d\d", str(dec.get("sourceCode", ""))):
         errs.append(f"sourceCode {dec.get('sourceCode')!r}")
     period = dec.get("period")
-    if period is not None:
+    if isinstance(period, dict):
         errs += [f"missing period.{k}" for k in PERIOD_KEYS if k not in period]
+    else:
+        errs.append("period must be an object with startDate/endDate/timezone/basis")
     method = (dec.get("origin") or {}).get("method")
     if method not in METHODS:
         errs.append(f"origin.method {method!r}")
@@ -81,10 +83,10 @@ def base_errors(d, dec, recs):
 def v1_rules(dec):
     """Rules added by raw-v1. Errors for raw-v1, warnings for kem-raw-v1."""
     out = []
-    if not SOURCE_CODE.match(str(dec.get("sourceCode", ""))):
-        out.append(f"sourceCode {dec.get('sourceCode')!r} must be one code (list other codes in alsoCovers)")
+    if not SOURCE_CODE.fullmatch(str(dec.get("sourceCode", ""))):
+        out.append(f"sourceCode {dec.get('sourceCode')!r} must be S01–S29, S19b or S20b (list other codes in alsoCovers)")
     also = dec.get("alsoCovers", [])
-    if not isinstance(also, list) or any(not SOURCE_CODE.match(str(c)) for c in also):
+    if not isinstance(also, list) or any(not SOURCE_CODE.fullmatch(str(c)) for c in also):
         out.append(f"alsoCovers {also!r} must be a list of source codes")
     if (dec.get("recordCount") == 0 or (dec.get("origin") or {}).get("method") == "NOT_COLLECTED") and not dec.get("resultNote"):
         out.append("resultNote missing for an empty or not-collected file")
@@ -98,16 +100,26 @@ def v1_rules(dec):
     if dec.get("evidenceFamily") not in FAMILIES:
         out.append(f"evidenceFamily {dec.get('evidenceFamily')!r} not in the Part 6.1 list")
     limits = dec.get("limits")
-    if not isinstance(limits, list) or any(not isinstance(x, dict) or set(x) != {"code", "text"} or not str(x.get("text") or "").strip()
+    if not isinstance(limits, list) or any(not isinstance(x, dict) or set(x) != {"code", "text"}
+                                           or not isinstance(x.get("text"), str) or not x["text"].strip()
                                            or not (x["code"] is None or LIMIT_CODE.match(str(x["code"]))) for x in limits):
         out.append("limits must be a list of {code, text}")
     period = dec.get("period")
-    if period is not None and period.get("startDate") is None and "observedPeriod" not in dec:
+    if isinstance(period, dict) and period.get("startDate") is None and "observedPeriod" not in dec:
         out.append("observedPeriod missing (period.startDate is null)")
-    for u in dec.get("usage") or []:
-        if not is_number(u.get("costAmount")):
-            out.append(f"usage.costAmount {u.get('costAmount')!r} is not a number")
+    usage = dec.get("usage")
+    if usage is not None and not isinstance(usage, list):
+        out.append("usage must be a list")
+    for u in usage if isinstance(usage, list) else []:
+        if not isinstance(u, dict):
+            out.append("usage entry must be an object")
+            continue
+        for k in ("requestCount", "costAmount"):
+            if k in u and not is_number(u[k]):
+                out.append(f"usage.{k} {u[k]!r} is not a number")
     cost = dec.get("cost")
+    if cost is not None and not isinstance(cost, dict):
+        out.append("cost must be an object")
     if isinstance(cost, dict):
         for k in ("amount", "balanceBefore", "balanceAfter"):
             if k in cost and not is_number(cost[k]):

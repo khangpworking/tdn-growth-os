@@ -210,11 +210,11 @@ Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản
 |---|---|
 | `review.review_key` | `review.review_id` |
 | `review.external_id` | `review.source_review_id` |
-| `review.reviewer_key` (`NULL` khi thiếu) | `review.writer_key` + `review.writer_known` (0 khi thiếu) |
+| `review.reviewer_key` (`NULL` khi thiếu) | MCP luôn có `review.writer_key`: khi thiếu danh tính thì dùng `platform:source_review_id` và `writer_known = 0`. TikTok Shop có tên dùng `w:` + 16 ký tự đầu SHA-256 của tên đã chuẩn hoá và `writer_known = 1`; đây chưa phải HMAC của mã tác giả như `db-v1` |
 | `review.rating_star` | `review.rating` |
 | `review.text` | `review_text.text` |
-| `review_code` | `label` (`theme_code`, `polarity`, `step`, `status`, `p_yes`, `text_sha256`) |
-| `codebook` | `codebook_version` trong `label` và `coding_state`; ai duyệt ở `sample_review` |
+| `review_code` | `label`: `theme_code`, `polarity`, `status`, `text_sha256` giữ tên; `journey_step` → `step`, `confidence` → `p_yes`. MCP còn phân biệt `block_norm`; nhãn chỉ được đếm khi `coding_state.status = 'done'` và dấu đầu vào khớp `review_input`. `coder`, `coded_at` không có cột tương ứng trong `label` |
+| `codebook.codebook_version`, `status`, `approved_by`, `approved_at` | Tệp `tools/mcp-insight/data/insight-theme-codebook.json`: `version`, `status`, `approvedBy`, `approvedAt`. Phiên bản còn nằm trong `label` và `coding_state`. `sample_review` ở kho chung ghi người rà mẫu (`reviewed_by`, `reviewed_at`, `sample_size`, `passed`), tách với việc duyệt bộ chủ đề |
 | `run_review` | Mỗi lần chạy có một kho MCP riêng, nên kho MCP không cần bảng này |
 
 ## 4. Các nguồn khác
