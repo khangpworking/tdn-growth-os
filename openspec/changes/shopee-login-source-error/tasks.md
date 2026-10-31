@@ -18,14 +18,14 @@
 
 ## 2. Kiểm thử (phiên khác người viết mã)
 
-- [ ] 2.1 T1 `/health` ready nhưng `/session/check` `needs_login`: mã `SHOPEE_LOGIN_REQUIRED`, chưa nộp job, lần chạy vẫn dựng báo cáo
-- [ ] 2.2 T2 `GET /session` mới và đã xác thực: không gọi `POST /session/check`
-- [ ] 2.3 T3 `needs_verification` và lỗi kết nối/5xx: đúng mã `SHOPEE_VERIFICATION_REQUIRED` / `SHOPEE_COLLECTOR_DOWN`
-- [ ] 2.4 T4 đối chứng âm: HTTP 422 và phản hồi sai cấu trúc vẫn là `PROVIDER_BLOCKED`
-- [ ] 2.5 T5 lệnh chủ: login trả `AWAITING_USER_LOGIN`; confirm `check ready` gọi `background` và trả `READY`; confirm chưa ready trả mã đã ánh xạ
-- [ ] 2.6 T6 lặp `requestKey` không gọi bộ thu lần nữa; sai token/Origin bị từ chối
-- [ ] 2.7 T7 token bộ thu không xuất hiện trong biên nhận hay log
-- [ ] 2.8 CI Linux xanh tại SHA cuối
+- [x] 2.1 T1 `/health` ready nhưng `/session/check` `needs_login`: mã `SHOPEE_LOGIN_REQUIRED`, chưa nộp job, lần chạy vẫn dựng báo cáo (`tests/unit/shopee-session-source-error.test.ts` «SHP detection regression: restarted collector with stale ready cannot submit after needs_login», «SHP named source error needs_login continues to report without automatic login»)
+- [x] 2.2 T2 `GET /session` mới và đã xác thực: không gọi `POST /session/check` (`tests/unit/shopee-session-source-error.test.ts` «SHP fresh authenticated ready age=… submits all products without a check or login»)
+- [x] 2.3 T3 `needs_verification` và lỗi kết nối/5xx: đúng mã `SHOPEE_VERIFICATION_REQUIRED` / `SHOPEE_COLLECTOR_DOWN` (`tests/unit/shopee-session-source-error.test.ts` «SHP named source error needs_verification / network / HTTP 503 …»)
+- [x] 2.4 T4 đối chứng âm: job trả HTTP 422 hoặc phản hồi sai cấu trúc vẫn là `PROVIDER_BLOCKED` (`tests/unit/shopee-public-reviews.test.ts` «S05 row 7: retryable GET permits at most two dispatches with accurate counters; success and non-retryable errors dispatch once», «S6 app condition HTTP_422 with 0 rows», «S6 app condition PROTOCOL_ERROR with 0 rows»). Ca «S2 HTTP 422 stops without retry» kiểm `/session/check` và nhận `SHOPEE_COLLECTOR_DOWN`, không phải lỗi job của R-P17.
+- [x] 2.5 T5 lệnh chủ: login trả `AWAITING_USER_LOGIN`; confirm `check ready` gọi `background` và trả `READY`; confirm chưa ready trả mã đã ánh xạ (`tests/integration/shopee-session-owner-api.test.ts` «SHP F2: owner login reservation and request journal are durable before dispatch and accepted afterward», «SHP owner repair regression: needs_login login and confirm replay stored receipts across API restart», «SHP confirm … never calls background or login»)
+- [x] 2.6 T6 lặp `requestKey` không gọi bộ thu lần nữa; sai token/Origin bị từ chối (`tests/integration/shopee-session-owner-api.test.ts` «SHP owner request validation and conflicting request keys never repeat a collector action», «SHP owner routes enforce auth, exact Origin, owner writes and method before any collector call»)
+- [x] 2.7 T7 token bộ thu không xuất hiện trong biên nhận hay log (`tests/integration/shopee-session-owner-api.test.ts` «SHP collector token echoes and thrown errors cannot reach responses, receipts or logs»)
+- [x] 2.8 CI Linux xanh tại SHA cuối (PR #419, merge ngày 27/10/2026 → `30902d63`)
 
 ## 3. Sau khi gộp
 

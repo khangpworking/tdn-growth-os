@@ -18,9 +18,11 @@
 - [x] 2.4 T4 header cho phép được lưu; header lạ và giá trị chứa khóa bị bỏ
 - [x] 2.5 T5 bản ghi cũ không có `responseHeaders` vẫn đọc được
 - [x] 2.6 Đối chứng âm: HTTP 401, 403, 429 và hết điểm giữ nguyên mã cũ
-- [ ] 2.7 CI Linux xanh tại SHA cuối
+- [x] 2.7 CI Linux xanh tại SHA cuối (PR #410, merge ngày 26/10/2026 → `fafed942`)
 - [x] 2.8 Rà soát: kiểm tra khóa trước khi cắt header ở cả năm adapter có khóa; lỗi số dư không ghi đè kết quả; đối chứng âm thất bại đúng chỗ; cập nhật golden theo đúng thay đổi định danh
 
 ## 3. Sau khi gộp
 
-- [ ] 3.1 Archive change này để R-P03 mới và R-P16 vào `openspec/specs/report-pipeline/spec.md`
+Đóng change ngày 31/10/2026: mã đã merge (#410).
+
+- [x] 3.1 Archive change này để R-P03 mới và R-P16 vào `openspec/specs/report-pipeline/spec.md`
