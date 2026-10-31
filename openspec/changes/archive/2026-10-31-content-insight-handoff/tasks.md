@@ -32,7 +32,7 @@ Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử
 ## 5. Kiểm thử và hợp nhất
 
 - [x] 5.1 Opus 5.5 medium viết mã. Thực tế Sol 6.1 medium viết mã vì Claude trên Fedora hết credit, theo tiền lệ F288 (PR #427)
-- [x] 5.2 Sol 6.1 xhigh viết kiểm thử ở phiên riêng, với câu insight giả; mỗi ca có một ca đối chứng âm. 49 ca phủ CIH-Q1–Q14, Q16–Q36 (`docs/handoffs/content-insight-handoff-tests.md`)
+- [x] 5.2 Sol 6.1 xhigh viết kiểm thử ở phiên riêng, với câu insight giả; mỗi ca có một ca đối chứng âm. Hiện có 44 ca (29 handoff backend, 2 generation, 13 giao diện) phủ CIH-Q1–Q14, Q16–Q29, Q33–Q36. Handoff kiểm thử ban đầu ghi 49 ca; F294 bỏ Q30–Q32, rồi lượt review 2 thêm ca hủy và xác nhận lại (`docs/handoffs/content-insight-handoff-tests.md`, `docs/handoffs/content-insight-handoff-f294-ci.md`, `docs/handoffs/content-insight-handoff-review-2.md`)
 - [x] 5.3 Một phiên Sol 6.1 xhigh mới khác rà soát (`docs/handoffs/content-insight-handoff-review-2.md`)
 - [x] 5.4 Kiểm thử theo dòng hợp đồng; CI Linux xanh tại SHA cuối là cổng cuối; không chạy cả bộ trên máy
 - [x] 5.5 Merge chỉ khi chủ đồng ý; triển khai chỉ khi chủ viết «deploy <SHA>». PR #427 merge ngày 29/10/2026 → `3f85531a`; triển khai lên bản thật `3f85531a` theo lệnh của chủ (F295)
