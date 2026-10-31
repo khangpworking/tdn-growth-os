@@ -2,7 +2,7 @@
 
 Updated: 2026-10-09 (Asia/Ho_Chi_Minh)
 
-Worktree/branch: `/home/pkhang/Applications/Orca.home/orca/workspaces/tdn-growth-os/ultimate-impl-sync1-codex`, `khangpworking/ultimate-insight-reader`.
+Worktree/branch: `<orca-workspaces>/tdn-growth-os/ultimate-impl-sync1-codex`, `khangpworking/ultimate-insight-reader`.
 Run/task/dispatch: `run_adc3551f8ed8` / `task_c24db5535f5a` / `ctx_29c19b97f3c5`.
 Worker terminal: `term_7728757b-d524-4e29-8e11-5b9fb1242853`; coordinator: `term_f78f7d8d-0a0e-4b5d-8a29-1f7a4912317d`.
 Preserved dispatched Sol/high launcher; no model/account/configuration changes or delegation.
@@ -191,7 +191,7 @@ Ownership: only `lint.ts`, the two new focused test files and this append-only h
 
 ## Insight F5/W4 direct-negation publication correction — 2026-10-09
 
-Temporary phase under current `task_b9ce2846edee` / `ctx_b81427a0c853`, sole run/coordinator unchanged. Explicit durable grant: `/home/pkhang/.zcode/workspace/default/ultimate-reader-f5-correction-phase.md`. Normal new branch `khangpworking/ultimate-reader-f5-correction-sol` starts at exact reviewed candidate `a69b02d23b671f23b0ddd4cdd01850d3042cebcf`. Private correction `051e62713823c5cf616b55101829ca3ba324d739` and rates partial checkpoint `a3fa23960e6ca474d66d968dcbe96b8485df5ec0` remain separate; neither is imported.
+Temporary phase under current `task_b9ce2846edee` / `ctx_b81427a0c853`, sole run/coordinator unchanged. Explicit durable grant: `<zcode-workspace>/ultimate-reader-f5-correction-phase.md`. Normal new branch `khangpworking/ultimate-reader-f5-correction-sol` starts at exact reviewed candidate `a69b02d23b671f23b0ddd4cdd01850d3042cebcf`. Private correction `051e62713823c5cf616b55101829ca3ba324d739` and rates partial checkpoint `a3fa23960e6ca474d66d968dcbe96b8485df5ec0` remain separate; neither is imported.
 
 Independent review found an inherited P2: genuine saved literal19 reader HTML with its limitation replaced by `Nguồn này không đủ. Đây là toàn thị trường.` passed F5 and reached the actual publisher's artifact put. This phase reproduced that exact failure before editing: `/tmp/ultimate-reader-f5-correction-sol/before-publisher.log` records put attempt1. The original complete retained metric/narrator/source-binding assertions and reviewer artifacts remain unchanged. Task-local copies retarget only absolute import roots, proven by reverse replacement and source SHA fingerprints in `provenance.json`.
 

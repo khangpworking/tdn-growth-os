@@ -48,22 +48,22 @@ The owner forbids Windows project tests, typechecks, builds and generator execut
 
 Known Linux scratch directory (not the live operator):
 
-`/home/pkhang/.cache/tdn-p1-isolation-20261003-ZVXHsB`
+`<scratch-dir>`
 
 Pinned toolchain:
 
-`/home/pkhang/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin`
+`<node24-toolchain>/bin`
 
-Fedora SSH destination recorded at handoff: `pkhang@192.168.1.8`. Host ED25519 fingerprint:
+Fedora SSH destination recorded at handoff: `<fedora-user>@<fedora-host>`. Host ED25519 fingerprint:
 
-`SHA256:TM3/u9tTtZLXYanTf2h0gKVIwXVEVcD57Tbca5Q4ab8`
+`SHA256:<fedora-host-fingerprint>`
 
-Known client access uses WSL distribution `OpenClawGateway`, key `~/.ssh/id_ed25519_fedora_migration` inside that distribution, and Windows known_hosts mounted at `/mnt/c/Users/Admin/.ssh/known_hosts`. A PowerShell agent does not automatically have the WSL private key.
+Known client access uses WSL distribution `<wsl-distro>`, key `<ssh-key-file>` inside that distribution, and Windows known_hosts mounted at `<windows-known-hosts>`. A PowerShell agent does not automatically have the WSL private key.
 
 Read-only SSH smoke check from PowerShell:
 
-```powershell
-wsl -d OpenClawGateway -- bash -lc 'ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/mnt/c/Users/Admin/.ssh/known_hosts -i ~/.ssh/id_ed25519_fedora_migration pkhang@192.168.1.8 "hostname"'
+```text
+<fedora-ssh-smoke-check>  (read-only: runs `hostname` on <fedora-host> from <wsl-distro> with <ssh-key-file>, BatchMode, IdentitiesOnly and strict host-key checking against <windows-known-hosts>)
 ```
 
 Use the verified key/fingerprint. Do not read or print private keys, API keys, tokens, shell environments or live config. If connection access is unavailable, continue local static work and report Linux checks NOT_RUN.
