@@ -27,12 +27,24 @@ def types(schema):
 
 
 def assert_surface(tools):
-    assert set(tools) == OLD_TOOLS | {"submit_section", "submit_statement", "render_report"}
     expected = {
         "submit_section": dict(run_id={"string"}, part={"integer"}, text={"string"}, claims={"array"}),
         "submit_statement": dict(run_id={"string"}, statement={"object"}, replaces={"string", "null"}),
         "render_report": dict(run_id={"string"}),
     }
+    # IM-Q126/IM-Q161 explicitly amend the exact registry; old checks stay strict.
+    expected.update({
+        "claim_catalogue_packet": {"run_id": {"string"}, "theme_code": {"string"}, "out_dir": {"string"}, "seed": {"integer"}},
+        "submit_claim_catalogue": {"run_id": {"string"}, "theme_code": {"string"}, "catalogue": {"object"}},
+        "code_claims": {"run_id": {"string"}, "theme_code": {"string"}, "catalogue_version": {"integer"},
+                        "dry_run": {"boolean"}, "max_calls": {"integer", "null"}},
+        "claim_counts": {"run_id": {"string"}, "theme_code": {"string"}, "catalogue_version": {"integer"}},
+        "claim_grading_packet": {"run_id": {"string"}, "theme_code": {"string"}, "catalogue_version": {"integer"},
+                                "out_dir": {"string"}, "seed": {"integer"}},
+        "record_claim_grades": {"run_id": {"string"}, "theme_code": {"string"}, "catalogue_version": {"integer"},
+                                "grades_dir": {"string"}},
+    })
+    assert set(tools) == OLD_TOOLS | set(expected)
     for name, props in expected.items():
         actual = tools[name]["properties"]
         assert set(actual) == set(props)
