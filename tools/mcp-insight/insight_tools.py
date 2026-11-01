@@ -1,6 +1,9 @@
 """Local stdio MCP server `tdn-insight`: run warehouse, Jev theme coding, SLAYER counts (part 1); report plan,
 confidence ceiling and reason links (part 2); checked report parts, insight statements and the rendered report (part 3).
 
+Part 4 adds the claim layer (ý con) under each theme: claim catalogues, Jev claim coding, claim counts with five
+measures, and the two-grader cross-check, whose graders run outside the MCP.
+
 Reads stored run data only. The app DB is opened read-only (INSIGHT_MCP_APP_DB, no default); the
 artifact store and capture root are read-only. Each run gets its own warehouse file under
 INSIGHT_MCP_DATA_DIR. Evidence from people (sample reviews, method approvals, brand checks, revenue shares,
@@ -17,6 +20,7 @@ import html
 import json
 import math
 import os
+import random
 import re
 import shutil
 import sqlite3
@@ -27,7 +31,9 @@ import urllib.parse
 import urllib.request
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
+from fractions import Fraction
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
@@ -411,7 +417,7 @@ CREATE TABLE source_status(source TEXT PRIMARY KEY, platform TEXT NOT NULL, capt
   row_count INTEGER NOT NULL);
 CREATE TABLE review(review_id TEXT PRIMARY KEY, platform TEXT NOT NULL, source_review_id TEXT NOT NULL,
   product_key TEXT NOT NULL, writer_key TEXT NOT NULL, writer_known INTEGER NOT NULL CHECK(writer_known IN (0, 1)),
-  rating INTEGER);
+  rating INTEGER, posted_date TEXT);
 CREATE TABLE review_text(review_id TEXT PRIMARY KEY REFERENCES review(review_id), text TEXT NOT NULL);
 CREATE TABLE product(product_key TEXT PRIMARY KEY, platform TEXT NOT NULL, product_name TEXT);
 CREATE TABLE writer_guess(writer_key TEXT PRIMARY KEY, gender TEXT NOT NULL,
@@ -420,9 +426,10 @@ CREATE TABLE keyword(keyword TEXT PRIMARY KEY, platform TEXT NOT NULL);
 CREATE TABLE trend(location TEXT NOT NULL, value INTEGER, query TEXT, PRIMARY KEY(location, query));
 CREATE TABLE portrait_label(review_id TEXT NOT NULL, dimension TEXT NOT NULL, grp TEXT NOT NULL,
   PRIMARY KEY(review_id, dimension, grp));
+CREATE TABLE near_dup(review_id TEXT PRIMARY KEY, group_id TEXT NOT NULL);
 """
 SOURCE_TABLES = ("run_facts", "source_status", "review", "review_text", "product", "writer_guess", "keyword",
-                 "trend", "portrait_label")
+                 "trend", "portrait_label", "near_dup")
 
 STATE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS coding_target(target_id INTEGER PRIMARY KEY AUTOINCREMENT, codebook_version TEXT NOT NULL,
@@ -495,6 +502,57 @@ CREATE VIEW IF NOT EXISTS v_reason_link AS
 """
 # The reason-link part of STATE_SCHEMA; `find_reason_links` runs it so a warehouse built before part 2 gets it too.
 REASON_SCHEMA = STATE_SCHEMA[STATE_SCHEMA.index("CREATE TABLE IF NOT EXISTS reason_flag"):]
+
+# Part 4 claim tables (state tables: a rebuild keeps them). `claim_scope` is a counting helper: it stays empty in the
+# warehouse and is filled only in the per-call copy that `claim_counts` counts on (PR 4 conventions, IM-Q153).
+CLAIM_SCHEMA = """
+CREATE TABLE IF NOT EXISTS claim_catalogue(theme_code TEXT NOT NULL, catalogue_version INTEGER NOT NULL,
+  label TEXT NOT NULL, catalogue_json TEXT NOT NULL, codebook_version TEXT NOT NULL, submitted_at TEXT NOT NULL,
+  PRIMARY KEY(theme_code, catalogue_version));
+CREATE TRIGGER IF NOT EXISTS claim_catalogue_no_update BEFORE UPDATE ON claim_catalogue
+  BEGIN SELECT RAISE(ABORT, 'claim_catalogue rows are never changed or removed'); END;
+CREATE TRIGGER IF NOT EXISTS claim_catalogue_no_delete BEFORE DELETE ON claim_catalogue
+  BEGIN SELECT RAISE(ABORT, 'claim_catalogue rows are never changed or removed'); END;
+CREATE TABLE IF NOT EXISTS claim_coding_state(review_id TEXT NOT NULL, theme_code TEXT NOT NULL,
+  catalogue_version INTEGER NOT NULL, input_sha256 TEXT NOT NULL, spec_p REAL NOT NULL, rac_p REAL NOT NULL,
+  gen_p REAL NOT NULL, status TEXT NOT NULL CHECK(status = 'done'), PRIMARY KEY(review_id, theme_code, catalogue_version));
+CREATE TABLE IF NOT EXISTS claim_label(review_id TEXT NOT NULL, theme_code TEXT NOT NULL,
+  catalogue_version INTEGER NOT NULL, claim_code TEXT NOT NULL, p_co REAL NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('kept', 'unclear')), PRIMARY KEY(review_id, theme_code, catalogue_version, claim_code));
+CREATE TABLE IF NOT EXISTS claim_packet(packet_id TEXT NOT NULL, theme_code TEXT NOT NULL,
+  catalogue_version INTEGER NOT NULL, seed INTEGER NOT NULL, sample_id TEXT NOT NULL, review_id TEXT NOT NULL,
+  kind TEXT NOT NULL, PRIMARY KEY(packet_id, sample_id));
+CREATE TABLE IF NOT EXISTS claim_grade(grade_id TEXT PRIMARY KEY, theme_code TEXT NOT NULL,
+  catalogue_version INTEGER NOT NULL, packet_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('DRAFT', 'PASSED')),
+  summary_json TEXT NOT NULL, raw_json TEXT NOT NULL, recorded_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS claim_scope(review_id TEXT PRIMARY KEY, platform TEXT NOT NULL, theme_code TEXT NOT NULL,
+  catalogue_version INTEGER NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('sample', 'spam', 'attribute_only')),
+  specific INTEGER NOT NULL, shop_key TEXT NOT NULL);
+DROP VIEW IF EXISTS v_claim_label;
+CREATE VIEW v_claim_label AS
+  SELECT r.platform, s.theme_code, s.catalogue_version, l.claim_code, r.review_id, r.writer_key,
+         1 - r.writer_known AS writer_unknown, r.product_key, s.shop_key, COALESCE(r.posted_date, '') AS posted_date,
+         n.group_id, s.specific
+  FROM claim_label l
+  JOIN claim_scope s ON s.review_id = l.review_id AND s.theme_code = l.theme_code
+       AND s.catalogue_version = l.catalogue_version AND s.kind = 'sample'
+  JOIN review r ON r.review_id = l.review_id
+  JOIN near_dup n ON n.review_id = l.review_id
+  WHERE l.status = 'kept';
+DROP VIEW IF EXISTS v_claim_review;
+CREATE VIEW v_claim_review AS
+  SELECT s.platform, s.theme_code, s.catalogue_version, s.review_id, COALESCE(r.posted_date, '') AS posted_date,
+         CASE WHEN s.kind = 'sample' THEN 1 ELSE 0 END AS is_sample,
+         CASE WHEN s.kind = 'attribute_only' THEN 1 ELSE 0 END AS is_attribute_only,
+         CASE WHEN s.kind = 'spam' THEN 1 ELSE 0 END AS is_spam,
+         CASE WHEN s.kind = 'sample' AND k.mentions IS NULL THEN 1 ELSE 0 END AS no_claim,
+         CASE WHEN s.kind = 'sample' THEN COALESCE(k.mentions, 0) ELSE 0 END AS mentions
+  FROM claim_scope s
+  JOIN review r ON r.review_id = s.review_id
+  LEFT JOIN (SELECT review_id, theme_code, catalogue_version, COUNT(*) AS mentions FROM claim_label
+             WHERE status = 'kept' GROUP BY review_id, theme_code, catalogue_version) k
+       ON k.review_id = s.review_id AND k.theme_code = s.theme_code AND k.catalogue_version = s.catalogue_version;
+"""
 
 
 def _runs_dir() -> Path:
@@ -671,7 +729,7 @@ def _shopee_reviews(con, root: Path, run_id: str):
                 "product_key": f"shopee:{item.get('shopId')}:{item.get('itemId')}",
                 "writer_key": "shopee:" + source_id, "writer_known": 0,
                 "rating": rating if isinstance(rating, int) and not isinstance(rating, bool) else None,
-                "text": text, "name": None,
+                "text": text, "name": None, "posted_date": _first_date(item.get("postedAtLocal"), item.get("createdAt")),
             }
     return list(reviews.values())
 
@@ -707,6 +765,7 @@ def _tiktok_reviews(con, root: Path, run_id: str):
                 "writer_known": 1 if known else 0,
                 "rating": rating if isinstance(rating, int) and not isinstance(rating, bool) else None,
                 "text": text, "name": name if known else None,
+                "posted_date": _first_date(review.get("review_timestamp"), review.get("review_timestamp_fmt")),
             }
     return list(reviews.values()) if available else None
 
@@ -896,7 +955,8 @@ def build_warehouse(run_id: str) -> dict:
     portrait = sorted({(r["review_id"], d, g) for r in reviews for d, g in portrait_groups(r["text"])})
 
     review_rows = [(r["review_id"], r["platform"], r["source_review_id"], r["product_key"], r["writer_key"],
-                    r["writer_known"], r["rating"]) for r in reviews]
+                    r["writer_known"], r["rating"], r["posted_date"]) for r in reviews]
+    dup_rows = sorted(near_dup_groups([(r["review_id"], customer_words(r["text"])) for r in reviews]).items())
     text_rows = [(r["review_id"], r["text"]) for r in reviews]
     product_rows = sorted((k, p, n) for k, (p, n) in products.items())
     keyword_rows = [(k, "google") for k in keywords or []]
@@ -925,7 +985,7 @@ def build_warehouse(run_id: str) -> dict:
             for statement in SOURCE_SCHEMA.strip().split(";\n"):
                 if statement.strip():
                     wh.execute(statement)
-            for statement in STATE_SCHEMA.strip().split(";\n"):
+            for statement in (STATE_SCHEMA + CLAIM_SCHEMA).strip().split(";\n"):
                 if statement.strip():
                     wh.execute(statement)
             wh.execute("INSERT INTO run_facts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
@@ -934,7 +994,8 @@ def build_warehouse(run_id: str) -> dict:
                 scope["category_reason"], content_sha256, datetime.now(timezone.utc).isoformat(timespec="seconds")))
             wh.executemany("INSERT INTO source_status VALUES (?, ?, ?, ?)",
                            [(k, p, 0 if n is None else 1, n or 0) for k, (p, n) in sources.items()])
-            wh.executemany("INSERT INTO review VALUES (?, ?, ?, ?, ?, ?, ?)", review_rows)
+            wh.executemany("INSERT INTO review VALUES (?, ?, ?, ?, ?, ?, ?, ?)", review_rows)
+            wh.executemany("INSERT INTO near_dup VALUES (?, ?)", dup_rows)
             wh.executemany("INSERT INTO review_text VALUES (?, ?)", text_rows)
             wh.executemany("INSERT INTO product VALUES (?, ?, ?)", product_rows)
             wh.executemany("INSERT INTO writer_guess VALUES (?, ?, ?, ?)",
@@ -958,6 +1019,9 @@ def build_warehouse(run_id: str) -> dict:
     product_count = {}
     for platform, _ in products.values():
         product_count[platform] = product_count.get(platform, 0) + 1
+    dated = {}
+    for review in reviews:
+        dated[review["platform"]] = dated.get(review["platform"], 0) + (review["posted_date"] is not None)
     return {
         "run_id": full_id,
         "warehouse": str(path),
@@ -967,6 +1031,7 @@ def build_warehouse(run_id: str) -> dict:
         "reviews_by_platform": per_platform(count),
         "products": per_platform(product_count),
         "writer_known": per_platform(known),
+        "dated_reviews": per_platform(dated),
         "sources": {k: _count_or_no_data(n) for k, (_, n) in sources.items()},
     }
 
@@ -1022,10 +1087,16 @@ def build_request(book: dict, selection: dict, review: dict) -> dict:
 
 
 def _wire_body(request: dict) -> dict:
-    """The Jev wire form of one request: one choice question per theme, each with the review as its state."""
-    state = (f"Nền tảng: {request['platform']}. Sản phẩm: {request['product_name'] or 'không rõ'}. "
-             f"Nhóm ngành: {request['block_label'] or 'Chỉ chủ đề lõi'}. Bộ chủ đề: {request['codebook_version']}. "
-             f"Đánh giá: {request['text']}")
+    """The Jev wire form of one request: one choice question per theme (or per claim question of a `claims`
+    request), each with the review as its state."""
+    if request.get("kind") == "claims":
+        state = (f"Nền tảng: {request['platform']}. Sản phẩm: {request['product_name'] or 'không rõ'}. "
+                 f"Chủ đề: {request['theme_name']}. Danh mục ý con bản {request['catalogue_version']}. "
+                 f"Lời khách: {request['text']}")
+    else:
+        state = (f"Nền tảng: {request['platform']}. Sản phẩm: {request['product_name'] or 'không rõ'}. "
+                 f"Nhóm ngành: {request['block_label'] or 'Chỉ chủ đề lõi'}. Bộ chủ đề: {request['codebook_version']}. "
+                 f"Đánh giá: {request['text']}")
     questions, states = {}, {}
     for question in request["questions"]:
         instructions = f"{question['code']} {question['name']}. Tính khi: {question['include']}."
@@ -1735,14 +1806,16 @@ def _full_run_id(value) -> bool:
 
 def _method_key_ok(value) -> bool:
     """`<count tool>:<source>:<rules version>`, or the reason-link form
-    `find_reason_links:<review source>:<codebook version>+<reason rules version>` (IM-Q124)."""
+    `find_reason_links:<review source>:<codebook version>+<reason rules version>` (IM-Q124), or the claim form
+    `claim_counts:<review source>:<codebook version>+<claim rules version>` (IM-Q160)."""
     parts = value.split(":", 2) if isinstance(value, str) else []
     if len(parts) != 3 or parts[1] not in COUNT_ROW_SOURCES or not _text(parts[2]):
         return False
     if parts[0] in COUNT_TOOLS:
         return True
     codebook, plus, rules = parts[2].partition("+")
-    return parts[0] == REASON_TOOL and parts[1] in REVIEW_SOURCES and bool(plus) and _text(codebook) and _text(rules)
+    return parts[0] in (REASON_TOOL, CLAIM_TOOL) and parts[1] in REVIEW_SOURCES and bool(plus) and _text(codebook) \
+        and _text(rules)
 
 
 def _pair_ok(value) -> bool:
@@ -1850,8 +1923,9 @@ def record_sample_review(rules_kind, rules_version, reviewed_by, reviewed_at, sa
 
 def record_method_approval(method_key, subject_key, run_id, approved_by, approved_at) -> None:
     """One owner-approved report that used a method on one researched product (check 4). Not an MCP tool."""
-    _need(_method_key_ok(method_key), "method_key must be <count tool>:<source key>:<rules version> or "
-                                      "find_reason_links:<review source>:<codebook version>+<reason rules version>")
+    _need(_method_key_ok(method_key), "method_key must be <count tool>:<source key>:<rules version>, "
+                                      "find_reason_links:<review source>:<codebook version>+<reason rules version> or "
+                                      "claim_counts:<review source>:<codebook version>+<claim rules version>")
     _need(_text(subject_key), "subject_key must be a non-empty string")
     _need_signed("approved_by", approved_by, "approved_at", approved_at)
     full_id, _ = _writer_run(run_id)
@@ -1988,7 +2062,7 @@ def _grade(ctx: dict, info: dict, part_no: int, hypothesis: bool) -> tuple[dict,
         brands = store["diversity"].get(info["count_id"])
         check2 = "DIVERSITY_NOT_VERIFIED" if brands is None else ("ONE_BRAND" if brands < 2 else None)
 
-    if info["kind"] in ("theme", "reason") and not _codebook_approved(ctx["book"]):
+    if info["kind"] in ("theme", "reason", "claim") and not _codebook_approved(ctx["book"]):
         check3 = "CODEBOOK_NOT_APPROVED"
     elif info["kind"] == "keyword" and ctx["groups"]["status"] != "APPROVED":
         check3 = "KEYWORD_GROUPS_NOT_APPROVED"
@@ -1999,6 +2073,8 @@ def _grade(ctx: dict, info: dict, part_no: int, hypothesis: bool) -> tuple[dict,
         method_key = f"{REASON_TOOL}:{info['source']}:{info['rules'][1]}+{REASON_RULES_VERSION}"
         if blocked is None and not row["reviews"]:
             blocked = "NO_LINKED_REVIEW"
+    elif info["kind"] == "claim":
+        method_key = f"{CLAIM_TOOL}:{info['source']}:{info['rules'][1]}+{CLAIM_RULES_VERSION}"
     else:
         method_key = f"{info['tool']}:{info['source']}:{info['rules'][1]}"
     products = len(store["ledger"].get(method_key, ()))
@@ -2015,6 +2091,11 @@ def _grade(ctx: dict, info: dict, part_no: int, hypothesis: bool) -> tuple[dict,
     item = {"count_id": info["count_id"], "part": part_no, "tool": info["tool"], "source": info["source"],
             "platform": info["platform"], "step": info["step"], "role": role, "partial": partial, "blocked": blocked,
             "checks": checks, "missing_count": missing, "ceiling": ceiling}
+    if info["kind"] == "claim":
+        # IM-Q138: a claim row of a DRAFT catalogue is capped at Yếu, after the four checks.
+        item["catalogue_status"] = info["catalogue_status"]
+        if info["catalogue_status"] != "PASSED" and _rank(ceiling) > _rank("Yếu"):
+            item["ceiling"] = "Yếu"
     return item, hypothesis
 
 
@@ -2187,16 +2268,22 @@ def _reason_infos(copy: Path, book: dict, row_key: str, cache: dict) -> dict:
     return cache[pair]
 
 
-def _resolve_id(copy: Path, current: dict, count_id: str, book: dict, reasons: dict | None = None) -> dict:
+def _resolve_id(copy: Path, current: dict, count_id: str, book: dict, reasons: dict | None = None,
+                claims: dict | None = None) -> dict:
     """The row info of a current count ID (PR 2 conventions). A reason-link ID is refused with INVALID_ARGUMENT
     unless a per-call `reasons` cache is given; then it is current when find_reason_links for its stored pair,
-    run on the copy, returns it."""
+    run on the copy, returns it. A claim ID is current when claim_counts for its stored theme and catalogue
+    version, run on the copy, returns it (IM-Q160); `claims` is the per-call cache of those results."""
     if count_id in current:
         return current[count_id]
     with _warehouse_ro(copy) as wh:
         stored = wh.execute("SELECT tool, row_key FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
     if stored is None:
         raise InsightError("COUNT_ID_UNKNOWN", "the count ID is not a count of this run")
+    if stored[0] == CLAIM_TOOL:
+        info = _claim_infos(copy, book, stored[1], {} if claims is None else claims).get(count_id)
+        if info is not None:
+            return info
     if stored[0] == REASON_TOOL:
         if reasons is None:
             raise InsightError("INVALID_ARGUMENT", "a reason-link ID is evidence for R-IM11, not a count")
@@ -2229,9 +2316,9 @@ def confidence_ceiling(run_id: str, part: int, evidence: list[EvidenceItem], hyp
             return {"run_id": full_id, "part": part, "hypothesis": hypothesis, "ceiling": "Không",
                     "reason": "NO_EVIDENCE", "items": []}
         infos, _ = _count_rows(copy, book, groups)
-        current = {i["count_id"]: i for i in infos}
+        current, claims_cache = {i["count_id"]: i for i in infos}, {}
         for count_id, _ in items:
-            _resolve_id(copy, current, count_id, book)
+            current[count_id] = _resolve_id(copy, current, count_id, book, claims=claims_cache)
     ctx = {"frame": frame, "store": load_shared_store(full_id), "book": book, "groups": groups}
     graded = [_grade(ctx, current[count_id], item_part, hypothesis) for count_id, item_part in items]
     return {"run_id": full_id, "part": part, "hypothesis": hypothesis or any(h for _, h in graded),
@@ -2394,7 +2481,7 @@ SUPPORTS = SIDES + ("why",)
 # R-I39: the four kinds of motive and barrier, frozen here; a new codebook version does not change them.
 KEPT_KINDS = {"công dụng": "T-CONGDUNG", "giá": "T-GIA", "quy cách": "T-QUYCACH", "chất lượng": "T-CHATLUONG"}
 NUMBER_KEYS = ("reviews", "writers", "products", "keywords", "threshold_count")
-REVIEW_KINDS = ("theme", "portrait_group", "reason")
+REVIEW_KINDS = ("theme", "portrait_group", "reason", "claim")
 STATUS_WRITTEN, STATUS_MISSING, STATUS_RESUBMIT, STATUS_BUILT = "Đã viết", "Chưa viết", "Cần gửi lại", "Tự dựng"
 MARK_STALE = "Cần gửi lại: số liệu đã đổi"
 LABEL_HYPOTHESIS = "Giả thuyết"
@@ -2434,7 +2521,7 @@ DENIAL_STOP = ("nhưng", "mà", "và", "còn", "thì", "rồi", "nên", "hãy", 
 
 SECTION_CODES = ("NUMBER_MISMATCH", "CONFIDENCE_ABOVE_CEILING", "BELOW_THRESHOLD_CONCLUSION", "VERBATIM_QUOTE",
                  "CONVERSION_RATE", "MARKET_NUMBER", "HIDDEN_NAME", "BUYER_WORD", "STEP_NOT_FROM_EVIDENCE",
-                 "RETOLD_NOT_MARKED", "UNSUPPORTED_SENTENCE", "BANNED_IDEA")
+                 "RETOLD_NOT_MARKED", "UNSUPPORTED_SENTENCE", "BANNED_IDEA", "CLAIM_RANK_UNSCOPED", "CLAIM_FLAG_MISSING")
 STATEMENT_CODES = ("NO_EVIDENCE", "NO_CONFLICT", "HYPOTHESIS_REQUIRED", "BELOW_THRESHOLD_CONCLUSION",
                    "WHY_LAYER_WITHOUT_EVIDENCE", "WHY_LAYER_WRONG_PAIR", "WHY_LAYER_UNEXPLAINED",
                    "WHY_CHAIN_SHORT_UNMARKED", "FIRST_PERSON", "MIXED_STEPS", "PLATFORM_MISMATCH",
@@ -2469,6 +2556,11 @@ REFERENCE_BEFORE_RE = re.compile(r"(?<!\w)(?:phần|câu|tầng)\s*$")
 MARKET_SHARE_BEFORE_RE = re.compile(r"(?<!\w)thị\s+phần\s*$")
 UNIT_KEYS = {_nz(k): v for k, v in UNIT_WORDS.items()}
 UNIT_AFTER_RE = re.compile(r"\s*(?:(?P<unit>" + _alts(UNIT_WORDS) + r")(?!\w)|(?P<percent>%|phần\s+trăm(?!\w)))")
+# PR 4 (IM-Q159): in parts 1 and 4 to 17 only, «bằng chứng» and «gian hàng» are units too.
+CLAIM_UNIT_WORDS = {**UNIT_WORDS, "bằng chứng": "evidence", "gian hàng": "shops"}
+CLAIM_UNIT_KEYS = {_nz(k): v for k, v in CLAIM_UNIT_WORDS.items()}
+CLAIM_UNIT_AFTER_RE = re.compile(r"\s*(?:(?P<unit>" + _alts(CLAIM_UNIT_WORDS) + r")(?!\w)|(?P<percent>%|phần\s+trăm(?!\w)))")
+DATE_PIECES_RE = (re.compile(r"[0-9]{1,2}"), re.compile(r"[0-9]{1,2}"), re.compile(r"[0-9]{4}"))
 NUMBER_WORD_RE = re.compile(r"(?<!\w)(?:" + _alts(NUMBER_WORDS) + r")\s*(?:" + _alts(UNIT_WORDS) + r")(?!\w)")
 PLATFORM_RE = re.compile(r"(?<!\w)(shopee|tiktok\s+shop)(?!\w)")
 CODED_RE = _phrase_re(CODED_WORDS)
@@ -2524,26 +2616,39 @@ def _value(token: str):
     return None if "." in token or "," in token else int(token)
 
 
-def _numbers(text: str) -> list[dict]:
+def _date_of(pieces: list[str]):
+    """The ISO date of a `d/m/yyyy` group (day and month with or without a leading zero), or None."""
+    if len(pieces) != 3 or not all(rx.fullmatch(p) for rx, p in zip(DATE_PIECES_RE, pieces)):
+        return None
+    try:
+        return datetime(int(pieces[2]), int(pieces[1]), int(pieces[0])).date().isoformat()
+    except ValueError:
+        return None
+
+
+def _numbers(text: str, claim_units: bool = False) -> list[dict]:
     """Number tokens and fractions (PR 3 conventions) of a marker-free nz text; references («Phần 8») are left out.
-    A date (three or more tokens joined by `/`) gives one token per piece, with no unit."""
+    A date (three or more tokens joined by `/`) gives one token per piece, with no unit; a `d/m/yyyy` date's pieces
+    carry its ISO `date`. `claim_units` adds the PR 4 units of parts 1 and 4 to 17 (IM-Q159)."""
     out = []
+    unit_after, unit_keys = (CLAIM_UNIT_AFTER_RE, CLAIM_UNIT_KEYS) if claim_units else (UNIT_AFTER_RE, UNIT_KEYS)
     for match in NUMBER_GROUP_RE.finditer(text):
         before = text[:match.start()]
         if REFERENCE_BEFORE_RE.search(before) and not MARKET_SHARE_BEFORE_RE.search(before):
             continue
         pieces = match.group().split("/")
         unit = None
-        after = UNIT_AFTER_RE.match(text, match.end())
+        after = unit_after.match(text, match.end())
         if after and len(pieces) <= 2:
-            unit = "percent" if after.group("percent") else UNIT_KEYS[re.sub(r"\s+", " ", after.group("unit"))]
+            unit = "percent" if after.group("percent") else unit_keys[re.sub(r"\s+", " ", after.group("unit"))]
         base = {"start": match.start(), "end": match.end(), "raw": match.group()}
         if len(pieces) == 1:
             out.append({**base, "kind": "token", "values": [_value(pieces[0])], "unit": unit})
         elif len(pieces) == 2:
             out.append({**base, "kind": "fraction", "values": [_value(p) for p in pieces], "unit": unit})
         else:
-            out.extend({**base, "kind": "token", "values": [_value(p)], "unit": None} for p in pieces)
+            date = _date_of(pieces)
+            out.extend({**base, "kind": "token", "values": [_value(p)], "unit": None, "date": date} for p in pieces)
     return out
 
 
@@ -2666,18 +2771,33 @@ def _review_words(path: Path) -> dict:
     return {"runs": runs, "short": short}
 
 
-def _quote_at(text: str, reviews: dict):
-    """The word index where a review run or a whole short review starts in the text, or None."""
-    words = _words(text)
-    for i in range(len(words)):
-        if words[i:i + QUOTE_WORDS] in reviews["runs"]:
-            return i
-        if any(words[i:i + n] in group for n, group in reviews["short"].items()):
-            return i
+def _quote_at(text: str, reviews: dict, masks=()):
+    """The word index where a review run or a whole short review starts in the text, or None. `masks` are spans of
+    the marker-free nz text (required flag spans, IM-Q162): their words are left out and no run crosses them."""
+    if not masks:
+        segments = [list(enumerate(_words(text)))]
+    else:
+        segments, current = [], []
+        plain = _strip_markers(_nz(text))[0]
+        for index, match in enumerate(WORD_RE.finditer(plain)):
+            if any(start < match.end() and match.start() < end for start, end in masks):
+                segments.append(current)
+                current = []
+            else:
+                current.append((index, match.group()))
+        segments.append(current)
+    for segment in segments:
+        words = tuple(word for _, word in segment)
+        for i in range(len(words)):
+            if words[i:i + QUOTE_WORDS] in reviews["runs"]:
+                return segment[i][0]
+            if any(words[i:i + n] in group for n, group in reviews["short"].items()):
+                return segment[i][0]
     return None
 
 
-def _text_gates(text: str, reviews: dict, add, claim, label: str, *, numbers: bool, titles=frozenset()) -> None:
+def _text_gates(text: str, reviews: dict, add, claim, label: str, *, numbers: bool, titles=frozenset(),
+                quote_masks=()) -> None:
     """VERBATIM_QUOTE, CONVERSION_RATE, MARKET_NUMBER, HIDDEN_NAME, BUYER_WORD (and, for statement texts, the
     any-number NUMBER_MISMATCH rule) on one text. `label` prefixes each detail; no detail holds the text."""
     sentences = _sentences(text, titles)
@@ -2688,7 +2808,7 @@ def _text_gates(text: str, reviews: dict, add, claim, label: str, *, numbers: bo
                                               "counts belong to the evidence lines")
             for _ in NUMBER_WORD_RE.finditer(unit["text"]):
                 add("NUMBER_MISMATCH", claim, f"{label} sentence {unit['index']}: a number word before a unit")
-    at = _quote_at(text, reviews)
+    at = _quote_at(text, reviews, quote_masks)
     if at is not None:
         add("VERBATIM_QUOTE", claim, f"{label} word {at}: matches the words of a stored review")
     for index in _conversion_fails(sentences):
@@ -2725,6 +2845,11 @@ def _registry_numbers(path: Path, count_ids) -> dict:
             numbers = {k: stored[k] for k in NUMBER_KEYS if _int(stored.get(k))}
             if isinstance(stored.get("threshold_met"), bool):
                 numbers["threshold_met"] = stored["threshold_met"]
+            if "catalogue_status" in stored:
+                # A claim row (IM-Q154): evidence, shops, the sample and period, and the flags it must show.
+                numbers.update({k: stored[k] for k in CLAIM_NUMBER_KEYS if _int(stored.get(k))})
+                numbers.update({k: stored.get(k) for k in ("period_first", "period_last")})
+                numbers["flags"] = list(stored.get("flags") or [])
             out[count_id] = numbers
     return out
 
@@ -2741,6 +2866,8 @@ def _row_label(info: dict, book: dict) -> str:
     if info["kind"] == "reason":
         names = _theme_codes(book)
         return " + ".join(names.get(code, code) for code in info["themes"])
+    if info["kind"] == "claim":
+        return info["label"]
     return f"{row['dimension']}: {row['group']}"
 
 
@@ -2807,30 +2934,149 @@ def _scope_fails(sentences: list[dict], scope: dict) -> list[str]:
     return out
 
 
-def _claim_number_fails(sentences: list[dict], claims: dict, cited: dict, numbers: dict, denominators: dict):
-    """NUMBER_MISMATCH for parts 1 and 4 to 17 (IM-Q84): each number binds to one claim and equals its count."""
+def _bound_ref(marks: list, number: dict) -> str:
+    """PR 3 binding: the first marker after the number in its sentence, else the last marker before it."""
+    return next((r for pos, r in marks if pos >= number["end"]), None) \
+        or [r for pos, r in marks if pos <= number["start"]][-1]
+
+
+def _mask(text: str, spans) -> str:
+    """The text with each span blanked out (positions kept)."""
+    for start, end in spans:
+        text = text[:start] + " " * (end - start) + text[end:]
+    return text
+
+
+def _claim_number_fails(sentences: list[dict], claims: dict, cited: dict, numbers: dict, denominators: dict,
+                        masks: dict | None = None):
+    """NUMBER_MISMATCH for parts 1 and 4 to 17 (IM-Q84): each number binds to one claim and equals its count.
+    A claim row also takes «bằng chứng», «gian hàng», `reviews/sample` and its period dates (IM-Q159); required flag
+    spans are masked (IM-Q162)."""
     out = []
     for unit in sentences:
         marks, where = unit["markers"], f"sentence {unit['index']}"
-        for number in _numbers(unit["text"]):
+        text = _mask(unit["text"], (masks or {}).get(unit["index"], ()))
+        for plain, with_claim_units in zip(_numbers(text), _numbers(text, claim_units=True)):
             if not marks:
-                out.append((None, f"{where}: number {number['raw']} is in a sentence with no claim marker"))
+                out.append((None, f"{where}: number {plain['raw']} is in a sentence with no claim marker"))
                 continue
-            ref = next((r for pos, r in marks if pos >= number["end"]), None) \
-                or [r for pos, r in marks if pos <= number["start"]][-1]
+            ref = _bound_ref(marks, plain)
             ids = list(dict.fromkeys(item[0] for item in claims[ref]["_items"]))
+            claim_row = len(ids) == 1 and cited[ids[0]]["tool"] == CLAIM_TOOL
+            number = with_claim_units if claim_row else plain
             kind, ok = number["unit"], False
-            if kind not in (None, "percent") and len(ids) == 1:
+            if claim_row and number.get("date") is not None:
+                counted = numbers[ids[0]]
+                ok = number["date"] in (counted.get("period_first"), counted.get("period_last"))
+            elif kind not in (None, "percent") and len(ids) == 1:
                 counted, info = numbers[ids[0]], cited[ids[0]]
                 if number["kind"] == "token":
                     ok = number["values"][0] is not None and counted.get(kind) == number["values"][0]
+                elif claim_row:
+                    ok = kind == "reviews" and number["values"] == [counted.get("reviews"), counted.get("sample")]
                 else:
                     ok = kind == "reviews" and info["tool"] == "theme_counts" \
                         and number["values"] == [counted.get("reviews"), denominators.get(info["platform"])]
             if not ok:
                 out.append((ref, f"{where}: {number['raw']} {kind or 'no unit'} bound to claim {ref}"))
-        for _ in NUMBER_WORD_RE.finditer(unit["text"]):
+        for _ in NUMBER_WORD_RE.finditer(text):
             out.append((None, f"{where}: a number word before a unit"))
+    return out
+
+
+def _claim_regions(unit: dict) -> dict:
+    """Claim region of each marker (PR 4 conventions): from the previous marker (or the sentence start) to this
+    marker; the last marker's region runs to the sentence end."""
+    regions, start, marks = {}, 0, unit["markers"]
+    for i, (pos, ref) in enumerate(marks):
+        regions[ref] = (start, len(unit["text"]) if i == len(marks) - 1 else pos)
+        start = pos
+    return regions
+
+
+def _claim_ids(claim: dict, cited: dict) -> list[str]:
+    return list(dict.fromkeys(i for i, _ in claim["_items"] if cited[i]["tool"] == CLAIM_TOOL))
+
+
+def _flag_spans(sentences: list[dict], claims: dict, cited: dict, numbers: dict) -> dict:
+    """Required flag spans per sentence (IM-Q162): a flag phrase in the region of a marker whose cited claim row
+    carries that flag."""
+    out = {}
+    for unit in sentences:
+        regions = _claim_regions(unit)
+        for _, ref in unit["markers"]:
+            phrases = {f for i in _claim_ids(claims[ref], cited) for f in numbers[i].get("flags") or []}
+            start, end = regions[ref]
+            for phrase in sorted(phrases):
+                out.setdefault(unit["index"], []).extend(
+                    m.span() for m in CLAIM_FLAG_RES[phrase].finditer(unit["text"]) if start <= m.start() and m.end() <= end)
+    return out
+
+
+def _text_spans(text: str, sentences: list[dict], spans: dict) -> list[tuple[int, int]]:
+    """Sentence spans moved onto the marker-free nz text of the whole section (for the quote check)."""
+    plain, cursor, out = _strip_markers(_nz(text))[0], 0, []
+    for unit in sentences:
+        at = plain.find(unit["text"], cursor)
+        if at < 0:
+            continue
+        cursor = at + len(unit["text"])
+        out += [(at + start, at + end) for start, end in spans.get(unit["index"], ())]
+    return out
+
+
+def _claim_rank_fails(sentences: list[dict], claims: dict, cited: dict, numbers: dict) -> list[tuple[str, str]]:
+    """CLAIM_RANK_UNSCOPED (IM-Q158): a sentence that ranks claims states, in each claim marker's region, the
+    measure, the platform, the sample and the period of its one claim row."""
+    out = []
+    for unit in sentences:
+        text = unit["text"]
+        cited_refs = [ref for _, ref in unit["markers"] if _claim_ids(claims[ref], cited)]
+        if not cited_refs or not CLAIM_RANK_RE.search(text):
+            continue
+        regions, found = _claim_regions(unit), _numbers(text, claim_units=True)
+        for ref in cited_refs:
+            ids = _claim_ids(claims[ref], cited)
+            start, end = regions[ref]
+            if len(ids) != 1:
+                out.append((ref, f"claim {ref}: a ranked claim cites exactly one claim row"))
+                continue
+            row, region = numbers[ids[0]], text[start:end]
+            inside = [n for n in found if start <= n["start"] and n["end"] <= end]
+            dates = {n["date"] for n in inside if n.get("date")}
+            missing = [name for name, ok in (
+                ("measure", CLAIM_MEASURE_RE.search(region) is not None),
+                ("platform", cited[ids[0]]["platform"] in _platforms(region)),
+                ("sample", any(n["kind"] == "fraction" and n["unit"] == "reviews"
+                               and n["values"] == [row.get("reviews"), row.get("sample")] for n in inside)),
+                ("period", row.get("period_first") is not None and {row["period_first"], row["period_last"]} <= dates),
+            ) if not ok]
+            if missing:
+                out.append((ref, f"claim {ref}: missing {', '.join(missing)}"))
+    return out
+
+
+def _claim_flag_fails(sentences: list[dict], claims: dict, cited: dict, numbers: dict,
+                      masks: dict) -> list[tuple[str, str]]:
+    """CLAIM_FLAG_MISSING (IM-Q162): a number bound to a marker whose claim row has flags needs each flag phrase in
+    that marker's region."""
+    out = []
+    for unit in sentences:
+        if not unit["markers"]:
+            continue
+        regions = _claim_regions(unit)
+        text = _mask(unit["text"], masks.get(unit["index"], ()))
+        bound = {_bound_ref(unit["markers"], n) for n in _numbers(text, claim_units=True)}
+        for _, ref in unit["markers"]:
+            flags = {f for i in _claim_ids(claims[ref], cited) for f in numbers[i].get("flags") or []}
+            if ref not in bound or not flags:
+                continue
+            start, end = regions[ref]
+            missing = [FLAG_KEYS[f] for f in sorted(flags, key=list(CLAIM_FLAGS.values()).index)
+                       if not any(start <= m.start() and m.end() <= end
+                                  for m in CLAIM_FLAG_RES[f].finditer(unit["text"]))]
+            if missing:
+                out.append((ref, f"claim {ref}: missing flags {', '.join(missing)}"))
     return out
 
 
@@ -2948,11 +3194,12 @@ def _section_gates(ctx: dict, part: int, text: str, claims: list[dict], state: d
     sentence_of = {ref: unit for unit in sentences for _, ref in unit["markers"]}
     reasons = _Reasons(SECTION_CODES)
 
+    masks = {} if part in SCOPE_PARTS else _flag_spans(sentences, by_ref, cited, numbers)
     if part in SCOPE_PARTS:
         for detail in _scope_fails(sentences, state["scope"]):
             reasons.add("NUMBER_MISMATCH", None, detail)
     else:
-        for ref, detail in _claim_number_fails(sentences, by_ref, cited, numbers, state["denominators"]):
+        for ref, detail in _claim_number_fails(sentences, by_ref, cited, numbers, state["denominators"], masks):
             reasons.add("NUMBER_MISMATCH", ref, detail)
 
     graded = {}
@@ -2974,7 +3221,8 @@ def _section_gates(ctx: dict, part: int, text: str, claims: list[dict], state: d
                         f"claim {claim['ref']}: below threshold; conclusion must be false and the sentence must say "
                         f"«{NOTE_BELOW}»")
 
-    _text_gates(text, state["reviews"], reasons.add, None, "text", numbers=False, titles=titles)
+    _text_gates(text, state["reviews"], reasons.add, None, "text", numbers=False, titles=titles,
+                quote_masks=_text_spans(text, sentences, masks) if masks else ())
 
     for claim in claims:
         steps = {cited[i]["step"] for i, _ in claim["_items"]}
@@ -2997,6 +3245,12 @@ def _section_gates(ctx: dict, part: int, text: str, claims: list[dict], state: d
 
     for index, kind in _banned_fails(sentences):
         reasons.add("BANNED_IDEA", None, f"sentence {index}: {kind}")
+
+    if part not in SCOPE_PARTS:
+        for ref, detail in _claim_rank_fails(sentences, by_ref, cited, numbers):
+            reasons.add("CLAIM_RANK_UNSCOPED", ref, detail)
+        for ref, detail in _claim_flag_fails(sentences, by_ref, cited, numbers, masks):
+            reasons.add("CLAIM_FLAG_MISSING", ref, detail)
     return reasons.ordered(), graded
 
 
@@ -3010,10 +3264,10 @@ def submit_section(run_id: str, part: int, text: str, claims: list[dict]) -> dic
     claims = _check_section(frame, part, text, claims)
     book, groups = load_codebook(), load_keyword_groups()
     with _current_state(run_id, book, groups) as state:
-        cited = {}
+        cited, claims_cache = {}, {}
         for claim in claims:
             for count_id, _ in claim["_items"]:
-                cited[count_id] = _resolve_id(state["copy"], state["current"], count_id, book)
+                cited[count_id] = _resolve_id(state["copy"], state["current"], count_id, book, claims=claims_cache)
         themes = state["themes"]
         gate_state = {"cited": cited, "numbers": _registry_numbers(state["copy"], cited),
                       "reviews": _review_words(state["copy"]), "scope": _scope_numbers(state["copy"], themes),
@@ -3169,7 +3423,8 @@ def _statement_gates(ctx: dict, statement: dict, cited: dict, numbers: dict, rev
     kept = set(KEPT_KINDS.values())
     for i, (line, info) in enumerate(zip(lines, infos)):
         if line["supports"] in ("motivation", "conflict") and (
-                (info["kind"] == "theme" and info["row"]["theme_code"] not in kept) or info["kind"] == "portrait_group"
+                (info["kind"] in ("theme", "claim") and info["row"]["theme_code"] not in kept)
+                or info["kind"] == "portrait_group"
                 or (info["kind"] == "reason" and not set(info["themes"]) <= kept)):
             add("MOTIVE_KIND_NOT_KEPT", i, f"line {i}: a {line['supports']} must be công dụng, giá, quy cách or "
                                            "chất lượng")
@@ -3218,13 +3473,13 @@ def submit_statement(run_id: str, statement: dict, replaces: str | None = None) 
     frame, book, groups = load_frame(), load_codebook(), load_keyword_groups()
     _check_statement(frame, book, statement, replaces)
     with _current_state(run_id, book, groups) as state:
-        full_id, reasons_cache, cited = state["run_id"], {}, {}
+        full_id, reasons_cache, claims_cache, cited = state["run_id"], {}, {}, {}
         if replaces is not None and not _report_rows(
                 "SELECT 1 FROM statement_version WHERE statement_id = ? AND run_id = ?", (replaces, full_id)):
             raise InsightError("INVALID_ARGUMENT", "replaces names no stored statement of this run")
         for line in statement["evidence"]:
             cited[line["count_id"]] = _resolve_id(state["copy"], state["current"], line["count_id"], book,
-                                                  reasons_cache)
+                                                  reasons_cache, claims_cache)
         numbers = _registry_numbers(state["copy"], cited)
         reviews = _review_words(state["copy"])
     ctx = {"frame": frame, "store": load_shared_store(full_id), "book": book, "groups": groups}
@@ -3275,8 +3530,10 @@ def _h(value) -> str:
 
 def _numbers_text(numbers: dict) -> str:
     parts = [f"{numbers[k]} {NUMBER_NAMES[k]}" for k in NUMBER_KEYS if k in numbers]
+    parts += [f"{numbers[k]} {CLAIM_NUMBER_NAMES[k]}" for k in CLAIM_NUMBER_KEYS if k in numbers]
     if "threshold_met" in numbers:
         parts.append("đạt ngưỡng" if numbers["threshold_met"] else NOTE_BELOW)
+    parts += numbers.get("flags") or []
     return "; ".join(parts)
 
 
@@ -3385,6 +3642,10 @@ def render_report(run_id: str) -> dict:
                 if line["tool"] == REASON_TOOL and line["count_id"] not in current:
                     row_key = _canonical([line["platform"], line["pair"]])
                     current |= set(_reason_infos(copy, book, row_key, reasons_cache))
+        claim_ids = {item["count_id"] for s in sections.values() for g in s["graded"] for item in g["items"]
+                     if item["tool"] == CLAIM_TOOL} | {line["count_id"] for e in statements.values()
+                                                       for line in e["lines"] if line["tool"] == CLAIM_TOOL}
+        current |= _current_claim_ids(copy, book, claim_ids - current)
         themes_rows = state["themes"]["rows"] if state["themes"] else []
         keyword_rows = state["keywords"]["rows"]
         portrait_rows = state["portraits"]["rows"]
@@ -3453,6 +3714,9 @@ def render_report(run_id: str) -> dict:
             refs = ""
             for line, k in marks.get(key, []):
                 link = f'<sup><a href="#fn-{k}">{k}</a></sup>'
+                flags = (line.get("numbers") or {}).get("flags")
+                if flags:
+                    link += f' <span class="flags">({_h("; ".join(flags))})</span>'
                 refs += (f'<p class="evidence-note">{_h(line["note"])}{link}</p>'
                          if _text(line["note"]) else link)
             page.append(f"<dt>{name}</dt><dd>{_h(statement[key])}{refs}</dd>")
@@ -3519,6 +3783,1229 @@ def render_report(run_id: str) -> dict:
             "parts": {"written": len(written), "missing": len(missing), "stale": len(stale)}, "statements": len(ordered),
             "files": list(REPORT_FILES), "versions": {str(p): s["version"] for p, s in sorted(sections.items())},
             "statement_versions": {e["id"]: e["version"] for e in ordered}}
+
+
+# ---------------------------------------------------------------------------
+# Part 4: the claim layer (R-IM13 to R-IM18; CONTRACT.md PR 4 conventions)
+# ---------------------------------------------------------------------------
+
+CLAIMS_DIR = HERE / "claims"
+CLAIM_TOOL = "claim_counts"
+CLAIM_RULES_VERSION = "claim-2026-10-31.1"
+CLAIM_KEEP = 0.70
+CLAIM_UNCLEAR = 0.50
+CLAIM_SPECIFIC = 0.50
+CLAIM_SPAM = 0.70
+CLAIM_GENERIC = 0.70
+NEAR_DUP_MIN_WORDS = 8
+NEAR_DUP_JACCARD = 0.80
+BURST_DAYS = 7
+BURST_SHARE = 0.40
+BURST_MIN = 5
+ONE_PRODUCT_SHARE = 0.80
+OTHER_SHARE_E15 = 0.20
+CATALOGUE_PACKET_MAX = 400
+SATURATION_SEED = 42
+SATURATION_STEP = 25
+SATURATION_MENTIONS = 3
+MAX_CLAIMS_PER_CATALOGUE = 12
+MAX_CLAIM_NAME_WORDS = 7
+GRADING_DRAWS = (("with_claim", 18), ("no_claim", 6), ("near_dup", 6))
+
+ATTRIBUTE_LINE_RE = re.compile(r"^\s*[^:]{1,40}:")
+JOINER_RE = re.compile(r"(?<! )  (?! )")
+TZ_SUFFIX_RE = re.compile(r"(?:Z|[+-][0-9]{2}:[0-9]{2})$")
+DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d")
+UTC7 = timezone(timedelta(hours=7))
+
+CLAIM_FLAGS = {"one_product": "chủ yếu từ một sản phẩm", "burst": "dồn thời gian", "both_platforms": "có ở cả 2 sàn"}
+FLAG_KEYS = {phrase: key for key, phrase in CLAIM_FLAGS.items()}
+CLAIM_FLAG_RES = {phrase: _phrase_re((phrase,)) for phrase in CLAIM_FLAGS.values()}
+E15_NOTE = "Khác trên 20%: thu thêm tối đa 1 vòng hoặc ghi rõ phần Khác"
+RANKING_MEASURE = "bằng chứng sau khi gộp lời gần trùng"
+CLAIM_RANK_TERMS = ("nhiều nhất", "ít nhất", "phổ biến nhất", "nhiều hơn", "ít hơn", "phổ biến hơn", "đứng đầu",
+                    "dẫn đầu", "hàng đầu", "xếp thứ", "xếp hạng", "thứ nhất", "thứ nhì", "top")
+CLAIM_RANK_RE = _phrase_re(CLAIM_RANK_TERMS)
+CLAIM_MEASURE_RE = _phrase_re(("bằng chứng",))
+CLAIM_NUMBER_KEYS = ("evidence", "shops", "sample")
+CLAIM_NUMBER_NAMES = {"evidence": "bằng chứng", "shops": "gian hàng", "sample": "đánh giá trong mẫu"}
+CLAIM_QUESTIONS = {
+    "CLAIM": (("CO", "Lời khách có nói ý con này"), ("KHONG", "Lời khách không nói ý con này")),
+    "SPEC": (("CU_THE", "Lời cụ thể theo luật của chủ đề"), ("CHUNG_CHUNG", "Lời chung chung, không có chi tiết")),
+    "RAC": (("THAT", "Lời nhận xét thật về sản phẩm"),
+            ("RAC", "Văn rác: quảng cáo lạc đề, nội dung không liên quan hoặc chữ vô nghĩa")),
+    "GEN": (("CO", "Lời khách có khen hoặc chê chủ đề này"), ("KHONG", "Lời khách không khen cũng không chê chủ đề này")),
+}
+VERDICTS = ("OK", "QUA_RONG", "QUA_HEP", "TEN_SAI", "NGOAI_CHU_DE")
+CHONG_NGHIA = "CHONG_NGHIA:"
+GRADER_FILES = (("r1-astra.out", 1, "astra"), ("r1-opus.out", 1, "opus"), ("r2-astra.out", 2, "astra"),
+                ("r2-opus.out", 2, "opus"))
+GRADE_SHAPES = {
+    "round1": {"grader": "str", "catalogue": "catalogue", "missing": "missing", "items": "items",
+               "dup_groups": "dup_groups", "method_gaps": "str"},
+    "round2": {"grader": "str", "decisions": "decisions", "missing_agree": "strs", "method_gaps_comment": "str"},
+    "catalogue": {"code": "str", "verdict": "str", "note": "str"},
+    "missing": {"name": "str", "why": "str"},
+    "items": {"id": "str", "ok": "bool", "wrong": "strs", "missed": "strs", "specific_ok": "bool", "note": "str"},
+    "dup_groups": {"group": "str", "same_idea_copy": "bool", "note": "str"},
+    "decisions": {"n": "int", "agree_other": "bool", "why": "str"},
+}
+GRADE_KEY_NAMES = frozenset(k for shape in GRADE_SHAPES.values() for k in shape)
+PACKET_FILES = ("catalogue.json", "dup-groups.json", "prompt-r1.md", "sample.jsonl")
+DRAFT_FILES = ("prompt-draft.md", "reviews.jsonl")
+
+
+# --- dates, customer words and near duplicates (built by build_warehouse) ---
+
+def _posted_date(value):
+    """One source value as an ISO date in Asia/Ho_Chi_Minh time (IM-Q129), or None when it is not usable."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+        value = int(value)
+    if isinstance(value, (int, float)):
+        if not math.isfinite(value):
+            return None
+        seconds = value / 1000 if value > 10 ** 11 else value
+        try:
+            return datetime.fromtimestamp(seconds, UTC7).date().isoformat()
+        except (OverflowError, OSError, ValueError):
+            return None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if TZ_SUFFIX_RE.search(text):
+        try:
+            stamp = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+            if stamp.tzinfo is not None:
+                return stamp.astimezone(UTC7).date().isoformat()
+        except ValueError:
+            pass
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(value[:10], fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _first_date(*values):
+    """The first usable value wins."""
+    return next((d for d in map(_posted_date, values) if d is not None), None)
+
+
+def customer_words(text: str) -> str:
+    """The review's own words (R-IM14): the first segment, then each later segment that is not an attribute line,
+    joined with one space. Segments are split at each run of exactly two spaces (the joiner of IM-Q33)."""
+    segments = JOINER_RE.split(text)
+    kept = segments[:1] + [s for s in segments[1:] if not ATTRIBUTE_LINE_RE.match(s)]
+    return " ".join(s for s in kept if s.strip())
+
+
+def _dup_text(text: str) -> str:
+    text = re.sub(r"[^\w\s]", " ", unicodedata.normalize("NFC", text).lower())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def near_dup_groups(items) -> dict:
+    """Near-duplicate groups over (review_id, customer words) pairs (IM-Q146): texts of at least 8 words whose
+    character 4-gram sets have a Jaccard index of at least 0.80 are joined; groups are connected components, named
+    by their smallest review ID. Candidate pairs come from a prefix filter, then each pair is checked exactly."""
+    grams = {}
+    for review_id, text in items:
+        norm = _dup_text(text)
+        if len(norm.split(" ")) >= NEAR_DUP_MIN_WORDS:
+            grams[review_id] = {norm[i:i + 4] for i in range(len(norm) - 3)}
+    frequency = {}
+    for found in grams.values():
+        for gram in found:
+            frequency[gram] = frequency.get(gram, 0) + 1
+    share = Fraction(str(NEAR_DUP_JACCARD))
+    parent = {review_id: review_id for review_id, _ in items}
+
+    def root(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    index = {}
+    for review_id in sorted(grams):
+        found = grams[review_id]
+        ordered = sorted(found, key=lambda g: (frequency[g], g))
+        prefix = ordered[:len(ordered) - math.ceil(share * len(ordered)) + 1]
+        candidates = {other for gram in prefix for other in index.get(gram, ())}
+        for other in sorted(candidates):
+            theirs = grams[other]
+            together = len(found & theirs)
+            if Fraction(together, len(found) + len(theirs) - together) >= share:
+                low, high = sorted((root(review_id), root(other)))
+                parent[high] = low
+        for gram in prefix:
+            index.setdefault(gram, []).append(review_id)
+    members = {}
+    for review_id in parent:
+        members.setdefault(root(review_id), []).append(review_id)
+    return {review_id: min(group) for group in members.values() for review_id in group}
+
+
+# --- shared claim helpers ---
+
+def _ratio_at_least(part: int, whole: int, share: float) -> bool:
+    """The exact ratio part / whole compared with a share constant, never a rounded value."""
+    return whole > 0 and Fraction(part, whole) >= Fraction(str(share))
+
+
+def _rounded(part: int, whole: int, places: int):
+    if not whole:
+        return None
+    value = Decimal(part) / Decimal(whole)
+    return float(value.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP))
+
+
+def _check_theme(book: dict, theme_code) -> str:
+    if not isinstance(theme_code, str) or theme_code not in _theme_codes(book):
+        raise InsightError("INVALID_ARGUMENT", "theme_code must be a theme code of the codebook")
+    return theme_code
+
+
+def _check_version(version) -> int:
+    if not _int(version) or version < 1:
+        raise InsightError("INVALID_ARGUMENT", "catalogue_version must be a positive integer")
+    return version
+
+
+def _check_seed(seed) -> int:
+    if not _int(seed):
+        raise InsightError("INVALID_ARGUMENT", "seed must be an integer")
+    return seed
+
+
+def _claim_ready(wh) -> None:
+    """The claim tools need a warehouse built by this version (posted_date, near_dup, claim tables; IM-Q130)."""
+    columns = {row[1] for row in wh.execute("PRAGMA table_info(review)")}
+    tables = {row[0] for row in wh.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "posted_date" not in columns or not {"near_dup", "claim_catalogue", "claim_scope"} <= tables:
+        raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse was built before the claim layer; "
+                                                       "call build_warehouse again")
+
+
+def _claim_warehouse(run_id) -> Path:
+    path = _find_warehouse(run_id)
+    with _warehouse_ro(path) as wh:
+        _claim_ready(wh)
+    return path
+
+
+def _stored_catalogue(wh, theme_code: str, version: int) -> dict:
+    row = wh.execute("SELECT catalogue_json FROM claim_catalogue WHERE theme_code = ? AND catalogue_version = ?",
+                     (theme_code, version)).fetchone()
+    if row is None:
+        raise InsightError("CATALOGUE_NOT_FOUND", "no stored claim catalogue of this theme has this version")
+    return json.loads(row[0])
+
+
+def _catalogue_status(wh, theme_code: str, version: int) -> str:
+    row = wh.execute("SELECT status FROM claim_grade WHERE theme_code = ? AND catalogue_version = ? "
+                     "ORDER BY rowid DESC LIMIT 1", (theme_code, version)).fetchone()
+    return row[0] if row else "DRAFT"
+
+
+def _current_norm(wh) -> str:
+    target = wh.execute("SELECT block_key FROM coding_target ORDER BY target_id DESC LIMIT 1").fetchone()
+    if target is None:
+        raise InsightError("NOT_CODED", "no review of this run is coded yet")
+    return _block_norm(target[0])
+
+
+def _shop(platform: str, product_key: str) -> str:
+    return ":".join(product_key.split(":")[:2]) if platform == "shopee" else product_key
+
+
+def claim_input(text: str, platform: str, product_name, theme_code: str, catalogue_version: int) -> dict:
+    return {"text": text, "platform": platform, "product_name": product_name, "theme_code": theme_code,
+            "catalogue_version": catalogue_version}
+
+
+def _theme_reviews(wh, book: dict, theme_code: str, version: int | None = None) -> list[dict]:
+    """The theme's reviews: a counted kept label of the theme under the current coding target (IM-Q45), in
+    review_id order, with their customer words and, for a catalogue version, their claim coding state."""
+    norm = _current_norm(wh)
+    rows = wh.execute(
+        "SELECT v.review_id, v.platform, v.polarity, v.product_key, t.text, p.product_name, r.posted_date "
+        "FROM v_theme_label v JOIN review r ON r.review_id = v.review_id "
+        "JOIN review_text t ON t.review_id = v.review_id LEFT JOIN product p ON p.product_key = v.product_key "
+        "WHERE v.codebook_version = ? AND v.block_norm = ? AND v.theme_code = ? ORDER BY v.review_id",
+        (book["version"], norm, theme_code)).fetchall()
+    states = {} if version is None else {row[0]: row[1:] for row in wh.execute(
+        "SELECT review_id, input_sha256, spec_p, rac_p, gen_p FROM claim_coding_state "
+        "WHERE theme_code = ? AND catalogue_version = ? AND status = 'done'", (theme_code, version))}
+    out = []
+    for review_id, platform, polarity, product_key, text, product_name, posted in rows:
+        words = customer_words(text)
+        review = {"review_id": review_id, "platform": platform, "polarity": polarity, "product_key": product_key,
+                  "product_name": product_name, "words": words, "posted_date": posted, "coded": False}
+        if version is not None:
+            review["input_sha256"] = _sha256(_canonical(claim_input(words, platform, product_name, theme_code, version)))
+            state = states.get(review_id)
+            if words.strip() and state is not None and state[0] == review["input_sha256"]:
+                review.update(coded=True, spec_p=state[1], rac_p=state[2], gen_p=state[3])
+        if not words.strip():
+            review["kind"] = "attribute_only"
+        elif not review["coded"]:
+            review["kind"] = "uncoded"
+        else:
+            review["kind"] = "spam" if review["rac_p"] >= CLAIM_SPAM else "sample"
+        out.append(review)
+    return out
+
+
+def _labels(wh, theme_code: str, version: int) -> dict:
+    """review_id -> {"kept": [codes], "unclear": [codes]} for a theme and catalogue version."""
+    out = {}
+    for review_id, code, status in wh.execute(
+            "SELECT review_id, claim_code, status FROM claim_label WHERE theme_code = ? AND catalogue_version = ? "
+            "ORDER BY review_id, claim_code", (theme_code, version)):
+        out.setdefault(review_id, {"kept": [], "unclear": []})[status].append(code)
+    return out
+
+
+def _out_dir(out_dir) -> Path:
+    """IM-Q133: an absolute path outside the repository and the app home, missing or an empty directory."""
+    if not isinstance(out_dir, str) or not out_dir or not Path(out_dir).is_absolute():
+        raise InsightError("OUT_DIR_INVALID", "out_dir must be an absolute path")
+    path = Path(out_dir).resolve()
+    repo = next((p for p in (HERE, *HERE.parents) if (p / ".git").exists()), HERE)
+    forbidden = [repo]
+    app_db = os.environ.get("INSIGHT_MCP_APP_DB")
+    if app_db:
+        db = Path(app_db).expanduser()
+        forbidden += [db.parent, _artifact_root(db), _capture_root(db)]
+    if any(path == f.resolve() or path.is_relative_to(f.resolve()) for f in forbidden):
+        raise InsightError("OUT_DIR_INVALID", "out_dir must be outside the repository and the app home")
+    if path.exists() and (not path.is_dir() or any(path.iterdir())):
+        raise InsightError("OUT_DIR_INVALID", "out_dir must be missing or an empty directory")
+    return path
+
+
+def _write_files(directory: Path, contents: dict) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, text in contents.items():
+        (directory / name).write_bytes(text.encode("utf-8"))
+
+
+def _jsonl(rows) -> str:
+    return "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
+
+
+def _packet_digest(contents: dict) -> str:
+    return _sha256(json.dumps(contents, sort_keys=True, ensure_ascii=False, separators=(",", ":")))[:12]
+
+
+def _template(name: str) -> str:
+    return (CLAIMS_DIR / name).read_text(encoding="utf-8")
+
+
+# --- claim_catalogue_packet (IM-Q163) ---
+
+@mcp.tool()
+@_tool
+def claim_catalogue_packet(run_id: str, theme_code: str, out_dir: str, seed: int) -> dict:
+    """Write the drafting input for the external agent that drafts a claim catalogue (open question 37): the
+    theme's customer words and the filled drafting prompt, into out_dir outside the repository. The MCP makes no
+    AI call; the draft comes back only through submit_claim_catalogue. Returns counts only."""
+    run_id = _check_run_id(run_id)
+    book = load_codebook()
+    theme_code = _check_theme(book, theme_code)
+    seed = _check_seed(seed)
+    target = _out_dir(out_dir)
+    path = _claim_warehouse(run_id)
+    with _warehouse_ro(path) as wh:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        reviews = _theme_reviews(wh, book, theme_code)
+        groups = dict(wh.execute("SELECT review_id, group_id FROM near_dup").fetchall())
+    pool = [r for r in reviews if r["kind"] != "attribute_only"]
+    copies, first = {}, {}
+    for review in pool:
+        group = groups.get(review["review_id"], review["review_id"])
+        copies[group] = copies.get(group, 0) + 1
+        first.setdefault(group, review)
+    lines = [(r, copies[groups.get(r["review_id"], r["review_id"])]) for r in pool if first[
+        groups.get(r["review_id"], r["review_id"])] is r]
+    sampled = len(lines) > CATALOGUE_PACKET_MAX
+    if sampled:
+        chosen = {id(line[0]) for line in random.Random(seed).sample(lines, CATALOGUE_PACKET_MAX)}
+        lines = [line for line in lines if id(line[0]) in chosen]
+    aliases, rows = {}, []
+    for n, (review, count) in enumerate(lines, 1):
+        product = aliases.setdefault(review["product_key"], f"P{len(aliases) + 1}")
+        rows.append({"id": f"R{n:03d}", "platform": review["platform"], "product": product,
+                     "polarity": review["polarity"], "copies": count, "text": review["words"]})
+    prompt = _template("prompt-draft.md")
+    for token, value in (("{theme_code}", theme_code), ("{theme_name}", _theme_codes(book)[theme_code]),
+                         ("{code_prefix}", f"Y-{theme_code[2:]}-"), ("{line_count}", str(len(rows)))):
+        prompt = prompt.replace(token, value)
+    contents = {"prompt-draft.md": prompt, "reviews.jsonl": _jsonl(rows)}
+    packet_id = "CDP-" + _packet_digest(contents)
+    files = list(DRAFT_FILES) + ["packet.json"]
+    contents["packet.json"] = _json_file({
+        "packet_id": packet_id, "run_id": full_id, "theme_code": theme_code, "codebook_version": book["version"],
+        "seed": seed, "reviews": len(rows), "sampled": sampled, "files": list(DRAFT_FILES)})
+    _write_files(target, contents)
+    return {"run_id": full_id, "theme_code": theme_code, "packet_id": packet_id, "files": files,
+            "reviews": len(rows), "merged": len(pool) - len(first), "attribute_only": len(reviews) - len(pool),
+            "sampled": sampled}
+
+
+# --- submit_claim_catalogue (IM-Q131, IM-Q132) ---
+
+def _quote_rule(text: str, reviews: dict):
+    words = _words(text)
+    for i in range(len(words)):
+        if words[i:i + QUOTE_WORDS] in reviews["runs"]:
+            return "quote_8_words"
+    for i in range(len(words)):
+        if any(words[i:i + n] in group for n, group in reviews["short"].items()):
+            return "whole_short_review"
+    return None
+
+
+def _check_catalogue(catalogue, theme_code: str, reviews: dict) -> None:
+    def bad(rule: str, where: str):
+        raise InsightError("CATALOGUE_INVALID", f"catalogue rule {rule} failed at {where}")
+
+    required = {"version", "theme", "specific_rule", "claims"}
+    if not isinstance(catalogue, dict) or not required <= set(catalogue) or not set(catalogue) <= required | {"notes"}:
+        bad("keys", "$")
+    if not _text(catalogue["version"]):
+        bad("non_blank", "$.version")
+    if catalogue["theme"] != theme_code:
+        bad("theme", "$.theme")
+    if not _text(catalogue["specific_rule"]):
+        bad("non_blank", "$.specific_rule")
+    if "notes" in catalogue and not isinstance(catalogue["notes"], str):
+        bad("type", "$.notes")
+    claims = catalogue["claims"]
+    if not isinstance(claims, list) or not 1 <= len(claims) <= MAX_CLAIMS_PER_CATALOGUE:
+        bad("claim_count", "$.claims")
+    code_re = re.compile(re.escape(f"Y-{theme_code[2:]}-") + r"[0-9]{2}")
+    codes, texts = set(), [("$.specific_rule", catalogue["specific_rule"])]
+    if "notes" in catalogue:
+        texts.append(("$.notes", catalogue["notes"]))
+    for i, claim in enumerate(claims):
+        where = f"$.claims[{i}]"
+        if not isinstance(claim, dict) or set(claim) != {"code", "name", "include", "exclude", "generic"}:
+            bad("keys", where)
+        if not isinstance(claim["code"], str) or not code_re.fullmatch(claim["code"]) or claim["code"] in codes:
+            bad("code", f"{where}.code")
+        codes.add(claim["code"])
+        for field in ("name", "include", "exclude"):
+            if not _text(claim[field]):
+                bad("non_blank", f"{where}.{field}")
+            texts.append((f"{where}.{field}", claim[field]))
+        if len(_words(claim["name"])) > MAX_CLAIM_NAME_WORDS:
+            bad("name_words", f"{where}.name")
+        if not isinstance(claim["generic"], bool):
+            bad("type", f"{where}.generic")
+    if sum(claim["generic"] for claim in claims) != 1:
+        bad("one_generic", "$.claims")
+    for where, text in texts:
+        if len(text) > MAX_FIELD_CHARS:
+            bad("length", where)
+        rule = _quote_rule(text, reviews)
+        if rule:
+            bad(rule, where)
+        if hidden_name_hits(unicodedata.normalize("NFC", text)):
+            bad("hidden_name", where)
+
+
+@mcp.tool()
+@_tool
+def submit_claim_catalogue(run_id: str, theme_code: str, catalogue: dict) -> dict:
+    """Store a claim catalogue for one theme (R-IM13), drafted outside the MCP from the run's customer words. Each
+    accepted submit is a new version that is never changed; it starts DRAFT until record_claim_grades passes it."""
+    run_id = _check_run_id(run_id)
+    book = load_codebook()
+    theme_code = _check_theme(book, theme_code)
+    path = _claim_warehouse(run_id)
+    _check_catalogue(catalogue, theme_code, _review_words(path))
+    wh = _open_warehouse(path)
+    try:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        with _tx(wh):
+            version = 1 + wh.execute("SELECT COALESCE(MAX(catalogue_version), 0) FROM claim_catalogue "
+                                     "WHERE theme_code = ?", (theme_code,)).fetchone()[0]
+            wh.execute("INSERT INTO claim_catalogue VALUES (?, ?, ?, ?, ?, ?)", (
+                theme_code, version, catalogue["version"],
+                json.dumps(catalogue, ensure_ascii=False, separators=(",", ":")), book["version"],
+                datetime.now(timezone.utc).isoformat(timespec="seconds")))
+    finally:
+        wh.close()
+    return {"run_id": full_id, "theme_code": theme_code, "catalogue_version": version, "status": "DRAFT",
+            "claims": len(catalogue["claims"])}
+
+
+# --- code_claims (IM-Q139 to IM-Q145) ---
+
+def _question(code: str, name: str, include: str, exclude: str, kind: str) -> dict:
+    return {"code": code, "name": name, "include": include, "exclude": exclude,
+            "options": [{"key": key, "meaning": meaning} for key, meaning in CLAIM_QUESTIONS[kind]]}
+
+
+def build_claim_request(catalogue: dict, theme_name: str, version: int, review: dict) -> dict:
+    """One Jev request per review (IM-Q142): customer words, platform, product name, theme name, catalogue version
+    and the questions. No review ID, writer key, writer name, product key or URL."""
+    questions = [_question(c["code"], c["name"], c["include"], c["exclude"], "CLAIM")
+                 for c in catalogue["claims"] if not c["generic"]]
+    questions += [
+        _question("SPEC", "Lời cụ thể", catalogue["specific_rule"], "", "SPEC"),
+        _question("RAC", "Văn rác", "Quảng cáo lạc đề, nội dung không liên quan đến sản phẩm hoặc chữ vô nghĩa", "",
+                  "RAC"),
+        _question("GEN", "Khen hoặc chê chủ đề", f"Lời khách khen hoặc chê {theme_name}, dù không nói chi tiết", "",
+                  "GEN"),
+    ]
+    return {"kind": "claims", "text": review["words"], "platform": review["platform"],
+            "product_name": review["product_name"], "theme_name": theme_name, "catalogue_version": version,
+            "questions": questions}
+
+
+def parse_claim_answer(book: dict, body: dict, status, raw) -> dict:
+    """Check one Jev claim answer (IM-Q143). Raises _CallFailed with JEV_CLAIM_UNAVAILABLE or JEV_CLAIM_INVALID."""
+    if status != 200:
+        raise _CallFailed("JEV_CLAIM_UNAVAILABLE")
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        raise _CallFailed("JEV_CLAIM_UNAVAILABLE") from None
+    if not isinstance(payload, dict):
+        raise _CallFailed("JEV_CLAIM_UNAVAILABLE")
+    if payload.get("model") != JEV_MODEL or not isinstance(payload.get("answers"), dict):
+        raise _CallFailed("JEV_CLAIM_INVALID")
+    answers = payload["answers"]
+    if set(answers) != {q["code"] for q in body["questions"]}:
+        raise _CallFailed("JEV_CLAIM_INVALID")
+    tolerance = book["thresholds"]["probabilitySumTolerance"]
+    out = {}
+    for question in body["questions"]:
+        options = [o["key"] for o in question["options"]]
+        answer = answers[question["code"]]
+        if not isinstance(answer, dict) or answer.get("type") != "choice" or answer.get("choice") not in options:
+            raise _CallFailed("JEV_CLAIM_INVALID")
+        probs = answer.get("probabilities")
+        if not isinstance(probs, dict) or set(probs) != set(options) \
+                or not all(_number(v) and 0 <= v <= 1 for v in probs.values()):
+            raise _CallFailed("JEV_CLAIM_INVALID")
+        if abs(sum(probs.values()) - 1) > tolerance + 1e-9:
+            raise _CallFailed("JEV_CLAIM_INVALID")
+        confidence = answer.get("confidence")
+        if not _number(confidence) or not 0 <= confidence <= 1:
+            raise _CallFailed("JEV_CLAIM_INVALID")
+        out[question["code"]] = probs
+    return out
+
+
+def claim_label_rows(catalogue: dict, answers: dict) -> list[dict]:
+    """Kept and unclear claim labels from checked answers (IM-Q144). The generic claim is decided after the call."""
+    rows = []
+    for claim in catalogue["claims"]:
+        if claim["generic"]:
+            continue
+        p_co = answers[claim["code"]]["CO"]
+        if p_co >= CLAIM_UNCLEAR:
+            rows.append({"claim_code": claim["code"], "p_co": p_co, "status": "kept" if p_co >= CLAIM_KEEP else "unclear"})
+    if not any(row["status"] == "kept" for row in rows):
+        gen = answers["GEN"]["CO"]
+        generic = next(c["code"] for c in catalogue["claims"] if c["generic"])
+        if gen >= CLAIM_UNCLEAR:
+            rows.append({"claim_code": generic, "p_co": gen, "status": "kept" if gen >= CLAIM_GENERIC else "unclear"})
+    return rows
+
+
+@mcp.tool()
+@_tool
+def code_claims(run_id: str, theme_code: str, catalogue_version: int, dry_run: bool = True,
+                max_calls: int | None = None) -> dict:
+    """Plan (dry_run, default) or run Jev claim coding of one theme's reviews under one catalogue version, on the
+    customer words only. A real run needs INSIGHT_MCP_ALLOW_PAID=1 and max_calls; it stops at the cap and at the
+    first failed call."""
+    run_id = _check_run_id(run_id)
+    book = load_codebook()
+    theme_code = _check_theme(book, theme_code)
+    version = _check_version(catalogue_version)
+    if not isinstance(dry_run, bool):
+        raise InsightError("INVALID_ARGUMENT", "dry_run must be true or false")
+    if max_calls is not None and not _int(max_calls):
+        raise InsightError("MAX_CALLS_INVALID", "max_calls must be an integer or null")
+    path = _claim_warehouse(run_id)
+    wh = _open_warehouse(path)
+    try:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        catalogue = _stored_catalogue(wh, theme_code, version)
+        status = _catalogue_status(wh, theme_code, version)
+        reviews = _theme_reviews(wh, book, theme_code, version)
+        platforms = [r[0] for r in wh.execute("SELECT DISTINCT platform FROM review ORDER BY 1")]
+        eligible = [r for r in reviews if r["kind"] == "uncoded"]
+        attribute_only = [r for r in reviews if r["kind"] == "attribute_only"]
+        limit = book["limits"]["maxCallsPerRun"]
+        cap = limit if max_calls is None else max(0, min(max_calls, limit))
+        planned = min(len(eligible), cap)
+
+        def by_platform(items):
+            counts = {p: 0 for p in platforms}
+            for item in items:
+                counts[item["platform"]] = counts.get(item["platform"], 0) + 1
+            return counts
+
+        base = {"run_id": full_id, "theme_code": theme_code, "catalogue_version": version, "catalogue_status": status,
+                "eligible_reviews": len(eligible), "eligible_by_platform": by_platform(eligible),
+                "attribute_only": len(attribute_only), "attribute_only_by_platform": by_platform(attribute_only),
+                "already_coded": sum(r["coded"] for r in reviews), "planned_calls": planned,
+                "questions_per_call": sum(not c["generic"] for c in catalogue["claims"]) + 3}
+        if dry_run:
+            return {**base, "dry_run": True, "jev_calls": 0}
+        if os.environ.get("INSIGHT_MCP_ALLOW_PAID") != "1":
+            return {**base, "dry_run": False, "refused": True, "reason": "PAID_FLAG_MISSING", "jev_calls": 0,
+                    "message": "a real Jev run needs INSIGHT_MCP_ALLOW_PAID=1, set by the owner"}
+        if max_calls is None or not 1 <= max_calls <= limit:
+            raise InsightError("MAX_CALLS_INVALID", f"a real run needs max_calls from 1 to {limit}")
+        key = _read_key()
+        theme_name = _theme_codes(book)[theme_code]
+        calls, done, stopped = 0, 0, None
+        for review in eligible:
+            if calls >= max_calls:
+                stopped = "CAP_REACHED"
+                break
+            body = build_claim_request(catalogue, theme_name, version, review)
+            calls += 1
+            try:
+                try:
+                    status_code, raw = _jev_transport(body, key)
+                except Exception:  # noqa: BLE001 - any transport failure; its text may hold the key
+                    raise _CallFailed("JEV_CLAIM_UNAVAILABLE") from None
+                answers = parse_claim_answer(book, body, status_code, raw)
+            except _CallFailed as failure:
+                stopped = failure.stop
+                break
+            rows = claim_label_rows(catalogue, answers)
+            with _tx(wh):
+                wh.execute("DELETE FROM claim_label WHERE review_id = ? AND theme_code = ? AND catalogue_version = ?",
+                           (review["review_id"], theme_code, version))
+                wh.executemany("INSERT INTO claim_label VALUES (?, ?, ?, ?, ?, ?)",
+                               [(review["review_id"], theme_code, version, row["claim_code"], row["p_co"],
+                                 row["status"]) for row in rows])
+                wh.execute("INSERT OR REPLACE INTO claim_coding_state VALUES (?, ?, ?, ?, ?, ?, ?, 'done')", (
+                    review["review_id"], theme_code, version, review["input_sha256"], answers["SPEC"]["CU_THE"],
+                    answers["RAC"]["RAC"], answers["GEN"]["CO"]))
+            done += 1
+        if stopped is None and done < len(eligible):
+            stopped = "CAP_REACHED"
+        return {**base, "dry_run": False, "calls_made": calls, "coded_now": done, "remaining": len(eligible) - done,
+                "stopped": stopped or "COMPLETE"}
+    finally:
+        wh.close()
+
+
+# --- claim_counts (IM-Q147 to IM-Q157) ---
+
+REF_CLAIM_LABEL = """
+SELECT r.platform, l.claim_code{dims}, {measures}
+FROM claim_label l
+JOIN claim_scope s ON s.review_id = l.review_id AND s.theme_code = l.theme_code
+     AND s.catalogue_version = l.catalogue_version AND s.kind = 'sample'
+JOIN review r ON r.review_id = l.review_id
+JOIN near_dup n ON n.review_id = l.review_id
+WHERE l.status = 'kept' AND l.theme_code = ? AND l.catalogue_version = ?
+GROUP BY r.platform, l.claim_code{dims}
+"""
+REF_CLAIM_LABEL_MEASURES = ("COUNT(DISTINCT r.review_id), COUNT(DISTINCT n.group_id), COUNT(DISTINCT r.writer_key), "
+                            "COUNT(DISTINCT r.product_key), COUNT(DISTINCT s.shop_key), SUM(s.specific), "
+                            "SUM(1 - r.writer_known)")
+REF_CLAIM_REVIEW = """
+SELECT s.platform{dims}, {measures}
+FROM claim_scope s
+JOIN review r ON r.review_id = s.review_id
+LEFT JOIN (SELECT review_id, theme_code, catalogue_version, COUNT(*) AS mentions FROM claim_label
+           WHERE status = 'kept' GROUP BY review_id, theme_code, catalogue_version) k
+     ON k.review_id = s.review_id AND k.theme_code = s.theme_code AND k.catalogue_version = s.catalogue_version
+WHERE s.theme_code = ? AND s.catalogue_version = ?
+GROUP BY s.platform{dims}
+"""
+REF_CLAIM_REVIEW_MEASURES = (
+    "SUM(CASE WHEN s.kind = 'sample' THEN 1 ELSE 0 END), SUM(CASE WHEN s.kind = 'attribute_only' THEN 1 ELSE 0 END), "
+    "SUM(CASE WHEN s.kind = 'spam' THEN 1 ELSE 0 END), "
+    "SUM(CASE WHEN s.kind = 'sample' AND k.mentions IS NULL THEN 1 ELSE 0 END), "
+    "SUM(CASE WHEN s.kind = 'sample' THEN COALESCE(k.mentions, 0) ELSE 0 END)")
+REF_SAMPLE_MEASURE = "SUM(CASE WHEN s.kind = 'sample' THEN 1 ELSE 0 END)"
+DATE_DIM = ", COALESCE(r.posted_date, '')"
+
+
+def _max_window(counts: dict) -> int:
+    """The largest number of reviews in any BURST_DAYS consecutive calendar days (d to d + 6)."""
+    days = sorted((datetime.fromisoformat(d).date(), n) for d, n in counts.items() if d)
+    best, total, low = 0, 0, 0
+    for day, n in days:
+        total += n
+        while (day - days[low][0]).days >= BURST_DAYS:
+            total -= days[low][1]
+            low += 1
+        best = max(best, total)
+    return best
+
+
+def _saturation(order: list[str], mentions: dict) -> dict:
+    """IM-Q155: walk the seeded order and note where each claim reaches SATURATION_MENTIONS kept mentions."""
+    order = sorted(order)
+    random.Random(SATURATION_SEED).shuffle(order)
+    counts, reached = {}, []
+    for position, review_id in enumerate(order, 1):
+        for code in mentions.get(review_id, ()):
+            counts[code] = counts.get(code, 0) + 1
+            if counts[code] == SATURATION_MENTIONS:
+                reached.append(position)
+    marks = [k for k in range(SATURATION_STEP, len(order) + 1, SATURATION_STEP)]
+    if order and (not marks or marks[-1] != len(order)):
+        marks.append(len(order))
+    return {"seed": SATURATION_SEED, "reviews": len(order), "curve": [[k, sum(p <= k for p in reached)] for k in marks],
+            "claims_reaching_3": len(reached), "last_new_claim_at": max(reached) if reached else None}
+
+
+def _claim_state_sha(wh, theme_code: str, version: int) -> str:
+    """IM-Q154: the IM-Q30 state sha256 plus the claim coding state and labels of this theme and version and the
+    near-duplicate groups. The IM-Q30 state itself is unchanged."""
+    states = wh.execute("SELECT review_id, input_sha256, spec_p, rac_p, gen_p, status FROM claim_coding_state "
+                        "WHERE theme_code = ? AND catalogue_version = ? ORDER BY 1", (theme_code, version)).fetchall()
+    labels = wh.execute("SELECT review_id, claim_code, p_co, status FROM claim_label WHERE theme_code = ? "
+                        "AND catalogue_version = ? ORDER BY 1, 2", (theme_code, version)).fetchall()
+    groups = wh.execute("SELECT review_id, group_id FROM near_dup ORDER BY 1").fetchall()
+    return _sha256(_state_sha(wh) + _canonical({"claim_coding_state": states, "claim_label": labels,
+                                               "near_dup": groups}))
+
+
+def _claim_counts_at(path: Path, book: dict, theme_code: str, version: int) -> dict:
+    """The claim_counts result for one warehouse file, registered in its count_registry (IM-Q148, IM-Q154)."""
+    codes = _theme_codes(book)
+    wh = _open_warehouse(path)
+    try:
+        _claim_ready(wh)
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        catalogue = _stored_catalogue(wh, theme_code, version)
+        status = _catalogue_status(wh, theme_code, version)
+        reviews = _theme_reviews(wh, book, theme_code, version)
+        codable = [r for r in reviews if r["kind"] != "attribute_only"]
+        if codable and not any(r["coded"] for r in codable):
+            raise InsightError("NOT_CODED", "no review of this theme is coded under this catalogue version")
+        scope = [(r["review_id"], r["platform"], theme_code, version, r["kind"],
+                  int(r["kind"] == "sample" and r["spec_p"] >= CLAIM_SPECIFIC), _shop(r["platform"], r["product_key"]))
+                 for r in reviews if r["kind"] != "uncoded"]
+        params = (theme_code, version)
+        filters = [f"theme_code = {_sql_literal(theme_code)}", f"catalogue_version = {version}"]
+        label_measures = ["n_reviews", "n_evidence", "n_writers", "n_products", "n_shops", "n_specific",
+                          "n_unknown_writer"]
+        review_measures = ["n_sample", "n_attribute_only", "n_spam", "n_no_claim", "n_claim_mentions"]
+        with _warehouse_copy(path) as copy:
+            counter = _open_warehouse(copy)
+            try:
+                with _tx(counter):
+                    counter.execute("DELETE FROM claim_scope")
+                    counter.executemany("INSERT INTO claim_scope VALUES (?, ?, ?, ?, ?, ?, ?)", scope)
+                slayer = _Slayer(copy)
+                try:
+                    def label_query(dims, sql_dims, measures, sql_measures):
+                        return _verified(slayer, counter, "claim_label", measures, ["platform", "claim_code"] + dims,
+                                         filters, REF_CLAIM_LABEL.format(dims=sql_dims, measures=sql_measures), params)
+
+                    def review_query(dims, sql_dims, measures, sql_measures):
+                        return _verified(slayer, counter, "claim_review", measures, ["platform"] + dims, filters,
+                                         REF_CLAIM_REVIEW.format(dims=sql_dims, measures=sql_measures), params)
+
+                    main = label_query([], "", label_measures, REF_CLAIM_LABEL_MEASURES)
+                    by_product = label_query(["product_key"], ", r.product_key", ["n_reviews"],
+                                             "COUNT(DISTINCT r.review_id)")
+                    by_date = label_query(["posted_date"], DATE_DIM, ["n_reviews"], "COUNT(DISTINCT r.review_id)")
+                    by_review = label_query(["review_id"], ", r.review_id", ["n_reviews"], "COUNT(DISTINCT r.review_id)")
+                    theme_rows = review_query([], "", review_measures, REF_CLAIM_REVIEW_MEASURES)
+                    theme_dates = review_query(["posted_date"], DATE_DIM, ["n_sample"], REF_SAMPLE_MEASURE)
+                    samples = review_query(["review_id"], ", s.review_id", ["n_sample"], REF_SAMPLE_MEASURE)
+                finally:
+                    slayer.close()
+            finally:
+                counter.close()
+
+        order = {c["code"]: i for i, c in enumerate(catalogue["claims"])}
+        claims = {c["code"]: c for c in catalogue["claims"]}
+        top, dates = {}, {}
+        for row in by_product:
+            key = (row["platform"], row["claim_code"])
+            top[key] = max(top.get(key, 0), row["n_reviews"])
+        for row in by_date:
+            dates.setdefault((row["platform"], row["claim_code"]), {})[row["posted_date"]] = row["n_reviews"]
+        per_platform = {}
+        for row in main:
+            per_platform.setdefault(row["claim_code"], set()).add(row["platform"])
+        theme = {row["platform"]: row for row in theme_rows}
+        periods = {}
+        for row in theme_dates:
+            if row["posted_date"] and row["n_sample"]:
+                periods.setdefault(row["platform"], []).append((row["posted_date"], row["n_sample"]))
+
+        rows = []
+        for row in sorted(main, key=lambda r: (r["platform"], order[r["claim_code"]])):
+            key, code = (row["platform"], row["claim_code"]), row["claim_code"]
+            reviews_n, evidence = row["n_reviews"], row["n_evidence"]
+            counted_dates = dates.get(key, {})
+            dated = sum(n for d, n in counted_dates.items() if d)
+            max7 = _max_window(counted_dates)
+            flags = []
+            if _ratio_at_least(top[key], reviews_n, ONE_PRODUCT_SHARE):
+                flags.append(CLAIM_FLAGS["one_product"])
+            if reviews_n >= BURST_MIN and _ratio_at_least(max7, reviews_n, BURST_SHARE):
+                flags.append(CLAIM_FLAGS["burst"])
+            both = len(per_platform[code]) > 1
+            if both:
+                flags.append(CLAIM_FLAGS["both_platforms"])
+            threshold = _review_threshold(reviews_n, row["n_writers"], row["n_products"], row["n_unknown_writer"])
+            rows.append({
+                "platform": row["platform"], "theme_code": theme_code, "catalogue_version": version, "claim_code": code,
+                "claim_name": claims[code]["name"], "generic": claims[code]["generic"], "step": STEP_AFTER_PURCHASE,
+                "reviews": reviews_n, "evidence": evidence, "merged_reviews": reviews_n - evidence,
+                **{k: threshold[k] for k in ("writers", "writer_basis", "threshold_count", "threshold_met",
+                                             "threshold_note")},
+                "products": row["n_products"], "shops": row["n_shops"],
+                "top_product_share": _rounded(top[key], reviews_n, 2),
+                "specific": row["n_specific"], "specific_share": _rounded(row["n_specific"], reviews_n, 2),
+                "dated_reviews": dated, "max_7day": max7, "flags": sorted(flags), "on_both_platforms": both,
+                "_top": top[key]})
+
+        mentions = {}
+        for row in by_review:
+            mentions.setdefault(row["review_id"], []).append(row["claim_code"])
+        platforms = {}
+        for platform in sorted(theme):
+            counted = theme[platform]
+            sample, no_claim = counted["n_sample"], counted["n_no_claim"]
+            dated = sorted(periods.get(platform, []))
+            share = _rounded(no_claim, sample, 4)
+            e15 = sample > 0 and Fraction(no_claim, sample) > Fraction(str(OTHER_SHARE_E15))
+            entry = {"sample": sample, "attribute_only": counted["n_attribute_only"], "spam": counted["n_spam"],
+                     "no_claim": no_claim, "no_claim_share": share, "e15": e15}
+            if e15:
+                entry["e15_note"] = E15_NOTE
+            sample_ids = [row["review_id"] for row in samples if row["platform"] == platform and row["n_sample"]]
+            entry.update({
+                "claims_per_review": _rounded(counted["n_claim_mentions"], sample, 2),
+                "period": [dated[0][0], dated[-1][0]] if dated else None, "dated_sample": sum(n for _, n in dated),
+                "saturation": _saturation(sample_ids, mentions)})
+            platforms[platform] = entry
+
+        rules = f"{book['version']}+{CLAIM_RULES_VERSION}"
+        state = _claim_state_sha(wh, theme_code, version)
+        pending, seen = [], set()
+        for row in rows:
+            entry = platforms[row["platform"]]
+            period = entry["period"] or [None, None]
+            row_key = [row["platform"], theme_code, version, row["claim_code"]]
+            numbers = {k: row[k] for k in ("reviews", "evidence", "merged_reviews", "writers", "products", "shops")}
+            numbers.update(top_product_reviews=row.pop("_top"), specific=row["specific"],
+                           dated_reviews=row["dated_reviews"], max_7day=row["max_7day"],
+                           threshold_count=row["threshold_count"], threshold_met=row["threshold_met"],
+                           sample=entry["sample"], period_first=period[0], period_last=period[1],
+                           flags=row["flags"], catalogue_status=status)
+            count_id = _count_id(full_id, CLAIM_TOOL, row_key, rules, numbers, state)
+            if count_id in seen:
+                raise InsightError("COUNT_ID_CONFLICT", "two rows in one response got the same count ID")
+            seen.add(count_id)
+            stored = wh.execute("SELECT numbers_json FROM count_registry WHERE count_id = ?", (count_id,)).fetchone()
+            if stored is not None and stored[0] != _canonical(numbers):
+                raise InsightError("COUNT_ID_CONFLICT", "a count ID is already stored with different numbers")
+            pending.append((count_id, CLAIM_TOOL, _canonical(row_key), rules, _canonical(numbers), state))
+            row["count_id"] = count_id
+        if pending:
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            with _tx(wh):
+                wh.executemany("INSERT OR IGNORE INTO count_registry VALUES (?, ?, ?, ?, ?, ?, ?)",
+                               [(*p, now) for p in pending])
+
+        for platform, entry in platforms.items():
+            ranked = [r for r in rows if r["platform"] == platform]
+
+            def rank_entry(r):
+                return {k: r[k] for k in ("claim_code", "evidence", "reviews", "flags", "count_id")}
+            specific = sorted((r for r in ranked if not r["generic"]),
+                              key=lambda r: (-r["evidence"], -r["reviews"], r["claim_code"]))
+            generic = next((r for r in ranked if r["generic"]), None)
+            entry["ranking"] = {"specific": [rank_entry(r) for r in specific],
+                                "generic": rank_entry(generic) if generic else None, "measure": RANKING_MEASURE}
+        return {"run_id": full_id, "theme_code": theme_code, "theme_name": codes[theme_code],
+                "catalogue_version": version, "catalogue_status": status, "codebook_version": book["version"],
+                "rules_version": CLAIM_RULES_VERSION, "rows": rows, "platforms": platforms}
+    finally:
+        wh.close()
+
+
+@mcp.tool()
+@_tool
+def claim_counts(run_id: str, theme_code: str, catalogue_version: int) -> dict:
+    """Claim counts of one theme and catalogue version, per platform (never added together): records, evidence
+    after merging near duplicates, writers, products, shops, specific share, the 7-day peak and flags, with count
+    IDs; and per platform the sample, «Khác» share, saturation and the ranking by evidence."""
+    run_id = _check_run_id(run_id)
+    book = load_codebook()
+    theme_code = _check_theme(book, theme_code)
+    version = _check_version(catalogue_version)
+    return _claim_counts_at(_claim_warehouse(run_id), book, theme_code, version)
+
+
+def _claim_infos(copy: Path, book: dict, row_key: str, cache: dict) -> dict:
+    """The current claim rows of a stored row key's theme and version, by count ID (once per call and version)."""
+    try:
+        _, theme_code, version, _ = json.loads(row_key)
+    except (ValueError, TypeError):
+        return {}
+    if (theme_code, version) not in cache:
+        names = _theme_codes(book)
+        try:
+            result = _claim_counts_at(copy, book, theme_code, version) if theme_code in names else None
+        except InsightError as exc:
+            if exc.code not in ("NOT_CODED", "CATALOGUE_NOT_FOUND", "WAREHOUSE_REBUILD_NEEDED"):
+                raise
+            result = None
+        cache[(theme_code, version)] = {} if result is None else {row["count_id"]: {
+            "count_id": row["count_id"], "tool": CLAIM_TOOL, "source": row["platform"] + "_reviews",
+            "platform": row["platform"], "step": STEP_AFTER_PURCHASE, "kind": "claim",
+            "rules": ("codebook", book["version"]), "row": row, "catalogue_status": result["catalogue_status"],
+            "label": f"{names[theme_code]} · {row['claim_name']}"} for row in result["rows"]}
+    return cache[(theme_code, version)]
+
+
+def _current_claim_ids(copy: Path, book: dict, count_ids) -> set:
+    """The current claim IDs among the theme versions of the given stored claim IDs."""
+    cache, current = {}, set()
+    with _warehouse_ro(copy) as wh:
+        keys = [wh.execute("SELECT row_key FROM count_registry WHERE count_id = ? AND tool = ?",
+                           (count_id, CLAIM_TOOL)).fetchone() for count_id in sorted(count_ids)]
+    for key in keys:
+        if key is not None:
+            current |= set(_claim_infos(copy, book, key[0], cache))
+    return current
+
+
+# --- claim_grading_packet (IM-Q133) ---
+
+@mcp.tool()
+@_tool
+def claim_grading_packet(run_id: str, theme_code: str, catalogue_version: int, out_dir: str, seed: int) -> dict:
+    """Write the two graders' input for one catalogue version into out_dir outside the repository: the catalogue, a
+    seeded sample of up to 30 coded reviews (customer words), the near-duplicate groups and the round 1 prompt.
+    Returns counts, the packet ID and file names only."""
+    run_id = _check_run_id(run_id)
+    book = load_codebook()
+    theme_code = _check_theme(book, theme_code)
+    version = _check_version(catalogue_version)
+    seed = _check_seed(seed)
+    target = _out_dir(out_dir)
+    path = _claim_warehouse(run_id)
+    wh = _open_warehouse(path)
+    try:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        catalogue = _stored_catalogue(wh, theme_code, version)
+        reviews = _theme_reviews(wh, book, theme_code, version)
+        if not any(r["coded"] for r in reviews):
+            raise InsightError("NOT_CODED", "no review of this theme is coded under this catalogue version")
+        labels = _labels(wh, theme_code, version)
+        groups = dict(wh.execute("SELECT review_id, group_id FROM near_dup").fetchall())
+        sizes = {}
+        for group in groups.values():
+            sizes[group] = sizes.get(group, 0) + 1
+        pool = [r for r in reviews if r["kind"] == "sample"]
+
+        def kept(review):
+            return bool(labels.get(review["review_id"], {}).get("kept"))
+
+        def in_group(review):
+            return sizes.get(groups.get(review["review_id"]), 1) >= 2
+
+        candidates = {"with_claim": [r for r in pool if kept(r) and not in_group(r)],
+                      "no_claim": [r for r in pool if not kept(r)], "near_dup": [r for r in pool if in_group(r)]}
+        rng, drawn, kinds = random.Random(seed), [], {}
+        for kind, size in GRADING_DRAWS:
+            left = [r for r in candidates[kind] if r["review_id"] not in kinds]
+            for review in rng.sample(left, min(size, len(left))):
+                drawn.append(review)
+                kinds[review["review_id"]] = kind
+        members = {}
+        for review in pool:
+            if in_group(review):
+                members.setdefault(groups[review["review_id"]], []).append(review)
+        ordered_groups = sorted(members.items(), key=lambda g: (-len(g[1]), g[0]))
+        names = {group: f"G{n:02d}" for n, (group, _) in enumerate(ordered_groups, 1)}
+        aliases = {}
+
+        def alias(review):
+            return aliases.setdefault(review["product_key"], f"P{len(aliases) + 1}")
+
+        sample_rows = []
+        for n, review in enumerate(drawn, 1):
+            label = labels.get(review["review_id"], {"kept": [], "unclear": []})
+            sample_rows.append({"id": f"S{n:02d}", "platform": review["platform"], "product": alias(review),
+                                "text": review["words"], "assigned": sorted(label["kept"]),
+                                "unclear": sorted(label["unclear"]), "specific": review["spec_p"] >= CLAIM_SPECIFIC,
+                                "dup_group": names.get(groups.get(review["review_id"]))})
+        dup_rows = [{"group": names[group], "members": [{"product": alias(r), "date": r["posted_date"],
+                                                         "text": r["words"]} for r in items]}
+                    for group, items in ordered_groups]
+        prompt = _template("prompt-r1.md").replace("{theme_name}", _theme_codes(book)[theme_code])
+        contents = {"catalogue.json": _json_file({**catalogue, "catalogue_version": version}),
+                    "dup-groups.json": _json_file(dup_rows), "prompt-r1.md": prompt,
+                    "sample.jsonl": _jsonl(sample_rows)}
+        packet_id = "CPK-" + _packet_digest(contents)
+        contents["packet.json"] = _json_file({
+            "packet_id": packet_id, "run_id": full_id, "theme_code": theme_code, "catalogue_version": version,
+            "seed": seed, "sample_size": len(sample_rows), "files": list(PACKET_FILES)})
+        with _tx(wh):
+            wh.executemany("INSERT OR IGNORE INTO claim_packet VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           [(packet_id, theme_code, version, seed, row["id"], review["review_id"],
+                             kinds[review["review_id"]]) for row, review in zip(sample_rows, drawn)]
+                           + [(packet_id, theme_code, version, seed, names[group], group, "group")
+                              for group, _ in ordered_groups])
+    finally:
+        wh.close()
+    _write_files(target, contents)
+    counts = {kind: sum(k == kind for k in kinds.values()) for kind, _ in GRADING_DRAWS}
+    return {"run_id": full_id, "packet_id": packet_id, "files": list(PACKET_FILES) + ["packet.json"],
+            "sample": counts, "dup_groups": len(ordered_groups)}
+
+
+# --- record_claim_grades (IM-Q135 to IM-Q137) ---
+
+def claim_grade_keys(round1: dict) -> dict:
+    """The grade keys of one round 1 grader object (PR 4 conventions). Shared with claims/crosscheck.py."""
+    keys = {}
+    for line in round1["catalogue"]:
+        keys[("catalogue", line["code"], "verdict")] = line["verdict"]
+    for item in round1["items"]:
+        keys[("item", item["id"], "wrong")] = sorted(item["wrong"])
+        keys[("item", item["id"], "missed")] = sorted(item["missed"])
+        keys[("item", item["id"], "specific_ok")] = item["specific_ok"]
+    for group in round1["dup_groups"]:
+        keys[("dup", group["group"], "same_idea_copy")] = group["same_idea_copy"]
+    return keys
+
+
+def claim_grade_diffs(keys_a: dict, keys_b: dict) -> list[tuple]:
+    """The keys whose two round 1 values differ, in sorted key order; diff n is the n-th (from 1)."""
+    return [key for key in sorted(set(keys_a) | set(keys_b)) if keys_a.get(key) != keys_b.get(key)]
+
+
+class _Members(list):
+    """The members of one JSON object in file order, so a repeated name is seen before a dict drops it."""
+
+
+def _grades_invalid(name: str, rule: str, where: str) -> InsightError:
+    return InsightError("GRADES_INVALID", f"{name}: rule {rule} failed at {where}")
+
+
+def _members_to_dict(value, name: str, where: str):
+    if isinstance(value, _Members):
+        names = [k for k, _ in value]
+        if len(set(names)) != len(names):
+            raise _grades_invalid(name, "duplicate_key", where)
+        return {k: _members_to_dict(v, name, f"{where}.{k if k in GRADE_KEY_NAMES else '<key>'}") for k, v in value}
+    if isinstance(value, list):
+        return [_members_to_dict(v, name, f"{where}[{i}]") for i, v in enumerate(value)]
+    return value
+
+
+def _check_shape(value, shape: str, name: str, where: str) -> None:
+    fields = GRADE_SHAPES[shape]
+    if not isinstance(value, dict) or set(value) != set(fields):
+        raise _grades_invalid(name, "keys", where)
+    for key, kind in fields.items():
+        item, at = value[key], f"{where}.{key}"
+        if kind == "str":
+            ok = isinstance(item, str)
+        elif kind == "bool":
+            ok = isinstance(item, bool)
+        elif kind == "int":
+            ok = _int(item)
+        elif kind == "strs":
+            ok = isinstance(item, list) and all(isinstance(x, str) for x in item)
+        else:
+            ok = isinstance(item, list)
+            if ok:
+                for i, entry in enumerate(item):
+                    _check_shape(entry, kind, name, f"{at}[{i}]")
+        if not ok:
+            raise _grades_invalid(name, "type", at)
+
+
+def _read_grader_file(directory: Path, name: str, shape: str, grader: str) -> tuple[dict, str]:
+    try:
+        text = (directory / name).read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        raise _grades_invalid(name, "file", "$") from None
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end < start:
+        raise _grades_invalid(name, "json", "$")
+    raw = text[start:end + 1]
+    try:
+        parsed = json.loads(raw, object_pairs_hook=_Members)
+    except ValueError:
+        raise _grades_invalid(name, "json", "$") from None
+    if not isinstance(parsed, _Members):
+        raise _grades_invalid(name, "json", "$")
+    value = _members_to_dict(parsed, name, "$")
+    _check_shape(value, shape, name, "$")
+    if value["grader"] != grader:
+        raise _grades_invalid(name, "grader", "$.grader")
+    return value, raw
+
+
+def _check_coverage(name: str, entries: list, field: str, allowed: list, where: str) -> None:
+    found = [entry[field] for entry in entries]
+    for i, value in enumerate(found):
+        if value not in allowed or found.index(value) != i:
+            raise _grades_invalid(name, "coverage", f"{where}[{i}].{field}")
+    if len(found) != len(allowed):
+        raise _grades_invalid(name, "coverage", where)
+
+
+def _free_texts(value: dict, round_no: int) -> list[tuple[str, str]]:
+    if round_no == 1:
+        out = [("$.method_gaps", value["method_gaps"])]
+        for list_name in ("catalogue", "items", "dup_groups"):
+            out += [(f"$.{list_name}[{i}].note", e["note"]) for i, e in enumerate(value[list_name])]
+        for i, entry in enumerate(value["missing"]):
+            out += [(f"$.missing[{i}].name", entry["name"]), (f"$.missing[{i}].why", entry["why"])]
+        return out
+    out = [("$.method_gaps_comment", value["method_gaps_comment"])]
+    out += [(f"$.decisions[{i}].why", d["why"]) for i, d in enumerate(value["decisions"])]
+    return out + [(f"$.missing_agree[{i}]", s) for i, s in enumerate(value["missing_agree"])]
+
+
+def _writer_name_hit(text: str, keys: set) -> bool:
+    """IM-Q137 rule writer_name: some substring with word-edge ends, in its source spelling, has a writer key of the
+    run (the unchanged PR 1 key rule)."""
+    if not keys:
+        return False
+    s = unicodedata.normalize("NFC", text)
+    starts = [i for i, c in enumerate(s) if not c.isspace() and not (c.isalnum() and i and s[i - 1].isalnum())]
+    ends = [j for j, c in enumerate(s) if not c.isspace() and not (c.isalnum() and j + 1 < len(s) and s[j + 1].isalnum())]
+    return any(_writer_key_for_name(s[i:j + 1]) in keys for i in starts for j in ends if j >= i)
+
+
+@mcp.tool()
+@_tool
+def record_claim_grades(run_id: str, theme_code: str, catalogue_version: int, grades_dir: str) -> dict:
+    """Settle the two-grader cross-check of one claim packet from the four grader files in grades_dir (round 1 and
+    round 2 of Astra and Opus) and record the catalogue status: PASSED only when no claim is flagged by both graders
+    and at least 80% of the settled sample items are fully right. Malformed or text-bearing output is refused."""
+    run_id = _check_run_id(run_id)
+    book = load_codebook()
+    theme_code = _check_theme(book, theme_code)
+    version = _check_version(catalogue_version)
+    if not isinstance(grades_dir, str) or not grades_dir:
+        raise InsightError("INVALID_ARGUMENT", "grades_dir must be a directory path")
+    path = _claim_warehouse(run_id)
+    directory = Path(grades_dir).expanduser()
+    with _warehouse_ro(path) as wh:
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        catalogue = _stored_catalogue(wh, theme_code, version)
+        try:
+            packet = json.loads((directory / "packet.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            packet = None
+        packet_id = packet.get("packet_id") if isinstance(packet, dict) else None
+        rows = wh.execute("SELECT sample_id, kind FROM claim_packet WHERE packet_id = ? AND theme_code = ? "
+                          "AND catalogue_version = ? ORDER BY sample_id", (packet_id, theme_code, version)).fetchall() \
+            if isinstance(packet_id, str) and packet.get("run_id") == full_id else []
+        if not rows:
+            raise InsightError("PACKET_UNKNOWN", "packet.json does not name a stored claim packet of this run, theme "
+                                                 "and catalogue version")
+        reviews = _review_words(path)
+        ids = {r for (r,) in wh.execute("SELECT review_id FROM review")} \
+            | {r for (r,) in wh.execute("SELECT writer_key FROM review")} \
+            | {r for (r,) in wh.execute("SELECT product_key FROM review")}
+        writer_keys = {r for (r,) in wh.execute("SELECT DISTINCT writer_key FROM review WHERE writer_known = 1")}
+    samples = [s for s, kind in rows if kind != "group"]
+    groups = [s for s, kind in rows if kind == "group"]
+    codes = [c["code"] for c in catalogue["claims"]]
+
+    files = {}
+    for name, round_no, grader in GRADER_FILES:
+        files[name] = _read_grader_file(directory, name, f"round{round_no}", grader)
+    for name, round_no, _ in GRADER_FILES:
+        value = files[name][0]
+        if round_no != 1:
+            continue
+        _check_coverage(name, value["catalogue"], "code", codes, "$.catalogue")
+        for i, line in enumerate(value["catalogue"]):
+            verdict = line["verdict"]
+            if verdict not in VERDICTS and not (verdict.startswith(CHONG_NGHIA) and verdict[len(CHONG_NGHIA):] in codes):
+                raise _grades_invalid(name, "verdict", f"$.catalogue[{i}].verdict")
+        _check_coverage(name, value["items"], "id", samples, "$.items")
+        for i, item in enumerate(value["items"]):
+            for field in ("wrong", "missed"):
+                if any(c not in codes for c in item[field]) or len(set(item[field])) != len(item[field]):
+                    raise _grades_invalid(name, "codes", f"$.items[{i}].{field}")
+        _check_coverage(name, value["dup_groups"], "group", groups, "$.dup_groups")
+    keys = {g: claim_grade_keys(files[f"r1-{g}.out"][0]) for g in ("astra", "opus")}
+    diffs = claim_grade_diffs(keys["astra"], keys["opus"])
+    decisions = {}
+    for grader in ("astra", "opus"):
+        name = f"r2-{grader}.out"
+        found = [d["n"] for d in files[name][0]["decisions"]]
+        for i, n in enumerate(found):
+            if not 1 <= n <= len(diffs) or found.index(n) != i:
+                raise _grades_invalid(name, "decisions", f"$.decisions[{i}].n")
+        if len(found) != len(diffs):
+            raise _grades_invalid(name, "decisions", "$.decisions")
+        decisions[grader] = {d["n"]: d["agree_other"] for d in files[name][0]["decisions"]}
+    for name, round_no, _ in GRADER_FILES:
+        for where, text in _free_texts(files[name][0], round_no):
+            if _quote_rule(text, reviews) or hidden_name_hits(unicodedata.normalize("NFC", text)):
+                raise _grades_invalid(name, "customer_text", where)
+            if _writer_name_hit(text, writer_keys):
+                raise _grades_invalid(name, "writer_name", where)
+            if any(i in text for i in ids):
+                raise _grades_invalid(name, "private_id", where)
+
+    settled, disputes = {}, set()
+    effective = {"astra": dict(keys["astra"]), "opus": dict(keys["opus"])}
+    for key in keys["astra"]:
+        if key not in diffs:
+            settled[key] = keys["astra"][key]
+    for n, key in enumerate(diffs, 1):
+        astra, opus = decisions["astra"][n], decisions["opus"][n]
+        if astra:
+            effective["astra"][key] = keys["opus"][key]
+        if opus:
+            effective["opus"][key] = keys["astra"][key]
+        if astra != opus:
+            settled[key] = keys["opus"][key] if astra else keys["astra"][key]
+        else:
+            disputes.add(key)
+    items_settled = [s for s in samples if not any(("item", s, f) in disputes
+                                                   for f in ("wrong", "missed", "specific_ok"))]
+    fully_right = [s for s in items_settled if not settled[("item", s, "wrong")] and not settled[("item", s, "missed")]]
+    flagged = [c for c in codes if all(effective[g][("catalogue", c, "verdict")] != "OK" for g in ("astra", "opus"))]
+    passed = not flagged and bool(items_settled) and _ratio_at_least(len(fully_right), len(items_settled), 0.80)
+    status = "PASSED" if passed else "DRAFT"
+    summary = {"run_id": full_id, "theme_code": theme_code, "catalogue_version": version, "packet_id": packet_id,
+               "status": status, "round1_keys": len(keys["astra"]),
+               "round1_agreement": _rounded(len(keys["astra"]) - len(diffs), len(keys["astra"]), 4),
+               "diffs": len(diffs), "settled_in_round2": len(diffs) - len(disputes), "disputes": len(disputes),
+               "items": len(samples), "items_settled": len(items_settled), "items_fully_right": len(fully_right),
+               "fully_right_share": _rounded(len(fully_right), len(items_settled), 4), "flagged_by_both": flagged}
+    raw = {name: files[name][1] for name, _, _ in GRADER_FILES}
+    wh = _open_warehouse(path)
+    try:
+        with _tx(wh):
+            wh.execute("INSERT INTO claim_grade VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
+                "CGR-" + uuid.uuid4().hex[:12], theme_code, version, packet_id, status, _canonical(summary),
+                _canonical(raw), datetime.now(timezone.utc).isoformat(timespec="seconds")))
+    finally:
+        wh.close()
+    return summary
 
 
 if __name__ == "__main__":

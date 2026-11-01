@@ -1,13 +1,16 @@
-# tdn-insight — Insight MCP over stored run data (parts 1 to 3)
+# tdn-insight — Insight MCP over stored run data (parts 1 to 4)
 
 Stdio FastMCP server (`insight_tools.py`) for the Insight report: stored run data → run warehouse → Jev theme
 coding → SLAYER semantic layer → counts (part 1), then the 18-part report plan, the confidence ceiling and reason
 links (part 2), then the checked report parts and insight statements the agent writes, and the rendered report
-(part 3). Spec: OpenSpec change `insight-mcp-v1`, rules R-IM01 to R-IM12. Behavior rows: `CONTRACT.md` (IM-Q1 to
-IM-Q125). The call order for an agent is in `skills/tdn-insight-report/SKILL.md`.
+(part 3), and the claim layer («ý con» under each theme: catalogue, claim coding, claim counts and the two-grader
+cross-check, part 4). Spec: OpenSpec changes `insight-mcp-v1` (R-IM01 to R-IM12) and `insight-claim-layer` (R-IM13
+to R-IM18). Behavior rows: `CONTRACT.md` (IM-Q1 to IM-Q165). The call order for an agent is in
+`skills/tdn-insight-report/SKILL.md`.
 
-**Owner rule: no paid call without the owner's OK.** `code_reviews` is a dry run by default. A real Jev call needs
-`INSIGHT_MCP_ALLOW_PAID=1` and an explicit `max_calls`; the flag is a safety net, not an authorization.
+**Owner rule: no paid call without the owner's OK.** `code_reviews` and `code_claims` are dry runs by default. A real
+Jev call needs `INSIGHT_MCP_ALLOW_PAID=1` and an explicit `max_calls`; the flag is a safety net, not an authorization.
+The claim runners in `claims/` (catalogue draft, two graders) are paid runs too; the MCP never starts them.
 
 ## Environment
 
@@ -69,6 +72,43 @@ The module sets `DO_NOT_TRACK=1` and `SLAYER_USAGE_REPORTING=off` for its own pr
   show «Chưa viết»; parts whose counts changed show «Cần gửi lại: số liệu đã đổi». The same content is archived
   once.
 
+Part 4, the claim layer. A claim (ý con) is one specific thing customers say about a theme. Every claim tool needs a
+warehouse built by this version (`WAREHOUSE_REBUILD_NEEDED` otherwise): `build_warehouse` also stores each review's
+posted date (Asia/Ho_Chi_Minh) and the run-wide near-duplicate groups, and returns `dated_reviews`.
+
+- `claim_catalogue_packet(run_id, theme_code, out_dir, seed)` — writes the theme's customer words (attribute lines
+  dropped, one line per near-duplicate group, at most 400 lines drawn with `seed`) and the filled drafting prompt
+  `claims/prompt-draft.md` into `out_dir`, an empty directory outside the repository and the app home. An external
+  agent drafts the catalogue with `claims/draft_catalogue.sh <out_dir>` (Claude Sonnet 5.5, read-only tools); the
+  MCP makes no AI call.
+- `submit_claim_catalogue(run_id, theme_code, catalogue)` — stores the drafted catalogue `{version, theme,
+  specific_rule, claims: [{code, name, include, exclude, generic}], notes?}` after its checks (1 to 12 claims, exactly
+  one generic, names of at most 7 words, no copied review words, no hidden names). Each submit is a new version,
+  never changed, and starts `DRAFT`.
+- `code_claims(run_id, theme_code, catalogue_version, dry_run=True, max_calls=None)` — Jev claim coding of the
+  theme's reviews on the customer words only: one question per non-generic claim, plus `SPEC` (specific), `RAC`
+  (spam) and `GEN` (praise or complaint at all). Attribute-only reviews are never sent. Same paid gate, cap and
+  stop rules as `code_reviews` (`JEV_CLAIM_UNAVAILABLE`, `JEV_CLAIM_INVALID`).
+- `claim_counts(run_id, theme_code, catalogue_version)` — per platform (never added together) and claim: reviews,
+  evidence after merging near duplicates, writers and the R-I33 threshold, products, shops, top product share,
+  specific share, the 7-day peak and the flags «chủ yếu từ một sản phẩm», «dồn thời gian» and «có ở cả 2 sàn»,
+  with a count ID; per platform the sample, attribute-only and spam counts, the «Khác» share (E15), saturation and
+  the ranking by evidence (the generic claim listed apart). SLAYER on `semantic/claim_label.yaml` and
+  `semantic/claim_review.yaml` is checked against reference SQL. Claim IDs are evidence in `confidence_ceiling`,
+  `submit_section` and `submit_statement`; a `DRAFT` catalogue caps them at `Yếu`.
+- `claim_grading_packet(run_id, theme_code, catalogue_version, out_dir, seed)` — writes the graders' input (the
+  catalogue, a seeded sample of up to 30 coded reviews, the near-duplicate groups and the round 1 prompt) into
+  `out_dir`. Run `claims/cross_grade.sh <out_dir>` (Astra and Opus 5.5, round 1 independent, then round 2 on the
+  numbered differences from `claims/crosscheck.py diff`).
+- `record_claim_grades(run_id, theme_code, catalogue_version, grades_dir)` — checks the four grader outputs (shape,
+  closed lists, coverage, no duplicate keys, no customer words, writer names or private IDs), settles each key and
+  records the status: `PASSED` only when no claim is flagged by both graders and at least 80% of the settled sample
+  items are fully right; otherwise `DRAFT`. Both graders' raw JSON objects are stored.
+
+`submit_section` also rejects a sentence that ranks claims without the measure («bằng chứng»), the platform, the
+sample (`n/N đánh giá`) and the period in the claim's region (`CLAIM_RANK_UNSCOPED`), and a claim number without
+its row's flag phrases (`CLAIM_FLAG_MISSING`).
+
 ## Shared store
 
 `<data dir>/insight-shared.sqlite` holds evidence from people that a run warehouse cannot hold: owner sample
@@ -110,6 +150,10 @@ rejected (`CODEBOOK_EXCLUDED_THEME`).
 - `_load_semantic_models(directory)` loads the YAML models and raises `ValueError` on a measure named like a column.
 - `CODEBOOK_PATH`, `KEYWORD_GROUPS_PATH`, `REPORT_FRAME_PATH` and `SEMANTIC_DIR` name the data files.
 - `_now()` is the only clock of the part 3 tools (UTC); it is written only into `submitted_at` and `rendered_at`.
+- A claim request (`kind: "claims"`) holds `text` (customer words), `platform`, `product_name`, `theme_name`,
+  `catalogue_version` and `questions`; it goes through the same `_jev_transport`.
+- `claim_grade_keys` and `claim_grade_diffs` are the one source of the cross-check key numbering, shared with
+  `claims/crosscheck.py`.
 
 SLAYER runs in-process. Its asyncio event loop opens a local `AF_UNIX` socket pair for its own wake-up pipe; no
 tool connects, binds or resolves a host.

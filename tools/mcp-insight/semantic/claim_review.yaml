@@ -1,0 +1,23 @@
+# Theme reviews of one claim count (PR 4, IM-Q153, IM-Q156): each review of the theme is a sample review, an
+# attribute-only review or a spam review; a sample review with no kept claim counts as «Khác» (no_claim).
+# Reference SQL: REF_CLAIM_REVIEW in tools/mcp-insight/insight_tools.py.
+name: claim_review
+sql_table: v_claim_review
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: theme_code, sql: theme_code, type: TEXT}
+  - {name: catalogue_version, sql: catalogue_version, type: INT}
+  - {name: review_id, sql: review_id, type: TEXT}
+  - {name: posted_date, sql: posted_date, type: TEXT}
+  - {name: is_sample, sql: is_sample, type: INT}
+  - {name: is_attribute_only, sql: is_attribute_only, type: INT}
+  - {name: is_spam, sql: is_spam, type: INT}
+  - {name: no_claim, sql: no_claim, type: INT}
+  - {name: mentions, sql: mentions, type: INT}
+measures:
+  - {name: n_sample, formula: sum(is_sample)}
+  - {name: n_attribute_only, formula: sum(is_attribute_only)}
+  - {name: n_spam, formula: sum(is_spam)}
+  - {name: n_no_claim, formula: sum(no_claim)}
+  - {name: n_claim_mentions, formula: sum(mentions)}

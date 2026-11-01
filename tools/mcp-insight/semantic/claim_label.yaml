@@ -1,0 +1,27 @@
+# Counted claim labels (PR 4, IM-Q153): kept claim labels of sample reviews (coded under the catalogue version with
+# their current claim input, not spam, with a current theme label). `claim_scope` is filled only in the per-call copy
+# that claim_counts counts on. Reference SQL: REF_CLAIM_LABEL in tools/mcp-insight/insight_tools.py.
+name: claim_label
+sql_table: v_claim_label
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: theme_code, sql: theme_code, type: TEXT}
+  - {name: catalogue_version, sql: catalogue_version, type: INT}
+  - {name: claim_code, sql: claim_code, type: TEXT}
+  - {name: review_id, sql: review_id, type: TEXT}
+  - {name: writer_key, sql: writer_key, type: TEXT}
+  - {name: writer_unknown, sql: writer_unknown, type: INT}
+  - {name: product_key, sql: product_key, type: TEXT}
+  - {name: shop_key, sql: shop_key, type: TEXT}
+  - {name: posted_date, sql: posted_date, type: TEXT}
+  - {name: group_id, sql: group_id, type: TEXT}
+  - {name: specific, sql: specific, type: INT}
+measures:
+  - {name: n_reviews, formula: count_distinct(review_id)}
+  - {name: n_evidence, formula: count_distinct(group_id)}
+  - {name: n_writers, formula: count_distinct(writer_key)}
+  - {name: n_products, formula: count_distinct(product_key)}
+  - {name: n_shops, formula: count_distinct(shop_key)}
+  - {name: n_specific, formula: sum(specific)}
+  - {name: n_unknown_writer, formula: sum(writer_unknown)}
