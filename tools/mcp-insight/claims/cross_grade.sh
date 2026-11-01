@@ -2,8 +2,8 @@
 # Two-grader cross-check of a claim packet written by `claim_grading_packet` (R-IM13, IM-Q134).
 # Usage: cross_grade.sh <packet dir>
 # Round 1: Astra and Opus 5.5 grade in parallel, each in its own new working directory that holds only copies of
-# catalogue.json, sample.jsonl, dup-groups.json and prompt-r1.md. Then `crosscheck.py diff` numbers the differences
-# and writes one round 2 prompt per grader. Round 2: each grader decides, per difference, to keep its value or take the
+# catalogue.json, sample.jsonl, dup-groups.json and prompt-r1.md. Then crosscheck.py numbers the differences and
+# writes one round 2 prompt per grader. Round 2: each grader decides, per difference, to keep its value or take the
 # other's. Outputs: r1-astra.out, r1-opus.out, r2-astra.out, r2-opus.out in the packet dir; then call the MCP tool
 # record_claim_grades with that directory. This is a paid run started by a person. The MCP, the tests and CI never
 # run it.
@@ -38,7 +38,7 @@ if [ "$status" -ne 0 ]; then
 fi
 
 # Number the differences with the shared key rules and write the round 2 prompts.
-python3 "$HERE/crosscheck.py" diff "$PACKET"
+python3 "$HERE"/crosscheck.py diff "$PACKET"
 
 # Round 2: each grader decides on the numbered differences only.
 for grader in astra opus; do

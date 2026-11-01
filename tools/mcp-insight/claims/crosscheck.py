@@ -5,7 +5,8 @@ Usage: crosscheck.py diff <packet dir>
 Reads r1-astra.out and r1-opus.out (the JSON object from the first `{` to the last `}`), numbers the keys whose two
 values differ with the shared `claim_grade_keys` and `claim_grade_diffs` of insight_tools (one source for the
 numbering that record_claim_grades uses), and writes prompt-r2-astra.md and prompt-r2-opus.md. Each holds the grader's
-own round 1 object and, of the other grader, only the values of the numbered diffs. Settling and the status are
+own round 1 values and, of the other grader, only the values of the numbered diffs (one JSON record per diff:
+`n`, `key`, `own`, `other`). Settling and the status are
 record_claim_grades' job, not this script's. Never run by the MCP, the tests' graders or CI.
 """
 import json
@@ -34,11 +35,10 @@ def diff(packet: Path) -> int:
     diffs = claim_grade_diffs(keys["astra"], keys["opus"])
     template = (Path(__file__).resolve().parent / "prompt-r2.md").read_text(encoding="utf-8")
     for me, other in (("astra", "opus"), ("opus", "astra")):
-        lines = [json.dumps({"n": n, "kind": key[0], "key": key[1], "field": key[2], "mine": keys[me].get(key),
-                             "other": keys[other].get(key)}, ensure_ascii=False) for n, key in enumerate(diffs, 1)]
+        lines = [json.dumps({"n": n, "key": list(key), "own": keys[me].get(key), "other": keys[other].get(key)},
+                            ensure_ascii=False) for n, key in enumerate(diffs, 1)]
         prompt = template
-        for token, value in (("{grader}", me), ("{diff_count}", str(len(diffs))),
-                             ("{own}", json.dumps(rounds[me], ensure_ascii=False)), ("{diffs}", "\n".join(lines))):
+        for token, value in (("{grader}", me), ("{diff_count}", str(len(diffs))), ("{diffs}", "\n".join(lines))):
             prompt = prompt.replace(token, value)
         (packet / f"prompt-r2-{me}.md").write_text(prompt, encoding="utf-8")
     print(f"keys {len(keys['astra'])} diffs {len(diffs)}")

@@ -503,8 +503,7 @@ CREATE VIEW IF NOT EXISTS v_reason_link AS
 # The reason-link part of STATE_SCHEMA; `find_reason_links` runs it so a warehouse built before part 2 gets it too.
 REASON_SCHEMA = STATE_SCHEMA[STATE_SCHEMA.index("CREATE TABLE IF NOT EXISTS reason_flag"):]
 
-# Part 4 claim tables (state tables: a rebuild keeps them). `claim_scope` is a counting helper: it stays empty in the
-# warehouse and is filled only in the per-call copy that `claim_counts` counts on (PR 4 conventions, IM-Q153).
+# Part 4 claim tables (state tables: a rebuild keeps them; PR 4 conventions).
 CLAIM_SCHEMA = """
 CREATE TABLE IF NOT EXISTS claim_catalogue(theme_code TEXT NOT NULL, catalogue_version INTEGER NOT NULL,
   label TEXT NOT NULL, catalogue_json TEXT NOT NULL, codebook_version TEXT NOT NULL, submitted_at TEXT NOT NULL,
@@ -525,10 +524,13 @@ CREATE TABLE IF NOT EXISTS claim_packet(packet_id TEXT NOT NULL, theme_code TEXT
 CREATE TABLE IF NOT EXISTS claim_grade(grade_id TEXT PRIMARY KEY, theme_code TEXT NOT NULL,
   catalogue_version INTEGER NOT NULL, packet_id TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('DRAFT', 'PASSED')),
   summary_json TEXT NOT NULL, raw_json TEXT NOT NULL, recorded_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS claim_scope(review_id TEXT PRIMARY KEY, platform TEXT NOT NULL, theme_code TEXT NOT NULL,
+"""
+# The counting helper of claim_counts, created only in its per-call copy of the warehouse (IM-Q153): the theme's
+# reviews with their kind, and the two views the SLAYER models `claim_label` and `claim_review` read.
+CLAIM_COUNT_SCHEMA = """
+CREATE TABLE claim_scope(review_id TEXT PRIMARY KEY, platform TEXT NOT NULL, theme_code TEXT NOT NULL,
   catalogue_version INTEGER NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('sample', 'spam', 'attribute_only')),
   specific INTEGER NOT NULL, shop_key TEXT NOT NULL);
-DROP VIEW IF EXISTS v_claim_label;
 CREATE VIEW v_claim_label AS
   SELECT r.platform, s.theme_code, s.catalogue_version, l.claim_code, r.review_id, r.writer_key,
          1 - r.writer_known AS writer_unknown, r.product_key, s.shop_key, COALESCE(r.posted_date, '') AS posted_date,
@@ -539,7 +541,6 @@ CREATE VIEW v_claim_label AS
   JOIN review r ON r.review_id = l.review_id
   JOIN near_dup n ON n.review_id = l.review_id
   WHERE l.status = 'kept';
-DROP VIEW IF EXISTS v_claim_review;
 CREATE VIEW v_claim_review AS
   SELECT s.platform, s.theme_code, s.catalogue_version, s.review_id, COALESCE(r.posted_date, '') AS posted_date,
          CASE WHEN s.kind = 'sample' THEN 1 ELSE 0 END AS is_sample,
@@ -3985,7 +3986,7 @@ def _claim_ready(wh) -> None:
     """The claim tools need a warehouse built by this version (posted_date, near_dup, claim tables; IM-Q130)."""
     columns = {row[1] for row in wh.execute("PRAGMA table_info(review)")}
     tables = {row[0] for row in wh.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    if "posted_date" not in columns or not {"near_dup", "claim_catalogue", "claim_scope"} <= tables:
+    if "posted_date" not in columns or not {"near_dup", "claim_catalogue"} <= tables:
         raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse was built before the claim layer; "
                                                        "call build_warehouse again")
 
@@ -4506,7 +4507,8 @@ def _claim_counts_at(path: Path, book: dict, theme_code: str, version: int) -> d
             counter = _open_warehouse(copy)
             try:
                 with _tx(counter):
-                    counter.execute("DELETE FROM claim_scope")
+                    for statement in CLAIM_COUNT_SCHEMA.strip().split(";\n"):
+                        counter.execute(statement)
                     counter.executemany("INSERT INTO claim_scope VALUES (?, ?, ?, ?, ?, ?, ?)", scope)
                 slayer = _Slayer(copy)
                 try:
@@ -4913,7 +4915,7 @@ def record_claim_grades(run_id: str, theme_code: str, catalogue_version: int, gr
         try:
             packet = json.loads((directory / "packet.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            packet = None
+            raise _grades_invalid("packet.json", "file", "$") from None
         packet_id = packet.get("packet_id") if isinstance(packet, dict) else None
         rows = wh.execute("SELECT sample_id, kind FROM claim_packet WHERE packet_id = ? AND theme_code = ? "
                           "AND catalogue_version = ? ORDER BY sample_id", (packet_id, theme_code, version)).fetchall() \

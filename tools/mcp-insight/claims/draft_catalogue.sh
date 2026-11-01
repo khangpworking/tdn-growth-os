@@ -3,7 +3,7 @@
 # Usage: draft_catalogue.sh <packet dir>
 # Runs one Claude Sonnet 5.5 session with read-only tools in <packet dir>/draft.d, which holds only copies of
 # reviews.jsonl and prompt-draft.md, and writes the reply to <packet dir>/draft.out. It submits nothing: an agent reads
-# the JSON object in draft.out and sends it with the MCP tool submit_claim_catalogue, which checks it.
+# the JSON object in draft.out and sends it to the MCP's catalogue submit tool, which checks it.
 # This is a paid run started by a person. The MCP, the tests and CI never run it.
 set -euo pipefail
 
