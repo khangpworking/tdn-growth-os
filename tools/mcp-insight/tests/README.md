@@ -352,3 +352,145 @@ or weakening the independent acceptance oracles.
 
 Collection alone does not prove P3 behavioral acceptance. This branch does not
 mark absent features skipped or xfailed.
+
+## Claim layer: reviewed revision 23, IM-Q126–IM-Q165
+
+`part4/` is independently authored against `6cdecfd382e9cdbb63bd645c09a33e3266844b7a`
+and the complete six-round review in the assigned review report. It covers
+R-IM13–R-IM18 only. OQ36–OQ39 are settled: counts/curves/Khác remain per platform,
+an external agent drafts from the catalogue packet, all five effective error
+verdicts block PASSED, and the burst minimum is on total `reviews`.
+Revision 23 adds review regressions for the catalogue's four-word quote minimum
+and IM-Q128 validation of version labels, writer names and private identifiers.
+
+| Module | Rows |
+|---|---|
+| `part4/test_boundaries_p4.py` | Q126–Q130, Q140, Q148, Q161, Q163 |
+| `part4/test_catalogue.py` | Q128, Q131–Q133, Q163, Q165 |
+| `part4/test_grading.py` | Q135–Q137 |
+| `part4/test_coding_p4.py` | Q139–Q145 |
+| `part4/test_counts_p4.py` | Q146–Q157 |
+| `part4/test_report_claims.py` | Q138, Q158–Q160, Q162 |
+| `part4/test_runner_artifacts.py` | Q134, Q164 |
+
+The fixtures reuse the prior synthetic app-source builder, in-memory key reader
+and fake transport protocol. No key file is opened by the new tests. Each new
+tool call is audited for network/subprocess/environment attempts, unchanged app
+bytes, allowed table/file writes and private output. A session audit hook also
+forbids starting either model CLI or either paid runner outside a tool call.
+Only `crosscheck.py diff` is exercised, in-process on fake files. No draft or
+grader runner is executed. Successful counts use actual local SLAYER; mismatch
+controls perturb actual semantic result cells, including a per-date count.
+
+The tests encode the reviewed controls, including all catalogue text fields,
+catalogue 1–3-word acceptance and whole 4-word rejection (with an old-minimum
+mutant), unchanged grader quote rejection, incomplete/duplicate grade coverage,
+strict types, raw wrapper disposal, unknown keys, nested/top-level/escaped
+duplicate JSON members, private identifiers and source-spelling writer names.
+The writer controls preserve underscores, dots, repeated spaces and seven-word
+names, with unrelated/changed-spelling/letter-glued controls. Accepted raw JSON
+objects are compared byte-for-byte; rejected grades must preserve warehouse
+bytes and prior PASSED status. Required flags are tested in marker-first and
+two-marker regions with narrow number/quote exemptions, then in rendered text,
+appendix rows and statement evidence lines. A complete PASSED→DRAFT flow checks
+new IDs, stale old evidence and unchanged historical submission rows.
+
+The only earlier Python edits extend the exact tool inventories in
+`test_boundaries.py::schemas`, `part2/test_boundaries_p2.py::assert_surface` and
+`part3/test_boundaries_p3.py::assert_surface`. Q126 and Q161 explicitly authorize
+that amendment. The old argument checks, nested shapes and negative controls
+remain strict. No other earlier test or helper changes.
+
+For Q162's collision, only captured harness copies of declared `flags` fields
+are masked for the inherited short-review scanner. Actual count output and
+rendered artifacts are asserted independently and remain unchanged. Agent text
+and arbitrary string fields are never masked.
+
+Use the existing pinned offline environment. For future behavioral runs,
+repeat the grouping/rebuild cases under `PYTHONHASHSEED=0` and `1`; the expected
+minimum group IDs and transitive components are identical. The complete legacy
+suite may exhaust a 1024-descriptor process soft limit because of accumulated
+baseline resources; run it with a child-only higher limit or separate processes.
+This is an execution-environment issue, not a test assertion to weaken.
+
+## contract gaps (claim layer)
+
+These are narrow adapters for unspecified representations, not additional
+business rules or requests for test-only production hooks. Reconcile the adapter
+with the implementation while preserving each independent acceptance oracle.
+
+1. New tools are module-level callables on the existing `mcp`. `_jev_transport`
+   and `_read_key` retain the established PR 1–3 production interfaces. Question
+   identifiers use `code`, as in PR 1. New binary options are string tokens;
+   successful fake-paid results use the prescribed `calls_made`, `coded_now`,
+   `remaining` and `stopped` fields. `max_calls=None` in a paid run is invalid.
+2. `claim_grade.raw_json` is JSON mapping the four `.out` filenames to their
+   exact validated object strings. The contract prescribes these bytes but not
+   the container keys. Catalogue JSON preservation is compared as parsed data;
+   row immutability is compared byte-for-byte.
+3. `dup-groups.json`'s container shape is unspecified. The fake-output builder
+   recognizes its declared `G..` aliases in JSON keys/values, and requires exact
+   grade coverage for every alias. Sample entries use the specified field names.
+4. `claim_grade_keys(round1_object)` returns a mapping from the declared tuple
+   keys to values. Round-2 prompts embed JSON diff records `{n, key, own, other}`,
+   where `key` is the tuple serialized as a list. The latter shape is not fixed
+   by the contract; this adapter permits an independent assertion of exact
+   sorted diff numbers and the correct own/peer values, instead of merely
+   searching for four numbers in a prompt.
+5. Static runner checks accept shell token formatting/line continuations and
+   inspect the required directories, inputs, flags and wait-before-diff order.
+   The shell's internal function/variable names are unspecified. Scripts are
+   never executed to test their lifecycle. Prompt wording can be English or
+   Vietnamese; JSON examples must have the explicitly prescribed closed keys.
+6. Q138's full-Chắc example calls for named Shopee writers, but the unchanged
+   PR 1 source fixture has no named-Shopee input carrier. After normal synthetic
+   build/theme coding, that single test sets normalized `review.writer_known`
+   and synthetic hashed writer keys in its temporary warehouse. It creates no
+   receipt, label, coding state or count ID by SQL; all approvals go through the
+   real shared-store writers and all claim coding/IDs use the real tools. The
+   separate TikTok claim test preserves the real revenue gate.
+7. The statement evidence-line HTML wrapper is unspecified. The adapter accepts
+   `<li>`, `<dd>` or `<p>` around each footnote link; appendix entries use the
+   existing `<tr>` convention. Each actual evidence line/appendix row carries its own flags,
+   rather than satisfying the assertion elsewhere on the page.
+8. Q133 asks for a literal packet ID for a fixed state, but neither the new
+   prompt-template bytes nor payload JSON whitespace is fixed in revision 22.
+   Pinning a literal before those files land would invent bytes. Both packet
+   tests instead independently hash the exact prescribed payload map with the
+   prescribed UTF-8 canonical JSON and retained final newlines. The grading
+   packet additionally changes one prompt byte and requires a different digest.
+   Add a literal fixture ID only once the actual template/serialization is
+   available; never take a subject-generated ID as its own oracle.
+9. New semantic query results use the established list-of-row mappings, with
+   `n_evidence` and `posted_date` result keys; copied models retain the existing
+   YAML `measures` list/mapping formats. No new semantic injection seam is added.
+10. The launch brief's shorthand groups raw wrappers with invalid outputs.
+    Reviewed Q137(d) and rounds 3–4 explicitly accept valid wrapped objects,
+    discard every surrounding byte and retain only exact object text. The
+    tests follow that specific reviewed row; wrappers containing source text
+    are never persisted or returned. Unknown keys, duplicate members, invalid
+    free text and private data inside the object still give GRADES_INVALID.
+
+The initial authoring baseline lacked the six tools and `posted_date`;
+collection alone did not establish behavioral success. No skip/xfail hides
+failures. Integration verification uses the author's implementation at
+`28dd9546`; results and commands are recorded in `HANDOFF-CLAIM.md`.
+
+The integration follow-up corrects three claim-only harness assumptions, with
+all legacy helpers unchanged:
+
+- Private identifiers keep their punctuation and receive literal substring
+  checks. Review words and writer names retain the existing normalized checks.
+  Thus an IM-Q140 `{"shopee": 5}` map passes even when `shopee:5` is private;
+  injected literal review IDs, writer keys and product keys still fail.
+- Store-open checks inspect only events recorded inside the tool call, before
+  the harness's after-call snapshots. A synthetic tool-side store read remains
+  a failing control.
+- Q158, Q159 and Q162 section fixtures use data part 13. Their full acceptance,
+  number, flag, quote and rendered-text assertions remain. Q161 separately
+  verifies that a claim row in part 8 still needs «kể lại» under IM-Q110, while
+  a post-use sentence in part 13 passes without it.
+
+This test change edits no app code, contract, spec, provider configuration or
+deployment. The firstmate follow-up authorizes pushing the corrected test
+branch; no PR creation or merge is part of this test task.

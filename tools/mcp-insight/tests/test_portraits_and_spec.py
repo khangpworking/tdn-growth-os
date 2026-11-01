@@ -143,7 +143,7 @@ def check_ri39(method_text, mcp_text):
 def test_im_q49_ri39_kept_motives_and_exact_owner_f310_sentence():
     """NC: reintroduced delivery, changed attribution, or sentence-only-in-IM03 fails."""
     method_text = (REPO / "openspec/changes/insight-method-v1/specs/insight-report/spec.md").read_text()
-    mcp_text = (REPO / "openspec/changes/insight-mcp-v1/specs/insight-mcp/spec.md").read_text()
+    mcp_text = (REPO / "openspec/changes/archive/2026-10-31-insight-mcp-v1/specs/insight-mcp/spec.md").read_text()
     check_ri39(method_text, mcp_text)
     start = method_text.index("### Requirement: R-I39")
     prefix, section = method_text[:start], method_text[start:]

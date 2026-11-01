@@ -23,12 +23,22 @@ Use this when the `tdn-insight` MCP is registered (see `tools/mcp-insight/README
      No percentages, no «người mua», no Market numbers, no conversion rates, no provider names.
    - Set `confidence` at or below the ceiling `confidence_ceiling` gives; set `hypothesis` when it says so.
    - A rejection lists every reason code. Fix the text and send it again; a resend is a new version.
+   - A claim count ID (`claim_counts`) may back a sentence. A sentence that ranks claims states, beside its marker,
+     «bằng chứng», the platform, `n/N đánh giá` (claim reviews and the platform sample) and the period
+     («từ d/m/yyyy đến d/m/yyyy»). A claim number keeps each flag phrase of its row next to it.
 5. Render. `render_report(run_id)` writes the page and the totals. Parts not written show «Chưa viết»; a part whose
    counts changed shows «Cần gửi lại» and must be sent again.
 
+Claims (ý con), before step 2 when the report needs them:
+- `claim_catalogue_packet` writes the theme's customer words outside the repository; `claims/draft_catalogue.sh`
+  drafts the catalogue; send its JSON with `submit_claim_catalogue`. Then `code_claims` (dry run first) and
+  `claim_counts`.
+- Cross-check: `claim_grading_packet`, then `claims/cross_grade.sh`, then `record_claim_grades`. Until a version is
+  `PASSED`, its claim rows are capped at `Yếu`.
+
 Rules:
-- `code_reviews` with `dry_run=False` is a paid call: it needs the owner's OK every time. Use `dry_run=True` to
-  plan.
+- `code_reviews` and `code_claims` with `dry_run=False` are paid calls, and so are the runners in `claims/`: each
+  needs the owner's OK every time. Use `dry_run=True` to plan.
 - Write in the third person. Motives and barriers come only from customer words: công dụng, giá, quy cách, chất
   lượng. A buying reason from reviews says «kể lại».
 - No campaign ideas, no advice to competitors, no trial orders.

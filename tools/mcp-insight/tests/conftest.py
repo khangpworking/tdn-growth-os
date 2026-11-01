@@ -48,6 +48,9 @@ def sandbox(tmp_path, monkeypatch):
     box = Sandbox(tmp_path, monkeypatch, GUARD)
     GUARD.root = tmp_path
     GUARD.violations.clear()
+    # Events hold audit args (frames, paths); keep them per test so a long
+    # session does not retain every test's subject module.
+    GUARD.events.clear()
 
     def deny_listen(*args, **kwargs):
         # CPython has no portable socket.listen audit event; listening without
@@ -58,6 +61,7 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(socket.socket, "listen", deny_listen)
     yield box
     GUARD.root = None
+    GUARD.events.clear()
     assert not GUARD.violations, "offline/read-only boundary was attempted"
 
 
