@@ -4160,18 +4160,18 @@ def claim_catalogue_packet(run_id: str, theme_code: str, out_dir: str, seed: int
 
 # --- submit_claim_catalogue (IM-Q131, IM-Q132) ---
 
-def _quote_rule(text: str, reviews: dict):
+def _quote_rule(text: str, reviews: dict, *, min_short_words: int = 1):
     words = _words(text)
     for i in range(len(words)):
         if words[i:i + QUOTE_WORDS] in reviews["runs"]:
             return "quote_8_words"
     for i in range(len(words)):
-        if any(words[i:i + n] in group for n, group in reviews["short"].items()):
+        if any(n >= min_short_words and words[i:i + n] in group for n, group in reviews["short"].items()):
             return "whole_short_review"
     return None
 
 
-def _check_catalogue(catalogue, theme_code: str, reviews: dict) -> None:
+def _check_catalogue(catalogue, theme_code: str, reviews: dict, writer_keys: set, private_ids: set) -> None:
     def bad(rule: str, where: str):
         raise InsightError("CATALOGUE_INVALID", f"catalogue rule {rule} failed at {where}")
 
@@ -4190,7 +4190,7 @@ def _check_catalogue(catalogue, theme_code: str, reviews: dict) -> None:
     if not isinstance(claims, list) or not 1 <= len(claims) <= MAX_CLAIMS_PER_CATALOGUE:
         bad("claim_count", "$.claims")
     code_re = re.compile(re.escape(f"Y-{theme_code[2:]}-") + r"[0-9]{2}")
-    codes, texts = set(), [("$.specific_rule", catalogue["specific_rule"])]
+    codes, texts = set(), [("$.version", catalogue["version"]), ("$.specific_rule", catalogue["specific_rule"])]
     if "notes" in catalogue:
         texts.append(("$.notes", catalogue["notes"]))
     for i, claim in enumerate(claims):
@@ -4213,11 +4213,17 @@ def _check_catalogue(catalogue, theme_code: str, reviews: dict) -> None:
     for where, text in texts:
         if len(text) > MAX_FIELD_CHARS:
             bad("length", where)
-        rule = _quote_rule(text, reviews)
+        # Catalogue guidance can share common 1–3-word phrases with short reviews (IM-Q131).
+        # Grader output and report submissions retain their stricter quote checks.
+        rule = _quote_rule(text, reviews, min_short_words=1 if where == "$.version" else 4)
         if rule:
             bad(rule, where)
         if hidden_name_hits(unicodedata.normalize("NFC", text)):
             bad("hidden_name", where)
+        if _writer_name_hit(text, writer_keys):
+            bad("writer_name", where)
+        if any(value in text for value in private_ids):
+            bad("private_id", where)
 
 
 @mcp.tool()
@@ -4229,7 +4235,12 @@ def submit_claim_catalogue(run_id: str, theme_code: str, catalogue: dict) -> dic
     book = load_codebook()
     theme_code = _check_theme(book, theme_code)
     path = _claim_warehouse(run_id)
-    _check_catalogue(catalogue, theme_code, _review_words(path))
+    with _warehouse_ro(path) as wh:
+        private_ids = {r for (r,) in wh.execute("SELECT review_id FROM review")} \
+            | {r for (r,) in wh.execute("SELECT writer_key FROM review")} \
+            | {r for (r,) in wh.execute("SELECT product_key FROM review")}
+        writer_keys = {r for (r,) in wh.execute("SELECT DISTINCT writer_key FROM review WHERE writer_known = 1")}
+    _check_catalogue(catalogue, theme_code, _review_words(path), writer_keys, private_ids)
     wh = _open_warehouse(path)
     try:
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]

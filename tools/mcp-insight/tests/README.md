@@ -353,18 +353,20 @@ or weakening the independent acceptance oracles.
 Collection alone does not prove P3 behavioral acceptance. This branch does not
 mark absent features skipped or xfailed.
 
-## Claim layer: reviewed revision 22, IM-Q126–IM-Q165
+## Claim layer: reviewed revision 23, IM-Q126–IM-Q165
 
 `part4/` is independently authored against `6cdecfd382e9cdbb63bd645c09a33e3266844b7a`
 and the complete six-round review in the assigned review report. It covers
 R-IM13–R-IM18 only. OQ36–OQ39 are settled: counts/curves/Khác remain per platform,
 an external agent drafts from the catalogue packet, all five effective error
 verdicts block PASSED, and the burst minimum is on total `reviews`.
+Revision 23 adds review regressions for the catalogue's four-word quote minimum
+and IM-Q128 validation of version labels, writer names and private identifiers.
 
 | Module | Rows |
 |---|---|
 | `part4/test_boundaries_p4.py` | Q126–Q130, Q140, Q148, Q161, Q163 |
-| `part4/test_catalogue.py` | Q131–Q133, Q163, Q165 |
+| `part4/test_catalogue.py` | Q128, Q131–Q133, Q163, Q165 |
 | `part4/test_grading.py` | Q135–Q137 |
 | `part4/test_coding_p4.py` | Q139–Q145 |
 | `part4/test_counts_p4.py` | Q146–Q157 |
@@ -381,7 +383,8 @@ grader runner is executed. Successful counts use actual local SLAYER; mismatch
 controls perturb actual semantic result cells, including a per-date count.
 
 The tests encode the reviewed controls, including all catalogue text fields,
-whole 1-word/3-word review rejection, incomplete/duplicate grade coverage,
+catalogue 1–3-word acceptance and whole 4-word rejection (with an old-minimum
+mutant), unchanged grader quote rejection, incomplete/duplicate grade coverage,
 strict types, raw wrapper disposal, unknown keys, nested/top-level/escaped
 duplicate JSON members, private identifiers and source-spelling writer names.
 The writer controls preserve underscores, dots, repeated spaces and seven-word

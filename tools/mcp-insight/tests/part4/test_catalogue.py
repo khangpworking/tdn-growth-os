@@ -12,12 +12,12 @@ from insight_test_support import RUN, canonical, error, review, sha
 
 
 @pytest.mark.parametrize("case", ["empty", "thirteen", "two_generic", "no_generic", "long_name", "blank",
-    "theme", "code", "duplicate", "extra", "hidden", "quote8", "short_name", "one_word",
+    "theme", "code", "duplicate", "extra", "hidden", "quote8", "short_name",
     "short_include", "short_exclude", "short_specific_rule", "short_notes", "too_long", "generic_type"])
 def test_im_q131_rejects_each_catalogue_rule_before_write(p4, case):
-    """NC: quotes in every persisted field, including one-word reviews, must fail atomically."""
+    """NC: 8-word quotes and whole 4-word reviews in every catalogue field fail atomically."""
     long = "zqv62 alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra"
-    p4.seed([review(1, text="zqv51 xương chắc"), review(2, text="zqv52"), review(3, text=long)])
+    p4.seed([review(1, text="zqv51 xương chắc hơn"), review(3, text=long)])
     cat = catalogue()
     if case == "empty": cat["claims"] = []
     elif case == "thirteen": cat = catalogue(size=13)
@@ -31,10 +31,9 @@ def test_im_q131_rejects_each_catalogue_rule_before_write(p4, case):
     elif case == "extra": cat["claims"][0]["owner"] = "synthetic"
     elif case == "hidden": cat["claims"][0]["name"] = "Jev"
     elif case == "quote8": cat["claims"][0]["include"] = "ZQV62, ALPHA bravo charlie delta echo foxtrot golf!"
-    elif case == "short_name": cat["claims"][0]["name"] = "Zqv51, xương chắc!"
-    elif case == "one_word": cat["claims"][0]["name"] = "hết đau zqv52"
-    elif case in {"short_include", "short_exclude"}: cat["claims"][0][case[6:]] = "zqv51 xương chắc"
-    elif case.startswith("short_"): cat[case[6:]] = "zqv51 xương chắc"
+    elif case == "short_name": cat["claims"][0]["name"] = "Zqv51, xương chắc hơn!"
+    elif case in {"short_include", "short_exclude"}: cat["claims"][0][case[6:]] = "zqv51 xương chắc hơn"
+    elif case.startswith("short_"): cat[case[6:]] = "zqv51 xương chắc hơn"
     elif case == "too_long": cat["notes"] = "x" * 2001
     elif case == "generic_type": cat["claims"][-1]["generic"] = 1
     before = sha(p4.box.warehouse.read_bytes())
@@ -47,6 +46,27 @@ def test_im_q131_rejects_each_catalogue_rule_before_write(p4, case):
     assert result["message"]
 
 
+@pytest.mark.parametrize("field", ["name", "include", "exclude", "specific_rule", "notes"])
+def test_im_q131_catalogue_allows_common_reviews_below_four_words(p4, monkeypatch, field):
+    """NC: restoring the old minimum rejects common 1–3-word phrases in catalogue fields."""
+    p4.seed([review(1, text="ngon"), review(2, text="rất tốt"), review(3, text="dùng thấy ổn")])
+    cat = catalogue()
+    target = cat if field in {"specific_rule", "notes"} else cat["claims"][0]
+    target[field] = "NGON, rất tốt, dùng thấy ổn!"
+
+    def accepts_common_words():
+        result = p4.call("submit_claim_catalogue", theme_code=THEME, catalogue=cat)
+        assert result.get("status") == "DRAFT", result.get("error")
+
+    accepts_common_words()
+    real = p4.box.module._quote_rule
+    # A genuine old-minimum mutant at the validator; submissions still use the public tool.
+    monkeypatch.setattr(p4.box.module, "_quote_rule",
+                        lambda text, reviews, **kwargs: real(text, reviews))
+    with pytest.raises(AssertionError, match="CATALOGUE_INVALID"):
+        accepts_common_words()
+
+
 @pytest.mark.parametrize("size", [1, 12])
 def test_im_q131_twelve_claims_and_seven_word_fragment_are_accepted(p4, size):
     """NC: confusing a 7-word fragment with an entire short review over-blocks this catalogue."""
@@ -55,6 +75,25 @@ def test_im_q131_twelve_claims_and_seven_word_fragment_are_accepted(p4, size):
     cat["claims"][0].update(name="xương chắc hơn", include="alpha bravo charlie delta echo foxtrot golf")
     result = p4.catalogue(cat)
     assert result["claims"] == size and result["status"] == "DRAFT"
+
+
+@pytest.mark.parametrize("case", ["version_quote", "writer_name", "review_id", "writer_key", "product_key"])
+def test_im_q128_catalogue_cannot_store_customer_text_or_private_identifiers(p4, case):
+    """NC: an unchecked version label or catalogue field bypasses the at-rest privacy boundary."""
+    p4.seed([review(1, platform="tiktok_shop", name="writer_catalogue_check",
+                    text="zqvcatalogue alpha bravo charlie")])
+    p4.catalogue()
+    cat = catalogue()
+    if case == "version_quote":
+        cat["version"] = "zqvcatalogue alpha bravo charlie"
+    elif case == "writer_name":
+        cat["claims"][0]["name"] = "writer_catalogue_check"
+    else:
+        cat["claims"][0]["include"] = p4.box.rows("review")[0][case]
+    before = sha(p4.box.warehouse.read_bytes())
+    error(p4.call("submit_claim_catalogue", theme_code=THEME, catalogue=cat), "CATALOGUE_INVALID")
+    assert sha(p4.box.warehouse.read_bytes()) == before
+    assert len(p4.box.rows("claim_catalogue")) == 1
 
 
 def test_im_q132_versions_are_per_theme_append_only_and_keep_exact_input(p4):
@@ -182,7 +221,7 @@ def test_im_q163_large_pool_uses_seeded_sample_then_pool_order(p4):
 
 def test_im_q165_fake_draft_requires_checked_submission_and_starts_draft(p4):
     """NC: packet creation/file presence cannot submit or approve, and copied short guidance is rejected."""
-    p4.seed([review(1, text="zqv51 xương chắc"), review(2, text="zqvhandoff fixture")])
+    p4.seed([review(1, text="zqv51 xương chắc hơn"), review(2, text="zqvhandoff fixture")])
     _, directory = p4.draft_packet()
     cat = catalogue()
     raw = "runner wrapper\n" + canonical(cat) + "\ntrailer"
@@ -191,7 +230,7 @@ def test_im_q165_fake_draft_requires_checked_submission_and_starts_draft(p4):
     parsed = json.loads(raw[raw.index("{"):raw.rindex("}") + 1])
     result = p4.catalogue(parsed)
     assert result["catalogue_version"] == 1 and result["status"] == "DRAFT"
-    cat["claims"][0]["include"] = "zqv51 xương chắc"
+    cat["claims"][0]["include"] = "zqv51 xương chắc hơn"
     before = sha(p4.box.warehouse.read_bytes())
     error(p4.call("submit_claim_catalogue", theme_code=THEME, catalogue=cat), "CATALOGUE_INVALID")
     assert sha(p4.box.warehouse.read_bytes()) == before and len(p4.box.rows("claim_catalogue")) == 1

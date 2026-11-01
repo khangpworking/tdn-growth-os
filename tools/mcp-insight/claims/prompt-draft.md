@@ -16,7 +16,7 @@ Luật:
 4. Ý khen và ý chê về cùng một điều là hai ý con khác nhau khi nghĩa khác nhau.
 5. Có đúng một ý con chung chung (`generic: true`), dùng khi đánh giá chỉ khen hoặc chê chung và không nói ý con cụ thể nào khác.
 6. Tên ý con: tối đa 7 chữ, viết lại bằng lời của bạn. Tên phải khớp đúng phạm vi «include».
-7. Không chép lời khách vào bất kỳ trường nào: không chép 8 chữ liền nhau của một đánh giá, không chép nguyên một đánh giá ngắn.
+7. Không chép 8 chữ liền nhau của một đánh giá, hoặc nguyên một đánh giá ngắn từ 4 đến 7 chữ, vào bất kỳ trường nào. Đánh giá từ 1 đến 3 chữ không áp dụng phép kiểm trùng nguyên câu trong danh mục.
 8. Chỉ tạo ý con thuộc chủ đề này. Ý thuộc chủ đề khác thì bỏ qua.
 9. Thêm `specific_rule`: một câu nói thế nào là lời CỤ THỂ cho riêng chủ đề này (ví dụ: nói rõ tác dụng gì, sau bao lâu, trên ai).
 10. Mã ý con có dạng `{code_prefix}NN`, đánh số 01, 02, … theo thứ tự trong danh mục.
