@@ -12,7 +12,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-from insight_test_support import RUN, VERSION, canonical, choice, no_leak, review, sha, sync, tree_snapshot
+from insight_test_support import RUN, VERSION, canonical, choice, no_leak as no_word_leak, review, sha, sync, tree_snapshot
 from p3_support import Part3
 
 THEME = "T-CONGDUNG"
@@ -31,6 +31,20 @@ NEW_TOOLS = {
     "record_claim_grades": dict(run_id={"string"}, theme_code={"string"}, catalogue_version={"integer"},
                                 grades_dir={"string"}),
 }
+
+
+def no_leak(value, sentinels):
+    """Private IDs are literal tokens; review words and names retain word checks."""
+    text = value if isinstance(value, str) else canonical(value)
+    words = []
+    for sentinel in sentinels:
+        if re.fullmatch(r"(?:shopee|tiktok_shop):\S+|w:[0-9a-f]{16}", sentinel):
+            # Punctuation is part of an identifier. Word-folding shopee:5
+            # would falsely match the required {"shopee": 5} count maps.
+            assert sentinel not in text, "synthetic private identifier escaped"
+        else:
+            words.append(sentinel)
+    no_word_leak(value, words)
 
 
 def catalogue(theme=THEME, size=2):
@@ -158,11 +172,12 @@ class ClaimLayer(Part3):
         before = warehouse_tables(box.warehouse)
         digest = self.digest(box.warehouse)
         files = tree_snapshot(box.data)
-        start = len(box.guard.events)
         transport = box.module._jev_transport
         calls_before = len(getattr(transport, "calls", []))
         with self.boundary():
+            start = len(box.guard.events)
             result = box.call(tool, **kwargs)
+            call_events = box.guard.events[start:]
         if tool != "code_claims" or kwargs.get("dry_run", True) or "error" in result or result.get("refused"):
             assert len(getattr(transport, "calls", [])) == calls_before, "only paid code_claims may use Jev"
         after = warehouse_tables(box.warehouse)
@@ -184,9 +199,10 @@ class ClaimLayer(Part3):
             target = Path(kwargs["out_dir"])
             permitted |= {str((target / name).relative_to(box.data)) for name in names}
         assert changed_files <= permitted, "claim tool wrote outside its declared files"
-        for event, args in box.guard.events[start:]:
+        for event, args in call_events:
             if event in {"open", "sqlite3.connect"}:
-                assert not any(str(p) in str(args[0]) for p in (self.store, self.report_store))
+                assert not any(str(p) in str(args[0]) for p in (self.store, self.report_store)), \
+                    "claim tool opened shared or report store"
         public = copy.deepcopy(result)
         if tool == "claim_counts":
             # IM-Q162 fixed flags can collide with a whole short synthetic

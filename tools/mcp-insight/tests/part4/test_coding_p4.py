@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from claim_support import THEME, ClaimJev, catalogue
+from claim_support import THEME, ClaimJev, catalogue, no_leak
 from insight_test_support import canonical, choice, error, review, sha
 
 
@@ -90,7 +90,6 @@ def test_im_q142_exact_request_questions_omit_generic_and_private_identifiers(p4
     assert cat["specific_rule"] in canonical(spec)
     for c, q in zip(cat["claims"][:-1], body["questions"]):
         assert all(c[key] in canonical(q) for key in ("name", "include", "exclude"))
-    from insight_test_support import no_leak
     no_leak(body, ["writer_claim_body"] + [r[k] for r in p4.box.rows("review")
                                          for k in ("review_id", "writer_key", "product_key")])
     p4.storage_privacy()

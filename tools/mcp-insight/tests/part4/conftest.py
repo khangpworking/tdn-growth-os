@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "part3"))
-from claim_support import ClaimLayer  # noqa: E402
+from claim_support import ClaimLayer, no_leak  # noqa: E402
 from insight_test_support import review  # noqa: E402
 
 CLI_ATTEMPTS = []
@@ -33,7 +33,6 @@ def no_paid_cli_attempted():
 
 @pytest.fixture
 def p4(subject, sandbox, codebook, capsys, caplog):
-    from insight_test_support import no_leak
     layer = ClaimLayer(sandbox, codebook)
     caplog.set_level(logging.DEBUG)
     yield layer

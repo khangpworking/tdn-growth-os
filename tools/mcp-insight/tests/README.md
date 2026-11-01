@@ -468,7 +468,26 @@ with the implementation while preserving each independent acceptance oracle.
     are never persisted or returned. Unknown keys, duplicate members, invalid
     free text and private data inside the object still give GRADES_INVALID.
 
-Collection proves the new suite loads; it does not establish behavioral success
-of the concurrent claim implementation. Baseline failures due to the absent
-six tools and `posted_date` are expected. No skip/xfail hides them, and no app
-code, contract, spec, provider configuration or deployment is changed here.
+The initial authoring baseline lacked the six tools and `posted_date`;
+collection alone did not establish behavioral success. No skip/xfail hides
+failures. Integration verification uses the author's implementation at
+`28dd9546`; results and commands are recorded in `HANDOFF-CLAIM.md`.
+
+The integration follow-up corrects three claim-only harness assumptions, with
+all legacy helpers unchanged:
+
+- Private identifiers keep their punctuation and receive literal substring
+  checks. Review words and writer names retain the existing normalized checks.
+  Thus an IM-Q140 `{"shopee": 5}` map passes even when `shopee:5` is private;
+  injected literal review IDs, writer keys and product keys still fail.
+- Store-open checks inspect only events recorded inside the tool call, before
+  the harness's after-call snapshots. A synthetic tool-side store read remains
+  a failing control.
+- Q158, Q159 and Q162 section fixtures use data part 13. Their full acceptance,
+  number, flag, quote and rendered-text assertions remain. Q161 separately
+  verifies that a claim row in part 8 still needs «kể lại» under IM-Q110, while
+  a post-use sentence in part 13 passes without it.
+
+This test change edits no app code, contract, spec, provider configuration or
+deployment. The firstmate follow-up authorizes pushing the corrected test
+branch; no PR creation or merge is part of this test task.

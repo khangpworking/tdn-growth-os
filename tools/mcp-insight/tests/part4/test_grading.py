@@ -7,8 +7,8 @@ import unicodedata
 
 import pytest
 
-from claim_support import THEME
-from insight_test_support import canonical, error, no_leak, review, sha
+from claim_support import THEME, no_leak
+from insight_test_support import canonical, error, review, sha
 
 
 def four_diffs(p4):

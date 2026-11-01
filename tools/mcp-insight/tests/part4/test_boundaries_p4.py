@@ -6,8 +6,8 @@ import socket
 
 import pytest
 
-from claim_support import NEW_TOOLS, THEME, catalogue, warehouse_tables
-from insight_test_support import RUN, canonical, error, no_leak, review, sha, sync
+from claim_support import NEW_TOOLS, RULES, THEME, catalogue, no_leak, warehouse_tables
+from insight_test_support import RUN, VERSION, canonical, error, review, sha, sync
 from p2_support import registry_numbers
 from p3_support import accepted, claim, codes
 
@@ -88,6 +88,42 @@ def test_im_q127_write_scope_and_guards_cover_success_and_failure(coded_claims):
     with p4.box.guard.expected_violation():
         with p4.boundary(), pytest.raises(AssertionError, match="NETWORK_FORBIDDEN"):
             socket.getaddrinfo("synthetic.invalid", 443)
+
+
+def test_im_q127_store_audit_covers_tool_reads_but_not_harness_snapshots(p4, monkeypatch):
+    """NC: a real tool-side store read still fails after excluding snapshot bookkeeping."""
+    p4.seed()
+    p4.method(f"claim_counts:shopee_reviews:{VERSION}+{RULES}")
+    assert p4.store.exists()
+    p4.draft_packet()
+    real = p4.box.module.claim_catalogue_packet
+
+    def reads_store(*args, **kwargs):
+        p4.store.read_bytes()
+        return sync(real(*args, **kwargs))
+
+    monkeypatch.setattr(p4.box.module, "claim_catalogue_packet", reads_store)
+    with pytest.raises(AssertionError, match="claim tool opened shared or report store"):
+        p4.draft_packet()
+
+
+@pytest.mark.parametrize("field", ["review_id", "writer_key", "product_key"])
+def test_im_q128_platform_counts_pass_but_literal_private_identifiers_fail(p4, monkeypatch, field):
+    """NC: omitting the ID scan admits the injected field; word-folding IDs rejects the valid 5-count map."""
+    p4.seed([review(i) for i in range(1, 6)] +
+            [review(6, platform="tiktok_shop", name="writer_count_map")])
+    p4.catalogue()
+    result = p4.call("code_claims", theme_code=THEME, catalogue_version=1)
+    assert result["eligible_by_platform"] == {"shopee": 5, "tiktok_shop": 1}
+    identifier = next(row for row in p4.box.rows("review") if row["writer_known"])[field]
+    real = p4.box.module.code_claims
+
+    def leaks_identifier(*args, **kwargs):
+        return sync(real(*args, **kwargs)) | {"unexpected_private": identifier}
+
+    monkeypatch.setattr(p4.box.module, "code_claims", leaks_identifier)
+    with pytest.raises(AssertionError, match="synthetic private identifier escaped"):
+        p4.call("code_claims", theme_code=THEME, catalogue_version=1)
 
 
 def test_im_q128_claim_flow_keeps_near_dup_and_existing_reason_registry_ids(p4):
@@ -210,6 +246,16 @@ def test_im_q161_theme_sentence_and_plan_ignore_claim_state(p4):
     result = p4.section("6 đánh giá khen vị nhiều nhất [^c1].", row=row,
                         claims=[claim(row, conclusion=False)])
     assert "CLAIM_RANK_UNSCOPED" not in codes(result)
+
+
+def test_im_q161_claim_sections_preserve_the_part8_retold_gate(coded_claims):
+    """NC: exempting claim rows from IM-Q110 incorrectly accepts the unmarked part-8 sentence."""
+    p4 = coded_claims
+    row = p4.row()
+    text = "Khách nhận xét sau dùng [^c1]."
+    assert "RETOLD_NOT_MARKED" in codes(p4.section(text, row=row, part=8))
+    accepted(p4.section("Khách kể lại nhận xét sau dùng [^c1].", row=row, part=8))
+    accepted(p4.section(text, row=row, part=13))
 
 
 def test_im_q140_im_q148_im_q163_no_current_target_is_not_coded(p4):

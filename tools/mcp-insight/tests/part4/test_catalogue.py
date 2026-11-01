@@ -7,8 +7,8 @@ import sqlite3
 
 import pytest
 
-from claim_support import THEME, catalogue, packet_digest
-from insight_test_support import RUN, canonical, error, no_leak, review, sha
+from claim_support import THEME, catalogue, no_leak, packet_digest
+from insight_test_support import RUN, canonical, error, review, sha
 
 
 @pytest.mark.parametrize("case", ["empty", "thirteen", "two_generic", "no_generic", "long_name", "blank",

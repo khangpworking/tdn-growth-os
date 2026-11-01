@@ -53,7 +53,7 @@ GOOD = "Trên Shopee, theo bằng chứng sau gộp, ý xương chắc hơn đư
 def test_im_q158_claim_rank_context_binds_platform_sample_period_and_trailing_region(numeric_claims, text, missing):
     """NC R2-2: suffix-only region, any-date and broad 'hơn' rank-term mutants each disagree."""
     p4, row, _ = numeric_claims
-    result = p4.section(text, row=row)
+    result = p4.section(text, row=row, part=13)
     rank = [r for r in result["reasons"] if r["code"] == "CLAIM_RANK_UNSCOPED"]
     if missing:
         assert rank and rank[0]["claim"] == "c1"
@@ -71,11 +71,11 @@ def test_im_q158_two_markers_cannot_borrow_another_platforms_context(numeric_cla
     p4.share(60)
     accepted(p4.section(first + second, claims=claims, part=13))
     bad = first + "trên TikTok Shop, theo bằng chứng, ý B [^c2]."
-    result = p4.section(bad, claims=claims)
+    result = p4.section(bad, claims=claims, part=13)
     detail = next(r for r in result["reasons"] if r["code"] == "CLAIM_RANK_UNSCOPED" and r["claim"] == "c2")
     assert "sample" in detail["detail"] and "period" in detail["detail"]
     after = "Ý A nhiều nhất [^c1] trên Shopee, theo bằng chứng, 10/214 đánh giá, từ 21/02/2022 đến 22/10/2026, ý B có 4 đánh giá [^c2]."
-    result = p4.section(after, claims=claims)
+    result = p4.section(after, claims=claims, part=13)
     detail = next(r for r in result["reasons"] if r["code"] == "CLAIM_RANK_UNSCOPED" and r["claim"] == "c1")
     assert all(k in detail["detail"] for k in ("measure", "platform", "sample", "period"))
 
@@ -87,7 +87,7 @@ def test_im_q158_two_markers_cannot_borrow_another_platforms_context(numeric_cla
 def test_im_q159_claim_measure_fraction_dates_are_registry_bound(numeric_claims, text, valid):
     """NC: accepting any evidence value/denominator/date or omitting new shop units changes paired results."""
     p4, row, _ = numeric_claims
-    result = p4.section(text, row=row)
+    result = p4.section(text, row=row, part=13)
     assert ("NUMBER_MISMATCH" not in codes(result)) is valid
     if valid: accepted(result)
 
@@ -143,7 +143,7 @@ def test_im_q162_required_flag_spans_are_exempt_only_for_the_bound_row(p4, text,
                ((a, "c3"), (b, "c4"), (c, "c5"), (c, "c7")) if f"[^{r}]" in text]
     if any(not c["conclusion"] for c in present):
         text = "Dưới ngưỡng, " + text
-    result = p4.section(text, claims=present)
+    result = p4.section(text, claims=present, part=13)
     if reason is None: accepted(result)
     else:
         assert reason in codes(result)
@@ -156,17 +156,17 @@ def test_im_q162_quote_collision_flags_survive_text_appendix_and_statement_lines
     """NC: unconditional quote masking admits c6, while redacting flags loses mandatory rendered warnings."""
     a, b, c = flag_rows(p4, collision=True)
     text = "Dưới ngưỡng, ý A có 9 bằng chứng, chủ yếu từ một sản phẩm [^c3]."
-    accepted(p4.section(text, claims=[claim(a, ref="c3", conclusion=False)]))
+    accepted(p4.section(text, part=13, claims=[claim(a, ref="c3", conclusion=False)]))
     btext = "Ý B có 6 đánh giá, dồn thời gian, có ở cả 2 sàn [^c4]."
     accepted(p4.section(btext, part=6, claims=[claim(b, ref="c4")]))
-    assert "VERBATIM_QUOTE" in codes(p4.section("Ý D dồn thời gian [^c6].", claims=[claim(c, ref="c6")]))
+    assert "VERBATIM_QUOTE" in codes(p4.section("Ý D dồn thời gian [^c6].", part=13, claims=[claim(c, ref="c6")]))
     value = statement(b)
     accepted(p4.submit(value))
     p4.render()
     page = p4.page()
-    assert text.split(" [^")[0] in page.section(8).text
+    assert text.split(" [^")[0] in page.section(13).text
     assert btext.split(" [^")[0] in page.section(6).text
-    assert any("9 bằng chứng" in n.text and ONE in n.text for n in page.section(8).all("p"))
+    assert any("9 bằng chứng" in n.text and ONE in n.text for n in page.section(13).all("p"))
     appendix = page.section(18).text
     assert ONE in appendix and BURST in appendix and BOTH in appendix
     a_nodes = [n for n in page.section(18).all("tr") if a["count_id"] in n.text]
