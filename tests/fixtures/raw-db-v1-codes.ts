@@ -22,7 +22,7 @@ export function codesReview(overrides = {}) {
 export function codesLabel(overrides = {}) {
   return { review_id: 'shopee:synthetic-codes-a', theme_code: 'T-GIA', codebook_version: CODES_VERSION,
     block_key: 'thuc_pham' as string | null, block_norm: 'thuc_pham', p_yes: 0.91, polarity: 'khen', status: 'kept',
-    step: 'Sau mua', text_start: 0, text_end: CODES_TEXT.length, text_sha256: codesHash(CODES_TEXT), ...overrides };
+    step: 'Sau mua', text_start: 0, text_end: [...CODES_TEXT].length, text_sha256: codesHash(CODES_TEXT), ...overrides };
 }
 
 export function codesState(overrides = {}) {

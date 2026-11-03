@@ -22,11 +22,11 @@ beforeEach(() => { mock.method(globalThis, 'fetch', async () => { throw new Erro
 afterEach(() => mock.restoreAll());
 
 test('RAWDB-X X3: import preserves exact coder fields and proves full and partial Vietnamese/emoji text with attributes', async t => {
-  // The span starts after a surrogate pair and ends after an attribute's emoji.
+  // Python/code-point offsets: start after 🧪, end after the attribute's 🍊.
   const span = 'vị dịu.\r\nCafe\u0301    Vị: ngọt 🍊';
   const f = await codesFixture(t, {
     labels: [codesLabel(), codesLabel({ theme_code: 'T-VI', polarity: 'che', status: 'unclear', p_yes: 0.57,
-      step: 'Trong mua', text_start: CODES_TEXT.indexOf(span), text_end: CODES_TEXT.indexOf(span) + span.length, text_sha256: codesHash(span) }),
+      step: 'Trong mua', text_start: 12, text_end: 40, text_sha256: codesHash(span) }),
     codesLabel({ theme_code: 'T-KHAC', polarity: 'ke', p_yes: 0, step: 'Trước mua' }),
     codesLabel({ theme_code: 'T-CHATLUONG', polarity: 'khong_ro_huong', p_yes: 1 })],
     targets: [
@@ -76,8 +76,8 @@ test('RAWDB-X X5: a DB text mismatch skips and counts that label while importing
   const different = 'Văn bản MCP khác với DB 🧪';
   const f = await codesFixture(t, {
     reviews: [codesReview({ text: different }), codesReview({ review_id: 'shopee:synthetic-codes-b', source_review_id: 'synthetic-codes-b', text })],
-    labels: [codesLabel({ text_end: different.length, text_sha256: codesHash(different) }),
-      codesLabel({ review_id: 'shopee:synthetic-codes-b', text_end: text.length, text_sha256: codesHash(text) })],
+    labels: [codesLabel({ text_end: [...different].length, text_sha256: codesHash(different) }),
+      codesLabel({ review_id: 'shopee:synthetic-codes-b', text_end: [...text].length, text_sha256: codesHash(text) })],
   });
   seedCodeReview(f.db, { review_key: 'S05:synthetic-codes-b', external_id: 'synthetic-codes-b', text, attributes_json: null });
   const result = await loadReviewCodesToDbV1(f.db, f.input);
