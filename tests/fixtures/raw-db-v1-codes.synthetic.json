@@ -1,0 +1,18 @@
+{
+  "contractVersion": "insight-theme-codebook-v1",
+  "version": "synthetic-codes-v1",
+  "status": "DRAFT",
+  "approvedBy": null,
+  "approvedAt": null,
+  "core": [
+    { "code": "T-GIA", "name": "Synthetic price" },
+    { "code": "T-CHATLUONG", "name": "Synthetic quality" }
+  ],
+  "blocks": {
+    "thuc_pham": {
+      "label": "Synthetic food",
+      "themes": [{ "code": "T-VI", "name": "Synthetic taste" }]
+    }
+  },
+  "otherCode": { "code": "T-KHAC", "name": "Synthetic other" }
+}
