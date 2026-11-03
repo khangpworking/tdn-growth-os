@@ -5,8 +5,13 @@ import path from 'node:path';
 import test, { afterEach, beforeEach, mock, type TestContext } from 'node:test';
 import Database from 'better-sqlite3';
 import { openOperatorApp, operatorAppConfigurationFromEnvironment } from '../../src/api/operator-app.js';
+import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { MarketNumberTraceBlockedError } from '../../src/modules/analysis/research-automation/market-report-check.js';
+import { checkMarketNumberTrace } from '../../src/modules/analysis/research-automation/market-number-trace.js';
+import { MarketNumberTraceCollector } from '../../src/modules/analysis/research-automation/market-trace-map.js';
+import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { fixture, startRun, workspaceId, now } from '../helpers/autorun-harness.js';
-import { SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
+import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-synthetic-sources.js';
 import { aAttempt, aResult, aReviews } from '../fixtures/raw-db-v1-autoload.js';
 import { exists, snapshotPath, until } from '../fixtures/raw-db-v1-y2.js';
 
@@ -69,30 +74,30 @@ test('RAWDB-A flag off: unset and false complete a run with stored S06 captures 
   }
 });
 
-test('RAWDB-A finalisation: automatic load happens after final steps; a source failure cannot alter run status, outcome or reports', async t => {
+test('RAWDB-A finalisation: automatic load observes final COLLECTION; a source failure cannot alter run status, outcome or reports', async t => {
   const f = await queuedRun(t);
   f.db.exec(`CREATE TABLE a_run_before AS SELECT * FROM analysis_research_automation_runs WHERE 0;
     CREATE TABLE a_steps_before AS SELECT * FROM analysis_research_automation_steps WHERE 0;
-    CREATE TABLE a_attempt_state(status TEXT,reports_state TEXT);
+    CREATE TABLE a_attempt_state(collection_state TEXT);
     CREATE TRIGGER a_run_final AFTER UPDATE ON analysis_research_automation_steps
       WHEN NEW.step_id='REPORTS' AND NEW.state='SUCCEEDED' BEGIN
       INSERT INTO a_run_before SELECT * FROM analysis_research_automation_runs WHERE run_id=NEW.run_id;
       INSERT INTO a_steps_before SELECT * FROM analysis_research_automation_steps WHERE run_id=NEW.run_id;
     END;
     CREATE TRIGGER a_before_attempt BEFORE INSERT ON raw_db_autoload BEGIN
-      INSERT INTO a_attempt_state SELECT status,
-        (SELECT state FROM analysis_research_automation_steps WHERE run_id=NEW.run_id AND step_id='REPORTS')
-        FROM analysis_research_automation_runs WHERE run_id=NEW.run_id;
+      INSERT INTO a_attempt_state SELECT state FROM analysis_research_automation_steps
+        WHERE run_id=NEW.run_id AND step_id='COLLECTION';
     END;
     CREATE TRIGGER a_source_failure BEFORE INSERT ON raw_capture WHEN NEW.source_code='S06'
       BEGIN SELECT RAISE(ABORT,'A_FINALISATION_FAILURE'); END`);
   const application = openOperatorApp(await configuration(f, 'true'), { clock: now });
   try {
     await until(async () => Number(f.db.prepare('SELECT count(*) FROM raw_db_autoload').pluck().get()) === 1,
-      'operator records the automatic attempt after the run finishes');
+      'operator records the automatic attempt after collection finishes');
+    await until(async () => (await f.service.getRun(workspaceId, f.runId)).status === 'DRAFT_READY', 'reports finish independently');
   } finally { await application.close(); }
   const run = f.db.prepare('SELECT * FROM analysis_research_automation_runs WHERE run_id=?').get(f.runId);
-  assert.deepEqual(f.db.prepare('SELECT * FROM a_attempt_state').all(), [{ status: 'DRAFT_READY', reports_state: 'SUCCEEDED' }]);
+  assert.deepEqual(f.db.prepare('SELECT * FROM a_attempt_state').all(), [{ collection_state: 'SUCCEEDED' }]);
   assert.deepEqual(f.db.prepare('SELECT * FROM a_run_before').get(), run, 'autoload preserves every finalized run field');
   assert.deepEqual(f.db.prepare('SELECT * FROM a_steps_before ORDER BY step_id').all(),
     f.db.prepare('SELECT * FROM analysis_research_automation_steps WHERE run_id=? ORDER BY step_id').all(f.runId),
@@ -102,11 +107,49 @@ test('RAWDB-A finalisation: automatic load happens after final steps; a source f
   for (const kind of ['MARKET', 'INSIGHT'] as const) assert.ok((await f.service.readReport(workspaceId, f.runId, kind)).bytes.length > 0);
 });
 
-test('RAWDB-A periodic snapshot: the running operator publishes fresh app data every ten minutes without a run attempt', async t => {
+test('RAWDB-A hook: committed SUCCEEDED/PARTIAL collection fires once despite later report failure; other outcomes never fire', async t => {
+  for (const outcome of ['SUCCEEDED', 'PARTIAL', 'FAILED', 'UNAVAILABLE', 'CANCELLED'] as const) await t.test(outcome, async t => {
+    const f = await fixture(t, 'off'), source = syntheticProductSource();
+    const calls: { runId: string; state: string; inTransaction: boolean }[] = [];
+    const numberTrace = checkMarketNumberTrace('<section id="M03">12345</section>', new MarketNumberTraceCollector().snapshot());
+    assert.equal(numberTrace.ok, false);
+    const service = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, now,
+      workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db: f.db, artifactStore: f.artifacts })),
+      source: { ...source, collect: async (...args) => {
+        const collected = await source.collect(...args);
+        return { ...collected, step: { ...collected.step, outcome } };
+      } },
+      renderer: () => { throw new MarketNumberTraceBlockedError('MARKET_NUMBER_TRACE_FAILED: synthetic untraced number', numberTrace); },
+      onCollectionFinal: runId => {
+        const state = f.db.prepare("SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").pluck().get(runId) as string;
+        calls.push({ runId, state, inTransaction: f.db.inTransaction });
+        throw new Error('A_SYNTHETIC_HOOK_FAILURE');
+      },
+    });
+    const runId = await startRun(service);
+    await service.processNext();
+    const awaiting = await service.getRun(workspaceId, runId);
+    await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1', requestKey: randomUUID(),
+      expectedRevision: awaiting.revision, definition: 'Synthetic hook scope', includeTerms: [], excludeTerms: [],
+      selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
+    await service.processNext();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, outcome === 'SUCCEEDED' || outcome === 'PARTIAL' ? [{ runId, state: outcome, inTransaction: false }] : []);
+    await service.processNext();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    const run = await service.getRun(workspaceId, runId);
+    assert.equal(run.status, outcome === 'CANCELLED' ? 'CANCELLED' : 'FAILED');
+    assert.equal(run.steps.find(step => step.stepId === 'COLLECTION')?.state, outcome);
+    if (outcome !== 'CANCELLED') assert.equal(run.steps.find(step => step.stepId === 'REPORTS')?.code, 'MARKET_NUMBER_TRACE_BLOCKED');
+    assert.equal(calls.length, outcome === 'SUCCEEDED' || outcome === 'PARTIAL' ? 1 : 0, 'report claiming/failure cannot fire the hook again');
+  });
+});
+
+test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and surviving a failed backup without a run attempt', async t => {
   const f = await fixture(t, 'off');
   f.db.exec("CREATE TABLE a_timer(value TEXT); INSERT INTO a_timer VALUES ('first synthetic generation')");
   t.mock.timers.enable({ apis: ['setInterval'] });
-  const application = openOperatorApp(await configuration(f, 'false'), { clock: now });
+  const application = openOperatorApp(await configuration(f, 'true'), { clock: now });
   const generation = async () => {
     if (!await exists(snapshotPath(f))) return null;
     const copy = new Database(snapshotPath(f), { readonly: true, fileMustExist: true });
@@ -120,5 +163,32 @@ test('RAWDB-A periodic snapshot: the running operator publishes fresh app data e
     f.db.exec("UPDATE a_timer SET value='second synthetic generation'");
     t.mock.timers.tick(600_000);
     await until(async () => await generation() === 'second synthetic generation', 'next ten-minute snapshot');
+    const backup = Database.prototype.backup;
+    let started = 0, release!: () => void, failNext = false;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    t.mock.method(Database.prototype, 'backup', async function(this: Database.Database, ...args: Parameters<typeof backup>) {
+      started++;
+      await gate;
+      if (failNext) { failNext = false; throw new Error('A_SYNTHETIC_BACKUP_FAILURE'); }
+      return backup.apply(this, args);
+    });
+    f.db.exec("UPDATE a_timer SET value='third synthetic generation'");
+    try {
+      t.mock.timers.tick(600_000);
+      await until(async () => started === 1, 'backup starts');
+      t.mock.timers.tick(1_200_000);
+      await new Promise<void>(resolve => setImmediate(resolve));
+      assert.equal(started, 1, 'busy ticks must not queue or overlap another publish');
+    } finally { release(); }
+    await until(async () => await generation() === 'third synthetic generation', 'held backup finishes');
+    failNext = true;
+    f.db.exec("UPDATE a_timer SET value='fourth synthetic generation'");
+    t.mock.timers.tick(600_000);
+    await until(async () => started === 2, 'failed backup attempted');
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(await generation(), 'third synthetic generation', 'failed backup preserves the previous snapshot');
+    t.mock.timers.tick(600_000);
+    await until(async () => await generation() === 'fourth synthetic generation', 'timer recovers after backup failure');
+    assert.equal(Number(f.db.prepare('SELECT count(*) FROM raw_db_autoload').pluck().get()), 0);
   } finally { await application.close(); }
 });

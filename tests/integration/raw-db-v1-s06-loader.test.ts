@@ -18,8 +18,8 @@ test('RAWDB-A S06 mapping: exact display_text, native identity and nullable revi
     assert.equal(row.reviewer_name, null, 'S06 must not persist a display name');
     assert.equal(row.reviewer_key, null, 'a display name is not a native author identity');
     assert.equal(row.reviewer_name_state, index === 0 ? 'masked_by_source' : 'not_provided');
-    assert.equal(row.review_key, `S06:a-review-${index}`);
-    assert.equal(row.external_id, `a-review-${index}`);
+    assert.equal(row.review_key, `S06:${79001000 + index}`);
+    assert.equal(row.external_id, String(79001000 + index));
     assert.equal(row.source_code, 'S06');
     assert.equal(row.platform, 'tiktok_shop');
     assert.equal(row.kind, 'product_review');
@@ -60,7 +60,7 @@ test('RAWDB-A rating: only integer numbers or numeric strings in 1–5 survive; 
   const result = await load(f.db, f.artifacts, { runId: f.runId });
   assert.equal(result.ratingInvalid, cases.filter(([, expected]) => expected === null).length);
   for (const [index, [, expected]] of cases.entries()) {
-    const row = f.db.prepare('SELECT rating_star FROM review WHERE review_key=?').get(`S06:a-review-${index}`) as { rating_star: bigint | null };
+    const row = f.db.prepare('SELECT rating_star FROM review WHERE review_key=?').get(`S06:${79001000 + index}`) as { rating_star: bigint | null };
     assert.equal(row.rating_star, expected === null ? null : BigInt(expected), `rating case ${index}`);
   }
 });
@@ -92,7 +92,7 @@ test('RAWDB-A verified atomic load: corrupt stored bytes or a late row write fai
   for (const fault of ['artifact', 'late-write'] as const) {
     const f = await s06Fixture(t), { loadTikTokShopReviewsToDbV1: load } = await aLoad();
     if (fault === 'artifact') await fs.writeFile(f.artifacts.pathForDigest(f.capture.sha256), '{}');
-    else f.db.exec(`CREATE TRIGGER a_reject_late_review BEFORE INSERT ON review WHEN NEW.external_id='a-review-1'
+    else f.db.exec(`CREATE TRIGGER a_reject_late_review BEFORE INSERT ON review WHEN NEW.external_id='79001001'
       BEGIN SELECT RAISE(ABORT,'A_SYNTHETIC_LATE_REVIEW'); END`);
     const before = f.db.serialize();
     const loading = load(f.db, f.artifacts, { runId: f.runId });
@@ -100,6 +100,14 @@ test('RAWDB-A verified atomic load: corrupt stored bytes or a late row write fai
     else await assert.rejects(loading);
     assert.deepEqual(f.db.serialize(), before, `${fault}: no partial capture, product, review or membership`);
   }
+});
+
+test('RAWDB-A S06 empty capture: preserve the stored OK outcome even when the response has no reviews', async t => {
+  const f = await s06Fixture(t, []), { loadTikTokShopReviewsToDbV1: load } = await aLoad();
+  const result = await load(f.db, f.artifacts, { runId: f.runId });
+  assert.equal(result.captures, 1);
+  assert.equal(result.reviewsInserted, 0);
+  assert.equal(f.db.prepare("SELECT outcome FROM raw_capture WHERE source_code='S06'").pluck().get(), 'OK');
 });
 
 test('RAWDB-A S06 CLI dry-run: prints planned rows, rolls back and rejects file input', async t => {
