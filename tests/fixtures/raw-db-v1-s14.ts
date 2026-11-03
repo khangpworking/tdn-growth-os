@@ -37,6 +37,26 @@ export async function saveVideoReadingRun(
   await f.service.confirmScope(workspaceId, f.runId, { contractVersion: 'research-automation-confirm-v1', requestKey: randomUUID(),
     expectedRevision: (await f.service.getRun(workspaceId, f.runId)).revision, definition: 'Synthetic S14 scope',
     includeTerms: [], excludeTerms: [], selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
+  const prepared = await prepareVideoReadingCollection(f, templates);
+  const bytes = Buffer.from(canonicalJson(prepared.document));
+  const stored = await f.artifacts.put(bytes), at = '2026-11-03T03:00:00.000Z';
+  f.db.prepare(`INSERT INTO artifact_manifests (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,created_at)
+    VALUES (?,?,'application/vnd.tdn.research-automation.step+json',?,?,'1.0.0',?)`)
+    .run(stored.sha256, stored.byteSize, stored.relativePath, at, at);
+  f.db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',result_sha256=?,started_at=?,finished_at=?
+    WHERE run_id=? AND step_id='COLLECTION' AND state='QUEUED'`).run(stored.sha256, at, at, f.runId);
+  f.db.prepare(`UPDATE analysis_research_automation_runs SET revision=revision+1,status='RENDERING' WHERE run_id=?`).run(f.runId);
+  f.db.prepare(`UPDATE analysis_research_automation_steps SET state='QUEUED' WHERE run_id=? AND step_id='REPORTS'`).run(f.runId);
+  return prepared.result;
+}
+
+/** Retain readings before the caller finalizes COLLECTION; never rewrite a settled step. */
+export async function prepareVideoReadingCollection(
+  f: { db: Database.Database; artifacts: ContentAddressedArtifactStore; runId: string },
+  templates: readonly AutomatedVideoReading[] = S14_READINGS,
+  retainCaptures = true,
+) {
+  const workspaceId = S14_READINGS[0]!.workspaceId;
   const run = f.db.prepare(`SELECT scope_request_sha256 scope,confirmed_source_set_sha256 sources
     FROM analysis_research_automation_runs WHERE run_id=?`).get(f.runId) as { scope: string; sources: string | null };
   // A historical collection snapshot can contain EXPANDED_SEARCH readings; today's candidate builder cannot create those.
@@ -66,34 +86,28 @@ export async function saveVideoReadingRun(
       : buildAutomatedVideoReading(binding, candidates[index]!, spoken, template.media, { modelId: model.modelId, responseSha256: call.responseSha256 });
     const ref = await publishAutomatedVideoReading(packages, binding, prepared);
     const capture = call.captures[0]!;
-    const ordinal = Number((f.db.prepare(`SELECT COALESCE(MAX(ordinal),-1)+1 ordinal FROM analysis_research_automation_captures
-      WHERE run_id=? AND step_id='COLLECTION'`).get(f.runId) as { ordinal: bigint }).ordinal);
+    const ordinal: number = retainCaptures ? Number((f.db.prepare(`SELECT COALESCE(MAX(ordinal),-1)+1 ordinal FROM analysis_research_automation_captures
+      WHERE run_id=? AND step_id='COLLECTION'`).get(f.runId) as { ordinal: bigint }).ordinal) : result.length;
     const { requestBodyBytes, responseBytes, ...metadata } = capture;
     const envelope = { contractVersion: 'research-automation-capture-v1', ...metadata,
       requestBodyBytesBase64: requestBodyBytes?.toString('base64') ?? null, responseBytesBase64: responseBytes?.toString('base64') ?? null };
     const bytes = Buffer.from(canonicalJson(envelope)), stored = await f.artifacts.put(bytes);
-    f.db.prepare(`INSERT OR IGNORE INTO artifact_manifests
-      (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,created_at)
-      VALUES (?,?,'application/json',?,?,'1.0.0',?)`)
-      .run(stored.sha256, stored.byteSize, stored.relativePath, capture.completedAt, capture.completedAt);
-    f.db.prepare(`INSERT INTO analysis_research_automation_captures
-      (run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,truncated,retained_at)
-      VALUES (?,'COLLECTION',?,?,'application/json','video-watch','videowatch.generate',?,0,?)`)
-      .run(f.runId, ordinal, stored.sha256, capture.completedAt, capture.completedAt);
-    result.push({ ref, prepared, ordinal, capture: envelope, stored });
+    if (retainCaptures) {
+      f.db.prepare(`INSERT OR IGNORE INTO artifact_manifests
+        (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,created_at)
+        VALUES (?,?,'application/json',?,?,'1.0.0',?)`)
+        .run(stored.sha256, stored.byteSize, stored.relativePath, capture.completedAt, capture.completedAt);
+      f.db.prepare(`INSERT INTO analysis_research_automation_captures
+        (run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,truncated,retained_at)
+        VALUES (?,'COLLECTION',?,?,'application/json','video-watch','videowatch.generate',?,0,?)`)
+        .run(f.runId, ordinal, stored.sha256, capture.completedAt, capture.completedAt);
+    }
+    result.push({ ref, prepared, ordinal, capture: envelope, sourceCapture: capture, stored });
   }
-  const bytes = Buffer.from(canonicalJson({ ...document, videoWatch: { profile: 'video-watch-v1', candidates,
+  const collected: StepResultDocument = { ...document, videoWatch: { profile: 'video-watch-v1', candidates,
     candidatesSha256: binding.candidatesSha256, skipped: [], videos: result.map(({ ref, prepared, ordinal, capture }) => ({
       videoId: prepared.reading.video.videoId, status: 'READ', reason: null, captureIndex: ordinal, retrievedAt: capture.completedAt,
       media: prepared.reading.media, reading: { ...ref, readingSha256: prepared.readingSha256 },
-    })) } }));
-  const stored = await f.artifacts.put(bytes), at = '2026-11-03T03:00:00.000Z';
-  f.db.prepare(`INSERT INTO artifact_manifests (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,created_at)
-    VALUES (?,?,'application/vnd.tdn.research-automation.step+json',?,?,'1.0.0',?)`)
-    .run(stored.sha256, stored.byteSize, stored.relativePath, at, at);
-  f.db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',result_sha256=?,started_at=?,finished_at=?
-    WHERE run_id=? AND step_id='COLLECTION' AND state='QUEUED'`).run(stored.sha256, at, at, f.runId);
-  f.db.prepare(`UPDATE analysis_research_automation_runs SET revision=revision+1,status='RENDERING' WHERE run_id=?`).run(f.runId);
-  f.db.prepare(`UPDATE analysis_research_automation_steps SET state='QUEUED' WHERE run_id=? AND step_id='REPORTS'`).run(f.runId);
-  return result;
+    })) } };
+  return { result, document: collected };
 }

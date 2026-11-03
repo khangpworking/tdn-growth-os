@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import type Database from 'better-sqlite3';
 import type { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import document from './raw-db-v1-s02b.synthetic.json' with { type: 'json' };
 import { s07Hash } from './raw-db-v1-s07.js';
 
@@ -72,10 +73,10 @@ export async function saveKalodataCapture(
     responseBytesBase64: responseBytes.toString('base64'), responseSha256: options.responseSha256 ?? s07Hash(responseBytes),
     responseByteLength: responseBytes.byteLength, providerCode: response.code === undefined ? null : String(response.code), responseHeaders: {},
   };
-  const stored = await f.artifacts.put(Buffer.from(JSON.stringify(envelope)));
+  const stored = await f.artifacts.put(Buffer.from(canonicalJson(envelope)));
   f.db.prepare(`INSERT OR IGNORE INTO artifact_manifests
     (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,created_at)
-    VALUES (?,?,'application/json',?,?,'synthetic-kalodata-response-v1',?)`)
+    VALUES (?,?,'application/json',?,?,'1.0.0',?)`)
     .run(stored.sha256, stored.byteSize, stored.relativePath, completedAt, completedAt);
   f.db.prepare(`INSERT INTO analysis_research_automation_captures
     (run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at)

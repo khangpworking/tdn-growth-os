@@ -22,6 +22,8 @@ import type { TikTokCodingConfiguration } from '../../contracts/analysis/tiktok-
 import type { TikTokCodingModelInput } from '../../contracts/analysis/tiktok-coding-model-v1.generated.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
+import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
+import type { ProviderRawCapture } from '../../src/modules/analysis/research-automation/providers.js';
 
 export const workspaceId = '11111111-1111-4111-8111-111111111111', runId = '22222222-2222-4222-8222-222222222222';
 export const now = () => new Date('2026-10-09T00:00:00Z');
@@ -70,16 +72,19 @@ export function fakeCodingAi(port: NonNullable<TikTokCodingAI>['port'], configur
   return { port, configuration: configuration ?? tiktokCodingCliproxyConfiguration('synthetic-tiktok-coding-model') };
 }
 
-export async function tiktokFixture(t: TestContext) {
+type CollectionVideoWatch = (f: { db: ReturnType<typeof openDatabase>['db']; artifacts: ContentAddressedArtifactStore; runId: string }) =>
+  Promise<{ videoWatch: StepResultDocument['videoWatch']; captures: readonly ProviderRawCapture[] }>;
+
+export async function tiktokFixture(t: TestContext, collectionVideoWatch?: CollectionVideoWatch) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-tiktok-coding-'));
-  const seeded = await seedTikTokCodingHarness(root);
+  const seeded = await seedTikTokCodingHarness(root, collectionVideoWatch);
   t.after(async () => { seeded.close(); await fs.rm(root, { recursive: true, force: true }); });
   return { root, ...seeded };
 }
 
 /** Seed keyword-v3 + P4 + S07 into an explicit root without cleanup. The caller owns
  * close() (before an operator opens the same database) and later root removal. */
-export async function seedTikTokCodingHarness(root: string) {
+export async function seedTikTokCodingHarness(root: string, collectionVideoWatch?: CollectionVideoWatch) {
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
   const db = openDatabase({ databasePath, now }).db, artifacts = new ContentAddressedArtifactStore(artifactRoot);
   const close = async () => { db.close(); };
@@ -92,7 +97,12 @@ export async function seedTikTokCodingHarness(root: string) {
     const responseBytes = Buffer.from('{"data":[{"product_id":"12345","product_name":"Thạch dừa từ nguồn bán hàng"}]}');
     return { ...result, result: { ...result.result, captures: result.result.captures.map(c => ({ ...c, responseBytes,
       responseSha256: hash(responseBytes), responseByteLength: responseBytes.length })) } };
-  }, collect: async (input, options) => { const result = await source.collect(input, options); return { ...result, result: { ...result.result, captures: [] } }; } };
+  }, collect: async (input, options) => {
+    const result = await source.collect(input, options);
+    const extra = await collectionVideoWatch?.({ db, artifacts, runId });
+    return { ...result, step: { ...result.step, ...(extra?.videoWatch ? { videoWatch: extra.videoWatch } : {}) },
+      result: { ...result.result, captures: extra?.captures ?? [] } };
+  } };
   const transport: TikTokCommentsTransport = { start: async () => {
     assert.equal(new SourcePackageService({ db, artifactStore: artifacts }).findAutomationAttachmentPackagesByKeyPrefix(p9PackagePrefix(runId, 'intent')).length, 1);
     return { runId: 'synthetic_run', datasetId: 'synthetic_dataset', buildId: null, status: 'SUCCEEDED', retrievedAt: now().toISOString(),
