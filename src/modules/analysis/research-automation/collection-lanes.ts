@@ -24,12 +24,14 @@ import { TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, TIKTOK_SHOP_REVIEWS_USAGE_ORDI
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import { populationBaselineDocument, type PopulationBaselineAttempt, type PopulationBaselineSource } from './population-baseline.js';
+import { AI_OVERVIEW_PROVIDER, AI_OVERVIEW_USAGE_ORDINAL, aiOverviewUsage, type AiOverviewCollection, type AiOverviewSource } from './ai-overview-lane.js';
+import { SEARCH_SUGGEST_PROVIDER, SEARCH_SUGGEST_USAGE_ORDINAL, searchSuggestUsage, type SearchSuggestCollection, type SearchSuggestSource } from './search-suggest-lane.js';
 
 /** Usage ordinal of the plain web search (0 product source, 1 exact Shopee / public tail). */
 export const WEB_USAGE_ORDINAL = 2;
 
 export type CollectionLaneName = 'web' | 'trends' | 'expanded' | 'worldBank' | 'video' | 'comtrade' | 'searchAds' | 'officialStats'
-  | 'metaAuto' | 'tiktokTopAds' | 'pdfDiscovery' | 'geo' | 'tiktokShopReviews' | 'populationBaseline';
+  | 'metaAuto' | 'tiktokTopAds' | 'pdfDiscovery' | 'geo' | 'tiktokShopReviews' | 'populationBaseline' | 'aiOverview' | 'searchSuggest';
 
 /**
  * Every lane usage ordinal of the collection step, with the provider an "unsettled-collection" row names. The DB key is
@@ -54,6 +56,8 @@ export const COLLECTION_LANE_ORDINALS: readonly { readonly lane: CollectionLaneN
   { lane: 'tiktokShopReviews', ordinal: TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, provider: 'kalodata' },
   // The video lane's paid top-selling lookup (its first entry above stays the lane's own ordinal).
   { lane: 'video', ordinal: TOP_SELLING_VIDEOS_USAGE_ORDINAL, provider: 'kalodata' },
+  { lane: 'searchSuggest', ordinal: SEARCH_SUGGEST_USAGE_ORDINAL, provider: SEARCH_SUGGEST_PROVIDER.toLowerCase() },
+  { lane: 'aiOverview', ordinal: AI_OVERVIEW_USAGE_ORDINAL, provider: AI_OVERVIEW_PROVIDER.toLowerCase() },
 ];
 
 function assertDistinctOrdinals(table: typeof COLLECTION_LANE_ORDINALS): void {
@@ -89,6 +93,8 @@ export interface CollectionRunContext {
   readonly run?: CollectionRunFacts;
   /** Run facts of the TikTok Shop reviews lane; the service passes them on every run it collects. */
   readonly tiktokShopReviews?: TikTokShopReviewsFacts;
+  /** The run's confirmed keyword 1 and keyword 2 (when present); read inside the search-suggestion lane's try/catch. */
+  readonly searchKeywords?: () => Promise<readonly string[]>;
 }
 
 export interface TikTokShopReviewsFacts {
@@ -118,9 +124,10 @@ export interface CollectionLaneContext extends CollectionRunContext {
 
 /**
  * Stores the captures in order through the service's capture closure; returns the first capture's index, null when unstorable.
- * `retainPdf: false` skips the service's `%PDF-` retention.
+ * `retainPdf: false` skips the service's `%PDF-` retention. `raw: true` stores each capture's exact JSON response bytes
+ * (media type application/json) instead of the capture envelope; such captures have no request record or outcome.
  */
-export type LaneCaptureStore = (captures: readonly ProviderRawCapture[], options?: { readonly retainPdf?: boolean }) => Promise<number | null>;
+export type LaneCaptureStore = (captures: readonly ProviderRawCapture[], options?: { readonly retainPdf?: boolean; readonly raw?: boolean }) => Promise<number | null>;
 /** The service's capture list: its length, and a cut back to an earlier length (a lane whose capture write failed keeps none). */
 export interface LaneCaptureRewind {
   readonly length: () => number;
@@ -144,6 +151,8 @@ export type LaneManifest = { readonly artifact: StoredArtifact; readonly mediaTy
 export interface LaneProduced {
   /** web: the plain web rows (capture indexes of the web result itself). */
   readonly webRows?: readonly StepWebResult[];
+  /** web: the plain web search's own captures (the AI Overview follow-up reads their page tokens). */
+  readonly webCaptures?: readonly ProviderRawCapture[];
   /** expanded: the extra-search attempts. */
   readonly expandedAttempts?: readonly ExpandedSearchAttempt[];
   /** trends: the keyword and the one period check the province map reuses. */
@@ -297,7 +306,7 @@ function webLane(source: AutomationSourcePort): CollectionLane {
     usage: web => 'bound' in web ? [{ kind: 'USAGE', ordinal: WEB_USAGE_ORDINAL, result: web.bound.result }]
       : [{ kind: 'UNSETTLED', ordinal: WEB_USAGE_ORDINAL, provider: web.failedProvider }],
     cancelled: web => 'bound' in web && web.bound.result.status === 'CANCELLED',
-    produced: (_run, web) => ({ webRows: web && 'bound' in web ? web.bound.step.webResults ?? [] : [] }),
+    produced: (_run, web) => ({ webRows: web && 'bound' in web ? web.bound.step.webResults ?? [] : [], webCaptures: web && 'bound' in web ? web.bound.result.captures : [] }),
   });
 }
 
@@ -400,6 +409,41 @@ function expandedLane(source: ExpandedSearchSource): CollectionLane {
     ],
     cancelled: attempts => attempts.some(item => item.state === 'CALLED' && item.result.status === 'CANCELLED'),
     produced: (_run, attempts) => ({ expandedAttempts: attempts ?? [] }),
+  });
+}
+
+// AI Overview follow-up (S29) right after the extra searches, while their page tokens are still valid: at most two paid
+// calls per run, never repeated after a restart. Its raw answers follow the extra-search captures; it adds nothing to the
+// step document and never changes the step outcome, coverage or run blockers. A failed write keeps none of its captures.
+function aiOverviewLane(source: AiOverviewSource): CollectionLane {
+  return lane<readonly ProviderRawCapture[], AiOverviewCollection>({
+    name: 'aiOverview',
+    input: (_context, earlier) => [
+      ...producedBy(earlier, 'web')?.webCaptures ?? [],
+      ...(producedBy(earlier, 'expanded')?.expandedAttempts ?? []).flatMap(attempt => attempt.state === 'CALLED' ? attempt.result.captures : []),
+    ],
+    collect: (searches, options) => source.collect({ searches }, options),
+    async store(step, collection, _searches, captures) {
+      if (collection?.captures.length) await captures(collection.captures, { retainPdf: false, raw: true });
+      return step;
+    },
+    usage: collection => collection.calls.length ? [{ kind: 'USAGE', ordinal: AI_OVERVIEW_USAGE_ORDINAL, result: aiOverviewUsage(collection) }] : [],
+  });
+}
+
+// Search suggestions (S19b) come last, for runs that include INSIGHT only: at most 48 free calls, at least 1 s apart, never
+// repeated after a restart. Its raw answers are stored before the video readings, like the other early lanes; it adds nothing
+// to the step document and never changes the step outcome, coverage or run blockers.
+function searchSuggestLane(source: SearchSuggestSource): CollectionLane {
+  return lane<() => Promise<readonly string[]>, SearchSuggestCollection>({
+    name: 'searchSuggest',
+    input: context => context.reports.includes('INSIGHT') ? context.searchKeywords ?? (async () => [context.keyword]) : null,
+    collect: async (keywords, options) => source.collect({ keywords: await keywords() }, options),
+    async store(step, collection, _keywords, captures) {
+      if (collection?.captures.length) await captures(collection.captures, { retainPdf: false, raw: true });
+      return step;
+    },
+    usage: collection => collection.requests > 0 ? [{ kind: 'USAGE', ordinal: SEARCH_SUGGEST_USAGE_ORDINAL, result: searchSuggestUsage(collection) }] : [],
   });
 }
 
@@ -612,11 +656,13 @@ export interface CollectionLaneSources {
   readonly tiktokTopAdsSource?: TikTokTopAdsSource;
   readonly tiktokShopReviewsSource?: TikTokShopReviewsSource;
   readonly populationBaselineSource?: PopulationBaselineSource;
+  readonly aiOverviewSource?: AiOverviewSource;
+  readonly searchSuggestSource?: SearchSuggestSource;
 }
 
 /**
  * The ordered lanes of the configured sources (a source is present only when its flag is on). Order = attempt order =
- * capture order. The province map needs the series, and the extra searches need the plain web search.
+ * capture order. The province map needs the series; the extra searches and the AI Overview follow-up need the plain web search.
  */
 export function collectionLanes(sources: CollectionLaneSources): readonly CollectionLane[] {
   return [
@@ -624,6 +670,7 @@ export function collectionLanes(sources: CollectionLaneSources): readonly Collec
     ...(sources.trendsSource ? [trendsLane(sources.trendsSource)] : []),
     ...(sources.trendsSource && sources.trendsGeoSource ? [geoLane(sources.trendsGeoSource)] : []),
     ...(sources.webSource && sources.expandedSource ? [expandedLane(sources.expandedSource)] : []),
+    ...(sources.webSource && sources.aiOverviewSource ? [aiOverviewLane(sources.aiOverviewSource)] : []),
     ...(sources.worldBankSource ? [worldBankLane(sources.worldBankSource)] : []),
     ...(sources.comtradeSource ? [comtradeLane(sources.comtradeSource)] : []),
     ...(sources.searchAdsSource ? [searchAdsLane(sources.searchAdsSource)] : []),
@@ -632,6 +679,7 @@ export function collectionLanes(sources: CollectionLaneSources): readonly Collec
     ...(sources.tiktokTopAdsSource ? [tiktokTopAdsLane(sources.tiktokTopAdsSource)] : []),
     ...(sources.populationBaselineSource ? [populationBaselineLane(sources.populationBaselineSource)] : []),
     ...(sources.tiktokShopReviewsSource ? [tiktokShopReviewsLane(sources.tiktokShopReviewsSource)] : []),
+    ...(sources.searchSuggestSource ? [searchSuggestLane(sources.searchSuggestSource)] : []),
   ];
 }
 

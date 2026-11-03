@@ -42,6 +42,8 @@ import { topSellingVideosEnabled } from '../modules/analysis/research-automation
 import { createFreeTikTokCommentsCollector, readTikTokCommentPrivacyFile, tiktokCommentsFreeEnabled } from '../platform/collectors/apify-tiktok-comments-free.js';
 import type { TikTokCommentPrivacy } from '../platform/collectors/apify-tiktok-comments.js';
 import { expandedSearchEnabled } from '../modules/analysis/research-automation/expanded-search-lane.js';
+import { aiOverviewEnabled } from '../modules/analysis/research-automation/ai-overview-lane.js';
+import { searchSuggestEnabled } from '../modules/analysis/research-automation/search-suggest-lane.js';
 import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration, tiktokCodingCliproxyConfiguration, shopeeCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
 import type { AutomationDecisionSynthesisConfiguration } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
@@ -110,6 +112,10 @@ export interface OperatorAppConfiguration {
   readonly researchSearchTrendsGeo?: true;
   /** Expanded-search lane (dated + site-scoped pointers); present only when TDN_RESEARCH_EXPANDED_SEARCH_ENABLED is exactly "1". */
   readonly researchExpandedSearch?: true;
+  /** AI Overview follow-up (S29) of the web searches; present only when TDN_RESEARCH_AI_OVERVIEW_ENABLED is exactly "1". Paid, at most two calls per run; needs the SerpApi key. */
+  readonly researchAiOverview?: true;
+  /** Search suggestions (S19b) of the Insight flow; present only when TDN_RESEARCH_SEARCH_SUGGEST_ENABLED is exactly "1". Free, no key, at most 48 calls per Insight run. */
+  readonly researchSearchSuggest?: true;
   /** World Bank open-data lane of the Market flow; present only when TDN_RESEARCH_WORLD_BANK_ENABLED is exactly "1". */
   readonly researchWorldBank?: true;
   /** S28 whole-population baseline for Insight I02; present only when TDN_RESEARCH_POPULATION_BASELINE_ENABLED is exactly "1" (then TDN_RESEARCH_POPULATION_BASELINE_PATH must be absolute). */
@@ -251,6 +257,8 @@ export function operatorAppConfigurationFromEnvironment(
     ...(searchTrendsEnabled(environment) ? { researchSearchTrends: true as const } : {}),
     ...(searchTrendsEnabled(environment) && searchGeoEnabled(environment) ? { researchSearchTrendsGeo: true as const } : {}),
     ...(expandedSearchEnabled(environment) ? { researchExpandedSearch: true as const } : {}),
+    ...(aiOverviewEnabled(environment) ? { researchAiOverview: true as const } : {}),
+    ...(searchSuggestEnabled(environment) ? { researchSearchSuggest: true as const } : {}),
     ...(worldBankEnabled(environment) ? { researchWorldBank: true as const } : {}),
     ...(researchPopulationBaseline ? { researchPopulationBaseline } : {}),
     ...(comtradeEnabled(environment) ? { researchComtrade: true as const } : {}),
@@ -345,6 +353,8 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchSearchTrends ? { searchTrends: true as const } : {}),
       ...(configuration.researchSearchTrendsGeo ? { searchTrendsGeo: true as const } : {}),
       ...(configuration.researchExpandedSearch ? { expandedSearch: true as const } : {}),
+      ...(configuration.researchAiOverview ? { aiOverview: true as const } : {}),
+      ...(configuration.researchSearchSuggest ? { searchSuggest: true as const } : {}),
       ...(configuration.researchWorldBank ? { worldBank: true as const } : {}),
       ...(configuration.researchPopulationBaseline ? { populationBaseline: configuration.researchPopulationBaseline } : {}),
       ...(configuration.researchComtrade ? { comtrade: true as const } : {}),

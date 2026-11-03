@@ -108,7 +108,7 @@ export const defaultProviderTransport: ProviderTransport = {
 };
 
 /** Fixed provider hosts. URLs are built from constants only; no caller-supplied URL is ever fetched. */
-const ALLOWED_HOSTS = new Set(['www.kalodata.com', 'serpapi.com', 'api.worldbank.org', 'comtradeapi.un.org', 'www.nso.gov.vn']);
+const ALLOWED_HOSTS = new Set(['www.kalodata.com', 'serpapi.com', 'api.worldbank.org', 'comtradeapi.un.org', 'www.nso.gov.vn', 'suggestqueries.google.com']);
 /** Per-host response ceiling on top of the caller's own limit. The statistics office host serves workbooks of at most 20 MiB. */
 const HOST_MAX_BYTES: ReadonlyMap<string, number> = new Map([['www.nso.gov.vn', 20 * 1024 * 1024]]);
 
