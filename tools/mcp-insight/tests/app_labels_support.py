@@ -9,8 +9,11 @@ Coverage metadata may be an integer or a per-platform integer mapping.
 """
 
 import json
+import os
 import sqlite3
+import urllib.parse
 from contextlib import closing, contextmanager
+from pathlib import Path
 
 from insight_test_support import INSIGHT, REPO, RUN, canonical, sha
 
@@ -47,14 +50,20 @@ def full_text(row):
 
 
 class AppLabels:
-    def __init__(self, box):
+    def __init__(self, box, *, app_jev=False):
         self.box = box
         self.definition = (INSIGHT / "data" / "insight-theme-codebook.json").read_bytes()
         self.book = json.loads(self.definition)
         self.version = self.book["version"]
         with closing(self.connect()) as db, db:
             for migration in MIGRATIONS:
-                db.executescript((REPO / "migrations" / migration).read_text())
+                sql = (REPO / "migrations" / migration).read_text()
+                if app_jev and migration == "0068_raw_db_v1_review_code.sql":
+                    # COMMON-Z2 includes the future app labeller origin. This
+                    # checkout's migration still permits only MCP_IMPORT; widen
+                    # that one fixture constraint, keeping the real migrations.
+                    sql = sql.replace("origin IN ('MCP_IMPORT')", "origin IN ('MCP_IMPORT','APP_JEV')")
+                db.executescript(sql)
 
     def connect(self):
         db = sqlite3.connect(self.box.db)
@@ -99,14 +108,15 @@ class AppLabels:
             db.execute("INSERT INTO run_review VALUES (?,?,?,?)", (RUN, app_key(row), capture, row["id"]))
 
     def label(self, row, theme="T-GIA", *, version=None, block="thuc_pham",
-              polarity="khen", step="Sau mua", status="kept", confidence=0.94, digest=None):
+              polarity="khen", step="Sau mua", status="kept", confidence=0.94, digest=None,
+              origin="MCP_IMPORT"):
         if theme == "NO_THEME":
             polarity, step, confidence = None, None, None
         with closing(self.connect()) as db, db:
             db.execute("INSERT INTO review_code VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
                 app_key(row), version or self.version, theme, block, polarity, step, status,
                 confidence, "synthetic-app-coder", digest if digest is not None else sha(full_text(row)),
-                AT, "MCP_IMPORT", "a" * 64,
+                AT, origin, "a" * 64,
             ))
 
 
@@ -167,12 +177,22 @@ def star_numbers(rows, products=None):
 
 @contextmanager
 def unchanged_app(box):
-    """Check exact bytes and attempted writes, including live WAL/SHM files."""
+    """Check bytes/writes and forbid even plain reads of the live DB/WAL/SHM."""
     before = {str(p.relative_to(box.app)): p.read_bytes() for p in box.app.rglob("*") if p.is_file()}
+    start = len(box.guard.events)
     box.guard.strict = True
     try:
         yield
     finally:
         box.guard.strict = False
+        events = box.guard.events[start:]
         after = {str(p.relative_to(box.app)): p.read_bytes() for p in box.app.rglob("*") if p.is_file()}
         assert after == before, "MCP changed the synthetic app home"
+        live_files = {box.db, Path(str(box.db) + "-wal"), Path(str(box.db) + "-shm")}
+        for event, args in events:
+            if event == "open" and isinstance(args[0], (str, bytes, Path)):
+                assert Path(os.fsdecode(args[0])).resolve() not in live_files, "MCP opened a live app DB file"
+            if event == "sqlite3.connect":
+                database = str(args[0]).removeprefix("file:").split("?")[0]
+                path = Path(urllib.parse.unquote(database)).resolve()
+                assert not path.is_relative_to(box.app), "MCP opened SQLite in the app home"
