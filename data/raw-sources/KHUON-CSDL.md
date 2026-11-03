@@ -11,6 +11,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - Bản 2 thêm 4 bảng: `run_review` (lần chạy ↔ đánh giá), `codebook` và `review_code` (chủ đề đã gán và ai duyệt), `video` (video ↔ sản phẩm).
 - Kho của MCP Insight dùng tên khác. Bảng đối chiếu ở Phần 3.4.
 - 03/11/2026 (chủ duyệt): §4.4 `search_suggestion` (S19b) và §4.5 `ai_overview_block`, `ai_overview_reference` (S29) có cột đầy đủ; mỗi gạch đầu dòng của AI Overview là một dòng `list_item`; bảng nguồn có thêm cột `snippet`.
+- 03/11/2026 (chủ duyệt F335, F336): S07 bình luận TikTok vào `review` và `video` (migration 0065). Không lưu tên người viết; `reviewer_key` là HMAC của `uid` số; `text` là bản đã che liên hệ (§3, §4.1a).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -122,21 +123,21 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | source_code | TEXT | Có | S05, S06, S07 | — | — | — |
 | platform | TEXT | Có | Nơi viết | `shopee` | `tiktok_shop` | `tiktok` |
 | kind | TEXT | Có | `product_review` hoặc `video_comment` | product_review | product_review | video_comment |
-| external_id | TEXT | Có | Mã gốc của nguồn | `reviewId` | `review.review_id` | `cid` |
+| external_id | TEXT | Có | Mã gốc của nguồn | `reviewId` | `review.review_id` | `cid` (bộ kẽm công khai: `anon-…`) |
 | product_key | TEXT | Không | Sản phẩm được đánh giá | `shopee:` + `itemId` | `tiktok_shop:` + `product_id` | `NULL`; sản phẩm của video nằm ở bảng `video` |
-| video_url | TEXT | Không | Video có bình luận | — | — | `videoWebUrl` |
-| reviewer_key | TEXT | Không | HMAC-SHA256 của **mã tác giả do nguồn trả về** (khoá bí mật của hệ thống). Không tính từ tên hiển thị khi nguồn có mã tác giả | **`NULL`**: bộ thu gói S chưa giữ mã tác giả (change `shopee-public-review-writer-key`) | từ `review_user` (nguồn không có mã số; bộ công khai đã thay bằng `anon-…`) | từ `uid` |
-| reviewer_name | TEXT | Không | **Tên thật. Chỉ lưu trong cơ sở dữ liệu riêng.** Không xuất ra kho công khai, không in vào báo cáo | **Chưa có**: bộ thu hiện bỏ trường này | **Không có trong bộ công khai**: `review_user` đã là mã ẩn danh | **Không có trong bộ công khai**: `uniqueId` đã là mã ẩn danh |
-| reviewer_name_state | TEXT | Có | `real`, `masked_by_source`, `not_provided` | `not_provided` | `masked_by_source` | `real` |
+| video_url | TEXT | Không | Video có bình luận | — | — | `videoWebUrl` (đúng dạng `https://www.tiktok.com/@<handle>/video/<id>`) |
+| reviewer_key | TEXT | Không | HMAC-SHA256 của **mã tác giả do nguồn trả về** (khoá bí mật của hệ thống). Không tính từ tên hiển thị khi nguồn có mã tác giả | **`NULL`**: bộ thu gói S chưa giữ mã tác giả (change `shopee-public-review-writer-key`) | từ `review_user` (nguồn không có mã số; bộ công khai đã thay bằng `anon-…`) | HMAC-SHA256(khoá, `"tdn:tiktok.com:author:v1\0"` + `uid`), cùng khoá và cùng cách băm với bộ thu app; `NULL` khi `uid` thiếu hoặc không phải số (bộ kẽm đã đổi `uid` thành `anon-…`) |
+| reviewer_name | TEXT | Không | **Tên thật. Chỉ lưu trong cơ sở dữ liệu riêng.** Không xuất ra kho công khai, không in vào báo cáo | **Chưa có**: bộ thu hiện bỏ trường này | **Không có trong bộ công khai**: `review_user` đã là mã ẩn danh | **Không lưu** (chủ chọn F335 (a)): không lưu `uniqueId` hay tên ở đâu cả |
+| reviewer_name_state | TEXT | Có | `real`, `masked_by_source`, `not_provided` | `not_provided` | `masked_by_source` | `not_provided` |
 | rating_star | INTEGER | Không | Số sao 1–5. `NULL` với bình luận | `ratingStar` | `review.rating` (chuỗi → số) | `NULL` |
-| text | TEXT | Không | Lời viết, giữ nguyên | `comment` | `review.comment` (hoặc `review.display_text`) | `text` |
+| text | TEXT | Không | Lời viết, giữ nguyên | `comment` | `review.comment` (hoặc `review.display_text`) | `text` đã che: bỏ @tên, link hồ sơ, số điện thoại, email (`sanitizeTikTokCommentText` của bộ thu); `attributes_json.textForm` = `SANITIZED` |
 | variation | TEXT | Không | Phân loại hàng đã mua | `variation` | `sku_specification` | — |
-| attributes_json | TEXT | Không | Nhãn của sàn, ví dụ «Công dụng», «Đối tượng sử dụng» | `attributes` | — | — |
-| posted_at | TEXT | Không | Lúc viết (ISO, +07:00) | `createdAt` | `review.review_timestamp` (mili giây → ISO) | `createTimeISO` |
+| attributes_json | TEXT | Không | Nhãn của sàn, ví dụ «Công dụng», «Đối tượng sử dụng» | `attributes` | — | JSON chỉ có khoá có giá trị: `textForm`, `byVideoAuthor`, `likedByAuthor`, `pinnedByAuthor`, `exclusionReason` (`REPLY`, `EMPTY`, `TAG_ONLY`, `EMOJI_ONLY`, cùng luật bộ thu) |
+| posted_at | TEXT | Không | Lúc viết (ISO, +07:00) | `createdAt` | `review.review_timestamp` (mili giây → ISO) | `createTimeISO` (→ +07:00) |
 | like_count | INTEGER | Không | Lượt thích | — | `digg_count` | `diggCount` |
 | reply_count | INTEGER | Không | Số trả lời | — | — | `replyCommentTotal` |
-| replies_to_external_id | TEXT | Không | Trả lời cho bình luận nào | — | — | `repliesToId` |
-| media_count | INTEGER | Không | Số ảnh, video kèm | — | — | `images` (đếm) |
+| replies_to_external_id | TEXT | Không | Trả lời cho bình luận nào | — | — | `repliesToId` khi khác `NULL` và khác `"0"` |
+| media_count | INTEGER | Không | Số ảnh, video kèm | — | — | `images` (đếm khi là danh sách, nếu không thì `NULL`) |
 | state | TEXT | Có | `VALID`, `HIDDEN`, `DELETED` | `ratingState` | `VALID` | `VALID` |
 | collected_at | TEXT | Có | Lúc thu | `raw_capture.completed_at` | như bên trái | như bên trái |
 | capture_id | TEXT | Có | Lần thu | — | — | — |
@@ -252,11 +253,13 @@ Một video một dòng, dùng chung cho S07 (bình luận), S14 (lời người
 | platform | TEXT | `tiktok` | — |
 | product_key | TEXT | Sản phẩm mà video bán. `NULL` khi chưa biết | sản phẩm S02 gắn với video, nếu nguồn có |
 | brand | TEXT | Thương hiệu của sản phẩm | từ `product.brand` |
-| author_key | TEXT | HMAC của mã tác giả video | — |
+| author_key | TEXT | HMAC của mã tác giả video | S07: HMAC-SHA256(khoá, `"tdn:tiktok.com:video-author-handle:v1\0"` + `<handle>` trong link video), cùng khoá với `review.reviewer_key` |
 | link_basis | TEXT | Vì sao nối với sản phẩm: `PROVIDER_LINK` (nguồn ghi sẵn), `SELECTED_FROM_PRODUCT` (chọn từ trang sản phẩm), `UNKNOWN` | — |
 | capture_id | TEXT | Nguồn gốc | — |
 
 Bình luận S07 nối với sản phẩm qua `review.video_url` → `video.product_key`. Khi `link_basis` là `UNKNOWN`, không đếm bình luận đó theo sản phẩm hay thương hiệu.
+
+Quy tắc bảng `video`: một video chỉ có một dòng. Dòng đã lưu giữ nguyên (bản đầu tiên thắng), dù lần nạp sau có thêm thông tin. `product_key` chỉ có khi nguồn ghi rõ sản phẩm của video và sản phẩm đó đã có trong bảng `product`; không đoán. Lựa chọn video của app hiện chưa ghi sản phẩm, nên mọi video S07 hiện là `UNKNOWN`.
 
 ### 4.2 `ad_read` và `ad` — quảng cáo (S15, S16, S17)
 

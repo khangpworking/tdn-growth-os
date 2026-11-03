@@ -1,0 +1,82 @@
+{
+  "declare": {
+    "formatVersion": "kem-raw-v1",
+    "sourceCode": "S07",
+    "provider": "apify",
+    "keyword": "synthetic product",
+    "cost": { "spent": 0.012 }
+  },
+  "records": [
+    {
+      "operation": "video.selection",
+      "origin": "synthetic exact selection",
+      "videos": [
+        "https://www.tiktok.com/@synthetic_creator_a/video/1001",
+        "https://www.tiktok.com/@synthetic_creator_b/video/1002"
+      ]
+    },
+    {
+      "operation": "apify.clockworks~tiktok-comments-scraper",
+      "input": {
+        "postURLs": [
+          "https://www.tiktok.com/@synthetic_creator_a/video/1001",
+          "https://www.tiktok.com/@synthetic_creator_b/video/1002"
+        ],
+        "commentsPerPost": 10,
+        "maxRepliesPerComment": 1
+      },
+      "httpStatus": 200,
+      "requestedAt": "2026-11-03T01:00:00Z",
+      "completedAt": "2026-11-03T01:00:09Z",
+      "responseSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "itemCount": 4,
+      "items": [
+        {
+          "cid": "2001",
+          "videoWebUrl": "https://www.tiktok.com/@synthetic_creator_a/video/1001",
+          "uid": "998877665544001",
+          "uniqueId": "synthetic_creator_a",
+          "text": "Synthetic creator words",
+          "createTimeISO": "2026-11-02T20:04:05Z",
+          "diggCount": 7,
+          "replyCommentTotal": 2,
+          "repliesToId": "0",
+          "images": [],
+          "likedByAuthor": true,
+          "pinnedByAuthor": false
+        },
+        {
+          "cid": "2002",
+          "videoWebUrl": "https://www.tiktok.com/@synthetic_creator_b/video/1002",
+          "uid": "998877665544002",
+          "uniqueId": "synthetic_writer",
+          "text": "",
+          "createTimeISO": null,
+          "diggCount": 0,
+          "replyCommentTotal": 0,
+          "repliesToId": null,
+          "images": []
+        },
+        {
+          "cid": "2003",
+          "videoWebUrl": "https://www.tiktok.com/@synthetic_creator_a/video/1001",
+          "uid": "998877665544002",
+          "uniqueId": "synthetic_writer",
+          "text": "Synthetic photo words",
+          "createTimeISO": "2026-11-01T01:02:03+00:00",
+          "diggCount": 3,
+          "repliesToId": "0",
+          "images": ["https://example.test/synthetic-a.jpg", "https://example.test/synthetic-b.jpg"]
+        },
+        {
+          "cid": "2004",
+          "videoWebUrl": "https://www.tiktok.com/@synthetic_creator_b/video/1002",
+          "uniqueId": "synthetic_missing_writer",
+          "text": "Ask @synthetic_mention for details",
+          "createTimeISO": "2026-11-03T09:02:03+07:00",
+          "repliesToId": "2002"
+        }
+      ]
+    }
+  ]
+}
