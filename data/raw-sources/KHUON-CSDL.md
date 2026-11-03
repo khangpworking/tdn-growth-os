@@ -12,6 +12,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - Kho của MCP Insight dùng tên khác. Bảng đối chiếu ở Phần 3.4.
 - 03/11/2026 (chủ duyệt): §4.4 `search_suggestion` (S19b) và §4.5 `ai_overview_block`, `ai_overview_reference` (S29) có cột đầy đủ; mỗi gạch đầu dòng của AI Overview là một dòng `list_item`; bảng nguồn có thêm cột `snippet`.
 - 03/11/2026 (chủ duyệt F335, F336): S07 bình luận TikTok vào `review` và `video` (migration 0065). Không lưu tên người viết; `reviewer_key` là HMAC của `uid` số; `text` là bản đã che liên hệ (§3, §4.1a).
+- 03/11/2026 (chủ duyệt F347, F349): số theo từng video của Kalodata có mã nguồn riêng **S02b «Kalodata video»**; S02 đổi tên thành «Kalodata sản phẩm». S02b vào `video` và bảng mới `video_snapshot` (migration 0066). Tên video giữ đúng như nguồn trả; người làm video chỉ lưu `author_key` (§4.1a, §4.1b).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -26,7 +27,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 | Số thiếu | `NULL`. `NULL` không có nghĩa là 0. Số 0 thật thì ghi 0 |
 | Độ chính xác | Cột `precision`: `exact`, `display_rounded` (làm tròn như trang hiển thị), `provider_estimate` (ước tính của nguồn) |
 | Nền tảng | `shopee`, `tiktok_shop`, `tiktok`, `google`, `meta`, `official` |
-| Mã nguồn | `source_code` theo quy chuẩn: S01, S02, S05, S06, S07, S14, S15, S16, S17, S19, S19b, S20, S20b, S21, S22, S23, S24, S25, S28, S29 |
+| Mã nguồn | `source_code` theo quy chuẩn: S01, S02 (Kalodata sản phẩm), S02b (Kalodata video), S05, S06, S07, S14, S15, S16, S17, S19, S19b, S20, S20b, S21, S22, S23, S24, S25, S28, S29 |
 | Mã sản phẩm | `product_key` = `<platform>:<item_id>`, ví dụ `shopee:2308735412`, `tiktok_shop:1729958693491935262` |
 | Nguồn gốc dòng | Mọi bảng dữ liệu có `capture_id` (lần gọi nào) và `source_position` (vị trí trong bản gốc, ví dụ `page=1,row=0`) |
 
@@ -244,22 +245,54 @@ Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản
 
 ### 4.1a `video` — video và sản phẩm
 
-Một video một dòng, dùng chung cho S07 (bình luận), S14 (lời người bán) và S02 (video bán chạy).
+Một video một dòng, dùng chung cho S07 (bình luận), S14 (lời người bán) và S02b (video bán chạy của Kalodata).
 
 | Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
 |---|---|---|---|
-| video_url | TEXT | Link video, khoá chính | S07 `videoWebUrl`; S14 `video.videoUrl` |
-| video_id | TEXT | Mã video của nền tảng | S14 `video.videoId`; S07 phần số cuối của `videoWebUrl` |
+| video_url | TEXT | Link video, khoá chính | S07 `videoWebUrl`; S14 `video.videoUrl`; S02b `https://www.tiktok.com/@<belonged_creator_handle>/video/<video_id>` |
+| video_id | TEXT | Mã video của nền tảng | S14 `video.videoId`; S07 phần số cuối của `videoWebUrl`; S02b `video_id` |
 | platform | TEXT | `tiktok` | — |
-| product_key | TEXT | Sản phẩm mà video bán. `NULL` khi chưa biết | sản phẩm S02 gắn với video, nếu nguồn có |
+| product_key | TEXT | Sản phẩm mà video bán. `NULL` khi chưa biết | S02b: `tiktok_shop:` + `product_id` của yêu cầu, khi lần gọi hỏi theo một sản phẩm |
 | brand | TEXT | Thương hiệu của sản phẩm | từ `product.brand` |
-| author_key | TEXT | HMAC của mã tác giả video | S07: HMAC-SHA256(khoá, `"tdn:tiktok.com:video-author-handle:v1\0"` + `<handle>` trong link video), cùng khoá với `review.reviewer_key` |
+| author_key | TEXT | HMAC của mã tác giả video | S07, S02b: HMAC-SHA256(khoá, `"tdn:tiktok.com:video-author-handle:v1\0"` + `<handle>` trong link video), cùng khoá với `review.reviewer_key`. S02b không lưu `belonged_creator_id`, handle hay `creator_debut` vào cột nào |
 | link_basis | TEXT | Vì sao nối với sản phẩm: `PROVIDER_LINK` (nguồn ghi sẵn), `SELECTED_FROM_PRODUCT` (chọn từ trang sản phẩm), `UNKNOWN` | — |
 | capture_id | TEXT | Nguồn gốc | — |
 
 Bình luận S07 nối với sản phẩm qua `review.video_url` → `video.product_key`. Khi `link_basis` là `UNKNOWN`, không đếm bình luận đó theo sản phẩm hay thương hiệu.
 
 Quy tắc bảng `video`: một video chỉ có một dòng. Dòng đã lưu giữ nguyên (bản đầu tiên thắng), dù lần nạp sau có thêm thông tin. `product_key` chỉ có khi nguồn ghi rõ sản phẩm của video và sản phẩm đó đã có trong bảng `product`; không đoán. Lựa chọn video của app hiện chưa ghi sản phẩm, nên mọi video S07 hiện là `UNKNOWN`.
+
+S02b điền `video` như sau: lần gọi `kalodata.video.rank` hỏi theo một sản phẩm (`product_id` trong yêu cầu) → `product_key` = `tiktok_shop:<product_id>`, `link_basis` = `PROVIDER_LINK`. Nếu bảng `product` chưa có sản phẩm đó, bộ nạp thêm một dòng tối thiểu (tên lấy từ `productName` của bản ghi tệp, hoặc từ `kalodata.product.rank` / `kalodata.product.detail` thành công của cùng lần chạy); không có tên thì không tạo sản phẩm và video là `UNKNOWN`. Lần gọi theo từ khoá (không có `product_id`) → `UNKNOWN`. Nếu `video_id` đã có dưới một link khác (ví dụ từ S07), dùng lại link đó, không thêm dòng.
+
+### 4.1b `video_snapshot` — số của một video trong một kỳ (S02b)
+
+Một dòng cho mỗi video trong kết quả xếp hạng của một lần gọi `kalodata.video.rank`. Khoá chính (`capture_id`, `video_url`). Số là ước tính của nguồn cho kỳ `date_range` của yêu cầu.
+
+| Cột | Kiểu | Đơn vị | Nghĩa | Lấy từ bản gốc |
+|---|---|---|---|---|
+| capture_id | TEXT | — | Lần gọi | — |
+| video_url | TEXT | — | Video (→ `video`) | như §4.1a |
+| source_code | TEXT | — | `S02b` | — |
+| window_start, window_end | TEXT | ngày | Kỳ của số | `date_range` của yêu cầu (`<đầu>~<cuối>`) |
+| rank | INTEGER | — | Thứ tự trong kết quả, từ 1 | vị trí dòng trong `data[]` |
+| title | TEXT | — | Tên video, giữ đúng như nguồn (không che, không sửa). `NULL` khi thiếu | `video_title` |
+| published_at | TEXT | giờ VN | Lúc đăng | `publish_date` `YYYY/MM/DD HH:MM:SS` → ISO `+07:00`; sai dạng → `NULL` |
+| revenue_vnd | REAL | đồng | Doanh thu của video trong kỳ | `revenue` |
+| revenue_growth_rate | REAL | chưa rõ | Tăng trưởng doanh thu, giữ nguyên số nguồn trả; **đơn vị chưa kiểm** (tỉ lệ hay %) | `revenue_growth_rate` |
+| views, likes, shares, comments | INTEGER | lượt | Lượt xem, thích, chia sẻ, bình luận | `views`, `digg_count`, `share_count`, `comment_count` |
+| is_ad | INTEGER | 0/1 | Video có chạy quảng cáo | `ad` |
+| ad_revenue_share_pct, ad_view_share_pct | REAL | % | Phần doanh thu, phần lượt xem đến từ quảng cáo | `ad_revenue_ratio`, `ad_view_ratio` |
+| ads_roas | REAL | lần | Doanh thu trên chi phí quảng cáo | `ads_roas` |
+| is_ai_video | INTEGER | 0/1 | Nguồn đánh dấu video do AI tạo | `ai_video` |
+| precision | TEXT | — | `provider_estimate` | — |
+
+Số phải hữu hạn và ≥ 0, nếu không thì `NULL` (riêng `revenue_growth_rate` có thể âm). Giá trị không phải số → `NULL`, không bao giờ thành 0.
+
+Lưu ý khi đọc: nhiều dòng có `ad_revenue_share_pct` đúng bằng 80.0. Có lẽ đây là trần của nguồn, không phải số đo; đừng coi 80 là phần doanh thu quảng cáo thật. Đơn vị của `revenue_growth_rate` chưa kiểm.
+
+Một dòng S02b cần `video_id` dạng số và `belonged_creator_handle` thường (chữ, số, `.`, `_`), như bộ đọc của app; thiếu thì cả lần nạp hỏng (`RAW_DB_S02B_INVALID_ROW`), không ghi gì. Lần gọi bị nguồn từ chối (ví dụ mã 501 của lần chạy f0f4799a) chỉ có dòng `raw_capture` với `outcome` = `FAILED`. `raw_capture` của S02b: `provider` `kalodata`, `cost_unit` `kalodata_points`, `cost_amount` `NULL`, `period_start`/`period_end` = kỳ `date_range`.
+
+Tệp có `declare.responseSha256Basis` = `canonical-json` thì bộ nạp kiểm `responseSha256` theo JSON chuẩn hoá của `response`; không khai báo thì giữ mã băm được cung cấp. Khai báo cách băm khác bị từ chối. Capture của lần chạy bị cắt ngắn cũng bị từ chối, không nạp một phần.
 
 ### 4.2 `ad_read` và `ad` — quảng cáo (S15, S16, S17)
 
@@ -554,6 +587,30 @@ CREATE TABLE video (
   capture_id  TEXT NOT NULL REFERENCES raw_capture(capture_id),
   CHECK (link_basis = 'UNKNOWN' OR product_key IS NOT NULL)
 );
+
+CREATE TABLE video_snapshot (
+  capture_id           TEXT NOT NULL REFERENCES raw_capture(capture_id),
+  video_url            TEXT NOT NULL REFERENCES video(video_url),
+  source_code          TEXT NOT NULL CHECK (source_code = 'S02b'),
+  window_start         TEXT NOT NULL,
+  window_end           TEXT NOT NULL,
+  rank                 INTEGER NOT NULL CHECK (rank >= 1),
+  title                TEXT,
+  published_at         TEXT,
+  revenue_vnd          REAL CHECK (revenue_vnd BETWEEN 0 AND 1.7976931348623157e308),
+  revenue_growth_rate  REAL CHECK (revenue_growth_rate BETWEEN -1.7976931348623157e308 AND 1.7976931348623157e308),
+  views                INTEGER CHECK (views >= 0),
+  likes                INTEGER CHECK (likes >= 0),
+  shares               INTEGER CHECK (shares >= 0),
+  comments             INTEGER CHECK (comments >= 0),
+  is_ad                INTEGER CHECK (is_ad IN (0,1)),
+  ad_revenue_share_pct REAL CHECK (ad_revenue_share_pct BETWEEN 0 AND 1.7976931348623157e308),
+  ad_view_share_pct    REAL CHECK (ad_view_share_pct BETWEEN 0 AND 1.7976931348623157e308),
+  ads_roas             REAL CHECK (ads_roas BETWEEN 0 AND 1.7976931348623157e308),
+  is_ai_video          INTEGER CHECK (is_ai_video IN (0,1)),
+  precision            TEXT NOT NULL CHECK (precision = 'provider_estimate'),
+  PRIMARY KEY (capture_id, video_url)
+) STRICT;
 
 CREATE TABLE review_point (
   point_id       TEXT PRIMARY KEY,

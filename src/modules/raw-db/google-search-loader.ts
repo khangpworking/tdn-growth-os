@@ -57,7 +57,7 @@ async function suggestionsFromRun(db: Database.Database, artifacts: ContentAddre
   const captures = runCaptures(db, runId, 'google-suggest', 'google.suggest');
   const bodies: { row: CaptureRow; prefix: string; suggestions: string[]; sha: string }[] = [];
   for (const row of captures) {
-    const response = await captureResponse(db, artifacts, row);
+    const response = await captureResponse(artifacts, row);
     if (!response) continue; // a failed call carries no suggestions
     const body: unknown = JSON.parse(response.text);
     if (!Array.isArray(body) || typeof body[0] !== 'string' || !Array.isArray(body[1]) || !body[1].every(item => typeof item === 'string'))
@@ -118,7 +118,7 @@ async function aiOverviewFromRun(db: Database.Database, artifacts: ContentAddres
   const run = assertRun(db, runId);
   const followUps = new Map<string, { row: CaptureRow; response: CaptureResponse; overview: Record<string, unknown> }>();
   for (const row of runCaptures(db, runId, 'serpapi', 'serpapi.google_ai_overview')) {
-    const response = await captureResponse(db, artifacts, row);
+    const response = await captureResponse(artifacts, row);
     if (!response) continue;
     const json: unknown = JSON.parse(response.text);
     const token = isRecord(json) && isRecord(json.search_parameters) ? json.search_parameters.page_token : undefined;
@@ -126,7 +126,7 @@ async function aiOverviewFromRun(db: Database.Database, artifacts: ContentAddres
   }
   const planned: PlannedCapture[] = [];
   for (const row of runCaptures(db, runId, 'serpapi', 'serpapi.google.search')) {
-    const response = await captureResponse(db, artifacts, row);
+    const response = await captureResponse(artifacts, row);
     if (!response) continue;
     const json: unknown = JSON.parse(response.text);
     if (!isRecord(json) || !('ai_overview' in json)) continue;
@@ -260,17 +260,17 @@ function write(db: Database.Database, runId: string, planned: PlannedCapture[], 
   })();
 }
 
-interface CaptureRow { stepId: string; ordinal: string; artifactSha: string; provider: string; operation: string; retrievedAt: string; byteSize: number | bigint | null }
+export interface CaptureRow { stepId: string; ordinal: string; artifactSha: string; provider: string; operation: string; retrievedAt: string; byteSize: number | bigint | null }
 interface CaptureResponse { text: string; sha256: string; endpoint: string | null; requestedAt: string | null; completedAt: string | null; httpStatus: number | null;
   requestParameters: Record<string, unknown> | null }
 
-function assertRun(db: Database.Database, runId: string): { keyword: string } {
+export function assertRun(db: Database.Database, runId: string): { keyword: string } {
   const run = db.prepare('SELECT keyword FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { keyword: string } | undefined;
   if (!run) throw new Error(`RAW_DB_RUN_NOT_FOUND: no research-automation run ${runId}`);
   return run;
 }
 
-function runCaptures(db: Database.Database, runId: string, provider: string, operation: string): CaptureRow[] {
+export function runCaptures(db: Database.Database, runId: string, provider: string, operation: string): CaptureRow[] {
   return (db.prepare(`SELECT c.step_id stepId,c.ordinal ordinal,c.artifact_sha256 artifactSha,c.provider provider,c.operation operation,c.retrieved_at retrievedAt,m.byte_size byteSize
     FROM analysis_research_automation_captures c LEFT JOIN artifact_manifests m ON m.sha256=c.artifact_sha256
     WHERE c.run_id=? AND c.provider=? AND c.operation=? AND c.truncated=0
@@ -282,31 +282,39 @@ function runCaptures(db: Database.Database, runId: string, provider: string, ope
  * The exact provider response of one capture, or null when the call received nothing. The artifact must match its
  * manifest size and digest; a capture envelope must also match its row and its inner response digest.
  */
-async function captureResponse(db: Database.Database, artifacts: ContentAddressedArtifactStore, row: CaptureRow): Promise<CaptureResponse | null> {
+async function captureResponse(artifacts: ContentAddressedArtifactStore, row: CaptureRow): Promise<CaptureResponse | null> {
+  return (await verifiedCapture(artifacts, row)).response;
+}
+
+/**
+ * One stored capture, checked as in captureResponse: its envelope (null for a raw-answer capture) and its exact response
+ * (null when the call received nothing, for example a failed or rejected call).
+ */
+export async function verifiedCapture(artifacts: ContentAddressedArtifactStore, row: CaptureRow): Promise<{ envelope: Record<string, unknown> | null; response: CaptureResponse | null }> {
   if (row.byteSize === null) throw new Error(`RAW_DB_ARTIFACT_MISSING: no manifest for capture ${row.stepId}:${row.ordinal}`);
   const bytes = await artifacts.read(row.artifactSha, { maxBytes: MAX_CAPTURE_ENVELOPE_BYTES });
   if (bytes.byteLength !== Number(row.byteSize)) throw new Error(`RAW_DB_ARTIFACT_MISMATCH: stored artifact differs from capture ${row.stepId}:${row.ordinal}`);
   const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   const value: unknown = JSON.parse(text);
   if (!isRecord(value) || value.contractVersion !== ENVELOPE_CONTRACT)
-    return { text, sha256: row.artifactSha, endpoint: null, requestedAt: null, completedAt: null, httpStatus: null, requestParameters: null };
+    return { envelope: null, response: { text, sha256: row.artifactSha, endpoint: null, requestedAt: null, completedAt: null, httpStatus: null, requestParameters: null } };
   if (String(value.provider).toLowerCase() !== row.provider || String(value.operation).toLowerCase() !== row.operation || value.completedAt !== row.retrievedAt)
     throw new Error(`RAW_DB_ARTIFACT_MISMATCH: capture envelope does not match capture ${row.stepId}:${row.ordinal}`);
-  if (value.outcome !== 'OK') return null;
+  if (value.outcome !== 'OK') return { envelope: value, response: null };
   if (typeof value.responseBytesBase64 !== 'string') throw new Error(`RAW_DB_ARTIFACT_MISMATCH: successful capture ${row.stepId}:${row.ordinal} has no response bytes`);
   const response = Buffer.from(value.responseBytesBase64, 'base64');
   const sha = sha256(response);
   if (response.toString('base64') !== value.responseBytesBase64 || sha !== value.responseSha256 ||
       (value.responseByteLength !== undefined && response.byteLength !== value.responseByteLength))
     throw new Error(`RAW_DB_ARTIFACT_MISMATCH: response bytes differ in capture ${row.stepId}:${row.ordinal}`);
-  return {
+  return { envelope: value, response: {
     text: new TextDecoder('utf-8', { fatal: true }).decode(response), sha256: sha,
     endpoint: typeof value.endpoint === 'string' ? value.endpoint : null,
     requestedAt: typeof value.requestedAt === 'string' ? value.requestedAt : null,
     completedAt: typeof value.completedAt === 'string' ? value.completedAt : null,
     httpStatus: typeof value.httpStatus === 'number' ? value.httpStatus : null,
     requestParameters: isRecord(value.requestParameters) ? value.requestParameters : null,
-  };
+  } };
 }
 
 /** Reads a raw-v1 / kem-raw-v1 file of one source: declare, records, the first 12 hex of the file SHA-256 and its repo-relative path. */

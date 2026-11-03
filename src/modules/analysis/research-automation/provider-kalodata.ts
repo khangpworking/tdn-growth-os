@@ -2,7 +2,7 @@
 // spec served at https://www.kalodata.com/api/open-center/api-docs/public (checked 2026-10-02).
 import {
   CaptureLog, ProviderInputError, RateLimiter, boundedRequest, boundedText, bytesContainSecret, emptyUsage,
-  finiteNonNegative, formatProviderProductRef, httpsUrl, isAmbiguous, isRecord, parseJson, parseProviderProductRef,
+  finiteNonNegative, formatProviderProductRef, httpsUrl, inclusiveDayCount, isAmbiguous, isRecord, parseJson, parseProviderProductRef,
   recentWindowBefore, runStatusFromCoverage, safeCaptureHeaders, safeProviderCode, splitPeriodIntoWindows, unavailableCoverage,
   validateCountry, validateKeyword, validatePeriod, windowRelation,
   type CaptureContext, type ProviderTransport,
@@ -90,8 +90,9 @@ export interface KalodataVideoRankResult {
   readonly captures: readonly ProviderRawCapture[];
 }
 export interface KalodataProvider extends ResearchAutomationProvider {
-  /** S14 top-selling videos of explicit products (digits, at most three), ranked by revenue; never auto-retries a paid request. */
-  topSellingVideos(productIds: readonly string[], options?: ProviderCallOptions): Promise<KalodataVideoRankResult>;
+  /** S14 top-selling videos of explicit products (digits, at most three), ranked by revenue over `window` (the run's product rank window);
+   * never auto-retries a paid request. */
+  topSellingVideos(productIds: readonly string[], window: DateWindow, options?: ProviderCallOptions): Promise<KalodataVideoRankResult>;
   /** S06 product reviews. Explicit product ids only (digits, at most three); never auto-retries a paid request. */
   productCommentInsight(productIds: readonly string[], options?: ProviderCallOptions): Promise<KalodataCommentInsightResult>;
   /** Free account balance read; null when not configured or not observed. */
@@ -420,10 +421,13 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
     // Same credit rules as the S06 reviews: the balance is read first, an observed zero means no paid call, the credit answer (code 2016)
     // stops the phase and every later product is NOT_RUN_CREDIT_EXHAUSTED, an auth or rate rejection stops it, nothing is retried, and the
     // balance delta is recorded.
-    async topSellingVideos(productIds: readonly string[], options: ProviderCallOptions = {}): Promise<KalodataVideoRankResult> {
+    async topSellingVideos(productIds: readonly string[], window: DateWindow, options: ProviderCallOptions = {}): Promise<KalodataVideoRankResult> {
       if (!Array.isArray(productIds) || productIds.length > KALODATA_VIDEO_RANK_LIMITS.maxProducts
         || productIds.some(id => typeof id !== 'string' || !/^\d{1,32}$/.test(id)) || new Set(productIds).size !== productIds.length)
         throw new ProviderInputError('Top-selling videos need at most three distinct numeric product ids');
+      // The provider answers 501 unless region, language, currency and date_range are all present.
+      const days = isRecord(window) ? inclusiveDayCount(window) : 0;
+      if (days < 1 || days > KALODATA_LIMITS.rankWindowMaxDays) throw new ProviderInputError('Top-selling videos need the run\'s product rank window');
       if (!secretKey) return { status: 'NOT_CONFIGURED', balanceBefore: null, creditExhausted: false, products: [], usage: emptyUsage('KALODATA'), captures: [] };
       const log = new CaptureLog('KALODATA', transport, options.onProgress, productIds.length + 2);
       const preflight = productIds.length ? await balanceResponse(log, secretKey, options) : null;
@@ -434,8 +438,9 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       for (const id of productIds) {
         const answer = stopped || options.signal?.aborted ? null : await call(log, secretKey, options, {
           operation: 'kalodata.video.rank', path: '/openapi/v1/tiktok/video/rank', method: 'POST',
-          body: { product_id: id, page_size: KALODATA_VIDEO_RANK_LIMITS.pageSize, page_number: 1, rank_field: 'revenue', asc: false },
-          queryWindow: null, productRef: formatProviderProductRef('KALODATA', id),
+          body: { ...COMMON, product_id: id, date_range: `${window.startDate}~${window.endDate}`, sort_field: { field: 'revenue', type: 'DESC' },
+            page_size: KALODATA_VIDEO_RANK_LIMITS.pageSize, page_number: 1 },
+          queryWindow: window, productRef: formatProviderProductRef('KALODATA', id),
         }, parseVideoRank);
         if (answer?.rejection) stopped = true;
         if (answer?.rejection === 'CREDIT_EXHAUSTED') creditStop = true;

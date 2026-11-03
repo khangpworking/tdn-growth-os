@@ -5,11 +5,12 @@ import { ContentAddressedArtifactStore } from '../src/platform/artifacts/index.j
 import { loadShopeeReviewsToDbV1 } from '../src/modules/raw-db/shopee-reviews-loader.js';
 import { loadAiOverviewToDbV1, loadSearchSuggestionsToDbV1 } from '../src/modules/raw-db/google-search-loader.js';
 import { loadTikTokCommentsToDbV1 } from '../src/modules/raw-db/tiktok-comments-loader.js';
+import { loadKalodataVideosToDbV1 } from '../src/modules/raw-db/kalodata-video-loader.js';
 import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '../src/platform/collectors/apify-tiktok-comments-free.js';
 
-// Usage: raw-db-load --source S05|S07|S19b|S29 --run <runId> [--file <raw-v1 file>] [--privacy-file <abs path>] [--db <path>] [--artifacts <dir>] [--dry-run]
-// --file (S07, S19b, S29 only) reads a raw-v1 / kem-raw-v1 file instead of the run's captures; --run is then its label.
-// S07 needs the TikTok comment privacy key: --privacy-file, else TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE (mode-600 JSON).
+// Usage: raw-db-load --source S02b|S05|S07|S19b|S29 --run <runId> [--file <raw-v1 file>] [--privacy-file <abs path>] [--db <path>] [--artifacts <dir>] [--dry-run]
+// --file (S02b, S07, S19b, S29 only) reads a raw-v1 / kem-raw-v1 file instead of the run's captures; --run is then its label.
+// S02b and S07 need the TikTok comment privacy key: --privacy-file, else TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE (mode-600 JSON).
 // --db defaults to TDN_WORKSPACE_DB, else runtime/tdn-growth-os.sqlite; --artifacts defaults to TDN_ARTIFACT_ROOT.
 let options;
 try {
@@ -20,17 +21,18 @@ try {
   process.exit(2);
 }
 const source = options.source;
-if (source !== 'S05' && source !== 'S07' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
+if (source !== 'S02b' && source !== 'S05' && source !== 'S07' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
 if (!options.run) { console.error('--run <runId> is required'); process.exit(2); }
 if (options.file && source === 'S05') { console.error('--file is not supported for S05'); process.exit(2); }
 const artifactRoot = options.artifacts ?? process.env.TDN_ARTIFACT_ROOT;
 if (!artifactRoot && !options.file) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
-if (options['privacy-file'] && source !== 'S07') { console.error('--privacy-file is only for S07'); process.exit(2); }
-// S07: the writer key is required before any input is read; the salt stays inside the privacy closure and is never printed.
+const keyed = source === 'S02b' || source === 'S07';
+if (options['privacy-file'] && !keyed) { console.error('--privacy-file is only for S02b and S07'); process.exit(2); }
+// S02b, S07: the writer key is required before any input is read; the salt stays inside the privacy closure and is never printed.
 let privacy;
-if (source === 'S07') {
+if (keyed) {
   const file = options['privacy-file'] ?? process.env[TIKTOK_COMMENTS_PRIVACY_FILE_ENV];
-  if (!file) { console.error(`RAW_DB_PRIVACY_KEY_MISSING: S07 needs --privacy-file or ${TIKTOK_COMMENTS_PRIVACY_FILE_ENV}`); process.exit(1); }
+  if (!file) { console.error(`RAW_DB_PRIVACY_KEY_MISSING: ${source} needs --privacy-file or ${TIKTOK_COMMENTS_PRIVACY_FILE_ENV}`); process.exit(1); }
   try { privacy = readTikTokCommentPrivacyFile(file); }
   catch (error) { console.error(`RAW_DB_PRIVACY_KEY_INVALID: ${error instanceof Error ? error.message : 'unreadable key file'}`); process.exit(1); }
 }
@@ -50,6 +52,7 @@ try {
   try {
     const result = source === 'S05' ? await loadShopeeReviewsToDbV1(db, artifacts, { runId: options.run })
       : source === 'S07' ? await loadTikTokCommentsToDbV1(db, artifacts, input, privacy)
+      : source === 'S02b' ? await loadKalodataVideosToDbV1(db, artifacts, input, privacy)
       : source === 'S19b' ? await loadSearchSuggestionsToDbV1(db, artifacts, input)
       : await loadAiOverviewToDbV1(db, artifacts, input);
     console.log(JSON.stringify(result));
