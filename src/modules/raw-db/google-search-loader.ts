@@ -216,6 +216,7 @@ function write(db: Database.Database, runId: string, planned: PlannedCapture[], 
   const insertCapture = db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,endpoint,request_params_json,keyword,
     requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
   const sameObservation = db.prepare('SELECT 1 FROM raw_capture WHERE source_code=? AND response_sha256=? AND requested_at=? AND capture_id<>?');
+  const existing = db.prepare('SELECT response_sha256 sha, requested_at requestedAt FROM raw_capture WHERE capture_id=?');
   const insertRow = aiOverview
     ? db.prepare('INSERT INTO ai_overview_block(query,block_seq,block_type,text,reference_indexes,capture_id) VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING')
     : db.prepare('INSERT INTO search_suggestion(prefix,rank,suggestion,collected_at,capture_id) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING');
@@ -224,14 +225,29 @@ function write(db: Database.Database, runId: string, planned: PlannedCapture[], 
     const result: GoogleLoadResult = { runId, captures: 0, rows: 0, alreadyPresent: 0 };
     let references = 0, notCollected = 0;
     for (const { capture: c, rows, references: refs } of planned) {
-      // The same observation loaded through another route (run vs file, or a second label) is not stored twice.
+      // The same observation under another capture id (the same file loaded under a second label) is not stored twice.
+      // Run and file captures digest different bytes, so this never matches across routes.
       if (sameObservation.get(c.source, c.sha, c.requestedAt, c.captureId)) { result.alreadyPresent++; continue; }
       const inserted = insertCapture.run(c.captureId, c.runId, c.source, c.provider, c.operation, c.endpoint, JSON.stringify(c.params), c.keyword,
         c.requestedAt, c.completedAt, c.httpStatus, c.outcome, c.billing, c.costUnit, c.costAmount, c.sha, c.rawPath).changes;
-      result.captures += inserted;
-      if (inserted && c.outcome === 'NOT_COLLECTED') notCollected++;
-      for (const row of rows) result.rows += insertRow.run(...row).changes;
-      for (const ref of refs) references += insertReference.run(...ref).changes;
+      if (!inserted) {
+        // A reload: the stored capture must be this observation, and its rows are already there.
+        const stored = existing.get(c.captureId) as { sha: string; requestedAt: string };
+        if (stored.sha !== c.sha || stored.requestedAt !== c.requestedAt)
+          throw new Error(`RAW_DB_CAPTURE_ID_CONFLICT: ${c.captureId} is already stored for a different observation`);
+        continue;
+      }
+      result.captures++;
+      if (c.outcome === 'NOT_COLLECTED') notCollected++;
+      // Rows of a new capture are never silently dropped (for example two references with the same index).
+      for (const row of rows) {
+        if (!insertRow.run(...row).changes) throw new Error(`RAW_DB_DUPLICATE_ROW: ${c.captureId} has a repeated row key`);
+        result.rows++;
+      }
+      for (const ref of refs) {
+        if (!insertReference.run(...ref).changes) throw new Error(`RAW_DB_DUPLICATE_ROW: ${c.captureId} repeats reference ${String(ref[1])}`);
+        references++;
+      }
     }
     if (aiOverview) result.references = references;
     return { result, notCollected };
