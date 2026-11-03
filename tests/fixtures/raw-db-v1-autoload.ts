@@ -26,7 +26,7 @@ type StoredRun = { db: Database.Database; artifacts: ContentAddressedArtifactSto
 export function aReviews(ratings: readonly unknown[] = [5, '4']) {
   return ratings.map((rating, index) => ({ product_id: '79001', sku_specification: '  Xanh thử nghiệm 🧪  ', digg_count: index,
     is_anonymous: index === 0, review_user: { name: 'SYNTHETIC_DISPLAY_NAME' },
-    review: { review_id: `96000${index}`, display_text: index === 0 ? A_TEXT : `Mẫu giả lập ${index} 🧪`,
+    review: { review_id: String(79001000 + index), display_text: index === 0 ? A_TEXT : `Mẫu giả lập ${index} 🧪`,
       comment: 'Không dùng trường comment này', rating, review_timestamp: 1789741801752,
       reviewer_name: 'SYNTHETIC_DISPLAY_NAME' } }));
 }

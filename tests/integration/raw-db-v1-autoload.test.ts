@@ -28,6 +28,8 @@ test('RAWDB-A AUTOLOAD order: all seven stored sources commit in order, then bot
   assert.ok(count(f.db, 'search_suggestion') > 0);
   assert.ok(count(f.db, 'ai_overview_block') > 0);
   assert.ok(result.calls.length > 0);
+  for (const platform of ['shopee', 'tiktok_shop'])
+    assert.ok(result.calls.some(call => (JSON.stringify(call.body) ?? '').includes(`Nền tảng: ${platform}`)), `${platform} reaches Jev with its own platform`);
 });
 
 test('RAWDB-A source isolation: each failing source records its own error and every remaining source still commits', async t => {
@@ -105,6 +107,7 @@ test('RAWDB-A snapshot after attempt: the standalone published DB includes commi
     const result = await aCli(f, args(f.runId));
     assert.equal(result.status, 0, result.stderr);
     const copy = new Database(snapshotPath(f), { readonly: true, fileMustExist: true });
+    copy.defaultSafeIntegers(true);
     try {
       assert.equal(copy.pragma('journal_mode', { simple: true }), 'delete');
       assert.equal(copy.pragma('integrity_check', { simple: true }), 'ok');

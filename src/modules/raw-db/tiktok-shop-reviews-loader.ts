@@ -154,8 +154,7 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
         postedAt(review.review_timestamp), count(item.digg_count), null, null, null, 'VALID', completedAt, captureId, `product=${productId},index=${index}`]);
     });
     const envelopeOutcome = typeof envelope.outcome === 'string' ? envelope.outcome : null;
-    const outcome = response ? (planned.reviews.length || planned.reviewIdMissing ? 'OK' : 'EMPTY')
-      : envelopeOutcome !== null && envelopeOutcome !== 'OK' && DB_OUTCOMES.has(envelopeOutcome) ? envelopeOutcome : 'FAILED';
+    const outcome = envelopeOutcome !== null && DB_OUTCOMES.has(envelopeOutcome) ? envelopeOutcome : 'FAILED';
     const responseSha256 = response?.sha256 ?? (typeof envelope.responseSha256 === 'string' ? envelope.responseSha256 : null);
     planned.values = [captureId, runId, SOURCE, 'kalodata', OPERATION, typeof envelope.endpoint === 'string' ? envelope.endpoint : null, requestText, run.keyword,
       typeof envelope.requestedAt === 'string' ? envelope.requestedAt : row.retrievedAt, completedAt,
@@ -200,8 +199,9 @@ function envelopeRequest(envelope: Record<string, unknown>, captureId: string): 
 
 /** `review.rating` as an integer 1–5 (a number or a numeric string); anything else is NULL. */
 export function ratingStar(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isInteger(value) && value >= 1 && value <= 5 ? value : null;
-  return typeof value === 'string' && /^[1-5]$/.test(value) ? Number(value) : null;
+  const rating = typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null;
 }
 
 /** `review.review_timestamp` in milliseconds (number or digit string) → ISO in Vietnam time (+07:00); anything else NULL. */
