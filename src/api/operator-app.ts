@@ -24,6 +24,8 @@ import { openResearchGenerationApi, type ResearchGenerationApiApplication } from
 import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from './executor-lock.js';
 import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
 import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
+import { RawDbAutoloader, rawDbAutoloadEnabled } from '../modules/raw-db/autoload.js';
+import { startAppDbSnapshotTimer } from '../modules/raw-db/app-db-snapshot.js';
 import { assertKalodataReplayNotProduction, kalodataReplaySourceRunIdFromEnvironment, KalodataReplayRefusedError, KALODATA_REPLAY_REFUSED } from '../modules/analysis/research-automation/kalodata-replay.js';
 import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
 import { searchTrendsEnabled } from '../modules/analysis/research-automation/search-interest.js';
@@ -142,6 +144,9 @@ export interface OperatorAppConfiguration {
   /** Temporary free TikTok comment collector (S07); present only when TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED is exactly "1". The privacy key comes from
    * the mode-600 file named by TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE; only the profile and sanitizer are held, never the salt. */
   readonly researchTikTokFreeComments?: { readonly privacy: TikTokCommentPrivacy };
+  /** db-v1 autoload after each run's collection (owner F368/F389); present only when TDN_RAW_DB_AUTOLOAD_ENABLED is exactly "true".
+   * The OWNER executor then also publishes the app DB snapshot every 10 minutes. The privacy key file is read at each attempt. */
+  readonly rawDbAutoload?: { readonly captureRoot: string; readonly privacyFile?: string };
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -252,6 +257,9 @@ export function operatorAppConfigurationFromEnvironment(
     ...(researchTikTokCodingAi === undefined ? {} : { researchTikTokCodingAi }),
     ...(researchShopeeCodingAi === undefined ? {} : { researchShopeeCodingAi }),
     ...(researchJev.enabled ? { researchJev } : {}),
+    ...(rawDbAutoloadEnabled(environment) ? { rawDbAutoload: {
+      captureRoot: environment.TDN_METRIC_CAPTURE_DIR || path.join(path.dirname(path.resolve(environment.TDN_WORKSPACE_DB ?? '')), 'metric-captures'),
+      ...(environment.TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE ? { privacyFile: environment.TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE } : {}) } } : {}),
     ...(coverEnabled === 'true' ? { researchMarketCoverAi: true as const } : {}),
     ...(researchMetricAutoRun === undefined ? {} : { researchMetricAutoRun }),
     ...(searchTrendsEnabled(environment) ? { researchSearchTrends: true as const } : {}),
@@ -304,6 +312,12 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   let videoWriter: BetterSqlite3.Database | undefined;
   let videoWorker: VideoWorker | undefined;
   let r2: ReturnType<typeof createR2MediaArchive> | undefined;
+  // Only the OWNER executor loads db-v1 after a run's collection; it runs beside the worker on its own connection.
+  const autoloader = configuration.ownerWritesEnabled && configuration.rawDbAutoload ? new RawDbAutoloader({
+    databasePath, artifactRoot: configuration.artifactRoot, captureRoot: configuration.rawDbAutoload.captureRoot,
+    privacyFile: configuration.rawDbAutoload.privacyFile, jev: configuration.researchJev,
+  }) : undefined;
+  let stopSnapshotTimer: (() => void) | undefined;
   try {
     if (configuration.r2) r2 = createR2MediaArchive(configuration.r2);
     // Only an operator with OWNER writes is an executor: it holds the lock and sweeps abandoned attempts. Viewers never write.
@@ -346,6 +360,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchTikTokCodingAi ? { tiktokCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchTikTokCodingAi } } : {}),
       ...(configuration.researchShopeeCodingAi ? { shopeeCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchShopeeCodingAi } } : {}),
       ...(configuration.researchJev ? { researchJev: configuration.researchJev } : {}),
+      ...(autoloader ? { onCollectionFinal: (runId: string) => autoloader.schedule(runId) } : {}),
       ...(configuration.researchMarketCoverAi ? { marketCover: { cliproxy: configuration.cliproxy!,
         ...(dependencies.creativeAiTransport ? { transport: dependencies.creativeAiTransport } : {}) } } : {}),
       ...(configuration.metricEvidenceEnabled ? { metricEvidenceEnabled: true, metricEvidenceR2: configuration.r2 } : {}),
@@ -391,6 +406,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       // start() is synchronous; wake() catches and records asynchronous drain failures.
       videoWorker.start();
     }
+    if (autoloader) stopSnapshotTimer = startAppDbSnapshotTimer(databasePath);
   } catch (error) {
     let stopped = true;
     const finishRollback = () => {
@@ -410,6 +426,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       void (async () => {
         try { await videoWorker?.close(); videoWriter?.close(); } catch { stopped = false; }
         try { await researchAutomation?.close(); } catch { stopped = false; }
+        try { stopSnapshotTimer?.(); await autoloader?.close(); } catch { stopped = false; }
         finishRollback();
       })();
     }
@@ -457,6 +474,8 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         });
         try { await contentOwnerApplication?.drainMediaArchive?.(); } catch (error) { errors.push(error); }
         try { await researchAutomationApplication.close(); } catch (error) { errors.push(error); }
+        // A queued or running db-v1 autoload finishes on its own connection before the lock is released.
+        try { stopSnapshotTimer?.(); await autoloader?.close(); } catch (error) { errors.push(error); }
         // The video worker closes before its connection, and both before the lock is released;
         // a failed worker close keeps the lock for manual recovery (the existing rule).
         try { await videoWorker?.close(); videoWriter?.close(); } catch (error) { errors.push(error); }

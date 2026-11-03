@@ -492,6 +492,12 @@ export interface ResearchAutomationServiceOptions {
   readonly pdfCaptureMaxPages?: number;
   /** Market auto-runner. Absent or not enabled: no auto-run row is written and nothing changes. */
   readonly autoRun?: ResearchAutomationAutoRunOptions;
+  /**
+   * Called once when a run's COLLECTION step becomes final (SUCCEEDED or PARTIAL) and the run moves on to its reports,
+   * after that transaction committed (the db-v1 autoload, owner F368/F389). Errors it throws are ignored; it never
+   * changes the run, its steps or its reports.
+   */
+  readonly onCollectionFinal?: (runId: string) => void;
 }
 
 /** Composition-root configuration of the Market auto-runner (enabled only when its flag is exactly "1"). */
@@ -644,6 +650,7 @@ export class ResearchAutomationService {
   readonly #v3Report: ResearchAutomationServiceOptions['v3Report'];
   readonly #kalodataReplay: KalodataReplaySource | undefined;
   readonly #now: () => Date;
+  readonly #onCollectionFinal: ((runId: string) => void) | undefined;
   readonly #uuid: () => string;
   readonly #actorId: string;
   readonly #methods: AutomationDescriptiveMethodBridge;
@@ -684,6 +691,7 @@ export class ResearchAutomationService {
 
   constructor(options: ResearchAutomationServiceOptions) {
     this.#autoRun = options.autoRun?.enabled === true ? options.autoRun : undefined;
+    this.#onCollectionFinal = options.onCollectionFinal;
     this.#marketCoverAi = options.marketCoverAi;
     this.#tikTokCommentsCollector = options.tikTokCommentsCollector;
     this.#tiktokCodingAi = options.tiktokCodingAi;
@@ -5640,9 +5648,27 @@ export class ResearchAutomationService {
     return { sha256: row.sha256, value, nativeReference };
   }
   #transition(runId: string, expectedRevision: number, status: ResearchAutomationRun['status'], at: string): void {
+    const entersReports = status === 'RENDERING' && this.#onCollectionFinal !== undefined
+      && (this.#db.prepare('SELECT status FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { status: string } | undefined)?.status !== 'RENDERING';
     const result = this.#db.prepare('UPDATE analysis_research_automation_runs SET revision=revision+1,status=?,updated_at=? WHERE run_id=? AND revision=?').run(status, at, runId, expectedRevision);
     if (result.changes !== 1) throw new ResearchAutomationConflictError('revision_conflict', 'The run changed; reload it before continuing.');
     if (status === 'AWAITING_SCOPE' || AUTORUN_RUN_END_STATUSES.has(status)) this.#autorunAfterTransition(runId, status, at);
+    if (entersReports) this.#afterCollectionFinal(runId);
+  }
+
+  /**
+   * The single point where a run's collected data is final: COLLECTION settled SUCCEEDED or PARTIAL and the run entered
+   * RENDERING. The hook runs after the current (synchronous) transaction ends, and only if the step is still final then
+   * (a rolled-back transaction fires nothing). It never touches the run; a later REPORTS failure does not undo it.
+   */
+  #afterCollectionFinal(runId: string): void {
+    const hook = this.#onCollectionFinal!;
+    setImmediate(() => {
+      try {
+        const step = this.#db.prepare(`SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { state: string } | undefined;
+        if (step?.state === 'SUCCEEDED' || step?.state === 'PARTIAL') hook(runId);
+      } catch { /* the hook never affects the run */ }
+    });
   }
 
   // ---------------------------------------------------------------------------
