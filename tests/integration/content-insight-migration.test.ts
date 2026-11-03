@@ -58,7 +58,7 @@ function insertLock(db: ReturnType<typeof openDatabase>['db'], campaignId: strin
 
 test('migrations 0026/0062 create immutable insight tables and all sequence/latest guards', async () => {
   const state = await setup();
-  assert.equal(state.migration.currentVersion, 63);
+  assert.equal(state.migration.currentVersion, 64);
   assert.deepEqual(
     (state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('analysis_insight_report_statements', 'flow_content_insight_revisions', 'flow_content_insight_locks') ORDER BY name").all() as { name: string }[]).map((row) => row.name),
     ['analysis_insight_report_statements', 'flow_content_insight_locks', 'flow_content_insight_revisions'],
