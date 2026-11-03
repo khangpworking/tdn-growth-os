@@ -8,7 +8,7 @@ import { acquireLabelsLock } from './labels-lock.js';
 import { parseCodebook, sha256, storeCodebook } from './review-code-loader.js';
 
 /**
- * The app labels db-v1 Shopee product reviews with Jev and writes `review_code` rows with origin APP_JEV (owner F366/F367).
+ * The app labels db-v1 product reviews (Shopee S05, TikTok Shop S06) with Jev and writes `review_code` rows with origin APP_JEV (owner F366/F367).
  * Port of the Insight MCP coder (tools/mcp-insight/insight_tools.py: load_codebook checks, select_block, build_request,
  * _wire_body, parse_answer, label_rows, code_reviews caps): the same review input and the same Jev answer give the same labels.
  */
@@ -235,10 +235,10 @@ export interface LabelResult {
   blocks: { runId: string; blockKey: string | null; matchBasis: string; matchedTerm: string | null; eligible: number }[];
 }
 
-interface Candidate { review_key: string; text: string | null; attributes_json: string | null; product_name: string | null; run_id: string }
+interface Candidate { review_key: string; platform: string; text: string | null; attributes_json: string | null; product_name: string | null; run_id: string }
 
 /**
- * One labelling pass. A review is eligible when it is a Shopee product review, its coding text is not blank and it has no
+ * One labelling pass. A review is eligible when it is a Shopee or TikTok Shop product review, its coding text is not blank and it has no
  * review_code row for the codebook version (any origin). One review = one Jev call; its rows are written in one transaction
  * after the answer is checked. A failed call writes nothing for that review and stops the pass. The raw Jev response
  * body is stored in the artifact store; its sha256 is the rows' import_sha256.
@@ -263,9 +263,9 @@ async function labelPass(db: Database.Database, artifacts: ContentAddressedArtif
   const stored = db.prepare('SELECT definition_sha256 FROM codebook WHERE codebook_version=?').get(book.version) as { definition_sha256: string } | undefined;
   if (stored && stored.definition_sha256 !== definitionSha256) throw new Error(`RAW_DB_CODES_CODEBOOK_CHANGED: codebook ${book.version} is stored with a different definition`);
 
-  const candidates = db.prepare(`SELECT r.review_key, r.text, r.attributes_json, p.product_name, rr.run_id
+  const candidates = db.prepare(`SELECT r.review_key, r.platform, r.text, r.attributes_json, p.product_name, rr.run_id
     FROM review r JOIN run_review rr ON rr.review_key = r.review_key LEFT JOIN product p ON p.product_key = r.product_key
-    WHERE r.platform = 'shopee' AND r.kind = 'product_review' AND (@run IS NULL OR rr.run_id = @run)
+    WHERE r.platform IN ('shopee','tiktok_shop') AND r.kind = 'product_review' AND (@run IS NULL OR rr.run_id = @run)
       AND NOT EXISTS (SELECT 1 FROM review_code c WHERE c.review_key = r.review_key AND c.codebook_version = @version)
     ORDER BY rr.run_id, r.review_key`).all({ run: input.runId ?? null, version: book.version }) as Candidate[];
   // A review linked to several runs is labelled once, with the block of its first run.
@@ -298,7 +298,7 @@ async function labelPass(db: Database.Database, artifacts: ContentAddressedArtif
     // Never pay twice: another writer may have coded this review since the plan.
     if (coded.get(review.review_key, book.version)) continue;
     const selection = selections.get(review.run_id)!;
-    const request = buildRequest(book, selection, { text: review.coded, platform: 'shopee', product_name: review.product_name });
+    const request = buildRequest(book, selection, { text: review.coded, platform: review.platform, product_name: review.product_name });
     const codedAt = new Date().toISOString();
     result.called++;
     const response = await client!.answerRaw(jevQuestions(request));
