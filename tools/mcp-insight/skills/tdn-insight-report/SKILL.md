@@ -6,12 +6,15 @@ description: Write an Insight report for one stored run through the tdn-insight 
 # Write an Insight report with tdn-insight
 
 Use this when the `tdn-insight` MCP is registered (see `tools/mcp-insight/README.md`) and a run has a warehouse
-(`build_warehouse`). Call the tools in this order.
+(`build_warehouse`). Theme labels come from the app DB: `build_warehouse` reads them, and `code_reviews` only answers
+`LABELS_FROM_APP`. If the theme counts say «chưa gán nhãn», the app has not labelled the run: ask the owner, then
+build again. Call the tools in this order.
 
 1. Plan. `report_plan(run_id)` gives the 18 parts, the sources each part may use, the usable count IDs, the ceiling
    of each part and the lines «Những gì báo cáo chưa trả lời được».
-2. Counts. `theme_counts`, `keyword_counts` and `portrait_counts` give the numbers and their count IDs. Cite only
-   IDs from the latest call; a changed count gets a new ID.
+2. Counts. `theme_counts`, `keyword_counts` and `portrait_counts` give the numbers and their count IDs;
+   `star_counts` gives star sentiment from the app (never rank brands by stars). Cite only IDs from the latest
+   call; a changed count gets a new ID.
 3. Reason links. For a «Tại sao» chain, `find_reason_links(run_id, theme_a, theme_b)` gives the reviews where a
    person checked that the customer joins two themes. Candidates are not evidence. A person reads them on the host
    with `read_reviews` and records the reading; never copy review text into the report.
@@ -37,8 +40,8 @@ Claims (ý con), before step 2 when the report needs them:
   `PASSED`, its claim rows are capped at `Yếu`.
 
 Rules:
-- `code_reviews` and `code_claims` with `dry_run=False` are paid calls, and so are the runners in `claims/`: each
-  needs the owner's OK every time. Use `dry_run=True` to plan.
+- `code_claims` with `dry_run=False` is a paid call, and so are the runners in `claims/`: each needs the owner's
+  OK every time. Use `dry_run=True` to plan. Do not call `code_reviews`: the app labels themes.
 - Write in the third person. Motives and barriers come only from customer words: công dụng, giá, quy cách, chất
   lượng. A buying reason from reviews says «kể lại».
 - No campaign ideas, no advice to competitors, no trial orders.

@@ -2,6 +2,7 @@
 
 import copy
 import json
+import logging
 
 import pytest
 
@@ -63,6 +64,42 @@ def test_im_q141_paid_flag_is_exact_and_cap_stops_at_three(p4, monkeypatch):
     result, fake = p4.code_claims(max_calls=3)
     assert len(fake.calls) == result["calls_made"] == result["coded_now"] == 3
     assert result["remaining"] == 2 and result["stopped"] == "CAP_REACHED"
+
+
+def test_im_q5_key_is_file_only_and_redacted_on_transport_error(p4, capsys, caplog):
+    """IM-Q5, moved from part 1 with the Jev path (only code_claims calls Jev since F361–F367).
+    NC: an exception deliberately containing Authorization cannot escape."""
+    p4.seed()
+    p4.catalogue()
+    box = p4.box
+    fake = box.fake_paid()
+    key_checks = []
+
+    def unsafe_reply(body, api_key):
+        fake.calls.append(body)
+        key_checks.append(api_key == box.secret)
+        raise RuntimeError("Authorization: Bearer " + api_key)
+
+    box.monkeypatch.setattr(box.module, "_jev_transport", unsafe_reply)
+    with caplog.at_level(logging.INFO):
+        result = p4.call("code_claims", theme_code=THEME, catalogue_version=1, dry_run=False, max_calls=1)
+    assert result["stopped"] == "JEV_CLAIM_UNAVAILABLE"
+    assert len(fake.calls) == 1
+    assert key_checks == [True], "transport did not use the selected synthetic file credential"
+    captured = capsys.readouterr()
+    public = json.dumps(result) + captured.out + captured.err + caplog.text
+    assert box.secret not in public, "synthetic credential escaped"
+    for path in box.data.rglob("*"):
+        if path.is_file():
+            assert box.secret.encode() not in path.read_bytes(), "synthetic credential persisted"
+    for contents in [None, "OTHER_SYNTHETIC_SETTING=unused\n"]:
+        if contents is None:
+            box.key.unlink()
+        else:
+            box.key.write_text(contents)
+        missing = p4.call("code_claims", theme_code=THEME, catalogue_version=1, dry_run=False, max_calls=1)
+        error(missing, "JEV_KEY_MISSING")
+        assert "OTHER_SYNTHETIC_SETTING" not in json.dumps(missing)
 
 
 @pytest.mark.parametrize("cap", [None, 0, -1, True, 1.5, "3", 1501])
@@ -179,12 +216,14 @@ def test_im_q145_resume_input_digest_and_attribute_only_change(p4):
     p4.box.replace_sources(rows)
     p4.source_fields(rows)
     p4.call("build_warehouse")
+    p4.box.relabel_app()  # the app labels the changed review texts again (F361–F367)
     p4.theme_code_reviews()
     assert p4.call("code_claims", theme_code=THEME, catalogue_version=1)["planned_calls"] == 0
     rows[0]["text"] = "zqvchanged customer input"
     p4.box.replace_sources(rows)
     p4.source_fields(rows)
     p4.call("build_warehouse")
+    p4.box.relabel_app()
     p4.theme_code_reviews()
     assert p4.call("code_claims", theme_code=THEME, catalogue_version=1)["planned_calls"] == 1
     assert p4.row()["reviews"] == 4

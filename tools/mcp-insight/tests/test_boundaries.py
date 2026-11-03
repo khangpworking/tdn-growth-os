@@ -30,6 +30,8 @@ def schemas(tools):
         "theme_counts": {"run_id": {"string"}, "question": {"string", "null"}},
         "keyword_counts": {"run_id": {"string"}},
         "portrait_counts": {"run_id": {"string"}},
+        # Star sentiment from the app DB (F361–F367) amends the exact registry.
+        "star_counts": {"run_id": {"string"}},
         # IM-Q52 (amends IM-Q1): the four PR 2 tools.
         "report_plan": {"run_id": {"string"}},
         "confidence_ceiling": {"run_id": {"string"}, "part": {"integer"}, "evidence": {"array"},
@@ -149,7 +151,7 @@ def test_im_q1_count_tools_execute_through_fastmcp(subject, sandbox, tool, field
 
 def tool_calls(box):
     return [box.call("build_warehouse"), box.call("code_reviews"), box.call("theme_counts"),
-            box.call("keyword_counts"), box.call("portrait_counts")]
+            box.call("keyword_counts"), box.call("portrait_counts"), box.call("star_counts")]
 
 
 def test_im_q3_every_offline_tool_is_socket_and_dns_free(built):
@@ -171,55 +173,22 @@ def test_im_q3_every_offline_tool_is_socket_and_dns_free(built):
     assert not built.guard.violations
 
 
-@pytest.mark.parametrize("flag", [None, "true", " 1", "0"])
-def test_im_q4_paid_flag_refuses_before_key_read(built, monkeypatch, flag):
-    """NC: exact flag 1 with synthetic key and fake transport reaches coding."""
+@pytest.mark.parametrize("flag", [None, "true", " 1", "0", "1"])
+def test_im_q4_code_reviews_never_codes_or_reads_a_key(built, monkeypatch, flag):
+    """F361–F367 (replaces the paid-flag gate): the app labels reviews; code_reviews refuses with
+    LABELS_FROM_APP under every flag value, before any key read or transport call.
+    NC: a code_reviews that still codes when the flag is exactly 1 reaches the fake transport."""
     fake = FakeJev()
     monkeypatch.setattr(built.module, "_jev_transport", fake)
     if flag is not None:
         monkeypatch.setenv("INSIGHT_MCP_ALLOW_PAID", flag)
     start = len(built.guard.events)
-    result = built.call("code_reviews", dry_run=False, max_calls=1)
-    assert result["refused"] is True and result["reason"] == "PAID_FLAG_MISSING"
-    assert type(result["eligible_reviews"]) is int and result["eligible_reviews"] == 5
-    assert type(result["planned_calls"]) is int and result["planned_calls"] == 1
+    for kwargs in ({}, {"dry_run": False, "max_calls": 1}):
+        error(built.call("code_reviews", **kwargs), "LABELS_FROM_APP")
     assert not fake.calls
     assert not any(event == "open" and str(args[0]) == str(built.key)
                    for event, args in built.guard.events[start:])
-    allowed, fake = built.code(max_calls=1)
-    assert len(fake.calls) == 1 and "error" not in allowed
-
-
-def test_im_q5_key_is_file_only_and_redacted_on_transport_error(built, capsys, caplog):
-    """NC: an exception deliberately containing Authorization cannot escape."""
-    fake = built.fake_paid()
-    key_checks = []
-
-    def unsafe_reply(body, api_key):
-        fake.calls.append(body)
-        key_checks.append(api_key == built.secret)
-        raise RuntimeError("Authorization: Bearer " + api_key)
-
-    built.monkeypatch.setattr(built.module, "_jev_transport", unsafe_reply)
-    with caplog.at_level(logging.INFO):
-        result = built.call("code_reviews", dry_run=False, max_calls=1)
-    assert result["stopped"] == "JEV_THEME_UNAVAILABLE"
-    assert len(fake.calls) == 1
-    assert key_checks == [True], "transport did not use the selected synthetic file credential"
-    captured = capsys.readouterr()
-    public = json.dumps(result) + captured.out + captured.err + caplog.text
-    assert built.secret not in public, "synthetic credential escaped"
-    for path in built.data.rglob("*"):
-        if path.is_file():
-            assert built.secret.encode() not in path.read_bytes(), "synthetic credential persisted"
-    for contents in [None, "OTHER_SYNTHETIC_SETTING=unused\n"]:
-        if contents is None:
-            built.key.unlink()
-        else:
-            built.key.write_text(contents)
-        missing = built.call("code_reviews", dry_run=False, max_calls=1)
-        error(missing, "JEV_KEY_MISSING")
-        assert "OTHER_SYNTHETIC_SETTING" not in json.dumps(missing)
+    assert built.rows("coding_state") == [] and built.rows("label") == []
 
 
 def test_im_q6_database_configuration_is_required_and_selected(subject, sandbox, monkeypatch):
@@ -259,9 +228,9 @@ def arrange_failure(built, failure):
 
 def scenario_calls(built, failure):
     if failure == "RUN_NOT_FOUND":
-        return [built.call(t, OTHER) for t in ["build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts"]]
+        return [built.call(t, OTHER) for t in ["build_warehouse", "star_counts", "theme_counts", "keyword_counts", "portrait_counts"]]
     elif failure == "RUN_AMBIGUOUS":
-        return [built.call(t, RUN[:8]) for t in ["build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts"]]
+        return [built.call(t, RUN[:8]) for t in ["build_warehouse", "star_counts", "theme_counts", "keyword_counts", "portrait_counts"]]
     elif failure == "ARTIFACT_MISSING":
         return [built.call("build_warehouse")]
     elif failure == "SLAYER_SQL_MISMATCH":
@@ -341,7 +310,7 @@ def test_im_q39_tools_cannot_write_app_mutate_env_or_spawn(built, failure):
         if failure:
             for result in results:
                 error(result, failure)
-        for tool in ["build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts"]:
+        for tool in ["build_warehouse", "star_counts", "theme_counts", "keyword_counts", "portrait_counts"]:
             error(built.call(tool, OTHER), "RUN_NOT_FOUND")
         assert dict(os.environ) == env
         assert tree_snapshot(built.app) == before
@@ -422,7 +391,7 @@ def test_im_q40_all_public_surfaces_and_logs_are_counts_only(subject, sandbox, c
         results.append(sandbox.call("code_reviews", dry_run=False, max_calls=1))
         sandbox.code(label_all())
         results.extend(tool_calls(sandbox))
-        results.extend(sandbox.call(t, OTHER) for t in ["build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts"])
+        results.extend(sandbox.call(t, OTHER) for t in ["build_warehouse", "star_counts", "theme_counts", "keyword_counts", "portrait_counts"])
         error(sandbox.call("theme_counts", question="T-GIA' OR 1=1"), "INVALID_ARGUMENT")
         sandbox.fake_paid(lambda *args: (_ for _ in ()).throw(RuntimeError("zqv07 ok")))
         results.append(sandbox.call("code_reviews", dry_run=False, max_calls=1, block_override="my_pham"))

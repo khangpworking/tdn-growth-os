@@ -1,15 +1,20 @@
 # tdn-insight — Insight MCP over stored run data (parts 1 to 4)
 
-Stdio FastMCP server (`insight_tools.py`) for the Insight report: stored run data → run warehouse → Jev theme
-coding → SLAYER semantic layer → counts (part 1), then the 18-part report plan, the confidence ceiling and reason
+Stdio FastMCP server (`insight_tools.py`) for the Insight report: stored run data and the app's theme labels → run
+warehouse → SLAYER semantic layer → counts (part 1), then the 18-part report plan, the confidence ceiling and reason
 links (part 2), then the checked report parts and insight statements the agent writes, and the rendered report
 (part 3), and the claim layer («ý con» under each theme: catalogue, claim coding, claim counts and the two-grader
 cross-check, part 4). Spec: OpenSpec changes `insight-mcp-v1` (R-IM01 to R-IM12) and `insight-claim-layer` (R-IM13
-to R-IM18). Behavior rows: `CONTRACT.md` (IM-Q1 to IM-Q165). The call order for an agent is in
+to R-IM18), and `insight-mcp-app-labels` (R-IM19, R-IM20: labels and star sentiment read from the app DB, owner F361–F367).
+Behavior rows: `CONTRACT.md` (IM-Q1 to IM-Q171). The call order for an agent is in
 `skills/tdn-insight-report/SKILL.md`.
 
-**Owner rule: no paid call without the owner's OK.** `code_reviews` and `code_claims` are dry runs by default. A real
-Jev call needs `INSIGHT_MCP_ALLOW_PAID=1` and an explicit `max_calls`; the flag is a safety net, not an authorization.
+**The app labels themes; the MCP only reads.** The app gives each review its theme labels with Jev and stores them
+in its DB (`review_code`, `codebook`; star sentiment in the view `review_star_sentiment`, migration 0068).
+`build_warehouse` reads them; `code_reviews` makes no call and answers `LABELS_FROM_APP`.
+
+**Owner rule: no paid call without the owner's OK.** `code_claims` is a dry run by default. A real Jev claim call
+needs `INSIGHT_MCP_ALLOW_PAID=1` and an explicit `max_calls`; the flag is a safety net, not an authorization.
 The claim runners in `claims/` (catalogue draft, two graders) are paid runs too; the MCP never starts them.
 
 ## Environment
@@ -20,7 +25,7 @@ The claim runners in `claims/` (catalogue draft, two graders) are paid runs too;
 | `INSIGHT_MCP_APP_ARTIFACTS` | no | Artifact root (`sha256/<2 chars>/<sha>`). Default: `artifacts/` next to the app DB. Read-only. |
 | `INSIGHT_MCP_APP_CAPTURES` | no | Metric capture root holding `<run_id>/scope.json`. Default: `metric-captures/` next to the app DB. Read-only. |
 | `INSIGHT_MCP_DATA_DIR` | no | Where run warehouses (`runs/<run_id>.sqlite`), the shared store, the report store and the rendered reports (`reports/<run_id>/`) live. Default: `tools/mcp-insight/out/` (gitignored). |
-| `INSIGHT_MCP_ALLOW_PAID` | no | Exactly `1` allows a real Jev call. Any other value refuses before the key file is read. |
+| `INSIGHT_MCP_ALLOW_PAID` | no | Exactly `1` allows a real Jev claim call (`code_claims`). Any other value refuses before the key file is read. Theme coding does not use it. |
 | `INSIGHT_MCP_JEV_KEY_FILE` | no | File with a `TYPESAFE_API_KEY=` line. Default: the project secret file under `~/.config/tdn-growth-os/secrets/`. Read in-process; never logged or returned. |
 
 The module sets `DO_NOT_TRACK=1` and `SLAYER_USAGE_REPORTING=off` for its own process at import.
@@ -30,14 +35,20 @@ The module sets `DO_NOT_TRACK=1` and `SLAYER_USAGE_REPORTING=off` for its own pr
 - `build_warehouse(run_id)` — full run UUID or an 8-hex prefix. Reads Shopee reviews (collection `pages[]`),
   TikTok Shop reviews (`kalodata.product.comment.insight`), search suggestions, Trends by province, product names
   and the run scope record, then writes the run warehouse. Returns counts per platform and source; a source with no
-  stored capture is `"Chưa có dữ liệu"`. Customer text is stored only in `review_text`. A rebuild keeps coding state
-  and labels whose coding inputs did not change, and keeps `count_registry`.
-- `code_reviews(run_id, dry_run=True, max_calls=None, block_override=None)` — Jev theme coding with the codebook in
-  `data/insight-theme-codebook.json`. A dry run returns eligible review counts, planned calls and the block selection
-  (owner override, applied category, keyword, core only). A real run stops at `max_calls` and at the first failed
-  call (`JEV_THEME_UNAVAILABLE` or `JEV_THEME_INVALID`), with no retry.
+  stored capture is `"Chưa có dữ liệu"`. Customer text is stored only in `review_text`. Every build also copies the
+  app's labels for the run's reviews: a review matches the app's product review with the same platform and source
+  ID; only rows of the repo codebook version count, and the app's `codebook` row must have the repo file's sha256
+  (`APP_CODEBOOK_MISMATCH`); a row whose `text_sha256` is not the review text's is not used (`labelTextMismatch`).
+  The result's `labels` gives matched, coded, uncoded and mismatched review counts. A rebuild keeps
+  `count_registry`.
+- `code_reviews(...)` — retired: always `LABELS_FROM_APP` («nhãn do app gán; MCP chỉ đọc»), no key, no call.
 - `theme_counts(run_id, question=None)` — rows per platform, theme and polarity with reviews, writers, products,
-  the R-I33 threshold, check 2 and check 3 flags and a count ID. `question` filters one theme code.
+  the R-I33 threshold, check 2 and check 3 flags and a count ID, from the app's labels (`labelSource: "app_db"`,
+  `codedReviews` and `uncodedReviews` per platform). With no labelled review: `rows: []` and the note
+  «chưa gán nhãn». `question` filters one theme code.
+- `star_counts(run_id)` — star sentiment of the matched reviews from the app view: `tich_cuc` (4–5 sao), `tieu_cuc`
+  (1–3 sao), `khong_sao`, per platform (`product: "all"`) and per product (`P1`, `P2`, … with the listing name),
+  with the R-I33 threshold and a count ID. Counts only; never rank brands by stars.
 - `keyword_counts(run_id)` — distinct search suggestions per keyword group from `data/keyword-groups.json`
   (`UNREVIEWED`, not owner-approved), with the 5-keyword threshold and `step_totals`.
 - `portrait_counts(run_id)` — `rows`: «Ai dùng» and «Mua cho ai» group rows, and gender and age-band rows guessed
@@ -87,8 +98,9 @@ posted date (Asia/Ho_Chi_Minh) and the run-wide near-duplicate groups, and retur
   never changed, and starts `DRAFT`.
 - `code_claims(run_id, theme_code, catalogue_version, dry_run=True, max_calls=None)` — Jev claim coding of the
   theme's reviews on the customer words only: one question per non-generic claim, plus `SPEC` (specific), `RAC`
-  (spam) and `GEN` (praise or complaint at all). Attribute-only reviews are never sent. Same paid gate, cap and
-  stop rules as `code_reviews` (`JEV_CLAIM_UNAVAILABLE`, `JEV_CLAIM_INVALID`).
+  (spam) and `GEN` (praise or complaint at all). Attribute-only reviews are never sent. A real run needs the paid
+  flag and `max_calls`, stops at the cap and at the first failed call (`JEV_CLAIM_UNAVAILABLE`,
+  `JEV_CLAIM_INVALID`), with no retry.
 - `claim_counts(run_id, theme_code, catalogue_version)` — per platform (never added together) and claim: reviews,
   evidence after merging near duplicates, writers and the R-I33 threshold, products, shops, top product share,
   specific share, the 7-day peak and the flags «chủ yếu từ một sản phẩm», «dồn thời gian» and «có ở cả 2 sàn»,
@@ -142,16 +154,14 @@ rejected (`CODEBOOK_EXCLUDED_THEME`).
 
 ## Test seams
 
-- `_jev_transport(request, api_key) -> (http_status, raw_bytes)` is the only network path. `request` holds only
-  the IM-Q20 fields (`text`, `platform`, `product_name`, `block_label`, `codebook_version`, `questions` with `code`,
-  `name`, `include`, `exclude`, `options`); the transport turns it into the Jev wire body. Tests replace it with an
-  offline fake.
+- `_jev_transport(request, api_key) -> (http_status, raw_bytes)` is the only network path, used only by
+  `code_claims`; the transport turns the request into the Jev wire body. Tests replace it with an offline fake.
 - `_slayer_query(...)` runs one SLAYER query; tests can patch it to force a mismatch or an exception.
 - `_load_semantic_models(directory)` loads the YAML models and raises `ValueError` on a measure named like a column.
 - `CODEBOOK_PATH`, `KEYWORD_GROUPS_PATH`, `REPORT_FRAME_PATH` and `SEMANTIC_DIR` name the data files.
 - `_now()` is the only clock of the part 3 tools (UTC); it is written only into `submitted_at` and `rendered_at`.
 - A claim request (`kind: "claims"`) holds `text` (customer words), `platform`, `product_name`, `theme_name`,
-  `catalogue_version` and `questions`; it goes through the same `_jev_transport`.
+  `catalogue_version` and `questions`.
 - `claim_grade_keys` and `claim_grade_diffs` are the one source of the cross-check key numbering, shared with
   `claims/crosscheck.py`.
 

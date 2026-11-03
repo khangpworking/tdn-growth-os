@@ -16,6 +16,15 @@ The audit guard denies network/DNS/bind attempts, external SQLite connections
 and real secret/config reads, including attempts the subject catches. Synthetic
 credentials are redacted from pytest failure reports.
 
+## App labels (revision 24, owner F361–F367)
+
+The MCP no longer labels themes; it reads the app DB. `Sandbox.code(policy)` plays the app's labeller: it applies
+the repo migrations 0063–0068 to the synthetic app DB, asks `FakeJev` (the same policies as before) once per
+unlabelled warehouse review, writes db-v1 `review`, `codebook` and `review_code` rows (NO_THEME when no theme
+passes), and rebuilds the warehouse. `relabel_app()` drops the db-v1 tables so a changed text can be labelled again
+(the real rows are append-only). Tests of Jev theme requests, answers, caps and block choice (IM-Q15 to IM-Q18,
+IM-Q20, IM-Q47) were removed with the coding; IM-Q5 moved to part 4 (`code_claims` still calls Jev).
+
 ## Running
 
 Collection does not import the absent/in-progress implementation, FastMCP or

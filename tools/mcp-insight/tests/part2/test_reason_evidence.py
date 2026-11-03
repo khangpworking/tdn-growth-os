@@ -41,51 +41,38 @@ def test_im_q69_baseline_r1_r13_counts_checked_pairs_per_platform(reason_baselin
 
 
 def test_im_q69_wrong_target_r12_uses_real_interrupted_block_change(p2):
-    """NC: joining all kept labels leaks T-VI from the old thuc_pham target."""
-    p2.seed([review(1, text="zqvr12a ngon vì chính hãng"), review(12, text="zqv82 ngon vì chính hãng")], keywords=())
-    assert "error" not in p2.code()[0]
+    """A run whose app labels come from two blocks counts only the coding target, its most common block
+    (F361–F367). NC: joining all kept labels leaks T-VI from the other thuc_pham block."""
+    p2.seed([review(12, text="zqv82 ngon vì chính hãng"), review(3, text="zqvr12a ngon vì chính hãng"),
+             review(4, text="zqvr12b ngon vì chính hãng")], keywords=())
+    assert "error" not in p2.code(max_calls=1)[0]  # shopee:12 sorts first: the pair under thuc_pham
     p2.reading("shopee:12")
 
     def interrupted(body, answers, index):
-        if index == 2:
-            raise RuntimeError("synthetic interrupted target")
         answers["T-CHINHHANG"] = choice(khen=0.9)
 
     result, fake = p2.code(interrupted, block_override="my_pham")
-    assert result["stopped"] == "JEV_THEME_UNAVAILABLE" and len(fake.calls) == 2
+    assert result["stopped"] == "COMPLETE" and len(fake.calls) == 2
+    assert result["labels"]["block_key"] == "my_pham" and result["labels"]["otherBlockReviews"] == 1
     assert p2.box.rows("label", "WHERE review_id=? AND theme_code=? AND status='kept'", ("shopee:12", "T-VI"))
     assert reason_row(p2.links())["review_ids"] == []
     assert candidate_ids(p2.links()) == []
 
 
 def test_im_q69_lifecycle_r14_changed_text_requires_a_new_reading_after_recode(reason_lifecycle_r14):
-    """NC R2-1: current kept labels after recoding cannot revive an old-text verdict."""
+    """NC R2-1: an old-text verdict never revives. The app's labels of the old text fail the text proof
+    after the source text changes (F361–F367), so the review is uncoded until the app labels the new text."""
     p2 = reason_lifecycle_r14
     assert reason_row(p2.links())["review_ids"] == ["shopee:14"]
     old_hash = sha("zqv80 ngon vì chính hãng")
     changed = "zqv81 vị ngon, chính hãng; rẻ nên mua"
     p2.box.replace_sources([review(14, text=changed)])
-    assert "error" not in p2.call("build_warehouse")
-    # The freshness assertion is deliberately AFTER successful fake recoding,
-    # so stale-label rejection alone cannot satisfy this control.
-    result, fake = p2.code()
-    assert "error" not in result and len(fake.calls) == 1
-    labels = p2.box.rows("label", "WHERE review_id=? AND status='kept'", ("shopee:14",))
-    assert {r["theme_code"] for r in labels} == set(PAIR)
-    assert p2.box.rows("coding_state", "WHERE review_id=? AND codebook_version=? AND block_key='thuc_pham'",
-                       ("shopee:14", VERSION))
+    built = p2.call("build_warehouse")
+    assert built["labels"]["labelTextMismatch"] == 1 and built["labels"]["codedReviews"] == 0
+    assert p2.box.rows("label", "WHERE review_id=?", ("shopee:14",)) == []
+    assert p2.box.rows("coding_state", "WHERE review_id=?", ("shopee:14",)) == []
     assert p2.rows("reason_check")[0]["text_sha256"] == old_hash
-    candidate = p2.links()
-    assert reason_row(candidate)["review_ids"] == [] and reason_row(candidate)["reviews"] == 0
-    assert candidate_ids(candidate) == ["shopee:14"]
-    assert p2.box.rows("reason_verdict") == []
-    p2.reading("shopee:14", False)
-    negative = p2.links()
-    assert reason_row(negative)["review_ids"] == [] and candidate_ids(negative) == []
-    p2.reading("shopee:14", True)
-    positive = p2.links()
-    assert reason_row(positive)["review_ids"] == ["shopee:14"] and candidate_ids(positive) == []
-    assert [r["text_sha256"] for r in p2.rows("reason_check")] == [old_hash, sha(changed), sha(changed)]
+    error(p2.links(), "NOT_CODED")
 
 
 def test_im_q69_lifecycle_r15_identical_text_reading_survives_rebuild(reason_lifecycle_r15):
@@ -104,15 +91,13 @@ def test_im_q69_lifecycle_r15_identical_text_reading_survives_rebuild(reason_lif
 @pytest.mark.parametrize("connector", ["VÌ", "nên", "do", "để", unicodedata.normalize("NFD", "vì")])
 def test_im_q69_connectors_normalize_nfc_case_and_require_word_edges(p2, connector):
     """NC: ASCII-only/literal matching loses accented, uppercase or NFD connectors."""
-    p2.seed([review(1, text=f"zqvword ngon {connector} chính hãng")], keywords=())
+    # Two reviews, not one changed text: the app never relabels a review (F361–F367).
+    p2.seed([review(1, text=f"zqvword ngon {connector} chính hãng"),
+             review(2, text=f"zqvword2 ngon x{connector}7 chính hãng")], keywords=())
     assert "error" not in p2.code()[0]
     p2.reading("shopee:1")
+    p2.reading("shopee:2")
     assert reason_row(p2.links())["review_ids"] == ["shopee:1"]
-    p2.box.replace_sources([review(1, text=f"zqvword2 ngon x{connector}7 chính hãng")])
-    assert "error" not in p2.call("build_warehouse")
-    assert "error" not in p2.code()[0]
-    p2.reading("shopee:1")
-    assert reason_row(p2.links())["review_ids"] == []
 
 
 @pytest.mark.parametrize("pair", [("T-GIAOHANG", "T-VI"), ("T-VI", "T-VI"), ("T-NO", "T-VI")])

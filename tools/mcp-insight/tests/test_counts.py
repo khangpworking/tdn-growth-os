@@ -94,7 +94,7 @@ def test_im_q23_one_numeric_slayer_difference_refuses_all_numbers(subject, sandb
 @pytest.mark.parametrize("run_id", ["x", "", None, True, "../../secret", "aaaaaaaa' OR 1=1", "aaaaaaaaa", "g" * 8, 7])
 def test_im_q24_run_ids_are_validated_before_query(subject, sandbox, run_id):
     """NC: malformed IDs cannot become SQL, paths, or prefix queries."""
-    for tool in ["build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts"]:
+    for tool in ["build_warehouse", "star_counts", "theme_counts", "keyword_counts", "portrait_counts"]:
         error(sandbox.call(tool, run_id), "INVALID_ARGUMENT")
     assert list(sandbox.data.rglob("*.sqlite")) == []
 
@@ -148,8 +148,11 @@ def test_im_q26_coded_review_counts_are_per_platform_even_with_zero_labels(subje
     """NC: 2 Shopee + 3 TikTok is an object of counts, never scalar total 5."""
     sandbox.seed([review(1), review(2)] + [review(i, platform="tiktok_shop", name=f"synthetic_{i}") for i in range(3, 6)])
     assert "error" not in sandbox.call("build_warehouse")
-    error(sandbox.call("theme_counts"), "NOT_CODED")
-    sandbox.code()  # all-negative but successful completion
+    unlabelled = sandbox.call("theme_counts")  # no app label yet: a note, never NOT_CODED or rows (F361–F367)
+    assert unlabelled["rows"] == [] and unlabelled["note"] == "chưa gán nhãn"
+    assert unlabelled["codedReviews"] == {"shopee": 0, "tiktok_shop": 0}
+    assert unlabelled["uncodedReviews"] == {"shopee": 2, "tiktok_shop": 3}
+    sandbox.code()  # all-negative but successful completion: NO_THEME app rows
     result = sandbox.call("theme_counts")
     assert result["coded_reviews"] == {"shopee": 2, "tiktok_shop": 3}
     assert result["rows"] == []
@@ -337,10 +340,12 @@ def test_im_q44_kept_unclear_direction_counts_only_all_and_unknown(built):
     assert built.rows("label")[0]["polarity"] == "khong_ro_huong"
 
 
-def test_im_q45_partial_new_block_filters_old_labels_and_state(subject, sandbox):
-    """NC: dropping the current-state join returns 5 and a false threshold pass."""
-    build_and_code(sandbox, [review(i, platform="tiktok_shop", name=f"synthetic_q45_{i}") for i in range(1, 6)])
-    assert theme_row(sandbox.call("theme_counts"), platform="tiktok_shop")["reviews"] == 5
+def test_im_q45_other_block_labels_and_state_are_filtered(subject, sandbox):
+    """App labels of one run may come from two blocks: the most common block is the coding target and the
+    other block's labels and state do not count (F361–F367).
+    NC: dropping the current-state join returns 5 and a false threshold pass."""
+    sandbox.seed([review(i, platform="tiktok_shop", name=f"synthetic_q45_{i}") for i in range(1, 6)])
+    assert "error" not in sandbox.call("build_warehouse")
 
     def fail_second(body, answers, index):
         if index == 2:
@@ -351,8 +356,13 @@ def test_im_q45_partial_new_block_filters_old_labels_and_state(subject, sandbox)
     assert len(fake.calls) == 2 and result["stopped"] == "JEV_THEME_UNAVAILABLE"
     counts = sandbox.call("theme_counts")
     assert counts["coding_target"] == {"codebook_version": VERSION, "block_key": "my_pham"}
+    assert theme_row(counts, platform="tiktok_shop")["reviews"] == 1
+    sandbox.code(label_all(), max_calls=2)  # two more reviews, labelled under the run's own block
+    assert sandbox.call("build_warehouse")["labels"]["otherBlockReviews"] == 1
+    counts = sandbox.call("theme_counts")
+    assert counts["coding_target"] == {"codebook_version": VERSION, "block_key": "thuc_pham"}
     row = theme_row(counts, platform="tiktok_shop")
-    assert row["reviews"] == 1 and row["threshold_met"] is False
+    assert row["reviews"] == 2 and row["threshold_met"] is False
 
 
 @pytest.mark.parametrize("named_only", [False, True])

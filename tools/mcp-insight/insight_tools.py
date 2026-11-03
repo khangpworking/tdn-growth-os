@@ -1,5 +1,9 @@
-"""Local stdio MCP server `tdn-insight`: run warehouse, Jev theme coding, SLAYER counts (part 1); report plan,
-confidence ceiling and reason links (part 2); checked report parts, insight statements and the rendered report (part 3).
+"""Local stdio MCP server `tdn-insight`: run warehouse with the app's theme labels, SLAYER counts (part 1); report
+plan, confidence ceiling and reason links (part 2); checked report parts, insight statements and the rendered report
+(part 3).
+
+Theme labels and star sentiment come from the app DB (`review_code`, `codebook`, `review_star_sentiment`; owner
+F361–F367). The app labels reviews; the MCP only reads them and never calls Jev for themes.
 
 Part 4 adds the claim layer (ý con) under each theme: claim catalogues, Jev claim coding, claim counts with five
 measures, and the two-grader cross-check, whose graders run outside the MCP.
@@ -8,8 +12,8 @@ Reads stored run data only. The app DB is opened read-only (INSIGHT_MCP_APP_DB, 
 artifact store and capture root are read-only. Each run gets its own warehouse file under
 INSIGHT_MCP_DATA_DIR. Evidence from people (sample reviews, method approvals, brand checks, revenue shares,
 reason readings) lives in the shared store `<data dir>/insight-shared.sqlite`, written only by the `record_*`
-functions, which are not tools. A real Jev call needs INSIGHT_MCP_ALLOW_PAID=1 and a call cap; everything
-else, including `code_reviews(dry_run=True)`, makes no network call. Accepted report parts, statements and rendered
+functions, which are not tools. A real Jev claim call needs INSIGHT_MCP_ALLOW_PAID=1 and a call cap; everything
+else, including `code_claims(dry_run=True)`, makes no network call. Accepted report parts, statements and rendered
 reports live in the report store `<data dir>/insight-report.sqlite`, never in the app DB. Contract: CONTRACT.md.
 """
 
@@ -61,6 +65,12 @@ STEP_AFTER_PURCHASE = "Sau mua"
 NOTE_BELOW = "dưới ngưỡng"
 NOTE_NO_NAME = "đếm theo đánh giá, nguồn không có tên người viết"
 PORTRAIT_RULES_VERSION = "portrait-2026-10-25"
+LABEL_SOURCE = "app_db"
+NOTE_NOT_LABELLED = "chưa gán nhãn"
+NO_THEME = "NO_THEME"
+STAR_RULES_VERSION = "star-2026-11-03"  # F363: 1–3 sao tieu_cuc, 4–5 sao tich_cuc, the app view's rule
+STAR_NONE = "khong_sao"
+STAR_SENTIMENTS = ("tich_cuc", "tieu_cuc", STAR_NONE)
 REVIEW_THRESHOLD_WRITERS = 5
 REVIEW_THRESHOLD_PRODUCTS = 3
 KEYWORD_THRESHOLD = 5
@@ -115,7 +125,7 @@ FRAME_CONTRACT_VERSION = "insight-report-frame-v1"
 FRAME_KINDS = ("frame", "data", "synthesis")
 ROLES = ("Chính", "Phụ", "Gợi ý")
 LEVELS = ("Không", "Yếu", "Khá", "Chắc")  # low to high
-COUNT_TOOLS = ("theme_counts", "keyword_counts", "portrait_counts")
+COUNT_TOOLS = ("theme_counts", "keyword_counts", "portrait_counts", "star_counts")
 COUNT_ROW_SOURCES = ("shopee_reviews", "tiktok_shop_reviews", "search_suggestions")
 REVIEW_SOURCES = ("shopee_reviews", "tiktok_shop_reviews")
 REASON_TOOL = "find_reason_links"
@@ -427,9 +437,12 @@ CREATE TABLE trend(location TEXT NOT NULL, value INTEGER, query TEXT, PRIMARY KE
 CREATE TABLE portrait_label(review_id TEXT NOT NULL, dimension TEXT NOT NULL, grp TEXT NOT NULL,
   PRIMARY KEY(review_id, dimension, grp));
 CREATE TABLE near_dup(review_id TEXT PRIMARY KEY, group_id TEXT NOT NULL);
+CREATE TABLE review_star(review_id TEXT PRIMARY KEY REFERENCES review(review_id), star_sentiment TEXT NOT NULL);
 """
 SOURCE_TABLES = ("run_facts", "source_status", "review", "review_text", "product", "writer_guess", "keyword",
-                 "trend", "portrait_label", "near_dup")
+                 "trend", "portrait_label", "near_dup", "review_star")
+# Copied from the app DB on every build (F361–F367): never kept across builds, never written by a tool.
+APP_LABEL_TABLES = ("coding_target", "coding_state", "review_input", "label")
 
 STATE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS coding_target(target_id INTEGER PRIMARY KEY AUTOINCREMENT, codebook_version TEXT NOT NULL,
@@ -441,7 +454,7 @@ CREATE TABLE IF NOT EXISTS review_input(review_id TEXT NOT NULL, codebook_versio
   block_norm TEXT NOT NULL, input_sha256 TEXT NOT NULL, PRIMARY KEY(review_id, codebook_version, block_norm));
 CREATE TABLE IF NOT EXISTS label(review_id TEXT NOT NULL,
   theme_code TEXT NOT NULL, codebook_version TEXT NOT NULL, block_key TEXT, block_norm TEXT NOT NULL,
-  p_yes REAL NOT NULL, polarity TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('kept', 'unclear')),
+  p_yes REAL, polarity TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('kept', 'unclear')),
   step TEXT NOT NULL, text_ref TEXT NOT NULL, text_start INTEGER NOT NULL, text_end INTEGER NOT NULL,
   text_sha256 TEXT NOT NULL, note TEXT, UNIQUE(review_id, theme_code, codebook_version, block_norm));
 CREATE TABLE IF NOT EXISTS keyword_group(keyword TEXT NOT NULL, groups_version TEXT NOT NULL, group_key TEXT NOT NULL,
@@ -467,6 +480,10 @@ CREATE VIEW v_coded_review AS
   JOIN review_input i ON i.review_id = s.review_id AND i.codebook_version = s.codebook_version
        AND i.block_norm = s.block_norm AND i.input_sha256 = s.input_sha256
   WHERE s.status = 'done';
+DROP VIEW IF EXISTS v_star_review;
+CREATE VIEW v_star_review AS
+  SELECT r.platform, r.product_key, s.star_sentiment, r.review_id, r.writer_key, 1 - r.writer_known AS writer_unknown
+  FROM review_star s JOIN review r ON r.review_id = s.review_id;
 DROP VIEW IF EXISTS v_portrait;
 CREATE VIEW v_portrait AS
   SELECT r.platform, p.dimension, p.grp, r.review_id, r.writer_key, 1 - r.writer_known AS writer_unknown, r.product_key
@@ -881,14 +898,6 @@ def _input_sha(review: dict, block_key, version: str) -> str:
                                            version)))
 
 
-def _load_reviews(con: sqlite3.Connection) -> list[dict]:
-    rows = con.execute(
-        "SELECT r.review_id, r.platform, r.product_key, t.text, p.product_name FROM review r "
-        "JOIN review_text t ON t.review_id = r.review_id LEFT JOIN product p ON p.product_key = r.product_key "
-        "ORDER BY r.review_id").fetchall()
-    return [{"review_id": a, "platform": b, "product_key": c, "text": d, "product_name": e} for a, b, c, d, e in rows]
-
-
 def _refresh_review_input(con, reviews: list[dict], version: str, block_key) -> None:
     norm = _block_norm(block_key)
     con.execute("DELETE FROM review_input WHERE codebook_version = ? AND block_norm = ?", (version, norm))
@@ -896,23 +905,122 @@ def _refresh_review_input(con, reviews: list[dict], version: str, block_key) -> 
                     [(r["review_id"], version, norm, _input_sha(r, block_key, version)) for r in reviews])
 
 
-def _invalidate_changed(con, reviews: list[dict]) -> None:
-    """IM-Q43: a review whose coding inputs changed loses its labels and done row; unchanged ones keep them."""
+# ---------------------------------------------------------------------------
+# Theme labels and star sentiment from the app DB (read only; owner F361–F367)
+# ---------------------------------------------------------------------------
+
+def _codebook_sha() -> str:
+    """sha256 of the repo codebook file bytes: the app stores the same hash as `codebook.definition_sha256`."""
+    try:
+        return _sha256(Path(CODEBOOK_PATH).read_bytes())
+    except OSError:
+        raise InsightError("CODEBOOK_INVALID", "the theme codebook cannot be read") from None
+
+
+def _chunks(items: list, size: int = 500):
+    for index in range(0, len(items), size):
+        yield items[index:index + size]
+
+
+def _app_rows(con, reviews: list[dict], version: str) -> dict:
+    """The app's db-v1 rows for the warehouse reviews, read from the snapshot. A review matches the one
+    `product_review` row with its platform and source review ID; two or more matches leave it unmatched."""
+    tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')")}
+    out = {"matched": {}, "ambiguous": 0, "stars": {}, "codes": {}, "codebook_sha256": None}
+    if "review" not in tables:
+        return out
+    found = {}
+    for platform in sorted({r["platform"] for r in reviews}):
+        ids = sorted({r["source_review_id"] for r in reviews if r["platform"] == platform})
+        for chunk in _chunks(ids):
+            for external_id, review_key in con.execute(
+                    "SELECT external_id, review_key FROM review WHERE kind = 'product_review' AND platform = ? "
+                    f"AND external_id IN ({', '.join('?' * len(chunk))})", (platform, *chunk)):
+                found.setdefault((platform, external_id), []).append(review_key)
+    for review in reviews:
+        keys = found.get((review["platform"], review["source_review_id"]), [])
+        if len(keys) == 1:
+            out["matched"][review["review_id"]] = keys[0]
+        elif keys:
+            out["ambiguous"] += 1
+    by_key = {key: review_id for review_id, key in out["matched"].items()}
+    keys = sorted(by_key)
+    if "review_star_sentiment" in tables:
+        for chunk in _chunks(keys):
+            for review_key, sentiment in con.execute(
+                    "SELECT review_key, star_sentiment FROM review_star_sentiment "
+                    f"WHERE review_key IN ({', '.join('?' * len(chunk))})", chunk):
+                out["stars"][by_key[review_key]] = sentiment or STAR_NONE
+    if "review_code" in tables and "codebook" in tables:
+        stored = con.execute("SELECT definition_sha256 FROM codebook WHERE codebook_version = ?", (version,)).fetchone()
+        out["codebook_sha256"] = stored[0] if stored else None
+        columns = ("review_key", "theme_code", "block_key", "polarity", "journey_step", "status", "confidence",
+                   "coder", "text_sha256", "origin")
+        for chunk in _chunks(keys):
+            for row in con.execute(
+                    f"SELECT {', '.join(columns)} FROM review_code WHERE codebook_version = ? "
+                    f"AND review_key IN ({', '.join('?' * len(chunk))}) ORDER BY review_key, theme_code",
+                    (version, *chunk)):
+                code = dict(zip(columns, row))
+                out["codes"].setdefault(by_key[code["review_key"]], []).append(code)
+    return out
+
+
+def _proved_codes(app: dict, reviews: list[dict], version: str) -> tuple[dict, int]:
+    """The app rows whose review text is the warehouse text (the app's text proof: sha256 of text + attributes).
+    A NO_THEME row imported from an MCP run carries the MCP coding-input hash, which also holds the text.
+    One failing row drops all the review's rows. Returns (rows by review, reviews dropped)."""
+    if (app["codes"] or app["codebook_sha256"] is not None) and app["codebook_sha256"] != _codebook_sha():
+        raise InsightError("APP_CODEBOOK_MISMATCH",
+                           "the app codebook row of the repo version is missing or has a different definition_sha256")
     by_id = {r["review_id"]: r for r in reviews}
-    targets = set(con.execute("SELECT codebook_version, block_key FROM coding_state").fetchall())
-    targets |= set(con.execute("SELECT codebook_version, block_key FROM coding_target").fetchall())
-    con.execute("DELETE FROM review_input")
-    for version, block_key in sorted(targets, key=lambda t: (t[0], t[1] or "")):
-        _refresh_review_input(con, reviews, version, block_key)
-    for review_id, version, block_key, norm, sha in con.execute(
-            "SELECT review_id, codebook_version, block_key, block_norm, input_sha256 FROM coding_state").fetchall():
-        review = by_id.get(review_id)
-        if review is None or _input_sha(review, block_key, version) != sha:
-            con.execute("DELETE FROM label WHERE review_id = ? AND codebook_version = ? AND block_norm = ?",
-                        (review_id, version, norm))
-            con.execute("DELETE FROM coding_state WHERE review_id = ? AND codebook_version = ? AND block_norm = ?",
-                        (review_id, version, norm))
-    con.execute("DELETE FROM label WHERE review_id NOT IN (SELECT review_id FROM review)")
+    proved, mismatch = {}, 0
+    for review_id, rows in app["codes"].items():
+        review = by_id[review_id]
+        text_sha = _sha256(review["text"])
+        if all(row["text_sha256"] == text_sha or (row["theme_code"] == NO_THEME and row["text_sha256"] ==
+                                                  _input_sha(review, row["block_key"], version)) for row in rows):
+            proved[review_id] = rows
+        else:
+            mismatch += 1
+    return proved, mismatch
+
+
+def _most_common(values) -> object:
+    """The most common value; a tie goes to the first in (no block, then block key) order."""
+    tally = {}
+    for value in values:
+        tally[value] = tally.get(value, 0) + 1
+    return min(tally, key=lambda v: (-tally[v], _block_norm(v)))
+
+
+def _write_app_labels(wh, reviews: list[dict], codes: dict, version: str, built_at: str) -> dict:
+    """Fill coding_target, review_input, coding_state and label from the proved app rows, so the existing views
+    count them. A review's rows that disagree on block are stored under its most common block; the coding target
+    is the most common review block of the run."""
+    if not codes:
+        return {"block_key": None, "coded": 0, "other_block": 0}
+    by_id = {r["review_id"]: r for r in reviews}
+    blocks = {review_id: _most_common(row["block_key"] for row in rows) for review_id, rows in codes.items()}
+    target = _most_common(blocks.values())
+    wh.execute("INSERT INTO coding_target(codebook_version, block_key, block_norm, match_basis, matched_term, "
+               "started_at) VALUES (?, ?, ?, ?, NULL, ?)", (version, target, _block_norm(target), LABEL_SOURCE, built_at))
+    for block in sorted(set(blocks.values()), key=_block_norm):
+        _refresh_review_input(wh, reviews, version, block)
+    for review_id, rows in sorted(codes.items()):
+        review, block = by_id[review_id], blocks[review_id]
+        norm = _block_norm(block)
+        wh.execute("INSERT INTO coding_state VALUES (?, ?, ?, ?, ?, 'done')",
+                   (review_id, version, block, norm, _input_sha(review, block, version)))
+        wh.executemany(
+            "INSERT INTO label(review_id, theme_code, codebook_version, block_key, block_norm, p_yes, polarity, "
+            "status, step, text_ref, text_start, text_end, text_sha256, note) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+            [(review_id, row["theme_code"], version, block, norm, row["confidence"], row["polarity"], row["status"],
+              row["journey_step"], review_id, len(review["text"]), row["text_sha256"],
+              f"{row['origin']} {row['coder']}") for row in rows if row["theme_code"] != NO_THEME])
+    other = sum(1 for block in blocks.values() if block != target)
+    return {"block_key": target, "coded": len(codes) - other, "other_block": other}
 
 
 # ---------------------------------------------------------------------------
@@ -926,8 +1034,10 @@ def _count_or_no_data(value):
 @mcp.tool()
 @_tool
 def build_warehouse(run_id: str) -> dict:
-    """Build (or rebuild) the run warehouse from stored run data only. Returns counts per platform and source."""
+    """Build (or rebuild) the run warehouse from stored run data only, with the app's theme labels and star
+    sentiment for the run's reviews (the MCP never labels). Returns counts per platform and source, and `labels`."""
     run_id = _check_run_id(run_id)
+    version = load_codebook()["version"]
     app_db = _app_db_path()
     artifacts, captures = _artifact_root(app_db), _capture_root(app_db)
     with app_db_snapshot(app_db) as con:
@@ -938,10 +1048,11 @@ def build_warehouse(run_id: str) -> dict:
         tiktok_names = _tiktok_product_names(con, artifacts, full_id)
         keywords = _search_keywords(con, artifacts, full_id)
         trends = _trends_regions(con, artifacts, full_id)
+        reviews = sorted((shopee or []) + (tiktok or []), key=lambda r: r["review_id"])
+        app = _app_rows(con, reviews, version)
     shopee_names = _shopee_product_names(captures, full_id)
     run_year = _run_year(created_at)
 
-    reviews = sorted((shopee or []) + (tiktok or []), key=lambda r: r["review_id"])
     names = {**(shopee_names or {}), **(tiktok_names or {})}
     products = {}
     for review in reviews:
@@ -954,6 +1065,8 @@ def build_warehouse(run_id: str) -> dict:
             guesses[review["writer_key"]] = (guess_gender(review["name"]),
                                              age_band(run_year, birth), basis or "Không có")
     portrait = sorted({(r["review_id"], d, g) for r in reviews for d, g in portrait_groups(r["text"])})
+    codes, text_mismatch = _proved_codes(app, reviews, version)
+    star_rows = sorted(app["stars"].items())
 
     review_rows = [(r["review_id"], r["platform"], r["source_review_id"], r["product_key"], r["writer_key"],
                     r["writer_known"], r["rating"], r["posted_date"]) for r in reviews]
@@ -978,10 +1091,11 @@ def build_warehouse(run_id: str) -> dict:
     runs = _runs_dir()
     runs.mkdir(parents=True, exist_ok=True)
     path = runs / f"{full_id}.sqlite"
+    built_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     wh = _open_warehouse(path)
     try:
         with _tx(wh):
-            for table in SOURCE_TABLES:
+            for table in SOURCE_TABLES + APP_LABEL_TABLES:
                 wh.execute(f"DROP TABLE IF EXISTS {table}")
             for statement in SOURCE_SCHEMA.strip().split(";\n"):
                 if statement.strip():
@@ -992,7 +1106,7 @@ def build_warehouse(run_id: str) -> dict:
             wh.execute("INSERT INTO run_facts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
                 full_id, keyword, created_at, run_year, _canonical(scope["applied_keywords"]),
                 scope["applied_category"], scope["scope_capture"], scope["category_evidence"],
-                scope["category_reason"], content_sha256, datetime.now(timezone.utc).isoformat(timespec="seconds")))
+                scope["category_reason"], content_sha256, built_at))
             wh.executemany("INSERT INTO source_status VALUES (?, ?, ?, ?)",
                            [(k, p, 0 if n is None else 1, n or 0) for k, (p, n) in sources.items()])
             wh.executemany("INSERT INTO review VALUES (?, ?, ?, ?, ?, ?, ?, ?)", review_rows)
@@ -1004,7 +1118,8 @@ def build_warehouse(run_id: str) -> dict:
             wh.executemany("INSERT INTO keyword VALUES (?, ?)", keyword_rows)
             wh.executemany("INSERT INTO trend VALUES (?, ?, ?)", trend_rows)
             wh.executemany("INSERT INTO portrait_label VALUES (?, ?, ?)", portrait)
-            _invalidate_changed(wh, reviews)
+            wh.executemany("INSERT INTO review_star VALUES (?, ?)", star_rows)
+            coded = _write_app_labels(wh, reviews, codes, version, built_at)
     finally:
         wh.close()
 
@@ -1034,70 +1149,33 @@ def build_warehouse(run_id: str) -> dict:
         "writer_known": per_platform(known),
         "dated_reviews": per_platform(dated),
         "sources": {k: _count_or_no_data(n) for k, (_, n) in sources.items()},
+        "labels": {"labelSource": LABEL_SOURCE, "codebook_version": version, "block_key": coded["block_key"],
+                   "matchedReviews": len(app["matched"]), "unmatchedReviews": len(reviews) - len(app["matched"]),
+                   "ambiguousReviews": app["ambiguous"], "codedReviews": coded["coded"],
+                   "uncodedReviews": len(reviews) - coded["coded"], "otherBlockReviews": coded["other_block"],
+                   "labelTextMismatch": text_mismatch, "starReviews": len(star_rows)},
     }
 
 
 # ---------------------------------------------------------------------------
-# code_reviews
+# code_reviews (retired: the app labels reviews) and the Jev path of the claim layer
 # ---------------------------------------------------------------------------
 
-def _term_matches(term: str, keyword: str) -> bool:
-    return re.search(r"(?<![^\W_])" + re.escape(_nz(term).strip()) + r"(?![^\W_])", _nz(keyword).strip()) is not None
-
-
-def select_block(book: dict, keywords: list[str], category, block_override=None) -> dict:
-    blocks = book["blocks"]
-    if block_override is not None:
-        if block_override not in blocks:
-            raise InsightError("BLOCK_UNKNOWN", "block_override is not a block of the codebook")
-        key, basis, term = block_override, "OVERRIDE", None
-    else:
-        key, basis, term = None, "NO_MATCH", None
-        if category is not None:
-            for name, block in blocks.items():
-                if category in (block["match"].get("categoryLabels") or []):
-                    key, basis = name, "CATEGORY_LABEL"
-                    break
-        if key is None:
-            best = None
-            for index, (name, block) in enumerate(blocks.items()):
-                for candidate in block["match"].get("keywords") or []:
-                    if any(_term_matches(candidate, k) for k in keywords):
-                        rank = (len(_nz(candidate).strip()), -index)
-                        if best is None or rank > best[0]:
-                            best = (rank, name, candidate)
-            if best is not None:
-                key, basis, term = best[1], "KEYWORD", best[2]
-    questions = list(book["core"]) + (list(blocks[key]["themes"]) if key else [])
-    if len(questions) > book["limits"]["maxQuestionsPerCall"]:
-        raise InsightError("CODEBOOK_INVALID", "the selected block needs more questions than one call allows")
-    return {"codebookVersion": book["version"], "blockKey": key, "matchBasis": basis, "matchedTerm": term,
-            "questions_per_call": len(questions), "_questions": questions}
-
-
-def build_request(book: dict, selection: dict, review: dict) -> dict:
-    """One Jev request (IM-Q20): review text, platform, product name, block label, codebook version, and the
-    questions built from the codebook. Nothing else: no review ID, writer key, name or URL."""
-    block = book["blocks"][selection["blockKey"]]["label"] if selection["blockKey"] else None
-    options = [{"key": o["key"], "meaning": o["meaning"]} for o in book["options"]]
-    return {"text": review["text"], "platform": review["platform"], "product_name": review["product_name"],
-            "block_label": block, "codebook_version": book["version"],
-            "questions": [{"code": t["code"], "name": t["name"], "include": t["include"],
-                           "exclude": t.get("exclude") or "", "options": [dict(o) for o in options]}
-                          for t in selection["_questions"]]}
+@mcp.tool()
+@_tool
+def code_reviews(run_id: str, dry_run: bool = True, max_calls: int | None = None,
+                 block_override: str | None = None) -> dict:
+    """Retired (owner F361–F367): theme labels come from the app DB; build_warehouse reads them. Always returns
+    LABELS_FROM_APP, opens nothing and calls nothing. The arguments stay so old clients get this error."""
+    raise InsightError("LABELS_FROM_APP", "nhãn do app gán; MCP chỉ đọc")
 
 
 def _wire_body(request: dict) -> dict:
-    """The Jev wire form of one request: one choice question per theme (or per claim question of a `claims`
-    request), each with the review as its state."""
-    if request.get("kind") == "claims":
-        state = (f"Nền tảng: {request['platform']}. Sản phẩm: {request['product_name'] or 'không rõ'}. "
-                 f"Chủ đề: {request['theme_name']}. Danh mục ý con bản {request['catalogue_version']}. "
-                 f"Lời khách: {request['text']}")
-    else:
-        state = (f"Nền tảng: {request['platform']}. Sản phẩm: {request['product_name'] or 'không rõ'}. "
-                 f"Nhóm ngành: {request['block_label'] or 'Chỉ chủ đề lõi'}. Bộ chủ đề: {request['codebook_version']}. "
-                 f"Đánh giá: {request['text']}")
+    """The Jev wire form of one claim request (part 4): one choice question per claim question, each with the
+    review as its state."""
+    state = (f"Nền tảng: {request['platform']}. Sản phẩm: {request['product_name'] or 'không rõ'}. "
+             f"Chủ đề: {request['theme_name']}. Danh mục ý con bản {request['catalogue_version']}. "
+             f"Lời khách: {request['text']}")
     questions, states = {}, {}
     for question in request["questions"]:
         instructions = f"{question['code']} {question['name']}. Tính khi: {question['include']}."
@@ -1110,7 +1188,7 @@ def _wire_body(request: dict) -> dict:
 
 
 def _jev_transport(request: dict, api_key: str):
-    """The only network path: POST one request to Jev. Returns (HTTP status, raw response bytes).
+    """The only network path: POST one claim request to Jev. Returns (HTTP status, raw response bytes).
     Injectable: tests replace it with an offline fake."""
     http = urllib.request.Request(JEV_ENDPOINT, data=json.dumps(_wire_body(request)).encode("utf-8"), method="POST",
                                   headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"})
@@ -1131,56 +1209,6 @@ def _number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def parse_answer(book: dict, body: dict, status, raw) -> dict:
-    """Check one Jev answer. Raises _CallFailed with JEV_THEME_UNAVAILABLE or JEV_THEME_INVALID."""
-    if status != 200:
-        raise _CallFailed("JEV_THEME_UNAVAILABLE")
-    try:
-        payload = json.loads(raw)
-    except (TypeError, ValueError):
-        raise _CallFailed("JEV_THEME_UNAVAILABLE") from None
-    if not isinstance(payload, dict):
-        raise _CallFailed("JEV_THEME_UNAVAILABLE")
-    if payload.get("model") != JEV_MODEL or not isinstance(payload.get("answers"), dict):
-        raise _CallFailed("JEV_THEME_INVALID")
-    answers = payload["answers"]
-    asked = [q["code"] for q in body["questions"]]
-    if set(answers) != set(asked):
-        raise _CallFailed("JEV_THEME_INVALID")
-    tolerance = book["thresholds"]["probabilitySumTolerance"]
-    out = {}
-    for code in asked:
-        answer = answers[code]
-        if not isinstance(answer, dict) or answer.get("type") != "choice" or answer.get("choice") not in OPTION_KEYS:
-            raise _CallFailed("JEV_THEME_INVALID")
-        probs = answer.get("probabilities")
-        if not isinstance(probs, dict) or set(probs) != set(OPTION_KEYS) \
-                or not all(_number(v) and 0 <= v <= 1 for v in probs.values()):
-            raise _CallFailed("JEV_THEME_INVALID")
-        if abs(sum(probs.values()) - 1) > tolerance + 1e-9:
-            raise _CallFailed("JEV_THEME_INVALID")
-        confidence = answer.get("confidence")
-        if not _number(confidence) or not 0 <= confidence <= 1:
-            raise _CallFailed("JEV_THEME_INVALID")
-        out[code] = probs
-    return out
-
-
-def label_rows(book: dict, answers: dict) -> list[dict]:
-    """Kept and unclear labels from checked answers (thresholds from the codebook)."""
-    keep, unclear, direction = (book["thresholds"][k] for k in ("keep", "unclear", "direction"))
-    rows = []
-    for code, probs in answers.items():
-        p_yes = round(probs["CO_KHEN"] + probs["CO_CHE"] + probs["CO_KE"], 9)
-        if p_yes < unclear:
-            continue
-        top = max(POLARITY_BY_OPTION, key=lambda k: probs[k])
-        polarity = POLARITY_BY_OPTION[top] if probs[top] >= direction else "khong_ro_huong"
-        rows.append({"theme_code": code, "p_yes": p_yes, "polarity": polarity,
-                     "status": "kept" if p_yes >= keep else "unclear"})
-    return rows
-
-
 def _read_key() -> str:
     path = Path(os.environ.get("INSIGHT_MCP_JEV_KEY_FILE") or DEFAULT_KEY_FILE).expanduser()
     try:
@@ -1194,106 +1222,6 @@ def _read_key() -> str:
     except OSError:
         pass
     raise InsightError("JEV_KEY_MISSING", "the Jev key file is missing or has no TYPESAFE_API_KEY line")
-
-
-def _run_scope(wh) -> tuple[list[str], object]:
-    keywords, category = wh.execute("SELECT applied_keywords, applied_category FROM run_facts").fetchone()
-    return json.loads(keywords), category
-
-
-def _coded_ids(wh, version: str, block_key, reviews: list[dict]) -> set:
-    norm = _block_norm(block_key)
-    done = dict(wh.execute("SELECT review_id, input_sha256 FROM coding_state WHERE codebook_version = ? "
-                           "AND block_norm = ? AND status = 'done'", (version, norm)).fetchall())
-    return {r["review_id"] for r in reviews if done.get(r["review_id"]) == _input_sha(r, block_key, version)}
-
-
-@mcp.tool()
-@_tool
-def code_reviews(run_id: str, dry_run: bool = True, max_calls: int | None = None,
-                 block_override: str | None = None) -> dict:
-    """Plan (dry_run, default) or run Jev theme coding for the run's reviews. A real run needs
-    INSIGHT_MCP_ALLOW_PAID=1 and max_calls; it stops at the cap and at the first failed call."""
-    run_id = _check_run_id(run_id)
-    if not isinstance(dry_run, bool):
-        raise InsightError("INVALID_ARGUMENT", "dry_run must be true or false")
-    if max_calls is not None and (not isinstance(max_calls, int) or isinstance(max_calls, bool)):
-        raise InsightError("MAX_CALLS_INVALID", "max_calls must be an integer or null")
-    if block_override is not None and (not isinstance(block_override, str) or not BLOCK_KEY_RE.match(block_override)):
-        raise InsightError("BLOCK_UNKNOWN", "block_override is not a block of the codebook")
-    book = load_codebook()
-    path = _find_warehouse(run_id)
-    wh = _open_warehouse(path)
-    try:
-        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
-        keywords, category = _run_scope(wh)
-        selection = select_block(book, keywords, category, block_override)
-        version, block_key = book["version"], selection["blockKey"]
-        reviews = _load_reviews(wh)
-        coded = _coded_ids(wh, version, block_key, reviews)
-        eligible = [r for r in reviews if r["text"].strip() and r["review_id"] not in coded]
-        limit = book["limits"]["maxCallsPerRun"]
-        cap = limit if max_calls is None else max(0, min(max_calls, limit))
-        planned = min(len(eligible), cap)
-        by_platform = {p: 0 for p in sorted({r["platform"] for r in reviews})}
-        for review in eligible:
-            by_platform[review["platform"]] += 1
-        plan = {k: v for k, v in selection.items() if not k.startswith("_")}
-        base = {"run_id": full_id, "eligible_reviews": len(eligible), "eligible_by_platform": by_platform,
-                "already_coded": len(coded), "planned_calls": planned, "codebook_status": book["status"], **plan}
-        if dry_run:
-            return {**base, "dry_run": True, "jev_calls": 0}
-        if os.environ.get("INSIGHT_MCP_ALLOW_PAID") != "1":
-            return {"run_id": full_id, "refused": True, "reason": "PAID_FLAG_MISSING",
-                    "eligible_reviews": len(eligible), "planned_calls": planned,
-                    "message": "a real Jev run needs INSIGHT_MCP_ALLOW_PAID=1, set by the owner"}
-        if max_calls is None or not 1 <= max_calls <= limit:
-            raise InsightError("MAX_CALLS_INVALID", f"a real run needs max_calls from 1 to {limit}")
-        key = _read_key()
-        with _tx(wh):
-            wh.execute("INSERT INTO coding_target(codebook_version, block_key, block_norm, match_basis, matched_term, "
-                       "started_at) VALUES (?, ?, ?, ?, ?, ?)",
-                       (version, block_key, _block_norm(block_key), selection["matchBasis"], selection["matchedTerm"],
-                        datetime.now(timezone.utc).isoformat(timespec="seconds")))
-            _refresh_review_input(wh, reviews, version, block_key)
-        calls, done, stopped = 0, 0, None
-        for review in eligible:
-            if calls >= max_calls:
-                stopped = "CAP_REACHED"
-                break
-            body = build_request(book, selection, review)
-            calls += 1
-            try:
-                try:
-                    status, raw = _jev_transport(body, key)
-                except Exception:  # noqa: BLE001 - any transport failure; its text may hold the key
-                    raise _CallFailed("JEV_THEME_UNAVAILABLE") from None
-                answers = parse_answer(book, body, status, raw)
-            except _CallFailed as failure:
-                stopped = failure.stop
-                break
-            rows = label_rows(book, answers)
-            text_sha = _sha256(review["text"])
-            norm = _block_norm(block_key)
-            with _tx(wh):
-                wh.execute("DELETE FROM label WHERE review_id = ? AND codebook_version = ? AND block_norm = ?",
-                           (review["review_id"], version, norm))
-                wh.executemany(
-                    "INSERT INTO label(review_id, theme_code, codebook_version, block_key, block_norm, p_yes, polarity, "
-                    "status, step, text_ref, text_start, text_end, text_sha256, note) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL)",
-                    [(review["review_id"], row["theme_code"], version, block_key, norm, row["p_yes"], row["polarity"],
-                      row["status"], STEP_AFTER_PURCHASE, review["review_id"], len(review["text"]), text_sha)
-                     for row in rows])
-                wh.execute("INSERT OR REPLACE INTO coding_state VALUES (?, ?, ?, ?, ?, 'done')",
-                           (review["review_id"], version, block_key, norm, _input_sha(review, block_key, version)))
-            done += 1
-        if stopped is None and done < len(eligible):
-            stopped = "CAP_REACHED"
-        return {**base, "dry_run": False, "calls_made": calls, "coded_now": done,
-                "remaining": len(eligible) - done, "stopped": stopped or "COMPLETE"}
-    finally:
-        wh.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1399,6 +1327,12 @@ JOIN review_input i ON i.review_id = s.review_id AND i.codebook_version = s.code
 WHERE s.status = 'done' AND s.codebook_version = ? AND s.block_norm = ?
 GROUP BY r.platform
 """
+REF_STAR = """
+SELECT r.platform{product_col}, s.star_sentiment, COUNT(DISTINCT r.review_id), COUNT(DISTINCT r.writer_key),
+       COUNT(DISTINCT r.product_key), SUM(1 - r.writer_known)
+FROM review_star s JOIN review r ON r.review_id = s.review_id
+GROUP BY r.platform{product_col}, s.star_sentiment
+"""
 REF_PORTRAIT = """
 SELECT r.platform, p.dimension, p.grp, COUNT(DISTINCT r.review_id), COUNT(DISTINCT r.writer_key),
        COUNT(DISTINCT r.product_key), SUM(1 - r.writer_known)
@@ -1435,6 +1369,13 @@ def _count_id(run_id, tool, row_key, rules_version, numbers, state_sha) -> str:
     return "IMC-" + _sha256(_canonical({"run_id": run_id, "tool": tool, "row_key": row_key,
                                         "rules_version": rules_version, "numbers": numbers,
                                         "state_sha256": state_sha}))[:12]
+
+
+def _require_app_labels(wh) -> None:
+    """A warehouse built before labels came from the app holds MCP-coded labels; it is never counted."""
+    if wh.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'review_star'").fetchone() is None:
+        raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse was built before labels came from the app DB; "
+                           "call build_warehouse again")
 
 
 def _register(wh, run_id, tool, rules_version, rows, key_fields, number_fields) -> None:
@@ -1482,8 +1423,9 @@ def _review_threshold(reviews: int, writers: int, products: int, unknown: int) -
 @mcp.tool()
 @_tool
 def theme_counts(run_id: str, question: str | None = None) -> dict:
-    """Theme counts per platform, theme and polarity, with R-I33 thresholds and count IDs. `question` is an
-    optional theme code filter."""
+    """Theme counts per platform, theme and polarity from the app's labels (labelSource app_db), with R-I33
+    thresholds and count IDs. With no labelled review the rows are empty and `note` is «chưa gán nhãn».
+    `question` is an optional theme code filter."""
     run_id = _check_run_id(run_id)
     book = load_codebook()
     codes = _theme_codes(book)
@@ -1496,13 +1438,24 @@ def _theme_counts_at(path: Path, book: dict, question=None) -> dict:
     codes = _theme_codes(book)
     wh = _open_warehouse(path)
     try:
+        _require_app_labels(wh)
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
-        target = wh.execute("SELECT block_key FROM coding_target ORDER BY target_id DESC LIMIT 1").fetchone()
-        if target is None:
-            raise InsightError("NOT_CODED", "no review of this run is coded yet")
-        version, block_key = book["version"], target[0]
-        norm = _block_norm(block_key)
+        version = book["version"]
         platforms = [r[0] for r in wh.execute("SELECT DISTINCT platform FROM review ORDER BY 1")]
+        totals = dict(wh.execute("SELECT platform, COUNT(*) FROM review GROUP BY platform").fetchall())
+        target = wh.execute("SELECT block_key FROM coding_target WHERE codebook_version = ? "
+                            "ORDER BY target_id DESC LIMIT 1", (version,)).fetchone()
+        base = {"run_id": full_id, "codebook_version": version, "codebook_status": book["status"],
+                "labelSource": LABEL_SOURCE}
+        # Rows come only from the app's labels; with none, the result says so and never counts from elsewhere.
+        # Coded and uncoded reviews are per platform (IM-Q26), never one total.
+        not_labelled = {**base, "coding_target": None, "coded_reviews": {p: 0 for p in platforms},
+                        "codedReviews": {p: 0 for p in platforms}, "uncodedReviews": totals,
+                        "note": NOTE_NOT_LABELLED, "rows": []}
+        if target is None:
+            return not_labelled
+        block_key = target[0]
+        norm = _block_norm(block_key)
         allowed = sorted(codes) if question is None else [question]
         theme_list = ", ".join(_sql_literal(c) for c in allowed)
         target_filters = [f"codebook_version = {_sql_literal(version)}", f"block_norm = {_sql_literal(norm)}"]
@@ -1513,7 +1466,7 @@ def _theme_counts_at(path: Path, book: dict, question=None) -> dict:
             coded_reviews = {p: 0 for p in platforms}
             coded_reviews.update({row["platform"]: row["n_reviews"] for row in coded})
             if not any(coded_reviews.values()):
-                raise InsightError("NOT_CODED", "no review of this run is coded under the current coding target")
+                return not_labelled
             measures = ["n_reviews", "n_writers", "n_products", "n_unknown_writer_labels"]
             # SLAYER does not parse a one-item IN list, so a single theme uses `=`.
             theme_filter = f"theme_code = {theme_list}" if len(allowed) == 1 else f"theme_code in ({theme_list})"
@@ -1539,9 +1492,9 @@ def _theme_counts_at(path: Path, book: dict, question=None) -> dict:
         _register(wh, full_id, "theme_counts", version, rows, ("platform", "theme_code", "polarity"),
                   ("reviews", "writers", "products", "threshold_count", "threshold_met", "check2_missing",
                    "check3_missing"))
-        return {"run_id": full_id, "codebook_version": version, "codebook_status": book["status"],
-                "coding_target": {"codebook_version": version, "block_key": block_key},
-                "coded_reviews": coded_reviews, "rows": rows}
+        return {**base, "coding_target": {"codebook_version": version, "block_key": block_key},
+                "coded_reviews": coded_reviews, "codedReviews": dict(coded_reviews),
+                "uncodedReviews": {p: totals[p] - coded_reviews[p] for p in platforms}, "rows": rows}
     finally:
         wh.close()
 
@@ -1648,6 +1601,60 @@ def _portrait_counts_at(path: Path) -> dict:
             demographics[platform] = cells
         return {"run_id": full_id, "portrait_rules_version": PORTRAIT_RULES_VERSION,
                 "rows": group_rows + demo_rows, "demographics": demographics}
+    finally:
+        wh.close()
+
+
+@mcp.tool()
+@_tool
+def star_counts(run_id: str) -> dict:
+    """Star sentiment of the run's reviews matched in the app DB, from the app view `review_star_sentiment`
+    (1–3 sao tieu_cuc, 4–5 sao tich_cuc, khong_sao when there is no star), per platform and per product, with
+    R-I33 thresholds and count IDs. Counts only: no ranking of brands or products by stars (IM-Q89)."""
+    run_id = _check_run_id(run_id)
+    return _star_counts_at(_find_warehouse(run_id))
+
+
+def _star_counts_at(path: Path) -> dict:
+    wh = _open_warehouse(path)
+    try:
+        _require_app_labels(wh)
+        full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
+        total = wh.execute("SELECT COUNT(*) FROM review").fetchone()[0]
+        matched = wh.execute("SELECT COUNT(*) FROM review_star").fetchone()[0]
+        measures = ["n_reviews", "n_writers", "n_products", "n_unknown_writer_labels"]
+        slayer = _Slayer(path)
+        try:
+            by_platform = _verified(slayer, wh, "star_review", measures, ["platform", "star_sentiment"], [],
+                                    REF_STAR.format(product_col=""), ())
+            by_product = _verified(slayer, wh, "star_review", measures, ["platform", "product_key", "star_sentiment"],
+                                   [], REF_STAR.format(product_col=", r.product_key"), ())
+        finally:
+            slayer.close()
+        # Products are shown as P1, P2… per platform (by product key) with their listing name; product keys
+        # (shop and item IDs) stay in the warehouse, as in the claim layer.
+        products = wh.execute("SELECT DISTINCT r.platform, r.product_key, p.product_name FROM review_star s "
+                              "JOIN review r ON r.review_id = s.review_id "
+                              "LEFT JOIN product p ON p.product_key = r.product_key ORDER BY 1, 2").fetchall()
+        refs, names, seen = {}, {}, {}
+        for platform, key, name in products:
+            seen[platform] = seen.get(platform, 0) + 1
+            refs[(platform, key)], names[(platform, key)] = f"P{seen[platform]}", name
+        order = {k: i for i, k in enumerate(STAR_SENTIMENTS)}
+        rows = []
+        for row in [{**r, "product_key": None} for r in by_platform] + by_product:
+            product = (row["platform"], row["product_key"])
+            rows.append({"platform": row["platform"], "product": refs.get(product, "all"),
+                         "product_name": names.get(product), "star_sentiment": row["star_sentiment"],
+                         "step": STEP_AFTER_PURCHASE,
+                         **_review_threshold(row["n_reviews"], row["n_writers"], row["n_products"],
+                                             row["n_unknown_writer_labels"])})
+        rows.sort(key=lambda r: (r["platform"], r["product"] != "all", len(r["product"]), r["product"],
+                                 order[r["star_sentiment"]]))
+        _register(wh, full_id, "star_counts", STAR_RULES_VERSION, rows, ("platform", "product", "star_sentiment"),
+                  ("reviews", "writers", "products", "threshold_count", "threshold_met", "check2_missing"))
+        return {"run_id": full_id, "source": LABEL_SOURCE, "star_rules_version": STAR_RULES_VERSION,
+                "matchedReviews": matched, "unmatchedReviews": total - matched, "rows": rows}
     finally:
         wh.close()
 
@@ -1977,6 +1984,8 @@ def _row_info(tool: str, row: dict, book: dict, groups: dict) -> dict:
                 "step": row["step"], "kind": "keyword", "rules": ("keyword_groups", groups["version"]), "row": row}
     if tool == "theme_counts":
         kind, rules, step = "theme", ("codebook", book["version"]), row["step"]
+    elif tool == "star_counts":
+        kind, rules, step = "star", ("star_rules", STAR_RULES_VERSION), row["step"]
     else:
         kind = "portrait_guess" if row.get("label") == "Giả thuyết" else "portrait_group"
         rules, step = ("portrait_rules", PORTRAIT_RULES_VERSION), STEP_AFTER_PURCHASE
@@ -1986,24 +1995,22 @@ def _row_info(tool: str, row: dict, book: dict, groups: dict) -> dict:
 
 def _count_responses(path: Path, book: dict, groups: dict) -> dict:
     """The three count tools' responses for the run now (same IDs, same registry rows), plus one row info per
-    count row. `themes` is None when theme_counts gives NOT_CODED; any other count error is raised."""
-    try:
-        themes = _theme_counts_at(path, book)
-    except InsightError as exc:
-        if exc.code != "NOT_CODED":
-            raise
+    count row. `themes` is None when no review of the run is labelled; any count error is raised."""
+    themes = _theme_counts_at(path, book)
+    if not any(themes["codedReviews"].values()):
         themes = None
     keywords = _keyword_counts_at(path, groups)
     portraits = _portrait_counts_at(path)
+    stars = _star_counts_at(path)
     infos = [_row_info(tool, row, book, groups) for tool, rows in
              (("theme_counts", themes["rows"] if themes else []), ("keyword_counts", keywords["rows"]),
-              ("portrait_counts", portraits["rows"]))
+              ("portrait_counts", portraits["rows"]), ("star_counts", stars["rows"]))
              for row in rows]
-    return {"themes": themes, "keywords": keywords, "portraits": portraits, "infos": infos}
+    return {"themes": themes, "keywords": keywords, "portraits": portraits, "stars": stars, "infos": infos}
 
 
 def _count_rows(path: Path, book: dict, groups: dict) -> tuple[list[dict], bool]:
-    """Every current count row of the run. The second value is false when theme_counts gives NOT_CODED."""
+    """Every current count row of the run. The second value is false when no review of the run is labelled."""
     counted = _count_responses(path, book, groups)
     return counted["infos"], counted["themes"] is not None
 
@@ -2377,6 +2384,7 @@ def _reason_links_at(path: Path, book: dict, pair: str) -> tuple[str, list[dict]
     low, high = pair.split("|")
     wh = _open_warehouse(path)
     try:
+        _require_app_labels(wh)
         full_id = wh.execute("SELECT run_id FROM run_facts").fetchone()[0]
         target = wh.execute("SELECT block_key FROM coding_target ORDER BY target_id DESC LIMIT 1").fetchone()
         if target is None:
@@ -2855,6 +2863,7 @@ def _registry_numbers(path: Path, count_ids) -> dict:
     return out
 
 
+STAR_NAMES = {"tich_cuc": "sao tích cực", "tieu_cuc": "sao tiêu cực", STAR_NONE: "không có sao"}
 POLARITY_NAMES = {"all": "mọi hướng", "khen": "khen", "che": "chê", "ke": "kể", "khong_ro_huong": "không rõ hướng"}
 
 
@@ -2869,6 +2878,8 @@ def _row_label(info: dict, book: dict) -> str:
         return " + ".join(names.get(code, code) for code in info["themes"])
     if info["kind"] == "claim":
         return info["label"]
+    if info["kind"] == "star":
+        return f"{STAR_NAMES[row['star_sentiment']]} ({'mọi sản phẩm' if row['product'] == 'all' else row['product']})"
     return f"{row['dimension']}: {row['group']}"
 
 
