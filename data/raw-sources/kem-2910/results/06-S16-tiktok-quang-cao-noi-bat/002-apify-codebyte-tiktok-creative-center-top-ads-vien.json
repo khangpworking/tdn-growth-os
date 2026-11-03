@@ -1,0 +1,189 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "06 · S16 · Quảng cáo nổi bật TikTok (Creative Center)",
+  "describe": "apify.codebyte~tiktok-creative-center-top-ads viên uống kẽm",
+  "parentFile": "06-S16-tiktok-quang-cao-noi-bat.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S16",
+  "sourceName": "Quảng cáo nổi bật TikTok (Creative Center)",
+  "provider": "TikTok Creative Center qua OpenCLI; Apify codebyte/tiktok-creative-center-top-ads + lurkapi/tiktok-ads-spy (test 03/11/2026)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-11-03",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "App: 26/09–25/10/2026 theo period=30. Apify thu 03/11 với period=30 nhưng không trả ngày quảng cáo; không thể xác minh kỳ 30 ngày."
+  },
+  "limits": [
+   "records[0] (app 26/10): Không đăng nhập",
+   "records[0] (app 26/10): Không lấy chỉ số hiệu quả (CTR, chi phí…)",
+   "records[1–3] là thử Apify ngày 03/11/2026, không phải thu từ app; SUCCEEDED chỉ là trạng thái chạy, không xác nhận độ liên quan hay quyền sở hữu thương hiệu.",
+   "Mỗi lượt yêu cầu tối đa 30 mục, trần 0,05 USD; không đăng nhập, không cookie, không chạy lại.",
+   "Không mục nào liên quan kẽm; hai actor trả cùng 5 mã. is_search/isSearch đều false dù có từ khóa.",
+   "Thiếu ngày quảng cáo và nhà quảng cáo; codebyte thiếu đích đến, lurkapi chỉ có externalUrl ở 3/5 mục và có link hồ sơ cá nhân đã ẩn danh.",
+   "codebyte gửi limit=20 cho một trang dù đầu vào limit=30; không vượt mức yêu cầu. CTR là thứ hạng Top %, không phải CTR đo được; cost là nhóm ngân sách, không phải chi phí USD."
+  ],
+  "resultSha256": "676e76a56a359a653aa7d4b1874ad61c3acec32fda6fd3ea4dc4a583cdcb7c25"
+ },
+ "result": {
+  "operation": "apify.codebyte~tiktok-creative-center-top-ads",
+  "origin": {
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "collectedOn": "2026-11-03",
+   "collector": "ads0311 Apify free-plan test (owner F338)"
+  },
+  "input": {
+   "country": [
+    "VN"
+   ],
+   "period": "30",
+   "search_query": "viên uống kẽm",
+   "limit": 30
+  },
+  "status": "SUCCEEDED",
+  "startedAt": "2026-11-03T04:17:58.261Z",
+  "finishedAt": "2026-11-03T04:18:03.358Z",
+  "costUsd": 0.013500000000000002,
+  "itemCount": 5,
+  "responseSha256": "be39f75199fd61a1ea53056aa4cd81785262ecf04649634433ceb8e9af212bd6",
+  "items": [
+   {
+    "ad_title": "⚠️ SỐT XUẤT HUYẾT DENGUE: BÁC SĨ ĐÃ CHỨNG KIẾN NHỮNG GÌ PHÍA SAU CA NẶNG? “Những ca nặng để lại những sang chấn tâm lý rất lớn cho cả gia đình lẫn đội ngũ điều trị vì diễn tiến bệnh vô cùng nặng nề.” Đó là chia sẻ đầy trăn trở từ BS.CKII. [tên riêng] - Phó Giám đốc Bệnh viện Nhi đồng Thành phố. Hiện nay sốt xuất huyết Dengue chưa có thuốc điều trị đặc hiệu, việc chữa trị chủ yếu là điều trị triệu chứng, nâng đỡ tổng trạng và đối phó với các biến chứng phức tạp, đặc biệt nguy hiểm ở các nhóm đối tượng nhạy cảm như trẻ nhũ nhi, trẻ béo phì, người có bệnh lý nền và người lớn tuổi. (1) 📌 Xem ngay video để lắng nghe những chia sẻ thực tế từ tuyến đầu điều trị. Việc hiểu đúng về những hiểm nguy phía sau ca nặng cũng là bước đầu để mỗi chúng ta chủ động bảo vệ mình và những người thân yêu. Chủ động phòng ngừa ngay từ hôm nay bằng các biện pháp như: ✅ Tham vấn nhân viên y tế về tiêm chủng (2). ✅ Kiểm soát véc-tơ truyền bệnh (diệt muỗi, diệt lăng quăng, loại bỏ nơi sinh sản của muỗi vằn) (3). ✅ Phòng tránh muỗi đốt (3). ✅ Phát hiện sớm, nhập viện kịp thời (3). Nội dung được trích từ chương trình Tọa đàm “Lá chắn kép bảo vệ gia đình khỏi sốt xuất huyết Dengue trong mùa mưa\", do Trung tâm Kiểm soát Bệnh tật TP.HCM (HCDC) phối hợp cùng Công ty TNHH Dược phẩm Takeda Việt Nam thực hiện. Tài liệu được cung cấp bởi Công ty TNHH Dược Phẩm Takeda Việt Nam, Hội Y học Dự phòng Việt Nam và Trung tâm Kiểm soát bệnh tật Thành Phố Hồ Chí Minh. Mọi thông tin y khoa được trình bày khách quan và nhằm mục đích nâng cao nhận thức cộng đồng. Vui lòng tham khảo ý kiến bác sĩ để được tư vấn thêm. #SotXuatHuyet #PhongNguaSotXuatHuyet #TangCuongPhongVeSotXuatHuyet   C-ANPROM/VN/NON/0225 Sep 2026 ---------------------- Tài liệu tham khảo: (1) Bộ Y tế. Quyết định số 2760/QĐ-BYT. Hướng dẫn chẩn đoán, điều trị sốt xuất huyết Dengue. 2023. (2) World Health Organization. Vaccines and immunization: Dengue. 2025. (3) World Health Organization. Dengue factsheet. 2025.",
+    "brand_name": "",
+    "cost": 2,
+    "ctr": 0.33,
+    "favorite": false,
+    "id": "7691591378057691142",
+    "industry_key": "label_29101000000",
+    "is_search": false,
+    "like": 1609,
+    "objective_key": "campaign_objective_video_view",
+    "video_info": {
+     "vid": "v14044g50000daue1vfog65jos4vi130",
+     "duration": 187.499,
+     "cover": "<removed: media url>",
+     "video_url": {
+      "720p": "<removed: media url>"
+     },
+     "width": 576,
+     "height": 1024
+    },
+    "cost_readable": "High Budget",
+    "ctr_readable": "Top 33% CTR"
+   },
+   {
+    "ad_title": "#tiktoklive #livehighlights ",
+    "brand_name": "",
+    "cost": 0,
+    "ctr": 0.66,
+    "favorite": false,
+    "id": "7687141894488457234",
+    "industry_key": "label_29102000000",
+    "is_search": false,
+    "like": 5,
+    "objective_key": "campaign_objective_product_sales",
+    "video_info": {
+     "vid": "v1c044g50000dan34hvog65iiuvc3aag",
+     "duration": 71.355,
+     "cover": "<removed: media url>",
+     "video_url": {
+      "720p": "<removed: media url>"
+     },
+     "width": 576,
+     "height": 1024
+    },
+    "cost_readable": "Low Budget",
+    "ctr_readable": "Top 66% CTR"
+   },
+   {
+    "ad_title": "Đúng nhanh lunnn  #Dysonvn #DysonBrandFestival #sponsor @[ẩn] Vietnam ",
+    "brand_name": "",
+    "cost": 1,
+    "ctr": 0.54,
+    "favorite": false,
+    "id": "7694219162898251796",
+    "industry_key": "label_16100000000",
+    "is_search": false,
+    "like": 29,
+    "objective_key": "campaign_objective_product_sales",
+    "video_info": {
+     "vid": "v10025g50000db33q0fog65hi0hd7phg",
+     "duration": 82.167,
+     "cover": "<removed: media url>",
+     "video_url": {
+      "720p": "<removed: media url>"
+     },
+     "width": 576,
+     "height": 1024
+    },
+    "cost_readable": "Medium Budget",
+    "ctr_readable": "Top 54% CTR"
+   },
+   {
+    "ad_title": "Vlog15.9: đi bến Tre thăm a e Bến Tre  Câu thì ít mà nhậu thì nhiều 😄 #[ẩn]  #moicaucakhochiu  #[ẩn]  #xuhuong ",
+    "brand_name": "",
+    "cost": 0,
+    "ctr": 0.97,
+    "favorite": false,
+    "id": "7686494607287304209",
+    "industry_key": "label_23132000000",
+    "is_search": false,
+    "like": 23,
+    "objective_key": "campaign_objective_video_view",
+    "video_info": {
+     "vid": "v1c044g50000dak91o7og65mdr620jk0",
+     "duration": 281.982,
+     "cover": "<removed: media url>",
+     "video_url": {
+      "720p": "<removed: media url>"
+     },
+     "width": 576,
+     "height": 1024
+    },
+    "cost_readable": "Low Budget",
+    "ctr_readable": "Top 97% CTR"
+   },
+   {
+    "ad_title": "Bí kíp nạp năng lượng siêu dính cùng TH true JUICE milk MISTORI! ✨  #THMISTORI",
+    "brand_name": "",
+    "cost": 2,
+    "ctr": 0.79,
+    "favorite": false,
+    "id": "7686788894135238674",
+    "industry_key": "label_27102000000",
+    "is_search": false,
+    "like": 40723,
+    "objective_key": "campaign_objective_product_sales",
+    "video_info": {
+     "vid": "v14025g50000dameugnog65hp1m49ffg",
+     "duration": 191.403,
+     "cover": "<removed: media url>",
+     "video_url": {
+      "1080p": "<removed: media url>",
+      "720p": "<removed: media url>"
+     },
+     "width": 576,
+     "height": 1024
+    },
+    "cost_readable": "High Budget",
+    "ctr_readable": "Top 79% CTR"
+   }
+  ],
+  "log": [
+   "2026-11-03T04:17:58.397Z ACTOR: Pulling container image of build <removed> from registry.",
+   "2026-11-03T04:17:58.399Z ACTOR: Creating container.",
+   "2026-11-03T04:17:58.458Z ACTOR: Starting container.",
+   "2026-11-03T04:17:58.460Z ACTOR: Running under \"LIMITED_PERMISSIONS\".",
+   "2026-11-03T04:18:00.773Z INFO  System info {\"apifyVersion\":\"3.7.2\",\"apifyClientVersion\":\"2.25.0\",\"crawleeVersion\":\"3.18.2\",\"osType\":\"Linux\",\"nodeVersion\":\"v20.20.2\"}",
+   "2026-11-03T04:18:00.932Z INFO  Filters: {\"page\":\"1\",\"limit\":\"20\",\"period\":\"30\",\"country_code\":\"VN\",\"keyword\":\"viên uống kẽm\",\"search_id\":\"<removed>\"}",
+   "2026-11-03T04:18:01.182Z INFO  BasicCrawler: Starting the crawler.",
+   "2026-11-03T04:18:01.777Z INFO  Processing https://ads.tiktok.com/creative_radar_api/v1/top_ads/v2/list?page=1&limit=20&period=30&country_code=VN&keyword=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&search_id=<removed>",
+   "2026-11-03T04:18:03.181Z INFO  BasicCrawler: All requests from the queue have been processed, the crawler will shut down.",
+   "2026-11-03T04:18:03.247Z INFO  BasicCrawler: Final request statistics: {\"requestsFinished\":1,\"requestsFailed\":0,\"retryHistogram\":[1],\"requestAvgFailedDurationMillis\":null,\"requestAvgFinishedDurationMillis\":1618,\"requestsFinishedPerMinute\":24,\"requestsFailedPerMinute\":0,\"requestTotalDurationMillis\":1618,\"requestsTotal\":1,\"crawlerRuntimeMillis\":2470}",
+   "2026-11-03T04:18:03.249Z INFO  BasicCrawler: Finished! Total 1 requests: 1 succeeded, 0 failed. {\"terminal\":true}"
+  ],
+  "verdictVi": "Không dùng làm bằng chứng cho kẽm: 5 quảng cáo không liên quan; thiếu nhà quảng cáo, ngày và đích đến.",
+  "query": "viên uống kẽm"
+ }
+}

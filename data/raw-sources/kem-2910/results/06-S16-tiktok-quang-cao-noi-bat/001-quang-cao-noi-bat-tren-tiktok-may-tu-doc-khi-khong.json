@@ -7,17 +7,22 @@
   "parentLocation": "records[0]",
   "sourceCode": "S16",
   "sourceName": "Quảng cáo nổi bật TikTok (Creative Center)",
-  "provider": "TikTok Creative Center qua OpenCLI",
+  "provider": "TikTok Creative Center qua OpenCLI; Apify codebyte/tiktok-creative-center-top-ads + lurkapi/tiktok-ads-spy (test 03/11/2026)",
   "keyword": "viên uống kẽm",
   "period": {
-   "startDate": "2026-09-26",
-   "endDate": "2026-10-25",
+   "startDate": null,
+   "endDate": "2026-11-03",
    "timezone": "Asia/Ho_Chi_Minh",
-   "basis": "period=30 của Creative Center"
+   "basis": "App: 26/09–25/10/2026 theo period=30. Apify thu 03/11 với period=30 nhưng không trả ngày quảng cáo; không thể xác minh kỳ 30 ngày."
   },
   "limits": [
-   "Không đăng nhập",
-   "Không lấy chỉ số hiệu quả (CTR, chi phí…)"
+   "records[0] (app 26/10): Không đăng nhập",
+   "records[0] (app 26/10): Không lấy chỉ số hiệu quả (CTR, chi phí…)",
+   "records[1–3] là thử Apify ngày 03/11/2026, không phải thu từ app; SUCCEEDED chỉ là trạng thái chạy, không xác nhận độ liên quan hay quyền sở hữu thương hiệu.",
+   "Mỗi lượt yêu cầu tối đa 30 mục, trần 0,05 USD; không đăng nhập, không cookie, không chạy lại.",
+   "Không mục nào liên quan kẽm; hai actor trả cùng 5 mã. is_search/isSearch đều false dù có từ khóa.",
+   "Thiếu ngày quảng cáo và nhà quảng cáo; codebyte thiếu đích đến, lurkapi chỉ có externalUrl ở 3/5 mục và có link hồ sơ cá nhân đã ẩn danh.",
+   "codebyte gửi limit=20 cho một trang dù đầu vào limit=30; không vượt mức yêu cầu. CTR là thứ hạng Top %, không phải CTR đo được; cost là nhóm ngân sách, không phải chi phí USD."
   ],
   "resultSha256": "f7ca146425ce22eb1faa895ee3f99acecc3e613d34e3a89ffb841eaa5bf53cbc"
  },

@@ -1,0 +1,67 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "06 · S16 · Quảng cáo nổi bật TikTok (Creative Center)",
+  "describe": "apify.codebyte~tiktok-creative-center-top-ads kẽm",
+  "parentFile": "06-S16-tiktok-quang-cao-noi-bat.json",
+  "parentLocation": "records[3]",
+  "sourceCode": "S16",
+  "sourceName": "Quảng cáo nổi bật TikTok (Creative Center)",
+  "provider": "TikTok Creative Center qua OpenCLI; Apify codebyte/tiktok-creative-center-top-ads + lurkapi/tiktok-ads-spy (test 03/11/2026)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-11-03",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "App: 26/09–25/10/2026 theo period=30. Apify thu 03/11 với period=30 nhưng không trả ngày quảng cáo; không thể xác minh kỳ 30 ngày."
+  },
+  "limits": [
+   "records[0] (app 26/10): Không đăng nhập",
+   "records[0] (app 26/10): Không lấy chỉ số hiệu quả (CTR, chi phí…)",
+   "records[1–3] là thử Apify ngày 03/11/2026, không phải thu từ app; SUCCEEDED chỉ là trạng thái chạy, không xác nhận độ liên quan hay quyền sở hữu thương hiệu.",
+   "Mỗi lượt yêu cầu tối đa 30 mục, trần 0,05 USD; không đăng nhập, không cookie, không chạy lại.",
+   "Không mục nào liên quan kẽm; hai actor trả cùng 5 mã. is_search/isSearch đều false dù có từ khóa.",
+   "Thiếu ngày quảng cáo và nhà quảng cáo; codebyte thiếu đích đến, lurkapi chỉ có externalUrl ở 3/5 mục và có link hồ sơ cá nhân đã ẩn danh.",
+   "codebyte gửi limit=20 cho một trang dù đầu vào limit=30; không vượt mức yêu cầu. CTR là thứ hạng Top %, không phải CTR đo được; cost là nhóm ngân sách, không phải chi phí USD."
+  ],
+  "resultSha256": "146b5e48e529a2728127fbed1411ebd7c2ee6085519005c23b9c74407bc86f2d"
+ },
+ "result": {
+  "operation": "apify.codebyte~tiktok-creative-center-top-ads",
+  "origin": {
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "collectedOn": "2026-11-03",
+   "collector": "ads0311 Apify free-plan test (owner F338)"
+  },
+  "input": {
+   "country": [
+    "VN"
+   ],
+   "period": "30",
+   "search_query": "kẽm",
+   "limit": 30
+  },
+  "status": "SUCCEEDED",
+  "startedAt": "2026-11-03T04:20:23.001Z",
+  "finishedAt": "2026-11-03T04:20:26.364Z",
+  "costUsd": 0.001,
+  "itemCount": 0,
+  "responseSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "items": [],
+  "log": [
+   "2026-11-03T04:20:23.200Z ACTOR: Pulling container image of build <removed> from registry.",
+   "2026-11-03T04:20:23.204Z ACTOR: Creating container.",
+   "2026-11-03T04:20:23.255Z ACTOR: Starting container.",
+   "2026-11-03T04:20:23.256Z ACTOR: Running under \"LIMITED_PERMISSIONS\".",
+   "2026-11-03T04:20:24.244Z INFO  System info {\"apifyVersion\":\"3.7.2\",\"apifyClientVersion\":\"2.25.0\",\"crawleeVersion\":\"3.18.2\",\"osType\":\"Linux\",\"nodeVersion\":\"v20.20.2\"}",
+   "2026-11-03T04:20:24.332Z INFO  Filters: {\"page\":\"1\",\"limit\":\"20\",\"period\":\"30\",\"country_code\":\"VN\",\"keyword\":\"kẽm\",\"search_id\":\"<removed>\"}",
+   "2026-11-03T04:20:24.509Z INFO  BasicCrawler: Starting the crawler.",
+   "2026-11-03T04:20:24.926Z INFO  Processing https://ads.tiktok.com/creative_radar_api/v1/top_ads/v2/list?page=1&limit=20&period=30&country_code=VN&keyword=k%E1%BA%BDm&search_id=<removed>",
+   "2026-11-03T04:20:26.102Z INFO  BasicCrawler: All requests from the queue have been processed, the crawler will shut down.",
+   "2026-11-03T04:20:26.251Z INFO  BasicCrawler: Final request statistics: {\"requestsFinished\":1,\"requestsFailed\":0,\"retryHistogram\":[1],\"requestAvgFailedDurationMillis\":null,\"requestAvgFinishedDurationMillis\":1391,\"requestsFinishedPerMinute\":30,\"requestsFailedPerMinute\":0,\"requestTotalDurationMillis\":1391,\"requestsTotal\":1,\"crawlerRuntimeMillis\":1983}",
+   "2026-11-03T04:20:26.252Z INFO  BasicCrawler: Finished! Total 1 requests: 1 succeeded, 0 failed. {\"terminal\":true}"
+  ],
+  "verdictVi": "Không dùng làm bằng chứng cho kẽm: từ khóa kẽm trả 0 mục; không có ngày hay quảng cáo để kiểm tra.",
+  "query": "kẽm"
+ }
+}
