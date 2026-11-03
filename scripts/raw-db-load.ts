@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import BetterSqlite3 from 'better-sqlite3';
 import { ContentAddressedArtifactStore } from '../src/platform/artifacts/index.js';
-import { openDatabase } from '../src/platform/db/index.js';
 import { loadShopeeReviewsToDbV1 } from '../src/modules/raw-db/shopee-reviews-loader.js';
 
 // Usage: raw-db-load --source S05 --run <runId> [--db <path>] [--artifacts <dir>] [--dry-run]
@@ -18,8 +18,13 @@ if (!options.run) { console.error('--run <runId> is required'); process.exit(2);
 const artifactRoot = options.artifacts ?? process.env.TDN_ARTIFACT_ROOT;
 if (!artifactRoot) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
 
-const { db } = openDatabase({ databasePath: path.resolve(options.db ?? process.env.TDN_WORKSPACE_DB ?? path.join('runtime', 'tdn-growth-os.sqlite')) });
+let db: BetterSqlite3.Database | undefined;
 try {
+  // Loading requires an existing, migrated app DB. Opening it must not commit migrations before --dry-run.
+  db = new BetterSqlite3(path.resolve(options.db ?? process.env.TDN_WORKSPACE_DB ?? path.join('runtime', 'tdn-growth-os.sqlite')), { fileMustExist: true });
+  db.pragma('foreign_keys = ON');
+  db.pragma('busy_timeout = 5000');
+  db.defaultSafeIntegers(true);
   const artifacts = new ContentAddressedArtifactStore(path.resolve(artifactRoot));
   // Dry run: the loader's own transaction nests as a savepoint inside this one, which is then rolled back.
   if (options['dry-run']) db.exec('BEGIN');
@@ -33,5 +38,5 @@ try {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 } finally {
-  db.close();
+  db?.close();
 }

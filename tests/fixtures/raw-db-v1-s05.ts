@@ -20,19 +20,20 @@ export const PRODUCTS = [
   { itemId: '102', shopId: '202', productUrl: 'https://shopee.vn/product/202/102', name: 'Synthetic jar large' },
 ] as const;
 
-export function collectionInput(overlapOnly = false): PublicCollectedPages {
+export function collectionInput(overlapOnly = false, missingReviewId = false): PublicCollectedPages {
   const envelopes: PublicReviewEnvelope[] = PRODUCTS.map((p, index) => {
-    const row = (reviewId: string, sourceRow: number, comment: string | null) => ({
+    const row = (reviewId: string | null, sourceRow: number, comment: string | null) => ({
       reviewId, shopId: p.shopId, itemId: p.itemId, postedAtLocal: null,
       createdAt: index === 0 ? '2026-11-03T03:04:00+07:00' : '2026-11-01T08:02:00+07:00',
       variation: '  Synthetic variant\n', ratingStar: 4, ratingState: 'VALID' as const,
       comment, attributes: ['Synthetic material', 'Synthetic size'], contentType: 'COMMENT' as const,
-      sourcePage: 2 + index, sourceUrl: p.productUrl, sourceRow, admissionReasons: [],
+      sourcePage: 2 + index, sourceUrl: p.productUrl, sourceRow,
+      admissionReasons: reviewId === null ? ['INVALID_REVIEW_ID' as const] : [],
     });
     const rows = overlapOnly
       ? index === 0 ? [row('synthetic-review-a', 0, 'Changed on the second collection')] : []
       : index === 0 ? [row('synthetic-review-a', 0, '  Exact synthetic comment\n<&>  '), row('synthetic-stars-only', 1, '')]
-        : [row('synthetic-review-b', 0, 'Synthetic comment B')];
+        : [row(missingReviewId ? null : 'synthetic-review-b', 0, 'Synthetic comment B')];
     return {
       contractVersion: 'shopee-public-sanitized-result-v1', jobId: '10000000-0000-4000-8000-000000000001',
       productUrl: p.productUrl, shopId: p.shopId, itemId: p.itemId, maxReviewsPerProduct: 20,
@@ -58,7 +59,7 @@ export function collectionInput(overlapOnly = false): PublicCollectedPages {
   };
 }
 
-export async function rawDbFixture(t: TestContext, names = true) {
+export async function rawDbFixture(t: TestContext, names = true, missingReviewId = false) {
   const f = await fixture(t, names ? 'on' : 'off');
   const foundation = new ShopeeCollectionService(f.db, f.artifacts);
   async function saveRun(overlapOnly = false) {
@@ -67,7 +68,7 @@ export async function rawDbFixture(t: TestContext, names = true) {
       // Stop before collection: only the in-process synthetic Metric capture has run.
       await driveUntil(f.service, () => autorun(f.db, runId)?.phase === 'CONFIRM');
     }
-    const collected = collectionInput(overlapOnly);
+    const collected = collectionInput(overlapOnly, missingReviewId);
     const request = { contractVersion: '2.0.0', runKey: `auto-${runId}`, topic: 'Synthetic raw review load',
       selectionBasis: 'OWNER_EXACT_URL', source: { label: 'Synthetic exact products', acquiredAt: ATTEMPTED_AT },
       productUrls: PRODUCTS.map(p => p.productUrl) };

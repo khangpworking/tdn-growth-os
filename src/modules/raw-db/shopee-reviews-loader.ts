@@ -43,8 +43,8 @@ export async function loadShopeeReviewsToDbV1(db: Database.Database, artifacts: 
       products.set(productKey, { itemId: listing.itemId, shopId: listing.shopId, productUrl: selected?.productUrl ?? listing.productUrl, captureId });
     }
     for (const review of rows) {
-      // A row without a native review id has no db-v1 key; it stays only in the raw artifact.
-      if (review.reviewId === null) continue;
+      // db-v1 requires the native identity; fail the whole load rather than silently omit a row.
+      if (review.reviewId === null) throw new Error(`RAW_DB_REVIEW_ID_MISSING: ${captureId} row ${review.sourceRow}`);
       const reviewKey = `${SOURCE}:${review.reviewId}`;
       if (reviews.has(reviewKey)) continue;
       reviews.set(reviewKey, [reviewKey, SOURCE, 'shopee', 'product_review', review.reviewId, `shopee:${review.itemId}`, null, null, null, 'not_provided',

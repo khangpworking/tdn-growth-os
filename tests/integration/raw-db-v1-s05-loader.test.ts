@@ -3,7 +3,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import type Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
+import { applyMigrations, readMigrations } from '../../src/platform/db/index.js';
 import { loadShopeeReviewsToDbV1, vietnamTime } from '../../src/modules/raw-db/shopee-reviews-loader.js';
 import { ATTEMPTED_AT, COMPLETED_AT, PRODUCTS, rawDbFixture, seedExistingAnalysis } from '../fixtures/raw-db-v1-s05.js';
 
@@ -102,7 +103,7 @@ test('RAWDB rule 6: an overlapping second run appends membership while the first
   assert.equal((f.db.prepare('SELECT outcome FROM raw_capture WHERE capture_id=?').get(`S05:${next.source.packet.collectionId}:1`) as { outcome: string }).outcome, 'EMPTY');
 });
 
-test('RAWDB rule 7: a tampered or missing late-listing artifact propagates verification failure and writes nothing', async t => {
+test('RAWDB rule 7: unverifiable artifacts or a missing review identity fail without any writes', async t => {
   for (const fault of ['tampered', 'missing'] as const) {
     const f = await rawDbFixture(t);
     const digest = f.source.packet.listings[1]!.resultSha256!;
@@ -117,6 +118,10 @@ test('RAWDB rule 7: a tampered or missing late-listing artifact propagates verif
       (error: unknown) => error instanceof Error && error.message === readerError.message);
     assert.deepEqual(counts(f.db), empty, fault);
   }
+  const missingId = await rawDbFixture(t, true, true);
+  await assert.rejects(loadShopeeReviewsToDbV1(missingId.db, missingId.artifacts, { runId: missingId.runId }),
+    /^Error: RAW_DB_REVIEW_ID_MISSING/);
+  assert.deepEqual(counts(missingId.db), empty);
 });
 
 test('RAWDB rule 8: a verified collection without selection or Metric product names fails without any writes', async t => {
@@ -149,4 +154,27 @@ test('RAWDB rule 10: CLI --dry-run prints one count receipt and rolls back all f
   assert.deepEqual(JSON.parse(lines[0]!), { runId: f.runId, collectionId: f.source.packet.collectionId,
     captures: 2, products: 2, reviewsInserted: 3, reviewsAlreadyPresent: 0, runReviewsInserted: 3 });
   assert.deepEqual(counts(f.db), empty);
+  // Opening a pre-63 DB must not commit a schema upgrade outside the dry-run rollback.
+  const priorMigrations = path.join(f.root, 'prior-migrations');
+  await fs.mkdir(priorMigrations);
+  for (const migration of readMigrations().filter(m => m.version < 63)) {
+    await fs.writeFile(path.join(priorMigrations, migration.name), migration.sql);
+  }
+  const priorPath = path.join(f.root, 'prior.sqlite');
+  const prior = new Database(priorPath);
+  try {
+    applyMigrations(prior, { migrationsDirectory: priorMigrations });
+    const schema = prior.prepare('SELECT * FROM sqlite_schema ORDER BY name').all();
+    const ledger = prior.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+    const failed = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/raw-db-load.ts',
+      '--source', 'S05', '--run', 'missing-run', '--db', priorPath, '--dry-run'], {
+      encoding: 'utf8', timeout: 30_000, env: { ...process.env, TDN_ARTIFACT_ROOT: f.artifactRoot },
+    });
+    assert.equal(failed.error, undefined);
+    assert.equal(failed.status, 1, failed.stderr);
+    assert.match(failed.stderr, /RAW_DB_RUN_NOT_FOUND/);
+    assert.equal(prior.pragma('user_version', { simple: true }), 62);
+    assert.deepEqual(prior.prepare('SELECT * FROM sqlite_schema ORDER BY name').all(), schema);
+    assert.deepEqual(prior.prepare('SELECT * FROM schema_migrations ORDER BY version').all(), ledger);
+  } finally { prior.close(); }
 });
