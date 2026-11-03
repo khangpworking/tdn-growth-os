@@ -35,11 +35,15 @@ Migration 0068 SHALL tạo bảng `codebook`, `review_code` (STRICT, đúng db-v
 - **THEN** view trả `tieu_cuc`, `tich_cuc` và `NULL`
 
 ### Requirement: R-RC03 Nạp bộ chủ đề
-Lệnh `--source CODES` SHALL lưu tệp chủ đề vào `codebook`: `codebook_version` = `version`, `contract_version` = `contractVersion`, `status`, `approved_by`, `approved_at` như tệp, `definition_json` = nguyên văn tệp, `definition_sha256` = SHA-256 các byte của tệp. Bản của tệp SHALL bằng `codebook_version` của mọi dòng `label` và `coding_state` được nhập.
+`--source CODES` SHALL lưu nguyên văn tệp chủ đề và SHA-256 các byte vào `codebook`, cùng phiên bản, trạng thái và thông tin duyệt từ JSON. Bản tệp SHALL bằng bản mọi `label`. Chỉ `coding_state` `done` cùng bản SHALL được xét cho `NO_THEME`.
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm
 - Vì sao: Chủ quyết F361: tệp JSON là nơi sửa danh sách; cơ sở dữ liệu giữ đúng bản đã dùng.
+
+#### Scenario: Lưu nguyên vẹn
+- **WHEN** nạp một tệp chủ đề chưa có
+- **THEN** `codebook_version`, `contract_version`, `status`, `approved_by`, `approved_at` lần lượt lấy từ `version`, `contractVersion`, `status`, `approvedBy`, `approvedAt`; `definition_json` giữ nguyên văn tệp và `definition_sha256` là SHA-256 các byte
 
 #### Scenario: Bản khác
 - **WHEN** tệp chủ đề có `version` khác bản của nhãn trong kho MCP
@@ -48,6 +52,10 @@ Lệnh `--source CODES` SHALL lưu tệp chủ đề vào `codebook`: `codebook_
 #### Scenario: Tệp đã đổi
 - **WHEN** bản đã có trong `codebook` với dấu tệp khác
 - **THEN** lệnh dừng với `RAW_DB_CODES_CODEBOOK_CHANGED` và không ghi dòng nào
+
+#### Scenario: Trạng thái của bản khác
+- **WHEN** kho có `coding_state` `done` của một bản khác, không có nhãn của bản đó
+- **THEN** trạng thái đó không tạo `NO_THEME` và không làm hỏng lần nạp bản đang chọn
 
 ### Requirement: R-RC04 Ánh xạ nhãn MCP
 Mỗi dòng `label` của kho MCP SHALL thành một dòng `review_code` theo db-v1 §3.3, giá trị giữ như MCP đã lưu. Mỗi đánh giá có `coding_state` `done` của bản đó mà không có `label` SHALL thành một dòng `NO_THEME`. Lời khách SHALL NOT được lưu trong `review_code`.

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import test, { afterEach, beforeEach, mock } from 'node:test';
+import Database from 'better-sqlite3';
 import { loadReviewCodesToDbV1 } from '../../src/modules/raw-db/review-code-loader.js';
 import { loadShopeeReviewsToDbV1 } from '../../src/modules/raw-db/shopee-reviews-loader.js';
 import { loadAiOverviewToDbV1, loadSearchSuggestionsToDbV1 } from '../../src/modules/raw-db/google-search-loader.js';
@@ -59,6 +60,7 @@ test('RAWDB-X X4: only a done, unlabelled review gets one NO_THEME row; uncoded 
     reviews: [codesReview(), codesReview({ review_id: 'shopee:synthetic-uncoded', source_review_id: 'synthetic-uncoded', text: 'Chưa chấm 🧪' })],
     labels: [],
     states: [codesState({ block_key: null, block_norm: '' }),
+      codesState({ review_id: 'shopee:synthetic-uncoded', codebook_version: 'synthetic-other-version' }),
       codesState({ review_id: 'shopee:synthetic-uncoded', status: 'pending' })],
     targets: [codesTarget({ block_key: null, block_norm: '' })],
   });
@@ -90,11 +92,16 @@ test('RAWDB-X X5: a DB text mismatch skips and counts that label while importing
 test('RAWDB-X X6: missing reviews are counted skips; ambiguous platform/external-id matches roll back the entire load', async t => {
   const missing = await codesFixture(t, {
     reviews: [codesReview(), codesReview({ review_id: 'shopee:synthetic-missing', source_review_id: 'synthetic-missing' })],
-    labels: [codesLabel(), codesLabel({ review_id: 'shopee:synthetic-missing' })],
+    labels: [codesLabel(), codesLabel({ review_id: 'shopee:synthetic-missing' }),
+      codesLabel({ review_id: 'shopee:synthetic-missing', theme_code: 'T-VI' })],
   });
+  // A different platform must not create ambiguity; a comment must not satisfy the missing product review.
+  seedCodeReview(missing.db, { review_key: 'S06:synthetic-codes-a', source_code: 'S06', platform: 'tiktok_shop' });
+  seedCodeReview(missing.db, { review_key: 'S07:synthetic-missing', source_code: 'S07', external_id: 'synthetic-missing',
+    kind: 'video_comment', video_url: 'https://example.invalid/synthetic-video' });
   const { skipped, ...counts } = await loadReviewCodesToDbV1(missing.db, missing.input);
   assert.deepEqual(counts, { codebookInserted: 1, labelsInserted: 1, noThemeInserted: 0, alreadyPresent: 0, reviewsMissing: 1, textMismatch: 0 });
-  assert.equal(skipped.length, 1);
+  assert.equal(skipped.length, 2, 'missing counts reviews, while skipped lists both labels');
   assert.deepEqual(missing.db.prepare('SELECT review_key FROM review_code').all(), [{ review_key: 'S05:synthetic-codes-a' }]);
 
   const ambiguous = await codesFixture(t, {
@@ -112,6 +119,8 @@ test('RAWDB-X X7: wrong versions, changed codebook bytes and unknown themes fail
   for (const [label, error] of [
     [codesLabel({ theme_code: 'T-VI', codebook_version: 'synthetic-wrong-version' }), 'RAW_DB_CODES_CODEBOOK_MISMATCH'],
     [codesLabel({ theme_code: 'T-NOT-IN-CODEBOOK' }), 'RAW_DB_CODES_INVALID_ROW'],
+    [codesLabel({ theme_code: 'T-VI', block_key: 'synthetic-unknown-block' }), 'RAW_DB_CODES_INVALID_ROW'],
+    [codesLabel(), 'RAW_DB_CODES_INVALID_ROW'], // Same review/theme cannot be imported twice.
   ] as const) {
     const f = await codesFixture(t, { labels: [codesLabel(), label] });
     const before = f.db.serialize();
@@ -124,6 +133,22 @@ test('RAWDB-X X7: wrong versions, changed codebook bytes and unknown themes fail
   await fs.appendFile(changed.codebookFile, '\n'); // Same version and JSON value, different exact bytes.
   await assert.rejects(async () => loadReviewCodesToDbV1(changed.db, changed.input), /^Error: RAW_DB_CODES_CODEBOOK_CHANGED/);
   assert.deepEqual(changed.db.serialize(), before);
+
+  for (const input of [{ targets: [] }, { codebookText: '{' },
+    { labels: [], states: [codesState(), codesState({ block_key: null, block_norm: '' })],
+      targets: [codesTarget(), codesTarget({ block_key: null, block_norm: '' })] }]) {
+    const f = await codesFixture(t, input), before = f.db.serialize();
+    await assert.rejects(() => loadReviewCodesToDbV1(f.db, f.input),
+      new RegExp(`^Error: ${'codebookText' in input ? 'RAW_DB_CODES_CODEBOOK_INVALID' : 'RAW_DB_CODES_INVALID_ROW'}`));
+    assert.deepEqual(f.db.serialize(), before);
+  }
+  // Fail inside the write transaction, after the codebook and first valid label were inserted.
+  const writeFailure = await codesFixture(t, { labels: [codesLabel(), codesLabel({ theme_code: 'T-VI' })] });
+  writeFailure.db.exec(`CREATE TEMP TRIGGER synthetic_codes_failure BEFORE INSERT ON review_code
+    WHEN NEW.theme_code='T-VI' BEGIN SELECT RAISE(ABORT,'synthetic_write_failure'); END`);
+  const writeBefore = writeFailure.db.serialize();
+  await assert.rejects(() => loadReviewCodesToDbV1(writeFailure.db, writeFailure.input), /synthetic_write_failure/);
+  assert.deepEqual(writeFailure.db.serialize(), writeBefore, 'storage failure rolls back the earlier codebook and label');
 });
 
 test('RAWDB-X X8: loading the identical warehouse twice returns all zeros and changes no DB bytes', async t => {
@@ -135,6 +160,11 @@ test('RAWDB-X X8: loading the identical warehouse twice returns all zeros and ch
   assert.deepEqual(await loadReviewCodesToDbV1(f.db, f.input), { ...emptyCodesReceipt, codebookInserted: 1, labelsInserted: 1, noThemeInserted: 1 });
   const before = f.db.serialize();
   assert.deepEqual(await loadReviewCodesToDbV1(f.db, f.input), emptyCodesReceipt);
+  assert.deepEqual(f.db.serialize(), before);
+  // Another MCP file with the same labels counts existing rows, while preserving their original provenance.
+  const warehouse = new Database(f.mcpRunFile);
+  try { warehouse.pragma('user_version=1'); } finally { warehouse.close(); }
+  assert.deepEqual(await loadReviewCodesToDbV1(f.db, f.input), { ...emptyCodesReceipt, alreadyPresent: 2 });
   assert.deepEqual(f.db.serialize(), before);
 });
 

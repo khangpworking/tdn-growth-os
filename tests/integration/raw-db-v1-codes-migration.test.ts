@@ -25,7 +25,9 @@ test('RAWDB-X X1: migration 0068 enforces STRICT codes, append-only labels and t
     block_key: 'thuc_pham', polarity: 'khen', journey_step: 'Sau mua', status: 'kept', confidence: 0.91,
     coder: 'synthetic-coder', text_sha256: codesHash(CODES_TEXT), coded_at: CODES_AT,
     origin: 'MCP_IMPORT', import_sha256: 'a'.repeat(64) };
-  for (const patch of [{ polarity: 'positive' }, { status: 'approved' }, { confidence: -0.001 }, { confidence: 1.001 }, { origin: 'AI' }]) {
+  for (const patch of [{ polarity: 'positive' }, { status: 'approved' }, { confidence: -0.001 }, { confidence: 1.001 }, { origin: 'AI' },
+    { polarity: null }, { journey_step: null }, { theme_code: 'NO_THEME' },
+    { theme_code: 'NO_THEME', polarity: null, journey_step: null, confidence: null, status: 'unclear' }]) {
     assert.throws(() => insert('review_code', { ...code, ...patch }), { code: 'SQLITE_CONSTRAINT_CHECK' });
   }
   assert.throws(() => insert('review_code', { ...code, confidence: 'high' }), { code: 'SQLITE_CONSTRAINT_DATATYPE' });

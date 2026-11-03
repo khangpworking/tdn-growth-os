@@ -48,8 +48,8 @@ export async function loadReviewCodesToDbV1(db: Database.Database, { mcpRunFile,
     reviews = mcp.prepare('SELECT review_id, platform, source_review_id FROM review ORDER BY review_id').all() as McpReview[];
     labels = mcp.prepare(`SELECT review_id, theme_code, codebook_version, block_key, block_norm, p_yes, polarity, status, step, text_start, text_end, text_sha256
       FROM label ORDER BY review_id, codebook_version, theme_code, block_norm`).all() as McpLabel[];
-    states = mcp.prepare(`SELECT review_id, codebook_version, block_key, block_norm, input_sha256 FROM coding_state WHERE status='done'
-      ORDER BY review_id, codebook_version, block_norm`).all() as McpState[];
+    states = mcp.prepare(`SELECT review_id, codebook_version, block_key, block_norm, input_sha256 FROM coding_state
+      WHERE status='done' AND codebook_version=? ORDER BY review_id, block_norm`).all(codebook.version) as McpState[];
     targets = mcp.prepare('SELECT codebook_version, block_norm, started_at FROM coding_target').all() as typeof targets;
   } finally {
     mcp.close();
