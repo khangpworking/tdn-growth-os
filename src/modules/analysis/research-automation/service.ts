@@ -230,6 +230,7 @@ import { withDatabaseMutationMutex } from '../../../platform/db/database-mutatio
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
   CollectInput,
+  DateWindow,
   ProviderCallOptions,
   ProviderRawCapture,
   QuickSearchInput,
@@ -1828,7 +1829,8 @@ export class ResearchAutomationService {
   /** The video-watch binding, the run's frozen product keyword and its stored selection videos (when any); a missing or unreadable selection just gives none.
    * The keyword is the start snapshot's (`startSha`), checked against the run row; the confirmed scope snapshot has no keyword field of its own. */
   async #videoWatchContext(runId: string, collection: StepResultDocument): Promise<{ binding: { workspaceId: string; runId: string; scopeSha256: string; sourceSetSha256: string | null }; productKeyword: string;
-    selectionVideos: readonly { url: string }[]; topSellingVideos: readonly { url: string }[]; topSellingGap: boolean; topSellingProducts: readonly TikTokShopReviewCandidate[] }> {
+    selectionVideos: readonly { url: string }[]; topSellingVideos: readonly { url: string }[]; topSellingGap: boolean; topSellingProducts: readonly TikTokShopReviewCandidate[];
+    topSellingWindow: DateWindow | null }> {
     const row = this.#current(runId);
     if (!row?.scopeSha) throw new ResearchAutomationStateError('Video watch needs a confirmed scope.');
     const scope = await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId);
@@ -1857,17 +1859,21 @@ export class ResearchAutomationService {
     let topSellingVideos: { url: string }[] = [];
     let topSellingGap = true;
     let topSellingProducts: TikTokShopReviewCandidate[] = [];
+    let topSellingWindow: DateWindow | null = null;
     try {
       const confirmed = new Set([...scope.selectedProductIds, ...scope.peerProductIds]);
       const collected = new Set(collection.comparables.filter(value => value.provider === 'kalodata' && confirmed.has(value.productId)).map(value => value.productId));
       const cards = (await this.#stepDocument(runId, 'QUICK_SEARCH'))?.productCards ?? [];
       topSellingProducts = tiktokShopProductCandidates(confirmed, new Set(cards.filter(card => card.provider === 'kalodata').map(card => card.productId)), collection.comparables);
+      // The ranked-video lookup asks for the same window as the run's product rank (a Kalodata card's observed window is that window).
+      const rankWindow = cards.find(card => card.provider === 'kalodata' && card.observedWindow?.label === 'QUICK_SEARCH_RECENT_WINDOW')?.observedWindow;
+      topSellingWindow = rankWindow ? { startDate: rankWindow.startDate, endDate: rankWindow.endDate } : null;
       const productUrls = cards.filter(card => card.provider === 'kalodata' && collected.has(card.productId)).flatMap(card => card.sourceUrl === null ? [] : [card.sourceUrl]);
       const result = await topSellingTikTokVideos(this.#boundedSourceReader(), { workspaceId: row.workspaceId, runId: row.runId }, productUrls);
       topSellingVideos = result.videos.map(video => ({ url: video.url }));
       topSellingGap = result.videos.length === 0 || result.rowsWithoutUsableVideo > 0;
     } catch (error) { console.error(JSON.stringify({ event: 'research_automation_top_selling_videos_failed', runId, error: error instanceof Error ? error.name : 'UNKNOWN' })); }
-    return { binding, productKeyword, selectionVideos, topSellingVideos, topSellingGap, topSellingProducts };
+    return { binding, productKeyword, selectionVideos, topSellingVideos, topSellingGap, topSellingProducts, topSellingWindow };
   }
 
   /** The run worker alone performs bounded indexing waits and durable no-retry questions. */

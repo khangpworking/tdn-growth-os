@@ -4,7 +4,7 @@
 // indexes, its document with its own failed document, and its usage rows. The service keeps the admission step, the
 // capture closure (PDF retention, M1), the publish side effects under its mutex (M2) and the single final transaction.
 import { createHash } from 'node:crypto';
-import type { CollectInput, CollectResult, ProviderRawCapture } from './providers.js';
+import type { CollectInput, CollectResult, DateWindow, ProviderRawCapture } from './providers.js';
 import { toWebResults } from './source-binding.js';
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { httpsUrl } from './provider-common.js';
@@ -64,7 +64,9 @@ export async function runSaveStepLane<F>(lane: SaveStepLane<F> | undefined, step
 type VideoRunContext = { readonly binding: Omit<VideoWatchBinding, 'candidatesSha256'>; readonly productKeyword: string;
   readonly selectionVideos: readonly { readonly url: string }[]; readonly topSellingVideos: readonly { readonly url: string }[]; readonly topSellingGap: boolean;
   /** Confirmed, collected TikTok Shop products with the run's revenue: the automated top-selling lookup picks from these. */
-  readonly topSellingProducts?: readonly TikTokShopReviewCandidate[] };
+  readonly topSellingProducts?: readonly TikTokShopReviewCandidate[];
+  /** The window of the run's Kalodata product rank; the ranked-video lookup asks for the same window. */
+  readonly topSellingWindow?: DateWindow | null };
 
 export interface VideoLaneFacts {
   /** The run asks for the Market report: only Market reads the video readings today, so an Insight-only run makes none. */
@@ -92,7 +94,7 @@ export function videoLane(source: VideoWatchLane, topSelling?: TopSellingVideoSo
         const context = await facts.context(step);
         let automated: { url: string }[] | undefined;
         if (topSelling) {
-          try { rank = await topSelling.collect(context.topSellingProducts ?? [], signal ? { signal } : {}); } catch { rank = null; rankThrown = true; }
+          try { rank = await topSelling.collect(context.topSellingProducts ?? [], context.topSellingWindow ?? null, signal ? { signal } : {}); } catch { rank = null; rankThrown = true; }
           automated = rankTopSellingVideos(rank);
           kept = automated.length;
         }

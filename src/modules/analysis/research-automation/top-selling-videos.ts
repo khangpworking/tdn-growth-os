@@ -5,7 +5,7 @@
 // (largest first, missing last), deduplicated by video id and turned into exact public video URLs; at most five become TOP_SELLING
 // candidates. The creator handle only builds the URL: it is never put in step text, reader text or a log line.
 import type { KalodataProvider, KalodataVideoRankOutcome, KalodataVideoRankResult } from './provider-kalodata.js';
-import type { ProviderCallOptions } from './providers.js';
+import type { DateWindow, ProviderCallOptions } from './providers.js';
 import type { StepTopSellingVideoRank } from './model.js';
 import { exactTikTokVideoUrl } from './tiktok-video-selection.js';
 import { pickTikTokShopReviewProducts, type TikTokShopReviewCandidate } from './tiktok-shop-reviews.js';
@@ -23,15 +23,16 @@ export function topSellingVideosEnabled(env: Readonly<Record<string, string | un
 }
 
 export interface TopSellingVideoSource {
-  /** One paid ranked-video call per picked product (at most three); null when no product was picked (no call). */
-  collect(candidates: readonly TikTokShopReviewCandidate[], options?: ProviderCallOptions): Promise<KalodataVideoRankResult | null>;
+  /** One paid ranked-video call per picked product (at most three) over `window`, the run's product rank window; null when no product was
+   * picked or the run has no such window (no call). */
+  collect(candidates: readonly TikTokShopReviewCandidate[], window: DateWindow | null, options?: ProviderCallOptions): Promise<KalodataVideoRankResult | null>;
 }
 
 export function createTopSellingVideoSource(provider: Pick<KalodataProvider, 'topSellingVideos'>): TopSellingVideoSource {
   return {
-    async collect(candidates, options = {}) {
+    async collect(candidates, window, options = {}) {
       const picks = pickTikTokShopReviewProducts(candidates);
-      return picks.length ? provider.topSellingVideos(picks, options) : null;
+      return picks.length && window ? provider.topSellingVideos(picks, window, options) : null;
     },
   };
 }

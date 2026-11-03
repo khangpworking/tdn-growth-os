@@ -59,7 +59,8 @@ test('S14C row 8: Market and Insight persist rank lineage; handles stay only in 
   for (const reports of [['MARKET'], ['INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) {
     const f = rankSource();
     const run = await s14cCollection(t, { topSellingVideoSource: f.source, mode: 'subtitle', reports });
-    assert.deepEqual(f.paid, [{ product_id: '12345', page_size: 10, page_number: 1, rank_field: 'revenue', asc: false }]);
+    assert.deepEqual(f.paid, [{ region: 'VN', language: 'vi-VN', currency: 'VND', product_id: '12345', date_range: '2026-09-02~2026-10-01',
+      sort_field: { field: 'revenue', type: 'DESC' }, page_size: 10, page_number: 1 }]);
     const watch = run.step.videoWatch; assert.ok(watch?.topSellingRank);
     assert.equal(watch.topSellingRank.kept, 2);
     assert.deepEqual(watch.candidates.slice(0, 2), handles.map((handle, i) => ({ videoId: String(94001 + i),
