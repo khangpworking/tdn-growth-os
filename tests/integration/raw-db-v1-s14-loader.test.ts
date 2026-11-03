@@ -138,7 +138,7 @@ test('RAWDB-W W7: exact file/run retries count zero; the same video in another r
   }
 });
 
-test('RAWDB-W W8: verified run packages and captures map rows; tampering propagates the reader error; no readings is not found', async t => {
+test('RAWDB-W W8: verified run packages and captures map rows; tampering fails verification; no readings is not found', async t => {
   const f = await googleFixture(t), privacy = s07Privacy(), stored = await saveVideoReadingRun(f);
   assert.deepEqual(await loadVideoReadingsToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy), { ...S14_RECEIPT, runId: f.runId });
   assert.deepEqual(f.db.prepare('SELECT video_url,video_id,platform,product_key,link_basis,author_key FROM video ORDER BY video_id').all(),
@@ -169,7 +169,7 @@ test('RAWDB-W W8: verified run packages and captures map rows; tampering propaga
   assert.ok(readerError, 'same-size tampering must fail in the real verified package reader');
   const before = cold.db.serialize();
   await assert.rejects(loadVideoReadingsToDbV1(cold.db, cold.artifacts, { runId: cold.runId }, privacy),
-    (error: unknown) => error instanceof Error && error.message === readerError.message);
+    /^Error: RAW_DB_ARTIFACT_MISMATCH/);
   assert.deepEqual(cold.db.serialize(), before, 'no valid earlier package or capture is partially published');
   const absent = await googleFixture(t);
   await saveGoogleCapture(absent, 'google.suggest', ['synthetic jar', ['synthetic suggestion']], 0);

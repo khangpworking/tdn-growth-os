@@ -13,7 +13,7 @@ export type VideoReadingsLoadInput = { runId: string } | { file: string; runId: 
 
 /**
  * Rows inserted by one call. readingsAlreadyPresent: readings of this call's new captures that were not inserted because the same Gemini
- * answer (response sha256) is already stored as a reading, for example the same run loaded once from its kẽm file and once from the app
+ * answer (response sha256) is already stored as a reading for this run, for example the same run loaded once from its kẽm file and once from the app
  * (0 on a reload of the same input, whose captures are all stored already).
  */
 export interface VideoReadingsLoadResult {
@@ -53,7 +53,7 @@ export async function loadVideoReadingsToDbV1(db: Database.Database, artifacts: 
     requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,NULL,NULL,?,?)`);
   const existingCapture = db.prepare('SELECT source_code,operation,request_params_json,requested_at,outcome,response_sha256 FROM raw_capture WHERE capture_id=?');
   const storedAnswer = db.prepare(`SELECT 1 FROM video_reading r JOIN raw_capture c ON c.capture_id=r.capture_id
-    WHERE c.source_code='S14' AND c.response_sha256=? LIMIT 1`);
+    WHERE c.source_code='S14' AND c.run_id=? AND c.response_sha256=? LIMIT 1`);
   const storedVideo = db.prepare("SELECT video_url FROM video WHERE video_id=? AND platform='tiktok' ORDER BY rowid LIMIT 1");
   const insertVideo = db.prepare(`INSERT INTO video(video_url,video_id,platform,product_key,brand,author_key,link_basis,capture_id)
     VALUES (?,?,'tiktok',NULL,NULL,?,'UNKNOWN',?)`);
@@ -71,8 +71,8 @@ export async function loadVideoReadingsToDbV1(db: Database.Database, artifacts: 
           throw new Error(`RAW_DB_CAPTURE_CONFLICT: ${c.captureId} already identifies a different observation`);
         continue;
       }
-      // The same Gemini answer already stored as a reading (under another capture id) is not stored twice.
-      const known = c.reading !== null && storedAnswer.get(c.reading.responseSha256) !== undefined;
+      // An answer imported through another input of this run is already stored; another run is a new observation even with identical bytes.
+      const known = c.reading !== null && storedAnswer.get(runId, c.reading.responseSha256) !== undefined;
       insertCapture.run(...c.values);
       result.captures++;
       const r = c.reading;

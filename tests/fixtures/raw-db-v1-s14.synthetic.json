@@ -11,7 +11,7 @@
       "kind": "package",
       "files": [
         {
-          "path": "reading.json",
+          "logicalPath": "reading.json",
           "content": {
             "contractVersion": "video-reading-v3",
             "registryId": "S14",
@@ -83,7 +83,7 @@
       "kind": "package",
       "files": [
         {
-          "path": "reading.json",
+          "logicalPath": "reading.json",
           "content": {
             "contractVersion": "video-reading-v3",
             "registryId": "S14",
