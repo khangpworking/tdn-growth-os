@@ -84,12 +84,16 @@ Mỗi phản hồi `serpapi.google.search` có khoá `ai_overview` (hoặc mỗi
 - **WHEN** câu trả lời có `references[]`
 - **THEN** mỗi phần tử thành một dòng `ai_overview_reference` với `ref_index` = `.index`, `site` = `.source`, `snippet` = `.snippet`
 
+#### Scenario: Nguồn thiếu hoặc trùng chỉ số
+- **WHEN** một phần tử `references[]` không có `.index` nguyên, hoặc hai phần tử cùng `.index`
+- **THEN** hàm báo lỗi `RAW_DB_AIO_BAD_REFERENCE` và không thêm dòng nào
+
 ### Requirement: R-GL05 Nạp trong một giao dịch, nạp lại không nhân đôi
-Mỗi lần nạp SHALL chạy trong một giao dịch: lỗi SHALL không để lại dòng nào. Nạp lại cùng đầu vào SHALL trả mọi số đếm bằng 0. Một lần quan sát đã lưu dưới mã khác (cùng nguồn, cùng dấu phản hồi, cùng lúc gọi) SHALL NOT được lưu lại và SHALL được đếm vào `alreadyPresent`.
+Mỗi lần nạp SHALL chạy trong một giao dịch: lỗi SHALL không để lại dòng nào. Nạp lại cùng đầu vào SHALL trả mọi số đếm bằng 0. Bộ nạp SHALL bỏ qua `capture_id` đã lưu cùng lần quan sát, báo `RAW_DB_CAPTURE_CONFLICT` nếu khác, và luôn lưu `capture_id` mới dù byte trùng.
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Quy tắc 6 của db-v1: bản đầu tiên được giữ.
+- Vì sao: Mỗi lần gọi là một dòng `raw_capture`; quy tắc 6 của db-v1: bản đầu tiên được giữ.
 
 #### Scenario: Nạp cùng tệp hai lần
 - **WHEN** nạp tệp S29, rồi nạp lại đúng tệp đó với cùng nhãn
@@ -98,6 +102,14 @@ Mỗi lần nạp SHALL chạy trong một giao dịch: lỗi SHALL không để
 #### Scenario: Khối lạ ở bản ghi cuối
 - **WHEN** bản ghi cuối của tệp có khối loại `table`
 - **THEN** hàm báo lỗi `RAW_DB_AIO_UNKNOWN_BLOCK` và không có dòng nào của các bản ghi trước được lưu
+
+#### Scenario: Hai mã khác nhau, cùng byte phản hồi
+- **WHEN** hai bản ghi S19b của một tệp có cùng `raw` và cùng `requestedAt`
+- **THEN** có 2 dòng `raw_capture` riêng và `alreadyPresent` bằng 0
+
+#### Scenario: Câu trả lời đến sau lần nạp đầu
+- **WHEN** lần nạp đầu cho `NOT_COLLECTED`, rồi lượt chạy có thêm phản hồi `google_ai_overview` cùng token và S29 được nạp lại
+- **THEN** hàm báo lỗi `RAW_DB_CAPTURE_CONFLICT` và mọi bảng không đổi
 
 ### Requirement: R-GL06 Lệnh nạp S19b và S29
 `scripts/raw-db-load.ts` SHALL nhận `--source S19b|S29` với `--run <runId>` (đọc lần thu của lượt chạy, cần `--artifacts`) hoặc `--file <path> --run <nhãn>` (đọc tệp). Lệnh SHALL in một dòng JSON kết quả. `--dry-run` SHALL không đổi cơ sở dữ liệu. `--file` với S05 SHALL thoát mã 2. Hành vi S05 SHALL giữ nguyên.

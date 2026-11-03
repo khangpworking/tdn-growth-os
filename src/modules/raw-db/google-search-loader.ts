@@ -10,8 +10,9 @@ import { MAX_CAPTURE_ENVELOPE_BYTES } from '../analysis/research-automation/mode
 export type GoogleLoadInput = { runId: string } | { file: string; runId: string };
 
 /**
- * Rows inserted by one call. alreadyPresent: captures skipped because the same observation (source, response digest,
- * request time) is already stored under another capture id. A reload of the same input counts 0 everywhere.
+ * Rows inserted by one call. Loads are idempotent by capture id: a capture id already stored with the same observation
+ * is skipped without counting, so a reload of the same input counts 0 everywhere. A different capture id is always
+ * stored, even when its response bytes repeat. alreadyPresent stays in the receipt and is currently always 0.
  */
 export interface GoogleLoadResult {
   runId: string; captures: number; rows: number; references?: number; alreadyPresent: number; notCollected?: number;
@@ -87,7 +88,8 @@ async function suggestionsFromFile(file: string, runId: string): Promise<Planned
     const suggestions = ok ? stringArray(record.suggestions) : [];
     if (ok && !Array.isArray(record.suggestions)) throw new Error(`RAW_DB_FILE_BAD_RECORD: S19b record ${index} lacks suggestions`);
     const keyword = longest(bases.filter(base => prefix.startsWith(base)));
-    const sha = sha256(JSON.stringify(record.raw ?? record));
+    if (!('raw' in record)) throw new Error(`RAW_DB_FILE_BAD_RECORD: S19b record ${index} lacks raw`);
+    const sha = sha256(JSON.stringify(record.raw));
     const planned = suggestionCapture(`S19b:${sha12}:${index}`, runId, keyword, prefix, suggestions, requestedAt,
       typeof status === 'number' ? status : null, sha, `file:${relative}#${index}`);
     return ok ? planned : { ...planned, capture: { ...planned.capture, outcome: 'FAILED' } };
@@ -179,10 +181,13 @@ function overviewCapture(c: { captureId: string; runId: string; keyword: string 
         Array.isArray(item.reference_indexes) ? JSON.stringify(item.reference_indexes) : null, c.captureId]);
     };
     const pushList = (items: unknown): void => {
-      for (const item of Array.isArray(items) ? items : []) {
-        if (!isRecord(item)) continue;
+      if (!Array.isArray(items)) throw new Error(`RAW_DB_AIO_BAD_LIST: ${c.captureId} expected list[]`);
+      for (const item of items) {
+        if (!isRecord(item)) throw new Error(`RAW_DB_AIO_BAD_LIST: ${c.captureId} expected a list item`);
+        if (item.type !== undefined && item.type !== 'heading' && item.type !== 'paragraph' && item.type !== 'list')
+          throw new Error(`RAW_DB_AIO_UNKNOWN_BLOCK: ${c.captureId} block ${JSON.stringify(item.type)}`);
         push('list_item', item);
-        if (Array.isArray(item.list)) pushList(item.list); // nested bullets follow their parent
+        if ('list' in item) pushList(item.list); // nested bullets follow their parent
       }
     };
     for (const block of c.answer.text_blocks as unknown[]) {
@@ -191,11 +196,15 @@ function overviewCapture(c: { captureId: string; runId: string; keyword: string 
       else if (type === 'list') pushList((block as Record<string, unknown>).list);
       else throw new Error(`RAW_DB_AIO_UNKNOWN_BLOCK: ${c.captureId} block ${JSON.stringify(type ?? null)}`);
     }
-    const refs = Array.isArray(c.answer.references) ? c.answer.references : [];
-    refs.forEach((ref, i) => {
-      if (!isRecord(ref)) return;
+    const refs = c.answer.references ?? [];
+    if (!Array.isArray(refs)) throw new Error(`RAW_DB_AIO_BAD_REFERENCE: ${c.captureId} expected references[]`);
+    const indexes = new Set<number>();
+    refs.forEach(ref => {
+      if (!isRecord(ref) || !Number.isSafeInteger(ref.index) || indexes.has(ref.index as number))
+        throw new Error(`RAW_DB_AIO_BAD_REFERENCE: ${c.captureId} expected a unique integer index`);
+      indexes.add(ref.index as number);
       const str = (v: unknown): string | null => typeof v === 'string' ? v : null;
-      references.push([c.query, Number.isSafeInteger(ref.index) ? ref.index as number : i, str(ref.title), str(ref.link), str(ref.source), str(ref.snippet), c.captureId]);
+      references.push([c.query, ref.index as number, str(ref.title), str(ref.link), str(ref.source), str(ref.snippet), c.captureId]);
     });
   }
   return {
@@ -214,9 +223,8 @@ function hasBlocks(overview: Record<string, unknown>): boolean {
 
 function write(db: Database.Database, runId: string, planned: PlannedCapture[], aiOverview: boolean): { result: GoogleLoadResult; notCollected: number } {
   const insertCapture = db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,endpoint,request_params_json,keyword,
-    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
-  const sameObservation = db.prepare('SELECT 1 FROM raw_capture WHERE source_code=? AND response_sha256=? AND requested_at=? AND capture_id<>?');
-  const existing = db.prepare('SELECT response_sha256 sha, requested_at requestedAt FROM raw_capture WHERE capture_id=?');
+    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const existingCapture = db.prepare('SELECT source_code,response_sha256,requested_at,outcome,operation FROM raw_capture WHERE capture_id=?');
   const insertRow = aiOverview
     ? db.prepare('INSERT INTO ai_overview_block(query,block_seq,block_type,text,reference_indexes,capture_id) VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING')
     : db.prepare('INSERT INTO search_suggestion(prefix,rank,suggestion,collected_at,capture_id) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING');
@@ -225,18 +233,16 @@ function write(db: Database.Database, runId: string, planned: PlannedCapture[], 
     const result: GoogleLoadResult = { runId, captures: 0, rows: 0, alreadyPresent: 0 };
     let references = 0, notCollected = 0;
     for (const { capture: c, rows, references: refs } of planned) {
-      // The same observation under another capture id (the same file loaded under a second label) is not stored twice.
-      // Run and file captures digest different bytes, so this never matches across routes.
-      if (sameObservation.get(c.source, c.sha, c.requestedAt, c.captureId)) { result.alreadyPresent++; continue; }
-      const inserted = insertCapture.run(c.captureId, c.runId, c.source, c.provider, c.operation, c.endpoint, JSON.stringify(c.params), c.keyword,
-        c.requestedAt, c.completedAt, c.httpStatus, c.outcome, c.billing, c.costUnit, c.costAmount, c.sha, c.rawPath).changes;
-      if (!inserted) {
-        // A reload: the stored capture must be this observation, and its rows are already there.
-        const stored = existing.get(c.captureId) as { sha: string; requestedAt: string };
-        if (stored.sha !== c.sha || stored.requestedAt !== c.requestedAt)
-          throw new Error(`RAW_DB_CAPTURE_ID_CONFLICT: ${c.captureId} is already stored for a different observation`);
+      // Idempotent by capture id: a stored capture must be this exact observation, and its rows are already there.
+      // A different capture id is always stored, even when its response bytes repeat another capture's.
+      const existing = existingCapture.get(c.captureId) as { source_code: string; response_sha256: string | null; requested_at: string; outcome: string; operation: string } | undefined;
+      if (existing) {
+        if (existing.source_code !== c.source || existing.response_sha256 !== c.sha || existing.requested_at !== c.requestedAt || existing.outcome !== c.outcome || existing.operation !== c.operation)
+          throw new Error(`RAW_DB_CAPTURE_CONFLICT: ${c.captureId} already identifies a different observation`);
         continue;
       }
+      insertCapture.run(c.captureId, c.runId, c.source, c.provider, c.operation, c.endpoint, JSON.stringify(c.params), c.keyword,
+        c.requestedAt, c.completedAt, c.httpStatus, c.outcome, c.billing, c.costUnit, c.costAmount, c.sha, c.rawPath);
       result.captures++;
       if (c.outcome === 'NOT_COLLECTED') notCollected++;
       // Rows of a new capture are never silently dropped (for example two references with the same index).
@@ -286,10 +292,13 @@ async function captureResponse(db: Database.Database, artifacts: ContentAddresse
     return { text, sha256: row.artifactSha, endpoint: null, requestedAt: null, completedAt: null, httpStatus: null, requestParameters: null };
   if (String(value.provider).toLowerCase() !== row.provider || String(value.operation).toLowerCase() !== row.operation || value.completedAt !== row.retrievedAt)
     throw new Error(`RAW_DB_ARTIFACT_MISMATCH: capture envelope does not match capture ${row.stepId}:${row.ordinal}`);
-  if (value.outcome !== 'OK' || typeof value.responseBytesBase64 !== 'string') return null;
+  if (value.outcome !== 'OK') return null;
+  if (typeof value.responseBytesBase64 !== 'string') throw new Error(`RAW_DB_ARTIFACT_MISMATCH: successful capture ${row.stepId}:${row.ordinal} has no response bytes`);
   const response = Buffer.from(value.responseBytesBase64, 'base64');
   const sha = sha256(response);
-  if (sha !== value.responseSha256) throw new Error(`RAW_DB_ARTIFACT_MISMATCH: response digest differs in capture ${row.stepId}:${row.ordinal}`);
+  if (response.toString('base64') !== value.responseBytesBase64 || sha !== value.responseSha256 ||
+      (value.responseByteLength !== undefined && response.byteLength !== value.responseByteLength))
+    throw new Error(`RAW_DB_ARTIFACT_MISMATCH: response bytes differ in capture ${row.stepId}:${row.ordinal}`);
   return {
     text: new TextDecoder('utf-8', { fatal: true }).decode(response), sha256: sha,
     endpoint: typeof value.endpoint === 'string' ? value.endpoint : null,

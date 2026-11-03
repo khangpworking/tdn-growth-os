@@ -187,3 +187,71 @@ test('RAWDB-G L10: Google loads preserve nonempty S05 rows, writer_count and exi
   assert.ok((await loadAiOverviewToDbV1(f.db, f.artifacts, { runId: f.runId })).rows > 0);
   assert.deepEqual(s05(), before);
 });
+
+test('review regression: malformed AI Overview content cannot invent references or silently lose list items', async t => {
+  for (const [answer, error] of [
+    [{ text_blocks: [{ type: 'paragraph', snippet: 'valid' }], references: [{ title: 'missing index' }] }, /RAW_DB_AIO_BAD_REFERENCE/],
+    [{ text_blocks: [{ type: 'paragraph', snippet: 'valid' }], references: [{ index: 7 }, { index: 7, title: 'distinct source' }] }, /RAW_DB_AIO_BAD_REFERENCE/],
+    [{ text_blocks: [{ type: 'list', list: [{ snippet: 'valid' }, 'lost item'] }] }, /RAW_DB_AIO_BAD_LIST/],
+    [{ text_blocks: [{ type: 'list', list: { snippet: 'lost item' } }] }, /RAW_DB_AIO_BAD_LIST/],
+    [{ text_blocks: [{ type: 'list', list: [{ snippet: 'parent', list: [{ type: 'table', snippet: 'unknown child' }] }] }] }, /RAW_DB_AIO_UNKNOWN_BLOCK/],
+  ] as const) {
+    const f = await googleFixture(t);
+    await saveGoogleCapture(f, 'serpapi.google.search', { search_parameters: { q: QUERY }, ai_overview: ANSWER }, 0);
+    await saveGoogleCapture(f, 'serpapi.google.search', { search_parameters: { q: 'malformed' }, ai_overview: answer }, 1);
+    const before = snapshot(f.db);
+    await assert.rejects(loadAiOverviewToDbV1(f.db, f.artifacts, { runId: f.runId }), error);
+    assert.deepEqual(snapshot(f.db), before);
+  }
+  const f = await googleFixture(t);
+  await saveGoogleCapture(f, 'serpapi.google.search', { search_parameters: { q: QUERY }, ai_overview: {
+    text_blocks: [{ type: 'list', list: [{ snippet: 'parent', list: [{ snippet: 'child', reference_indexes: [7] }] }] }],
+    references: [{ index: 7, snippet: 'source snippet' }],
+  } }, 0);
+  assert.equal((await loadAiOverviewToDbV1(f.db, f.artifacts, { runId: f.runId })).rows, 2);
+  assert.deepEqual(f.db.prepare('SELECT block_seq,text,reference_indexes FROM ai_overview_block ORDER BY block_seq').all(), [
+    { block_seq: 0n, text: 'parent', reference_indexes: null }, { block_seq: 1n, text: 'child', reference_indexes: '[7]' },
+  ]);
+});
+
+test('review regression: successful capture envelopes require exact response bytes and their declared digest and size', async t => {
+  const bytes = Buffer.from(JSON.stringify(['synthetic jar', ['retained suggestion']]));
+  const envelope = { contractVersion: 'research-automation-capture-v1', provider: 'GOOGLE-SUGGEST', operation: 'google.suggest',
+    completedAt: RETRIEVED_AT, outcome: 'OK', responseBytesBase64: bytes.toString('base64'), responseSha256: hash(bytes), responseByteLength: bytes.length };
+  const f = await googleFixture(t);
+  await saveGoogleCapture(f, 'google.suggest', envelope, 0);
+  assert.equal((await loadSearchSuggestionsToDbV1(f.db, f.artifacts, { runId: f.runId })).rows, 1);
+  assert.equal((f.db.prepare('SELECT response_sha256 FROM raw_capture').get() as { response_sha256: string }).response_sha256, hash(bytes));
+  for (const change of [{ responseBytesBase64: null }, { responseSha256: '0'.repeat(64) }, { responseByteLength: bytes.length + 1 }]) {
+    const invalid = await googleFixture(t);
+    await saveGoogleCapture(invalid, 'google.suggest', { ...envelope, ...change }, 0);
+    const before = snapshot(invalid.db);
+    await assert.rejects(loadSearchSuggestionsToDbV1(invalid.db, invalid.artifacts, { runId: invalid.runId }), /RAW_DB_ARTIFACT_MISMATCH/);
+    assert.deepEqual(snapshot(invalid.db), before);
+  }
+});
+
+test('review regression: a late follow-up cannot attach answer rows to an immutable NOT_COLLECTED capture', async t => {
+  const f = await googleFixture(t);
+  await saveGoogleCapture(f, 'serpapi.google.search', { search_parameters: { q: QUERY }, ai_overview: { page_token: 'synthetic-late' } }, 0);
+  assert.equal((await loadAiOverviewToDbV1(f.db, f.artifacts, { runId: f.runId })).notCollected, 1);
+  await saveGoogleCapture(f, 'serpapi.google_ai_overview', { search_parameters: { page_token: 'synthetic-late' }, ai_overview: ANSWER }, 1);
+  const before = snapshot(f.db);
+  await assert.rejects(loadAiOverviewToDbV1(f.db, f.artifacts, { runId: f.runId }), /RAW_DB_CAPTURE_CONFLICT/);
+  assert.deepEqual(snapshot(f.db), before);
+});
+
+test('review regression: S19b files hash the supplied raw JSON, preserving null and rejecting missing raw', async t => {
+  const f = await googleFixture(t);
+  const file = path.join(path.dirname(f.databasePath), 'synthetic-suggestions.json');
+  const record = { prefix: 'synthetic jar', requestedAt: RETRIEVED_AT, httpStatus: 503, suggestions: [], raw: null };
+  const input = { declare: { formatVersion: 'raw-v1', sourceCode: 'S19b' }, records: [record] };
+  await fs.writeFile(file, JSON.stringify(input));
+  assert.equal((await loadSearchSuggestionsToDbV1(f.db, f.artifacts, { file, runId: f.runId })).captures, 1);
+  assert.equal((f.db.prepare('SELECT response_sha256 FROM raw_capture').get() as { response_sha256: string }).response_sha256, hash('null'));
+  const { raw, ...withoutRaw } = record;
+  await fs.writeFile(file, JSON.stringify({ ...input, records: [withoutRaw] }));
+  const before = snapshot(f.db);
+  await assert.rejects(loadSearchSuggestionsToDbV1(f.db, f.artifacts, { file, runId: f.runId }), /RAW_DB_FILE_BAD_RECORD/);
+  assert.deepEqual(snapshot(f.db), before);
+});
