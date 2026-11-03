@@ -62,12 +62,16 @@ test('RAWDB-V V1 / S14C row 8: run-window rank requests and captures preserve li
   for (const reports of [['MARKET'], ['INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) {
     const f = rankSource();
     const run = await s14cCollection(t, { topSellingVideoSource: f.source, mode: 'subtitle', reports });
-    const window = { startDate: '2026-09-01', endDate: '2026-09-30' };
+    // The fixture runs on October 2: product rank uses the latest 30 complete days, independently of the requested report period.
+    const window = { startDate: '2026-09-02', endDate: '2026-10-01' };
     assert.equal(f.paid.length, 1);
     const request = f.paid[0] as Record<string, unknown>;
-    assert.equal(request.date_range, '2026-09-01~2026-09-30', 'video.rank must carry the run window in date_range');
+    assert.equal(request.date_range, '2026-09-02~2026-10-01', 'video.rank must carry the product-rank window in date_range');
     assert.deepEqual(request, { region: 'VN', language: 'vi-VN', currency: 'VND', product_id: '12345',
-      date_range: '2026-09-01~2026-09-30', sort_field: { field: 'revenue', type: 'DESC' }, page_size: 10, page_number: 1 });
+      date_range: '2026-09-02~2026-10-01', sort_field: { field: 'revenue', type: 'DESC' }, page_size: 10, page_number: 1 });
+    const productRank = run.db.prepare(`SELECT window_start,window_end FROM analysis_research_automation_captures
+      WHERE run_id=? AND step_id='QUICK_SEARCH' AND operation='kalodata.product.rank'`).get(S14C_RUN) as { window_start: string; window_end: string };
+    assert.deepEqual(productRank, { window_start: window.startDate, window_end: window.endDate }, 'video rank uses the same window as the stored product-rank capture');
     const watch = run.step.videoWatch; assert.ok(watch?.topSellingRank);
     assert.equal(watch.topSellingRank.kept, 2);
     assert.deepEqual(watch.candidates.slice(0, 2), handles.map((handle, i) => ({ videoId: String(94001 + i),

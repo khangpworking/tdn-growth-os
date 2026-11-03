@@ -12,6 +12,7 @@ import type { ProviderTransport } from '../../src/modules/analysis/research-auto
 import type { StepExpandedQuery, StepResultDocument, TypedComparable } from '../../src/modules/analysis/research-automation/model.js';
 
 const RUN = '22222222-2222-4222-8222-222222222222';
+const WINDOW = { startDate: '2026-09-01', endDate: '2026-09-30' };
 const now = () => new Date('2026-10-02T00:00:00.000Z');
 const url = (id: string, handle = 'synthetic.rank') => `https://www.tiktok.com/@${handle}/video/${id}`;
 const row = (id: string, revenue: number | null, views: number | null, handle = 'synthetic.rank') =>
@@ -51,7 +52,7 @@ test('S14C row 8: confirmed collected products, top-three revenue order, merge/d
     { candidates: candidates.filter(item => item.productId !== '104'), ids: ['102', '101', '103'] }]) {
     const f = videoRankTransport({ reply: () => Response.json({ success: true, data }) });
     const source = createTopSellingVideoSource(createKalodataProvider('synthetic-s14c-offline-rank-auth', f.transport));
-    const result = await source.collect(c.candidates); assert.ok(result);
+    const result = await source.collect(c.candidates, WINDOW); assert.ok(result);
     // RAWDB-V V1 owns the request protocol at the service/provider boundary, including the run window.
     assert.deepEqual(f.paid.map(call => (call.body as { product_id: string }).product_id), c.ids);
     assert.deepEqual(f.events, ['balance', ...c.ids, 'balance']);
@@ -62,8 +63,9 @@ test('S14C row 8: confirmed collected products, top-three revenue order, merge/d
   }
   const f = videoRankTransport({ reply: () => Response.json({ success: true, data: [row('92001', null, 9999), row('92002', 0, null), row('92003', 0, 0)] }) });
   const source = createTopSellingVideoSource(createKalodataProvider('synthetic-s14c-offline-rank-auth', f.transport));
-  assert.equal(await source.collect([]), null); assert.equal(f.events.length, 0);
-  assert.deepEqual(rankTopSellingVideos(await source.collect([{ productId: '101', revenue: null }])).map(video => video.videoId), ['92003', '92002', '92001'], 'missing revenue/views sort last; zero stays observed');
+  assert.equal(await source.collect([], WINDOW), null); assert.equal(f.events.length, 0);
+  assert.equal(await source.collect([{ productId: '101', revenue: null }], null), null); assert.equal(f.events.length, 0, 'no window means no provider call');
+  assert.deepEqual(rankTopSellingVideos(await source.collect([{ productId: '101', revenue: null }], WINDOW)).map(video => video.videoId), ['92003', '92002', '92001'], 'missing revenue/views sort last; zero stays observed');
 });
 
 test('S14C row 8: credit, auth/rate and ambiguous responses never retry paid requests', async () => {
@@ -77,7 +79,7 @@ test('S14C row 8: credit, auth/rate and ambiguous responses never retry paid req
     { name: 'transport ambiguity', before: 10, expected: ['AMBIGUOUS_NO_RETRY', 'AMBIGUOUS_NO_RETRY', 'AMBIGUOUS_NO_RETRY'], paid: 3, exhausted: false,
       reply: () => { throw new Error('synthetic network refusal'); } },
   ]) {
-    const f = videoRankTransport(c), result = await createKalodataProvider('synthetic-s14c-offline-rank-auth', f.transport).topSellingVideos(['101', '102', '103']);
+    const f = videoRankTransport(c), result = await createKalodataProvider('synthetic-s14c-offline-rank-auth', f.transport).topSellingVideos(['101', '102', '103'], WINDOW);
     assert.deepEqual(result.products.map(product => product.outcome), c.expected, c.name);
     assert.equal(result.creditExhausted, c.exhausted, c.name);
     assert.equal(f.paid.length, c.paid, c.name);
@@ -108,7 +110,7 @@ test('S14C row 9: first origin wins; selection, five uploaded/automated top-sell
       runner: async () => { throw new Error('unconfigured model must prevent downloads'); } });
     const step: StepResultDocument = { contractVersion: 'research-automation-step-result-v1', runId: RUN, stepId: 'COLLECTION', outcome: 'SUCCEEDED', productCards: [], comparables: [], coverage: [], limitations: [] };
     const facts: VideoLaneFacts = { market: true, context: async () => ({ binding: { workspaceId: '11111111-1111-4111-8111-111111111111', runId: RUN, scopeSha256: 'a'.repeat(64), sourceSetSha256: null },
-      productKeyword: 'synthetic product', selectionVideos: [], topSellingVideos: c.uploaded ? [{ url: url('2001') }] : [], topSellingGap: true, topSellingProducts: [{ productId: '101', revenue: 1 }] }),
+      productKeyword: 'synthetic product', selectionVideos: [], topSellingVideos: c.uploaded ? [{ url: url('2001') }] : [], topSellingGap: true, topSellingProducts: [{ productId: '101', revenue: 1 }], topSellingWindow: WINDOW }),
       publish: async () => { throw new Error('no publication expected'); } };
     // No capture storage is claimed here; durable capture indexes are covered by the service integration test.
     const context: SaveStepContext = { stepId: 'COLLECTION', signal: undefined, check: () => {}, captures: { envelopes: () => [], put: async () => {}, rows: () => [], byteSize: () => 0 } };
