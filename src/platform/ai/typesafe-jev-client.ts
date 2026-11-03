@@ -48,6 +48,18 @@ export interface TypesafeJevBatchResult {
 
 type FetchLike = typeof fetch;
 
+/** The Jev request body: one choice question per id, each with its own state. */
+export function typesafeJevRequestBody(model: string, questions: readonly TypesafeJevQuestion[]) {
+  return { model, state: Object.fromEntries(questions.map(question => [question.id, question.state])),
+    questions: Object.fromEntries(questions.map(question => [question.id, { type: 'choice', instructions: question.instructions, criteria: question.criteria }])) };
+}
+
+/** HTTP status and raw response body of one Jev call; status null and body null when the call itself failed. */
+export interface TypesafeJevRawResponse {
+  readonly status: number | null;
+  readonly body: Buffer | null;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -66,12 +78,13 @@ function validateAnswer(value: unknown, question: TypesafeJevQuestion): Typesafe
   return { type: 'choice', choice: value.choice, probabilities: value.probabilities, confidence: value.confidence };
 }
 
-async function readBoundedResponse(response: Response): Promise<string | null> {
+/** The response body bytes, or null when it is larger than RESPONSE_LIMIT_BYTES. */
+async function readBoundedBytes(response: Response): Promise<Buffer | null> {
   const declared = response.headers.get('content-length');
   if (declared !== null && /^\d+$/.test(declared) && Number(declared) > RESPONSE_LIMIT_BYTES) return null;
   if (!response.body) {
-    const text = await response.text();
-    return Buffer.byteLength(text, 'utf8') <= RESPONSE_LIMIT_BYTES ? text : null;
+    const bytes = Buffer.from(await response.arrayBuffer());
+    return bytes.byteLength <= RESPONSE_LIMIT_BYTES ? bytes : null;
   }
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -90,10 +103,18 @@ async function readBoundedResponse(response: Response): Promise<string | null> {
   } finally {
     reader.releaseLock();
   }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  return Buffer.concat(chunks, size);
+}
+
+async function readBoundedResponse(response: Response): Promise<string | null> {
+  if (!response.body) {
+    const declared = response.headers.get('content-length');
+    if (declared !== null && /^\d+$/.test(declared) && Number(declared) > RESPONSE_LIMIT_BYTES) return null;
+    const text = await response.text();
+    return Buffer.byteLength(text, 'utf8') <= RESPONSE_LIMIT_BYTES ? text : null;
+  }
+  const bytes = await readBoundedBytes(response);
+  return bytes === null ? null : new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
 
 export class TypesafeJevClient {
@@ -121,8 +142,7 @@ export class TypesafeJevClient {
       const response = await this.#fetch(TYPESAFE_JEV_ENDPOINT, {
         method: 'POST', redirect: 'error', signal: controller.signal,
         headers: { Authorization: `Bearer ${this.#configuration.apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: this.#configuration.model, state: Object.fromEntries(questions.map(question => [question.id, question.state])),
-          questions: Object.fromEntries(questions.map(question => [question.id, { type: 'choice', instructions: question.instructions, criteria: question.criteria }])) }),
+        body: JSON.stringify(typesafeJevRequestBody(this.#configuration.model, questions)),
       });
       if (!response.ok) return empty();
       const text = await readBoundedResponse(response);
@@ -135,6 +155,29 @@ export class TypesafeJevClient {
       return { status: [...answers.values()].some(answer => answer === null) ? 'UNAVAILABLE' : 'OK', model: this.#configuration.model, answers };
     } catch {
       return empty();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Sends the same request as answer() and returns the HTTP status and the raw response body unparsed, so a caller
+   * can apply its own answer checks and keep the exact bytes as evidence. A body over the size limit, a timeout or a
+   * transport error gives a null body. Never throws for a failed call.
+   */
+  async answerRaw(questions: readonly TypesafeJevQuestion[]): Promise<TypesafeJevRawResponse> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await this.#fetch(TYPESAFE_JEV_ENDPOINT, {
+        method: 'POST', redirect: 'error', signal: controller.signal,
+        headers: { Authorization: `Bearer ${this.#configuration.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(typesafeJevRequestBody(this.#configuration.model, questions)),
+      });
+      if (!response.ok) return { status: response.status, body: null };
+      return { status: response.status, body: await readBoundedBytes(response) };
+    } catch {
+      return { status: null, body: null };
     } finally {
       clearTimeout(timer);
     }

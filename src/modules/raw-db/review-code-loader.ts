@@ -128,21 +128,11 @@ export async function loadReviewCodesToDbV1(db: Database.Database, { mcpRunFile,
   }
   result.reviewsMissing = missingReviews.size;
 
-  const storedCodebook = db.prepare('SELECT definition_sha256 FROM codebook WHERE codebook_version=?');
-  const insertCodebook = db.prepare(`INSERT INTO codebook(codebook_version,contract_version,status,approved_by,approved_at,definition_json,definition_sha256,loaded_at)
-    VALUES (?,?,?,?,?,?,?,?)`);
   const insertCode = db.prepare(`INSERT INTO review_code(review_key,codebook_version,theme_code,block_key,polarity,journey_step,status,confidence,coder,text_sha256,coded_at,origin,import_sha256)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
   const storedImport = db.prepare('SELECT import_sha256 FROM review_code WHERE review_key=? AND codebook_version=? AND theme_code=?');
   return db.transaction((): ReviewCodeLoadResult => {
-    const stored = storedCodebook.get(codebook.version) as { definition_sha256: string } | undefined;
-    if (stored && stored.definition_sha256 !== definitionSha256) {
-      throw new Error(`RAW_DB_CODES_CODEBOOK_CHANGED: codebook ${codebook.version} is stored with a different definition`);
-    }
-    if (!stored) {
-      result.codebookInserted = insertCodebook.run(codebook.version, codebook.contractVersion, codebook.status, codebook.approvedBy, codebook.approvedAt,
-        definitionJson, definitionSha256, new Date().toISOString()).changes;
-    }
+    result.codebookInserted = storeCodebook(db, codebook, definitionJson, definitionSha256);
     for (const row of rows) {
       if (insertCode.run(...row).changes) {
         if (row[2] === NO_THEME) result.noThemeInserted++; else result.labelsInserted++;
@@ -165,11 +155,26 @@ function spanMatches(review: { text: string | null; attributes_json: string | nu
   return sha256(Buffer.from(points.slice(start, end).join(''), 'utf8')) === label.text_sha256;
 }
 
-interface Codebook { version: string; contractVersion: string; status: 'DRAFT' | 'APPROVED'; approvedBy: string | null; approvedAt: string | null;
+/**
+ * Inserts the codebook row when its version is not stored yet; returns the rows inserted (0 or 1). A version already
+ * stored with other definition bytes fails with RAW_DB_CODES_CODEBOOK_CHANGED. Call inside the writer's transaction.
+ */
+export function storeCodebook(db: Database.Database, codebook: Codebook, definitionJson: string, definitionSha256: string): number {
+  const stored = db.prepare('SELECT definition_sha256 FROM codebook WHERE codebook_version=?').get(codebook.version) as { definition_sha256: string } | undefined;
+  if (stored && stored.definition_sha256 !== definitionSha256) {
+    throw new Error(`RAW_DB_CODES_CODEBOOK_CHANGED: codebook ${codebook.version} is stored with a different definition`);
+  }
+  if (stored) return 0;
+  return db.prepare(`INSERT INTO codebook(codebook_version,contract_version,status,approved_by,approved_at,definition_json,definition_sha256,loaded_at)
+    VALUES (?,?,?,?,?,?,?,?)`).run(codebook.version, codebook.contractVersion, codebook.status, codebook.approvedBy, codebook.approvedAt,
+    definitionJson, definitionSha256, new Date().toISOString()).changes;
+}
+
+export interface Codebook { version: string; contractVersion: string; status: 'DRAFT' | 'APPROVED'; approvedBy: string | null; approvedAt: string | null;
   /** Codes allowed for a block: core, the block's themes and otherCode; undefined for an unknown block. */
   themes(blockKey: string | null): Set<string> | undefined }
 
-function parseCodebook(text: string): Codebook {
+export function parseCodebook(text: string): Codebook {
   const fail = (why: string): never => { throw new Error(`RAW_DB_CODES_CODEBOOK_INVALID: ${why}`); };
   let json: Record<string, unknown>;
   try { json = JSON.parse(text) as Record<string, unknown>; } catch { return fail('not JSON'); }
@@ -198,4 +203,4 @@ function parseCodebook(text: string): Codebook {
     themes: blockKey => blockKey === null ? coreOnly : byBlock.get(blockKey) };
 }
 
-function sha256(bytes: Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }
+export function sha256(bytes: Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }

@@ -8,6 +8,8 @@ import { loadTikTokCommentsToDbV1 } from '../src/modules/raw-db/tiktok-comments-
 import { loadKalodataVideosToDbV1 } from '../src/modules/raw-db/kalodata-video-loader.js';
 import { loadVideoReadingsToDbV1 } from '../src/modules/raw-db/video-reading-loader.js';
 import { loadReviewCodesToDbV1 } from '../src/modules/raw-db/review-code-loader.js';
+import { labelReviewsInDbV1 } from '../src/modules/raw-db/review-labeller.js';
+import { TypesafeJevClient, typesafeJevConfigurationFromEnvironment } from '../src/platform/ai/typesafe-jev-client.js';
 import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '../src/platform/collectors/apify-tiktok-comments-free.js';
 
 // Usage: raw-db-load --source S02b|S05|S07|S14|S19b|S29 --run <runId> [--file <raw-v1 file>] [--privacy-file <abs path>] [--db <path>] [--artifacts <dir>] [--dry-run]
@@ -16,26 +18,40 @@ import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '
 // Load S14 after S02b for the same run: a run's top-selling video needs its S02b video row first.
 // raw-db-load --source CODES --mcp-run <runs/<runId>.sqlite> --codebook <theme list JSON> --coder <name> [--db <path>] [--dry-run]
 // imports the theme labels of an Insight MCP run (no AI call, no privacy key; the run file is only read).
+// raw-db-load --source LABELS [--run <runId>] [--max-calls N] [--codebook <json>] [--captures <dir>] [--db <path>] [--artifacts <dir>] [--dry-run]
+// labels eligible db-v1 Shopee reviews (one run, or all) with Jev (review_code origin APP_JEV); --dry-run plans only (no network).
+// A real S05 load labels the run's reviews right after it commits (owner F366/F367); --no-label skips that. Jev needs
+// TDN_RESEARCH_JEV_ENABLED=true and TYPESAFE_API_KEY; without them the S05 load still succeeds (labelling SKIPPED_JEV_DISABLED).
+// --captures (scope.json root) defaults to TDN_METRIC_CAPTURE_DIR, else <db dir>/metric-captures.
 // --db defaults to TDN_WORKSPACE_DB, else runtime/tdn-growth-os.sqlite; --artifacts defaults to TDN_ARTIFACT_ROOT.
 let options;
 try {
-  options = parseArgs({ options: { source: { type: 'string' }, run: { type: 'string' }, file: { type: 'string' }, 'privacy-file': { type: 'string' }, 'mcp-run': { type: 'string' }, codebook: { type: 'string' }, coder: { type: 'string' }, db: { type: 'string' }, artifacts: { type: 'string' },
+  options = parseArgs({ options: { source: { type: 'string' }, run: { type: 'string' }, file: { type: 'string' }, 'privacy-file': { type: 'string' }, 'mcp-run': { type: 'string' }, codebook: { type: 'string' }, coder: { type: 'string' }, 'max-calls': { type: 'string' }, captures: { type: 'string' }, 'no-label': { type: 'boolean', default: false }, db: { type: 'string' }, artifacts: { type: 'string' },
     'dry-run': { type: 'boolean', default: false } } }).values;
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);
 }
 const source = options.source;
-if (source !== 'CODES' && source !== 'S02b' && source !== 'S05' && source !== 'S07' && source !== 'S14' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
+if (source !== 'LABELS' && source !== 'CODES' && source !== 'S02b' && source !== 'S05' && source !== 'S07' && source !== 'S14' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
 const codes = source === 'CODES';
-if (codes) {
+const labels = source === 'LABELS';
+const labelSource = labels || source === 'S05';
+if (options.captures && !labelSource) { console.error('--captures is only for LABELS and S05'); process.exit(2); }
+if (options['max-calls'] !== undefined && !labelSource) { console.error('--max-calls is only for LABELS and S05'); process.exit(2); }
+if (options['no-label'] && source !== 'S05') { console.error('--no-label is only for S05'); process.exit(2); }
+const maxCalls = options['max-calls'] === undefined ? undefined : Number(options['max-calls']);
+if (maxCalls !== undefined && !(Number.isInteger(maxCalls) && maxCalls >= 1)) { console.error('--max-calls must be a positive integer'); process.exit(2); }
+if (labels) {
+  if (options.file || options['mcp-run'] || options.coder) { console.error('--file, --mcp-run and --coder are not used by LABELS'); process.exit(2); }
+} else if (codes) {
   if (!options['mcp-run'] || !options.codebook || !options.coder) { console.error('CODES needs --mcp-run <file>, --codebook <json> and --coder <name>'); process.exit(2); }
   if (options.run || options.file || options.artifacts) { console.error('--run, --file and --artifacts are not used by CODES'); process.exit(2); }
-} else if (options['mcp-run'] || options.codebook || options.coder) { console.error('--mcp-run, --codebook and --coder are only for CODES'); process.exit(2); }
+} else if (options['mcp-run'] || options.codebook || options.coder) { console.error('--mcp-run and --coder are only for CODES, --codebook for CODES and LABELS'); process.exit(2); }
 else if (!options.run) { console.error('--run <runId> is required'); process.exit(2); }
 if (options.file && source === 'S05') { console.error('--file is not supported for S05'); process.exit(2); }
 const artifactRoot = options.artifacts ?? process.env.TDN_ARTIFACT_ROOT;
-if (!artifactRoot && !options.file && !codes) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
+if (!artifactRoot && !options.file && !codes && !(labels && options['dry-run'])) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
 const keyed = source === 'S02b' || source === 'S07' || source === 'S14';
 if (options['privacy-file'] && !keyed) { console.error('--privacy-file is only for S02b, S07 and S14'); process.exit(2); }
 // S02b, S07, S14: the writer key is required before any input is read; the salt stays inside the privacy closure and is never printed.
@@ -50,24 +66,37 @@ if (keyed) {
 let db: BetterSqlite3.Database | undefined;
 try {
   // Loading requires an existing, migrated app DB. Opening it must not commit migrations before --dry-run.
-  db = new BetterSqlite3(path.resolve(options.db ?? process.env.TDN_WORKSPACE_DB ?? path.join('runtime', 'tdn-growth-os.sqlite')), { fileMustExist: true });
+  const dbPath = path.resolve(options.db ?? process.env.TDN_WORKSPACE_DB ?? path.join('runtime', 'tdn-growth-os.sqlite'));
+  db = new BetterSqlite3(dbPath, { fileMustExist: true });
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.defaultSafeIntegers(true);
   // A file load reads no artifact; the store is only a placeholder then.
   const artifacts = new ContentAddressedArtifactStore(path.resolve(artifactRoot ?? 'runtime/artifacts'));
   const input = options.file ? { file: path.resolve(options.file), runId: options.run! } : { runId: options.run! };
+  const captureRoot = path.resolve(options.captures ?? (process.env.TDN_METRIC_CAPTURE_DIR || path.join(path.dirname(dbPath), 'metric-captures')));
   // Dry run: the loader's own transaction nests as a savepoint inside this one, which is then rolled back.
   if (options['dry-run']) db.exec('BEGIN');
   try {
-    const result = codes ? await loadReviewCodesToDbV1(db, { mcpRunFile: path.resolve(options['mcp-run']!), codebookFile: path.resolve(options.codebook!), coder: options.coder! })
+    const result = labels ? await labelReviewsInDbV1(db, artifacts, options['dry-run'] ? null : jevClient(true),
+        { runId: options.run, maxCalls, dryRun: options['dry-run'], codebookFile: options.codebook && path.resolve(options.codebook), captureRoot })
+      : codes ? await loadReviewCodesToDbV1(db, { mcpRunFile: path.resolve(options['mcp-run']!), codebookFile: path.resolve(options.codebook!), coder: options.coder! })
       : source === 'S05' ? await loadShopeeReviewsToDbV1(db, artifacts, { runId: options.run! })
       : source === 'S07' ? await loadTikTokCommentsToDbV1(db, artifacts, input, privacy)
       : source === 'S02b' ? await loadKalodataVideosToDbV1(db, artifacts, input, privacy)
       : source === 'S14' ? await loadVideoReadingsToDbV1(db, artifacts, input, privacy)
       : source === 'S19b' ? await loadSearchSuggestionsToDbV1(db, artifacts, input)
       : await loadAiOverviewToDbV1(db, artifacts, input);
-    console.log(JSON.stringify(result));
+    // Option A: a real S05 load labels the run's reviews after its transaction committed. Labelling never fails the load.
+    if (source === 'S05' && !options['dry-run']) {
+      const client = options['no-label'] ? null : jevClient(false);
+      let labelling: unknown = options['no-label'] ? 'SKIPPED_NO_LABEL' : client ? null : 'SKIPPED_JEV_DISABLED';
+      if (client) {
+        try { labelling = await labelReviewsInDbV1(db, artifacts, client, { runId: options.run!, maxCalls, captureRoot }); }
+        catch (error) { labelling = { error: error instanceof Error ? error.message : String(error) }; }
+      }
+      console.log(JSON.stringify({ ...result, labelling }));
+    } else console.log(JSON.stringify(result));
   } finally {
     if (options['dry-run']) db.exec('ROLLBACK');
   }
@@ -76,4 +105,14 @@ try {
   process.exitCode = 1;
 } finally {
   db?.close();
+}
+
+/** The app Jev client, or null when Jev is disabled or not configured (required: the LABELS error RAW_DB_LABELS_JEV_DISABLED). */
+function jevClient(required: boolean): TypesafeJevClient | null {
+  try {
+    const configuration = typesafeJevConfigurationFromEnvironment(process.env);
+    if (configuration.enabled) return new TypesafeJevClient(configuration);
+  } catch { /* a missing or malformed key counts as disabled; its text is never printed */ }
+  if (required) throw new Error('RAW_DB_LABELS_JEV_DISABLED: set TDN_RESEARCH_JEV_ENABLED=true and TYPESAFE_API_KEY, or use --dry-run');
+  return null;
 }

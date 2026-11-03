@@ -15,6 +15,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 03/11/2026 (chủ duyệt F347, F349): số theo từng video của Kalodata có mã nguồn riêng **S02b «Kalodata video»**; S02 đổi tên thành «Kalodata sản phẩm». S02b vào `video` và bảng mới `video_snapshot` (migration 0066). Tên video giữ đúng như nguồn trả; người làm video chỉ lưu `author_key` (§4.1a, §4.1b).
 - 03/11/2026 (chủ duyệt F354, F356): S14 lời nói trong video vào `video_reading` và `video_segment` (migration 0067), thay bản phác §4.1 cũ. Không lưu nhận định của AI (giọng, loại video, có nói về sản phẩm không). Chữ giữ đúng như đọc được. Nạp S02b trước S14 cho cùng lần chạy. Từ nay app chỉ xem video chủ chọn và video bán chạy, không xem video từ tìm kiếm `site:tiktok.com` (§4.1).
 - 03/11/2026 (chủ duyệt F361–F363): nhãn chủ đề vào `codebook` và `review_code` (migration 0068), thay bản phác §3.3 cũ. Nhãn kẽm của Jev được nhập từ kho MCP, không gọi AI, chỉ khi dấu của đoạn lời khớp với lời trong `review`. Cảm xúc theo sao là view `review_star_sentiment` (1–3 sao tiêu cực, 4–5 sao tích cực).
+- 03/11/2026 (chủ quyết F366, F367): app tự gán chủ đề bằng Jev ngay sau khi nạp đánh giá Shopee (S05) vào db-v1 và ghi vào `review_code` với `origin` = `APP_JEV` (migration 0069). Cách gán giống hệt MCP Insight. Một đánh giá đã có nhãn của bản bộ chủ đề thì không gọi Jev lần nữa (§3.3).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -211,11 +212,11 @@ Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, t�
 | journey_step | TEXT | Có, trừ `NO_THEME` | Bước mua, giữ như đã ghi, ví dụ `Sau mua` | `label.step` |
 | status | TEXT | Có | `kept` (được đếm) hoặc `unclear` (không đếm). `NO_THEME` là `kept` | `label.status` |
 | confidence | REAL | Không | Xác suất 0–1; `NULL` với `NO_THEME` | `label.p_yes` |
-| coder | TEXT | Có | Người hoặc mô hình đã gán, ví dụ `jev` | tham số `--coder` |
+| coder | TEXT | Có | Người hoặc mô hình đã gán, ví dụ `jev`; với `APP_JEV` là mã mô hình Jev, ví dụ `jev-1.13.0` | tham số `--coder` |
 | text_sha256 | TEXT | Có | Dấu của đoạn lời được gán. Với `NO_THEME`: dấu đầu vào của lần gán | `label.text_sha256`; `coding_state.input_sha256` |
 | coded_at | TEXT | Có | Lúc bắt đầu gán (sớm nhất nếu có nhiều) | `coding_target.started_at` cùng bản và `block_norm` |
-| origin | TEXT | Có | Cách dòng vào: `MCP_IMPORT` | — |
-| import_sha256 | TEXT | Có | SHA-256 của tệp kho MCP đã nhập | — |
+| origin | TEXT | Có | Cách dòng vào: `MCP_IMPORT` (nhập từ kho MCP) hoặc `APP_JEV` (app hỏi Jev, migration 0069) | — |
+| import_sha256 | TEXT | Có | SHA-256 của bằng chứng: tệp kho MCP đã nhập (`MCP_IMPORT`), hoặc nguyên văn phản hồi của Jev (`APP_JEV`), lưu trong kho tệp theo dấu của app | — |
 
 **Quy tắc khi nhập (`raw-db-load --source CODES`):**
 
@@ -224,6 +225,14 @@ Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, t�
 3. Đánh giá không có trong `review` thì bỏ các nhãn của nó và đếm `reviewsMissing`. Khớp hơn một dòng thì dừng (`RAW_DB_CODES_AMBIGUOUS_REVIEW`).
 4. Bản của tệp phải bằng bản của mọi nhãn (`RAW_DB_CODES_CODEBOOK_MISMATCH`). Bản đã có mà dấu tệp khác thì dừng (`RAW_DB_CODES_CODEBOOK_CHANGED`). Mã chủ đề lạ thì dừng (`RAW_DB_CODES_INVALID_ROW`).
 5. Nạp lại cùng tệp thì không thêm dòng nào. Cả lần nạp là một giao dịch, trừ các nhãn bị bỏ ở mục 2 và 3.
+
+**App tự gán bằng Jev (`origin` = `APP_JEV`, chủ quyết F366, F367):**
+
+1. **Khi nào chạy:** ngay sau khi lệnh `raw-db-load --source S05` nạp thật (không `--dry-run`) và giao dịch nạp đã ghi xong, app gán các đánh giá đủ điều kiện của lần chạy đó. Jev tắt hoặc thiếu khoá thì việc nạp vẫn thành công, kết quả ghi `labelling: SKIPPED_JEV_DISABLED`. `--no-label` bỏ qua việc gán. `raw-db-load --source LABELS [--run <id>] [--max-calls N] [--dry-run]` gán phần còn lại hoặc các đánh giá nạp trước đó; `--dry-run` chỉ lập kế hoạch, không gọi mạng, không đổi cơ sở dữ liệu.
+2. **Đủ điều kiện:** đánh giá sản phẩm Shopee (`platform = 'shopee'`, `kind = 'product_review'`), lời (`text` rồi mỗi mục `attributes_json` thêm hai dấu cách đứng trước) không trống, và chưa có dòng `review_code` nào của bản bộ chủ đề hiện tại (bất kể `origin`). Không bao giờ gọi Jev cho đánh giá không đủ điều kiện, nên một nhãn không bị trả tiền hai lần.
+3. **Giống MCP:** lời gửi Jev, tên sản phẩm (`product.product_name`), khối (chọn theo từ khoá hoặc danh mục đã áp dụng của lần chạy, đọc từ `scope.json` của lần chạy hoặc từ khoá của lần chạy), câu hỏi, ngưỡng và mã lỗi (`JEV_THEME_UNAVAILABLE`, `JEV_THEME_INVALID`) giống `tools/mcp-insight`. Cùng lời và cùng câu trả lời thì ra cùng nhãn (chủ đề, khối, `p_yes`, `polarity`, `kept`/`unclear`, `Sau mua`).
+4. **Ghi dòng:** một đánh giá một lần gọi Jev; các dòng của một đánh giá ghi trong một giao dịch sau khi câu trả lời đã được kiểm. `confidence` = `p_yes`, `text_sha256` = SHA-256 của cả lời đã gửi, `coded_at` = lúc gọi, `block_key` = khối đã chọn. Jev trả lời mà không có chủ đề nào thì ghi một dòng `NO_THEME`. Bộ chủ đề chưa có trong `codebook` thì được thêm (quy tắc như `CODES`).
+5. **Giới hạn và lỗi:** mỗi lượt gán gọi nhiều nhất `limits.maxCallsPerRun` lần (hoặc `--max-calls` nếu nhỏ hơn). Một lần gọi lỗi thì không ghi gì cho đánh giá đó và dừng lượt; các đánh giá đã ghi được giữ. Kết quả: `{ eligible, called, labelled, noTheme, rowsInserted, failed, skipped }`.
 
 View `review_star_sentiment` (F363): cảm xúc theo số sao, tính từ `review.rating_star`, không chép ra bảng. 1–3 sao → `tieu_cuc`, 4–5 sao → `tich_cuc`, không có sao → `NULL`. Cột: `review_key`, `source_code`, `platform`, `product_key`, `rating_star`, `star_sentiment`.
 
@@ -612,7 +621,7 @@ CREATE TABLE review_code (
   coder            TEXT NOT NULL,
   text_sha256      TEXT NOT NULL,
   coded_at         TEXT NOT NULL,
-  origin           TEXT NOT NULL CHECK (origin IN ('MCP_IMPORT')),
+  origin           TEXT NOT NULL CHECK (origin IN ('MCP_IMPORT','APP_JEV')),
   import_sha256    TEXT NOT NULL,
   PRIMARY KEY (review_key, codebook_version, theme_code),
   CHECK (CASE WHEN theme_code = 'NO_THEME'
@@ -882,7 +891,7 @@ GROUP BY product_key, star_sentiment;
 
 - **Mã người viết Shopee:** bộ thu gói S chưa giữ mã tác giả. Change `shopee-public-review-writer-key` chờ chủ duyệt. Cách băm dùng lại cách của bộ thu riêng cũ (`shopee-author-id-hmac-v1`).
 - **Nối video với sản phẩm (S07):** bộ kẽm chưa có dữ liệu nối. Mọi video của bộ kẽm có `link_basis` = `UNKNOWN`.
-- **`review_code` của bộ kẽm:** nhập từ kho của lần chạy MCP 30/10 bằng `--source CODES` (§3.3). Bộ công khai `kem-2910` đã đổi mã đánh giá thành `anon-…`, nên nhãn chỉ khớp với `review` của cơ sở dữ liệu app (mã thật).
+- **`review_code` của bộ kẽm:** nhập từ kho của lần chạy MCP 30/10 bằng `--source CODES` (§3.3). Đánh giá chưa có nhãn được app gán bằng `--source LABELS` (§3.3, `APP_JEV`). Bộ công khai `kem-2910` đã đổi mã đánh giá thành `anon-…`, nên nhãn chỉ khớp với `review` của cơ sở dữ liệu app (mã thật).
 - **Duyệt bộ chủ đề:** bảng `codebook` cho phép `DRAFT` → `APPROVED`, nhưng chưa có lệnh duyệt.
 - **Bảng tính Cục Thống kê (S21, S22):** mỗi tệp có nhiều bảng con. Bản này chỉ định khuôn chung `official_stat`. Cách đọc từng bảng con theo bộ đọc của app.
 - **Bảng `ad`:** bộ kẽm chưa có quảng cáo nào đọc được, nên các cột của bảng `ad` là đề xuất. Cần kiểm lại khi có lượt đọc thật.
