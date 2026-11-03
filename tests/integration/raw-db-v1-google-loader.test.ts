@@ -152,7 +152,12 @@ test('RAWDB-G L8: a tampered later artifact fails verified reading without chang
 
 test('RAWDB-G L9: CLI S19b --file --dry-run prints insertion counts and leaves the database unchanged', async t => {
   const f = await googleFixture(t);
-  const before = snapshot(f.db);
+  const databaseState = () => ({
+    schema: f.db.prepare('SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name').all(),
+    tables: (f.db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[])
+      .map(({ name }) => [name, f.db.prepare(`SELECT * FROM "${name}"`).all()]),
+  });
+  const before = databaseState();
   const child = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/raw-db-load.ts', '--source', 'S19b',
     '--run', 'synthetic-file-run', '--file', fileURLToPath(SUGGESTION_FILE), '--db', f.databasePath, '--artifacts', f.artifactRoot, '--dry-run'],
   { encoding: 'utf8', timeout: 30_000, env: { ...process.env, TDN_WORKSPACE_DB: f.databasePath, TDN_ARTIFACT_ROOT: f.artifactRoot } });
@@ -163,7 +168,7 @@ test('RAWDB-G L9: CLI S19b --file --dry-run prints insertion counts and leaves t
   assert.equal(receipt.captures, 3);
   assert.equal(receipt.rows, 3);
   assert.equal(receipt.alreadyPresent, 0);
-  assert.deepEqual(snapshot(f.db), before);
+  assert.deepEqual(databaseState(), before);
 });
 
 test('RAWDB-G L10: Google loads preserve nonempty S05 rows, writer_count and existing S05 table definitions', async t => {
