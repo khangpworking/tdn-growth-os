@@ -7,7 +7,7 @@ import { applyMigrations } from '../../src/platform/db/index.js';
 const columns = {
   raw_capture: `capture_id:TEXT run_id:TEXT source_code:TEXT provider:TEXT operation:TEXT endpoint:TEXT
     request_params_json:TEXT keyword:TEXT period_start:TEXT period_end:TEXT requested_at:TEXT completed_at:TEXT
-    http_status:INTEGER outcome:TEXT billing:TEXT cost_unit:TEXT cost_amount:REAL response_sha256:TEXT raw_path:TEXT`,
+    http_status:INTEGER outcome:TEXT billing:TEXT cost_unit:TEXT cost_amount:REAL response_sha256:TEXT raw_path:TEXT response_sha256_basis:TEXT`,
   product: `product_key:TEXT platform:TEXT item_id:TEXT shop_id:TEXT shop_name:TEXT product_name:TEXT brand:TEXT
     category_path:TEXT product_url:TEXT launch_date:TEXT first_capture_id:TEXT`,
   review: `review_key:TEXT source_code:TEXT platform:TEXT kind:TEXT external_id:TEXT product_key:TEXT video_url:TEXT

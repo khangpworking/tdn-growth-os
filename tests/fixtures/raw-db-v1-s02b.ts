@@ -15,7 +15,7 @@ function videoRecord(index: number) {
 // Keep the known fixture positions typed without inventing a production input schema.
 export const S02B_DOCUMENT = { ...document, records: [videoRecord(0), document.records[1]!, videoRecord(2), videoRecord(3)] as
   [ReturnType<typeof videoRecord>, (typeof document.records)[number], ReturnType<typeof videoRecord>, ReturnType<typeof videoRecord>] };
-export const S02B_RECEIPT = { runId: S02B_RUN, captures: 3, videos: 5, videosAlreadyPresent: 0, snapshots: 5, productsInserted: 1 };
+export const S02B_RECEIPT = { runId: S02B_RUN, captures: 3, videos: 5, videosAlreadyPresent: 0, snapshots: 5, productsInserted: 1, productNameSources: 1 };
 export const S02B_URLS = [
   'https://www.tiktok.com/@synthetic_creator_a/video/1001',
   'https://www.tiktok.com/@synthetic_video_b/video/81002',

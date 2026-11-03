@@ -22,7 +22,7 @@ FAMILIES = {"sales_estimate", "customer_review", "social_comment", "seller_state
             "published_document", "synthetic_population_baseline"}
 # Names a report must never show (input standard, Part 3 rule 7). Shopee, TikTok, Google are platform names, not tools.
 TOOL_NAMES = re.compile(r"\b(metric|kalodata|serpapi|apify|tradeint|dami|nemotron|nvidia|gemini|pageindex|opencli|jev)\b", re.I)
-SOURCE_CODE = re.compile(r"S(?:0[1-9]|1[0-9]|2[0-9]|19b|20b)")
+SOURCE_CODE = re.compile(r"S(?:0[1-9]|1[0-9]|2[0-9]|02b|19b|20b)")
 LIMIT_CODE = re.compile(r"^[a-z0-9_]+$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -84,7 +84,7 @@ def v1_rules(dec):
     """Rules added by raw-v1. Errors for raw-v1, warnings for kem-raw-v1."""
     out = []
     if not SOURCE_CODE.fullmatch(str(dec.get("sourceCode", ""))):
-        out.append(f"sourceCode {dec.get('sourceCode')!r} must be S01–S29, S19b or S20b (list other codes in alsoCovers)")
+        out.append(f"sourceCode {dec.get('sourceCode')!r} must be S01–S29, S02b, S19b or S20b (list other codes in alsoCovers)")
     also = dec.get("alsoCovers", [])
     if not isinstance(also, list) or any(not SOURCE_CODE.fullmatch(str(c)) for c in also):
         out.append(f"alsoCovers {also!r} must be a list of source codes")

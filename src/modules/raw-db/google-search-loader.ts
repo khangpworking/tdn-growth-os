@@ -22,8 +22,13 @@ type Value = string | number | null;
 interface CaptureFields {
   captureId: string; runId: string; source: 'S19b' | 'S29'; provider: string; operation: string; endpoint: string | null; params: Record<string, unknown>;
   keyword: string | null; requestedAt: string; completedAt: string; httpStatus: number | null; outcome: 'OK' | 'EMPTY' | 'FAILED' | 'NOT_COLLECTED';
-  billing: string | null; costUnit: string | null; costAmount: number | null; sha: string; rawPath: string;
+  billing: string | null; costUnit: string | null; costAmount: number | null; sha: string; basis: ShaBasis; rawPath: string;
 }
+/**
+ * What response_sha256 covers (KHUON §2.1). Run: the provider's response bytes. S19b file: `raw` re-serialised with
+ * JSON.stringify (file key order). S29 file: the whole file record re-serialised (request fields and response together).
+ */
+type ShaBasis = 'ORIGINAL_BYTES' | 'RETAINED_ENVELOPE' | 'CANONICAL_JSON';
 interface PlannedCapture { capture: CaptureFields; rows: Value[][]; references: Value[][] }
 
 const ENVELOPE_CONTRACT = 'research-automation-capture-v1';
@@ -74,7 +79,7 @@ async function suggestionsFromRun(db: Database.Database, artifacts: ContentAddre
   return bodies.map(({ row, prefix, suggestions, sha }) => {
     const keyword = longest([...bases].filter(base => prefix === base || letterStem(prefix) === base));
     const captureId = `S19b:${runId}:${row.ordinal}`;
-    return suggestionCapture(captureId, runId, keyword, prefix, suggestions, row.retrievedAt, 200, sha, `artifact:${row.artifactSha}`);
+    return suggestionCapture(captureId, runId, keyword, prefix, suggestions, row.retrievedAt, 200, sha, 'ORIGINAL_BYTES', `artifact:${row.artifactSha}`);
   });
 }
 
@@ -91,16 +96,16 @@ async function suggestionsFromFile(file: string, runId: string): Promise<Planned
     if (!('raw' in record)) throw new Error(`RAW_DB_FILE_BAD_RECORD: S19b record ${index} lacks raw`);
     const sha = sha256(JSON.stringify(record.raw));
     const planned = suggestionCapture(`S19b:${sha12}:${index}`, runId, keyword, prefix, suggestions, requestedAt,
-      typeof status === 'number' ? status : null, sha, `file:${relative}#${index}`);
+      typeof status === 'number' ? status : null, sha, 'CANONICAL_JSON', `file:${relative}#${index}`);
     return ok ? planned : { ...planned, capture: { ...planned.capture, outcome: 'FAILED' } };
   });
 }
 
 function suggestionCapture(captureId: string, runId: string, keyword: string | null, prefix: string, suggestions: string[],
-  at: string, httpStatus: number | null, sha: string, rawPath: string): PlannedCapture {
+  at: string, httpStatus: number | null, sha: string, basis: ShaBasis, rawPath: string): PlannedCapture {
   return {
     capture: { captureId, runId, source: 'S19b', provider: 'google-suggest', operation: 'google.suggest', endpoint: null, params: { prefix }, keyword,
-      requestedAt: at, completedAt: at, httpStatus, outcome: suggestions.length ? 'OK' : 'EMPTY', billing: null, costUnit: 'USD', costAmount: 0, sha, rawPath },
+      requestedAt: at, completedAt: at, httpStatus, outcome: suggestions.length ? 'OK' : 'EMPTY', billing: null, costUnit: 'USD', costAmount: 0, sha, basis, rawPath },
     rows: suggestions.map((suggestion, i) => [prefix, i + 1, suggestion, at, captureId]),
     references: [],
   };
@@ -144,7 +149,7 @@ async function aiOverviewFromRun(db: Database.Database, artifacts: ContentAddres
       params: { query, aiOverviewState: state, pageTokenPresent: token !== null, sharedWithS19: carrier.row === row },
       operation: carrier.row.operation, endpoint: carrier.response.endpoint,
       requestedAt: carrier.response.requestedAt ?? carrier.row.retrievedAt, completedAt: carrier.response.completedAt ?? carrier.row.retrievedAt,
-      httpStatus: carrier.response.httpStatus, sha: carrier.response.sha256, rawPath: `artifact:${carrier.row.artifactSha}`,
+      httpStatus: carrier.response.httpStatus, sha: carrier.response.sha256, basis: 'ORIGINAL_BYTES', rawPath: `artifact:${carrier.row.artifactSha}`,
     }));
   }
   return planned;
@@ -166,13 +171,14 @@ async function aiOverviewFromFile(file: string, runId: string): Promise<PlannedC
         sharedWithS19: !viaFollowUp && record.origin !== 'FRESH' },
       operation: viaFollowUp ? 'serpapi.google_ai_overview' : 'serpapi.google.search', endpoint: null,
       requestedAt, completedAt: requestedAt, httpStatus: typeof record.httpStatus === 'number' ? record.httpStatus : null,
-      sha: sha256(JSON.stringify(record)), rawPath: `file:${relative}#${index}`,
+      sha: sha256(JSON.stringify(record)), basis: 'RETAINED_ENVELOPE', rawPath: `file:${relative}#${index}`,
     });
   });
 }
 
 function overviewCapture(c: { captureId: string; runId: string; keyword: string | null; query: string; answer: Record<string, unknown> | null;
-  params: Record<string, unknown>; operation: string; endpoint: string | null; requestedAt: string; completedAt: string; httpStatus: number | null; sha: string; rawPath: string }): PlannedCapture {
+  params: Record<string, unknown>; operation: string; endpoint: string | null; requestedAt: string; completedAt: string; httpStatus: number | null; sha: string; basis: ShaBasis;
+  rawPath: string }): PlannedCapture {
   const rows: Value[][] = [];
   const references: Value[][] = [];
   if (c.answer) {
@@ -210,7 +216,7 @@ function overviewCapture(c: { captureId: string; runId: string; keyword: string 
   return {
     capture: { captureId: c.captureId, runId: c.runId, source: 'S29', provider: 'serpapi', operation: c.operation, endpoint: c.endpoint, params: c.params,
       keyword: c.keyword, requestedAt: c.requestedAt, completedAt: c.completedAt, httpStatus: c.httpStatus, outcome: c.answer ? 'OK' : 'NOT_COLLECTED',
-      billing: 'PAID_SEARCH_UNLESS_CACHED', costUnit: null, costAmount: null, sha: c.sha, rawPath: c.rawPath },
+      billing: 'PAID_SEARCH_UNLESS_CACHED', costUnit: null, costAmount: null, sha: c.sha, basis: c.basis, rawPath: c.rawPath },
     rows, references,
   };
 }
@@ -223,7 +229,7 @@ function hasBlocks(overview: Record<string, unknown>): boolean {
 
 function write(db: Database.Database, runId: string, planned: PlannedCapture[], aiOverview: boolean): { result: GoogleLoadResult; notCollected: number } {
   const insertCapture = db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,endpoint,request_params_json,keyword,
-    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path,response_sha256_basis) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const existingCapture = db.prepare('SELECT source_code,response_sha256,requested_at,outcome,operation FROM raw_capture WHERE capture_id=?');
   const insertRow = aiOverview
     ? db.prepare('INSERT INTO ai_overview_block(query,block_seq,block_type,text,reference_indexes,capture_id) VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING')
@@ -242,7 +248,7 @@ function write(db: Database.Database, runId: string, planned: PlannedCapture[], 
         continue;
       }
       insertCapture.run(c.captureId, c.runId, c.source, c.provider, c.operation, c.endpoint, JSON.stringify(c.params), c.keyword,
-        c.requestedAt, c.completedAt, c.httpStatus, c.outcome, c.billing, c.costUnit, c.costAmount, c.sha, c.rawPath);
+        c.requestedAt, c.completedAt, c.httpStatus, c.outcome, c.billing, c.costUnit, c.costAmount, c.sha, c.rawPath, c.basis);
       result.captures++;
       if (c.outcome === 'NOT_COLLECTED') notCollected++;
       // Rows of a new capture are never silently dropped (for example two references with the same index).

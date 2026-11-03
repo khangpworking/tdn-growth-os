@@ -19,8 +19,8 @@ test('RAWDB rule 4: verified fixture run stores per-product rows and the exact S
   const f = await rawDbFixture(t);
   const collectionId = f.source.packet.collectionId;
   const result = await loadShopeeReviewsToDbV1(f.db, f.artifacts, { runId: f.runId });
-  assert.deepEqual(result, { runId: f.runId, collectionId, captures: 2, products: 2,
-    reviewsInserted: 3, reviewsAlreadyPresent: 0, runReviewsInserted: 3 });
+  assert.deepEqual(result, { runId: f.runId, collectionId, captures: 2, products: 2, productNameSources: 2,
+    reviewsInserted: 3, reviewsAlreadyPresent: 0, runReviewsInserted: 3, ratingInvalid: 0 });
   assert.deepEqual(counts(f.db), { raw_capture: 2, product: 2, review: 3, run_review: 3 });
   assert.deepEqual(f.db.prepare('SELECT product_key,count(*) n FROM review GROUP BY product_key ORDER BY product_key').all(),
     [{ product_key: 'shopee:101', n: 2n }, { product_key: 'shopee:102', n: 1n }]);
@@ -80,7 +80,7 @@ test('RAWDB rule 5: loading the same run twice returns all zero counters and pre
   const before = counts(f.db);
   const second = await loadShopeeReviewsToDbV1(f.db, f.artifacts, { runId: f.runId });
   assert.deepEqual(second, { runId: f.runId, collectionId: f.source.packet.collectionId,
-    captures: 0, products: 0, reviewsInserted: 0, reviewsAlreadyPresent: 0, runReviewsInserted: 0 });
+    captures: 0, products: 0, productNameSources: 0, reviewsInserted: 0, reviewsAlreadyPresent: 0, runReviewsInserted: 0, ratingInvalid: 0 });
   assert.deepEqual(counts(f.db), before);
 });
 
@@ -93,7 +93,7 @@ test('RAWDB rule 6: an overlapping second run appends membership while the first
   const products = f.db.prepare('SELECT * FROM product ORDER BY product_key').all();
   const result = await loadShopeeReviewsToDbV1(f.db, f.artifacts, { runId: next.runId });
   assert.deepEqual(result, { runId: next.runId, collectionId: next.source.packet.collectionId,
-    captures: 2, products: 0, reviewsInserted: 0, reviewsAlreadyPresent: 1, runReviewsInserted: 1 });
+    captures: 2, products: 0, productNameSources: 0, reviewsInserted: 0, reviewsAlreadyPresent: 1, runReviewsInserted: 1, ratingInvalid: 0 });
   assert.deepEqual(counts(f.db), { raw_capture: 4, product: 2, review: 3, run_review: 4 });
   assert.deepEqual(f.db.prepare("SELECT * FROM review WHERE external_id='synthetic-review-a'").get(), review);
   assert.deepEqual(f.db.prepare('SELECT * FROM product ORDER BY product_key').all(), products);
@@ -152,7 +152,7 @@ test('RAWDB rule 10: CLI --dry-run prints one count receipt and rolls back all f
   const lines = child.stdout.trim().split(/\r?\n/);
   assert.equal(lines.length, 1);
   assert.deepEqual(JSON.parse(lines[0]!), { runId: f.runId, collectionId: f.source.packet.collectionId,
-    captures: 2, products: 2, reviewsInserted: 3, reviewsAlreadyPresent: 0, runReviewsInserted: 3 });
+    captures: 2, products: 2, productNameSources: 2, reviewsInserted: 3, reviewsAlreadyPresent: 0, runReviewsInserted: 3, ratingInvalid: 0 });
   assert.deepEqual(counts(f.db), empty);
   // Opening a pre-63 DB must not commit a schema upgrade outside the dry-run rollback.
   const priorMigrations = path.join(f.root, 'prior-migrations');

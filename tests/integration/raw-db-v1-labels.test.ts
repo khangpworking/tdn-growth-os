@@ -119,7 +119,10 @@ test('RAWDB-Y Y3: migration 0069 preserves an imported row exactly and retains S
   const bytesBefore = Buffer.from(JSON.stringify(before));
   const booksBefore = db.prepare('SELECT * FROM codebook').all();
   const tablesBefore = db.prepare("SELECT count(*) FROM sqlite_schema WHERE type='table'").pluck().get();
-  assert.deepEqual(applyMigrations(db), { applied: [69], currentVersion: 69 });
+  // Only 0069 here: later migrations (0071 adds product_name_source) are pinned by their own tests.
+  const migration69 = readMigrations().find(m => m.version === 69)!;
+  await fs.copyFile(path.join(defaultMigrationsDirectory, migration69.name), path.join(beforeDirectory, migration69.name));
+  assert.deepEqual(applyMigrations(db, { migrationsDirectory: beforeDirectory }), { applied: [69], currentVersion: 69 });
   assert.equal(db.prepare('SELECT name FROM schema_migrations WHERE version=69').pluck().get(), '0069_raw_db_v1_review_code_app_jev.sql');
   assert.deepEqual(Buffer.from(JSON.stringify(db.prepare('SELECT * FROM review_code').all())), bytesBefore);
   assert.deepEqual(db.prepare('SELECT * FROM codebook').all(), booksBefore);
