@@ -134,12 +134,18 @@ Mỗi tệp có `declare` (nguồn, tệp mẹ, vị trí trong tệp mẹ, kỳ
 | Tệp | Nội dung |
 |---|---|
 | [001-thu-vien-quang-cao-meta-may-tu-doc-khi-khong-dang.json](05-S15-meta-thu-vien-quang-cao/001-thu-vien-quang-cao-meta-may-tu-doc-khi-khong-dang.json) | Thư viện quảng cáo Meta, máy tự đọc khi không đăng nhập automation-meta-auto |
+| [002-apify-curious-coder-facebook-ads-library-scraper-d.json](05-S15-meta-thu-vien-quang-cao/002-apify-curious-coder-facebook-ads-library-scraper-d.json) | apify.curious_coder~facebook-ads-library-scraper DHC |
+| [003-apify-curious-coder-facebook-ads-library-scraper-a.json](05-S15-meta-thu-vien-quang-cao/003-apify-curious-coder-facebook-ads-library-scraper-a.json) | apify.curious_coder~facebook-ads-library-scraper Acnacare |
+| [004-apify-curious-coder-facebook-ads-library-scraper-v.json](05-S15-meta-thu-vien-quang-cao/004-apify-curious-coder-facebook-ads-library-scraper-v.json) | apify.curious_coder~facebook-ads-library-scraper viên uống kẽm |
 
 ## 06 · S16 · Quảng cáo nổi bật TikTok (Creative Center)
 
 | Tệp | Nội dung |
 |---|---|
 | [001-quang-cao-noi-bat-tren-tiktok-may-tu-doc-khi-khong.json](06-S16-tiktok-quang-cao-noi-bat/001-quang-cao-noi-bat-tren-tiktok-may-tu-doc-khi-khong.json) | Quảng cáo nổi bật trên TikTok, máy tự đọc khi không đăng nhập automation-tiktok-top-ads |
+| [002-apify-codebyte-tiktok-creative-center-top-ads-vien.json](06-S16-tiktok-quang-cao-noi-bat/002-apify-codebyte-tiktok-creative-center-top-ads-vien.json) | apify.codebyte~tiktok-creative-center-top-ads viên uống kẽm |
+| [003-apify-lurkapi-tiktok-ads-spy-vien-uong-kem.json](06-S16-tiktok-quang-cao-noi-bat/003-apify-lurkapi-tiktok-ads-spy-vien-uong-kem.json) | apify.lurkapi~tiktok-ads-spy viên uống kẽm |
+| [004-apify-codebyte-tiktok-creative-center-top-ads-kem.json](06-S16-tiktok-quang-cao-noi-bat/004-apify-codebyte-tiktok-creative-center-top-ads-kem.json) | apify.codebyte~tiktok-creative-center-top-ads kẽm |
 
 ## 07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)
 

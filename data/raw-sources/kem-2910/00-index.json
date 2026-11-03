@@ -104,44 +104,52 @@
    "file": "05-S15-meta-thu-vien-quang-cao.json",
    "sourceCode": "S15",
    "sourceName": "Thư viện quảng cáo Meta (máy tự đọc, không đăng nhập)",
-   "provider": "Meta Ad Library qua OpenCLI",
+   "provider": "Meta Ad Library qua OpenCLI; Apify curious_coder/facebook-ads-library-scraper (test 03/11/2026)",
    "usedBy": [
     "MARKET (bảng 7.2)"
    ],
    "method": "EXPORTED_FROM_APP_RUN",
    "period": {
     "startDate": null,
-    "endDate": "2026-10-26",
+    "endDate": "2026-11-03",
     "timezone": "Asia/Ho_Chi_Minh",
-    "basis": "Quảng cáo đang/đã chạy, mọi trạng thái"
+    "basis": "Mốc thu, không phải kỳ chiến dịch: app 26/10; Apify 03/11 tìm mọi trạng thái. Ngày bắt đầu/kết thúc do nguồn trả, chưa xác minh; end_date còn có ở quảng cáo đang hoạt động."
    },
-   "recordCount": 1,
-   "resultNote": "KẾT QUẢ RỖNG: thương hiệu 1 (Dhc) STOPPED, 0 quảng cáo; thương hiệu 2 (Acnacare) NOT_READ. Dùng làm ca rỗng cho test.",
-   "cost": null,
-   "byteSize": 9673,
-   "fileSha256": "0cb3c6e0f1e4a4095c330b6e09f51918efc32fee9941beb912524d317e34dc29",
+   "recordCount": 4,
+   "resultNote": "records[0] (app 26/10, giữ nguyên): KẾT QUẢ RỖNG: thương hiệu 1 (Dhc) STOPPED, 0 quảng cáo; thương hiệu 2 (Acnacare) NOT_READ. Dùng làm ca rỗng cho test. records[1–3] (thử Apify 03/11, không phải app): 30 + 3 + 30 mục; 1 + 0 + 2 quảng cáo thực phẩm bổ sung kẽm, chưa chứng minh quảng cáo chính chủ.",
+   "cost": {
+    "unit": "USD",
+    "amount": 0.0474,
+    "note": "Tổng usageTotalUsd của 3 lượt Apify đã làm mới phí; chỉ chi phí chạy, không chứa dữ liệu tài khoản thanh toán. Chi phí app ở usage. Trần mỗi lượt 0,05 USD."
+   },
+   "byteSize": 515156,
+   "fileSha256": "15588fa0c85ef79b41648133865726c09f942b085c079f584c7c5e6bce56633b",
    "check": "OK"
   },
   {
    "file": "06-S16-tiktok-quang-cao-noi-bat.json",
    "sourceCode": "S16",
    "sourceName": "Quảng cáo nổi bật TikTok (Creative Center)",
-   "provider": "TikTok Creative Center qua OpenCLI",
+   "provider": "TikTok Creative Center qua OpenCLI; Apify codebyte/tiktok-creative-center-top-ads + lurkapi/tiktok-ads-spy (test 03/11/2026)",
    "usedBy": [
     "MARKET"
    ],
    "method": "EXPORTED_FROM_APP_RUN",
    "period": {
-    "startDate": "2026-09-26",
-    "endDate": "2026-10-25",
+    "startDate": null,
+    "endDate": "2026-11-03",
     "timezone": "Asia/Ho_Chi_Minh",
-    "basis": "period=30 của Creative Center"
+    "basis": "App: 26/09–25/10/2026 theo period=30. Apify thu 03/11 với period=30 nhưng không trả ngày quảng cáo; không thể xác minh kỳ 30 ngày."
    },
-   "recordCount": 1,
-   "resultNote": "KẾT QUẢ RỖNG: trang đòi đăng nhập (stop=LOGIN_REQUIRED), 0 thẻ quảng cáo. Dùng làm ca rỗng/chặn cho test.",
-   "cost": null,
-   "byteSize": 11445,
-   "fileSha256": "1ed7bca797573113c206f7fe250c395fc9a3680fe07661366e118461fa2e3ffc",
+   "recordCount": 4,
+   "resultNote": "records[0] (app 26/10, giữ nguyên): KẾT QUẢ RỖNG: trang đòi đăng nhập (stop=LOGIN_REQUIRED), 0 thẻ quảng cáo. Dùng làm ca rỗng/chặn cho test. records[1–3] (thử Apify 03/11, không phải app): 5 + 5 + 0 mục; hai lượt có cùng 5 mã quảng cáo, không cộng thành 10 quảng cáo độc lập; không mục nào liên quan kẽm.",
+   "cost": {
+    "unit": "USD",
+    "amount": 0.02455,
+    "note": "Tổng usageTotalUsd của 3 lượt Apify đã làm mới phí; chỉ chi phí chạy, không chứa dữ liệu tài khoản thanh toán. Chi phí app ở usage. Trần mỗi lượt 0,05 USD."
+   },
+   "byteSize": 36866,
+   "fileSha256": "d08c81c870fbc11df3470b1977bb3f978f3c8a0eea9a57a2f584205e7231302c",
    "check": "OK"
   },
   {

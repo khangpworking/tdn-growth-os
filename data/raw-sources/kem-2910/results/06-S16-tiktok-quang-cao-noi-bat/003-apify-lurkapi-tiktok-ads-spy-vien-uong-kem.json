@@ -1,0 +1,293 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "06 · S16 · Quảng cáo nổi bật TikTok (Creative Center)",
+  "describe": "apify.lurkapi~tiktok-ads-spy viên uống kẽm",
+  "parentFile": "06-S16-tiktok-quang-cao-noi-bat.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S16",
+  "sourceName": "Quảng cáo nổi bật TikTok (Creative Center)",
+  "provider": "TikTok Creative Center qua OpenCLI; Apify codebyte/tiktok-creative-center-top-ads + lurkapi/tiktok-ads-spy (test 03/11/2026)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-11-03",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "App: 26/09–25/10/2026 theo period=30. Apify thu 03/11 với period=30 nhưng không trả ngày quảng cáo; không thể xác minh kỳ 30 ngày."
+  },
+  "limits": [
+   "records[0] (app 26/10): Không đăng nhập",
+   "records[0] (app 26/10): Không lấy chỉ số hiệu quả (CTR, chi phí…)",
+   "records[1–3] là thử Apify ngày 03/11/2026, không phải thu từ app; SUCCEEDED chỉ là trạng thái chạy, không xác nhận độ liên quan hay quyền sở hữu thương hiệu.",
+   "Mỗi lượt yêu cầu tối đa 30 mục, trần 0,05 USD; không đăng nhập, không cookie, không chạy lại.",
+   "Không mục nào liên quan kẽm; hai actor trả cùng 5 mã. is_search/isSearch đều false dù có từ khóa.",
+   "Thiếu ngày quảng cáo và nhà quảng cáo; codebyte thiếu đích đến, lurkapi chỉ có externalUrl ở 3/5 mục và có link hồ sơ cá nhân đã ẩn danh.",
+   "codebyte gửi limit=20 cho một trang dù đầu vào limit=30; không vượt mức yêu cầu. CTR là thứ hạng Top %, không phải CTR đo được; cost là nhóm ngân sách, không phải chi phí USD."
+  ],
+  "resultSha256": "be0f7a4599052770a24dcbd35fdde3bccd741ffa337da51f3d9c07bd7c40effc"
+ },
+ "result": {
+  "operation": "apify.lurkapi~tiktok-ads-spy",
+  "origin": {
+   "method": "FRESH_PULL_FOR_TEST_SET",
+   "collectedOn": "2026-11-03",
+   "collector": "ads0311 Apify free-plan test (owner F338)"
+  },
+  "input": {
+   "source": "creativeCenter",
+   "ccKeyword": [
+    "viên uống kẽm"
+   ],
+   "ccCountry": [
+    "VN"
+   ],
+   "ccPeriod": "30",
+   "maxAds": 30,
+   "outputFetchDetails": true
+  },
+  "status": "SUCCEEDED",
+  "startedAt": "2026-11-03T04:19:07.217Z",
+  "finishedAt": "2026-11-03T04:19:13.517Z",
+  "costUsd": 0.01005,
+  "itemCount": 5,
+  "responseSha256": "e4e409f3880dd677bdd9d0cf1d65601a07ab5683a03767196e46cf0075f41026",
+  "items": [
+   {
+    "status": "Success",
+    "source": "creativeCenter",
+    "adId": "7694219162898251796",
+    "adUrl": "https://ads.tiktok.com/business/creativecenter/topads/7694219162898251796/pc/en?countryCode=VN&from=001110&period=30",
+    "advertiserName": null,
+    "adText": "Đúng nhanh lunnn  #Dysonvn #DysonBrandFestival #sponsor @[ẩn] Vietnam ",
+    "videoUrl": "<removed: media url>",
+    "thumbnailUrl": "<removed: media url>",
+    "imageUrls": [],
+    "region": "VN",
+    "error": null,
+    "adType": "Video",
+    "videoUrlResolutions": {
+     "720p": "<removed: media url>"
+    },
+    "videoDurationSec": 82.167,
+    "videoWidth": 576,
+    "videoHeight": 1024,
+    "videoId": "v10025g50000db33q0fog65hi0hd7phg",
+    "ctr": "Top 54%",
+    "likeCount": 29,
+    "costBucket": "Medium",
+    "industryKey": "label_16100000000",
+    "industryLabel": "Appliances > Personal Care Appliances",
+    "objectiveKey": "campaign_objective_product_sales",
+    "favorite": "No",
+    "isSearch": false,
+    "externalUrl": "https://shop.tiktok.com/vn/pdp/1732709976952243449?utm_source=tiktok&utm_medium=paid&utm_id=__CAMPAIGN_ID__&utm_campaign=__CAMPAIGN_NAME__",
+    "voiceOver": "No",
+    "runInCountries": [
+     "VN"
+    ],
+    "commentCount": 0,
+    "shareCount": 0,
+    "adSource": "Others",
+    "objectives": [
+     "Product sales",
+     "Reach"
+    ],
+    "objective": "Product sales, Reach",
+    "patternLabels": [],
+    "hasSummary": "No",
+    "sourceKey": 73
+   },
+   {
+    "status": "Success",
+    "source": "creativeCenter",
+    "adId": "7687141894488457234",
+    "adUrl": "https://ads.tiktok.com/business/creativecenter/topads/7687141894488457234/pc/en?countryCode=VN&from=001110&period=30",
+    "advertiserName": null,
+    "adText": "#tiktoklive #livehighlights ",
+    "videoUrl": "<removed: media url>",
+    "thumbnailUrl": "<removed: media url>",
+    "imageUrls": [],
+    "region": "VN",
+    "error": null,
+    "adType": "Video",
+    "videoUrlResolutions": {
+     "720p": "<removed: media url>"
+    },
+    "videoDurationSec": 71.355,
+    "videoWidth": 576,
+    "videoHeight": 1024,
+    "videoId": "v1c044g50000dan34hvog65iiuvc3aag",
+    "ctr": "Top 66%",
+    "likeCount": 5,
+    "costBucket": "Low",
+    "industryKey": "label_29102000000",
+    "industryLabel": "Health > Dietary Supplements",
+    "objectiveKey": "campaign_objective_product_sales",
+    "favorite": "No",
+    "isSearch": false,
+    "externalUrl": "https://www.tiktok.com/@anon-bd8b60345e18",
+    "voiceOver": "No",
+    "runInCountries": [
+     "VN"
+    ],
+    "commentCount": 0,
+    "shareCount": 0,
+    "adSource": "Others",
+    "objectives": [
+     "Product sales"
+    ],
+    "objective": "Product sales",
+    "patternLabels": [],
+    "hasSummary": "No",
+    "sourceKey": 73
+   },
+   {
+    "status": "Success",
+    "source": "creativeCenter",
+    "adId": "7686494607287304209",
+    "adUrl": "https://ads.tiktok.com/business/creativecenter/topads/7686494607287304209/pc/en?countryCode=VN&from=001110&period=30",
+    "advertiserName": null,
+    "adText": "Vlog15.9: đi bến Tre thăm a e Bến Tre  Câu thì ít mà nhậu thì nhiều 😄 #[ẩn]  #moicaucakhochiu  #[ẩn]  #xuhuong ",
+    "videoUrl": "<removed: media url>",
+    "thumbnailUrl": "<removed: media url>",
+    "imageUrls": [],
+    "region": "VN",
+    "error": null,
+    "adType": "Video",
+    "videoUrlResolutions": {
+     "720p": "<removed: media url>"
+    },
+    "videoDurationSec": 281.982,
+    "videoWidth": 576,
+    "videoHeight": 1024,
+    "videoId": "v1c044g50000dak91o7og65mdr620jk0",
+    "ctr": "Top 97%",
+    "likeCount": 23,
+    "costBucket": "Low",
+    "industryKey": "label_23132000000",
+    "industryLabel": "News & Entertainment > Streaming Site",
+    "objectiveKey": "campaign_objective_video_view",
+    "favorite": "No",
+    "isSearch": false,
+    "voiceOver": "No",
+    "runInCountries": [
+     "VN"
+    ],
+    "commentCount": 0,
+    "shareCount": 1,
+    "adSource": "Others",
+    "objectives": [
+     "Video views"
+    ],
+    "objective": "Video views",
+    "patternLabels": [],
+    "hasSummary": "No",
+    "sourceKey": 73
+   },
+   {
+    "status": "Success",
+    "source": "creativeCenter",
+    "adId": "7691591378057691142",
+    "adUrl": "https://ads.tiktok.com/business/creativecenter/topads/7691591378057691142/pc/en?countryCode=VN&from=001110&period=30",
+    "advertiserName": null,
+    "adText": "⚠️ SỐT XUẤT HUYẾT DENGUE: BÁC SĨ ĐÃ CHỨNG KIẾN NHỮNG GÌ PHÍA SAU CA NẶNG? “Những ca nặng để lại những sang chấn tâm lý rất lớn cho cả gia đình lẫn đội ngũ điều trị vì diễn tiến bệnh vô cùng nặng nề.” Đó là chia sẻ đầy trăn trở từ BS.CKII. [tên riêng] - Phó Giám đốc Bệnh viện Nhi đồng Thành phố. Hiện nay sốt xuất huyết Dengue chưa có thuốc điều trị đặc hiệu, việc chữa trị chủ yếu là điều trị triệu chứng, nâng đỡ tổng trạng và đối phó với các biến chứng phức tạp, đặc biệt nguy hiểm ở các nhóm đối tượng nhạy cảm như trẻ nhũ nhi, trẻ béo phì, người có bệnh lý nền và người lớn tuổi. (1) 📌 Xem ngay video để lắng nghe những chia sẻ thực tế từ tuyến đầu điều trị. Việc hiểu đúng về những hiểm nguy phía sau ca nặng cũng là bước đầu để mỗi chúng ta chủ động bảo vệ mình và những người thân yêu. Chủ động phòng ngừa ngay từ hôm nay bằng các biện pháp như: ✅ Tham vấn nhân viên y tế về tiêm chủng (2). ✅ Kiểm soát véc-tơ truyền bệnh (diệt muỗi, diệt lăng quăng, loại bỏ nơi sinh sản của muỗi vằn) (3). ✅ Phòng tránh muỗi đốt (3). ✅ Phát hiện sớm, nhập viện kịp thời (3). Nội dung được trích từ chương trình Tọa đàm “Lá chắn kép bảo vệ gia đình khỏi sốt xuất huyết Dengue trong mùa mưa\", do Trung tâm Kiểm soát Bệnh tật TP.HCM (HCDC) phối hợp cùng Công ty TNHH Dược phẩm Takeda Việt Nam thực hiện. Tài liệu được cung cấp bởi Công ty TNHH Dược Phẩm Takeda Việt Nam, Hội Y học Dự phòng Việt Nam và Trung tâm Kiểm soát bệnh tật Thành Phố Hồ Chí Minh. Mọi thông tin y khoa được trình bày khách quan và nhằm mục đích nâng cao nhận thức cộng đồng. Vui lòng tham khảo ý kiến bác sĩ để được tư vấn thêm. #SotXuatHuyet #PhongNguaSotXuatHuyet #TangCuongPhongVeSotXuatHuyet   C-ANPROM/VN/NON/0225 Sep 2026 ---------------------- Tài liệu tham khảo: (1) Bộ Y tế. Quyết định số 2760/QĐ-BYT. Hướng dẫn chẩn đoán, điều trị sốt xuất huyết Dengue. 2023. (2) World Health Organization. Vaccines and immunization: Dengue. 2025. (3) World Health Organization. Dengue factsheet. 2025.",
+    "videoUrl": "<removed: media url>",
+    "thumbnailUrl": "<removed: media url>",
+    "imageUrls": [],
+    "region": "VN",
+    "error": null,
+    "adType": "Video",
+    "videoUrlResolutions": {
+     "720p": "<removed: media url>"
+    },
+    "videoDurationSec": 187.499,
+    "videoWidth": 576,
+    "videoHeight": 1024,
+    "videoId": "v14044g50000daue1vfog65jos4vi130",
+    "ctr": "Top 33%",
+    "likeCount": 1609,
+    "costBucket": "High",
+    "industryKey": "label_29101000000",
+    "industryLabel": "Health > Medical Information",
+    "objectiveKey": "campaign_objective_video_view",
+    "favorite": "No",
+    "isSearch": false,
+    "externalUrl": "https://sotxuathuyet.vn/post/sot-xuat-huyet-5-su-that-can-biet/?mtm_campaign=Dengue_Education_FY2627&mtm_source=Tiktok&mtm_medium=View&mtm_group=hcc_fem_25-44_south_ta2-south_daklak&mtm_content=disease_awareness_vid_c-anprom_vn_qde_1411aug26_outbreakdaklak_tiktok&utm_source=tiktok&utm_medium=paid&utm_id=__CAMPAIGN_ID__&utm_campaign=__CAMPAIGN_NAME__",
+    "voiceOver": "No",
+    "runInCountries": [
+     "VN"
+    ],
+    "commentCount": 0,
+    "shareCount": 16,
+    "adSource": "Others",
+    "objectives": [
+     "Video views",
+     "Reach"
+    ],
+    "objective": "Video views, Reach",
+    "patternLabels": [],
+    "hasSummary": "No",
+    "sourceKey": 73
+   },
+   {
+    "status": "Success",
+    "source": "creativeCenter",
+    "adId": "7686788894135238674",
+    "adUrl": "https://ads.tiktok.com/business/creativecenter/topads/7686788894135238674/pc/en?countryCode=VN&from=001110&period=30",
+    "advertiserName": null,
+    "adText": "Bí kíp nạp năng lượng siêu dính cùng TH true JUICE milk MISTORI! ✨  #THMISTORI",
+    "videoUrl": "<removed: media url>",
+    "thumbnailUrl": "<removed: media url>",
+    "imageUrls": [],
+    "region": "VN",
+    "error": null,
+    "adType": "Video",
+    "videoUrlResolutions": {
+     "1080p": "<removed: media url>",
+     "720p": "<removed: media url>"
+    },
+    "videoDurationSec": 191.403,
+    "videoWidth": 576,
+    "videoHeight": 1024,
+    "videoId": "v14025g50000dameugnog65hp1m49ffg",
+    "ctr": "Top 79%",
+    "likeCount": 40723,
+    "costBucket": "High",
+    "industryKey": "label_27102000000",
+    "industryLabel": "Food & Beverage > Non-alcoholic Beverages",
+    "objectiveKey": "campaign_objective_product_sales",
+    "favorite": "No",
+    "isSearch": false,
+    "voiceOver": "No",
+    "runInCountries": [
+     "VN"
+    ],
+    "commentCount": 336,
+    "shareCount": 138,
+    "adSource": "Others",
+    "objectives": [
+     "Product sales",
+     "Reach",
+     "Video views"
+    ],
+    "objective": "Product sales, Reach, Video views",
+    "patternLabels": [],
+    "hasSummary": "No",
+    "sourceKey": 73
+   }
+  ],
+  "log": [
+   "2026-11-03T04:19:07.373Z ACTOR: Pulling container image of build <removed> from registry.",
+   "2026-11-03T04:19:09.159Z ACTOR: Creating container.",
+   "2026-11-03T04:19:09.210Z ACTOR: Starting container.",
+   "2026-11-03T04:19:09.211Z ACTOR: Running under \"LIMITED_PERMISSIONS\".",
+   "2026-11-03T04:19:09.695Z INFO  System info {\"apifyVersion\":\"3.7.2\",\"apifyClientVersion\":\"2.23.4\",\"crawleeVersion\":\"3.17.0\",\"osType\":\"Linux\",\"nodeVersion\":\"v22.23.4\"}",
+   "2026-11-03T04:19:10.055Z INFO  Creative Center: page 1 (collected so far: 0)",
+   "2026-11-03T04:19:11.120Z INFO  Creative Center: page 2 (collected so far: 5)",
+   "2026-11-03T04:19:11.682Z INFO  Creative Center: 5 ads",
+   "2026-11-03T04:19:13.495Z INFO  Scraped 5 ads"
+  ],
+  "verdictVi": "Không dùng làm bằng chứng cho kẽm: cùng 5 mã quảng cáo không liên quan như lượt codebyte; có thêm chi tiết nhưng vẫn thiếu ngày và nhà quảng cáo.",
+  "query": "viên uống kẽm"
+ }
+}

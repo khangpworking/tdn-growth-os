@@ -6,6 +6,7 @@ Từ khoá: «viên uống kẽm». Chủ đề: thực phẩm chức năng viê
 
 - 18 tệp nguồn. Mỗi tệp có cùng hai phần: `declare` (khai báo) và `records` (bản ghi gốc); `00-index.json` là mục lục riêng.
 - 10 tệp lấy từ một lượt chạy thật ngày 26/10/2026. 8 tệp bổ sung ngày 29/10/2026, gồm thu mới, truy vấn cục bộ và ca không thu.
+- Bổ sung 03/11/2026: tệp 05 và 06 giữ nguyên `records[0]` của app; mỗi tệp thêm `records[1–3]` là thử Apify riêng, không phải lượt app. Meta: 30/3/30 mục; TikTok: 5/5/0 mục.
 - Đã ẩn danh: mọi người viết đánh giá và người bình luận được thay bằng mã `anon-…`. Xem mục 4.
 - Khuôn `kem-raw-v1` là bản đầu của khuôn chung `raw-v1` (quy chuẩn dữ liệu đầu vào bản 1.48, Phần 6.1). Xem [`../README.md`](../README.md).
 - Kiểm định dạng từ gốc repo: `python3 data/raw-sources/tools/validate_raw.py data/raw-sources/kem-2910`. Kết quả mong đợi: `failed 0`; các dòng `WARN` là chỗ bộ này khác `raw-v1`.
@@ -22,7 +23,7 @@ Từ khoá: «viên uống kẽm». Chủ đề: thực phẩm chức năng viê
 }
 ```
 
-Bản ghi giữ nguyên JSON của nhà cung cấp. Chỉ có hai thay đổi: giải mã base64 và ẩn danh (mục 4). Ngoại lệ có sẵn từ app: tệp 01 có chuỗi `[REDACTED_PHONE]` (mục 4).
+Bản ghi giữ nguyên JSON của nhà cung cấp sau giải mã base64 và ẩn danh (mục 4). Ngoại lệ có sẵn từ app: tệp 01 có chuỗi `[REDACTED_PHONE]` (mục 4). Phần thử Apify 03/11 trong tệp 05–06 dùng bản ghi bao gồm đầu vào, trạng thái, thời gian, tổng phí, số mục, `items`, log đã làm sạch và nhận xét ngắn; chỉ chọn các trường metadata được phép công khai. `responseSha256` kiểm byte dataset gốc trước ẩn danh; `recordsSha256` kiểm bản công khai sau ẩn danh.
 
 ## 2. Các trường khai báo (`declare`)
 
@@ -61,8 +62,8 @@ Các trường theo khuôn «Mỗi tệp gốc phải mang» của quy chuẩn d
 | 02-S02 | Sản phẩm TikTok Shop | Lượt 26/10 | Xếp hạng + chi tiết 12 tháng. `video.rank` bị từ chối (mã 501) |
 | 03-S05 | Đánh giá Shopee | Lượt 26/10 | 1.152 đánh giá, 5 sản phẩm |
 | 04-S14 | Lời nói trong video TikTok | Lượt 26/10 | 3 video. Lời người bán, không phải lời khách |
-| 05-S15 | Thư viện quảng cáo Meta | Lượt 26/10 | **Bị chặn**: 0 quảng cáo thu được; thương hiệu thứ 2 chưa đọc |
-| 06-S16 | Quảng cáo nổi bật TikTok | Lượt 26/10 | **Bị chặn**: trang đòi đăng nhập |
+| 05-S15 | Thư viện quảng cáo Meta | App 26/10 + thử Apify 03/11 | App **bị chặn**; thử Apify 30/3/30 mục, có 1/0/2 quảng cáo thực phẩm bổ sung kẽm, chưa chứng minh chính chủ |
+| 06-S16 | Quảng cáo nổi bật TikTok | App 26/10 + thử Apify 03/11 | App **bị chặn**; thử Apify 5/5/0 mục, hai actor trả cùng 5 mã, không liên quan kẽm |
 | 07-S19 | Tìm kiếm Google | Lượt 26/10 | 8 câu tìm |
 | 08-S20 | Google Trends | Lượt 26/10 | Theo thời gian 12 tháng + theo tỉnh |
 | 09-S23 | Ngân hàng Thế giới | Lượt 26/10 | 2 chỉ số |
@@ -90,11 +91,14 @@ Nguồn không có tệp (dừng, chưa có công cụ, cần tài khoản): S03
 - Tệp 01: có 721 chỗ `[REDACTED_PHONE]`. App TDN tự thay khi lưu bản thu, trước bộ dữ liệu này: mọi dãy số trông giống số điện thoại đều bị thay, kể cả trong mã số doanh nghiệp, đường dẫn (URL) và mốc thời gian. Bản lưu trong app cũng vậy, nên không khôi phục được các giá trị đó.
 - Giữ nguyên: nội dung lời khách, số sao, ngày, mã sản phẩm, tên shop, thương hiệu, người bán, tác giả video công khai.
 - Mỗi tệp ghi rõ phần đã ẩn danh trong `declare.anonymisation`.
+- Phần bổ sung Apify 03/11 (tệp 05–06): trang cá nhân dùng `anon-<12 ký tự>` theo HMAC-SHA256 với khóa ngẫu nhiên riêng đã hủy, nhất quán trong nền tảng và phần bổ sung; không ghép danh tính với bộ cũ. Tên cá nhân trong chữ quảng cáo, điện thoại, email, nhắc tên và hashtag cá nhân được ẩn; tên trang doanh nghiệp và nội dung quảng cáo còn lại được giữ.
+- Phần này thay URL CDN/media có chữ ký bằng `<removed: media url>`; bỏ `has_user_reported` và các `snapshot.extra_videos[].video_hd_handle`/`video_sd_handle` không rõ nội dung. Log giữ từng dòng sau khi bỏ mã build/phiên tìm và dữ liệu riêng. Không công khai token, tài khoản, định danh Apify run/dataset/task/kho lưu, URL console/container hay metadata thanh toán; chỉ giữ tổng phí từng lượt.
 
 ## 5. Dùng cho lượt test kẽm
 
 - **Ca có dữ liệu:** 01–04, 07–14, 16, 17.
-- **Ca rỗng hoặc bị chặn:** 05, 06, 18. App phải ghi «chưa có dữ liệu». App không được bịa số.
+- **Ca rỗng hoặc bị chặn:** `records[0]` trong 05, 06 và tệp 18. App phải ghi «chưa có dữ liệu». App không được bịa số.
+- **Ca thử Apify 03/11:** `records[1–3]` trong 05 và 06 không thuộc lượt app. Meta là bằng chứng yếu cần lọc nội dung và xác minh trang/đích đến; TikTok không dùng làm bằng chứng kẽm. Lượt TikTok từ khóa «kẽm» rỗng. Không cộng hai bộ 5 quảng cáo trùng mã thành 10 quảng cáo độc lập.
 - **Ca lỗi một phần:** 11 (1/3 sản phẩm lỗi), 02 (`video.rank` bị từ chối). App dùng phần đạt và ghi rõ phần thiếu.
 - **Ca tài liệu yếu:** 15. App loại hoặc ghi mức Yếu.
 - **Ca khuôn cũ:** cả 18 tệp. Bộ kiểm `validate_raw.py` phải báo `WARN`, không báo `FAIL`.
