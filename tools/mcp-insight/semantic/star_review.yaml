@@ -1,0 +1,17 @@
+# Star sentiment of the run's reviews matched in the app DB, copied from the app view review_star_sentiment
+# (F363: 1–3 tieu_cuc, 4–5 tich_cuc, khong_sao without a star). tools/mcp-insight/insight_tools.py star_counts.
+name: star_review
+sql_table: v_star_review
+data_source: warehouse
+columns:
+  - {name: platform, sql: platform, type: TEXT}
+  - {name: product_key, sql: product_key, type: TEXT}
+  - {name: star_sentiment, sql: star_sentiment, type: TEXT}
+  - {name: review_id, sql: review_id, type: TEXT}
+  - {name: writer_key, sql: writer_key, type: TEXT}
+  - {name: writer_unknown, sql: writer_unknown, type: INT}
+measures:
+  - {name: n_reviews, formula: count_distinct(review_id)}
+  - {name: n_writers, formula: count_distinct(writer_key)}
+  - {name: n_products, formula: count_distinct(product_key)}
+  - {name: n_unknown_writer_labels, formula: sum(writer_unknown)}

@@ -7,12 +7,11 @@ import socket
 import pytest
 
 from claim_support import NEW_TOOLS, RULES, THEME, catalogue, no_leak, warehouse_tables
-from insight_test_support import RUN, VERSION, canonical, error, review, sha, sync
-from p2_support import registry_numbers
+from insight_test_support import RUN, VERSION, error, review, sha, sync
 from p3_support import accepted, claim, codes
 
 
-OLD = {"build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts", "report_plan",
+OLD = {"build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts", "star_counts", "report_plan",
        "confidence_ceiling", "find_reason_links", "read_reviews", "submit_section", "submit_statement", "render_report"}
 
 

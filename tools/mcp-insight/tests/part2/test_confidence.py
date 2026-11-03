@@ -315,7 +315,8 @@ def test_im_q78_new_passing_evidence_never_rewrites_part1_flags_or_ids(coded_p2,
     book.update(status="APPROVED", approvedBy="synthetic-owner", approvedAt=DATE)
     codebook(book)
     groups = keyword_groups(approved=True)
-    before = {tool: copy.deepcopy(coded_p2.call(tool)) for tool in ("theme_counts", "keyword_counts", "portrait_counts")}
+    before = {tool: copy.deepcopy(coded_p2.call(tool)) for tool in ("theme_counts", "keyword_counts", "portrait_counts",
+                                                                "star_counts")}
     registry = {r["count_id"]: r for r in coded_p2.box.rows("count_registry")}
     theme = theme_row(before["theme_counts"], theme="T-CHINHHANG", platform="tiktok_shop")
     coded_p2.sample()

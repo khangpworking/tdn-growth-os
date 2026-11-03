@@ -8,7 +8,7 @@ import sqlite3
 from contextlib import contextmanager
 
 from insight_test_support import (
-    FakeJev, RUN, VERSION, choice, no_leak, review, sync, tree_snapshot,
+    RUN, VERSION, choice, no_leak, review, sync, tree_snapshot,
 )
 
 DATE = "2026-10-30T00:00:00Z"
@@ -181,14 +181,8 @@ class Part2:
         return self.call("find_reason_links", theme_a=pair[0], theme_b=pair[1])
 
     def code(self, policy=None, **kwargs):
-        # Reuse the part 1 wire protocol, bypassing all key-file reads. The real
-        # transport is replaced before exercising the non-dry-run branch.
-        self.box.monkeypatch.setenv("INSIGHT_MCP_ALLOW_PAID", "1")
-        self.box.monkeypatch.setattr(self.box.module, "_read_key", lambda: "synthetic-offline-token")
-        fake = FakeJev(policy or pair_policy)
-        self.box.monkeypatch.setattr(self.box.module, "_jev_transport", fake)
-        result = self.call("code_reviews", dry_run=False, max_calls=1500, **kwargs)
-        return result, fake
+        # The app labels the reviews in the synthetic app DB and the warehouse is rebuilt (F361–F367).
+        return self.box.code(policy or pair_policy, **kwargs)
 
     def seed(self, rows=None, *, keywords=KEYWORDS, all_sources=False):
         if rows is None:

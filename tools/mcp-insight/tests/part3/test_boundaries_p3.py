@@ -14,7 +14,7 @@ from insight_test_support import AMBIGUOUS, OTHER, RUN, error, sync, tree_snapsh
 from p3_support import FILES, accepted, claim, codes, statement
 
 
-OLD_TOOLS = {"build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts",
+OLD_TOOLS = {"build_warehouse", "code_reviews", "theme_counts", "keyword_counts", "portrait_counts", "star_counts",
              "report_plan", "confidence_ceiling", "find_reason_links", "read_reviews"}
 
 

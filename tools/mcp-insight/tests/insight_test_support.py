@@ -12,6 +12,7 @@ import inspect
 import json
 import os
 import re
+import shutil
 import sqlite3
 import unicodedata
 import urllib.parse
@@ -31,6 +32,9 @@ OPTIONS = ("CO_KHEN", "CO_CHE", "CO_KE", "KHONG_NHAC")
 INSIGHT = Path(__file__).resolve().parents[1]
 REPO = INSIGHT.parents[1]
 DEFAULT_RUN = object()
+# The app's db-v1 review and label tables (owner F361–F367): the synthetic app DB gets them from the repo migrations.
+APP_V1_MIGRATIONS = sorted((REPO / "migrations").glob("006[3-8]_*.sql"))
+POLARITY_BY_OPTION = {"CO_KHEN": "khen", "CO_CHE": "che", "CO_KE": "ke"}
 
 
 def canonical(value):
@@ -145,6 +149,12 @@ class Sandbox:
         self.artifacts = self.app / "artifacts"
         self.captures = self.app / "metric-captures"
         self.data = root / "data"
+        # The app's published snapshot (PR #444) lives outside the synthetic app home here, so the
+        # byte-identical app-home checks are not disturbed by the simulated publisher.
+        self.snapshot = root / "published" / "app-db.snapshot.sqlite"
+        self.auto_publish = True
+        self.published_state = None
+        self.live_touches = []
         self.tmp = root / "tmp"
         self.key = root / "synthetic-key.env"
         self.run_id = RUN
@@ -152,12 +162,13 @@ class Sandbox:
         self.reviews = []
         self.transport = None
         self.public_results = []
-        for path in [self.app, self.artifacts, self.captures, self.data, self.tmp]:
+        for path in [self.app, self.artifacts, self.captures, self.data, self.tmp, self.snapshot.parent]:
             path.mkdir(parents=True, exist_ok=True)
         (self.app / ".env").write_text("SYNTHETIC_CONFIG=unchanged\n")
         (self.app / "config.json").write_text('{"fixture": true}\n')
         for key, value in {"INSIGHT_MCP_APP_DB": self.db, "INSIGHT_MCP_APP_ARTIFACTS": self.artifacts,
                            "INSIGHT_MCP_APP_CAPTURES": self.captures, "INSIGHT_MCP_DATA_DIR": self.data,
+                           "INSIGHT_MCP_APP_DB_SNAPSHOT": self.snapshot,
                            "INSIGHT_MCP_JEV_KEY_FILE": self.key, "TMPDIR": self.tmp}.items():
             monkeypatch.setenv(key, str(value))
         # tempfile caches gettempdir(): honor this fixture's TMPDIR.
@@ -270,8 +281,71 @@ class Sandbox:
                                     "requestBody": {"include_query": {"queries": ["canxi"]}},
                                     "body": {"data": {"products": products}}}]), encoding="utf-8")
 
+    def publish(self):
+        """The app's snapshot publisher, simulated: the live DB named by INSIGHT_MCP_APP_DB (with its WAL; no
+        writer runs during a test step) is recovered in a private copy, backed up with SQLite to a temp file and
+        renamed over the published snapshot. Unchanged live bytes leave the published file (and its mtime) alone."""
+        # Explicit snapshots belong to the test's publisher, including missing
+        # and corrupt fixtures. Never read live data or replace those here.
+        if os.environ.get("INSIGHT_MCP_APP_DB_SNAPSHOT") != str(self.snapshot):
+            return
+        value = os.environ.get("INSIGHT_MCP_APP_DB")
+        live = Path(value) if value else None
+        if live is None or not live.is_file():
+            return
+        sources = [live, Path(str(live) + "-wal")]
+        state = sha(b"".join(sha(p.read_bytes()).encode() for p in sources if p.is_file()) + str(live).encode())
+        if state == self.published_state and self.snapshot.is_file():
+            return
+        strict, self.guard.strict = self.guard.strict, False
+        work = self.root / "publisher"
+        try:
+            shutil.rmtree(work, ignore_errors=True)
+            work.mkdir()
+            copy = work / "live.sqlite"
+            copy.write_bytes(live.read_bytes())
+            if sources[1].is_file():
+                Path(str(copy) + "-wal").write_bytes(sources[1].read_bytes())
+            staged = self.snapshot.with_name(".app-db.snapshot.sqlite.tmp")
+            staged.unlink(missing_ok=True)
+            with sqlite3.connect(copy) as src, sqlite3.connect(staged) as dst:
+                src.backup(dst)
+            src.close()
+            dst.close()
+            os.replace(staged, self.snapshot)
+            self.published_state = state
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+            self.guard.strict = strict
+
+    def live_paths(self):
+        value = os.environ.get("INSIGHT_MCP_APP_DB")
+        live = Path(value).resolve() if value else self.db.resolve()
+        return {live, Path(str(live) + "-wal"), Path(str(live) + "-shm"), Path(str(live) + "-journal")}
+
+    def _live_touches(self, events):
+        """Opens of the live app DB or its -wal/-shm (file opens and SQLite connects) among audit events."""
+        live = self.live_paths()
+        touched = []
+        for event, args in events:
+            if event == "open" and isinstance(args[0], (str, bytes, os.PathLike)):
+                path = Path(os.fsdecode(args[0]))
+            elif event == "sqlite3.connect":
+                path = Path(urllib.parse.unquote(os.fsdecode(args[0]).removeprefix("file:").split("?")[0]))
+            else:
+                continue
+            if path.resolve() in live:
+                touched.append((event, str(path)))
+        return touched
+
     def call(self, tool, run_id=DEFAULT_RUN, **kwargs):
-        result = sync(getattr(self.module, tool)(self.run_id if run_id is DEFAULT_RUN else run_id, **kwargs))
+        if self.auto_publish:
+            self.publish()
+        start = len(self.guard.events)
+        try:
+            result = sync(getattr(self.module, tool)(self.run_id if run_id is DEFAULT_RUN else run_id, **kwargs))
+        finally:
+            self.live_touches.extend(self._live_touches(self.guard.events[start:]))
         self.public_results.append(copy.deepcopy(result))
         return result
 
@@ -296,10 +370,95 @@ class Sandbox:
         self.monkeypatch.setattr(self.module, "_jev_transport", self.transport)
         return self.transport
 
-    def code(self, policy=None, max_calls=1500, **kwargs):
-        fake = self.fake_paid(policy)
-        result = self.call("code_reviews", dry_run=False, max_calls=max_calls, **kwargs)
-        return result, fake
+    def code(self, policy=None, max_calls=1500, block_override=None):
+        """The app labeller, simulated in the synthetic app DB (the MCP only reads labels, F361–F367).
+
+        Each built warehouse review with text and no app label of the codebook version gets a FakeJev answer
+        (`policy` as before); its kept/unclear themes, or one NO_THEME row, go into `review_code`, with the
+        db-v1 `review` and `codebook` rows they need. A failed answer stops labelling, as the app does. The
+        warehouse is then rebuilt. Returns (summary or build error, the FakeJev with its calls)."""
+        fake = FakeJev(policy)
+        book_bytes = Path(self.module.CODEBOOK_PATH).read_bytes()
+        book = json.loads(book_bytes)
+        version = book["version"]
+        facts = self.rows("run_facts")[0]
+        block = block_override if block_override is not None else select_block(
+            book, json.loads(facts["applied_keywords"]), facts["applied_category"])
+        questions = book["core"] + (book["blocks"][block]["themes"] if block else [])
+        columns = ("review_id", "platform", "source_review_id", "product_key", "rating", "text", "product_name")
+        reviews = [dict(zip(columns, row)) for row in self.sql(
+            "SELECT r.review_id, r.platform, r.source_review_id, r.product_key, r.rating, t.text, p.product_name "
+            "FROM review r JOIN review_text t ON t.review_id = r.review_id "
+            "LEFT JOIN product p ON p.product_key = r.product_key ORDER BY r.review_id")]
+        self.app_db_v1()
+        now = "2026-11-03T00:00:00Z"
+        with sqlite3.connect(self.db) as db:
+            db.execute("INSERT OR IGNORE INTO raw_capture(capture_id, source_code, provider, operation, requested_at, "
+                       "outcome) VALUES ('synthetic-capture', 'S05', 'synthetic', 'synthetic', ?, 'OK')", (now,))
+            db.execute("INSERT OR IGNORE INTO codebook VALUES (?, 'synthetic', 'DRAFT', NULL, NULL, ?, ?, ?)",
+                       (version, book_bytes.decode(), sha(book_bytes), now))
+            coded = {k for (k,) in db.execute("SELECT DISTINCT review_key FROM review_code WHERE codebook_version=?",
+                                               (version,))}
+            calls, done, stopped = 0, 0, None
+            eligible = [r for r in reviews if r["text"].strip() and app_key(r) not in coded]
+            for r in eligible:
+                if calls >= max_calls:
+                    stopped = "CAP_REACHED"
+                    break
+                key = app_key(r)
+                db.execute("INSERT OR IGNORE INTO product(product_key, platform, item_id, product_name, "
+                           "first_capture_id) VALUES (?, ?, ?, ?, 'synthetic-capture')",
+                           (r["product_key"], r["platform"], r["product_key"], r["product_name"] or "synthetic"))
+                db.execute("INSERT OR IGNORE INTO review(review_key, source_code, platform, kind, external_id, "
+                           "product_key, reviewer_name_state, rating_star, text, collected_at, capture_id, "
+                           "source_position) VALUES (?, ?, ?, 'product_review', ?, ?, 'not_provided', ?, ?, ?, "
+                           "'synthetic-capture', '0')",
+                           (key, "S05" if r["platform"] == "shopee" else "S06", r["platform"], r["source_review_id"],
+                            r["product_key"], r["rating"], r["text"], now))
+                body = {"text": r["text"], "platform": r["platform"], "product_name": r["product_name"],
+                        "block_label": book["blocks"][block]["label"] if block else None, "codebook_version": version,
+                        "questions": [{"code": t["code"], "name": t["name"], "include": t["include"],
+                                       "exclude": t.get("exclude") or ""} for t in questions]}
+                calls += 1
+                try:
+                    status, raw = fake(body, "synthetic-app-key")
+                    answers = json.loads(raw).get("answers") if status == 200 else None
+                except Exception:  # noqa: BLE001 - a failed call, as the app's transport sees it
+                    status, answers = None, None
+                if not isinstance(answers, dict) or set(answers) != {q["code"] for q in body["questions"]}:
+                    stopped = "JEV_THEME_UNAVAILABLE" if status != 200 else "JEV_THEME_INVALID"
+                    break
+                rows = app_label_rows(book, answers) or [{"theme_code": "NO_THEME", "polarity": None, "step": None,
+                                                          "status": "kept", "p_yes": None}]
+                db.executemany("INSERT INTO review_code VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synthetic-jev', ?, ?, "
+                               "'MCP_IMPORT', ?)",
+                               [(key, version, x["theme_code"], block, x["polarity"], x["step"], x["status"],
+                                 x["p_yes"], sha(r["text"]), now, "0" * 64) for x in rows])
+                done += 1
+        if stopped is None and done < len(eligible):
+            stopped = "CAP_REACHED"
+        built = self.call("build_warehouse")
+        if "error" in built:
+            return built, fake
+        return {"calls_made": calls, "coded_now": done, "remaining": len(eligible) - done,
+                "stopped": stopped or "COMPLETE", "blockKey": block, "labels": built["labels"]}, fake
+
+    def relabel_app(self):
+        """A later synthetic app DB whose labeller has labelled the current texts afresh: the db-v1 tables are
+        dropped and rebuilt empty (the real tables are append-only), so the next code() labels every review."""
+        with sqlite3.connect(self.db) as db:
+            legacy = {"analysis_research_automation_runs", "foundation_shopee_collections",
+                      "analysis_research_automation_captures"}
+            for kind, name in db.execute("SELECT type, name FROM sqlite_master WHERE type IN ('view', 'table') "
+                                         "AND name NOT LIKE 'sqlite_%' ORDER BY type DESC").fetchall():
+                if name not in legacy:
+                    db.execute(f'DROP {kind.upper()} IF EXISTS "{name}"')
+
+    def app_db_v1(self):
+        with sqlite3.connect(self.db) as db:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='review_code'").fetchone() is None:
+                for path in APP_V1_MIGRATIONS:
+                    db.executescript(path.read_text(encoding="utf-8"))
 
     def dump(self):
         with sqlite3.connect(self.warehouse) as db:
@@ -351,6 +510,46 @@ class FakeJev:
             if replacement is not None:
                 return replacement
         return 200, canonical({"model": "jev-1.13.0", "answers": answers}).encode()
+
+
+def app_key(row):
+    return f"{row['platform']}:{row['source_review_id']}"
+
+
+def term_matches(term, keyword):
+    norm = lambda value: unicodedata.normalize("NFC", value).lower().strip()  # noqa: E731
+    return re.search(r"(?<![^\W_])" + re.escape(norm(term)) + r"(?![^\W_])", norm(keyword)) is not None
+
+
+def select_block(book, keywords, category):
+    """The app labeller's block choice (the rule the MCP used before F361–F367): category label, then the
+    longest matching keyword term, earlier block first."""
+    for name, block in book["blocks"].items():
+        if category is not None and category in (block["match"].get("categoryLabels") or []):
+            return name
+    best = None
+    for index, (name, block) in enumerate(book["blocks"].items()):
+        for term in block["match"].get("keywords") or []:
+            if any(term_matches(term, k) for k in keywords):
+                rank = (len(term.strip()), -index)
+                if best is None or rank > best[0]:
+                    best = (rank, name)
+    return best[1] if best else None
+
+
+def app_label_rows(book, answers):
+    """Kept and unclear app labels from FakeJev answers, by the codebook thresholds."""
+    keep, unclear, direction = (book["thresholds"][k] for k in ("keep", "unclear", "direction"))
+    rows = []
+    for code, answer in answers.items():
+        probs = answer["probabilities"]
+        p_yes = round(probs["CO_KHEN"] + probs["CO_CHE"] + probs["CO_KE"], 9)
+        if p_yes < unclear:
+            continue
+        top = max(POLARITY_BY_OPTION, key=lambda k: probs[k])
+        rows.append({"theme_code": code, "p_yes": p_yes, "step": "Sau mua", "status": "kept" if p_yes >= keep else "unclear",
+                     "polarity": POLARITY_BY_OPTION[top] if probs[top] >= direction else "khong_ro_huong"})
+    return rows
 
 
 def label_all(theme="T-GIA", answer=None):

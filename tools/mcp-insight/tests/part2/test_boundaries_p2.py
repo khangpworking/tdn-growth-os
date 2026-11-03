@@ -28,6 +28,7 @@ def assert_surface(tools):
                          "block_override": {"string", "null"}},
         "theme_counts": {"run_id": {"string"}, "question": {"string", "null"}},
         "keyword_counts": {"run_id": {"string"}}, "portrait_counts": {"run_id": {"string"}},
+        "star_counts": {"run_id": {"string"}},  # F361–F367 amends the exact registry.
         "report_plan": {"run_id": {"string"}},
         "confidence_ceiling": {"run_id": {"string"}, "part": {"integer"}, "evidence": {"array"}, "hypothesis": {"boolean"}},
         "find_reason_links": {"run_id": {"string"}, "theme_a": {"string"}, "theme_b": {"string"}},

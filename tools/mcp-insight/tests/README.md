@@ -16,6 +16,15 @@ The audit guard denies network/DNS/bind attempts, external SQLite connections
 and real secret/config reads, including attempts the subject catches. Synthetic
 credentials are redacted from pytest failure reports.
 
+## App labels (revision 24, owner F361–F367)
+
+The MCP no longer labels themes; it reads the app DB. `Sandbox.code(policy)` plays the app's labeller: it applies
+the repo migrations 0063–0068 to the synthetic app DB, asks `FakeJev` (the same policies as before) once per
+unlabelled warehouse review, writes db-v1 `review`, `codebook` and `review_code` rows (NO_THEME when no theme
+passes), and rebuilds the warehouse. `relabel_app()` drops the db-v1 tables so a changed text can be labelled again
+(the real rows are append-only). Tests of Jev theme requests, answers, caps and block choice (IM-Q15 to IM-Q18,
+IM-Q20, IM-Q47) were removed with the coding; IM-Q5 moved to part 4 (`code_claims` still calls Jev).
+
 ## Running
 
 Collection does not import the absent/in-progress implementation, FastMCP or
@@ -156,6 +165,13 @@ missing, not zero (IM-Q8), a fractional SLAYER difference (IM-Q23), artifact byt
 in the WAL. `build_warehouse` must read those rows, and `app.sqlite`, `-wal` and `-shm` must be byte-identical
 afterwards. Its `live_open` case is the negative control: the old `mode=ro` open of the live DB changes the app home.
 `test_im_q39_torn_snapshot_is_retried_then_refused` covers one torn copy (retried) and four (`SOURCE_SNAPSHOT_FAILED`).
+Revision 25 (IM-Q172, F376) replaces that test with `test_im_q39_bad_published_snapshot_is_refused` (missing
+snapshot `APP_DB_SNAPSHOT_MISSING`; damaged header or body `APP_DB_SNAPSHOT_INVALID`). The MCP now reads only the
+app's published snapshot. For the default fixture snapshot, `Sandbox.publish()` plays the app's publisher before
+each `Sandbox.call` (live DB + WAL recovered in a private copy, SQLite backup, atomic rename to
+`published/app-db.snapshot.sqlite`, outside the app home; unchanged live bytes are not republished). `Sandbox.live_touches` records audit events in which a tool opened
+the live DB or its siblings; the WAL test and `unchanged_app` require it to be empty. The `live_open` control now
+patches `published_app_db` to open the live DB.
 IM-Q2 now checks the module's app connection, which is the per-call snapshot. It also fails if any connection
 opens the live DB path. The `mode=rw` negative control is unchanged and still fails.
 
@@ -494,3 +510,13 @@ all legacy helpers unchanged:
 This test change edits no app code, contract, spec, provider configuration or
 deployment. The firstmate follow-up authorizes pushing the corrected test
 branch; no PR creation or merge is part of this test task.
+
+### Z2 review and F381 product identity
+
+`unchanged_app` publishes before its audit window and pauses automatic publication inside it; explicit snapshot
+fixtures control their own publisher. Missing snapshot configuration and missing files both give
+`APP_DB_SNAPSHOT_MISSING`; the home-anchor DB file need not exist. The realistic Z2 publisher path is
+`<db dir>/app-db-snapshot/app-db.snapshot.sqlite` (PR #444). IM-Q174 has one regression in
+`test_app_labels.py`: app and warehouse product keys are literal db-v1 keys on both platforms, and star rows
+retain the Shopee listing name. The original shop-qualified key is its failing negative control. Existing Q148
+proves claim shop counts retain independent shop identity.
