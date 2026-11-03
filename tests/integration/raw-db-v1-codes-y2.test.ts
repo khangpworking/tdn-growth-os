@@ -5,7 +5,7 @@ import test, { afterEach, beforeEach, mock } from 'node:test';
 import { loadReviewCodesToDbV1 } from '../../src/modules/raw-db/review-code-loader.js';
 import {
   CODES_AT, CODES_VERSION, codesFixture, codesHash, codesLabel, codesReview, codesState,
-  seedCodeReview, writeCodeInputs,
+  emptyCodesReceipt, seedCodeReview, writeCodeInputs,
 } from '../fixtures/raw-db-v1-codes.js';
 
 beforeEach(() => { mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected network'); }); });
@@ -27,7 +27,8 @@ test('RAWDB-Y2 B1: one bad proof rejects every label of that review, once, while
     assert.deepEqual(f.db.prepare('SELECT review_key,theme_code FROM review_code').all(),
       [{ review_key: 'S05:synthetic-good', theme_code: 'T-GIA' }], 'no partial group survives either label ordering');
     assert.equal(result.labelsInserted, 1);
-    assert.equal((result as unknown as { reviewsSkipped: number }).reviewsSkipped, 1, 'two rejected proofs count as one review');
+    assert.deepEqual(result.reviewsSkipped, [{ reviewId: 'shopee:synthetic-codes-a', reason: 'TEXT_MISMATCH' }],
+      'two rejected proofs count as one review with its reason');
     const skipped = result.skipped.filter(row => row.reviewId === 'shopee:synthetic-codes-a');
     assert.ok(skipped.some(row => row.reason === 'TEXT_MISMATCH'), 'the skipped review has a text-proof reason');
   }
@@ -48,7 +49,7 @@ test('RAWDB-Y2 B2: any existing origin or NO_THEME closes the review/version gro
       assert.deepEqual(f.db.prepare('SELECT * FROM review_code').all(), prior, `${origin}/${theme}: never extend or replace a group`);
       assert.equal(result.labelsInserted, 0);
       assert.equal(result.noThemeInserted, 0);
-      assert.equal((result as unknown as { alreadyCoded: number }).alreadyCoded, 1, 'count the review once');
+      assert.equal(result.alreadyCoded, 1, 'count the review once');
     }
   }
   // Unlike an arbitrary already-coded group, the exact same source file is a mutation-free, zero-count retry.
@@ -57,9 +58,7 @@ test('RAWDB-Y2 B2: any existing origin or NO_THEME closes the review/version gro
   assert.equal(initial.labelsInserted, 2);
   const before = f.db.serialize(), replay = await loadReviewCodesToDbV1(f.db, f.input);
   assert.deepEqual(f.db.serialize(), before);
-  assert.equal((replay as unknown as { alreadyCoded: number }).alreadyCoded, 0);
-  assert.equal((replay as unknown as { reviewsSkipped: number }).reviewsSkipped, 0);
-  assert.equal(replay.labelsInserted + replay.noThemeInserted + replay.alreadyPresent, 0);
+  assert.deepEqual(replay, emptyCodesReceipt, 'every replay counter is zero and every skip list is empty');
 });
 
 test('RAWDB-Y2 B3: a done state cannot turn a rejected label into NO_THEME, and corrected evidence remains importable', async t => {

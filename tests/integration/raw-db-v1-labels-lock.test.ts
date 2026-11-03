@@ -50,7 +50,7 @@ test('RAWDB-Y2 C2: LABELS, CODES and S05 wait before eligibility selection; Jev 
       assert.equal(running.done, false, `${source} must wait even if the pre-lock candidate set is empty`);
       assert.equal((await running.calls()).length, 0, `${source} cannot dispatch through another pass's lock`);
       if (source === 'S05') {
-        assert.equal(f.db.prepare('SELECT count(*) FROM review').pluck().get(), 3, 'S05 commits its load before waiting to label');
+        assert.equal(Number(f.db.prepare('SELECT count(*) FROM review').pluck().get()), 3, 'S05 commits its load before waiting to label');
       }
       if (source !== 'CODES') {
         // Make a review eligible while the lock holder still owns the pass. A pre-lock query would miss it.
@@ -87,7 +87,6 @@ test('RAWDB-Y2 C3: a competing pass waits at most ten seconds then reports LABEL
       const running = await startY2Cli(t, f, args);
       await until(async () => running.done || await exists(running.ready), `${source} CLI dependencies are ready`);
       const attempted = Date.now(), result = await running.result, elapsed = Date.now() - attempted;
-      assert.match(result.stdout + result.stderr, /LABELS_BUSY/, `${source}: stable busy error`);
       assert.ok(elapsed >= 9000 && elapsed < 13_000, `${source}: bounded ten-second wait, observed ${elapsed}ms after dependency initialization`);
       assert.equal((await running.calls()).length, 0);
       assert.deepEqual(labelledKeys(f.db), []);
@@ -95,9 +94,12 @@ test('RAWDB-Y2 C3: a competing pass waits at most ten seconds then reports LABEL
         assert.equal(result.status, 0, 'busy labelling cannot fail the load');
         const value = JSON.parse(result.stdout) as { reviewsInserted: number; labelling: unknown };
         assert.equal(value.reviewsInserted, 3);
-        assert.match(JSON.stringify(value.labelling), /SKIPPED_BUSY/);
-        assert.equal(f.db.prepare('SELECT count(*) FROM review').pluck().get(), 3);
-      } else assert.notEqual(result.status, 0, `${source} exits with an error`);
+        assert.equal(value.labelling, 'SKIPPED_BUSY');
+        assert.equal(Number(f.db.prepare('SELECT count(*) FROM review').pluck().get()), 3);
+      } else {
+        assert.match(result.stdout + result.stderr, /LABELS_BUSY/, `${source}: stable busy error`);
+        assert.notEqual(result.status, 0, `${source} exits with an error`);
+      }
     } finally { release(); }
   }
 });
