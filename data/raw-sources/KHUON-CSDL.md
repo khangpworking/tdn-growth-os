@@ -10,6 +10,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - Mỗi người viết có hai cột: `reviewer_key` (HMAC của mã tác giả do nguồn trả về; `NULL` nếu nguồn không trả mã tác giả) và `reviewer_name` (tên thật khi có, chỉ trong cơ sở dữ liệu riêng).
 - Bản 2 thêm 4 bảng: `run_review` (lần chạy ↔ đánh giá), `codebook` và `review_code` (chủ đề đã gán và ai duyệt), `video` (video ↔ sản phẩm).
 - Kho của MCP Insight dùng tên khác. Bảng đối chiếu ở Phần 3.4.
+- 03/11/2026 (chủ duyệt): §4.4 `search_suggestion` (S19b) và §4.5 `ai_overview_block`, `ai_overview_reference` (S29) có cột đầy đủ; mỗi gạch đầu dòng của AI Overview là một dòng `list_item`; bảng nguồn có thêm cột `snippet`.
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -290,12 +291,52 @@ Bình luận S07 nối với sản phẩm qua `review.video_url` → `video.prod
 
 ### 4.4 `search_suggestion` — gợi ý tìm kiếm (S19b)
 
-`prefix` (tiền tố đã gõ), `rank` (thứ tự gợi ý), `suggestion`, `collected_at`, `capture_id`. Lấy từ `records[].prefix`, `records[].suggestions[]`.
+Mỗi lần gọi một tiền tố là một dòng `raw_capture` (`provider` = `google-suggest`, `operation` = `google.suggest`, `cost_amount` = 0 USD).
+
+| Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
+|---|---|---|---|
+| prefix | TEXT | Tiền tố đã gõ | phản hồi `[0]`, hoặc `records[].prefix` |
+| rank | INTEGER | Thứ tự gợi ý, từ 1 | vị trí trong phản hồi `[1]` + 1 |
+| suggestion | TEXT | Câu gợi ý | phản hồi `[1][i]`, hoặc `records[].suggestions[i]` |
+| collected_at | TEXT | Lúc thu | `retrieved_at` của lần thu, hoặc `records[].requestedAt` |
+| capture_id | TEXT | Nguồn gốc | — |
+
+- Danh sách gợi ý rỗng: `raw_capture.outcome` = `EMPTY`, không có dòng. Bản ghi tệp có `httpStatus` khác 200: `FAILED`, không có dòng.
+- `raw_capture.keyword` = từ gốc của tiền tố (từ khoá 1 hoặc 2 của lượt chạy).
+- Chỉ là ý định tìm. Không có lượng tìm. Chỉ đọc chủ đề, không đếm.
 
 ### 4.5 `ai_overview_block` và `ai_overview_reference` — Google AI Overview (S29)
 
-`ai_overview_block`: `query`, `block_seq`, `block_type` (`paragraph`, `list`…), `text` (`text_blocks[].snippet`), `reference_indexes` (JSON).
-`ai_overview_reference`: `query`, `ref_index`, `title`, `link`, `site` (`references[]`).
+Mỗi phản hồi S19 có khoá `ai_overview` là một dòng `raw_capture` (`provider` = `serpapi`, `billing` = `PAID_SEARCH_UNLESS_CACHED`, `cost_amount` = `NULL` vì lượt gọi đã tính ở S19 hoặc ở mức dùng của app).
+
+- Câu trả lời: `ai_overview` trong phản hồi S19 khi có `text_blocks`. Nếu chỉ có `page_token`: phản hồi `google_ai_overview` của cùng lượt chạy có `search_parameters.page_token` trùng. Không có cả hai: `outcome` = `NOT_COLLECTED`, không có dòng.
+- `raw_capture.operation` = lệnh của lần thu mang câu trả lời. `request_params_json` = `{query, aiOverviewState, pageTokenPresent, sharedWithS19}`.
+
+`ai_overview_block`:
+
+| Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
+|---|---|---|---|
+| query | TEXT | Câu tìm | `search_parameters.q`, hoặc `records[].query` |
+| block_seq | INTEGER | Thứ tự trong câu trả lời sau khi tách, từ 0 | — |
+| block_type | TEXT | `heading`, `paragraph`, `list_item` | `text_blocks[].type`; mỗi phần tử của `list[]` là một dòng `list_item` |
+| text | TEXT | Nội dung | `.snippet` |
+| reference_indexes | TEXT | Chỉ số nguồn (mảng JSON), `NULL` nếu không có | `.reference_indexes` |
+| capture_id | TEXT | Nguồn gốc | — |
+
+Loại khối khác `heading`, `paragraph`, `list` làm hỏng cả lần nạp (không bỏ qua im lặng).
+
+`ai_overview_reference`:
+
+| Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
+|---|---|---|---|
+| query | TEXT | Câu tìm | như trên |
+| ref_index | INTEGER | Chỉ số nguồn | `references[].index` |
+| title | TEXT | Tiêu đề | `.title` |
+| link | TEXT | Link | `.link` |
+| site | TEXT | Tên trang | `.source` |
+| snippet | TEXT | Đoạn trích | `.snippet` |
+| capture_id | TEXT | Nguồn gốc | — |
+
 Mọi dòng mang nhãn giả thuyết, mức Yếu. Không dùng làm bằng chứng.
 
 ### 4.6 `search_interest` — mức quan tâm tìm kiếm (S20, S20b)
@@ -596,7 +637,7 @@ CREATE TABLE search_suggestion (
 CREATE TABLE ai_overview_block (
   query             TEXT NOT NULL,
   block_seq         INTEGER NOT NULL,
-  block_type        TEXT,
+  block_type        TEXT CHECK (block_type IN ('heading','paragraph','list_item')),
   text              TEXT,
   reference_indexes TEXT,
   capture_id        TEXT NOT NULL REFERENCES raw_capture(capture_id),
@@ -609,6 +650,7 @@ CREATE TABLE ai_overview_reference (
   title      TEXT,
   link       TEXT,
   site       TEXT,
+  snippet    TEXT,
   capture_id TEXT NOT NULL REFERENCES raw_capture(capture_id),
   PRIMARY KEY (capture_id, ref_index)
 );

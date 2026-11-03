@@ -108,7 +108,7 @@ test('CIH-Q7 populated 0061 upgrade preserves service-created revisions, locks, 
   const tables = ['flow_content_campaigns', 'flow_content_campaign_revisions', 'flow_content_insight_revisions', 'flow_content_insight_locks', 'analysis_reader_report_revisions', 'analysis_reader_report_decisions', 'artifact_manifests'];
   const before = tables.map(table => rows(f.db, table)); const files = inventory(f.artifactRoot).map(p => [p, fs.readFileSync(p)] as const);
   f.db.defaultSafeIntegers(false);
-  assert.deepEqual(applyMigrations(f.db).applied, [62, 63]);
+  assert.deepEqual(applyMigrations(f.db).applied, [62, 63, 64]);
   f.db.defaultSafeIntegers(true);
   assert.deepEqual(tables.map(table => rows(f.db, table)), before);
   for (const [p, bytes] of files) assert.deepEqual(fs.readFileSync(p), bytes);
