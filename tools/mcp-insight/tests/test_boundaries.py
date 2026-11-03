@@ -192,13 +192,14 @@ def test_im_q4_code_reviews_never_codes_or_reads_a_key(built, monkeypatch, flag)
 
 
 def test_im_q6_database_configuration_is_required_and_selected(subject, sandbox, monkeypatch):
-    """NC: a creating open or a hardcoded DB A fails absence/B-only assertions."""
+    """The home locator is required but need not exist; only the published DB selects runs."""
     sandbox.seed(run_id=RUN)
+    sandbox.publish()
     monkeypatch.delenv("INSIGHT_MCP_APP_DB")
     error(sandbox.call("build_warehouse"), "APP_DB_NOT_SET")
     missing = sandbox.root / "never-created.sqlite"
     monkeypatch.setenv("INSIGHT_MCP_APP_DB", str(missing))
-    error(sandbox.call("build_warehouse"), "APP_DB_NOT_FOUND")
+    assert "error" not in sandbox.call("build_warehouse")
     assert not missing.exists()
     db_b = sandbox.app / "b.sqlite"
     with sqlite3.connect(sandbox.db) as src, sqlite3.connect(db_b) as dst:

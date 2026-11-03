@@ -9,7 +9,7 @@ import unicodedata
 import pytest
 
 from insight_test_support import (
-    OPTIONS, RUN, UNKNOWN_NOTE, VERSION, canonical, choice, error, label_all,
+    UNKNOWN_NOTE, VERSION, canonical, choice, error, label_all,
     review, sync, theme_row, tree_snapshot,
 )
 from test_boundaries import perturb

@@ -21,8 +21,8 @@ The claim runners in `claims/` (catalogue draft, two graders) are paid runs too;
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `INSIGHT_MCP_APP_DB` | yes, for `build_warehouse` | The app SQLite file. No default. Only locates the app home (artifact and capture defaults); the MCP never opens or copies it. |
-| `INSIGHT_MCP_APP_DB_SNAPSHOT` | yes, for `build_warehouse` | The app's published snapshot `app-db.snapshot.sqlite` (the app writes it with SQLite backup + atomic rename). No default. Each read copies it through one descriptor into a private temp dir and checks it (SQLite header, `quick_check`). Missing: `APP_DB_SNAPSHOT_MISSING` («app chưa xuất bản sao sạch»). When set, the other tools also resolve `run_id` against it (`RUN_NOT_FOUND`, `RUN_AMBIGUOUS`). Results carry `appSnapshot.publishedAt` (the file's mtime). |
+| `INSIGHT_MCP_APP_DB` | yes, for `build_warehouse` | The app SQLite file path (it need not exist). No default. Only locates the app home (artifact and capture defaults); the MCP never opens or copies it. |
+| `INSIGHT_MCP_APP_DB_SNAPSHOT` | yes, for `build_warehouse` | The app's published snapshot `<db dir>/app-db-snapshot/app-db.snapshot.sqlite` (PR #444; the app writes it with SQLite backup + atomic rename). No default. Each read copies it through one descriptor into a private temp dir and checks it (SQLite header, `quick_check`). Unset or missing: `APP_DB_SNAPSHOT_MISSING` («app chưa xuất bản sao sạch»). When set, the other tools also resolve `run_id` against it (`RUN_NOT_FOUND`, `RUN_AMBIGUOUS`). Results carry `appSnapshot.publishedAt` (the file's mtime). |
 | `INSIGHT_MCP_APP_ARTIFACTS` | no | Artifact root (`sha256/<2 chars>/<sha>`). Default: `artifacts/` next to the app DB. Read-only. |
 | `INSIGHT_MCP_APP_CAPTURES` | no | Metric capture root holding `<run_id>/scope.json`. Default: `metric-captures/` next to the app DB. Read-only. |
 | `INSIGHT_MCP_DATA_DIR` | no | Where run warehouses (`runs/<run_id>.sqlite`), the shared store, the report store and the rendered reports (`reports/<run_id>/`) live. Default: `tools/mcp-insight/out/` (gitignored). |
@@ -188,7 +188,7 @@ Project config `.mcp.json` at the repository root (same as `.mcp.json.example`):
       "args": ["tools/mcp-insight/insight_tools.py"],
       "env": {
         "INSIGHT_MCP_APP_DB": "<path to the app SQLite file>",
-        "INSIGHT_MCP_APP_DB_SNAPSHOT": "<path to the app's app-db.snapshot.sqlite>"
+        "INSIGHT_MCP_APP_DB_SNAPSHOT": "<db dir>/app-db-snapshot/app-db.snapshot.sqlite"
       }
     }
   }
@@ -198,7 +198,7 @@ Project config `.mcp.json` at the repository root (same as `.mcp.json.example`):
 Or register it with a command:
 
 ```sh
-claude mcp add tdn-insight --scope project -e INSIGHT_MCP_APP_DB="<path to the app SQLite file>" -e INSIGHT_MCP_APP_DB_SNAPSHOT="<path to the app's app-db.snapshot.sqlite>" -- python3 tools/mcp-insight/insight_tools.py
+claude mcp add tdn-insight --scope project -e INSIGHT_MCP_APP_DB="<path to the app SQLite file>" -e INSIGHT_MCP_APP_DB_SNAPSHOT="<db dir>/app-db-snapshot/app-db.snapshot.sqlite" -- python3 tools/mcp-insight/insight_tools.py
 ```
 
 ### Codex
@@ -209,7 +209,7 @@ claude mcp add tdn-insight --scope project -e INSIGHT_MCP_APP_DB="<path to the a
 [mcp_servers.tdn-insight]
 command = "python3"
 args = ["tools/mcp-insight/insight_tools.py"]
-env = { INSIGHT_MCP_APP_DB = "<path to the app SQLite file>", INSIGHT_MCP_APP_DB_SNAPSHOT = "<path to the app's app-db.snapshot.sqlite>" }
+env = { INSIGHT_MCP_APP_DB = "<path to the app SQLite file>", INSIGHT_MCP_APP_DB_SNAPSHOT = "<db dir>/app-db-snapshot/app-db.snapshot.sqlite" }
 ```
 
 ### OpenCode
@@ -226,7 +226,7 @@ env = { INSIGHT_MCP_APP_DB = "<path to the app SQLite file>", INSIGHT_MCP_APP_DB
       "enabled": true,
       "environment": {
         "INSIGHT_MCP_APP_DB": "<path to the app SQLite file>",
-        "INSIGHT_MCP_APP_DB_SNAPSHOT": "<path to the app's app-db.snapshot.sqlite>"
+        "INSIGHT_MCP_APP_DB_SNAPSHOT": "<db dir>/app-db-snapshot/app-db.snapshot.sqlite"
       }
     }
   }

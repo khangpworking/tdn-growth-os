@@ -5,7 +5,7 @@
       "args": ["tools/mcp-insight/insight_tools.py"],
       "env": {
         "INSIGHT_MCP_APP_DB": "<path to the app SQLite file>",
-        "INSIGHT_MCP_APP_DB_SNAPSHOT": "<path to the app's app-db.snapshot.sqlite>"
+        "INSIGHT_MCP_APP_DB_SNAPSHOT": "<db dir>/app-db-snapshot/app-db.snapshot.sqlite"
       }
     }
   }

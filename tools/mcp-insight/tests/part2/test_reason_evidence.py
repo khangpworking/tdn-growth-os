@@ -6,7 +6,7 @@ import unicodedata
 
 import pytest
 
-from insight_test_support import OTHER, RUN, VERSION, choice, error, review, sha, sync
+from insight_test_support import OTHER, RUN, choice, error, review, sha, sync
 from p2_support import (
     PAIR, RULES, candidate_ids, reason_row, registry_numbers,
 )

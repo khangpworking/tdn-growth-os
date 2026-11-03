@@ -5,12 +5,13 @@ The production read path is intentionally absent on the authoring baseline.
 """
 
 import json
+from contextlib import closing
 
 import pytest
 
 from app_labels_support import (
     AppLabels, OTHER_VERSION, app_product, coverage, full_text, review_id,
-    star_numbers, star_rows, success, theme_numbers, unchanged_app, warehouse_product,
+    star_numbers, star_rows, success, theme_numbers, unchanged_app,
 )
 from insight_test_support import OTHER, RUN, error, review, sha, sync
 
@@ -18,6 +19,28 @@ from insight_test_support import OTHER, RUN, error, review, sha, sync
 @pytest.fixture
 def app_labels(subject, sandbox):
     return AppLabels(sandbox)
+
+
+def test_im_q174_product_keys_match_db_v1(app_labels, sandbox):
+    """NC: the old Shopee shop-qualified key fails; an old listing lookup loses the public name."""
+    app = app_labels
+    app.codebook()
+    rows = [review(271, product=901), review(272, product=901, platform="tiktok_shop")]
+    app.seed(rows)
+    for row in rows:
+        app.label(row)
+    sandbox.metric_products({"901": "Sản phẩm thử 901"})
+    success(sandbox.call("build_warehouse"))
+
+    expected = {"shopee:901", "tiktok_shop:901"}
+    assert {r["product_key"] for r in sandbox.rows("review")} == expected
+    assert {r["product_key"] for r in sandbox.rows("product")} == expected
+    with closing(app.connect()) as db:
+        assert {key for key, in db.execute("SELECT product_key FROM product")} == expected
+    _, products = star_rows(sandbox.call("star_counts"))
+    assert {(r["platform"], r["product_name"], r["reviews"]) for r in products} == {
+        ("shopee", "Sản phẩm thử 901", 1), ("tiktok_shop", "Sản phẩm thử 901", 1),
+    }
 
 
 def test_z1_app_labels_are_projected_and_no_theme_is_coded(app_labels, sandbox):
@@ -170,7 +193,7 @@ def test_z6_star_counts_use_app_view_per_platform_and_product_and_are_citable(ap
         ("tiktok_shop", "tieu_cuc"): 1, ("tiktok_shop", "tich_cuc"): 2, ("tiktok_shop", None): 1,
     }
     products = {key: r["product"] for r in app_rows
-                for key in (app_product(r), warehouse_product(r), "Sản phẩm thử " + r["product"])}
+                for key in (app_product(r), "Sản phẩm thử " + r["product"])}
     assert star_numbers(product_rows, products) == {
         ("shopee", "101", "tieu_cuc"): 2,
         ("shopee", "102", "tieu_cuc"): 1, ("shopee", "102", "tich_cuc"): 1,

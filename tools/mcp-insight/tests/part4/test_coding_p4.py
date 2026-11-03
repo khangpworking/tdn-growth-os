@@ -7,7 +7,7 @@ import logging
 import pytest
 
 from claim_support import THEME, ClaimJev, catalogue, no_leak
-from insight_test_support import canonical, choice, error, review, sha
+from insight_test_support import canonical, error, review, sha
 
 
 def test_im_q139_customer_words_keep_first_and_non_attribute_segments(p4):

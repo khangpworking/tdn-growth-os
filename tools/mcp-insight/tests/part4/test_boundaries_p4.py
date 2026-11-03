@@ -7,8 +7,7 @@ import socket
 import pytest
 
 from claim_support import NEW_TOOLS, RULES, THEME, catalogue, no_leak, warehouse_tables
-from insight_test_support import RUN, VERSION, canonical, error, review, sha, sync
-from p2_support import registry_numbers
+from insight_test_support import RUN, VERSION, error, review, sha, sync
 from p3_support import accepted, claim, codes
 
 

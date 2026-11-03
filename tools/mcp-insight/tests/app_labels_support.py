@@ -3,7 +3,7 @@
 COMMON-Z pins the warehouse columns, not the star response envelope. The star
 adapter accepts long count rows in ``rows`` (product_key absent or product
 "all" for platform totals), or separate ``by_platform``/``by_product`` lists.
-Products may be app or warehouse keys, or private refs with the listing
+Products may use db-v1 keys or private refs with the listing
 ``product_name``; no choice changes the hand-counted oracle.
 Coverage metadata may be an integer or a per-platform integer mapping.
 """
@@ -36,12 +36,7 @@ def app_key(row):
 
 
 def app_product(row):
-    return f"synthetic-product:{row['platform']}:{row['product']}"
-
-
-def warehouse_product(row):
-    return (f"shopee:700:{row['product']}" if row["platform"] == "shopee"
-            else f"tiktok_shop:{row['product']}")
+    return f"{row['platform']}:{row['product']}"
 
 
 def full_text(row):
@@ -178,12 +173,16 @@ def star_numbers(rows, products=None):
 @contextmanager
 def unchanged_app(box):
     """Check bytes/writes and forbid even plain reads of the live DB/WAL/SHM."""
+    if box.auto_publish:
+        box.publish()
+    auto_publish, box.auto_publish = box.auto_publish, False
     before = {str(p.relative_to(box.app)): p.read_bytes() for p in box.app.rglob("*") if p.is_file()}
     start = len(box.guard.events)
     box.guard.strict = True
     try:
         yield
     finally:
+        box.auto_publish = auto_publish
         box.guard.strict = False
         events = box.guard.events[start:]
         after = {str(p.relative_to(box.app)): p.read_bytes() for p in box.app.rglob("*") if p.is_file()}

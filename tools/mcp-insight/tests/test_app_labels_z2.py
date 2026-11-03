@@ -26,13 +26,15 @@ from insight_test_support import canonical, error, review, sha
 
 @pytest.fixture
 def app(subject, sandbox, monkeypatch):
-    monkeypatch.setenv("INSIGHT_MCP_APP_DB_SNAPSHOT", str(sandbox.app / "app-db.snapshot.sqlite"))
+    monkeypatch.setenv("INSIGHT_MCP_APP_DB_SNAPSHOT",
+                       str(sandbox.app / "app-db-snapshot" / "app-db.snapshot.sqlite"))
     return AppLabels(sandbox, app_jev=True)
 
 
 def publish(box, target=None):
     """Fixture publisher, outside any MCP tool call; never copies a live WAL."""
-    target = target or box.app / "app-db.snapshot.sqlite"
+    target = target or box.app / "app-db-snapshot" / "app-db.snapshot.sqlite"
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     pending = target.with_suffix(".pending")
     with closing(sqlite3.connect(box.db)) as source, closing(sqlite3.connect(pending)) as output:
         source.backup(output)

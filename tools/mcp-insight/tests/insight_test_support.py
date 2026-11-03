@@ -285,6 +285,10 @@ class Sandbox:
         """The app's snapshot publisher, simulated: the live DB named by INSIGHT_MCP_APP_DB (with its WAL; no
         writer runs during a test step) is recovered in a private copy, backed up with SQLite to a temp file and
         renamed over the published snapshot. Unchanged live bytes leave the published file (and its mtime) alone."""
+        # Explicit snapshots belong to the test's publisher, including missing
+        # and corrupt fixtures. Never read live data or replace those here.
+        if os.environ.get("INSIGHT_MCP_APP_DB_SNAPSHOT") != str(self.snapshot):
+            return
         value = os.environ.get("INSIGHT_MCP_APP_DB")
         live = Path(value) if value else None
         if live is None or not live.is_file():

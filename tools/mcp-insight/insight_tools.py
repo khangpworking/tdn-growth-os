@@ -231,18 +231,14 @@ def _app_db_path() -> Path:
     value = os.environ.get("INSIGHT_MCP_APP_DB")
     if not value:
         raise InsightError("APP_DB_NOT_SET", "INSIGHT_MCP_APP_DB is not set; it names the app SQLite file")
-    path = Path(value).expanduser()
-    if not path.is_file():
-        raise InsightError("APP_DB_NOT_FOUND", "the file named by INSIGHT_MCP_APP_DB does not exist")
-    return path
+    return Path(value).expanduser()
 
 
 def _app_snapshot_path() -> Path:
     """The app's published snapshot (app-db.snapshot.sqlite, written by the app with SQLite backup + rename)."""
     value = os.environ.get("INSIGHT_MCP_APP_DB_SNAPSHOT")
     if not value:
-        raise InsightError("APP_DB_SNAPSHOT_NOT_SET",
-                           "INSIGHT_MCP_APP_DB_SNAPSHOT is not set; it names the app's published snapshot file")
+        raise InsightError("APP_DB_SNAPSHOT_MISSING", "app chưa xuất bản sao sạch")
     return Path(value).expanduser()
 
 
@@ -466,7 +462,7 @@ CREATE TABLE source_status(source TEXT PRIMARY KEY, platform TEXT NOT NULL, capt
   row_count INTEGER NOT NULL);
 CREATE TABLE review(review_id TEXT PRIMARY KEY, platform TEXT NOT NULL, source_review_id TEXT NOT NULL,
   product_key TEXT NOT NULL, writer_key TEXT NOT NULL, writer_known INTEGER NOT NULL CHECK(writer_known IN (0, 1)),
-  rating INTEGER, posted_date TEXT);
+  rating INTEGER, posted_date TEXT, shop_key TEXT NOT NULL);
 CREATE TABLE review_text(review_id TEXT PRIMARY KEY REFERENCES review(review_id), text TEXT NOT NULL);
 CREATE TABLE product(product_key TEXT PRIMARY KEY, platform TEXT NOT NULL, product_name TEXT);
 CREATE TABLE writer_guess(writer_key TEXT PRIMARY KEY, gender TEXT NOT NULL,
@@ -783,7 +779,8 @@ def _shopee_reviews(con, root: Path, run_id: str):
             rating = item.get("ratingStar")
             reviews[source_id] = {
                 "review_id": "shopee:" + source_id, "platform": "shopee", "source_review_id": source_id,
-                "product_key": f"shopee:{item.get('shopId')}:{item.get('itemId')}",
+                "product_key": f"shopee:{item.get('itemId')}",
+                "shop_key": f"shopee:{item.get('shopId')}",
                 "writer_key": "shopee:" + source_id, "writer_known": 0,
                 "rating": rating if isinstance(rating, int) and not isinstance(rating, bool) else None,
                 "text": text, "name": None, "posted_date": _first_date(item.get("postedAtLocal"), item.get("createdAt")),
@@ -818,6 +815,7 @@ def _tiktok_reviews(con, root: Path, run_id: str):
             reviews[source_id] = {
                 "review_id": "tiktok_shop:" + source_id, "platform": "tiktok_shop", "source_review_id": source_id,
                 "product_key": f"tiktok_shop:{product_id}",
+                "shop_key": f"tiktok_shop:{product_id}",
                 "writer_key": _writer_key_for_name(name) if known else "tiktok_shop:" + source_id,
                 "writer_known": 1 if known else 0,
                 "rating": rating if isinstance(rating, int) and not isinstance(rating, bool) else None,
@@ -861,7 +859,7 @@ def _shopee_product_names(capture_root: Path, run_id: str):
                 base = node.get("product_base_id")
                 match = SHOPEE_BASE_ID.match(base) if isinstance(base, str) else None
                 if match and isinstance(node.get("product_name"), str) and node["product_name"].strip():
-                    names.setdefault(f"shopee:{match.group(2)}:{match.group(1)}", node["product_name"].strip())
+                    names.setdefault(f"shopee:{match.group(1)}", node["product_name"].strip())
                 stack.extend(reversed(list(node.values())))
     return names
 
@@ -1111,7 +1109,7 @@ def build_warehouse(run_id: str) -> dict:
     star_rows = sorted(app["stars"].items())
 
     review_rows = [(r["review_id"], r["platform"], r["source_review_id"], r["product_key"], r["writer_key"],
-                    r["writer_known"], r["rating"], r["posted_date"]) for r in reviews]
+                    r["writer_known"], r["rating"], r["posted_date"], r["shop_key"]) for r in reviews]
     dup_rows = sorted(near_dup_groups([(r["review_id"], customer_words(r["text"])) for r in reviews]).items())
     text_rows = [(r["review_id"], r["text"]) for r in reviews]
     product_rows = sorted((k, p, n) for k, (p, n) in products.items())
@@ -1152,7 +1150,7 @@ def build_warehouse(run_id: str) -> dict:
             wh.executemany("INSERT INTO source_status VALUES (?, ?, ?, ?)",
                            [(k, p, 0 if n is None else 1, n or 0) for k, (p, n) in sources.items()])
             wh.execute("INSERT INTO app_snapshot VALUES (?)", (published_at,))
-            wh.executemany("INSERT INTO review VALUES (?, ?, ?, ?, ?, ?, ?, ?)", review_rows)
+            wh.executemany("INSERT INTO review VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", review_rows)
             wh.executemany("INSERT INTO near_dup VALUES (?, ?)", dup_rows)
             wh.executemany("INSERT INTO review_text VALUES (?, ?)", text_rows)
             wh.executemany("INSERT INTO product VALUES (?, ?, ?)", product_rows)
@@ -1416,10 +1414,11 @@ def _count_id(run_id, tool, row_key, rules_version, numbers, state_sha) -> str:
 
 
 def _require_app_labels(wh) -> None:
-    """A warehouse built before labels came from the app holds MCP-coded labels; it is never counted."""
+    """Only warehouses with the current app labels and product identity schema may be counted."""
+    columns = {r[1] for r in wh.execute("PRAGMA table_info(review)")}
     if wh.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('review_star', 'app_snapshot')"
-                  ).fetchone()[0] != 2:
-        raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse was built before labels came from the app DB; "
+                  ).fetchone()[0] != 2 or "shop_key" not in columns:
+        raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse needs the current app labels and product schema; "
                            "call build_warehouse again")
 
 
@@ -4045,11 +4044,11 @@ def _check_seed(seed) -> int:
 
 
 def _claim_ready(wh) -> None:
-    """The claim tools need a warehouse built by this version (posted_date, near_dup, claim tables; IM-Q130)."""
+    """The claim tools need the current warehouse, including shop identity separate from product keys."""
     columns = {row[1] for row in wh.execute("PRAGMA table_info(review)")}
     tables = {row[0] for row in wh.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    if "posted_date" not in columns or not {"near_dup", "claim_catalogue"} <= tables:
-        raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse was built before the claim layer; "
+    if not {"posted_date", "shop_key"} <= columns or not {"near_dup", "claim_catalogue"} <= tables:
+        raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse needs the current product and claim schema; "
                                                        "call build_warehouse again")
 
 
@@ -4081,10 +4080,6 @@ def _current_norm(wh) -> str:
     return _block_norm(target[0])
 
 
-def _shop(platform: str, product_key: str) -> str:
-    return ":".join(product_key.split(":")[:2]) if platform == "shopee" else product_key
-
-
 def claim_input(text: str, platform: str, product_name, theme_code: str, catalogue_version: int) -> dict:
     return {"text": text, "platform": platform, "product_name": product_name, "theme_code": theme_code,
             "catalogue_version": catalogue_version}
@@ -4095,7 +4090,7 @@ def _theme_reviews(wh, book: dict, theme_code: str, version: int | None = None) 
     review_id order, with their customer words and, for a catalogue version, their claim coding state."""
     norm = _current_norm(wh)
     rows = wh.execute(
-        "SELECT v.review_id, v.platform, v.polarity, v.product_key, t.text, p.product_name, r.posted_date "
+        "SELECT v.review_id, v.platform, v.polarity, v.product_key, t.text, p.product_name, r.posted_date, r.shop_key "
         "FROM v_theme_label v JOIN review r ON r.review_id = v.review_id "
         "JOIN review_text t ON t.review_id = v.review_id LEFT JOIN product p ON p.product_key = v.product_key "
         "WHERE v.codebook_version = ? AND v.block_norm = ? AND v.theme_code = ? ORDER BY v.review_id",
@@ -4104,10 +4099,11 @@ def _theme_reviews(wh, book: dict, theme_code: str, version: int | None = None) 
         "SELECT review_id, input_sha256, spec_p, rac_p, gen_p FROM claim_coding_state "
         "WHERE theme_code = ? AND catalogue_version = ? AND status = 'done'", (theme_code, version))}
     out = []
-    for review_id, platform, polarity, product_key, text, product_name, posted in rows:
+    for review_id, platform, polarity, product_key, text, product_name, posted, shop_key in rows:
         words = customer_words(text)
         review = {"review_id": review_id, "platform": platform, "polarity": polarity, "product_key": product_key,
-                  "product_name": product_name, "words": words, "posted_date": posted, "coded": False}
+                  "product_name": product_name, "words": words, "posted_date": posted, "shop_key": shop_key,
+                  "coded": False}
         if version is not None:
             review["input_sha256"] = _sha256(_canonical(claim_input(words, platform, product_name, theme_code, version)))
             state = states.get(review_id)
@@ -4572,7 +4568,7 @@ def _claim_counts_at(path: Path, book: dict, theme_code: str, version: int) -> d
         if codable and not any(r["coded"] for r in codable):
             raise InsightError("NOT_CODED", "no review of this theme is coded under this catalogue version")
         scope = [(r["review_id"], r["platform"], theme_code, version, r["kind"],
-                  int(r["kind"] == "sample" and r["spec_p"] >= CLAIM_SPECIFIC), _shop(r["platform"], r["product_key"]))
+                  int(r["kind"] == "sample" and r["spec_p"] >= CLAIM_SPECIFIC), r["shop_key"])
                  for r in reviews if r["kind"] != "uncoded"]
         params = (theme_code, version)
         filters = [f"theme_code = {_sql_literal(theme_code)}", f"catalogue_version = {version}"]
