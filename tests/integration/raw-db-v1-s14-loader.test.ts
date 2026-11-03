@@ -122,13 +122,24 @@ test('RAWDB-W W7: exact file/run retries count zero; the same video in another r
   const fileRows = snapshot(f.db, tables);
   assert.deepEqual(await loadVideoReadingsToDbV1(f.db, f.artifacts, input, privacy), zero(S14_RUN));
   assert.deepEqual(snapshot(f.db, tables), fileRows);
-  await saveVideoReadingRun(f);
+  const firstStored = await saveVideoReadingRun(f);
   assert.deepEqual(await loadVideoReadingsToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy), { ...S14_RECEIPT, runId: f.runId, videosInserted: 0 });
   const first = snapshot(f.db, tables);
   assert.deepEqual(await loadVideoReadingsToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy), zero(f.runId));
   assert.deepEqual(snapshot(f.db, tables), first);
+  const alias = path.join(f.root, 'same-run-s14.json');
+  await fs.writeFile(alias, JSON.stringify({ declare: S14_DOCUMENT.declare, records: firstStored.flatMap(s => [
+    { files: [{ logicalPath: 'reading.json', content: s.prepared.reading }] }, { kind: 'modelCall', ...s.capture },
+  ]) }));
+  assert.deepEqual(await loadVideoReadingsToDbV1(f.db, f.artifacts, { file: alias, runId: f.runId }, privacy),
+    { ...zero(f.runId), captures: 2, readingsAlreadyPresent: 2 }, 'another input of the same run reuses its readings');
+  assert.deepEqual(snapshot(f.db, ['video_reading', 'video_segment']),
+    { video_reading: first.video_reading, video_segment: first.video_segment });
+  assert.deepEqual(await loadVideoReadingsToDbV1(f.db, f.artifacts, { file: alias, runId: f.runId }, privacy), zero(f.runId));
   const secondRun = await startRun(f.service, ['INSIGHT']);
   const stored = await saveVideoReadingRun({ ...f, runId: secondRun });
+  assert.deepEqual(stored.map(s => s.capture.responseSha256), firstStored.map(s => s.capture.responseSha256),
+    'identical answers in independent runs still represent distinct readings');
   assert.deepEqual(await loadVideoReadingsToDbV1(f.db, f.artifacts, { runId: secondRun }, privacy), { ...S14_RECEIPT, runId: secondRun, videosInserted: 0 });
   assert.deepEqual(f.db.prepare('SELECT * FROM video ORDER BY rowid').all(), fileRows.video);
   for (const [index, reading] of S14_READINGS.entries()) {
