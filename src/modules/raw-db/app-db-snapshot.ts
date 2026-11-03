@@ -39,3 +39,38 @@ export async function publishAppDbSnapshot(db: Database.Database, dir: string): 
     throw error;
   }
 }
+
+const publishing = new Map<string, number>();
+
+/** publishAppDbSnapshot that never throws: a failure is returned as `{ error }`. Counts as a publish in progress. */
+export async function tryPublishAppDbSnapshot(db: Database.Database, dir: string): Promise<AppDbSnapshot | { error: string }> {
+  const key = path.resolve(dir);
+  publishing.set(key, (publishing.get(key) ?? 0) + 1);
+  try { return await publishAppDbSnapshot(db, dir); }
+  catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
+  finally {
+    const left = publishing.get(key)! - 1;
+    if (left) publishing.set(key, left); else publishing.delete(key);
+  }
+}
+
+/** The running app publishes the snapshot every 10 minutes (owner F368). */
+export const APP_DB_SNAPSHOT_INTERVAL_MS = 10 * 60_000;
+
+/**
+ * Publishes the app DB snapshot every `intervalMs` on a short-lived read-only connection. A tick is skipped while
+ * another publish of the same folder is running; a tick never throws. Returns the stop function.
+ */
+export function startAppDbSnapshotTimer(dbPath: string, intervalMs = APP_DB_SNAPSHOT_INTERVAL_MS): () => void {
+  const dir = defaultSnapshotDir(dbPath);
+  const timer = setInterval(() => {
+    if (publishing.has(path.resolve(dir))) return;
+    let db: BetterSqlite3.Database | undefined;
+    try { db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true }); }
+    catch { return; }
+    const open = db;
+    void tryPublishAppDbSnapshot(open, dir).finally(() => { try { open.close(); } catch { /* nothing left to do */ } });
+  }, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
+}

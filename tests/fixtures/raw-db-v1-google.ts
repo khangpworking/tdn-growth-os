@@ -35,7 +35,7 @@ export async function saveGoogleCapture(
   const stored = await f.artifacts.put(Buffer.from(JSON.stringify(body)));
   f.db.prepare(`INSERT OR IGNORE INTO artifact_manifests
     (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,created_at)
-    VALUES (?,?,'application/json',?,?,'synthetic-google-response-v1',?)`)
+    VALUES (?,?,'application/json',?,?,'1.0.0',?)`)
     .run(stored.sha256, stored.byteSize, stored.relativePath, RETRIEVED_AT, RETRIEVED_AT);
   f.db.prepare(`INSERT INTO analysis_research_automation_captures
     (run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,truncated,retained_at)

@@ -18,6 +18,8 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 03/11/2026 (chủ quyết F366, F367): app tự gán chủ đề bằng Jev ngay sau khi nạp đánh giá Shopee (S05) vào db-v1 và ghi vào `review_code` với `origin` = `APP_JEV` (migration 0069). Cách gán giống hệt MCP Insight. Một đánh giá đã có nhãn của bản bộ chủ đề thì không gọi Jev lần nữa (§3.3).
 - 03/11/2026 (chủ quyết F376): nhập `CODES` theo cả đánh giá hoặc không gì; lượt gán và lượt nhập chạy mỗi lúc một lượt (khoá tệp SQLite, `LABELS_BUSY`); app chép bản chụp `app-db.snapshot.sqlite` cho MCP Insight sau mỗi lần nạp S05, gán hoặc nhập (§3.3).
 - 04/11/2026 (chủ quyết F381, F385; sau bản soát Astra, migration 0071): `review.state` chỉ là trạng thái của chính đánh giá (`VALID`, `HIDDEN`, `DELETED`); sao thiếu hoặc sai → `rating_star` `NULL`, `state` `VALID`. Bảng mới `product_name_source` ghi tên sản phẩm lấy từ bản ghi nào (§2.2a). Cột mới `raw_capture.response_sha256_basis` nói dấu `response_sha256` băm cái gì (§2.1). `attributes_json` có một dạng khai báo cho mỗi nguồn (§3).
+
+- 04/11/2026 (chủ quyết F368, F389): S06 đánh giá TikTok Shop vào `review` (không lưu tên, không tính khoá từ tên hiển thị) và được gán chủ đề như S05. Khi bật `TDN_RAW_DB_AUTOLOAD_ENABLED=true`, app tự nạp cả 7 nguồn db-v1 của một lần chạy (S05, S06, S07, S02b, S14, S19b, S29) rồi gán chủ đề, ngay khi bước thu (`COLLECTION`) của lần chạy xong với `SUCCEEDED` hoặc `PARTIAL`; mỗi lần ghi một dòng `raw_db_autoload` (migration 0070). `raw-db-load --source AUTOLOAD --run <id>` chạy cùng chuỗi bằng tay (§3, §5.0).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -178,14 +180,14 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | external_id | TEXT | Có | Mã gốc của nguồn | `reviewId` | `review.review_id` | `cid` (bộ kẽm công khai: `anon-…`) |
 | product_key | TEXT | Không | Sản phẩm được đánh giá | `shopee:` + `itemId` | `tiktok_shop:` + `product_id` | `NULL`; sản phẩm của video nằm ở bảng `video` |
 | video_url | TEXT | Không | Video có bình luận | — | — | `videoWebUrl` (đúng dạng `https://www.tiktok.com/@<handle>/video/<id>`) |
-| reviewer_key | TEXT | Không | HMAC-SHA256 của **mã tác giả do nguồn trả về** (khoá bí mật của hệ thống). Không tính từ tên hiển thị khi nguồn có mã tác giả | **`NULL`**: bộ thu gói S chưa giữ mã tác giả (change `shopee-public-review-writer-key`) | từ `review_user` (nguồn không có mã số; bộ công khai đã thay bằng `anon-…`) | HMAC-SHA256(khoá, `"tdn:tiktok.com:author:v1\0"` + `uid`), cùng khoá và cùng cách băm với bộ thu app; `NULL` khi `uid` thiếu hoặc không phải số (bộ kẽm đã đổi `uid` thành `anon-…`) |
-| reviewer_name | TEXT | Không | **Tên thật. Chỉ lưu trong cơ sở dữ liệu riêng.** Không xuất ra kho công khai, không in vào báo cáo | **Chưa có**: bộ thu hiện bỏ trường này | **Không có trong bộ công khai**: `review_user` đã là mã ẩn danh | **Không lưu** (chủ chọn F335 (a)): không lưu `uniqueId` hay tên ở đâu cả |
-| reviewer_name_state | TEXT | Có | `real`, `masked_by_source`, `not_provided` | `not_provided` | `masked_by_source` | `not_provided` |
-| rating_star | INTEGER | Không | Số sao 1–5. `NULL` với bình luận | `ratingStar` | `review.rating` (chuỗi → số) | `NULL` |
-| text | TEXT | Không | Lời viết, giữ nguyên | `comment` | `review.comment` (hoặc `review.display_text`) | `text` đã che: bỏ @tên, link hồ sơ, số điện thoại, email (`sanitizeTikTokCommentText` của bộ thu); `attributes_json.textForm` = `SANITIZED` |
+| reviewer_key | TEXT | Không | HMAC-SHA256 của **mã tác giả do nguồn trả về** (khoá bí mật của hệ thống). Không tính từ tên hiển thị khi nguồn có mã tác giả | **`NULL`**: bộ thu gói S chưa giữ mã tác giả (change `shopee-public-review-writer-key`) | **`NULL`** (chủ quyết F368, luật L2): nguồn không có mã tác giả; tên hiển thị `review_user` không phải một người nên không dùng để tính khoá | HMAC-SHA256(khoá, `"tdn:tiktok.com:author:v1\0"` + `uid`), cùng khoá và cùng cách băm với bộ thu app; `NULL` khi `uid` thiếu hoặc không phải số (bộ kẽm đã đổi `uid` thành `anon-…`) |
+| reviewer_name | TEXT | Không | **Tên thật. Chỉ lưu trong cơ sở dữ liệu riêng.** Không xuất ra kho công khai, không in vào báo cáo | **Chưa có**: bộ thu hiện bỏ trường này | **Không lưu**: `review_user` không bao giờ được đọc vào db-v1 | **Không lưu** (chủ chọn F335 (a)): không lưu `uniqueId` hay tên ở đâu cả |
+| reviewer_name_state | TEXT | Có | `real`, `masked_by_source`, `not_provided` | `not_provided` | `masked_by_source` khi `is_anonymous` đúng, còn lại `not_provided` | `not_provided` |
+| rating_star | INTEGER | Không | Số sao 1–5. `NULL` với bình luận | `ratingStar` | `review.rating` chỉ khi là số nguyên 1–5 (số hoặc chuỗi số); khác thì `NULL` và đếm `ratingInvalid` trong kết quả nạp | `NULL` |
+| text | TEXT | Không | Lời viết, giữ nguyên | `comment` | `review.display_text` giữ nguyên (đúng lời MCP Insight đọc) | `text` đã che: bỏ @tên, link hồ sơ, số điện thoại, email (`sanitizeTikTokCommentText` của bộ thu); `attributes_json.textForm` = `SANITIZED` |
 | variation | TEXT | Không | Phân loại hàng đã mua | `variation` | `sku_specification` | — |
-| attributes_json | TEXT | Không | Nhãn của sàn, ví dụ «Công dụng», «Đối tượng sử dụng». Dạng theo từng nguồn (bảng dưới) | `attributes` | — | JSON chỉ có khoá có giá trị: `textForm`, `byVideoAuthor`, `likedByAuthor`, `pinnedByAuthor`, `exclusionReason` (`REPLY`, `EMPTY`, `TAG_ONLY`, `EMOJI_ONLY`, cùng luật bộ thu) |
-| posted_at | TEXT | Không | Lúc viết (ISO, +07:00) | `createdAt` | `review.review_timestamp` (mili giây → ISO) | `createTimeISO` (→ +07:00) |
+| attributes_json | TEXT | Không | Nhãn của sàn, ví dụ «Công dụng», «Đối tượng sử dụng». Dạng theo từng nguồn (bảng dưới) | `attributes` | `NULL` | JSON chỉ có khoá có giá trị: `textForm`, `byVideoAuthor`, `likedByAuthor`, `pinnedByAuthor`, `exclusionReason` (`REPLY`, `EMPTY`, `TAG_ONLY`, `EMOJI_ONLY`, cùng luật bộ thu) |
+| posted_at | TEXT | Không | Lúc viết (ISO, +07:00) | `createdAt` | `review.review_timestamp` (mili giây → ISO +07:00) | `createTimeISO` (→ +07:00) |
 | like_count | INTEGER | Không | Lượt thích | — | `digg_count` | `diggCount` |
 | reply_count | INTEGER | Không | Số trả lời | — | — | `replyCommentTotal` |
 | replies_to_external_id | TEXT | Không | Trả lời cho bình luận nào | — | — | `repliesToId` khi khác `NULL` và khác `"0"` |
@@ -210,6 +212,8 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | S05 | `NULL` khi sàn không có nhãn; nếu không thì mảng JSON không rỗng, mỗi phần tử là chuỗi không rỗng, giữ thứ tự của nguồn |
 | S06 | Chỉ `NULL` (chưa lưu nhãn) |
 | S07 | Đối tượng JSON, luôn có `textForm` = `"SANITIZED"`; khoá khác chỉ có thể là `byVideoAuthor` (`true`), `likedByAuthor`, `pinnedByAuthor` (true/false), `exclusionReason` (`REPLY`, `EMPTY`, `TAG_ONLY`, `EMOJI_ONLY`) |
+
+8. **S06 (chủ quyết F368):** nạp từ các lần gọi `kalodata.product.comment.insight` đã lưu của lần chạy (`raw-db-load --source S06 --run <id>`, không có `--file`), qua bộ đọc có kiểm dấu như các nguồn khác. Một `raw_capture` mỗi lần gọi (`S06:<runId>:<ordinal>`, nhà cung cấp, thao tác, kết quả và `billing` như đã lưu, dấu phản hồi). `review_key` = `S06:` + `review.review_id` (mã số); dòng thiếu mã số thì không nạp và đếm `reviewIdMissing`. `variation` = `sku_specification`, `like_count` = `digg_count`, `state` = `VALID`, `product_key` = `tiktok_shop:` + `product_id`. Sản phẩm chưa có trong `product` thì chỉ thêm khi chính lần chạy đã lưu tên (`kalodata.product.detail` hoặc `kalodata.product.rank`), không đoán; không có tên thì cả lần nạp dừng (`RAW_DB_PRODUCT_NAME_MISSING`). Người viết S06 đếm theo đánh giá (view `writer_count`). Nạp lại cùng lần chạy ra toàn số 0; cả lần nạp là một giao dịch.
 
 ### 3.1 `review_point` — ý khen, chê do AI của nguồn gom (S06)
 
@@ -285,7 +289,7 @@ Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, t�
 **App tự gán bằng Jev (`origin` = `APP_JEV`, chủ quyết F366, F367):**
 
 1. **Khi nào chạy:** ngay sau khi lệnh `raw-db-load --source S05` nạp thật (không `--dry-run`) và giao dịch nạp đã ghi xong, app gán các đánh giá đủ điều kiện của lần chạy đó. Jev tắt hoặc thiếu khoá thì việc nạp vẫn thành công, kết quả ghi `labelling: SKIPPED_JEV_DISABLED`. `--no-label` bỏ qua việc gán. `raw-db-load --source LABELS [--run <id>] [--max-calls N] [--dry-run]` gán phần còn lại hoặc các đánh giá nạp trước đó; `--dry-run` chỉ lập kế hoạch, không gọi mạng, không đổi cơ sở dữ liệu.
-2. **Đủ điều kiện:** đánh giá sản phẩm Shopee (`platform = 'shopee'`, `kind = 'product_review'`), lời (`text` rồi mỗi mục `attributes_json` thêm hai dấu cách đứng trước) không trống, và chưa có dòng `review_code` nào của bản bộ chủ đề hiện tại (bất kể `origin`). Không bao giờ gọi Jev cho đánh giá không đủ điều kiện, nên một nhãn không bị trả tiền hai lần.
+2. **Đủ điều kiện:** đánh giá sản phẩm Shopee hoặc TikTok Shop (`platform` là `shopee` hoặc `tiktok_shop`, `kind = 'product_review'`; chủ quyết F368), lời (`text` rồi mỗi mục `attributes_json` thêm hai dấu cách đứng trước) không trống, và chưa có dòng `review_code` nào của bản bộ chủ đề hiện tại (bất kể `origin`). Không bao giờ gọi Jev cho đánh giá không đủ điều kiện, nên một nhãn không bị trả tiền hai lần.
 3. **Giống MCP:** lời gửi Jev, tên sản phẩm (`product.product_name`), khối (chọn theo từ khoá hoặc danh mục đã áp dụng của lần chạy, đọc từ `scope.json` của lần chạy hoặc từ khoá của lần chạy), câu hỏi, ngưỡng và mã lỗi (`JEV_THEME_UNAVAILABLE`, `JEV_THEME_INVALID`) giống `tools/mcp-insight`. Cùng lời và cùng câu trả lời thì ra cùng nhãn (chủ đề, khối, `p_yes`, `polarity`, `kept`/`unclear`, `Sau mua`).
 4. **Ghi dòng:** một đánh giá một lần gọi Jev; các dòng của một đánh giá ghi trong một giao dịch sau khi câu trả lời đã được kiểm. `confidence` = `p_yes`, `text_sha256` = SHA-256 của cả lời đã gửi, `coded_at` = lúc gọi, `block_key` = khối đã chọn. Jev trả lời mà không có chủ đề nào thì ghi một dòng `NO_THEME`. Bộ chủ đề chưa có trong `codebook` thì được thêm (quy tắc như `CODES`).
 5. **Giới hạn và lỗi:** mỗi lượt gán gọi nhiều nhất `limits.maxCallsPerRun` lần (hoặc `--max-calls` nếu nhỏ hơn). Một lần gọi lỗi thì không ghi gì cho đánh giá đó và dừng lượt; các đánh giá đã ghi được giữ. Kết quả: `{ eligible, called, labelled, noTheme, rowsInserted, failed, skipped }`.
@@ -518,6 +522,15 @@ Mọi dòng mang nhãn giả thuyết, mức Yếu. Không dùng làm bằng ch�
 Dữ liệu tổng hợp. Không phải người thật. Không nêu tên nguồn trong báo cáo.
 
 ## 5. Câu lệnh SQL (SQLite)
+
+### 5.0 Thứ tự nạp và tự nạp sau mỗi lần chạy (chủ quyết F368, F389)
+
+- **Thứ tự nạp của một lần chạy:** S05, S06, S07, S02b, S14, S19b, S29 (S02b trước S14, §4.1), rồi gán chủ đề cho đánh giá sản phẩm của lần chạy (S05, S06; §3.3). Nguồn nào lần chạy không có thì bỏ qua (`SKIPPED_NO_CAPTURES`).
+- **Khi nào app tự nạp:** khi `TDN_RAW_DB_AUTOLOAD_ENABLED=true` (không đặt thì tắt), ngay khi bước `COLLECTION` của lần chạy xong với `SUCCEEDED` hoặc `PARTIAL` và lần chạy chuyển sang dựng báo cáo; việc nạp chạy sau khi giao dịch đó đã ghi, trên kết nối riêng. Bước `REPORTS` hỏng sau đó (ví dụ `MARKET_NUMBER_TRACE_BLOCKED`) không chặn và không xoá phần đã nạp; việc nạp không đổi trạng thái, kết quả, báo cáo hay giờ chạy của lần chạy và của bước `REPORTS`. Bước thu `FAILED`, `UNAVAILABLE`, `CANCELLED` hoặc bị bỏ thì không tự nạp.
+- **Mỗi nguồn riêng:** dùng bộ nạp `--run` sẵn có (không `--file`). Một nguồn lỗi không dừng nguồn sau; kết quả từng nguồn ghi riêng. S07, S02b, S14 đọc khoá riêng tư như lệnh CLI (`TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE`); thiếu khoá thì nguồn đó `SKIPPED_NO_PRIVACY_KEY`, nguồn khác vẫn chạy.
+- **Gán chủ đề:** Jev tắt thì vẫn nạp, `labelling` = `SKIPPED_JEV_DISABLED`. Số lần gọi tối đa = `limits.maxCallsPerRun` của bộ chủ đề. Lượt gán giữ khoá `raw-db-labels.lock.sqlite`; đang bận thì ghi `LABELS_BUSY`, lần chạy sau hoặc lệnh `AUTOLOAD` gán tiếp.
+- **Ghi lại:** mỗi lần thử một dòng `raw_db_autoload` (chỉ thêm, không sửa, không xoá): `run_id`, `origin` (`APP` hoặc `CLI`), `started_at`, `finished_at`, một JSON kết quả cho mỗi nguồn (`s05` … `s29`: `LOADED` kèm số dòng, `SKIPPED_NO_CAPTURES`, `SKIPPED_NO_PRIVACY_KEY` hoặc `FAILED` kèm mã lỗi) và `labelling`. Sau mỗi lần thử, app chép bản chụp `app-db.snapshot.sqlite` (§3.3 mục 7). App đang chạy (máy chủ có quyền ghi, khi bật cờ) còn chép bản chụp mỗi 10 phút; đang chép thì bỏ lượt đó.
+- **Bằng tay:** `raw-db-load --source AUTOLOAD --run <id> [--privacy-file <path>] [--dry-run]` chạy cùng chuỗi cho lần chạy cũ hoặc để thử lại; `--dry-run` không ghi gì. Lần chạy đã dựng báo cáo trước khi bật cờ, hoặc app tắt giữa chừng, thì dùng lệnh này.
 
 ```sql
 PRAGMA foreign_keys = ON;
@@ -952,6 +965,24 @@ SELECT r.review_key, r.source_code, r.platform, r.product_key, r.rating_star,
        CASE WHEN r.rating_star BETWEEN 1 AND 3 THEN 'tieu_cuc'
             WHEN r.rating_star BETWEEN 4 AND 5 THEN 'tich_cuc' END AS star_sentiment
 FROM review r;
+
+CREATE TABLE raw_db_autoload (
+  attempt_id  INTEGER PRIMARY KEY,
+  run_id      TEXT NOT NULL REFERENCES analysis_research_automation_runs(run_id),
+  origin      TEXT NOT NULL CHECK (origin IN ('APP','CLI')),
+  started_at  TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  s05         TEXT NOT NULL CHECK (json_valid(s05)),
+  s06         TEXT NOT NULL CHECK (json_valid(s06)),
+  s07         TEXT NOT NULL CHECK (json_valid(s07)),
+  s02b        TEXT NOT NULL CHECK (json_valid(s02b)),
+  s14         TEXT NOT NULL CHECK (json_valid(s14)),
+  s19b        TEXT NOT NULL CHECK (json_valid(s19b)),
+  s29         TEXT NOT NULL CHECK (json_valid(s29)),
+  labelling   TEXT NOT NULL CHECK (json_valid(labelling)),
+  CHECK (finished_at >= started_at)
+);
+CREATE INDEX raw_db_autoload_by_run ON raw_db_autoload(run_id, attempt_id);
 
 -- Example: kept theme labels per theme for one product and codebook version (NO_THEME = coded, no theme).
 SELECT c.theme_code, c.polarity, count(*) AS reviews

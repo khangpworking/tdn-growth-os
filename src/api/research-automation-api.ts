@@ -164,6 +164,8 @@ export interface ResearchAutomationApiConfiguration {
   /** Opt-in private number evidence, independent of HTML/trace rendering. */
   readonly metricEvidenceEnabled?: boolean;
   readonly metricEvidenceR2?: NodeJS.ProcessEnv | undefined;
+  /** OWNER writer only: called when a run's collection is final (db-v1 autoload, TDN_RAW_DB_AUTOLOAD_ENABLED=true). */
+  readonly onCollectionFinal?: (runId: string) => void;
   /** Market auto-runner for the OWNER writer only; present only when its flag is exactly "1". */
   readonly metricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
   /** Search-interest lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
@@ -490,6 +492,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (videoWatch) void videoWatch.sweep().catch(() => undefined);
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
+        ...(configuration.onCollectionFinal ? { onCollectionFinal: configuration.onCollectionFinal } : {}),
         ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
         ...(configuration.tikTokCommentsCollector ? { tikTokCommentsCollector: configuration.tikTokCommentsCollector } : {}),
         ...(l9Jev ? { l9Jev } : {}),
