@@ -192,7 +192,8 @@ test('RAWDB-T T8: stored S07 reads verified pages, rejects tampering and require
     assert.equal(rows[0]!.reviewer_key, s07AuthorKey('author', '998877'));
     assert.equal(rows[1]!.reviewer_key, rows[0]!.reviewer_key);
     assert.equal(rows[4]!.text, '[handle removed]');
-    assert.equal(rows[6]!.replies_to_external_id, '2000');
+    // Stored sanitized rows keep isReply but no parent id (collector contract), so the run path cannot name the parent.
+    assert.equal(rows[6]!.replies_to_external_id, null);
     assert.deepEqual(JSON.parse(rows[3]!.attributes_json as string), { textForm: 'SANITIZED', byVideoAuthor: true });
     assert.deepEqual(JSON.parse(rows[4]!.attributes_json as string), { textForm: 'SANITIZED', exclusionReason: 'TAG_ONLY' });
     assert.deepEqual(f.db.prepare('SELECT video_url,product_key,link_basis,author_key FROM video').all(), [
