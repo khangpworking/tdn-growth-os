@@ -926,7 +926,8 @@ def _app_rows(con, reviews: list[dict], version: str) -> dict:
     """The app's db-v1 rows for the warehouse reviews, read from the snapshot. A review matches the one
     `product_review` row with its platform and source review ID; two or more matches leave it unmatched."""
     tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')")}
-    out = {"matched": {}, "ambiguous": 0, "stars": {}, "codes": {}, "codebook_sha256": None}
+    out = {"matched": {}, "ambiguous": 0, "stars": {}, "codes": {}, "codebook_sha256": None,
+           "codebook_table": "codebook" in tables}
     if "review" not in tables:
         return out
     found = {}
@@ -970,7 +971,7 @@ def _proved_codes(app: dict, reviews: list[dict], version: str) -> tuple[dict, i
     """The app rows whose review text is the warehouse text (the app's text proof: sha256 of text + attributes).
     A NO_THEME row imported from an MCP run carries the MCP coding-input hash, which also holds the text.
     One failing row drops all the review's rows. Returns (rows by review, reviews dropped)."""
-    if (app["codes"] or app["codebook_sha256"] is not None) and app["codebook_sha256"] != _codebook_sha():
+    if (app["codes"] or app["codebook_table"]) and app["codebook_sha256"] != _codebook_sha():
         raise InsightError("APP_CODEBOOK_MISMATCH",
                            "the app codebook row of the repo version is missing or has a different definition_sha256")
     by_id = {r["review_id"]: r for r in reviews}

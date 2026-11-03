@@ -97,7 +97,7 @@ def test_z3_text_proof_rejects_stale_app_labels(app_labels, sandbox):
     built = success(sandbox.call("build_warehouse"))
     assert {r["review_id"] for r in sandbox.rows("label")} == {"shopee:21"}
     assert {r["review_id"] for r in sandbox.rows("coding_state")} == {"shopee:21"}
-    assert built["labelTextMismatch"] == 1
+    assert built["labels"]["labelTextMismatch"] == 1
     counts = sandbox.call("theme_counts")
     coverage(counts, 1, 1)
     assert theme_numbers(counts) == {
@@ -157,6 +157,8 @@ def test_z6_star_counts_use_app_view_per_platform_and_product_and_are_citable(ap
     app.codebook()
     app.seed(sources + [review(888)], app_rows=app_rows)
     app.add_review(review(999, product="101"))  # app row outside this run's warehouse
+    # Shopee listing names come from Metric; star rows name products, never keys.
+    sandbox.metric_products({p: "Sản phẩm thử " + p for p in ("101", "102", "103")})
     success(sandbox.call("build_warehouse"))
     # Exercise the registered tool through the existing FastMCP transport.
     blocks = sync(subject.mcp.call_tool("star_counts", {"run_id": RUN}))
@@ -167,7 +169,8 @@ def test_z6_star_counts_use_app_view_per_platform_and_product_and_are_citable(ap
         ("shopee", "tieu_cuc"): 3, ("shopee", "tich_cuc"): 2, ("shopee", None): 1,
         ("tiktok_shop", "tieu_cuc"): 1, ("tiktok_shop", "tich_cuc"): 2, ("tiktok_shop", None): 1,
     }
-    products = {key: r["product"] for r in app_rows for key in (app_product(r), warehouse_product(r))}
+    products = {key: r["product"] for r in app_rows
+                for key in (app_product(r), warehouse_product(r), "Sản phẩm thử " + r["product"])}
     assert star_numbers(product_rows, products) == {
         ("shopee", "101", "tieu_cuc"): 2,
         ("shopee", "102", "tieu_cuc"): 1, ("shopee", "102", "tich_cuc"): 1,
@@ -184,7 +187,7 @@ def test_z6_star_counts_use_app_view_per_platform_and_product_and_are_citable(ap
         assert json.loads(stored["numbers_json"])["reviews"] == row["reviews"]
     cited = next(r for r in platform_rows if r["platform"] == "shopee" and r["star_sentiment"] == "tieu_cuc")
     section = success(sandbox.call("submit_section", part=13,
-        text="Có 3 đánh giá theo số sao sau mua [^c1].", claims=[dict(
+        text="Có 3 đánh giá theo số sao sau mua, dưới ngưỡng [^c1].", claims=[dict(
             ref="c1", evidence=[dict(count_id=cited["count_id"], part=None)],
             confidence="Yếu", step="Sau mua", hypothesis=False, conclusion=False,
         )]))

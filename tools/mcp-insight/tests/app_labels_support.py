@@ -1,9 +1,10 @@
 """RAWDB-Z synthetic app rows; sources still use the existing MCP harness.
 
 COMMON-Z pins the warehouse columns, not the star response envelope. The star
-adapter accepts long count rows in ``rows`` (product_key absent for platform
-totals), or separate ``by_platform``/``by_product`` lists. Product keys may be
-app or warehouse identities; neither choice changes the hand-counted oracle.
+adapter accepts long count rows in ``rows`` (product_key absent or product
+"all" for platform totals), or separate ``by_platform``/``by_product`` lists.
+Products may be app or warehouse keys, or private refs with the listing
+``product_name``; no choice changes the hand-counted oracle.
 Coverage metadata may be an integer or a per-platform integer mapping.
 """
 
@@ -137,8 +138,10 @@ def star_rows(result):
     """Normalize only envelope choices absent from COMMON-Z; keep actual rows/IDs."""
     success(result)
     rows = result.get("rows", [])
-    platforms = result.get("by_platform", [r for r in rows if r.get("product_key") is None])
-    products = result.get("by_product", [r for r in rows if r.get("product_key") is not None])
+    def total(row):
+        return row.get("product_key") is None and row.get("product", "all") == "all"
+    platforms = result.get("by_platform", [r for r in rows if total(r)])
+    products = result.get("by_product", [r for r in rows if not total(r)])
     assert platforms and products, "star counts must expose both platform and product rows"
     return platforms, products
 
@@ -148,14 +151,15 @@ def star_numbers(rows, products=None):
     for row in rows:
         sentiment = row["star_sentiment"]
         # COMMON-Z names the two sentiments but leaves the no-star token open.
-        if sentiment in (None, "no_star", "khong_co_sao"):
+        if sentiment in (None, "no_star", "khong_sao", "khong_co_sao"):
             sentiment = None
         assert sentiment in ("tich_cuc", "tieu_cuc", None)
         assert type(row["reviews"]) is int and row["reviews"] >= 0
         if products is None:
             key = (row["platform"], sentiment)
         else:
-            key = (row["platform"], products[row["product_key"]], sentiment)
+            product = row.get("product_key") or row["product_name"]
+            key = (row["platform"], products[product], sentiment)
         assert key not in numbers, "duplicate star count row"
         numbers[key] = row["reviews"]
     return {key: count for key, count in numbers.items() if count}
