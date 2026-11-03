@@ -309,7 +309,8 @@ async function captureResponse(db: Database.Database, artifacts: ContentAddresse
   };
 }
 
-async function readRawFile(file: string, sourceCode: string): Promise<{ declare: Record<string, unknown>; records: Record<string, unknown>[]; sha12: string; relative: string }> {
+/** Reads a raw-v1 / kem-raw-v1 file of one source: declare, records, the first 12 hex of the file SHA-256 and its repo-relative path. */
+export async function readRawFile(file: string, sourceCode: string): Promise<{ declare: Record<string, unknown>; records: Record<string, unknown>[]; sha12: string; relative: string }> {
   const bytes = await fs.readFile(file);
   const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   const declare = isRecord(value) && isRecord(value.declare) ? value.declare : null;

@@ -74,6 +74,23 @@ export function sanitizeTikTokCommentText(value: string): string {
     .replace(/@[\p{L}\p{N}._-]+/gu, '[handle removed]');
 }
 
+/** Writer key: HMAC-SHA256(salt, "tdn:tiktok.com:<domain>:v1\0" + value), hex. The one keying used by this collector
+ * (domain `author` for a numeric uid) and by the db-v1 raw-db loader (also `video-author-handle`). */
+export function tikTokPrivacyKey(salt: Uint8Array, domain: string, value: string): string {
+  return createHmac('sha256', salt).update(`tdn:tiktok.com:${domain}:v1\0`).update(value).digest('hex');
+}
+
+/** Exclusion of contact-only or reply text, decided on the original text before redaction. */
+export function tikTokCommentExclusionReason(text: string | null, isReply: boolean): 'REPLY' | 'EMPTY' | 'TAG_ONLY' | 'EMOJI_ONLY' | null {
+  // Contact-only text is excluded explicitly before redaction could make
+  // the placeholder look meaningful. Human words remain source evidence.
+  const withoutTags = text?.replace(/@[\p{L}\p{N}._-]+/gu, '') ?? '';
+  const tagOnly = text !== null && /@[\p{L}\p{N}._-]+/u.test(text) && !/[\p{L}\p{N}]/u.test(withoutTags);
+  const empty = text === null || !text.trim();
+  const emojiOnly = text !== null && !empty && !tagOnly && !/[\p{L}\p{N}]/u.test(text);
+  return isReply ? 'REPLY' : empty ? 'EMPTY' : tagOnly ? 'TAG_ONLY' : emojiOnly ? 'EMOJI_ONLY' : null;
+}
+
 /** Salt and raw seller IDs are copied into a closure and never returned.
  * No environment reads, generated key, hash-to-author map or person verification. */
 export function createTikTokCommentPrivacy(configuration: { salt: Uint8Array; keyId: string; sellerAuthorIds?: readonly string[] }) {
@@ -82,7 +99,7 @@ export function createTikTokCommentPrivacy(configuration: { salt: Uint8Array; ke
   const salt = Buffer.from(configuration.salt);
   if (['utf8', 'hex', 'base64', 'base64url'].some(encoding => salt.toString(encoding as BufferEncoding) === configuration.keyId)) fail();
   const sellers = new Set(configuration.sellerAuthorIds ?? []); if ([...sellers].some(id => numericId(id) === null)) fail();
-  const key = (domain: string, value: string) => createHmac('sha256', salt).update(`tdn:tiktok.com:${domain}:v1\0`).update(value).digest('hex');
+  const key = (domain: string, value: string) => tikTokPrivacyKey(salt, domain, value);
   const profile: TikTokCommentPrivacyProfile = Object.freeze({ profileVersion: 'tiktok-comment-privacy-v1' as const, platform: 'tiktok' as const,
     keyId: configuration.keyId, keyCommitment: key('key-continuity', 'configured'),
     voicePolicyCommitment: key('declared-seller-policy', canonicalJson([...sellers].sort())), algorithm: 'HMAC-SHA256' as const });
@@ -121,13 +138,7 @@ export function createTikTokCommentPrivacy(configuration: { salt: Uint8Array; ke
       const handle = defaultActor ? row.username : free ? user?.unique_id : row.uniqueId;
       const voice = (author !== null && sellers.has(author)) || (typeof handle === 'string' && handle === video.handle)
         ? 'SELLER_OR_CREATOR' as const : 'CUSTOMER' as const;
-      // Contact-only text is excluded explicitly before redaction could make
-      // the placeholder look meaningful. Human words remain source evidence.
-      const withoutTags = text?.replace(/@[\p{L}\p{N}._-]+/gu, '') ?? '';
-      const tagOnly = text !== null && /@[\p{L}\p{N}._-]+/u.test(text) && !/[\p{L}\p{N}]/u.test(withoutTags);
-      const empty = text === null || !text.trim();
-      const emojiOnly = text !== null && !empty && !tagOnly && !/[\p{L}\p{N}]/u.test(text);
-      const reason = isReply ? 'REPLY' as const : empty ? 'EMPTY' as const : tagOnly ? 'TAG_ONLY' as const : emojiOnly ? 'EMOJI_ONLY' as const : null;
+      const reason = tikTokCommentExclusionReason(text, isReply);
       return { videoId: video.videoId, commentId, videoUrl: video.url, pageIndex, rowIndex,
         text: text === null ? null : sanitizeTikTokCommentText(text), textForm: 'SANITIZED' as const,
         createdAt: free ? epoch(row.create_time) : date(defaultActor ? row.created_at_utc : row.createTimeISO),
@@ -140,7 +151,9 @@ export function createTikTokCommentPrivacy(configuration: { salt: Uint8Array; ke
           likeCount: defaultActor ? row.like_count ?? null : free ? row.digg_count ?? null : row.diggCount ?? null, authorIdentity, voice, isReply })) };
     });
   };
-  return Object.freeze({ profile, sanitizePage });
+  /** db-v1 writer key of a numeric uid (`author`) or of a video URL handle (`video-author-handle`); never the salt. */
+  const writerKey = (domain: 'author' | 'video-author-handle', value: string) => key(domain, value);
+  return Object.freeze({ profile, sanitizePage, writerKey });
 }
 export type TikTokCommentPrivacy = ReturnType<typeof createTikTokCommentPrivacy>;
 
@@ -149,7 +162,7 @@ export type TikTokCommentPrivacy = ReturnType<typeof createTikTokCommentPrivacy>
 export class ApifyTikTokCommentsCollector {
   readonly #attempts = new Map<string, { request: string; result?: TikTokCommentCapture | TikTokCommentPerVideoCaptureWithBytes }>();
   readonly #configuration;
-  constructor(private readonly options: { transport: TikTokCommentsTransport; privacy: TikTokCommentPrivacy;
+  constructor(private readonly options: { transport: TikTokCommentsTransport; privacy: Pick<TikTokCommentPrivacy, 'profile' | 'sanitizePage'>;
     actor?: TikTokCommentActor; approvedMaxTotalChargeUsd: number; maxCommentsPerVideo?: number }) {
     if (!Number.isFinite(options.approvedMaxTotalChargeUsd) || options.approvedMaxTotalChargeUsd <= 0 || options.approvedMaxTotalChargeUsd > 10000) fail();
     const actor = options.actor ?? TIKTOK_COMMENT_ACTORS.default;
