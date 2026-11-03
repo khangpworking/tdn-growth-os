@@ -62,13 +62,14 @@ export function collectionInput(overlapOnly = false, missingReviewId = false): P
 export async function rawDbFixture(t: TestContext, names = true, missingReviewId = false) {
   const f = await fixture(t, names ? 'on' : 'off');
   const foundation = new ShopeeCollectionService(f.db, f.artifacts);
-  async function saveRun(overlapOnly = false) {
+  async function saveRun(overlapOnly = false, edit?: (collected: PublicCollectedPages) => PublicCollectedPages) {
     const runId = await startRun(f.service);
     if (names) {
       // Stop before collection: only the in-process synthetic Metric capture has run.
       await driveUntil(f.service, () => autorun(f.db, runId)?.phase === 'CONFIRM');
     }
-    const collected = collectionInput(overlapOnly, missingReviewId);
+    const original = collectionInput(overlapOnly, missingReviewId);
+    const collected = edit ? edit(original) : original;
     const request = { contractVersion: '2.0.0', runKey: `auto-${runId}`, topic: 'Synthetic raw review load',
       selectionBasis: 'OWNER_EXACT_URL', source: { label: 'Synthetic exact products', acquiredAt: ATTEMPTED_AT },
       productUrls: PRODUCTS.map(p => p.productUrl) };
