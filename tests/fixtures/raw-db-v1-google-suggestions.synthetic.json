@@ -1,0 +1,32 @@
+{
+  "declare": {
+    "formatVersion": "kem-raw-v1",
+    "sourceCode": "S19b",
+    "provider": "google-suggest",
+    "keyword": "synthetic jar",
+    "origin": { "method": "synthetic fixture" }
+  },
+  "records": [
+    {
+      "prefix": "synthetic jar đ",
+      "httpStatus": 200,
+      "requestedAt": "2026-11-03T08:00:00+07:00",
+      "suggestions": ["synthetic jar đ one", "synthetic jar đ two"],
+      "raw": ["synthetic jar đ", ["synthetic jar đ one", "synthetic jar đ two"]]
+    },
+    {
+      "prefix": "synthetic jar e",
+      "httpStatus": 503,
+      "requestedAt": "2026-11-03T08:00:01+07:00",
+      "suggestions": ["this failed response must not become a suggestion"],
+      "raw": { "error": "synthetic unavailable" }
+    },
+    {
+      "prefix": "unrelated term",
+      "httpStatus": 200,
+      "requestedAt": "2026-11-03T08:00:02+07:00",
+      "suggestions": ["unrelated suggestion"],
+      "raw": ["unrelated term", ["unrelated suggestion"]]
+    }
+  ]
+}
