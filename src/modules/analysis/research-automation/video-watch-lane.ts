@@ -1,7 +1,7 @@
 // Video-watch lane for the automated Market flow (S14, automated). Off unless the flag is exactly "1".
 //
 // After the extra searches, the collection step takes at most 10 public TikTok videos (the run's stored selection first, then the
-// top-selling videos, then the stored TikTok search rows in position order), first reads each video's own Vietnamese subtitle file:
+// top-selling videos; owner F356: TikTok search rows are no longer watched), first reads each video's own Vietnamese subtitle file:
 // when it is valid the segments are copied verbatim and the model is asked ONE text-only question (about the product? what kind of
 // video?). Otherwise it downloads the short video into the media folder and asks the model ONE time what was said. The strictly
 // validated result is stored as an unverified seller-voice reading.
@@ -36,8 +36,8 @@ const validateReading = ajv.compile<AutomatedVideoReading>({ $ref: `${readingSch
 export const VIDEO_WATCH_FLAG = 'TDN_RESEARCH_VIDEO_WATCH_ENABLED';
 export const VIDEO_WATCH_PROFILE = 'video-watch-v1' as const;
 export const VIDEO_WATCH_MAX_VIDEOS = 10;
-/** With the automated top-selling lookup on, at most five TOP_SELLING candidates (owner rule, 22/10). */
-export const VIDEO_WATCH_MAX_TOP_SELLING = 5;
+/** With the automated top-selling lookup on, at most ten TOP_SELLING candidates (owner rule 22/10, raised by F356 03/11). */
+export const VIDEO_WATCH_MAX_TOP_SELLING = 10;
 /** Usage ordinal inside the collection step (0 Kalodata, 1 exact Shopee, 2 web, 3 trends, 4-6 extra searches, 7 World Bank). */
 export const VIDEO_WATCH_USAGE_ORDINAL = 8;
 export const VIDEO_WATCH_READING_PATH = 'reading.json';
@@ -103,20 +103,11 @@ const exact = (url: unknown): { videoId: string; url: string } | null => {
   if (typeof url !== 'string') return null;
   try { const { videoId, url: exactUrl } = exactTikTokVideoUrl(url); return { videoId, url: exactUrl }; } catch { return null; }
 };
-/** The TikTok account of an exact video URL, compared after NFC + lower-case. Used for ordering only, never shown. */
-const accountOf = (url: string): string => (/^https:\/\/www\.tiktok\.com\/@([^/]+)\/video\//u.exec(url)?.[1] ?? url).normalize('NFC').toLowerCase();
-/** Pure: round-robin by account (pass 1 = each account's first video in list order, pass 2 = each account's second, ...); order inside an account kept. */
-export function spreadAcrossAccounts<T extends { readonly url: string }>(list: readonly T[]): T[] {
-  const groups = new Map<string, T[]>();
-  for (const item of list) { const key = accountOf(item.url); const group = groups.get(key); if (group) group.push(item); else groups.set(key, [item]); }
-  const out: T[] = [];
-  for (let pass = 0; out.length < list.length; pass++) for (const group of groups.values()) if (group[pass]) out.push(group[pass]!);
-  return out;
-}
-/** Pure: selection videos first (stored order), then the run's own top-selling videos (best seller first), then exact TikTok video rows of the stored
- * TIKTOK searches in position order; dedupe by video id (first origin wins); spread search rows across accounts; cap 10. The final order is pinned in the step document and never recomputed on replay.
- * `automatedTopSelling` (the automated lookup, on only with its flag) follows the uploaded top-selling videos, and then at most five TOP_SELLING videos are taken in all. */
-export function videoWatchCandidates(selectionVideos: readonly { readonly url: string }[], queries: readonly StepExpandedQuery[] | undefined,
+/** Pure: selection videos first (stored order), then the run's own top-selling videos (best seller first); dedupe by video id (first origin wins); cap 10.
+ * The final order is pinned in the step document and never recomputed on replay. `queries` is kept for compatibility and adds nothing: search videos are
+ * no longer watched (owner F356 option A), so with no top-selling video only the selection is read, with no search fallback.
+ * `automatedTopSelling` (the automated lookup, on only with its flag) follows the uploaded top-selling videos, and then at most ten TOP_SELLING videos are taken in all. */
+export function videoWatchCandidates(selectionVideos: readonly { readonly url: string }[], _queries: readonly StepExpandedQuery[] | undefined,
   topSellingVideos: readonly { readonly url: string }[] = [], automatedTopSelling?: readonly { readonly url: string }[]): VideoWatchPlan {
   const all: StepVideoWatchCandidate[] = [], seen = new Set<string>();
   const add = (url: unknown, origin: StepVideoWatchCandidate['origin']): void => {
@@ -125,17 +116,10 @@ export function videoWatchCandidates(selectionVideos: readonly { readonly url: s
     seen.add(video.videoId); all.push({ videoId: video.videoId, url: video.url, origin });
   };
   for (const video of selectionVideos) add(video.url, 'SELECTION');
-  if (automatedTopSelling === undefined) for (const video of topSellingVideos) add(video.url, 'TOP_SELLING');
-  else for (const video of [...topSellingVideos, ...automatedTopSelling]) {
-    if (all.filter(item => item.origin === 'TOP_SELLING').length >= VIDEO_WATCH_MAX_TOP_SELLING) break;
-    add(video.url, 'TOP_SELLING');
-  }
-  const rows = (queries ?? []).filter(query => query.kind === 'TIKTOK' && query.status === 'COLLECTED').flatMap(query => query.results)
-    .map((row, index) => ({ row, index })).sort((a, b) => a.row.position - b.row.position || a.index - b.index);
-  for (const row of spreadAcrossAccounts(rows.map(item => item.row))) add(row.url, 'EXPANDED_SEARCH');
-  const spread = all;
-  const candidates = spread.slice(0, VIDEO_WATCH_MAX_VIDEOS);
-  return { candidates, skipped: spread.slice(VIDEO_WATCH_MAX_VIDEOS).map(video => ({ videoId: video.videoId, reason: 'OVER_10_VIDEOS' as const })),
+  // The total cap also bounds TOP_SELLING to ten. Retain overflow so every skipped video is accounted for.
+  for (const video of [...topSellingVideos, ...(automatedTopSelling ?? [])]) add(video.url, 'TOP_SELLING');
+  const candidates = all.slice(0, VIDEO_WATCH_MAX_VIDEOS);
+  return { candidates, skipped: all.slice(VIDEO_WATCH_MAX_VIDEOS).map(video => ({ videoId: video.videoId, reason: 'OVER_10_VIDEOS' as const })),
     candidatesSha256: sha(canonicalJson(candidates)) };
 }
 
@@ -224,11 +208,21 @@ export async function publishAutomatedVideoReading(writer: VideoWatchWriter, bin
 
 export type VerifiedAutomatedVideoReading = { readonly readingSha256: string; readonly voiceLabel: string; readonly segments: readonly { readonly text: string; readonly startSeconds: number; readonly endSeconds: number }[] };
 type Reader = Pick<FoundationSourcePackageReader, 'readFinalizedSourcePackage' | 'readAutomationAttachmentOrigin'>;
-/** Network-free re-read of one stored reading against the run and its pinned candidate list. Not about the product, or OTHER, is stored but never drawn. */
-export async function verifyAutomatedVideoReading(reader: Reader, ref: VideoWatchRef, expected: {
+export interface VideoWatchReadingExpectation {
   readonly workspaceId: string; readonly runId: string; readonly scopeSha256: string; readonly sourceSetSha256: string | null;
   readonly candidates: readonly StepVideoWatchCandidate[]; readonly candidatesSha256: string; readonly readingSha256?: string;
-}): Promise<VerifiedAutomatedVideoReading | 'NOT_ABOUT_PRODUCT' | 'NOT_VERIFIED'> {
+}
+/** Network-free re-read of one stored reading against the run and its pinned candidate list. Not about the product, or OTHER, is stored but never drawn. */
+export async function verifyAutomatedVideoReading(reader: Reader, ref: VideoWatchRef, expected: VideoWatchReadingExpectation): Promise<VerifiedAutomatedVideoReading | 'NOT_ABOUT_PRODUCT' | 'NOT_VERIFIED'> {
+  const read = await readVerifiedAutomatedVideoReading(reader, ref, expected);
+  if (read === 'NOT_VERIFIED') return read;
+  const { reading, readingSha256 } = read;
+  if (!reading.video.aboutProduct || reading.video.videoKind === 'OTHER') return 'NOT_ABOUT_PRODUCT';
+  return { readingSha256, voiceLabel: voiceLabelFor(reading.video.videoKind), segments: reading.segments.map(({ text, startSeconds, endSeconds }) => ({ text, startSeconds, endSeconds })) };
+}
+/** The same checks as `verifyAutomatedVideoReading`, returning the whole stored reading whatever the model judged (the raw-db S14 loader stores them all). */
+export async function readVerifiedAutomatedVideoReading(reader: Reader, ref: VideoWatchRef, expected: VideoWatchReadingExpectation):
+  Promise<{ readonly reading: AutomatedVideoReading; readonly readingSha256: string } | 'NOT_VERIFIED'> {
   try {
     if (sha(canonicalJson(expected.candidates)) !== expected.candidatesSha256) return 'NOT_VERIFIED';
     const source = await reader.readFinalizedSourcePackage(ref.packageId, VIDEO_WATCH_READ_BUDGET);
@@ -250,8 +244,7 @@ export async function verifyAutomatedVideoReading(reader: Reader, ref: VideoWatc
     if (!origin || origin.manifestArtifactSha256 !== source.manifestArtifactSha256 || origin.bindingSha256 !== videoWatchBindingSha256(reading)) return 'NOT_VERIFIED';
     if (!expected.candidates.some(c => c.videoId === reading.video.videoId && c.url === reading.video.videoUrl && c.origin === reading.video.origin)) return 'NOT_VERIFIED';
     if (!HEX64.test(reading.media.sha256) || reading.video.durationSeconds !== reading.media.durationSeconds) return 'NOT_VERIFIED';
-    if (!reading.video.aboutProduct || reading.video.videoKind === 'OTHER') return 'NOT_ABOUT_PRODUCT';
-    return { readingSha256, voiceLabel: voiceLabelFor(reading.video.videoKind), segments: reading.segments.map(({ text, startSeconds, endSeconds }) => ({ text, startSeconds, endSeconds })) };
+    return { reading, readingSha256 };
   } catch { return 'NOT_VERIFIED'; }
 }
 

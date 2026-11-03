@@ -137,7 +137,8 @@ test('save-step row 3: video uses the evolving step and indexes each last captur
   const result = await runSaveStepLane(videoLane(source), evolving, store.context, () => videoFacts({ context: async current => {
     // Like the service's context function, this may append a limitation to the supplied evolving step.
     Object.assign(current, { limitations: [...current.limitations, { code: 'CONTEXT_LIMIT', provider: null, message: 'Keep context limitation.' }] });
-    return { ...await facts.context(current), selectionVideos: [{ url: videoUrls[0]! }], topSellingGap: true };
+    // Both watched videos are selected; the evolving search rows remain web evidence only (F356).
+    return { ...await facts.context(current), topSellingGap: true };
   } }));
   assert.deepEqual(result.step.videoWatch?.videos.map(video => [video.videoId, video.captureIndex]), [
     ['1234567890123456789', 2], ['1234567890123456790', 4],

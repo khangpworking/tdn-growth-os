@@ -1,0 +1,167 @@
+{
+  "declare": {
+    "formatVersion": "kem-raw-v1",
+    "sourceCode": "S14",
+    "sourceName": "Synthetic video reading",
+    "provider": "gemini",
+    "keyword": "synthetic jar"
+  },
+  "records": [
+    {
+      "kind": "package",
+      "files": [
+        {
+          "logicalPath": "reading.json",
+          "content": {
+            "contractVersion": "video-reading-v3",
+            "registryId": "S14",
+            "workspaceId": "11111111-1111-4111-8111-111111111111",
+            "runId": "22222222-2222-4222-8222-222222222222",
+            "scopeSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sourceSetSha256": null,
+            "candidatesSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+            "state": "PREPARED_NOT_ADMITTED",
+            "voice": "SELLER",
+            "captionSource": "NATIVE_SUBTITLE",
+            "video": {
+              "videoUrl": "https://www.tiktok.com/@synthetic_creator_a/video/82001",
+              "videoId": "82001",
+              "origin": "SELECTION",
+              "videoKind": "SELLER_VIDEO",
+              "aboutProduct": true,
+              "durationSeconds": 12.5
+            },
+            "segments": [
+              {
+                "startSeconds": 1,
+                "endSeconds": 3.5,
+                "text": "  Lời giả lập 😀 @synthetic_mention\r\nCafé  "
+              },
+              {
+                "startSeconds": 5.25,
+                "endSeconds": 7.75,
+                "text": "Không khẳng định tác dụng; còn thiếu dữ liệu."
+              }
+            ],
+            "onScreenText": [],
+            "media": {
+              "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "byteSize": 123,
+              "durationSeconds": 12.5,
+              "downloadedAt": "2026-11-03T01:00:00+07:00"
+            },
+            "model": {
+              "modelId": "gemini-synthetic-raw-s14",
+              "responseSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "limitations": [
+              "Synthetic unverified reading."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "modelCall",
+      "provider": "VIDEO_WATCH",
+      "operation": "videowatch.generate",
+      "billing": "PAID_CREDITS",
+      "requestParameters": {
+        "model": "gemini-synthetic-raw-s14",
+        "requestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "captionSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "captionChars": 123
+      },
+      "requestedAt": "2026-11-03T01:00:01Z",
+      "completedAt": "2026-11-03T01:00:02Z",
+      "httpStatus": 200,
+      "outcome": "OK",
+      "responseSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "kind": "package",
+      "files": [
+        {
+          "logicalPath": "reading.json",
+          "content": {
+            "contractVersion": "video-reading-v3",
+            "registryId": "S14",
+            "workspaceId": "11111111-1111-4111-8111-111111111111",
+            "runId": "22222222-2222-4222-8222-222222222222",
+            "scopeSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "sourceSetSha256": null,
+            "candidatesSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "provenance": "AUTOMATED_MODEL_UNVERIFIED",
+            "state": "PREPARED_NOT_ADMITTED",
+            "voice": "SELLER",
+            "captionSource": "MODEL_TRANSCRIBED",
+            "video": {
+              "videoUrl": "https://www.tiktok.com/@synthetic_reading_b/video/82002",
+              "videoId": "82002",
+              "origin": "EXPANDED_SEARCH",
+              "videoKind": "OTHER",
+              "aboutProduct": false,
+              "durationSeconds": 20.25
+            },
+            "segments": [
+              {
+                "startSeconds": 1,
+                "endSeconds": 3.5,
+                "text": "Giọng đọc giả lập: tiếng Việt 🧪"
+              },
+              {
+                "startSeconds": 5.25,
+                "endSeconds": 7.75,
+                "text": "  Dòng thứ hai\nkhông đổi chữ.  "
+              }
+            ],
+            "onScreenText": [
+              {
+                "startSeconds": 0,
+                "endSeconds": 2,
+                "text": "  Nhãn giả lập 🧴\r\n100%?  "
+              },
+              {
+                "startSeconds": 0.5,
+                "endSeconds": 3,
+                "text": "Giá giả lập: 0 ₫"
+              }
+            ],
+            "media": {
+              "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "byteSize": 456,
+              "durationSeconds": 20.25,
+              "downloadedAt": "2026-11-03T02:00:00+07:00"
+            },
+            "model": {
+              "modelId": "gemini-synthetic-raw-s14",
+              "responseSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "limitations": [
+              "Synthetic unverified reading."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "modelCall",
+      "provider": "VIDEO_WATCH",
+      "operation": "videowatch.generate",
+      "billing": "PAID_CREDITS",
+      "requestParameters": {
+        "model": "gemini-synthetic-raw-s14",
+        "requestSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "videoSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "videoByteSize": 456,
+        "mimeType": "video/mp4"
+      },
+      "requestedAt": "2026-11-03T02:00:01Z",
+      "completedAt": "2026-11-03T02:00:02Z",
+      "httpStatus": 200,
+      "outcome": "OK",
+      "responseSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 //
 // At COLLECTION, for Market and Insight runs alike: at most three confirmed, collected TikTok Shop products (top by the run's revenue,
 // unknown last), one paid ranked-video call each (ten videos by revenue). Rows of all products are merged, ranked by revenue then views
-// (largest first, missing last), deduplicated by video id and turned into exact public video URLs; at most five become TOP_SELLING
+// (largest first, missing last), deduplicated by video id and turned into exact public video URLs; at most ten become TOP_SELLING
 // candidates. The creator handle only builds the URL: it is never put in step text, reader text or a log line.
 import type { KalodataProvider, KalodataVideoRankOutcome, KalodataVideoRankResult } from './provider-kalodata.js';
 import type { DateWindow, ProviderCallOptions } from './providers.js';
@@ -14,7 +14,7 @@ import { VIDEO_WATCH_MAX_TOP_SELLING } from './video-watch-lane.js';
 export const TOP_SELLING_VIDEOS_FLAG = 'TDN_RESEARCH_TOP_SELLING_VIDEOS_ENABLED';
 /** Usage ordinal inside the collection step (after 20, the TikTok Shop reviews ordinal). */
 export const TOP_SELLING_VIDEOS_USAGE_ORDINAL = 21;
-/** At most five top-selling videos are read per run (owner rule, 22/10). */
+/** At most ten top-selling videos are read per run (owner rule 22/10, raised by F356 03/11). */
 export const TOP_SELLING_VIDEOS_MAX = VIDEO_WATCH_MAX_TOP_SELLING;
 export const TOP_SELLING_VIDEO_RANK_OUTCOMES: readonly KalodataVideoRankOutcome[] = ['OK', 'EMPTY', 'FAILED', 'AMBIGUOUS_NO_RETRY', 'NOT_RUN_CREDIT_EXHAUSTED', 'NOT_RUN_STOPPED', 'NOT_RUN_CANCELLED'];
 
@@ -38,7 +38,7 @@ export function createTopSellingVideoSource(provider: Pick<KalodataProvider, 'to
 }
 
 /** Pure: all products' rows merged, ranked by revenue then views (largest first, a missing value last), ties in product then row order,
- * deduplicated by video id, exact URLs only (a row whose URL fails the exact check is left out), at most five. */
+ * deduplicated by video id, exact URLs only (a row whose URL fails the exact check is left out), at most ten. */
 export function rankTopSellingVideos(result: KalodataVideoRankResult | null): { videoId: string; url: string }[] {
   const rows = (result?.products ?? []).flatMap(product => product.outcome === 'OK' ? product.rows : []).map((row, order) => ({ row, order }));
   const value = (n: number | null): number => n ?? -1;

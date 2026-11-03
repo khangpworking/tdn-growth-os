@@ -13,6 +13,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 03/11/2026 (chủ duyệt): §4.4 `search_suggestion` (S19b) và §4.5 `ai_overview_block`, `ai_overview_reference` (S29) có cột đầy đủ; mỗi gạch đầu dòng của AI Overview là một dòng `list_item`; bảng nguồn có thêm cột `snippet`.
 - 03/11/2026 (chủ duyệt F335, F336): S07 bình luận TikTok vào `review` và `video` (migration 0065). Không lưu tên người viết; `reviewer_key` là HMAC của `uid` số; `text` là bản đã che liên hệ (§3, §4.1a).
 - 03/11/2026 (chủ duyệt F347, F349): số theo từng video của Kalodata có mã nguồn riêng **S02b «Kalodata video»**; S02 đổi tên thành «Kalodata sản phẩm». S02b vào `video` và bảng mới `video_snapshot` (migration 0066). Tên video giữ đúng như nguồn trả; người làm video chỉ lưu `author_key` (§4.1a, §4.1b).
+- 03/11/2026 (chủ duyệt F354, F356): S14 lời nói trong video vào `video_reading` và `video_segment` (migration 0067), thay bản phác §4.1 cũ. Không lưu nhận định của AI (giọng, loại video, có nói về sản phẩm không). Chữ giữ đúng như đọc được. Nạp S02b trước S14 cho cùng lần chạy. Từ nay app chỉ xem video chủ chọn và video bán chạy, không xem video từ tìm kiếm `site:tiktok.com` (§4.1).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -224,24 +225,37 @@ Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản
 
 ### 4.1 `video_reading` và `video_segment` — lời nói trong video (S14)
 
-`video_reading`: một video một dòng.
+`video_reading`: một lần đọc một dòng. Khoá chính `capture_id` = lần gọi Gemini `videowatch.generate` sinh ra lần đọc đó. Cùng một video đọc lại ở lần chạy khác là một dòng mới (lần gọi khác).
 
 | Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
 |---|---|---|---|
-| video_id | TEXT | Mã video | `video.videoId` |
-| video_url | TEXT | Link | `video.videoUrl` |
-| video_kind | TEXT | `SALES_VIDEO`, `REVIEW_VIDEO` | `video.videoKind` |
-| origin | TEXT | Video được chọn từ đâu | `video.origin` |
-| about_product | INTEGER | 1 = nói về sản phẩm | `video.aboutProduct` |
-| duration_s | REAL | Giây | `video.durationSeconds` |
-| voice | TEXT | Luôn `SELLER`. Không bao giờ là lời khách | `voice` |
-| caption_source | TEXT | `MODEL_TRANSCRIBED`, `PLATFORM_CAPTION` | `captionSource` |
+| capture_id | TEXT | Lần gọi Gemini của lần đọc (→ `raw_capture`) | lần gọi có `responseSha256` bằng `model.responseSha256` của lần đọc |
+| video_url | TEXT | Video (→ `video`) | `video.videoUrl`; nếu `video_id` đã có dưới link khác thì dùng link đó |
+| origin | TEXT | Video được chọn từ đâu: `SELECTION`, `TOP_SELLING`, `EXPANDED_SEARCH` (chỉ còn ở lần chạy cũ) | `video.origin` |
+| duration_s | REAL | Độ dài, giây | `video.durationSeconds` |
+| caption_source | TEXT | `NATIVE_SUBTITLE` (phụ đề có sẵn của video) hoặc `MODEL_TRANSCRIBED` (mô hình nghe và ghi) | `captionSource` |
 | model_id | TEXT | Mô hình đọc | `model.modelId` |
-| media_sha256 | TEXT | Dấu tệp video (tệp tự xoá sau 45 ngày) | `media.sha256` |
-| provenance | TEXT | `AUTOMATED_MODEL_UNVERIFIED` | `provenance` |
-| capture_id | TEXT | Nguồn gốc | — |
+| media_sha256 | TEXT | Dấu tệp đã đọc (video hoặc tệp phụ đề; tệp video tự xoá sau 45 ngày) | `media.sha256` |
+| media_bytes | INTEGER | Cỡ tệp đó, byte | `media.byteSize` |
+| read_at | TEXT | Lúc tải tệp, ISO như đã lưu | `media.downloadedAt` |
 
-`video_segment`: `video_id`, `seq`, `segment_type` (`speech` từ `segments[]`, `on_screen` từ `onScreenText[]`), `start_s`, `end_s`, `text`.
+`video_segment`: một câu nói hoặc một dòng chữ trên màn hình một dòng. Khoá chính (`capture_id`, `segment_type`, `seq`).
+
+| Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
+|---|---|---|---|
+| capture_id | TEXT | Lần đọc (→ `video_reading`) | — |
+| segment_type | TEXT | `speech` hoặc `on_screen` | `segments[]` → `speech`; `onScreenText[]` → `on_screen` |
+| seq | INTEGER | Thứ tự trong danh sách của nó, từ 0 | vị trí trong `segments[]` hoặc `onScreenText[]` |
+| start_s, end_s | REAL | Giây | `startSeconds`, `endSeconds` |
+| text | TEXT | Chữ đúng như đã lưu (không che, không sửa) | `text` |
+
+Không lưu nhận định của AI (chủ duyệt F354, F356): không có cột giọng (`voice`), nguồn gốc (`provenance`), loại video (`videoKind`) hay «có nói về sản phẩm» (`aboutProduct`). Mọi lần đọc đều được nạp, dù app đánh giá thế nào; bộ nạp không lọc.
+
+`raw_capture` của S14: một dòng cho mỗi lần gọi Gemini; `provider` `gemini`, `operation` `videowatch.generate`, `request_params_json` = `requestParameters` của lần gọi (mô hình, loại tệp, cỡ và mã băm; không có tệp video, không có khoá), `billing` như đã lưu, `cost_unit`/`cost_amount` `NULL`. Tệp kẽm: `capture_id` = `S14:<12 ký tự đầu sha256 của tệp>:<số thứ tự bản ghi lần gọi>`. Lượt chạy của app: `S14:<runId>:<ordinal>`. Lần đọc không ghép được với lần gọi nào → cả lần nạp hỏng (`RAW_DB_S14_INVALID_ROW`). Trong cùng một lần chạy, một câu trả lời Gemini cho cùng video đã lưu thành lần đọc (ví dụ nạp một lần từ tệp kẽm, một lần từ app, cùng nhãn `runId`) không lưu thêm lần đọc thứ hai; bộ nạp đếm nó ở `readingsAlreadyPresent`. Câu trả lời giống hệt ở lần chạy khác vẫn tạo lần đọc mới.
+
+S14 điền `video`: dùng lại dòng có cùng `video_id`; nếu chưa có thì thêm một dòng `link_basis` `UNKNOWN`, `product_key` `NULL`, `author_key` như §4.1a. Không đoán sản phẩm. **Thứ tự nạp: S02b trước S14** cho cùng lần chạy. Khi nạp từ lượt chạy của app, một video `TOP_SELLING` chưa có dòng `video` làm cả lần nạp hỏng (`RAW_DB_S14_LOAD_S02B_FIRST`, không ghi gì), để không mất nối sản phẩm của S02b (dòng `video` không sửa được).
+
+Chọn video (chủ duyệt F356, phương án A): app chỉ xem video chủ chọn (`SELECTION`) rồi video bán chạy (`TOP_SELLING`, từ bảng xếp hạng video Kalodata), tối đa 10 video bán chạy và 10 video tất cả. Video từ tìm kiếm Google `site:tiktok.com` không còn được xem; tìm kiếm vẫn chạy và vẫn vào bảng kết quả web của Market. Không có video bán chạy thì không lấy video tìm kiếm thay.
 
 ### 4.1a `video` — video và sản phẩm
 
@@ -249,12 +263,12 @@ Một video một dòng, dùng chung cho S07 (bình luận), S14 (lời người
 
 | Cột | Kiểu | Nghĩa | Lấy từ bản gốc |
 |---|---|---|---|
-| video_url | TEXT | Link video, khoá chính | S07 `videoWebUrl`; S14 `video.videoUrl`; S02b `https://www.tiktok.com/@<belonged_creator_handle>/video/<video_id>` |
+| video_url | TEXT | Link video, khoá chính | S07 `videoWebUrl`; S14 `video.videoUrl` của lần đọc; S02b `https://www.tiktok.com/@<belonged_creator_handle>/video/<video_id>` |
 | video_id | TEXT | Mã video của nền tảng | S14 `video.videoId`; S07 phần số cuối của `videoWebUrl`; S02b `video_id` |
 | platform | TEXT | `tiktok` | — |
 | product_key | TEXT | Sản phẩm mà video bán. `NULL` khi chưa biết | S02b: `tiktok_shop:` + `product_id` của yêu cầu, khi lần gọi hỏi theo một sản phẩm |
 | brand | TEXT | Thương hiệu của sản phẩm | từ `product.brand` |
-| author_key | TEXT | HMAC của mã tác giả video | S07, S02b: HMAC-SHA256(khoá, `"tdn:tiktok.com:video-author-handle:v1\0"` + `<handle>` trong link video), cùng khoá với `review.reviewer_key`. S02b không lưu `belonged_creator_id`, handle hay `creator_debut` vào cột nào |
+| author_key | TEXT | HMAC của mã tác giả video | S07, S02b, S14: HMAC-SHA256(khoá, `"tdn:tiktok.com:video-author-handle:v1\0"` + `<handle>` trong link video), cùng khoá với `review.reviewer_key`. S02b không lưu `belonged_creator_id`, handle hay `creator_debut` vào cột nào |
 | link_basis | TEXT | Vì sao nối với sản phẩm: `PROVIDER_LINK` (nguồn ghi sẵn), `SELECTED_FROM_PRODUCT` (chọn từ trang sản phẩm), `UNKNOWN` | — |
 | capture_id | TEXT | Nguồn gốc | — |
 
@@ -624,29 +638,26 @@ CREATE TABLE review_point (
 );
 
 CREATE TABLE video_reading (
-  video_id       TEXT PRIMARY KEY,
-  video_url      TEXT NOT NULL,
-  video_kind     TEXT,
-  origin         TEXT,
-  about_product  INTEGER,
-  duration_s     REAL,
-  voice          TEXT NOT NULL DEFAULT 'SELLER' CHECK (voice = 'SELLER'),
-  caption_source TEXT,
-  model_id       TEXT,
+  capture_id     TEXT PRIMARY KEY REFERENCES raw_capture(capture_id),
+  video_url      TEXT NOT NULL REFERENCES video(video_url),
+  origin         TEXT NOT NULL CHECK (origin IN ('SELECTION','TOP_SELLING','EXPANDED_SEARCH')),
+  duration_s     REAL CHECK (duration_s BETWEEN 0 AND 1.7976931348623157e308),
+  caption_source TEXT NOT NULL CHECK (caption_source IN ('NATIVE_SUBTITLE','MODEL_TRANSCRIBED')),
+  model_id       TEXT NOT NULL,
   media_sha256   TEXT,
-  provenance     TEXT,
-  capture_id     TEXT NOT NULL REFERENCES raw_capture(capture_id)
-);
+  media_bytes    INTEGER CHECK (media_bytes >= 0),
+  read_at        TEXT NOT NULL
+) STRICT;
 
 CREATE TABLE video_segment (
-  video_id     TEXT NOT NULL REFERENCES video_reading(video_id),
-  seq          INTEGER NOT NULL,
+  capture_id   TEXT NOT NULL REFERENCES video_reading(capture_id),
   segment_type TEXT NOT NULL CHECK (segment_type IN ('speech','on_screen')),
-  start_s      REAL,
-  end_s        REAL,
+  seq          INTEGER NOT NULL CHECK (seq >= 0),
+  start_s      REAL CHECK (start_s BETWEEN 0 AND 1.7976931348623157e308),
+  end_s        REAL CHECK (end_s BETWEEN 0 AND 1.7976931348623157e308),
   text         TEXT NOT NULL,
-  PRIMARY KEY (video_id, segment_type, seq)
-);
+  PRIMARY KEY (capture_id, segment_type, seq)
+) STRICT;
 
 CREATE TABLE ad_read (
   source_code  TEXT NOT NULL CHECK (source_code IN ('S15','S16','S17')),

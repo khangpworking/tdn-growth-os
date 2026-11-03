@@ -8,12 +8,12 @@ import { operatorAppConfigurationFromEnvironment } from '../../src/api/operator-
 import { createKalodataProvider } from '../../src/modules/analysis/research-automation/provider-kalodata.js';
 import { createTopSellingVideoSource } from '../../src/modules/analysis/research-automation/top-selling-videos.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/provider-common.js';
-import { S14C_NOW, S14C_RUN, S14C_WORKSPACE, s14cCollection } from './research-automation-s14c.fixtures.js';
+import { collectionWebRows } from '../../src/modules/analysis/research-automation/expanded-search-lane.js';
+import { S14C_NOW, S14C_RUN, S14C_WORKSPACE, S14C_SEARCH_URL, s14cCollection } from './research-automation-s14c.fixtures.js';
 
-// Generated with this same synthetic fixture in git-archived origin/main (06a6658d), without a top-selling source.
-// PR #410: capture responseHeaders change identity only; verified against the header-only revert.
-const MAIN_COLLECTION_SHA256 = 'fb134d226f9d91e4c3770560880e67ddefcbf27104ed80447c73dc69404f699a';
-const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+// Reproduced origin/main's fb134d22… snapshot, then changed only videoWatch's candidates/digest/videos/skipped to empty.
+const NO_SEARCH_COLLECTION_SHA256 = '216d1d9878ac93effe298120f9aa3ea54fc88814f5f118f5d04fdc9dae67593f';
+
 const handles = ['synthetic.rank.one', 'synthetic.rank.two'];
 
 function rankSource() {
@@ -36,7 +36,6 @@ test('S14C row 7: only exactly "1" enables ranking; off values issue no rank cal
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-s14c-launcher-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.writeFile(path.join(root, 'index.html'), '<!doctype html><title>Synthetic</title>');
-  const results: { value: string | undefined; sha256: string }[] = [];
   for (const value of [undefined, '0', '', 'true', ' 1', '1 ', '2', '1']) {
     const config = operatorAppConfigurationFromEnvironment({ TDN_WORKSPACE_DB: path.join(root, 'unused.sqlite'), TDN_ARTIFACT_ROOT: path.join(root, 'artifacts'),
       ...(value === undefined ? {} : { TDN_RESEARCH_TOP_SELLING_VIDEOS_ENABLED: value }) }, { frontendDist: root, version: 'synthetic' });
@@ -47,13 +46,14 @@ test('S14C row 7: only exactly "1" enables ranking; off values issue no rank cal
     const f = rankSource(), run = await s14cCollection(t, { ...(enabled ? { topSellingVideoSource: f.source } : {}) });
     assert.equal(f.paid.length, 0, String(value));
     assert.equal(run.step.videoWatch?.topSellingRank, undefined);
-    assert.equal(run.step.videoWatch?.videos[0]?.reason, 'NOT_A_VIDEO');
-    results.push({ value, sha256: sha(run.bytes) });
+    assert.deepEqual(run.step.videoWatch?.candidates, []);
+    assert.deepEqual(run.calls, { subtitle: 0, video: 0, model: 0 });
+    const search = run.step.expandedSearch?.queries.find(query => query.kind === 'TIKTOK');
+    assert.equal(search?.status, 'COLLECTED', 'site:tiktok.com search still runs without watch candidates');
+    assert.deepEqual(search.results.map(row => row.url), [S14C_SEARCH_URL]);
+    assert.ok(collectionWebRows(run.step).some(row => row.url === S14C_SEARCH_URL), 'search rows remain in the report web table input');
+    assert.equal(createHash('sha256').update(run.bytes).digest('hex'), NO_SEARCH_COLLECTION_SHA256, String(value));
   }
-  assert.equal(new Set(results.map(result => result.sha256)).size, 1, 'all off values store identical bytes');
-  await t.test('flag-off collection bytes match origin/main', () => {
-    for (const result of results) assert.equal(result.sha256, MAIN_COLLECTION_SHA256, String(result.value));
-  });
 });
 
 test('RAWDB-V V1 / S14C row 8: run-window rank requests and captures preserve lineage and creator privacy', async t => {
@@ -78,7 +78,7 @@ test('RAWDB-V V1 / S14C row 8: run-window rank requests and captures preserve li
       url: `https://www.tiktok.com/@${handle}/video/${94001 + i}`, origin: 'TOP_SELLING' })));
     assert.ok(watch.videos.every(video => video.status === 'READ' && video.path === 'SUBTITLE'));
     assert.equal(run.calls.video, 0);
-    assert.equal(run.calls.model, 3);
+    assert.equal(run.calls.model, 2);
     assert.equal(run.step.limitations.some(item => item.code === 'TOP_SELLING_VIDEO_LOCATORS_UNAVAILABLE'), false);
     const captures = run.db.prepare("SELECT ordinal, operation, provider FROM analysis_research_automation_captures WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal").all(S14C_RUN) as { ordinal: bigint; operation: string; provider: string }[];
     const rank = captures.find(capture => capture.operation === 'kalodata.video.rank'); assert.ok(rank);
