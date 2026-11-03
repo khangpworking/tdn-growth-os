@@ -327,7 +327,8 @@ def test_im_q39_tools_cannot_write_app_mutate_env_or_spawn(built, failure):
 
 @pytest.mark.parametrize("live_open", [False, True])
 def test_im_q39_wal_app_siblings_are_byte_identical(subject, sandbox, monkeypatch, live_open):
-    """NC: the old path, a mode=ro open of the live WAL DB, changes app.sqlite-shm and fails."""
+    """The MCP reads the app's published snapshot only; the live DB and its -wal/-shm are never opened.
+    NC: the old path, a mode=ro open of the live WAL DB, changes app.sqlite-shm and fails."""
     sandbox.seed()
     writer = sqlite3.connect(sandbox.db)
     try:
@@ -338,47 +339,48 @@ def test_im_q39_wal_app_siblings_are_byte_identical(subject, sandbox, monkeypatc
         if live_open:
             @contextmanager
             def live(path):
-                con = subject.open_app_db(path)
+                con = subject.open_app_db(sandbox.db)
                 try:
-                    yield con
+                    yield con, "2026-11-03T00:00:00+00:00"
                 finally:
                     con.close()
-            monkeypatch.setattr(subject, "app_db_snapshot", live)
+            monkeypatch.setattr(subject, "published_app_db", live)
+        sandbox.publish()
         before = tree_snapshot(sandbox.app)
         assert {"app.sqlite", "app.sqlite-wal", "app.sqlite-shm"} <= {Path(k).name for k in before}
         result = sandbox.call("build_warehouse")
         assert result["reviews_by_platform"]["shopee"] == 3
         if live_open:
             assert tree_snapshot(sandbox.app) != before
+            assert sandbox.live_touches
         else:
             assert tree_snapshot(sandbox.app) == before
+            assert not sandbox.live_touches
             assert not list(sandbox.tmp.glob("insight-app-*"))
     finally:
         writer.close()
 
 
-@pytest.mark.parametrize("torn_copies,expected", [(1, None), (4, "SOURCE_SNAPSHOT_FAILED")])
-def test_im_q39_torn_snapshot_is_retried_then_refused(subject, sandbox, monkeypatch, torn_copies, expected):
-    """NC: one torn copy is retried; a copy that never passes quick_check is refused, not read."""
+@pytest.mark.parametrize("damage", ["missing", "header", "body"])
+def test_im_q39_bad_published_snapshot_is_refused(subject, sandbox, damage):
+    """A missing snapshot gives APP_DB_SNAPSHOT_MISSING; a copy without a SQLite header or failing quick_check is
+    refused, never read. NC: reading a damaged copy returns counts instead of the error."""
     sandbox.seed([review(1)])
-    before = tree_snapshot(sandbox.app)
-    real, torn = subject._copy_bytes, []
-
-    def copy_bytes(source, target):
-        real(source, target)
-        if Path(source) == sandbox.db and len(torn) < torn_copies:
-            torn.append(target)
-            data = Path(target).read_bytes()
-            Path(target).write_bytes(data[:100] + b"\xff" * (len(data) - 100))
-
-    monkeypatch.setattr(subject, "_copy_bytes", copy_bytes)
-    result = sandbox.call("build_warehouse")
-    if expected is None:
-        assert result["reviews_by_platform"]["shopee"] == 1
+    sandbox.publish()
+    sandbox.auto_publish = False
+    if damage == "missing":
+        sandbox.snapshot.unlink()
     else:
-        error(result, expected)
-    assert len(torn) == torn_copies
+        data = sandbox.snapshot.read_bytes()
+        sandbox.snapshot.write_bytes(b"\xff" * 100 + data[100:] if damage == "header" else
+                                     data[:100] + b"\xff" * (len(data) - 100))
+    before = tree_snapshot(sandbox.app)
+    published = None if damage == "missing" else sandbox.snapshot.read_bytes()
+    result = sandbox.call("build_warehouse")
+    error(result, "APP_DB_SNAPSHOT_MISSING" if damage == "missing" else "APP_DB_SNAPSHOT_INVALID")
     assert tree_snapshot(sandbox.app) == before
+    assert published is None or sandbox.snapshot.read_bytes() == published
+    assert not sandbox.live_touches
     assert not list(sandbox.tmp.glob("insight-app-*"))
 
 

@@ -176,3 +176,4 @@ def unchanged_app(box):
         box.guard.strict = False
         after = {str(p.relative_to(box.app)): p.read_bytes() for p in box.app.rglob("*") if p.is_file()}
         assert after == before, "MCP changed the synthetic app home"
+        assert not box.live_touches, "MCP opened the live app DB"

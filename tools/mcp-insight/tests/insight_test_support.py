@@ -12,6 +12,7 @@ import inspect
 import json
 import os
 import re
+import shutil
 import sqlite3
 import unicodedata
 import urllib.parse
@@ -148,6 +149,12 @@ class Sandbox:
         self.artifacts = self.app / "artifacts"
         self.captures = self.app / "metric-captures"
         self.data = root / "data"
+        # The app's published snapshot (PR #444) lives outside the synthetic app home here, so the
+        # byte-identical app-home checks are not disturbed by the simulated publisher.
+        self.snapshot = root / "published" / "app-db.snapshot.sqlite"
+        self.auto_publish = True
+        self.published_state = None
+        self.live_touches = []
         self.tmp = root / "tmp"
         self.key = root / "synthetic-key.env"
         self.run_id = RUN
@@ -155,12 +162,13 @@ class Sandbox:
         self.reviews = []
         self.transport = None
         self.public_results = []
-        for path in [self.app, self.artifacts, self.captures, self.data, self.tmp]:
+        for path in [self.app, self.artifacts, self.captures, self.data, self.tmp, self.snapshot.parent]:
             path.mkdir(parents=True, exist_ok=True)
         (self.app / ".env").write_text("SYNTHETIC_CONFIG=unchanged\n")
         (self.app / "config.json").write_text('{"fixture": true}\n')
         for key, value in {"INSIGHT_MCP_APP_DB": self.db, "INSIGHT_MCP_APP_ARTIFACTS": self.artifacts,
                            "INSIGHT_MCP_APP_CAPTURES": self.captures, "INSIGHT_MCP_DATA_DIR": self.data,
+                           "INSIGHT_MCP_APP_DB_SNAPSHOT": self.snapshot,
                            "INSIGHT_MCP_JEV_KEY_FILE": self.key, "TMPDIR": self.tmp}.items():
             monkeypatch.setenv(key, str(value))
         # tempfile caches gettempdir(): honor this fixture's TMPDIR.
@@ -273,8 +281,67 @@ class Sandbox:
                                     "requestBody": {"include_query": {"queries": ["canxi"]}},
                                     "body": {"data": {"products": products}}}]), encoding="utf-8")
 
+    def publish(self):
+        """The app's snapshot publisher, simulated: the live DB named by INSIGHT_MCP_APP_DB (with its WAL; no
+        writer runs during a test step) is recovered in a private copy, backed up with SQLite to a temp file and
+        renamed over the published snapshot. Unchanged live bytes leave the published file (and its mtime) alone."""
+        value = os.environ.get("INSIGHT_MCP_APP_DB")
+        live = Path(value) if value else None
+        if live is None or not live.is_file():
+            return
+        sources = [live, Path(str(live) + "-wal")]
+        state = sha(b"".join(sha(p.read_bytes()).encode() for p in sources if p.is_file()) + str(live).encode())
+        if state == self.published_state and self.snapshot.is_file():
+            return
+        strict, self.guard.strict = self.guard.strict, False
+        work = self.root / "publisher"
+        try:
+            shutil.rmtree(work, ignore_errors=True)
+            work.mkdir()
+            copy = work / "live.sqlite"
+            copy.write_bytes(live.read_bytes())
+            if sources[1].is_file():
+                Path(str(copy) + "-wal").write_bytes(sources[1].read_bytes())
+            staged = self.snapshot.with_name(".app-db.snapshot.sqlite.tmp")
+            staged.unlink(missing_ok=True)
+            with sqlite3.connect(copy) as src, sqlite3.connect(staged) as dst:
+                src.backup(dst)
+            src.close()
+            dst.close()
+            os.replace(staged, self.snapshot)
+            self.published_state = state
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+            self.guard.strict = strict
+
+    def live_paths(self):
+        value = os.environ.get("INSIGHT_MCP_APP_DB")
+        live = Path(value).resolve() if value else self.db.resolve()
+        return {live, Path(str(live) + "-wal"), Path(str(live) + "-shm"), Path(str(live) + "-journal")}
+
+    def _live_touches(self, events):
+        """Opens of the live app DB or its -wal/-shm (file opens and SQLite connects) among audit events."""
+        live = self.live_paths()
+        touched = []
+        for event, args in events:
+            if event == "open" and isinstance(args[0], (str, bytes, os.PathLike)):
+                path = Path(os.fsdecode(args[0]))
+            elif event == "sqlite3.connect":
+                path = Path(urllib.parse.unquote(os.fsdecode(args[0]).removeprefix("file:").split("?")[0]))
+            else:
+                continue
+            if path.resolve() in live:
+                touched.append((event, str(path)))
+        return touched
+
     def call(self, tool, run_id=DEFAULT_RUN, **kwargs):
-        result = sync(getattr(self.module, tool)(self.run_id if run_id is DEFAULT_RUN else run_id, **kwargs))
+        if self.auto_publish:
+            self.publish()
+        start = len(self.guard.events)
+        try:
+            result = sync(getattr(self.module, tool)(self.run_id if run_id is DEFAULT_RUN else run_id, **kwargs))
+        finally:
+            self.live_touches.extend(self._live_touches(self.guard.events[start:]))
         self.public_results.append(copy.deepcopy(result))
         return result
 

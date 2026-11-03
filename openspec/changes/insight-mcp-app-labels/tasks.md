@@ -10,6 +10,7 @@
 - [x] 1.3 `theme_counts`: `labelSource`, `codedReviews`, `uncodedReviews`, ghi chú «chưa gán nhãn»
 - [x] 1.4 Công cụ `star_counts`, model SLAYER `star_review`, ghi `count_registry`
 - [x] 1.5 `CONTRACT.md` bản 24, `README.md`, skill; kiểm thử cũ gán nhãn qua cơ sở dữ liệu app tổng hợp
+- [x] 1.6 Sửa F376: `NO_THEME` nguồn `MCP_IMPORT` không kiểm dấu lời; đọc bản sao sạch app xuất bản (`APP_DB_SNAPSHOT_MISSING`, `publishedAt`), bỏ chép CSDL đang chạy; `CONTRACT.md` bản 25
 
 ## 2. Kiểm thử (lane Sol, phiên khác người viết mã) và hợp nhất
 

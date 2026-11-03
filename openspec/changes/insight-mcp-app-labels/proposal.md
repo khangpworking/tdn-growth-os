@@ -10,11 +10,12 @@ MCP Insight đang tự gán chủ đề bằng Jev (`code_reviews`) và giữ nh
 - **MODIFIED** R-IM03: nhãn chủ đề do app gán; `build_warehouse` đọc nhãn từ cơ sở dữ liệu app (khớp đánh giá, đúng bản bộ chủ đề và dấu SHA-256 của tệp, dấu lời khách); `code_reviews` trả `LABELS_FROM_APP`.
 - **ADDED** R-IM19: `theme_counts` ghi nguồn nhãn `app_db`, số đánh giá đã gán và chưa gán theo sàn, ghi «chưa gán nhãn» khi chưa có nhãn.
 - **ADDED** R-IM20: công cụ mới `star_counts` đếm cảm xúc theo sao từ view của app.
+- Sửa sau rà soát Astra (F376): dòng `NO_THEME` nguồn `MCP_IMPORT` được nhận không cần kiểm dấu lời (R-IM03); MCP đọc bản sao sạch app xuất bản (`INSIGHT_MCP_APP_DB_SNAPSHOT`), không còn chép CSDL đang chạy cùng WAL (R-IM01); `CONTRACT.md` bản 25 (IM-Q172, IM-Q173).
 - `tools/mcp-insight/insight_tools.py`, `CONTRACT.md` (bản 24, IM-Q166 đến IM-Q171), `README.md`, skill `tdn-insight-report`, model SLAYER `semantic/star_review.yaml`; kiểm thử cũ của MCP gán nhãn qua cơ sở dữ liệu app tổng hợp.
 
 ## Impact
 
-- MCP Insight: đọc thêm `review`, `codebook`, `review_code`, `review_star_sentiment` từ bản chụp chỉ đọc của cơ sở dữ liệu app. Không ghi app. Kho dựng trước thay đổi này phải dựng lại (`WAREHOUSE_REBUILD_NEEDED`).
+- MCP Insight: đọc thêm `review`, `codebook`, `review_code`, `review_star_sentiment` từ bản sao sạch app xuất bản (`app-db.snapshot.sqlite`, PR #444); cần biến môi trường mới `INSIGHT_MCP_APP_DB_SNAPSHOT`. Không ghi app. Kho dựng trước thay đổi này phải dựng lại (`WAREHOUSE_REBUILD_NEEDED`).
 - App (`src/`) và migration không đổi.
 - Lớp ý con (`code_claims`) không đổi, vẫn gọi Jev khi có cờ.
 - Không gọi nguồn, không gọi AI, không triển khai.

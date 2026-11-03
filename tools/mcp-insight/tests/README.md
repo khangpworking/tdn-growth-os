@@ -165,6 +165,13 @@ missing, not zero (IM-Q8), a fractional SLAYER difference (IM-Q23), artifact byt
 in the WAL. `build_warehouse` must read those rows, and `app.sqlite`, `-wal` and `-shm` must be byte-identical
 afterwards. Its `live_open` case is the negative control: the old `mode=ro` open of the live DB changes the app home.
 `test_im_q39_torn_snapshot_is_retried_then_refused` covers one torn copy (retried) and four (`SOURCE_SNAPSHOT_FAILED`).
+Revision 25 (IM-Q172, F376) replaces that test with `test_im_q39_bad_published_snapshot_is_refused` (missing
+snapshot `APP_DB_SNAPSHOT_MISSING`; damaged header or body `APP_DB_SNAPSHOT_INVALID`). The MCP now reads only the
+app's published snapshot. `Sandbox.publish()` plays the app's publisher before each `Sandbox.call` (live DB + WAL
+recovered in a private copy, SQLite backup, atomic rename to `published/app-db.snapshot.sqlite`, outside the app
+home; unchanged live bytes are not republished). `Sandbox.live_touches` records audit events in which a tool opened
+the live DB or its siblings; the WAL test and `unchanged_app` require it to be empty. The `live_open` control now
+patches `published_app_db` to open the live DB.
 IM-Q2 now checks the module's app connection, which is the per-call snapshot. It also fails if any connection
 opens the live DB path. The `mode=rw` negative control is unchanged and still fails.
 

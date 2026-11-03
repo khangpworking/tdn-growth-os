@@ -8,7 +8,8 @@ F361–F367). The app labels reviews; the MCP only reads them and never calls Je
 Part 4 adds the claim layer (ý con) under each theme: claim catalogues, Jev claim coding, claim counts with five
 measures, and the two-grader cross-check, whose graders run outside the MCP.
 
-Reads stored run data only. The app DB is opened read-only (INSIGHT_MCP_APP_DB, no default); the
+Reads stored run data only. The app DB is read from the app's published snapshot (INSIGHT_MCP_APP_DB_SNAPSHOT,
+copied privately, opened read-only); INSIGHT_MCP_APP_DB only locates the app home and is never opened. The
 artifact store and capture root are read-only. Each run gets its own warehouse file under
 INSIGHT_MCP_DATA_DIR. Evidence from people (sample reviews, method approvals, brand checks, revenue shares,
 reason readings) lives in the shared store `<data dir>/insight-shared.sqlite`, written only by the `record_*`
@@ -68,6 +69,7 @@ PORTRAIT_RULES_VERSION = "portrait-2026-10-25"
 LABEL_SOURCE = "app_db"
 NOTE_NOT_LABELLED = "chưa gán nhãn"
 NO_THEME = "NO_THEME"
+ORIGIN_MCP_IMPORT = "MCP_IMPORT"
 STAR_RULES_VERSION = "star-2026-11-03"  # F363: 1–3 sao tieu_cuc, 4–5 sao tich_cuc, the app view's rule
 STAR_NONE = "khong_sao"
 STAR_SENTIMENTS = ("tich_cuc", "tieu_cuc", STAR_NONE)
@@ -225,6 +227,7 @@ def _data_dir() -> Path:
 
 
 def _app_db_path() -> Path:
+    """The live app DB. It only locates the app home (artifacts, captures); the MCP never opens or copies it."""
     value = os.environ.get("INSIGHT_MCP_APP_DB")
     if not value:
         raise InsightError("APP_DB_NOT_SET", "INSIGHT_MCP_APP_DB is not set; it names the app SQLite file")
@@ -234,13 +237,19 @@ def _app_db_path() -> Path:
     return path
 
 
+def _app_snapshot_path() -> Path:
+    """The app's published snapshot (app-db.snapshot.sqlite, written by the app with SQLite backup + rename)."""
+    value = os.environ.get("INSIGHT_MCP_APP_DB_SNAPSHOT")
+    if not value:
+        raise InsightError("APP_DB_SNAPSHOT_NOT_SET",
+                           "INSIGHT_MCP_APP_DB_SNAPSHOT is not set; it names the app's published snapshot file")
+    return Path(value).expanduser()
+
+
 def open_app_db(path: Path) -> sqlite3.Connection:
-    """The only way the module opens an app DB snapshot: read-only URI, never a creating open."""
+    """The only way the module opens an app DB copy: read-only URI, never a creating open."""
     uri = "file:" + urllib.parse.quote(str(path)) + "?mode=ro"
     return sqlite3.connect(uri, uri=True)
-
-
-SNAPSHOT_RETRIES = 3
 
 
 def _copy_bytes(source: Path, target: Path) -> None:
@@ -248,39 +257,68 @@ def _copy_bytes(source: Path, target: Path) -> None:
         shutil.copyfileobj(reader, writer)
 
 
+SQLITE_HEADER = b"SQLite format 3\x00"
+
+
+def _open_snapshot_fd(path: Path) -> int:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    try:
+        return os.open(path, flags | getattr(os, "O_NOATIME", 0))
+    except PermissionError:
+        # O_NOATIME needs file ownership; a plain read-only open is the fallback.
+        return os.open(path, flags)
+
+
 @contextmanager
-def app_db_snapshot(path: Path):
-    """A read-only connection to a per-call copy of the app DB (IM-Q39). The live DB is never opened by SQLite:
-    even a mode=ro reader changes a WAL database's -shm file. The DB and its -wal are copied with plain byte reads,
-    the copy must pass PRAGMA quick_check, and the copy is removed when the call ends."""
+def published_app_db(path: Path):
+    """A read-only connection to a private copy of the app's published snapshot (IM-Q39, IM-Q172). The snapshot
+    file is opened once; its bytes are copied through that one descriptor into a fresh temp dir, so the app may
+    replace the file (atomic rename) at any time. The copy must have a SQLite header and pass PRAGMA quick_check.
+    The live app DB and its -wal/-shm are never opened. Yields (connection, publishedAt as file mtime)."""
+    try:
+        fd = _open_snapshot_fd(path)
+    except FileNotFoundError:
+        raise InsightError("APP_DB_SNAPSHOT_MISSING", "app chưa xuất bản sao sạch") from None
+    except OSError:
+        raise InsightError("APP_DB_SNAPSHOT_UNREADABLE", "the app's published snapshot cannot be read") from None
     directory = Path(tempfile.mkdtemp(prefix="insight-app-"))
     try:
         copy = directory / "app.sqlite"
-        wal = Path(str(path) + "-wal")
-        for _ in range(1 + SNAPSHOT_RETRIES):
-            for stale in directory.iterdir():
-                stale.unlink()
-            con = None
-            try:
-                _copy_bytes(path, copy)
-                if wal.is_file():
-                    _copy_bytes(wal, Path(str(copy) + "-wal"))
-                con = open_app_db(copy)
-                if con.execute("PRAGMA quick_check").fetchone() == ("ok",):
-                    break
-            except (OSError, sqlite3.DatabaseError):
-                pass
+        try:
+            with os.fdopen(fd, "rb") as reader, open(copy, "wb") as writer:
+                fd = None
+                published = os.fstat(reader.fileno()).st_mtime_ns
+                shutil.copyfileobj(reader, writer)
+        except OSError:
+            raise InsightError("APP_DB_SNAPSHOT_UNREADABLE", "the app's published snapshot cannot be read") from None
+        finally:
+            if fd is not None:
+                os.close(fd)
+        with open(copy, "rb") as header:
+            if header.read(len(SQLITE_HEADER)) != SQLITE_HEADER:
+                raise InsightError("APP_DB_SNAPSHOT_INVALID", "the app's published snapshot is not a SQLite DB")
+        con = None
+        try:
+            con = open_app_db(copy)
+            ok = con.execute("PRAGMA quick_check").fetchone() == ("ok",)
+        except sqlite3.DatabaseError:
+            ok = False
+        if not ok:
             if con is not None:
                 con.close()
-            con = None
-        if con is None:
-            raise InsightError("SOURCE_SNAPSHOT_FAILED", "the app DB could not be copied into a consistent snapshot")
+            raise InsightError("APP_DB_SNAPSHOT_INVALID", "the app's published snapshot fails PRAGMA quick_check")
+        published_at = datetime.fromtimestamp(published / 1e9, timezone.utc).isoformat(timespec="seconds")
         try:
-            yield con
+            yield con, published_at
         finally:
             con.close()
     finally:
         shutil.rmtree(directory, ignore_errors=True)
+
+
+def _snapshot_age(published_at: str) -> dict:
+    age = datetime.now(timezone.utc) - datetime.fromisoformat(published_at)
+    return {"publishedAt": published_at, "ageSeconds": max(0, int(age.total_seconds()))}
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +458,7 @@ def portrait_groups(text: str) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 SOURCE_SCHEMA = """
+CREATE TABLE app_snapshot(published_at TEXT NOT NULL);
 CREATE TABLE run_facts(run_id TEXT PRIMARY KEY, keyword TEXT NOT NULL, created_at TEXT NOT NULL, run_year INTEGER NOT NULL,
   applied_keywords TEXT NOT NULL, applied_category TEXT, scope_capture INTEGER, category_evidence_label TEXT,
   category_evidence_reason TEXT, content_sha256 TEXT NOT NULL, built_at TEXT NOT NULL);
@@ -439,7 +478,7 @@ CREATE TABLE portrait_label(review_id TEXT NOT NULL, dimension TEXT NOT NULL, gr
 CREATE TABLE near_dup(review_id TEXT PRIMARY KEY, group_id TEXT NOT NULL);
 CREATE TABLE review_star(review_id TEXT PRIMARY KEY REFERENCES review(review_id), star_sentiment TEXT NOT NULL);
 """
-SOURCE_TABLES = ("run_facts", "source_status", "review", "review_text", "product", "writer_guess", "keyword",
+SOURCE_TABLES = ("app_snapshot", "run_facts", "source_status", "review", "review_text", "product", "writer_guess", "keyword",
                  "trend", "portrait_label", "near_dup", "review_star")
 # Copied from the app DB on every build (F361–F367): never kept across builds, never written by a tool.
 APP_LABEL_TABLES = ("coding_target", "coding_state", "review_input", "label")
@@ -580,9 +619,9 @@ def _runs_dir() -> Path:
 def _find_warehouse(run_id: str) -> Path:
     """The run's warehouse. A run_id names an app run: when the app DB is configured, the ID is resolved there
     first (in a read-only snapshot), so an unknown or ambiguous ID gives RUN_NOT_FOUND or RUN_AMBIGUOUS in every tool."""
-    value = os.environ.get("INSIGHT_MCP_APP_DB")
+    value = os.environ.get("INSIGHT_MCP_APP_DB_SNAPSHOT")
     if value and Path(value).expanduser().is_file():
-        with app_db_snapshot(Path(value).expanduser()) as con:
+        with published_app_db(Path(value).expanduser()) as (con, _):
             run_id = _resolve_run(con, run_id)[0]
     runs = _runs_dir()
     matches = sorted(runs.glob(run_id + "*.sqlite")) if runs.is_dir() else []
@@ -969,8 +1008,10 @@ def _app_rows(con, reviews: list[dict], version: str) -> dict:
 
 def _proved_codes(app: dict, reviews: list[dict], version: str) -> tuple[dict, int]:
     """The app rows whose review text is the warehouse text (the app's text proof: sha256 of text + attributes).
-    A NO_THEME row imported from an MCP run carries the MCP coding-input hash, which also holds the text.
-    One failing row drops all the review's rows. Returns (rows by review, reviews dropped)."""
+    A NO_THEME row of origin MCP_IMPORT is not text-proven: it means "coded under this version, no theme" and its
+    stored hash is the MCP coding-input hash, so it is accepted without the check (IM-Q173). Every other row
+    (themes of any origin, NO_THEME of APP_JEV) needs the whole-text proof. One failing row drops all the
+    review's rows: the review is uncoded, never NO_THEME. Returns (rows by review, reviews dropped)."""
     if (app["codes"] or app["codebook_table"]) and app["codebook_sha256"] != _codebook_sha():
         raise InsightError("APP_CODEBOOK_MISMATCH",
                            "the app codebook row of the repo version is missing or has a different definition_sha256")
@@ -979,8 +1020,8 @@ def _proved_codes(app: dict, reviews: list[dict], version: str) -> tuple[dict, i
     for review_id, rows in app["codes"].items():
         review = by_id[review_id]
         text_sha = _sha256(review["text"])
-        if all(row["text_sha256"] == text_sha or (row["theme_code"] == NO_THEME and row["text_sha256"] ==
-                                                  _input_sha(review, row["block_key"], version)) for row in rows):
+        if all(row["text_sha256"] == text_sha or (row["theme_code"] == NO_THEME and row["origin"] == ORIGIN_MCP_IMPORT)
+               for row in rows):
             proved[review_id] = rows
         else:
             mismatch += 1
@@ -1041,7 +1082,7 @@ def build_warehouse(run_id: str) -> dict:
     version = load_codebook()["version"]
     app_db = _app_db_path()
     artifacts, captures = _artifact_root(app_db), _capture_root(app_db)
-    with app_db_snapshot(app_db) as con:
+    with published_app_db(_app_snapshot_path()) as (con, published_at):
         full_id, keyword, created_at = _resolve_run(con, run_id)
         scope = _scope(captures, full_id, keyword)
         shopee = _shopee_reviews(con, artifacts, full_id)
@@ -1110,6 +1151,7 @@ def build_warehouse(run_id: str) -> dict:
                 scope["category_reason"], content_sha256, built_at))
             wh.executemany("INSERT INTO source_status VALUES (?, ?, ?, ?)",
                            [(k, p, 0 if n is None else 1, n or 0) for k, (p, n) in sources.items()])
+            wh.execute("INSERT INTO app_snapshot VALUES (?)", (published_at,))
             wh.executemany("INSERT INTO review VALUES (?, ?, ?, ?, ?, ?, ?, ?)", review_rows)
             wh.executemany("INSERT INTO near_dup VALUES (?, ?)", dup_rows)
             wh.executemany("INSERT INTO review_text VALUES (?, ?)", text_rows)
@@ -1150,6 +1192,7 @@ def build_warehouse(run_id: str) -> dict:
         "writer_known": per_platform(known),
         "dated_reviews": per_platform(dated),
         "sources": {k: _count_or_no_data(n) for k, (_, n) in sources.items()},
+        "appSnapshot": _snapshot_age(published_at),
         "labels": {"labelSource": LABEL_SOURCE, "codebook_version": version, "block_key": coded["block_key"],
                    "matchedReviews": len(app["matched"]), "unmatchedReviews": len(reviews) - len(app["matched"]),
                    "ambiguousReviews": app["ambiguous"], "codedReviews": coded["coded"],
@@ -1374,9 +1417,16 @@ def _count_id(run_id, tool, row_key, rules_version, numbers, state_sha) -> str:
 
 def _require_app_labels(wh) -> None:
     """A warehouse built before labels came from the app holds MCP-coded labels; it is never counted."""
-    if wh.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'review_star'").fetchone() is None:
+    if wh.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('review_star', 'app_snapshot')"
+                  ).fetchone()[0] != 2:
         raise InsightError("WAREHOUSE_REBUILD_NEEDED", "this warehouse was built before labels came from the app DB; "
                            "call build_warehouse again")
+
+
+def _stored_snapshot(wh) -> dict:
+    """When the app published the snapshot this warehouse was built from. Count results stay repeatable, so the
+    age is reported by build_warehouse (at read time), not here."""
+    return {"publishedAt": wh.execute("SELECT published_at FROM app_snapshot").fetchone()[0]}
 
 
 def _register(wh, run_id, tool, rules_version, rows, key_fields, number_fields) -> None:
@@ -1447,7 +1497,7 @@ def _theme_counts_at(path: Path, book: dict, question=None) -> dict:
         target = wh.execute("SELECT block_key FROM coding_target WHERE codebook_version = ? "
                             "ORDER BY target_id DESC LIMIT 1", (version,)).fetchone()
         base = {"run_id": full_id, "codebook_version": version, "codebook_status": book["status"],
-                "labelSource": LABEL_SOURCE}
+                "labelSource": LABEL_SOURCE, "appSnapshot": _stored_snapshot(wh)}
         # Rows come only from the app's labels; with none, the result says so and never counts from elsewhere.
         # Coded and uncoded reviews are per platform (IM-Q26), never one total.
         not_labelled = {**base, "coding_target": None, "coded_reviews": {p: 0 for p in platforms},
@@ -1655,7 +1705,7 @@ def _star_counts_at(path: Path) -> dict:
         _register(wh, full_id, "star_counts", STAR_RULES_VERSION, rows, ("platform", "product", "star_sentiment"),
                   ("reviews", "writers", "products", "threshold_count", "threshold_met", "check2_missing"))
         return {"run_id": full_id, "source": LABEL_SOURCE, "star_rules_version": STAR_RULES_VERSION,
-                "matchedReviews": matched, "unmatchedReviews": total - matched, "rows": rows}
+                "appSnapshot": _stored_snapshot(wh), "matchedReviews": matched, "unmatchedReviews": total - matched, "rows": rows}
     finally:
         wh.close()
 
@@ -4094,6 +4144,9 @@ def _out_dir(out_dir) -> Path:
     if app_db:
         db = Path(app_db).expanduser()
         forbidden += [db.parent, _artifact_root(db), _capture_root(db)]
+    snapshot = os.environ.get("INSIGHT_MCP_APP_DB_SNAPSHOT")
+    if snapshot:
+        forbidden.append(Path(snapshot).expanduser().parent)
     if any(path == f.resolve() or path.is_relative_to(f.resolve()) for f in forbidden):
         raise InsightError("OUT_DIR_INVALID", "out_dir must be outside the repository and the app home")
     if path.exists() and (not path.is_dir() or any(path.iterdir())):
