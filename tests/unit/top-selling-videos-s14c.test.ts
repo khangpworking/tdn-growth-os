@@ -37,7 +37,7 @@ function videoRankTransport(options: { before?: number; after?: number; prefligh
   return { transport, paid, events };
 }
 
-test('S14C row 8: confirmed collected products, top-three revenue order, merge/dedupe and five-video cap', async () => {
+test('S14C row 8: confirmed collected products, top-three revenue order, merge/dedupe and ten-video cap (owner F356)', async () => {
   const comparable = (productId: string, metric: TypedComparable['metric'], value: string, provider = 'kalodata'): TypedComparable =>
     ({ productId, metric, value, provider, window: { startDate: '2026-09-01', endDate: '2026-09-30' }, captureIndex: 0 });
   const candidates = tiktokShopProductCandidates(new Set(['kalodata:101', 'kalodata:102', 'kalodata:103', 'kalodata:104', 'kalodata:105']),
@@ -56,7 +56,7 @@ test('S14C row 8: confirmed collected products, top-three revenue order, merge/d
     // RAWDB-V V1 owns the request protocol at the service/provider boundary, including the run window.
     assert.deepEqual(f.paid.map(call => (call.body as { product_id: string }).product_id), c.ids);
     assert.deepEqual(f.events, ['balance', ...c.ids, 'balance']);
-    assert.deepEqual(rankTopSellingVideos(result), ['91001', '91003', '91002', '91006', '91007'].map(id => ({ videoId: id, url: url(id, id === '91001' ? 'synthetic.winner' : 'synthetic.rank') })));
+    assert.deepEqual(rankTopSellingVideos(result), ['91001', '91003', '91002', '91006', '91007', '91004', '91005'].map(id => ({ videoId: id, url: url(id, id === '91001' ? 'synthetic.winner' : 'synthetic.rank') })));
     assert.equal(result.usage.automaticRetries, 0);
     assert.equal(result.usage.credits.status, 'OBSERVED_ACCOUNT_BALANCE_DELTA');
     if (result.usage.credits.status === 'OBSERVED_ACCOUNT_BALANCE_DELTA') assert.equal(result.usage.credits.consumed, 0.3);
@@ -90,16 +90,16 @@ test('S14C row 8: credit, auth/rate and ambiguous responses never retry paid req
   }
 });
 
-test('S14C row 9: first origin wins; selection, five uploaded/automated top-selling, search; total ten; gap only with neither source', async t => {
+test('S14C row 9: first origin wins; selection, ten uploaded/automated top-selling, no search videos (owner F356); total ten; gap only with neither source', async t => {
   const queries: StepExpandedQuery[] = [{ kind: 'TIKTOK', status: 'COLLECTED', reason: null, requestedWindow: null, retrievedAt: now().toISOString(), captureIndex: 0,
     results: ['1001', '2001', '3001', '4001', '4002', '4003', '4004', '4005'].map((id, i) => ({ url: url(id), position: i + 1, title: 'Synthetic', snippet: null, retrievedAt: now().toISOString(), captureIndex: 0 })) }];
   const uploaded = ['1001', '2001', '2002'].map(id => ({ url: url(id) }));
   const automated = ['2001', '3001', '3002', '3003', '3004', '3005'].map(id => ({ url: url(id) }));
   const plan = videoWatchCandidates([{ url: url('1001', 'synthetic.selection') }], queries, uploaded, automated);
   assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [['1001', 'SELECTION'], ['2001', 'TOP_SELLING'], ['2002', 'TOP_SELLING'],
-    ['3001', 'TOP_SELLING'], ['3002', 'TOP_SELLING'], ['3003', 'TOP_SELLING'], ['4001', 'EXPANDED_SEARCH'], ['4002', 'EXPANDED_SEARCH'], ['4003', 'EXPANDED_SEARCH'], ['4004', 'EXPANDED_SEARCH']]);
+    ['3001', 'TOP_SELLING'], ['3002', 'TOP_SELLING'], ['3003', 'TOP_SELLING'], ['3004', 'TOP_SELLING'], ['3005', 'TOP_SELLING']]);
   assert.equal(plan.candidates[0]?.url, url('1001', 'synthetic.selection'));
-  assert.deepEqual(plan.skipped, [{ videoId: '4005', reason: 'OVER_10_VIDEOS' }]);
+  assert.deepEqual(plan.skipped, []);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-s14c-gap-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   for (const c of [{ uploaded: false, automated: false, gap: true }, { uploaded: true, automated: false, gap: false },

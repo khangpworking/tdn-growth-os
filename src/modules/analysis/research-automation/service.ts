@@ -129,7 +129,8 @@ import { GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, type SearchAdsSource } fr
 import { WORLD_BANK_SERIES_YEARS, worldBankRenderable, type WorldBankSource } from './world-bank-lane.js';
 import { pdfLane, runSaveStepLane, videoLane, type CaptureEnvelope, type PdfLaneFacts, type SaveStepCaptures, type SaveStepContext, type SaveStepLane, type VideoLaneFacts } from './collection-lanes-save-step.js';
 import { attemptCollectionLanes, collectionLaneManifests, collectionLaneOrdinals, collectionLanes, collectionLanesCancelled, collectionLaneUsage, lanesAfterPdf, lanesAfterVideo, lanesBeforeVideo, storeCollectionLanes, type CollectionLane, type CollectionLaneRun, type LaneCaptureRewind, type LaneCaptureStore, type LaneCheck, type LaneUsageRow } from './collection-lanes.js';
-import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
+import { publishAutomatedVideoReading, readVerifiedAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
+import type { AutomatedVideoReading } from '../../../../contracts/analysis/video-reading-v3.generated.js';
 import { validPopulationBaseline, POPULATION_BASELINE_OPERATION, type PopulationBaselineSource } from './population-baseline.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
 import { TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, tiktokShopChannelDecision, tiktokShopProductCandidates, validTikTokShopReviewsStep, verifyTikTokShopReviewsDocument, type TikTokShopReviewCandidate, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
@@ -1026,6 +1027,25 @@ export class ResearchAutomationService {
   async readP9SourceHistory(workspaceId: string, runId: string) {
     const { row, binding } = await this.#p9Context(workspaceId, runId);
     return this.#p9Intake(row).history(binding);
+  }
+  /** Raw-db S14: every automated video reading the collection step stored (about the product or not), re-read and re-verified like the report path;
+   * never a download or model call. A stored reading that does not verify throws; a run without readings gives none. */
+  async readStoredVideoWatchReadings(runId: string): Promise<readonly { readonly packageId: string; readonly reading: AutomatedVideoReading }[]> {
+    const row = this.#current(runId);
+    const watch = row ? (await this.#stepDocument(runId, 'COLLECTION'))?.videoWatch : undefined;
+    const refs = videoWatchReadingRefs(watch);
+    if (!row || !watch || !refs.length) return [];
+    if (!row.scopeSha) throw new ResearchAutomationIntegrityError('Stored video readings need a confirmed scope.');
+    const sources = await this.#readFrozenSources(row);
+    const reader = this.#boundedSourceReader();
+    const out: { packageId: string; reading: AutomatedVideoReading }[] = [];
+    for (const ref of refs) {
+      const read = await readVerifiedAutomatedVideoReading(reader, ref, { workspaceId: row.workspaceId, runId: row.runId, scopeSha256: row.scopeSha,
+        sourceSetSha256: sources?.sha256 ?? null, candidates: watch.candidates, candidatesSha256: watch.candidatesSha256, readingSha256: ref.readingSha256 });
+      if (read === 'NOT_VERIFIED') throw new ResearchAutomationIntegrityError(`Stored video reading ${ref.packageId} does not verify.`);
+      out.push({ packageId: ref.packageId, reading: read.reading });
+    }
+    return out;
   }
   #tiktokCodingIntake(row: RunRow, expectedRevision?: number, signal?: AbortSignal) {
     const guard = () => {

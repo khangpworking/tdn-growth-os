@@ -169,18 +169,18 @@ test('SRC3 S14 Observed zero ranks above missing; higher units cannot promote mi
 });
 
 
-test('SRC3 S14 Candidate order: SELECTION then TOP_SELLING then EXPANDED_SEARCH; deduplicate and cap', () => {
+test('SRC3 S14 Candidate order: SELECTION then TOP_SELLING; search rows no longer watched (owner F356); deduplicate and cap', () => {
   const query: StepExpandedQuery = { kind: 'TIKTOK', status: 'COLLECTED', reason: null, requestedWindow: null, retrievedAt: null, captureIndex: null,
     results: [{ position: 1, url: url(2), title: 'Synthetic', snippet: null, retrievedAt: '2026-10-09T00:00:00.000Z', captureIndex: 0 }, { position: 2, url: url(3), title: 'Synthetic', snippet: null, retrievedAt: '2026-10-09T00:00:00.000Z', captureIndex: 0 }] };
   const plan = videoWatchCandidates([{ url: url(0) }], [query], [{ url: url(0) }, { url: url(1) }, { url: url(2) }, { url: 'invalid' }]);
-  assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [['1000', 'SELECTION'], ['1001', 'TOP_SELLING'], ['1002', 'TOP_SELLING'], ['1003', 'EXPANDED_SEARCH']]);
+  assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [['1000', 'SELECTION'], ['1001', 'TOP_SELLING'], ['1002', 'TOP_SELLING']]);
   assert.equal(plan.candidatesSha256, createHash('sha256').update(canonicalJson(plan.candidates)).digest('hex'));
   const capped = videoWatchCandidates([], [], Array.from({ length: 12 }, (_, index) => ({ url: url(index) })));
   assert.equal(capped.candidates.length, 10);
   assert.deepEqual(capped.skipped, [{ videoId: '1010', reason: 'OVER_10_VIDEOS' }, { videoId: '1011', reason: 'OVER_10_VIDEOS' }]);
   // Different accounts must not move expanded search ahead of retained selection or sales-ranked videos.
   const mixed = videoWatchCandidates([{ url: url(0) }, { url: url(1) }], [{ ...query, results: [{ ...query.results[0]!, url: url(3).replace('@synthetic_creator', '@another_synthetic') }] }], [{ url: url(2) }]);
-  assert.deepEqual(mixed.candidates.map(c => c.origin), ['SELECTION', 'SELECTION', 'TOP_SELLING', 'EXPANDED_SEARCH']);
+  assert.deepEqual(mixed.candidates.map(c => c.origin), ['SELECTION', 'SELECTION', 'TOP_SELLING']);
   const priority = videoWatchCandidates([0, 1, 2, 3].map(i => ({ url: url(i) })), [query],
     Array.from({ length: 9 }, (_, i) => ({ url: url(i + 4) })));
   assert.deepEqual(priority.candidates.map(c => c.videoId), Array.from({ length: 10 }, (_, i) => String(1000 + i)));
