@@ -114,7 +114,7 @@ async function metricProductNames(db: Database.Database, artifacts: ContentAddre
 }
 
 /** ISO 8601 in Asia/Ho_Chi_Minh (+07:00, no daylight saving); other offsets and Z are converted. */
-function vietnamTime(value: string | null): string | null {
+export function vietnamTime(value: string | null): string | null {
   if (value === null || value.endsWith('+07:00')) return value;
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) return null;

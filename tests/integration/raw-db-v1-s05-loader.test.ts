@@ -4,8 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import type Database from 'better-sqlite3';
-import { loadShopeeReviewsToDbV1 } from '../../src/modules/raw-db/shopee-reviews-loader.js';
-import { ATTEMPTED_AT, COMPLETED_AT, PRODUCTS, rawDbFixture, seedExistingAnalysis, utcCollectionFixture } from '../fixtures/raw-db-v1-s05.js';
+import { loadShopeeReviewsToDbV1, vietnamTime } from '../../src/modules/raw-db/shopee-reviews-loader.js';
+import { ATTEMPTED_AT, COMPLETED_AT, PRODUCTS, rawDbFixture, seedExistingAnalysis } from '../fixtures/raw-db-v1-s05.js';
 
 const tables = ['raw_capture', 'product', 'review', 'run_review'] as const;
 function counts(db: Database.Database, names: readonly string[] = tables) {
@@ -66,16 +66,11 @@ test('RAWDB rule 4: verified fixture run stores per-product rows and the exact S
     { run_id: f.runId, review_key: 'S05:synthetic-stars-only', capture_id: `S05:${collectionId}:0`, source_position: 'page=2,row=1' },
   ]);
 
-  const utc = await utcCollectionFixture(t);
-  await loadShopeeReviewsToDbV1(utc.db, utc.artifacts, { runId: utc.runId });
-  const timestamps = utc.db.prepare('SELECT external_id,posted_at FROM review ORDER BY external_id').all() as { external_id: string; posted_at: string }[];
-  assert.deepEqual(timestamps.map(row => row.external_id), ['synthetic-review-a', 'synthetic-review-b', 'synthetic-stars-only']);
-  for (const row of timestamps) {
-    // Literal expectations also catch the UTC day changing after conversion.
-    const expected = row.external_id === 'synthetic-review-b' ? /^2026-11-01T08:02:03(?:\.0+)?\+07:00$/
-      : /^2026-11-03T03:04:05(?:\.0+)?\+07:00$/;
-    assert.match(row.posted_at, expected, 'posted_at must convert Z/+00:00 to Asia/Ho_Chi_Minh');
-  }
+  // Verified 4.0.0 rows only carry +07:00, so Z/+00:00 input is checked on the conversion itself.
+  // Literal expectations also catch the UTC day changing after conversion.
+  assert.equal(vietnamTime('2026-11-02T20:04:05Z'), '2026-11-03T03:04:05+07:00');
+  assert.equal(vietnamTime('2026-11-01T01:02:03+00:00'), '2026-11-01T08:02:03+07:00');
+  assert.equal(vietnamTime('2026-11-03T03:04:00+07:00'), '2026-11-03T03:04:00+07:00');
 });
 
 test('RAWDB rule 5: loading the same run twice returns all zero counters and preserves row counts', async t => {

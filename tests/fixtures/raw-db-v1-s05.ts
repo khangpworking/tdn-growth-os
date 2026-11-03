@@ -87,21 +87,3 @@ export async function seedExistingAnalysis(f: Awaited<ReturnType<typeof rawDbFix
   await new ShopeeReviewAnalysisService({ db: f.db, artifactStore: f.artifacts, reader: f.foundation,
     ...(process.env.TDN_PYTHON ? { pythonExecutable: process.env.TDN_PYTHON } : {}) }).analyze(source.packet.collectionId);
 }
-
-// The v4 public-row schema only admits minute-precision +07:00. The existing v1
-// verified reader retains UTC offsets, so it owns the brief's UTC-input case.
-export async function utcCollectionFixture(t: TestContext) {
-  const f = await fixture(t, 'off');
-  const runId = await startRun(f.service);
-  const request = validateListingRequest({ contractVersion: '1.0.0', runKey: `auto-${runId}`,
-    topic: 'Synthetic UTC review input', period: { start: '2026-11-01T00:00:00+07:00', end: '2026-11-03T23:59:59+07:00' },
-    source: { label: 'Synthetic UTC listing selection', acquiredAt: ATTEMPTED_AT },
-    listings: PRODUCTS.map((p, index) => ({ platform: 'shopee', shopId: p.shopId, itemId: p.itemId,
-      productKey: `synthetic-product-${index}`, groupingBasis: 'Synthetic distinct products', productName: p.name,
-      productUrl: p.productUrl, periodRevenueVnd: String(100 - index), revenuePrecision: 'exact' })) });
-  const rows = collectionInput().envelopes.flatMap(e => e.rows).map(row => ({ ...row,
-    createdAt: row.itemId === '101' ? '2026-11-02T20:04:05Z' : '2026-11-01T01:02:03+00:00' }));
-  const collected = await new FixtureShopeeCollector(json(rows)).collect(selectShopeeListings(request).selected);
-  const source = await new ShopeeCollectionService(f.db, f.artifacts).save(json(request), collected);
-  return { ...f, runId, source };
-}
