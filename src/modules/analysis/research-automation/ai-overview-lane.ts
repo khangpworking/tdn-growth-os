@@ -84,8 +84,11 @@ export function createAiOverviewSource(apiKey: string, transport: ProviderTransp
         const value = parseJson(response.bytes);
         const providerCode = isRecord(value) ? safeProviderCode(value.error_code ?? (isRecord(value.search_metadata) ? value.search_metadata.id : undefined)) : null;
         if (response.status !== 200) { log.record(context, requestedAt, 'HTTP_ERROR', response.status, null, providerCode, headers); continue; }
+        if (isRecord(value) && (value.error != null || (isRecord(value.search_metadata) && value.search_metadata.status === 'Error'))) {
+          log.record(context, requestedAt, 'PROVIDER_REJECTED', 200, null, providerCode, headers); continue;
+        }
         // The answer must name the token it was asked for: the loader matches it back to the web search by this field.
-        if (!isRecord(value) || !isRecord(value.search_parameters) || value.search_parameters.page_token !== token) {
+        if (!isRecord(value) || !isRecord(value.ai_overview) || !isRecord(value.search_parameters) || value.search_parameters.page_token !== token) {
           log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, null, providerCode, headers); continue;
         }
         captures.push(log.record(context, requestedAt, 'OK', 200, response.bytes, providerCode, headers));

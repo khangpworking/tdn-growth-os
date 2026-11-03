@@ -414,7 +414,8 @@ function expandedLane(source: ExpandedSearchSource): CollectionLane {
 
 // AI Overview follow-up (S29) right after the extra searches, while their page tokens are still valid: at most two paid
 // calls per run, never repeated after a restart. Its raw answers follow the extra-search captures; it adds nothing to the
-// step document and never changes the step outcome, coverage or run blockers. A failed write keeps none of its captures.
+// step document and never changes the step outcome, coverage or run blockers. Raw captures store last, after report lanes.
+// A failed write keeps none of its captures.
 function aiOverviewLane(source: AiOverviewSource): CollectionLane {
   return lane<readonly ProviderRawCapture[], AiOverviewCollection>({
     name: 'aiOverview',
@@ -432,7 +433,7 @@ function aiOverviewLane(source: AiOverviewSource): CollectionLane {
 }
 
 // Search suggestions (S19b) come last, for runs that include INSIGHT only: at most 48 free calls, at least 1 s apart, never
-// repeated after a restart. Its raw answers are stored before the video readings, like the other early lanes; it adds nothing
+// repeated after a restart. Its raw answers are stored after the existing report lanes; it adds nothing
 // to the step document and never changes the step outcome, coverage or run blockers.
 function searchSuggestLane(source: SearchSuggestSource): CollectionLane {
   return lane<() => Promise<readonly string[]>, SearchSuggestCollection>({
@@ -702,16 +703,20 @@ export async function attemptCollectionLanes(lanes: readonly CollectionLane[], s
 }
 
 // The Meta and TikTok reads publish attachments after the video readings (collection-lanes-save-step.ts), and the TikTok
-// Shop reviews store after them; the population baseline stores after the report PDFs; every other lane stores before the
-// video readings.
+// Shop reviews store after them; the population baseline stores after the report PDFs. Raw-db collectors append last;
+// every other lane stores before the video readings.
 const AFTER_VIDEO: ReadonlySet<CollectionLaneName> = new Set(['metaAuto', 'tiktokTopAds', 'tiktokShopReviews']);
-const AFTER_PDF: ReadonlySet<CollectionLaneName> = new Set(['populationBaseline']);
+const RAW_DB_ONLY: ReadonlySet<CollectionLaneName> = new Set(['aiOverview', 'searchSuggest']);
+const AFTER_PDF: ReadonlySet<CollectionLaneName> = new Set(['populationBaseline', ...RAW_DB_ONLY]);
 /** The runs stored (and whose usage is written) before the video readings, in run order. */
 export const lanesBeforeVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => !AFTER_VIDEO.has(run.name) && !AFTER_PDF.has(run.name));
 /** The runs stored (and whose usage is written) after the video readings, in run order. */
 export const lanesAfterVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => AFTER_VIDEO.has(run.name));
-/** The runs stored (and whose usage is written) after the report PDFs, in run order. */
-export const lanesAfterPdf = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => AFTER_PDF.has(run.name));
+/** Existing report captures store first; raw-db captures append without reducing earlier lanes' capture budgets. */
+export const lanesAfterPdf = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => [
+  ...runs.filter(run => AFTER_PDF.has(run.name) && !RAW_DB_ONLY.has(run.name)),
+  ...runs.filter(run => RAW_DB_ONLY.has(run.name)),
+];
 
 /** A capture write of one lane failed. */
 class LaneCaptureWriteError extends Error {}

@@ -3835,12 +3835,12 @@ export class ResearchAutomationService {
           return pickId ? await this.#readJson<unknown>(pickId, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
         } catch { return null; }
       };
-      // Keyword 1 and the keyword 2 the owner confirmed (auto-run scope record); keyword 1 alone without one. Never throws.
+      // An explicit preset already confirms its keywords; otherwise read the answered legacy auto-run scope.
+      // Invalid scope data is contained by the optional lane rather than silently losing keyword 2.
       const searchKeywords = async (): Promise<readonly string[]> => {
-        try {
-          const record = this.#autoRun ? await this.#autorunScope(row.runId) : null;
-          return record?.capture2 && record.capture2.outcome !== 'AWAITING_KEYWORD2' ? record.capture2.keywords : [start.keyword];
-        } catch { return [start.keyword]; }
+        if (start.metricV3Preset) return start.metricV3Preset.preset.keywords;
+        const record = this.#autoRun ? await this.#autorunScope(row.runId) : null;
+        return record?.capture2 && record.capture2.outcome !== 'AWAITING_KEYWORD2' ? record.capture2.keywords : [start.keyword];
       };
       // Web, trends, province map, extra searches, AI Overview follow-up, World Bank, UN Comtrade, search-ads library, Cục Thống
       // kê, Meta and TikTok top-ads reads, the population baseline file, TikTok Shop reviews and search suggestions: one attempt

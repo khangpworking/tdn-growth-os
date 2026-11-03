@@ -93,8 +93,8 @@ export function createSearchSuggestSource(transport: ProviderTransport = default
         } catch { response = { kind: 'TRANSPORT' }; }
         lastEnd = transport.now();
         if (response.kind === 'ABORTED' || signal?.aborted) return finish('CANCELLED');
+        if ((response.kind === 'RECEIVED' || response.kind === 'OVERSIZE') && (response.status === 429 || response.status === 403)) return finish('BLOCKED');
         if (response.kind === 'RECEIVED') {
-          if (response.status === 429 || response.status === 403) return finish('BLOCKED');
           const value = parseJson(response.bytes);
           if (value === undefined) return finish('NOT_JSON');
           if (response.status === 200 && validAnswer(value, prefix)) {

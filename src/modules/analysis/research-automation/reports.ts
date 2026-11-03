@@ -1418,7 +1418,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // Discovery exchanges are technical receipts; only verified PDF excerpts earn visible S25 citations.
   const discoverySearchIndex = input.collection?.pdfDiscovery?.search.captureIndex;
   const visibleCaptures = input.captures.filter(capture => !(capture.stepId === 'COLLECTION' &&
-    (capture.provider === 'pdf-discovery' || (discoverySearchIndex != null && capture.ordinal === discoverySearchIndex))));
+    (capture.provider === 'pdf-discovery' || (discoverySearchIndex != null && capture.ordinal === discoverySearchIndex) ||
+      // These raw collectors retain answers for db-v1; reports do not consume or cite them yet.
+      (capture.provider === 'google-suggest' && capture.operation === 'google.suggest') ||
+      (capture.provider === 'serpapi' && capture.operation === 'serpapi.google_ai_overview'))));
   // Build the original citations before filtering the reader so retained semantic bytes stay stable.
   const retainedSourceTable = `<p>Kỳ truy vấn là khoảng ngày đã gửi tới nguồn, không chứng minh đã thu đủ dữ liệu.</p><div class="table-wrap" role="region" aria-label="Bản thu từ truy vấn nguồn" tabindex="0"><table><caption>Bản thu từ truy vấn nguồn của lượt này</caption><thead><tr><th scope="col">Thao tác</th><th scope="col">Kỳ truy vấn</th><th scope="col">Lượt gọi kết thúc</th><th scope="col">Nguồn</th></tr></thead><tbody>${visibleCaptures.map(capture => `<tr><td>${escape(stepLabel(capture.stepId))}</td><td>${capture.window ? escape(`${capture.window.startDate} đến ${capture.window.endDate}`) : 'Không áp dụng kỳ truy vấn'}</td><td>${escape(capture.retrievedAt)}</td><td>${captureMark(capture, citations)}${capture.truncated ? '<br>Bản thu bị cắt; không dùng để tính' : ''}</td></tr>`).join('') || noCaptureRow}</tbody></table></div>`;
   const sourceTable = marketPresentation ? `<template data-market14-source-trace>${retainedSourceTable}</template>` : retainedSourceTable;

@@ -14,6 +14,7 @@ import { createSerpApiProvider } from '../../src/modules/analysis/research-autom
 import { createExpandedSearchSource } from '../../src/modules/analysis/research-automation/expanded-search-lane.js';
 import { createSearchSuggestSource } from '../../src/modules/analysis/research-automation/search-suggest-lane.js';
 import { createAiOverviewSource } from '../../src/modules/analysis/research-automation/ai-overview-lane.js';
+import { validateMetricV3CaptureSpec } from '../../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
 import type { ProviderCallOptions, ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import { SYNTHETIC_CARD_ID, SYNTHETIC_SERP_KEY, syntheticProductSource } from '../helpers/research-synthetic-sources.js';
 
@@ -53,6 +54,8 @@ export interface CollectorRunOptions {
   reports?: ('MARKET' | 'INSIGHT')[];
   /** Synthetic confirmed base terms supplied at the existing collector port, like the ads-lane fixture's brands. */
   keywords?: readonly string[];
+  /** Synthetic explicit start preset, exercising confirmed keywords without overriding the collector input. */
+  presetKeywords?: readonly string[];
   expanded?: boolean;
   answer?: (url: URL, index: number) => Reply;
 }
@@ -78,6 +81,10 @@ export async function googleCollectorRun(t: TestContext, options: CollectorRunOp
   assert.equal(config.researchSearchSuggest === true, options.flags?.suggest === '1', 'S19b environment flag must reach runtime configuration');
   assert.equal(config.researchAiOverview === true, options.flags?.overview === '1', 'S29 environment flag must reach runtime configuration');
   const fake = fakeGoogleTransport(options.answer);
+  const presetFixture = options.presetKeywords ? JSON.parse(await fs.readFile(new URL('./metric-v3/live-map-contract.json', import.meta.url), 'utf8')).spec : null;
+  const preset = presetFixture ? validateMetricV3CaptureSpec({
+    ...presetFixture, contractVersion: 'metric-v3-capture-spec-v2', preset: { ...presetFixture.preset, keywords: [...options.presetKeywords!] },
+  }) : undefined;
   const suggest = config.researchSearchSuggest ? createSearchSuggestSource(fake.transport) : undefined;
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     uuid: () => RUN, now, renderer: (input, kind) => buildResearchAutomationReport(input, kind), source: syntheticProductSource(),
@@ -87,17 +94,20 @@ export async function googleCollectorRun(t: TestContext, options: CollectorRunOp
     ...(suggest ? { searchSuggestSource: { collect: (input: { readonly keywords: readonly string[] }, callOptions?: ProviderCallOptions) =>
       suggest.collect({ ...input, keywords: options.keywords ?? input.keywords }, callOptions) } } : {}),
   });
-  await service.start(WORKSPACE, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
-    mode: 'CATEGORY', keyword: BASES[0], requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: options.reports ?? ['INSIGHT'] });
+  await service.start(WORKSPACE, { contractVersion: preset ? 'research-automation-start-v2' : 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
+    mode: 'CATEGORY', keyword: BASES[0], requestedPeriod: preset ? preset.windows[1]!.period : { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: options.reports ?? ['INSIGHT'],
+    ...(preset ? { metricV3Preset: preset } : {}) });
   await service.processNext();
   const awaiting = await service.getRun(WORKSPACE, RUN);
   await service.confirmScope(WORKSPACE, RUN, { contractVersion: 'research-automation-confirm-v1', requestKey: '44444444-4444-4444-8444-444444444444',
-    expectedRevision: awaiting.revision, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
+    expectedRevision: awaiting.revision, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: preset ? [] : [SYNTHETIC_CARD_ID], peerProductIds: [],
+    exactShopeeUrls: preset ? ['https://shopee.vn/synthetic-i.111.222'] : [] });
   for (let i = 0; i < 12 && (await service.getRun(WORKSPACE, RUN)).status !== 'DRAFT_READY'; i++) await service.processNext();
   const run = await service.getRun(WORKSPACE, RUN);
   assert.equal(run.status, 'DRAFT_READY', 'optional collectors must not fail the run');
   const step = db.prepare("SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(RUN) as { state: string };
-  assert.equal(step.state, 'SUCCEEDED');
+  // A preset skips quick search; its exact synthetic listing has no review collector configured.
+  assert.equal(step.state, preset ? 'PARTIAL' : 'SUCCEEDED');
   const captures = db.prepare(`SELECT step_id,provider,operation,media_type,truncated,artifact_sha256 sha
     FROM analysis_research_automation_captures WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal`).all(RUN) as {
     step_id: string; provider: string; operation: string; media_type: string; truncated: bigint; sha: string;
@@ -106,5 +116,5 @@ export async function googleCollectorRun(t: TestContext, options: CollectorRunOp
     FROM analysis_research_automation_usage WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal`).all(RUN) as {
     provider: string; operation: string; request_count: bigint; cost_state: string; cost_unit: string | null; cost_amount: string | null;
   }[];
-  return { ...fake, db, artifacts, run, captures, usage };
+  return { ...fake, db, artifacts, service, run, captures, usage };
 }
