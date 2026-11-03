@@ -55,7 +55,7 @@
    }
   ],
   "recordCount": 4,
-  "recordsSha256": "874c67b2562c21de341f9cafc1af28a4956e02be79d2454a965124b0f12f6008",
+  "recordsSha256": "e6194ab46cfcf7c5a9a76a710cf4f2cf2306ccdbdcb5636fac730568847a63c5",
   "anonymisation": {
    "method": "README §4: HMAC-SHA256, khóa ngẫu nhiên riêng cho phần bổ sung này đã hủy; mã anon-12 ký tự nhất quán trong nền tảng. Không ghép danh tính giữa nền tảng hoặc với phần dữ liệu cũ.",
    "scope": "Chỉ records[1–3]; records[0] giữ nguyên.",
@@ -5453,7 +5453,7 @@
       "root_reshared_post": null,
       "byline": "",
       "disclaimer_label": null,
-      "page_name": "Quynh Anh Shyn",
+      "page_name": "anon-b46bc9bcb209",
       "page_profile_picture_url": "<removed: media url>",
       "event": null,
       "caption": null,

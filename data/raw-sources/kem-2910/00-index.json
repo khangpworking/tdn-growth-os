@@ -122,8 +122,8 @@
     "amount": 0.0474,
     "note": "Tổng usageTotalUsd của 3 lượt Apify đã làm mới phí; chỉ chi phí chạy, không chứa dữ liệu tài khoản thanh toán. Chi phí app ở usage. Trần mỗi lượt 0,05 USD."
    },
-   "byteSize": 515153,
-   "fileSha256": "a197a2a3756e46403f0986c7d5b477e2d1b95a88bf3aa692720ca5fab2349a96",
+   "byteSize": 515156,
+   "fileSha256": "15588fa0c85ef79b41648133865726c09f942b085c079f584c7c5e6bce56633b",
    "check": "OK"
   },
   {

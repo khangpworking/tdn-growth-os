@@ -24,7 +24,7 @@
    "Từ khóa viên uống kẽm có 28/30 mục không liên quan; quảng cáo kẽm gồm cả dạng lỏng Smartbibi. Không coi mọi mục là viên kẽm.",
    "Cần đủ tên trang, URL trang và link_url đến thương hiệu/Mall để nhận chính chủ; các lượt này chưa đạt đủ. Không dùng end_date để kết luận ngày dừng chạy."
   ],
-  "resultSha256": "c44738805ed7fd977e7d0ad52e1fb05c8b957fc0fd5db0730f5506adbf60f0e7"
+  "resultSha256": "3526da4a3f30a2dcade6466445a9a9fe93d9d830038a8f38c744c3e45bbed0a2"
  },
  "result": {
   "operation": "apify.curious_coder~facebook-ads-library-scraper",
@@ -5130,7 +5130,7 @@
      "root_reshared_post": null,
      "byline": "",
      "disclaimer_label": null,
-     "page_name": "Quynh Anh Shyn",
+     "page_name": "anon-b46bc9bcb209",
      "page_profile_picture_url": "<removed: media url>",
      "event": null,
      "caption": null,
