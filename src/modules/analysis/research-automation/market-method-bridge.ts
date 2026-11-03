@@ -169,8 +169,9 @@ export class AutomationMarketMethodBridge {
       if (totalBytes > MARKET_CAPTURE_READ_BUDGET_BYTES) integrity('Market capture evidence exceeds its read bound.');
       captureBytes.set(capture.artifactSha256, bytes);
     }
-    const verified = verifyAutomationObservations({ ...input, captureBytes });
-    const details = verifyAutomationDetailCaptures({ ...input, captureBytes });
+    const methodInput = { ...input, captures: [...input.captures.filter(capture => capture.stepId !== 'COLLECTION'), ...captures], captureBytes };
+    const verified = verifyAutomationObservations(methodInput);
+    const details = verifyAutomationDetailCaptures(methodInput);
     if (!details.length) return undefined;
     if (verified.length > 500) integrity('Market temporal inventory exceeds 500 observations; no records were truncated.');
     const files = new Map<string, Buffer>();
@@ -248,7 +249,10 @@ export class AutomationMarketMethodBridge {
 }
 
 function collectionCaptures(input: AutomationMarketMethodInput): CaptureRecord[] {
-  return input.captures.filter(capture => capture.stepId === 'COLLECTION').sort((a, b) => a.ordinal - b.ordinal);
+  // Raw-db collectors do not feed Market methods or consume their retained-evidence budget.
+  return input.captures.filter(capture => capture.stepId === 'COLLECTION' && !(capture.mediaType === 'application/json' &&
+    ((capture.provider === 'google-suggest' && capture.operation === 'google.suggest') ||
+      (capture.provider === 'serpapi' && capture.operation === 'serpapi.google_ai_overview')))).sort((a, b) => a.ordinal - b.ordinal);
 }
 function capturePath(ordinal: number): string { return `captures/collection-${ordinal}.json`; }
 function payloadPath(ordinal: number, kind: 'request' | 'response'): string { return `payloads/collection-${ordinal}-${kind}.json`; }

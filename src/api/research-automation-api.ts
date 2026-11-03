@@ -89,6 +89,8 @@ import { bindResearchAutomationProvider } from '../modules/analysis/research-aut
 import { createSearchInterestSource } from '../modules/analysis/research-automation/search-interest.js';
 import { createSearchGeoSource } from '../modules/analysis/research-automation/search-geo.js';
 import { createExpandedSearchSource } from '../modules/analysis/research-automation/expanded-search-lane.js';
+import { createAiOverviewSource } from '../modules/analysis/research-automation/ai-overview-lane.js';
+import { createSearchSuggestSource } from '../modules/analysis/research-automation/search-suggest-lane.js';
 import { createWorldBankSource } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { createPopulationBaselineSource, type PopulationBaselineConfig } from '../modules/analysis/research-automation/population-baseline.js';
 import { createComtradeSource } from '../modules/analysis/research-automation/comtrade-lane.js';
@@ -170,6 +172,10 @@ export interface ResearchAutomationApiConfiguration {
   readonly searchTrendsGeo?: true;
   /** Expanded-search lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
   readonly expandedSearch?: true;
+  /** AI Overview follow-up (S29) of the web searches for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. At most two paid calls per run. */
+  readonly aiOverview?: true;
+  /** Search suggestions (S19b) for Insight runs, OWNER writer only; present only when its flag is exactly "1". Free public endpoint, needs no key; at most 48 calls per run. */
+  readonly searchSuggest?: true;
   /** World Bank open-data lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key. */
   readonly worldBank?: true;
   /** S28 whole-population baseline file for the OWNER writer only; present only when its flag is exactly "1". Local file, no network. */
@@ -458,6 +464,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const trendsSource = configuration.searchTrends && configuration.providers?.serpApiKey ? createSearchInterestSource(configuration.providers.serpApiKey, transport) : undefined;
       const trendsGeoSource = trendsSource && configuration.searchTrendsGeo ? createSearchGeoSource(configuration.providers!.serpApiKey!, transport) : undefined;
       const expandedSource = configuration.expandedSearch && configuration.providers?.serpApiKey ? createExpandedSearchSource(configuration.providers.serpApiKey, transport) : undefined;
+      // Follows the plain web search (same key and transport); without the key there is no web search and no follow-up.
+      const aiOverviewSource = configuration.aiOverview && configuration.providers?.serpApiKey ? createAiOverviewSource(configuration.providers.serpApiKey, transport) : undefined;
+      const searchSuggestSource = configuration.searchSuggest ? createSearchSuggestSource(transport) : undefined;
       const worldBankSource = configuration.worldBank ? createWorldBankSource(transport) : undefined;
       const populationBaselineSource = configuration.populationBaseline ? createPopulationBaselineSource(configuration.populationBaseline) : undefined;
       // UN Comtrade lane: HS selection reuses the already configured CLIProxy text model (no new provider config); without one it reports MODEL_NOT_CONFIGURED.
@@ -491,6 +500,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(trendsSource ? { trendsSource } : {}), ...(trendsGeoSource ? { trendsGeoSource } : {}),
         ...(expandedSource ? { expandedSource } : {}),
+        ...(aiOverviewSource ? { aiOverviewSource } : {}),
+        ...(searchSuggestSource ? { searchSuggestSource } : {}),
         ...(worldBankSource ? { worldBankSource } : {}),
         ...(populationBaselineSource ? { populationBaselineSource } : {}),
         ...(comtradeSource ? { comtradeSource } : {}),

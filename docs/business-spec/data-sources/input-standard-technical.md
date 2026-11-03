@@ -61,6 +61,8 @@ Flag defaults: every flag below is documented as default OFF ("mặc định t�
 | S16 | `tiktok-top-ads-lane.ts` | `TDN_RESEARCH_TIKTOK_TOPADS_ENABLED` | on, unverified | `TIKTOK_TOP_ADS_MAX_OPENS=5`, `SPACING_MS=30000`, timeout 90 s, ≤200 cards/read, field ≤500 chars, keyword ≤120 chars |
 | S17 | `google-ads-lane.ts` | `TDN_RESEARCH_GOOGLE_ADS_ENABLED` | on | `GOOGLE_ADS_MAX_BRANDS=3`, `SPACING_MS=2000`, timeout 30 s, ≤8 MiB; owner: ≤3 calls/report |
 | S19 | `expanded-search-lane.ts` | `TDN_RESEARCH_EXPANDED_SEARCH_ENABLED` | on | `EXPANDED_SEARCH_MAX_CALLS=3`; P5 plan ≤10 searches (BR-20261008-07) |
+| S19b | `search-suggest-lane.ts` | `TDN_RESEARCH_SEARCH_SUGGEST_ENABLED` (exactly `1`; Insight runs only; no key) | off | `SEARCH_SUGGEST_MAX_CALLS=48` (24 per keyword, keyword 1 and 2), `SPACING_MS=1000`, timeout 10 s, ≤256 KiB; stops on 429/403, non-JSON body or 3 failures in a row; no retry; capture = exact response bytes |
+| S29 | `ai-overview-lane.ts` | `TDN_RESEARCH_AI_OVERVIEW_ENABLED` (exactly `1`; needs `TDN_SERPAPI_API_KEY`) | off | `AI_OVERVIEW_MAX_CALLS=2` paid follow-ups per run (S19 answers with `ai_overview.page_token` and no `text_blocks`); no retry; capture = exact response bytes |
 | S20 | `search-interest.ts`, `search-trends.ts` | `TDN_RESEARCH_SEARCH_TRENDS_ENABLED` | on | `SEARCH_TRENDS_LIMITS`: maxKeywords 5, maxCallsPerRun 4, geo VN, `today 12-m` |
 | S21 | `official-statistics-lane.ts` | `TDN_RESEARCH_OFFICIAL_STATS_ENABLED` | on | `OFFICIAL_STATS_MAX_CALLS=3`, `SPACING_MS=2000`, timeout 60 s, list ≤2 MiB, no retry |
 | S22 | `official-statistics-lane.ts` | `TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED` (requires S21 flag) | on | shares the 3-call cap; CPI workbook fetched each Market run |

@@ -25,6 +25,8 @@ import { KALODATA_LIMITS } from './provider-kalodata.js';
 import { searchInterestChartPoints, searchInterestRenderable, type SearchInterestSource } from './search-interest.js';
 import { normalizeProvince, searchGeoRenderable, type SearchGeoSource } from './search-geo.js';
 import { collectionWebRows, type ExpandedSearchSource } from './expanded-search-lane.js';
+import { AI_OVERVIEW_OPERATION, type AiOverviewSource } from './ai-overview-lane.js';
+import { SEARCH_SUGGEST_OPERATION, SEARCH_SUGGEST_PROVIDER, type SearchSuggestSource } from './search-suggest-lane.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import type { InsightModelAI } from './insight-model-execution.js';
 import { reviewCollectionPolicy } from './review-collection-policy.js';
@@ -442,6 +444,10 @@ export interface ResearchAutomationServiceOptions {
   readonly pdfDiscoverySource?: PdfDiscoverySource;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
+  /** AI Overview follow-up (S29) of the web searches, at most two paid requests per collection; only set when its flag is exactly "1". */
+  readonly aiOverviewSource?: AiOverviewSource;
+  /** Free search suggestions (S19b) for runs that include Insight, at most 48 requests per collection; only set when its flag is exactly "1". */
+  readonly searchSuggestSource?: SearchSuggestSource;
   readonly renderer?: ResearchAutomationReportRenderer;
   /** Replay test instance only (TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID). Absent keeps every stored byte unchanged. */
   readonly kalodataReplay?: KalodataReplaySource;
@@ -3829,9 +3835,16 @@ export class ResearchAutomationService {
           return pickId ? await this.#readJson<unknown>(pickId, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
         } catch { return null; }
       };
-      // Web, trends, province map, extra searches, World Bank, UN Comtrade, search-ads library, Cục Thống kê, Meta and TikTok
-      // top-ads reads, the population baseline file and TikTok Shop reviews: one attempt each per run, in that order, never
-      // repeated after a restart.
+      // An explicit preset already confirms its keywords; otherwise read the answered legacy auto-run scope.
+      // Invalid scope data is contained by the optional lane rather than silently losing keyword 2.
+      const searchKeywords = async (): Promise<readonly string[]> => {
+        if (start.metricV3Preset) return start.metricV3Preset.preset.keywords;
+        const record = this.#autoRun ? await this.#autorunScope(row.runId) : null;
+        return record?.capture2 && record.capture2.outcome !== 'AWAITING_KEYWORD2' ? record.capture2.keywords : [start.keyword];
+      };
+      // Web, trends, province map, extra searches, AI Overview follow-up, World Bank, UN Comtrade, search-ads library, Cục Thống
+      // kê, Meta and TikTok top-ads reads, the population baseline file, TikTok Shop reviews and search suggestions: one attempt
+      // each per run, in that order, never repeated after a restart.
       const lanes = await attemptCollectionLanes(this.#collectionLanes, stepId, {
         keyword: start.keyword, description: start.description ?? null, mode: start.mode, reports: start.reports, market: start.reports.includes('MARKET'), requestedPeriod: (input as CollectInput).requestedPeriod,
         productTitles: () => [
@@ -3839,6 +3852,7 @@ export class ResearchAutomationService {
           ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
         ],
         readPick,
+        searchKeywords,
         run: {
           input: input as CollectInput,
           productAttempted: result.result !== null || result.unsettledProvider !== undefined || exact !== undefined || result.step.coverage.some(value => value.provider === 'apify-dami'),
@@ -4556,7 +4570,7 @@ export class ResearchAutomationService {
       envelopes = [];
       step = invalidProviderStep(runId, stepId);
     }
-    const putCaptures = async (values: readonly CaptureEnvelope[], retainPdf = true): Promise<void> => {
+    const putCaptures = async (values: readonly CaptureEnvelope[], retainPdf = true, mediaType: string = CAPTURE_ENVELOPE_MEDIA_TYPE): Promise<void> => {
       for (const { capture, body } of values) {
         if (retainPdf && stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
           Buffer.from(capture.responseBytes.subarray(0, 5)).toString('utf8') === '%PDF-') {
@@ -4570,7 +4584,7 @@ export class ResearchAutomationService {
         }
         const artifact = await this.#artifacts.put(body);
         captures.push({ row: {
-          stepId, ordinal: captures.length, artifactSha256: artifact.sha256, mediaType: 'application/vnd.tdn.research-automation.capture+json', provider: capture.provider.toLowerCase(),
+          stepId, ordinal: captures.length, artifactSha256: artifact.sha256, mediaType, provider: capture.provider.toLowerCase(),
           operation: capture.operation.toLowerCase(), retrievedAt: capture.completedAt, window: capture.queryWindow, truncated: false,
         }, artifact });
       }
@@ -4601,10 +4615,10 @@ export class ResearchAutomationService {
     // The lanes' captures follow the product source's captures, in run order: web, trends, province map, extra searches,
     // World Bank, UN Comtrade, search-ads library and Cục Thống kê.
     const storeLaneCaptures: LaneCaptureStore = async (values, options) => {
-      const envelopes = captureEnvelopes({ captures: values });
+      const envelopes = options?.raw ? rawCaptureBodies(values) : captureEnvelopes({ captures: values });
       if (!envelopes) return null;
       const index = captures.length;
-      await putCaptures(envelopes, options?.retainPdf);
+      await putCaptures(envelopes, options?.retainPdf, options?.raw ? RAW_CAPTURE_MEDIA_TYPE : CAPTURE_ENVELOPE_MEDIA_TYPE);
       return index;
     };
     const checkLane: LaneCheck = (probe, options) => {
@@ -4712,7 +4726,7 @@ export class ResearchAutomationService {
         resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
       }
       this.#db.transaction(() => {
-        for (const value of captures) this.#registerManifest(value.artifact, 'application/vnd.tdn.research-automation.capture+json', value.row.retrievedAt);
+        for (const value of captures) this.#registerManifest(value.artifact, value.row.mediaType, value.row.retrievedAt);
         this.#registerManifest(resultArtifact, 'application/vnd.tdn.research-automation.step+json', now);
         for (const value of collectionLaneManifests(lanes)) this.#registerManifest(value.artifact, value.mediaType, now);
         for (const value of captures) this.#db.prepare(`INSERT INTO analysis_research_automation_captures(run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -5093,8 +5107,9 @@ export class ResearchAutomationService {
     const rows = this.#db.prepare(`SELECT step_id stepId,ordinal,artifact_sha256 artifactSha,media_type mediaType,provider,operation,retrieved_at retrievedAt,window_start windowStart,window_end windowEnd,truncated FROM analysis_research_automation_captures WHERE run_id=? ORDER BY step_id,ordinal`).all(runId) as CaptureRow[];
     const output: CaptureRecord[] = [];
     for (const value of rows) {
-      const envelope = await this.#readJson<Record<string, unknown>>(value.artifactSha, MAX_CAPTURE_ENVELOPE_BYTES, value.mediaType);
-      assertCaptureEnvelope(envelope, value);
+      // Raw answers (search suggestions, AI Overview follow-ups) are the exact response bytes: no envelope to match.
+      if (rawCaptureRow(value)) await this.#readArtifact(value.artifactSha, MAX_CAPTURE_BYTES, value.mediaType);
+      else assertCaptureEnvelope(await this.#readJson<Record<string, unknown>>(value.artifactSha, MAX_CAPTURE_ENVELOPE_BYTES, value.mediaType), value);
       output.push({ stepId: value.stepId, ordinal: toNumber(value.ordinal), artifactSha256: value.artifactSha, mediaType: value.mediaType, provider: value.provider, operation: value.operation, retrievedAt: value.retrievedAt, window: value.windowStart ? { startDate: value.windowStart, endDate: value.windowEnd! } : null, truncated: value.truncated === 1 || value.truncated === 1n });
     }
     return output;
@@ -6863,6 +6878,25 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     if (!capture || capture.truncated || capture.provider !== PDF_DISCOVERY_PROVIDER.toLowerCase() || capture.operation !== 'pdfdiscovery.download' || capture.retrievedAt !== file.retrievedAt)
       throw new ResearchAutomationIntegrityError('Stored report file references an incompatible capture.');
   }
+}
+
+const CAPTURE_ENVELOPE_MEDIA_TYPE = 'application/vnd.tdn.research-automation.capture+json';
+const RAW_CAPTURE_MEDIA_TYPE = 'application/json';
+/** The operations whose captures are stored as their exact response bytes. */
+const RAW_CAPTURE_OPERATIONS: ReadonlyMap<string, string> = new Map([[SEARCH_SUGGEST_OPERATION, SEARCH_SUGGEST_PROVIDER.toLowerCase()], [AI_OVERVIEW_OPERATION, 'serpapi']]);
+const rawCaptureRow = (row: CaptureRow): boolean => row.mediaType === RAW_CAPTURE_MEDIA_TYPE && RAW_CAPTURE_OPERATIONS.get(row.operation) === row.provider
+  && row.windowStart === null && row.windowEnd === null && (row.truncated === 0 || row.truncated === 0n);
+
+/** Exact response bytes of raw-answer captures (OK, JSON, within the capture bound); null rejects the lane's captures as a whole. */
+function rawCaptureBodies(values: readonly ProviderRawCapture[]): Array<{ capture: ProviderRawCapture; body: Buffer }> | null {
+  if (values.length > MAX_CAPTURES_PER_STEP) return null;
+  const out: Array<{ capture: ProviderRawCapture; body: Buffer }> = [];
+  for (const capture of values) {
+    if (capture.outcome !== 'OK' || !capture.responseBytes || capture.responseBytes.byteLength > MAX_CAPTURE_BYTES || capture.queryWindow !== null ||
+        RAW_CAPTURE_OPERATIONS.get(capture.operation) !== capture.provider.toLowerCase()) return null;
+    out.push({ capture, body: Buffer.from(capture.responseBytes) });
+  }
+  return out;
 }
 
 /** Bounded capture envelopes of one source result; null rejects the source as a whole. */
