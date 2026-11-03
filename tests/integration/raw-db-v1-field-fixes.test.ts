@@ -16,9 +16,11 @@ import { S07_FILE, s07Hash, s07Privacy } from '../fixtures/raw-db-v1-s07.js';
 import { ANSWER, QUERY, googleFixture, saveGoogleCapture, SUGGESTION_FILE } from '../fixtures/raw-db-v1-google.js';
 import { S14_FILE, saveVideoReadingRun } from '../fixtures/raw-db-v1-s14.js';
 import { tiktokFixture, runId as tikTokRunId } from '../fixtures/tiktok-coding-fixture.js';
+import { s06Fixture } from '../fixtures/raw-db-v1-autoload.js';
+import { loadTikTokShopReviewsToDbV1 } from '../../src/modules/raw-db/tiktok-shop-reviews-loader.js';
 import { AT, BASIS_ROWS, beforeFieldFixes, databaseRows, editPublicRows, historicalNameState, temporaryDirectory } from '../fixtures/raw-db-v1-field-fixes.js';
 
-test('RAWDB-P4 F1: bad or missing stars keep VALID review state; migration rejects legacy non-VALID states', async t => {
+test('RAWDB-P4 F1: bad or missing stars keep VALID review state; migration rejects states outside VALID/HIDDEN/DELETED', async t => {
   t.mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected network'); });
   const f = await rawDbFixture(t);
   const source = await f.saveRun(false, collected => editPublicRows(collected, (row, i) => {
@@ -46,9 +48,14 @@ test('RAWDB-P4 F1: bad or missing stars keep VALID review state; migration rejec
     db.prepare(`INSERT INTO raw_capture(capture_id,source_code,provider,operation,requested_at,outcome)
       VALUES ('synthetic-state','S07','apify','apify.tiktok.comments',?,'OK')`).run(AT);
     insert(db, 'synthetic-legacy', state);
+    if (state === 'HIDDEN' || state === 'DELETED') {
+      applyMigrations(db);
+      assert.equal(db.prepare('SELECT state FROM review').pluck().get(), state);
+      continue;
+    }
     const before = databaseRows(db), schema = db.prepare('SELECT * FROM sqlite_schema ORDER BY name').all();
     const version = db.pragma('user_version', { simple: true });
-    assert.throws(() => applyMigrations(db), /./, `0071 must fail on legacy ${state}`);
+    assert.throws(() => applyMigrations(db), /raw_db_0071_review_state/, `0071 must fail on legacy ${state}`);
     assert.deepEqual(databaseRows(db), before, 'failed migration preserves rows and ledger');
     assert.deepEqual(db.prepare('SELECT * FROM sqlite_schema ORDER BY name').all(), schema);
     assert.equal(db.pragma('user_version', { simple: true }), version);
@@ -57,37 +64,50 @@ test('RAWDB-P4 F1: bad or missing stars keep VALID review state; migration rejec
 
 test('RAWDB-P4 F3: exact name provenance is append-only; same-run replay adds provenance alone and mismatch writes nothing', async t => {
   t.mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected network'); });
-  for (const kind of ['S05', 'S02b-file', 'S02b-rank', 'S02b-detail'] as const) {
-    const f = await rawDbFixture(t), privacy = s07Privacy();
+  for (const kind of ['S05', 'S02b-file', 'S02b-rank', 'S02b-detail', 'S06'] as const) {
+    const f = await rawDbFixture(t, kind === 'S05'), privacy = s07Privacy();
     let expected: { product_key: string; source_kind: string; artifact_sha256: string | null; capture_id: string | null; json_path: string }[];
-    let nameCapture: { captureId: string; operation: string; artifactSha256: string } | undefined;
+    let nameCapture: { captureId: string; artifactSha256: string } | undefined;
     let load: () => Promise<object>;
     if (kind === 'S05') {
       load = () => loadShopeeReviewsToDbV1(f.db, f.artifacts, { runId: f.runId });
       expected = PRODUCTS.map((p, i) => ({ product_key: `shopee:${p.itemId}`, source_kind: 'METRIC_LIST',
         artifact_sha256: s07Hash(captureFiles(f.runId).rawBytes), capture_id: null, json_path: `$.responses[0].body.data[${i}]` }));
+    } else if (kind === 'S06') {
+      await saveKalodataCapture(f, 0, 'kalodata.product.detail', { product_id: '79001' },
+        { success: true, data: { product_id: '79001', product_name: 'Synthetic video product' } });
+      const { saveS06Capture } = await import('../fixtures/raw-db-v1-autoload.js');
+      await saveS06Capture(f);
+      const named = f.db.prepare("SELECT artifact_sha256 FROM analysis_research_automation_captures WHERE run_id=? AND ordinal=0").pluck().get(f.runId) as string;
+      nameCapture = { captureId: `S06:${f.runId}:0`, artifactSha256: named };
+      load = () => loadTikTokShopReviewsToDbV1(f.db, f.artifacts, { runId: f.runId });
+      expected = [{ product_key: 'tiktok_shop:79001', source_kind: 'APP_CAPTURE', artifact_sha256: named, capture_id: null, json_path: '$.data' }];
     } else if (kind === 'S02b-file') {
       load = () => loadKalodataVideosToDbV1(f.db, f.artifacts, { file: S02B_FILE, runId: f.runId }, privacy);
       expected = [{ product_key: 'tiktok_shop:79001', source_kind: 'RAW_CAPTURE', artifact_sha256: null,
-        capture_id: `S02b:${s07Hash(await fs.readFile(S02B_FILE)).slice(0, 12)}:0`, json_path: '$.records[0]' }];
+        capture_id: `S02b:${s07Hash(await fs.readFile(S02B_FILE)).slice(0, 12)}:0`, json_path: '$' }];
     } else {
       const product = S02B_DOCUMENT.records[0];
       const name = { product_id: '79001', product_name: 'Synthetic video product' };
       const operation = kind === 'S02b-rank' ? 'kalodata.product.rank' : 'kalodata.product.detail';
       const named = await saveKalodataCapture(f, 0, operation,
         product.requestBody, { success: true, data: kind === 'S02b-rank' ? [name] : name });
-      nameCapture = { captureId: `S02b:${f.runId}:0`, operation, artifactSha256: named.sha256 };
+      nameCapture = { captureId: `S02b:${f.runId}:0`, artifactSha256: named.sha256 };
       await saveKalodataCapture(f, 1, 'kalodata.video.rank', product.requestBody, product.response);
       load = () => loadKalodataVideosToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy);
-      expected = [{ product_key: 'tiktok_shop:79001', source_kind: 'RAW_CAPTURE', artifact_sha256: null,
-        capture_id: `S02b:${f.runId}:0`, json_path: kind === 'S02b-rank' ? '$.data[0]' : '$.data' }];
+      expected = [{ product_key: 'tiktok_shop:79001', source_kind: 'APP_CAPTURE', artifact_sha256: named.sha256,
+        capture_id: null, json_path: kind === 'S02b-rank' ? '$.data[0]' : '$.data' }];
     }
     await load();
     const provenance = () => f.db.prepare(`SELECT product_key,source_kind,artifact_sha256,capture_id,json_path
       FROM product_name_source ORDER BY product_key`).all();
     assert.deepEqual(provenance(), expected, kind);
-    if (nameCapture) assert.deepEqual(f.db.prepare('SELECT operation,raw_path FROM raw_capture WHERE capture_id=?').get(nameCapture.captureId),
-      { operation: nameCapture.operation, raw_path: `artifact:${nameCapture.artifactSha256}` }, 'the name record must retain its own capture, rather than point at ranked-video bytes');
+    if (nameCapture) {
+      assert.equal(f.db.prepare('SELECT 1 FROM raw_capture WHERE capture_id=?').get(nameCapture.captureId), undefined, 'app name captures do not become raw_capture rows');
+      const envelope = JSON.parse((await f.artifacts.read(nameCapture.artifactSha256)).toString('utf8'));
+      const payload = JSON.parse(Buffer.from(envelope.responseBytesBase64, 'base64').toString('utf8'));
+      assert.equal((Array.isArray(payload.data) ? payload.data[0] : payload.data).product_name, 'Synthetic video product', 'provenance artifact contains the actual name record');
+    }
     const dates = f.db.prepare('SELECT recorded_at FROM product_name_source').all() as { recorded_at: string }[];
     for (const row of dates) assert.ok(Number.isFinite(Date.parse(row.recorded_at)), 'recorded_at is a real timestamp');
     assert.deepEqual(f.db.prepare("SELECT strict FROM pragma_table_list WHERE name='product_name_source'").get(), { strict: 1n });
@@ -104,6 +124,7 @@ test('RAWDB-P4 F3: exact name provenance is append-only; same-run replay adds pr
       for (const [source, artifact, capture] of [
         ['OTHER', 'a'.repeat(64), null], ['METRIC_LIST', null, null],
         ['METRIC_LIST', 'a'.repeat(64), `S05:${f.source.packet.collectionId}:0`],
+        ['APP_CAPTURE', null, null], ['APP_CAPTURE', 'a'.repeat(64), `S05:${f.source.packet.collectionId}:0`],
         ['RAW_CAPTURE', null, null], ['RAW_CAPTURE', 'a'.repeat(64), `S05:${f.source.packet.collectionId}:0`],
       ] as const) assert.throws(() => insertSource.run('shopee:990', source, artifact, capture, '$', AT), { code: 'SQLITE_CONSTRAINT_CHECK' });
       assert.throws(() => insertSource.run('shopee:missing', 'METRIC_LIST', 'a'.repeat(64), null, '$', AT), { code: 'SQLITE_CONSTRAINT_FOREIGNKEY' });
@@ -117,10 +138,11 @@ test('RAWDB-P4 F3: exact name provenance is append-only; same-run replay adds pr
     historicalNameState(f.db);
     const before = databaseRows(f.db, ['product_name_source']);
     const replay = await load();
-    const counters = kind === 'S05'
+    const counters = kind === 'S05' || kind === 'S06'
       ? ['captures', 'products', 'reviewsInserted', 'reviewsAlreadyPresent', 'runReviewsInserted']
       : ['captures', 'videos', 'videosAlreadyPresent', 'snapshots', 'productsInserted'];
     for (const key of counters) assert.equal((replay as Record<string, unknown>)[key], 0, `${kind} replay ${key}`);
+    assert.equal((replay as Record<string, unknown>).productNameSources, expected.length);
     assert.deepEqual(provenance(), expected, `${kind} must repair provenance even when its captures already exist`);
     assert.deepEqual(databaseRows(f.db, ['product_name_source']), before, 'only provenance may change');
     const repaired = databaseRows(f.db);
@@ -196,7 +218,7 @@ test('RAWDB-P4 F4: 0071 backfills every source basis, restores immutability, and
   const overviewFile = path.join(f.root, 'synthetic-overview.json');
   await fs.writeFile(overviewFile, JSON.stringify({ declare: { formatVersion: 'kem-raw-v1', sourceCode: 'S29', keyword: 'synthetic jar' },
     records: [{ query: QUERY, requestedAt: AT, httpStatus: 200, aiOverviewState: 'inline', ai_overview: ANSWER }] }));
-  await check(() => loadAiOverviewToDbV1(f.db, f.artifacts, { file: overviewFile, runId: f.runId }), 'S29', 'CANONICAL_JSON', true);
+  await check(() => loadAiOverviewToDbV1(f.db, f.artifacts, { file: overviewFile, runId: f.runId }), 'S29', 'RETAINED_ENVELOPE', true);
   const video = S02B_DOCUMENT.records[0];
   await saveKalodataCapture(f, 92, 'kalodata.video.rank', video.requestBody, video.response);
   await saveKalodataCapture(f, 93, 'kalodata.product.detail', video.requestBody, { success: true,
@@ -209,6 +231,9 @@ test('RAWDB-P4 F4: 0071 backfills every source basis, restores immutability, and
   await saveVideoReadingRun(readings);
   await loadVideoReadingsToDbV1(readings.db, readings.artifacts, { runId: readings.runId }, privacy);
   assert.deepEqual(readings.db.prepare('SELECT DISTINCT response_sha256_basis FROM raw_capture').all(), [{ response_sha256_basis: 'ORIGINAL_BYTES' }]);
+  const shop = await s06Fixture(t);
+  await loadTikTokShopReviewsToDbV1(shop.db, shop.artifacts, { runId: shop.runId });
+  assert.deepEqual(shop.db.prepare('SELECT DISTINCT response_sha256_basis FROM raw_capture').all(), [{ response_sha256_basis: 'ORIGINAL_BYTES' }]);
 });
 
 test('RAWDB-P4 F5: source-specific attribute shapes reject invalid/unknown inputs and roll back a verified load', async t => {

@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: R-RF01 review.state chỉ là trạng thái của chính đánh giá
-`review.state` SHALL chỉ nhận `VALID`, `HIDDEN` hoặc `DELETED`; migration 0071 SHALL thêm trigger chặn mọi giá trị khác khi thêm dòng và SHALL dừng nếu đã có dòng mang giá trị khác. Bộ nạp S05 SHALL ghi `state` `VALID`; sao thiếu hoặc sai SHALL thành `rating_star` `NULL` và được đếm một lần cho mỗi đánh giá mới thêm ở `ratingInvalid` của kết quả nạp.
+`review.state` SHALL chỉ nhận `VALID`, `HIDDEN`, `DELETED`. Migration 0071 SHALL chặn INSERT và dừng nâng cấp nếu có giá trị khác. S05 SHALL ghi `VALID`; sao thiếu hoặc sai thành `rating_star` `NULL`, đếm một lần cho mỗi đánh giá mới ở `ratingInvalid`.
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm
@@ -16,18 +16,18 @@
 - **THEN** lệnh bị chặn với lỗi `raw_db_v1_review_state`
 
 ### Requirement: R-RF02 Bảng nguồn tên sản phẩm
-Migration 0071 SHALL tạo bảng `product_name_source` (STRICT, cấm sửa, cấm xoá) với `source_kind` `METRIC_LIST` (có `artifact_sha256`, không `capture_id`) hoặc `RAW_CAPTURE` (có `capture_id`, không `artifact_sha256`), và `json_path`, `recorded_at` bắt buộc.
+Migration 0071 SHALL tạo bảng `product_name_source` (STRICT, cấm sửa, cấm xoá) với `source_kind` `METRIC_LIST` hoặc `APP_CAPTURE` (có `artifact_sha256`, không `capture_id`) hoặc `RAW_CAPTURE` (có `capture_id`, không `artifact_sha256`), và `json_path`, `recorded_at` bắt buộc.
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm
 - Vì sao: Chủ quyết F385 (bản soát Astra, mục 3): mọi tên sản phẩm phải truy được về bản ghi gốc.
 
 #### Scenario: Cặp cột sai
-- **WHEN** có lệnh thêm dòng `METRIC_LIST` có `capture_id`, hoặc `RAW_CAPTURE` có `artifact_sha256`
+- **WHEN** có lệnh thêm dòng `METRIC_LIST` hoặc `APP_CAPTURE` có `capture_id`, hoặc `RAW_CAPTURE` có `artifact_sha256`
 - **THEN** lệnh bị chặn bởi CHECK
 
 ### Requirement: R-RF03 Bộ nạp ghi nguồn tên sản phẩm
-Bộ nạp S05 SHALL ghi một dòng `METRIC_LIST` trỏ đúng tệp phản hồi Metric và đường dẫn của bản ghi đã cho tên, cùng giao dịch với dòng `product`. Bộ nạp S02b SHALL ghi một dòng `RAW_CAPTURE` với lần thu và đường dẫn của bản ghi đã cho tên, khi bản ghi đó là một dòng `raw_capture`.
+S05 SHALL ghi `METRIC_LIST`, S02b từ tệp ghi `RAW_CAPTURE`, S02b từ lượt chạy và S06 ghi `APP_CAPTURE`, cùng giao dịch với `product`. Mỗi dòng SHALL trỏ đúng bản ghi đã cho tên. `APP_CAPTURE` SHALL trỏ tệp thu đã kiểm và đường dẫn trong phản hồi đã giải mã, không tạo dòng `raw_capture` cho lần thu tên.
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm
@@ -36,6 +36,10 @@ Bộ nạp S05 SHALL ghi một dòng `METRIC_LIST` trỏ đúng tệp phản h�
 #### Scenario: S05 lấy tên từ Metric
 - **WHEN** bộ nạp S05 thêm một sản phẩm mới
 - **THEN** có đúng một dòng `product_name_source` `METRIC_LIST` với dấu của tệp Metric đã dùng và `json_path` như `$[206].body.data.products[2]`
+
+#### Scenario: Tên từ lượt thu app
+- **WHEN** S02b từ lượt chạy app hoặc S06 thêm một sản phẩm từ tên trong lần gọi rank/detail đã lưu
+- **THEN** có đúng một dòng `APP_CAPTURE` trỏ tệp và bản ghi đã cho tên, không thêm `raw_capture` cho lần gọi tên
 
 #### Scenario: Không có tên
 - **WHEN** không bản ghi nào cho tên sản phẩm
@@ -57,7 +61,7 @@ Khi nạp lại cùng lần chạy (lần thu đầu của sản phẩm thuộc 
 - **THEN** lỗi `RAW_DB_PRODUCT_NAME_MISMATCH`, không bảng nào đổi
 
 ### Requirement: R-RF05 Cột cơ sở của dấu phản hồi
-Migration 0071 SHALL thêm cột `raw_capture.response_sha256_basis` (4 giá trị của KHUON §2.1), SHALL điền mọi dòng cũ có `response_sha256` theo bảng ở đó, giữ `NULL` khi không có dấu, SHALL dựng lại `raw_capture_no_update` như cũ, và SHALL dừng nếu còn dòng có dấu không điền được.
+Migration 0071 SHALL thêm `raw_capture.response_sha256_basis` (4 giá trị ở KHUON §2.1), điền mọi dòng cũ có dấu theo bảng đó, giữ `NULL` khi không có dấu, dựng lại `raw_capture_no_update` như cũ, và dừng nếu còn dấu chưa có cơ sở. S02b từ tệp kẽm đã nạp SHALL nhận `SUPPLIED_FILE` (không khai báo canonical-json).
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm
@@ -68,7 +72,7 @@ Migration 0071 SHALL thêm cột `raw_capture.response_sha256_basis` (4 giá tr�
 - **THEN** S05 và S07 có `RETAINED_ENVELOPE`; dòng không có dấu vẫn `NULL`; UPDATE trên `raw_capture` vẫn bị chặn
 
 ### Requirement: R-RF06 Bộ nạp ghi cơ sở của dấu
-Mỗi bộ nạp (S05, S07, S19b, S29, S02b, S14) SHALL ghi `response_sha256_basis` theo bảng của KHUON §2.1 khi có `response_sha256`. Thêm dòng có `response_sha256` mà không có `response_sha256_basis` SHALL bị chặn.
+Mỗi bộ nạp (S05, S06, S07, S19b, S29, S02b, S14) SHALL ghi `response_sha256_basis` theo bảng của KHUON §2.1 khi có `response_sha256`. Thêm dòng có `response_sha256` mà không có `response_sha256_basis` SHALL bị chặn.
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm

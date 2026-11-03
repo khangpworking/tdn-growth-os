@@ -34,8 +34,11 @@ export async function beforeFieldFixes(t: TestContext) {
 export function databaseRows(db: Database.Database, omit: readonly string[] = []) {
   const tables = db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
     .all() as { name: string }[];
-  return Object.fromEntries(tables.filter(({ name }) => !omit.includes(name)).map(({ name }) =>
-    [name, db.prepare(`SELECT * FROM "${name.replaceAll('"', '""')}" ORDER BY rowid`).all()]));
+  return Object.fromEntries(tables.filter(({ name }) => !omit.includes(name)).map(({ name }) => {
+    const table = `"${name.replaceAll('"', '""')}"`;
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    return [name, db.prepare(`SELECT * FROM ${table} ORDER BY ${columns.map((_, i) => i + 1).join(',')}`).all()];
+  }));
 }
 
 /** Explicit historical fixtures only: emulate the pre-0071 absence of name provenance or a name conflict. */
@@ -77,7 +80,8 @@ export const BASIS_ROWS = [
   ['suggest-file', 'S19b', 'google-suggest', 'google.suggest', 'file:synthetic.json#0', 'CANONICAL_JSON'],
   ['overview-run', 'S29', 'serpapi', 'serpapi.google.search', 'artifact:synthetic', 'ORIGINAL_BYTES'],
   ['overview-followup', 'S29', 'serpapi', 'serpapi.google_ai_overview', 'artifact:synthetic', 'ORIGINAL_BYTES'],
-  ['overview-file', 'S29', 'serpapi', 'serpapi.google.search', 'file:synthetic.json#0', 'CANONICAL_JSON'],
+  ['overview-file', 'S29', 'serpapi', 'serpapi.google.search', 'file:synthetic.json#0', 'RETAINED_ENVELOPE'],
+  ['s06-run', 'S06', 'kalodata', 'kalodata.product.comment.insight', 'artifact:synthetic', 'ORIGINAL_BYTES'],
   ['s02b-run', 'S02b', 'kalodata', 'kalodata.video.rank', 'artifact:synthetic', 'ORIGINAL_BYTES'],
   ['s02b-file', 'S02b', 'kalodata', 'kalodata.video.rank', 'file:synthetic.json#0', 'SUPPLIED_FILE'],
   ['s14-run', 'S14', 'gemini', 'videowatch.generate', 'artifact:synthetic', 'ORIGINAL_BYTES'],

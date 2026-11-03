@@ -15,12 +15,12 @@ BEGIN SELECT RAISE(ABORT,'raw_db_v1_review_state'); END;
 
 CREATE TABLE product_name_source (
   product_key     TEXT PRIMARY KEY REFERENCES product(product_key),
-  source_kind     TEXT NOT NULL CHECK (source_kind IN ('METRIC_LIST','RAW_CAPTURE')),
+  source_kind     TEXT NOT NULL CHECK (source_kind IN ('METRIC_LIST','APP_CAPTURE','RAW_CAPTURE')),
   artifact_sha256 TEXT,
   capture_id      TEXT REFERENCES raw_capture(capture_id),
   json_path       TEXT NOT NULL,
   recorded_at     TEXT NOT NULL,
-  CHECK (source_kind <> 'METRIC_LIST' OR (artifact_sha256 IS NOT NULL AND capture_id IS NULL)),
+  CHECK (source_kind NOT IN ('METRIC_LIST','APP_CAPTURE') OR (artifact_sha256 IS NOT NULL AND capture_id IS NULL)),
   CHECK (source_kind <> 'RAW_CAPTURE' OR (capture_id IS NOT NULL AND artifact_sha256 IS NULL))
 ) STRICT;
 
@@ -31,8 +31,8 @@ ALTER TABLE raw_capture ADD COLUMN response_sha256_basis TEXT
   CHECK (response_sha256_basis IN ('ORIGINAL_BYTES','RETAINED_ENVELOPE','CANONICAL_JSON','SUPPLIED_FILE'));
 
 -- Backfill: the same per-loader mapping as each loader's INSERT (KHUON §2.1). App-run loads have an `artifact:` raw_path,
--- kẽm-file loads a `file:` one. S02b file loads are not mapped: their basis depends on the file's declare, which is not
--- stored, so such a row stops this migration (raw_db_0071_response_sha256_basis) for the owner to decide.
+-- kẽm-file loads a `file:` one. Existing S02b file loads (kem-2910) had no canonical-json declaration:
+-- the loader retained responseSha256 supplied by the file. New loads record their declared basis explicitly.
 DROP TRIGGER raw_capture_no_update;
 UPDATE raw_capture SET response_sha256_basis = CASE
     WHEN source_code = 'S05' THEN 'RETAINED_ENVELOPE'
@@ -44,6 +44,7 @@ UPDATE raw_capture SET response_sha256_basis = CASE
     WHEN source_code = 'S29'  AND raw_path LIKE 'artifact:%' THEN 'ORIGINAL_BYTES'
     WHEN source_code = 'S29'  AND raw_path LIKE 'file:%'     THEN 'RETAINED_ENVELOPE'
     WHEN source_code = 'S02b' AND raw_path LIKE 'artifact:%' THEN 'ORIGINAL_BYTES'
+    WHEN source_code = 'S02b' AND raw_path LIKE 'file:%'     THEN 'SUPPLIED_FILE'
     WHEN source_code = 'S14'  AND raw_path LIKE 'artifact:%' THEN 'ORIGINAL_BYTES'
     WHEN source_code = 'S14'  AND raw_path LIKE 'file:%'     THEN 'SUPPLIED_FILE'
   END

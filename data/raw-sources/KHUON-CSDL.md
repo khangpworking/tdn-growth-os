@@ -89,7 +89,7 @@ Mỗi lần gọi nhà cung cấp (một trang, một API, một lần mở tran
 | S14 | lượt chạy app | dấu byte phản hồi Gemini | `ORIGINAL_BYTES` |
 | S14 | tệp kẽm | `records[].responseSha256` của tệp | `SUPPLIED_FILE` |
 
-Dòng S02b nạp từ tệp trước migration 0071 không điền được (tệp khai báo gì thì không lưu); có dòng như vậy thì migration dừng để chủ quyết.
+Các dòng S02b đã nạp từ tệp kẽm trước migration 0071 nhận `SUPPLIED_FILE`: tệp kẽm không khai báo `canonical-json`, bộ nạp giữ dấu do tệp cung cấp. Lần nạp mới ghi cơ sở theo khai báo trong tệp.
 
 ### 2.2 `product` — sản phẩm trên sàn
 
@@ -116,15 +116,15 @@ Chủ quyết F385 (04/11/2026, migration 0071). Một sản phẩm một dòng,
 | Cột | Kiểu | Bắt buộc | Nghĩa |
 |---|---|---|---|
 | product_key | TEXT | Có | Sản phẩm, khoá chính, trỏ về `product` |
-| source_kind | TEXT | Có | `METRIC_LIST` (tên đọc từ tệp phản hồi Metric) hoặc `RAW_CAPTURE` (tên đọc từ một lần thu trong `raw_capture`) |
-| artifact_sha256 | TEXT | Với `METRIC_LIST` | Dấu của tệp phản hồi Metric (raw-responses). `NULL` với `RAW_CAPTURE` |
-| capture_id | TEXT | Với `RAW_CAPTURE` | Lần thu đã cho tên. `NULL` với `METRIC_LIST` |
-| json_path | TEXT | Có | Đường dẫn tới bản ghi chứa tên: trong tệp Metric (ví dụ `$[206].body.data.products[2]`), hoặc trong bản ghi gốc mà `raw_path` của lần thu chỉ tới (`$` = chính bản ghi đó) |
+| source_kind | TEXT | Có | `METRIC_LIST` (tên đọc từ tệp phản hồi Metric), `APP_CAPTURE` (tên đọc từ tệp thu của app, không phải dòng `raw_capture`), hoặc `RAW_CAPTURE` (tên đọc từ một lần thu trong `raw_capture`) |
+| artifact_sha256 | TEXT | Với `METRIC_LIST`, `APP_CAPTURE` | Dấu của tệp phản hồi Metric (raw-responses) hoặc tệp thu app đã kiểm. `NULL` với `RAW_CAPTURE` |
+| capture_id | TEXT | Với `RAW_CAPTURE` | Lần thu đã cho tên. `NULL` với `METRIC_LIST` và `APP_CAPTURE` |
+| json_path | TEXT | Có | Đường dẫn tới bản ghi chứa tên: trong tệp Metric (ví dụ `$[206].body.data.products[2]`), trong phản hồi đã giải mã của tệp thu app (`$.data` hoặc `$.data[i]`), hoặc trong bản ghi gốc mà `raw_path` của lần thu chỉ tới (`$` = chính bản ghi đó) |
 | recorded_at | TEXT | Có | Lúc ghi dòng (+07:00) |
 
 - S05: tên lấy theo luật cũ (lần thu Metric cuối thắng, lần trước chỉ bù tên còn thiếu); dòng `METRIC_LIST` trỏ đúng tệp và bản ghi đã dùng. Không có tên → không có dòng `product` (như cũ, `RAW_DB_PRODUCT_NAME_MISSING`).
 - S02b: tên từ `productName` của bản ghi tệp → `RAW_CAPTURE`, `capture_id` của bản ghi đó, `json_path` `$`.
-- **Còn chờ chủ quyết:** S02b nạp từ lượt chạy app lấy tên từ lần gọi `kalodata.product.rank` / `kalodata.product.detail` của cùng lần chạy. Các lần gọi đó không có dòng `raw_capture`, nên chưa ghi được dòng `RAW_CAPTURE`. Bộ nạp vẫn thêm `product` như cũ và chưa ghi `product_name_source`.
+- S02b nạp từ lượt chạy app và S06: tên từ `kalodata.product.rank` / `kalodata.product.detail` của cùng lần chạy → `APP_CAPTURE`, dấu của đúng tệp thu đã cho tên, `capture_id` `NULL`. Không thêm dòng `raw_capture` cho lần thu tên. S02b ưu tiên rank rồi detail; S06 ưu tiên detail rồi rank, như trước.
 - Sản phẩm đã có trước migration 0071: nạp lại cùng lần chạy (lần thu đầu của sản phẩm thuộc lần chạy đó) chỉ thêm dòng `product_name_source` còn thiếu. Tên tìm được phải đúng bằng `product_name` đã lưu, nếu không thì cả lần nạp hỏng (`RAW_DB_PRODUCT_NAME_MISMATCH`, không ghi gì). Migration không điền bảng này (không đọc được tệp); dữ liệu cũ được điền bằng cách nạp lại sau khi triển khai.
 
 ### 2.3 `product_snapshot` — số của sản phẩm trong một kỳ
@@ -670,12 +670,12 @@ BEGIN SELECT RAISE(ABORT,'raw_db_v1_review_state'); END;
 
 CREATE TABLE product_name_source (
   product_key     TEXT PRIMARY KEY REFERENCES product(product_key),
-  source_kind     TEXT NOT NULL CHECK (source_kind IN ('METRIC_LIST','RAW_CAPTURE')),
+  source_kind     TEXT NOT NULL CHECK (source_kind IN ('METRIC_LIST','APP_CAPTURE','RAW_CAPTURE')),
   artifact_sha256 TEXT,
   capture_id      TEXT REFERENCES raw_capture(capture_id),
   json_path       TEXT NOT NULL,
   recorded_at     TEXT NOT NULL,
-  CHECK (source_kind <> 'METRIC_LIST' OR (artifact_sha256 IS NOT NULL AND capture_id IS NULL)),
+  CHECK (source_kind NOT IN ('METRIC_LIST','APP_CAPTURE') OR (artifact_sha256 IS NOT NULL AND capture_id IS NULL)),
   CHECK (source_kind <> 'RAW_CAPTURE' OR (capture_id IS NOT NULL AND artifact_sha256 IS NULL))
 );
 

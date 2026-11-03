@@ -3,6 +3,7 @@ import type { ContentAddressedArtifactStore } from '../../platform/artifacts/ind
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { assertRun, runCaptures, verifiedCapture } from './google-search-loader.js';
 import { vietnamTime } from './shopee-reviews-loader.js';
+import { assertAttributesShape } from './attributes-shape.js';
 
 /**
  * Rows inserted by one call. reviewsAlreadyPresent: stored reviews this call newly linked to the run (0 on a same-run reload).
@@ -11,11 +12,12 @@ import { vietnamTime } from './shopee-reviews-loader.js';
  */
 export interface TikTokShopReviewsLoadResult {
   runId: string; captures: number; products: number; reviewsInserted: number; reviewsAlreadyPresent: number; runReviewsInserted: number;
-  ratingInvalid: number; reviewIdMissing: number;
+  ratingInvalid: number; reviewIdMissing: number; productNameSources: number;
 }
 
 type Value = string | number | null;
 interface PlannedCapture { captureId: string; values: Value[]; productId: string | null; reviews: Value[][]; ratingInvalid: number; reviewIdMissing: number }
+interface NameSource { name: string; artifactSha256: string; jsonPath: string }
 
 const SOURCE = 'S06';
 const OPERATION = 'kalodata.product.comment.insight';
@@ -34,18 +36,31 @@ const MS_TIMESTAMP = /^\d{1,15}$/;
 export async function loadTikTokShopReviewsToDbV1(db: Database.Database, artifacts: ContentAddressedArtifactStore, { runId }: { runId: string }): Promise<TikTokShopReviewsLoadResult> {
   const { captures, names } = await planFromRun(db, artifacts, runId);
   const insertCapture = db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,endpoint,request_params_json,keyword,
-    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path,response_sha256_basis) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const existingCapture = db.prepare('SELECT source_code,operation,request_params_json,requested_at,outcome,response_sha256 FROM raw_capture WHERE capture_id=?');
   const storedProduct = db.prepare('SELECT 1 FROM product WHERE product_key=?');
   const insertProduct = db.prepare(`INSERT INTO product(product_key,platform,item_id,product_name,first_capture_id) VALUES (?,'tiktok_shop',?,?,?) ON CONFLICT DO NOTHING`);
+  const unsourcedProduct = db.prepare(`SELECT p.product_name name FROM product p JOIN raw_capture c ON c.capture_id=p.first_capture_id
+    LEFT JOIN product_name_source s ON s.product_key=p.product_key WHERE p.product_key=? AND c.run_id=? AND s.product_key IS NULL`);
+  const insertSource = db.prepare(`INSERT INTO product_name_source(product_key,source_kind,artifact_sha256,capture_id,json_path,recorded_at)
+    VALUES (?,'APP_CAPTURE',?,NULL,?,?) ON CONFLICT DO NOTHING`);
+  const recordedAt = vietnamTime(new Date().toISOString())!;
   const insertReview = db.prepare(`INSERT INTO review(review_key,source_code,platform,kind,external_id,product_key,video_url,reviewer_key,reviewer_name,reviewer_name_state,
     rating_star,text,variation,attributes_json,posted_at,like_count,reply_count,replies_to_external_id,media_count,state,collected_at,capture_id,source_position)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
   const insertRunReview = db.prepare('INSERT INTO run_review(run_id,review_key,capture_id,source_position) VALUES (?,?,?,?) ON CONFLICT DO NOTHING');
   return db.transaction((): TikTokShopReviewsLoadResult => {
     const result: TikTokShopReviewsLoadResult = { runId, captures: 0, products: 0, reviewsInserted: 0, reviewsAlreadyPresent: 0, runReviewsInserted: 0,
-      ratingInvalid: 0, reviewIdMissing: 0 };
+      ratingInvalid: 0, reviewIdMissing: 0, productNameSources: 0 };
     const seen = new Set<string>();
+    const backfillSource = (c: PlannedCapture): void => {
+      if (!c.reviews.length) return;
+      const key = `tiktok_shop:${c.productId}`, found = names.get(c.productId!);
+      const stored = unsourcedProduct.get(key, runId) as { name: string } | undefined;
+      if (!stored || !found) return;
+      if (stored.name !== found.name) throw new Error(`RAW_DB_PRODUCT_NAME_MISMATCH: ${key} is stored with another name than this run's record`);
+      result.productNameSources += insertSource.run(key, found.artifactSha256, found.jsonPath, recordedAt).changes;
+    };
     for (const c of captures) {
       // Idempotent by capture id: a stored capture must be this exact observation, and its rows are already there.
       const existing = existingCapture.get(c.captureId) as Record<string, Value> | undefined;
@@ -53,6 +68,7 @@ export async function loadTikTokShopReviewsToDbV1(db: Database.Database, artifac
         if (existing.source_code !== SOURCE || existing.operation !== OPERATION || existing.request_params_json !== c.values[6] ||
             existing.requested_at !== c.values[8] || existing.outcome !== c.values[11] || existing.response_sha256 !== c.values[15])
           throw new Error(`RAW_DB_CAPTURE_CONFLICT: ${c.captureId} already identifies a different observation`);
+        backfillSource(c);
         continue;
       }
       insertCapture.run(...c.values);
@@ -65,8 +81,9 @@ export async function loadTikTokShopReviewsToDbV1(db: Database.Database, artifac
         // product_name is required and never guessed: only a name the same run stored.
         const name = names.get(c.productId!);
         if (name === undefined) throw new Error(`RAW_DB_PRODUCT_NAME_MISSING: no product name for ${key}`);
-        result.products += insertProduct.run(key, c.productId, name, c.captureId).changes;
+        result.products += insertProduct.run(key, c.productId, name.name, c.captureId).changes;
       }
+      backfillSource(c);
       for (const values of c.reviews) {
         // One review per run: a review repeated in a later capture of the same run keeps its first position.
         if (seen.has(values[0] as string)) continue;
@@ -88,7 +105,7 @@ export function runHasTikTokShopReviewCaptures(db: Database.Database, runId: str
   return Boolean(db.prepare(`SELECT 1 FROM analysis_research_automation_captures WHERE run_id=? AND provider='kalodata' AND operation=? LIMIT 1`).get(runId, OPERATION));
 }
 
-async function planFromRun(db: Database.Database, artifacts: ContentAddressedArtifactStore, runId: string): Promise<{ captures: PlannedCapture[]; names: Map<string, string> }> {
+async function planFromRun(db: Database.Database, artifacts: ContentAddressedArtifactStore, runId: string): Promise<{ captures: PlannedCapture[]; names: Map<string, NameSource> }> {
   const run = assertRun(db, runId);
   // The shared reader excludes truncated captures. Reject them here rather than silently importing a partial run.
   if (db.prepare(`SELECT 1 FROM analysis_research_automation_captures
@@ -129,6 +146,7 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
       if (reviewId === null) { planned.reviewIdMissing++; return; }
       const rating = ratingStar(review.rating);
       if (rating === null) planned.ratingInvalid++;
+      assertAttributesShape(SOURCE, null, `${captureId} row ${index}`);
       planned.reviews.push([`${SOURCE}:${reviewId}`, SOURCE, 'tiktok_shop', 'product_review', reviewId, `tiktok_shop:${productId}`, null, null, null,
         anonymous(item.is_anonymous) ? 'masked_by_source' : 'not_provided', rating,
         typeof review.display_text === 'string' ? review.display_text : null,
@@ -138,15 +156,18 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
     const envelopeOutcome = typeof envelope.outcome === 'string' ? envelope.outcome : null;
     const outcome = response ? (planned.reviews.length || planned.reviewIdMissing ? 'OK' : 'EMPTY')
       : envelopeOutcome !== null && envelopeOutcome !== 'OK' && DB_OUTCOMES.has(envelopeOutcome) ? envelopeOutcome : 'FAILED';
+    const responseSha256 = response?.sha256 ?? (typeof envelope.responseSha256 === 'string' ? envelope.responseSha256 : null);
     planned.values = [captureId, runId, SOURCE, 'kalodata', OPERATION, typeof envelope.endpoint === 'string' ? envelope.endpoint : null, requestText, run.keyword,
       typeof envelope.requestedAt === 'string' ? envelope.requestedAt : row.retrievedAt, completedAt,
       typeof envelope.httpStatus === 'number' ? envelope.httpStatus : null, outcome, typeof envelope.billing === 'string' ? envelope.billing : null,
-      'kalodata_points', null, response?.sha256 ?? (typeof envelope.responseSha256 === 'string' ? envelope.responseSha256 : null), `artifact:${row.artifactSha}`];
+      'kalodata_points', null, responseSha256, `artifact:${row.artifactSha}`, responseSha256 === null ? null : 'ORIGINAL_BYTES'];
     captures.push(planned);
   }
-  // Product names only when a product row is missing: from the same run's OK product detail and rank captures.
-  const names = new Map<string, string>();
-  const missing = captures.some(c => c.reviews.length && !db.prepare('SELECT 1 FROM product WHERE product_key=?').get(`tiktok_shop:${c.productId}`));
+  // Read names for new products and same-run products whose provenance still needs repair.
+  const names = new Map<string, NameSource>();
+  const hasName = db.prepare(`SELECT 1 FROM product p JOIN raw_capture c ON c.capture_id=p.first_capture_id
+    LEFT JOIN product_name_source s ON s.product_key=p.product_key WHERE p.product_key=? AND (c.run_id<>? OR s.product_key IS NOT NULL)`);
+  const missing = captures.some(c => c.reviews.length && !hasName.get(`tiktok_shop:${c.productId}`, runId));
   if (missing) {
     for (const operation of ['kalodata.product.detail', 'kalodata.product.rank']) {
       for (const row of runCaptures(db, runId, 'kalodata', operation)) {
@@ -154,9 +175,10 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
         if (!response) continue;
         const payload: unknown = JSON.parse(response.text);
         const data = isRecord(payload) && payload.success === true ? payload.data : null;
-        for (const item of Array.isArray(data) ? data : [data]) {
+        for (const [index, item] of (Array.isArray(data) ? data : [data]).entries()) {
           if (isRecord(item) && typeof item.product_id === 'string' && typeof item.product_name === 'string' && item.product_name.trim() && !names.has(item.product_id))
-            names.set(item.product_id, item.product_name);
+            names.set(item.product_id, { name: item.product_name, artifactSha256: row.artifactSha,
+              jsonPath: Array.isArray(data) ? `$.data[${index}]` : '$.data' });
         }
       }
     }

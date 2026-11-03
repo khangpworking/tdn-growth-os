@@ -186,7 +186,7 @@ test('RAWDB-V V8: verified run captures map rows and product names; FAILED, EMPT
     await saveKalodataCapture(f, 7, 'kalodata.product.detail', failed.requestBody,
       { success: true, data: { product_id: failed.productId, product_name: failed.productName } });
     assert.deepEqual(await loadKalodataVideosToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy),
-      { ...S02B_RECEIPT, runId: f.runId, captures: 4, productsInserted: nameSource.success ? 1 : 0, productNameSources: 0 });
+      { ...S02B_RECEIPT, runId: f.runId, captures: 4, productsInserted: nameSource.success ? 1 : 0, productNameSources: nameSource.success ? 1 : 0 });
     assert.deepEqual(snapshots(f.db), expectedVideoSnapshots(`S02b:${f.runId}:1`, `S02b:${f.runId}:4`));
     assert.deepEqual(f.db.prepare('SELECT video_id,product_key,link_basis FROM video ORDER BY video_id').all(), [
       ...['1001', '81002', '81003'].map(video_id => ({ video_id,

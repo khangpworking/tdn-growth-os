@@ -26,11 +26,8 @@ interface PlannedRow { videoId: string; handle: string; snapshot: Value[] }
 interface PlannedCapture {
   captureId: string; values: Value[]; productId: string | null; productName: string | null; rows: PlannedRow[];
 }
-/**
- * A product name and, when the record that gave it is a db-v1 capture, that capture + the JSON path within its raw record.
- * A name from the run's product rank/detail captures has no source: those captures are not db-v1 raw_capture rows (owner question).
- */
-interface NameSource { name: string; source: { captureId: string; jsonPath: string } | null }
+/** The file record or verified app capture's decoded response actually used for a product name. */
+interface NameSource { name: string; sourceKind: 'RAW_CAPTURE' | 'APP_CAPTURE'; captureId: string | null; artifactSha256: string | null; jsonPath: string }
 
 const SOURCE = 'S02b';
 const OPERATION = 'kalodata.video.rank';
@@ -61,7 +58,7 @@ export async function loadKalodataVideosToDbV1(db: Database.Database, artifacts:
   const unsourcedProduct = db.prepare(`SELECT p.product_name name FROM product p JOIN raw_capture c ON c.capture_id=p.first_capture_id
     LEFT JOIN product_name_source s ON s.product_key=p.product_key WHERE p.product_key=? AND c.run_id=? AND s.product_key IS NULL`);
   const insertSource = db.prepare(`INSERT INTO product_name_source(product_key,source_kind,artifact_sha256,capture_id,json_path,recorded_at)
-    VALUES (?,'RAW_CAPTURE',NULL,?,?,?) ON CONFLICT DO NOTHING`);
+    VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
   const recordedAt = vietnamTime(new Date().toISOString())!;
   const storedVideo = db.prepare("SELECT video_url FROM video WHERE video_id=? AND platform='tiktok' ORDER BY rowid LIMIT 1");
   const insertVideo = db.prepare(`INSERT INTO video(video_url,video_id,platform,product_key,brand,author_key,link_basis,capture_id)
@@ -74,17 +71,17 @@ export async function loadKalodataVideosToDbV1(db: Database.Database, artifacts:
     const seen = new Set<string>();
     // A stored product of this run without a provenance row gets it now, when this capture's record gave the same name.
     const backfillSource = (key: string, found: NameSource): void => {
-      const stored = found.source ? unsourcedProduct.get(key, runId) as { name: string } | undefined : undefined;
+      const stored = unsourcedProduct.get(key, runId) as { name: string } | undefined;
       if (!stored) return;
       if (stored.name !== found.name) throw new Error(`RAW_DB_PRODUCT_NAME_MISMATCH: ${key} is stored with another name than this run's record`);
-      result.productNameSources += insertSource.run(key, found.source!.captureId, found.source!.jsonPath, recordedAt).changes;
+      result.productNameSources += insertSource.run(key, found.sourceKind, found.artifactSha256, found.captureId, found.jsonPath, recordedAt).changes;
     };
     for (const c of captures) {
       const key = c.rows.length && c.productId !== null ? `tiktok_shop:${c.productId}` : null;
       // product_name is required: without a name from the same input the video stays UNKNOWN (never guessed).
       const mapped = c.productId === null ? undefined : names.get(c.productId);
-      const found: NameSource | null = c.productName !== null ? { name: c.productName, source: { captureId: c.captureId, jsonPath: '$' } }
-        : mapped !== undefined ? { name: mapped, source: null } : null;
+      const found: NameSource | null = c.productName !== null ? { name: c.productName, sourceKind: 'RAW_CAPTURE', captureId: c.captureId, artifactSha256: null, jsonPath: '$' }
+        : mapped ?? null;
       // Idempotent by capture id: a stored capture must be this exact observation, and its rows are already there.
       const existing = existingCapture.get(c.captureId) as Record<string, Value> | undefined;
       if (existing) {
@@ -100,7 +97,7 @@ export async function loadKalodataVideosToDbV1(db: Database.Database, artifacts:
       if (key !== null) {
         if (!storedProduct.get(key) && found !== null) {
           result.productsInserted += insertProduct.run(key, c.productId, found.name, c.captureId).changes;
-          if (found.source) result.productNameSources += insertSource.run(key, found.source.captureId, found.source.jsonPath, recordedAt).changes;
+          result.productNameSources += insertSource.run(key, found.sourceKind, found.artifactSha256, found.captureId, found.jsonPath, recordedAt).changes;
         } else if (found !== null) backfillSource(key, found);
         if (storedProduct.get(key)) productKey = key;
       }
@@ -126,7 +123,7 @@ export async function loadKalodataVideosToDbV1(db: Database.Database, artifacts:
 
 // ---- file (kem-raw-v1) ----
 
-async function planFromFile(file: string, runId: string): Promise<{ captures: PlannedCapture[]; names: Map<string, string> }> {
+async function planFromFile(file: string, runId: string): Promise<{ captures: PlannedCapture[]; names: Map<string, NameSource> }> {
   let raw: Awaited<ReturnType<typeof readRawFile>>;
   try { raw = await readRawFile(file, SOURCE); }
   catch (error) {
@@ -168,7 +165,7 @@ async function planFromFile(file: string, runId: string): Promise<{ captures: Pl
 
 // ---- run (stored captures) ----
 
-async function planFromRun(db: Database.Database, artifacts: ContentAddressedArtifactStore, runId: string): Promise<{ captures: PlannedCapture[]; names: Map<string, string> }> {
+async function planFromRun(db: Database.Database, artifacts: ContentAddressedArtifactStore, runId: string): Promise<{ captures: PlannedCapture[]; names: Map<string, NameSource> }> {
   assertRun(db, runId);
   // The shared reader excludes truncated captures. Reject them here rather than silently importing a partial run.
   if (db.prepare(`SELECT 1 FROM analysis_research_automation_captures
@@ -198,9 +195,11 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
       typeof envelope.httpStatus === 'number' ? envelope.httpStatus : null, data,
       response?.sha256 ?? (typeof envelope.responseSha256 === 'string' ? envelope.responseSha256 : null), 'ORIGINAL_BYTES', `artifact:${row.artifactSha}`, null));
   }
-  // Product names only when a product row is missing: from the same run's OK product rank and detail captures.
-  const names = new Map<string, string>();
-  const missing = captures.some(c => c.rows.length && c.productId !== null && !db.prepare('SELECT 1 FROM product WHERE product_key=?').get(`tiktok_shop:${c.productId}`));
+  // Read names for new products and same-run products whose provenance still needs repair.
+  const names = new Map<string, NameSource>();
+  const hasName = db.prepare(`SELECT 1 FROM product p JOIN raw_capture c ON c.capture_id=p.first_capture_id
+    LEFT JOIN product_name_source s ON s.product_key=p.product_key WHERE p.product_key=? AND (c.run_id<>? OR s.product_key IS NOT NULL)`);
+  const missing = captures.some(c => c.rows.length && c.productId !== null && !hasName.get(`tiktok_shop:${c.productId}`, runId));
   if (missing) {
     for (const operation of ['kalodata.product.rank', 'kalodata.product.detail']) {
       for (const row of runCaptures(db, runId, 'kalodata', operation)) {
@@ -208,9 +207,10 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
         if (!response) continue;
         const payload: unknown = JSON.parse(response.text);
         const data = isRecord(payload) && payload.success === true ? payload.data : null;
-        for (const item of Array.isArray(data) ? data : [data]) {
+        for (const [index, item] of (Array.isArray(data) ? data : [data]).entries()) {
           if (isRecord(item) && typeof item.product_id === 'string' && typeof item.product_name === 'string' && item.product_name.trim() && !names.has(item.product_id))
-            names.set(item.product_id, item.product_name);
+            names.set(item.product_id, { name: item.product_name, sourceKind: 'APP_CAPTURE', artifactSha256: row.artifactSha, captureId: null,
+              jsonPath: Array.isArray(data) ? `$.data[${index}]` : '$.data' });
         }
       }
     }
