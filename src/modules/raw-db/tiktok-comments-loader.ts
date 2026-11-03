@@ -11,6 +11,7 @@ import { ResearchAutomationService } from '../analysis/research-automation/servi
 import { p9PackagePrefix } from '../analysis/research-automation/p9-source-intake.js';
 import { readRawFile } from './google-search-loader.js';
 import { vietnamTime } from './shopee-reviews-loader.js';
+import { assertAttributesShape } from './attributes-shape.js';
 
 /** Input: the stored P9 S07 collection of one app run, or one kem-raw-v1 S07 file labelled with a run id (for example `kem-2910`). */
 export type TikTokCommentsLoadInput = { runId: string } | { file: string; runId: string };
@@ -44,7 +45,7 @@ export async function loadTikTokCommentsToDbV1(db: Database.Database, artifacts:
   const plan = 'file' in input ? await planFromFile(input.file, input.runId, privacy) : await planFromRun(db, artifacts, input.runId, privacy);
   const runId = input.runId;
   const insertCapture = db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,request_params_json,keyword,requested_at,completed_at,http_status,
-    outcome,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
+    outcome,cost_unit,cost_amount,response_sha256,raw_path,response_sha256_basis) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
   const captureParams = db.prepare('SELECT request_params_json FROM raw_capture WHERE capture_id=?');
   const storedProduct = db.prepare('SELECT 1 FROM product WHERE product_key=?');
   const insertVideo = db.prepare(`INSERT INTO video(video_url,video_id,platform,product_key,brand,author_key,link_basis,capture_id)
@@ -114,7 +115,9 @@ async function planFromFile(file: string, runId: string, privacy: TikTokComments
     plan.captures.push([captureId, runId, SOURCE, 'apify', operation,
       JSON.stringify({ input, selectionOrigin: typeof selection?.origin === 'string' ? selection.origin : null }),
       typeof declare.keyword === 'string' ? declare.keyword : null, requestedAt, completedAt, typeof httpStatus === 'number' ? httpStatus : null,
-      items.length ? 'OK' : 'EMPTY', 'USD', apifyCount === 1 ? spent : null, typeof responseSha256 === 'string' ? responseSha256 : null, `file:${relative}#${recordIndex}`]);
+      items.length ? 'OK' : 'EMPTY', 'USD', apifyCount === 1 ? spent : null, typeof responseSha256 === 'string' ? responseSha256 : null, `file:${relative}#${recordIndex}`,
+      // The file's own digest, not verified against any bytes the file keeps.
+      typeof responseSha256 === 'string' ? 'SUPPLIED_FILE' : null]);
     for (const [url, video] of allowed) if (!videoUrls.has(url)) {
       videoUrls.add(url);
       plan.videos.push({ url, videoId: video.videoId, handle: video.handle, captureId, productKey: null, linkBasis: 'UNKNOWN' });
@@ -202,7 +205,7 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
       JSON.stringify({ packageId: entry.packageId, requestKey: intent.requestKey, inputSha256: capture.inputSha256, maxCommentsPerVideo: intent.maxCommentsPerVideo,
         providerRunId: capture.receipt.runId, providerTotalRows: capture.receipt.providerTotalRows }),
       null, at, at, null, capture.pages.some(page => page.rows.length) ? 'OK' : 'EMPTY', 'USD', capture.receipt.usageTotalUsd,
-      captureFile.sha256, `artifact:${captureFile.sha256}`]);
+      captureFile.sha256, `artifact:${captureFile.sha256}`, 'RETAINED_ENVELOPE']); // the digest of the retained capture.json, not of provider bytes
     const selected = new Map(intent.selection.videos.map(v => [v.url, parseVideoUrl(v.url, captureId)]));
     // The stored selection records no product for a video, so every app video is UNKNOWN (never guessed).
     for (const [url, video] of selected) if (!videoUrls.has(url)) {
@@ -238,8 +241,10 @@ function addReview(plan: Plan, cid: string, videoUrl: string, reviewerKey: strin
   videoId: string, index: number): void {
   const reviewKey = `${SOURCE}:${cid}`;
   if (plan.reviews.has(reviewKey)) return; // the first occurrence in the input wins
+  const attributesJson = JSON.stringify(attributes);
+  assertAttributesShape(SOURCE, attributesJson, `${captureId} video ${videoId} index ${index}`);
   plan.reviews.set(reviewKey, [reviewKey, SOURCE, 'tiktok', 'video_comment', cid, null, videoUrl, reviewerKey, null, 'not_provided',
-    null, text === null ? null : sanitizeTikTokCommentText(text), null, JSON.stringify(attributes), postedAt, likes, replies, replyTo, media,
+    null, text === null ? null : sanitizeTikTokCommentText(text), null, attributesJson, postedAt, likes, replies, replyTo, media,
     'VALID', collectedAt, captureId, `video=${videoId},index=${index}`]);
 }
 

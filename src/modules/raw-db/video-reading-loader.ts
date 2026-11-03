@@ -50,7 +50,7 @@ export async function loadVideoReadingsToDbV1(db: Database.Database, artifacts: 
   const captures = 'file' in input ? await planFromFile(input.file, input.runId) : await planFromRun(db, artifacts, input.runId);
   const runId = input.runId;
   const insertCapture = db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,endpoint,request_params_json,keyword,period_start,period_end,
-    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,NULL,NULL,?,?)`);
+    requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path,response_sha256_basis) VALUES (?,?,?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,NULL,NULL,?,?,?)`);
   const existingCapture = db.prepare('SELECT source_code,operation,request_params_json,requested_at,outcome,response_sha256 FROM raw_capture WHERE capture_id=?');
   const storedAnswer = db.prepare(`SELECT 1 FROM video_reading r JOIN raw_capture c ON c.capture_id=r.capture_id
     JOIN video v ON v.video_url=r.video_url
@@ -121,7 +121,7 @@ async function planFromFile(file: string, runId: string): Promise<PlannedCapture
         throw new Error(`RAW_DB_FILE_BAD_RECORD: ${where} lacks requestParameters, requestedAt or outcome`);
       captures.push(plannedCapture(`${SOURCE}:${sha12}:${recordIndex}`, runId, typeof endpoint === 'string' ? endpoint : null, requestParameters, requestedAt,
         typeof completedAt === 'string' ? completedAt : null, typeof httpStatus === 'number' ? httpStatus : null, outcome,
-        typeof billing === 'string' ? billing : null, typeof responseSha256 === 'string' ? responseSha256 : null, `file:${relative}#${recordIndex}`));
+        typeof billing === 'string' ? billing : null, typeof responseSha256 === 'string' ? responseSha256 : null, 'SUPPLIED_FILE', `file:${relative}#${recordIndex}`));
       return;
     }
     // A video-reading package: its one reading.json member, whose stored digest must be the canonical JSON of the content.
@@ -167,7 +167,7 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
     captures.push(plannedCapture(captureId, runId, typeof envelope.endpoint === 'string' ? envelope.endpoint : null, envelope.requestParameters,
       typeof envelope.requestedAt === 'string' ? envelope.requestedAt : row.retrievedAt, row.retrievedAt,
       typeof envelope.httpStatus === 'number' ? envelope.httpStatus : null, envelope.outcome, typeof envelope.billing === 'string' ? envelope.billing : null,
-      response?.sha256 ?? (typeof envelope.responseSha256 === 'string' ? envelope.responseSha256 : null), `artifact:${row.artifactSha}`));
+      response?.sha256 ?? (typeof envelope.responseSha256 === 'string' ? envelope.responseSha256 : null), 'ORIGINAL_BYTES', `artifact:${row.artifactSha}`));
   }
   return pair(captures, readings);
 }
@@ -185,9 +185,11 @@ function pair(captures: PlannedCapture[], readings: PlannedReading[]): PlannedCa
 }
 
 function plannedCapture(captureId: string, runId: string, endpoint: string | null, requestParameters: Record<string, unknown>, requestedAt: string,
-  completedAt: string | null, httpStatus: number | null, outcome: string, billing: string | null, sha: string | null, rawPath: string): PlannedCapture {
+  completedAt: string | null, httpStatus: number | null, outcome: string, billing: string | null, sha: string | null,
+  basis: 'ORIGINAL_BYTES' | 'SUPPLIED_FILE', rawPath: string): PlannedCapture {
+  // What response_sha256 covers (KHUON §2.1): run = the Gemini response bytes; file = the file's own digest.
   return { captureId, reading: null, values: [captureId, runId, SOURCE, PROVIDER, OPERATION, endpoint, JSON.stringify(requestParameters), requestedAt, completedAt,
-    httpStatus, outcome === 'OK' ? 'OK' : 'FAILED', billing, sha, rawPath] };
+    httpStatus, outcome === 'OK' ? 'OK' : 'FAILED', billing, sha, rawPath, sha === null ? null : basis] };
 }
 
 function plannedReading(value: unknown, where: string): PlannedReading {

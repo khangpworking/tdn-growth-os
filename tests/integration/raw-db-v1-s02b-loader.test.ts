@@ -160,7 +160,7 @@ test('RAWDB-V V7: retries count zero; an S07 video id reuses its first URL and r
   assert.deepEqual(snapshot(f.db, ['review', 'run_review']), { review: previous.review, run_review: previous.run_review });
   const loaded = snapshot(f.db, tables);
   assert.deepEqual(await loadKalodataVideosToDbV1(f.db, f.artifacts, nextInput, f.privacy),
-    { runId: S02B_RUN, captures: 0, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0 });
+    { runId: S02B_RUN, captures: 0, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0, productNameSources: 0 });
   assert.deepEqual(snapshot(f.db, tables), loaded);
 });
 
@@ -186,7 +186,7 @@ test('RAWDB-V V8: verified run captures map rows and product names; FAILED, EMPT
     await saveKalodataCapture(f, 7, 'kalodata.product.detail', failed.requestBody,
       { success: true, data: { product_id: failed.productId, product_name: failed.productName } });
     assert.deepEqual(await loadKalodataVideosToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy),
-      { ...S02B_RECEIPT, runId: f.runId, captures: 4, productsInserted: nameSource.success ? 1 : 0 });
+      { ...S02B_RECEIPT, runId: f.runId, captures: 4, productsInserted: nameSource.success ? 1 : 0, productNameSources: nameSource.success ? 1 : 0 });
     assert.deepEqual(snapshots(f.db), expectedVideoSnapshots(`S02b:${f.runId}:1`, `S02b:${f.runId}:4`));
     assert.deepEqual(f.db.prepare('SELECT video_id,product_key,link_basis FROM video ORDER BY video_id').all(), [
       ...['1001', '81002', '81003'].map(video_id => ({ video_id,
@@ -207,7 +207,7 @@ test('RAWDB-V V8: verified run captures map rows and product names; FAILED, EMPT
     }
     const before = snapshot(f.db, tables);
     assert.deepEqual(await loadKalodataVideosToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy),
-      { runId: f.runId, captures: 0, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0 });
+      { runId: f.runId, captures: 0, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0, productNameSources: 0 });
     assert.deepEqual(snapshot(f.db, tables), before);
   }
   for (const corruption of ['outer-bytes', 'inner-digest', 'truncated'] as const) {
@@ -242,7 +242,7 @@ test('RAWDB-V V11: declared canonical response hashes are verified; unknown decl
   const file = path.join(f.root, 'canonical-response.json');
   await fs.writeFile(file, JSON.stringify(document));
   assert.deepEqual(await loadKalodataVideosToDbV1(f.db, f.artifacts, { file, runId: S02B_RUN }, f.privacy),
-    { runId: S02B_RUN, captures: 1, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0 });
+    { runId: S02B_RUN, captures: 1, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0, productNameSources: 0 });
   assert.deepEqual(f.db.prepare('SELECT response_sha256,outcome FROM raw_capture').all(), [{ response_sha256: digest, outcome: 'EMPTY' }]);
   const before = f.db.serialize();
   record.response.success = false;

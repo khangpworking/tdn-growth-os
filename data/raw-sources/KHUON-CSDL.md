@@ -17,6 +17,8 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 03/11/2026 (chủ duyệt F361–F363): nhãn chủ đề vào `codebook` và `review_code` (migration 0068), thay bản phác §3.3 cũ. Nhãn kẽm của Jev được nhập từ kho MCP, không gọi AI, chỉ khi dấu của đoạn lời khớp với lời trong `review`. Cảm xúc theo sao là view `review_star_sentiment` (1–3 sao tiêu cực, 4–5 sao tích cực).
 - 03/11/2026 (chủ quyết F366, F367): app tự gán chủ đề bằng Jev ngay sau khi nạp đánh giá Shopee (S05) vào db-v1 và ghi vào `review_code` với `origin` = `APP_JEV` (migration 0069). Cách gán giống hệt MCP Insight. Một đánh giá đã có nhãn của bản bộ chủ đề thì không gọi Jev lần nữa (§3.3).
 - 03/11/2026 (chủ quyết F376): nhập `CODES` theo cả đánh giá hoặc không gì; lượt gán và lượt nhập chạy mỗi lúc một lượt (khoá tệp SQLite, `LABELS_BUSY`); app chép bản chụp `app-db.snapshot.sqlite` cho MCP Insight sau mỗi lần nạp S05, gán hoặc nhập (§3.3).
+- 04/11/2026 (chủ quyết F381, F385; sau bản soát Astra, migration 0071): `review.state` chỉ là trạng thái của chính đánh giá (`VALID`, `HIDDEN`, `DELETED`); sao thiếu hoặc sai → `rating_star` `NULL`, `state` `VALID`. Bảng mới `product_name_source` ghi tên sản phẩm lấy từ bản ghi nào (§2.2a). Cột mới `raw_capture.response_sha256_basis` nói dấu `response_sha256` băm cái gì (§2.1). `attributes_json` có một dạng khai báo cho mỗi nguồn (§3).
+
 - 04/11/2026 (chủ quyết F368, F389): S06 đánh giá TikTok Shop vào `review` (không lưu tên, không tính khoá từ tên hiển thị) và được gán chủ đề như S05. Khi bật `TDN_RAW_DB_AUTOLOAD_ENABLED=true`, app tự nạp cả 7 nguồn db-v1 của một lần chạy (S05, S06, S07, S02b, S14, S19b, S29) rồi gán chủ đề, ngay khi bước thu (`COLLECTION`) của lần chạy xong với `SUCCEEDED` hoặc `PARTIAL`; mỗi lần ghi một dòng `raw_db_autoload` (migration 0070). `raw-db-load --source AUTOLOAD --run <id>` chạy cùng chuỗi bằng tay (§3, §5.0).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
@@ -58,8 +60,36 @@ Mỗi lần gọi nhà cung cấp (một trang, một API, một lần mở tran
 | outcome | TEXT | Có | `OK`, `EMPTY`, `PROVIDER_REJECTED`, `BLOCKED`, `LOGIN_REQUIRED`, `FAILED`, `NOT_COLLECTED` | `records[].outcome` |
 | billing | TEXT | Không | `FREE_ACCOUNT_QUERY`, `PAID_CREDITS`, `PAID_SEARCH_UNLESS_CACHED` | `records[].billing` |
 | cost_unit, cost_amount | TEXT, REAL | Không | Đơn vị và lượng chi | `declare.cost`, `declare.usage` |
-| response_sha256 | TEXT | Không | Dấu của phản hồi gốc | `records[].responseSha256` |
+| response_sha256 | TEXT | Không | Dấu SHA-256; cái được băm ghi ở cột sau | `records[].responseSha256` |
 | raw_path | TEXT | Không | Tệp gốc + vị trí | tên tệp `raw-v1` + chỉ số bản ghi |
+| response_sha256_basis | TEXT | Có khi có `response_sha256` | Dấu băm cái gì: `ORIGINAL_BYTES`, `RETAINED_ENVELOPE`, `CANONICAL_JSON`, `SUPPLIED_FILE` (bảng dưới). `NULL` khi không có dấu | — |
+
+**Dấu `response_sha256` băm cái gì (migration 0071).** Mỗi bộ nạp ghi đúng một giá trị. Migration 0071 điền các dòng cũ theo cùng bảng này (lượt chạy app có `raw_path` `artifact:…`, tệp kẽm có `file:…`). Một dòng mới có dấu mà không có `response_sha256_basis` bị từ chối.
+
+| Giá trị | Nghĩa |
+|---|---|
+| `ORIGINAL_BYTES` | Đúng các byte phản hồi nhà cung cấp trả về (đã giữ trong bao thu và đã kiểm; hoặc dấu bao thu ghi khi lần gọi không giữ byte) |
+| `RETAINED_ENVELOPE` | Bản app hoặc tệp đã giữ lại, bọc phản hồi (không phải byte của nhà cung cấp) |
+| `CANONICAL_JSON` | JSON do bộ nạp viết lại từ giá trị đã đọc, không khoảng trắng |
+| `SUPPLIED_FILE` | Dấu do tệp tự ghi; bộ nạp không kiểm được với byte nào |
+
+| Nguồn | Bộ nạp | `response_sha256` là | Giá trị |
+|---|---|---|---|
+| S05 | lượt chạy app | `resultSha256` của danh sách: dấu của bao kết quả app đã giữ | `RETAINED_ENVELOPE` |
+| S06 | lượt chạy app (PR 3, `wp/raw-db-autoload`) | dấu byte phản hồi Kalodata | `ORIGINAL_BYTES` |
+| S07 | lượt chạy app | dấu của `capture.json` trong gói P9 | `RETAINED_ENVELOPE` |
+| S07 | tệp kẽm | `records[].responseSha256` của tệp | `SUPPLIED_FILE` |
+| S19b | lượt chạy app | dấu byte phản hồi Google Suggest | `ORIGINAL_BYTES` |
+| S19b | tệp kẽm | SHA-256 của `JSON.stringify(records[].raw)` (giữ thứ tự khoá của tệp) | `CANONICAL_JSON` |
+| S29 | lượt chạy app | dấu byte phản hồi SerpApi (lần gọi mang câu trả lời) | `ORIGINAL_BYTES` |
+| S29 | tệp kẽm | SHA-256 của `JSON.stringify(records[i])`: cả bản ghi, gồm yêu cầu và phản hồi | `RETAINED_ENVELOPE` |
+| S02b | lượt chạy app | dấu byte phản hồi Kalodata | `ORIGINAL_BYTES` |
+| S02b | tệp kẽm, `declare.responseSha256Basis` = `canonical-json` | SHA-256 của JSON chuẩn (khoá xếp thứ tự) của `response`, đã kiểm | `CANONICAL_JSON` |
+| S02b | tệp kẽm, không khai báo | `records[].responseSha256` của tệp | `SUPPLIED_FILE` |
+| S14 | lượt chạy app | dấu byte phản hồi Gemini | `ORIGINAL_BYTES` |
+| S14 | tệp kẽm | `records[].responseSha256` của tệp | `SUPPLIED_FILE` |
+
+Các dòng S02b đã nạp từ tệp kẽm trước migration 0071 nhận `SUPPLIED_FILE`: tệp kẽm không khai báo `canonical-json`, bộ nạp giữ dấu do tệp cung cấp. Lần nạp mới ghi cơ sở theo khai báo trong tệp.
 
 ### 2.2 `product` — sản phẩm trên sàn
 
@@ -78,6 +108,24 @@ Một sản phẩm một dòng. Số bán theo kỳ nằm ở bảng `product_sn
 | product_url | TEXT | Không | Link sản phẩm | S01 `url_product`; S05 `selected[].productUrl` |
 | launch_date | TEXT | Không | Ngày lên sàn | S02 `launch_date`; S01 `platform_created_at` |
 | first_capture_id | TEXT | Có | Lần thu đầu tiên thấy sản phẩm | — |
+
+### 2.2a `product_name_source` — tên sản phẩm lấy từ đâu
+
+Chủ quyết F385 (04/11/2026, migration 0071). Một sản phẩm một dòng, ghi cùng giao dịch với dòng `product`. Chỉ thêm, không sửa, không xoá.
+
+| Cột | Kiểu | Bắt buộc | Nghĩa |
+|---|---|---|---|
+| product_key | TEXT | Có | Sản phẩm, khoá chính, trỏ về `product` |
+| source_kind | TEXT | Có | `METRIC_LIST` (tên đọc từ tệp phản hồi Metric), `APP_CAPTURE` (tên đọc từ tệp thu của app, không phải dòng `raw_capture`), hoặc `RAW_CAPTURE` (tên đọc từ một lần thu trong `raw_capture`) |
+| artifact_sha256 | TEXT | Với `METRIC_LIST`, `APP_CAPTURE` | Dấu của tệp phản hồi Metric (raw-responses) hoặc tệp thu app đã kiểm. `NULL` với `RAW_CAPTURE` |
+| capture_id | TEXT | Với `RAW_CAPTURE` | Lần thu đã cho tên. `NULL` với `METRIC_LIST` và `APP_CAPTURE` |
+| json_path | TEXT | Có | Đường dẫn tới bản ghi chứa tên: trong tệp Metric (ví dụ `$[206].body.data.products[2]`), trong phản hồi đã giải mã của tệp thu app (`$.data` hoặc `$.data[i]`), hoặc trong bản ghi gốc mà `raw_path` của lần thu chỉ tới (`$` = chính bản ghi đó) |
+| recorded_at | TEXT | Có | Lúc ghi dòng (+07:00) |
+
+- S05: tên lấy theo luật cũ (lần thu Metric cuối thắng, lần trước chỉ bù tên còn thiếu); dòng `METRIC_LIST` trỏ đúng tệp và bản ghi đã dùng. Không có tên → không có dòng `product` (như cũ, `RAW_DB_PRODUCT_NAME_MISSING`).
+- S02b: tên từ `productName` của bản ghi tệp → `RAW_CAPTURE`, `capture_id` của bản ghi đó, `json_path` `$`.
+- S02b nạp từ lượt chạy app và S06: tên từ `kalodata.product.rank` / `kalodata.product.detail` của cùng lần chạy → `APP_CAPTURE`, dấu của đúng tệp thu đã cho tên, `capture_id` `NULL`. Không thêm dòng `raw_capture` cho lần thu tên. S02b ưu tiên rank rồi detail; S06 ưu tiên detail rồi rank, như trước.
+- Sản phẩm đã có trước migration 0071: nạp lại cùng lần chạy (lần thu đầu của sản phẩm thuộc lần chạy đó) chỉ thêm dòng `product_name_source` còn thiếu. Tên tìm được phải đúng bằng `product_name` đã lưu, nếu không thì cả lần nạp hỏng (`RAW_DB_PRODUCT_NAME_MISMATCH`, không ghi gì). Migration không điền bảng này (không đọc được tệp); dữ liệu cũ được điền bằng cách nạp lại sau khi triển khai.
 
 ### 2.3 `product_snapshot` — số của sản phẩm trong một kỳ
 
@@ -138,13 +186,13 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | rating_star | INTEGER | Không | Số sao 1–5. `NULL` với bình luận | `ratingStar` | `review.rating` chỉ khi là số nguyên 1–5 (số hoặc chuỗi số); khác thì `NULL` và đếm `ratingInvalid` trong kết quả nạp | `NULL` |
 | text | TEXT | Không | Lời viết, giữ nguyên | `comment` | `review.display_text` giữ nguyên (đúng lời MCP Insight đọc) | `text` đã che: bỏ @tên, link hồ sơ, số điện thoại, email (`sanitizeTikTokCommentText` của bộ thu); `attributes_json.textForm` = `SANITIZED` |
 | variation | TEXT | Không | Phân loại hàng đã mua | `variation` | `sku_specification` | — |
-| attributes_json | TEXT | Không | Nhãn của sàn, ví dụ «Công dụng», «Đối tượng sử dụng» | `attributes` | `NULL` | JSON chỉ có khoá có giá trị: `textForm`, `byVideoAuthor`, `likedByAuthor`, `pinnedByAuthor`, `exclusionReason` (`REPLY`, `EMPTY`, `TAG_ONLY`, `EMOJI_ONLY`, cùng luật bộ thu) |
+| attributes_json | TEXT | Không | Nhãn của sàn, ví dụ «Công dụng», «Đối tượng sử dụng». Dạng theo từng nguồn (bảng dưới) | `attributes` | `NULL` | JSON chỉ có khoá có giá trị: `textForm`, `byVideoAuthor`, `likedByAuthor`, `pinnedByAuthor`, `exclusionReason` (`REPLY`, `EMPTY`, `TAG_ONLY`, `EMOJI_ONLY`, cùng luật bộ thu) |
 | posted_at | TEXT | Không | Lúc viết (ISO, +07:00) | `createdAt` | `review.review_timestamp` (mili giây → ISO +07:00) | `createTimeISO` (→ +07:00) |
 | like_count | INTEGER | Không | Lượt thích | — | `digg_count` | `diggCount` |
 | reply_count | INTEGER | Không | Số trả lời | — | — | `replyCommentTotal` |
 | replies_to_external_id | TEXT | Không | Trả lời cho bình luận nào | — | — | `repliesToId` khi khác `NULL` và khác `"0"` |
 | media_count | INTEGER | Không | Số ảnh, video kèm | — | — | `images` (đếm khi là danh sách, nếu không thì `NULL`) |
-| state | TEXT | Có | `VALID`, `HIDDEN`, `DELETED` | `ratingState` | `VALID` | `VALID` |
+| state | TEXT | Có | Trạng thái của chính đánh giá: `VALID`, `HIDDEN`, `DELETED`. Không bao giờ là lỗi sao (migration 0071 từ chối giá trị khác) | `VALID`; sao thiếu hoặc sai (`ratingState` khác `VALID`) → `rating_star` `NULL`, đếm một lần ở `ratingInvalid` của kết quả nạp | `VALID` | `VALID` |
 | collected_at | TEXT | Có | Lúc thu | `raw_capture.completed_at` | như bên trái | như bên trái |
 | capture_id | TEXT | Có | Lần thu | — | — | — |
 | source_position | TEXT | Có | Vị trí trong bản gốc | `page=<sourcePage>,row=<sourceRow>` | `product=<id>,index=<n>` | `video=<id>,index=<n>` |
@@ -157,7 +205,15 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 4. Báo cáo không in nguyên văn `text`. Báo cáo chỉ dùng chủ đề đã mã hoá.
 5. Shopee: bộ thu gói S chưa giữ mã tác giả. Change `shopee-public-review-writer-key` đề xuất giữ HMAC của mã tác giả (không giữ tên). Change này chờ chủ duyệt.
 6. Một đánh giá chỉ có một dòng, dù nhiều lần chạy thu lại. Lần chạy nào có đánh giá nào thì ghi ở bảng `run_review`.
-7. **S06 (chủ quyết F368):** nạp từ các lần gọi `kalodata.product.comment.insight` đã lưu của lần chạy (`raw-db-load --source S06 --run <id>`, không có `--file`), qua bộ đọc có kiểm dấu như các nguồn khác. Một `raw_capture` mỗi lần gọi (`S06:<runId>:<ordinal>`, nhà cung cấp, thao tác, kết quả và `billing` như đã lưu, dấu phản hồi). `review_key` = `S06:` + `review.review_id` (mã số); dòng thiếu mã số thì không nạp và đếm `reviewIdMissing`. `variation` = `sku_specification`, `like_count` = `digg_count`, `state` = `VALID`, `product_key` = `tiktok_shop:` + `product_id`. Sản phẩm chưa có trong `product` thì chỉ thêm khi chính lần chạy đã lưu tên (`kalodata.product.detail` hoặc `kalodata.product.rank`), không đoán; không có tên thì cả lần nạp dừng (`RAW_DB_PRODUCT_NAME_MISSING`). Người viết S06 đếm theo đánh giá (view `writer_count`). Nạp lại cùng lần chạy ra toàn số 0; cả lần nạp là một giao dịch.
+7. `attributes_json` giữ dạng riêng của từng nguồn. Mọi đường nạp kiểm dạng trước khi ghi (`src/modules/raw-db/attributes-shape.ts`); sai dạng thì cả lần nạp hỏng (`RAW_DB_ATTRIBUTES_SHAPE`). Nguồn chưa khai báo dạng cũng hỏng.
+
+| Nguồn | Dạng `attributes_json` |
+|---|---|
+| S05 | `NULL` khi sàn không có nhãn; nếu không thì mảng JSON không rỗng, mỗi phần tử là chuỗi không rỗng, giữ thứ tự của nguồn |
+| S06 | Chỉ `NULL` (chưa lưu nhãn) |
+| S07 | Đối tượng JSON, luôn có `textForm` = `"SANITIZED"`; khoá khác chỉ có thể là `byVideoAuthor` (`true`), `likedByAuthor`, `pinnedByAuthor` (true/false), `exclusionReason` (`REPLY`, `EMPTY`, `TAG_ONLY`, `EMOJI_ONLY`) |
+
+8. **S06 (chủ quyết F368):** nạp từ các lần gọi `kalodata.product.comment.insight` đã lưu của lần chạy (`raw-db-load --source S06 --run <id>`, không có `--file`), qua bộ đọc có kiểm dấu như các nguồn khác. Một `raw_capture` mỗi lần gọi (`S06:<runId>:<ordinal>`, nhà cung cấp, thao tác, kết quả và `billing` như đã lưu, dấu phản hồi). `review_key` = `S06:` + `review.review_id` (mã số); dòng thiếu mã số thì không nạp và đếm `reviewIdMissing`. `variation` = `sku_specification`, `like_count` = `digg_count`, `state` = `VALID`, `product_key` = `tiktok_shop:` + `product_id`. Sản phẩm chưa có trong `product` thì chỉ thêm khi chính lần chạy đã lưu tên (`kalodata.product.detail` hoặc `kalodata.product.rank`), không đoán; không có tên thì cả lần nạp dừng (`RAW_DB_PRODUCT_NAME_MISSING`). Người viết S06 đếm theo đánh giá (view `writer_count`). Nạp lại cùng lần chạy ra toàn số 0; cả lần nạp là một giao dịch.
 
 ### 3.1 `review_point` — ý khen, chê do AI của nguồn gom (S06)
 
@@ -498,8 +554,13 @@ CREATE TABLE raw_capture (
   cost_unit           TEXT,
   cost_amount         REAL,
   response_sha256     TEXT,
-  raw_path            TEXT
+  raw_path            TEXT,
+  response_sha256_basis TEXT CHECK (response_sha256_basis IN ('ORIGINAL_BYTES','RETAINED_ENVELOPE','CANONICAL_JSON','SUPPLIED_FILE'))
 );
+-- Migration 0071: a response_sha256 always says what it covers.
+CREATE TRIGGER raw_capture_basis_required BEFORE INSERT ON raw_capture
+WHEN NEW.response_sha256 IS NOT NULL AND NEW.response_sha256_basis IS NULL
+BEGIN SELECT RAISE(ABORT,'raw_db_v1_raw_capture_basis_missing'); END;
 
 CREATE TABLE product (
   product_key      TEXT PRIMARY KEY,
@@ -592,7 +653,7 @@ CREATE TABLE review (
   reply_count            INTEGER,
   replies_to_external_id TEXT,
   media_count            INTEGER,
-  state                  TEXT NOT NULL DEFAULT 'VALID',
+  state                  TEXT NOT NULL DEFAULT 'VALID',  -- VALID, HIDDEN, DELETED (trigger review_state_check, migration 0071)
   collected_at           TEXT NOT NULL,
   capture_id             TEXT NOT NULL REFERENCES raw_capture(capture_id),
   source_position        TEXT NOT NULL,
@@ -602,6 +663,21 @@ CREATE TABLE review (
 );
 CREATE INDEX review_by_product  ON review(product_key);
 CREATE INDEX review_by_reviewer ON review(reviewer_key);
+
+CREATE TRIGGER review_state_check BEFORE INSERT ON review
+WHEN NEW.state NOT IN ('VALID','HIDDEN','DELETED')
+BEGIN SELECT RAISE(ABORT,'raw_db_v1_review_state'); END;
+
+CREATE TABLE product_name_source (
+  product_key     TEXT PRIMARY KEY REFERENCES product(product_key),
+  source_kind     TEXT NOT NULL CHECK (source_kind IN ('METRIC_LIST','APP_CAPTURE','RAW_CAPTURE')),
+  artifact_sha256 TEXT,
+  capture_id      TEXT REFERENCES raw_capture(capture_id),
+  json_path       TEXT NOT NULL,
+  recorded_at     TEXT NOT NULL,
+  CHECK (source_kind NOT IN ('METRIC_LIST','APP_CAPTURE') OR (artifact_sha256 IS NOT NULL AND capture_id IS NULL)),
+  CHECK (source_kind <> 'RAW_CAPTURE' OR (capture_id IS NOT NULL AND artifact_sha256 IS NULL))
+);
 
 CREATE TABLE run_review (
   run_id          TEXT NOT NULL,
