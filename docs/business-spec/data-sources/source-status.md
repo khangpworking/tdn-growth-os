@@ -198,14 +198,14 @@ flowchart LR
 
 Cập nhật 04/11/2026. Bảng này nói nguồn nào đã có đường vào cơ sở dữ liệu app theo khuôn `db-v1`. Khuôn bảng nằm ở [KHUON-CSDL.md](../../../data/raw-sources/KHUON-CSDL.md). Cách vào và cờ bật của từng nguồn nằm ở [NGUON-VAO-CSDL.md](../../../data/raw-sources/NGUON-VAO-CSDL.md).
 
-- **Đã có bộ nạp:** mã nạp đã gộp vào bản chính. Khi cờ `TDN_RAW_DB_AUTOLOAD_ENABLED=true`, app tự nạp nguồn này sau bước thu của lần chạy (KHUON-CSDL §5.0).
+- **Đã có bộ nạp:** mã nạp đã gộp vào bản chính `463ce150`. Cần tiến trình có quyền ghi OWNER và cờ `TDN_RAW_DB_AUTOLOAD_ENABLED=true`. App tự nạp khi bước thu (`COLLECTION`) xong với `SUCCEEDED` hoặc `PARTIAL` và lượt chạy sang `RENDERING` (KHUON-CSDL §5.0). Chỉ nạp nguồn có dữ liệu đã lưu của lượt chạy.
 - **Chỉ khai báo:** khuôn bảng đã viết trong KHUON-CSDL §4. Chưa có migration, chưa có bộ nạp.
 - Nhãn trạng thái ở mục 2 không đổi. Bảng này không bật, không tắt việc thu.
 
 | Mã | Bảng db-v1 | Migration | Trạng thái vào db-v1 |
 |---|---|---|---|
-| S05 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; gán chủ đề bằng Jev sau khi nạp |
-| S06 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; gán chủ đề như S05 |
+| S05 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; gán chủ đề khi đã cấu hình Jev |
+| S06 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; tự nạp gán chủ đề khi đã cấu hình Jev; CLI nạp riêng cần chạy thêm `LABELS` |
 | S07 | `raw_capture`, `review`, `run_review`, `video` | 0063, 0065, 0071 | Đã có bộ nạp; cần khoá riêng tư |
 | S02b | `raw_capture`, `product`, `product_name_source`, `video`, `video_snapshot` | 0063, 0065, 0066, 0071 | Đã có bộ nạp; cần khoá riêng tư; nạp trước S14 |
 | S14 | `raw_capture`, `video`, `video_reading`, `video_segment` | 0063, 0065, 0067, 0071 | Đã có bộ nạp; cần khoá riêng tư |
@@ -219,7 +219,7 @@ Cập nhật 04/11/2026. Bảng này nói nguồn nào đã có đường vào c
 | S25 | `document` | — | Chỉ khai báo (KHUON-CSDL §4.9) |
 | S28 | `persona_baseline`, `persona_sample` | — | Chỉ khai báo (KHUON-CSDL §4.10) |
 
-Mỗi lần tự nạp ghi một dòng `raw_db_autoload` (migration 0070). Migration 0063 tạo `raw_capture`; mọi nguồn đã có bộ nạp đều ghi vào bảng này. Migration 0071 thêm cột `raw_capture.response_sha256_basis`, bảng `product_name_source` và luật `review.state`.
+Mỗi lần tự nạp ghi một dòng `raw_db_autoload` (migration 0070), trừ `--dry-run`. Migration 0063 tạo `raw_capture`; mọi nguồn đã có bộ nạp đều ghi vào bảng này. Migration 0071 thêm cột `raw_capture.response_sha256_basis`, bảng `product_name_source` và luật `review.state`.
 
 ---
 

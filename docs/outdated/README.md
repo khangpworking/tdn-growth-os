@@ -2,6 +2,8 @@
 
 Thư mục này giữ bản cũ của các tài liệu đã cập nhật. Mọi bản cũ nằm nguyên trạng để so sánh. Không sửa các bản này. Liên kết trong bản cũ có thể không dùng được, vì thư mục đã đổi độ sâu.
 
+Hai bản chụp ngày 04/11/2026 giữ nguyên nội dung nghiệp vụ. Chỉ sửa liên kết theo độ sâu mới và ẩn tên bên viết, bên rà soát mã để dùng trong kho công khai.
+
 Cập nhật: 04/11/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
