@@ -1,6 +1,6 @@
 # Trạng thái nguồn dữ liệu
 
-> Bản cập nhật 25/10/2026. Bản trước: [bản 22/10/2026](../../outdated/2026-10-25/docs/business-spec/data-sources/source-status.md).
+> Bản cập nhật 04/11/2026. Bản trước: [bản 25/10/2026](../../outdated/2026-11-04/docs/business-spec/data-sources/source-status.md).
 
 Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 21/10/2026 · đi kèm [Input data sources for 30 sections](../../research/ultimate-method/input-data-sources-30-sections.md)
 
@@ -194,6 +194,33 @@ flowchart LR
     D -.-> E[Phần TikTok trong Insight: chưa có]
 ```
 
+### 2f. Vào cơ sở dữ liệu app (db-v1)
+
+Cập nhật 04/11/2026. Bảng này nói nguồn nào đã có đường vào cơ sở dữ liệu app theo khuôn `db-v1`. Khuôn bảng nằm ở [KHUON-CSDL.md](../../../data/raw-sources/KHUON-CSDL.md). Cách vào và cờ bật của từng nguồn nằm ở [NGUON-VAO-CSDL.md](../../../data/raw-sources/NGUON-VAO-CSDL.md).
+
+- **Đã có bộ nạp:** mã nạp đã gộp vào bản chính. Khi cờ `TDN_RAW_DB_AUTOLOAD_ENABLED=true`, app tự nạp nguồn này sau bước thu của lần chạy (KHUON-CSDL §5.0).
+- **Chỉ khai báo:** khuôn bảng đã viết trong KHUON-CSDL §4. Chưa có migration, chưa có bộ nạp.
+- Nhãn trạng thái ở mục 2 không đổi. Bảng này không bật, không tắt việc thu.
+
+| Mã | Bảng db-v1 | Migration | Trạng thái vào db-v1 |
+|---|---|---|---|
+| S05 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; gán chủ đề bằng Jev sau khi nạp |
+| S06 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; gán chủ đề như S05 |
+| S07 | `raw_capture`, `review`, `run_review`, `video` | 0063, 0065, 0071 | Đã có bộ nạp; cần khoá riêng tư |
+| S02b | `raw_capture`, `product`, `product_name_source`, `video`, `video_snapshot` | 0063, 0065, 0066, 0071 | Đã có bộ nạp; cần khoá riêng tư; nạp trước S14 |
+| S14 | `raw_capture`, `video`, `video_reading`, `video_segment` | 0063, 0065, 0067, 0071 | Đã có bộ nạp; cần khoá riêng tư |
+| S19b | `raw_capture`, `search_suggestion` | 0063, 0064, 0071 | Đã có bộ nạp |
+| S29 | `raw_capture`, `ai_overview_block`, `ai_overview_reference` | 0063, 0064, 0071 | Đã có bộ nạp |
+| S15, S16, S17 | `ad_read`, `ad` | — | Chỉ khai báo (KHUON-CSDL §4.2) |
+| S19, S13, S26, S25 | `web_result` | — | Chỉ khai báo (KHUON-CSDL §4.3) |
+| S20, S20b | `search_interest` | — | Chỉ khai báo (KHUON-CSDL §4.6) |
+| S21, S22, S23 | `official_stat` | — | Chỉ khai báo (KHUON-CSDL §4.7) |
+| S24 | `trade_flow` | — | Chỉ khai báo (KHUON-CSDL §4.8) |
+| S25 | `document` | — | Chỉ khai báo (KHUON-CSDL §4.9) |
+| S28 | `persona_baseline`, `persona_sample` | — | Chỉ khai báo (KHUON-CSDL §4.10) |
+
+Mỗi lần tự nạp ghi một dòng `raw_db_autoload` (migration 0070). Migration 0063 tạo `raw_capture`; mọi nguồn đã có bộ nạp đều ghi vào bảng này. Migration 0071 thêm cột `raw_capture.response_sha256_basis`, bảng `product_name_source` và luật `review.state`.
+
 ---
 
 ## 3. Nhật ký
@@ -204,6 +231,7 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 04/11/2026 | S05, S06, S07, S02b, S14, S19b, S29 | Giữ nhãn | Thêm mục 2f: bảy nguồn đã có bộ nạp vào cơ sở dữ liệu app (db-v1, migration 0063–0071); các nguồn khác chỉ khai báo | Ghi kết quả |
 | 25/10/2026 | S07 | Giữ nhãn Đã duyệt | Bộ thu tạm ở gói miễn phí (#398) đã gộp và đã triển khai (bản `4f874f44`), cờ tắt. Chưa có lượt nào gọi bộ thu; Insight chưa đọc nguồn TikTok (mục 2e) | Chủ (25/10: «merge and deployed it», cờ tắt) |
 | 25/10/2026 | S14 | Giữ nhãn Chạy thử | Phụ đề có sẵn trước, và danh sách video bán chạy tự động (#395), đã triển khai (bản `af53534a`); cờ video bán chạy bật | Chủ (25/10: «deploy af53534a», bật cờ video bán chạy) |
 | 25/10/2026 | S06, S28 | S06 Đề xuất → Chạy thử; S28 — (chưa có dòng) → Chạy thử | Bộ thu S06 (#382) và nền dân số S28 (#383) đã triển khai và bật (bản `21f843f1`). Chưa có lượt Insight thật | Chủ (25/10: «deploy 21f843f1», «bật S06 và S28 trên prod») |

@@ -1,11 +1,12 @@
 # Bộ dữ liệu gốc theo nguồn
 
-Thư mục này giữ các bộ dữ liệu gốc dùng để thử báo cáo, mỗi bộ một thư mục con. Quy tắc nghiệp vụ nằm ở quy chuẩn dữ liệu đầu vào, bản 1.48, Phần 6.1 và 6.2.
+Thư mục này giữ các bộ dữ liệu gốc dùng để thử báo cáo, mỗi bộ một thư mục con. Quy tắc nghiệp vụ nằm ở quy chuẩn dữ liệu đầu vào, bản 1.51, Phần 6.1 và 6.2.
 
 ## TL;DR
 
 - Khuôn tệp gốc `raw-v1`: một nguồn một tệp JSON, gồm `declare` (khai báo) và `records` (bản ghi gốc, giữ nguyên của nhà cung cấp).
 - Khuôn cơ sở dữ liệu `db-v1`: mỗi bản ghi gốc vào bảng nào, cột nào. Xem [`KHUON-CSDL.md`](KHUON-CSDL.md).
+- Nguồn nào đã vào cơ sở dữ liệu app, vào bằng cách nào, cờ nào bật: xem [`NGUON-VAO-CSDL.md`](NGUON-VAO-CSDL.md).
 - Kiểm một bộ dữ liệu, từ gốc repo: `python3 data/raw-sources/tools/validate_raw.py data/raw-sources/<bộ>`. Kết quả mong đợi: `failed 0`.
 - Thử khuôn cơ sở dữ liệu trên bộ kẽm: `python3 data/raw-sources/tools/test_schema.py data/raw-sources/KHUON-CSDL.md data/raw-sources/kem-2910`.
 - Thử chính bộ kiểm: `python3 data/raw-sources/tools/test_validate_raw.py`.

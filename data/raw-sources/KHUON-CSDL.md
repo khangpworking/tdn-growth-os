@@ -23,6 +23,19 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
+## Sơ đồ luồng dữ liệu
+
+```mermaid
+flowchart LR
+  A[Lượt chạy nghiên cứu] --> B[Gọi nguồn<br/>Metric, Shopee, Kalodata, Google…]
+  B --> C[Tệp gốc<br/>giữ nguyên byte]
+  C --> D[raw_capture<br/>1 dòng = 1 lần gọi]
+  D --> E[Bảng theo nguồn<br/>product, review, video…]
+  E --> F[Jev gán nhãn<br/>codebook, review_code]
+  F --> G[Bản sao sạch<br/>app-db.snapshot]
+  G --> H[MCP Insight<br/>chỉ đọc]
+```
+
 ## 1. Quy ước chung
 
 | Quy ước | Cách làm |
@@ -312,6 +325,21 @@ Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản
 | `review_code` | `label`: `theme_code`, `block_key`, `polarity`, `status`, `text_sha256` giữ tên; `journey_step` ← `step`, `confidence` ← `p_yes`. `coded_at` ← `coding_target.started_at`; `coder` từ tham số `--coder`. `NO_THEME` ← `coding_state` `done` không có `label` (`text_sha256` ← `input_sha256`). `text_start`/`text_end` của MCP tính theo điểm mã Unicode. `block_norm` không lưu (chỉ dùng tìm `coding_target`) |
 | `codebook.codebook_version`, `contract_version`, `status`, `approved_by`, `approved_at`, `definition_json` | Tệp `tools/mcp-insight/data/insight-theme-codebook.json`: `version`, `contractVersion`, `status`, `approvedBy`, `approvedAt`, cả tệp. Phiên bản còn nằm trong `label` và `coding_state`. `sample_review` ở kho chung ghi người rà mẫu (`reviewed_by`, `reviewed_at`, `sample_size`, `passed`), tách với việc duyệt bộ chủ đề |
 | `run_review` | Mỗi lần chạy có một kho MCP riêng, nên kho MCP không cần bảng này |
+
+### Ví dụ thật: một sản phẩm kẽm
+
+```mermaid
+flowchart LR
+  M["File Metric (sha cca455ed…)<br/>sản phẩm vị trí 3 của danh sách<br/>doanh thu 22.165.018.400 đ"] -->|product_name_source| P["product<br/>shopee:2308735412"]
+  P --> R["review<br/>đánh giá Shopee"]
+  R --> L["review_code<br/>chủ đề Jev"]
+  L --> V["review_star_sentiment<br/>1–3 sao chê, 4–5 sao khen"]
+```
+
+- File Metric → `product`: một sản phẩm kẽm DHC đứng ở vị trí 3 của danh sách trong file Metric. Tên sản phẩm lấy từ dòng đó. Bảng `product_name_source` ghi tên lấy từ file nào.
+- `product` → `review`: mỗi đánh giá Shopee của sản phẩm này là một dòng `review`, cùng `product_key`.
+- `review` → `review_code`: Jev gán chủ đề cho lời của từng đánh giá.
+- `review_code` → `review_star_sentiment`: view đọc số sao của cùng đánh giá. 1–3 sao là chê, 4–5 sao là khen.
 
 ## 4. Các nguồn khác
 
