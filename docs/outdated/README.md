@@ -2,10 +2,14 @@
 
 Thư mục này giữ bản cũ của các tài liệu đã cập nhật. Mọi bản cũ nằm nguyên trạng để so sánh. Không sửa các bản này. Liên kết trong bản cũ có thể không dùng được, vì thư mục đã đổi độ sâu.
 
-Cập nhật: 25/10/2026
+Hai bản chụp ngày 04/11/2026 giữ nguyên nội dung nghiệp vụ. Chỉ sửa liên kết theo độ sâu mới và ẩn tên bên viết, bên rà soát mã để dùng trong kho công khai.
+
+Cập nhật: 04/11/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/business-spec/data-sources/input-standard.md](2026-11-04/docs/business-spec/data-sources/input-standard.md) | [docs/business-spec/data-sources/input-standard.md](../business-spec/data-sources/input-standard.md) | Lên bản 1.51: khuôn raw-v1 và db-v1, tách S02b, S14 chỉ xem video chủ chọn và video bán chạy |
+| [docs/business-spec/data-sources/source-status.md](2026-11-04/docs/business-spec/data-sources/source-status.md) | [docs/business-spec/data-sources/source-status.md](../business-spec/data-sources/source-status.md) | Thêm mục 2f: nguồn vào cơ sở dữ liệu app (db-v1) |
 | [docs/adr/0003-content-studio-b11-b13.md](2026-10-25/docs/adr/0003-content-studio-b11-b13.md) | [docs/adr/0003-content-studio-b11-b13.md](../adr/0003-content-studio-b11-b13.md) | ADR 0007 (25/10/2026) sửa quyết định 8: video là luồng riêng, Video Factory |
 | [docs/adr/0004-content-ai-synchronous-attempts.md](2026-10-25/docs/adr/0004-content-ai-synchronous-attempts.md) | [docs/adr/0004-content-ai-synchronous-attempts.md](../adr/0004-content-ai-synchronous-attempts.md) | ADR 0007 (25/10/2026) sửa quyết định 1, 2 và 5: script/rerank video chạy đồng bộ, quy tắc nhận lại khóa executor; ADR 0004 thêm ghi chú sửa |
 | [semantic-layer/fields.md](2026-10-25/docs/business-spec/semantic-layer/fields.md) | [semantic-layer/fields.md](../business-spec/semantic-layer/fields.md) | Chuyển sang openspec/reference/fields.md (25/10/2026); file cũ thành stub |

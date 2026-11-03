@@ -17,11 +17,24 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 03/11/2026 (chủ duyệt F361–F363): nhãn chủ đề vào `codebook` và `review_code` (migration 0068), thay bản phác §3.3 cũ. Nhãn kẽm của Jev được nhập từ kho MCP, không gọi AI, chỉ khi dấu của đoạn lời khớp với lời trong `review`. Cảm xúc theo sao là view `review_star_sentiment` (1–3 sao tiêu cực, 4–5 sao tích cực).
 - 03/11/2026 (chủ quyết F366, F367): app tự gán chủ đề bằng Jev ngay sau khi nạp đánh giá Shopee (S05) vào db-v1 và ghi vào `review_code` với `origin` = `APP_JEV` (migration 0069). Cách gán giống hệt MCP Insight. Một đánh giá đã có nhãn của bản bộ chủ đề thì không gọi Jev lần nữa (§3.3).
 - 03/11/2026 (chủ quyết F376): nhập `CODES` theo cả đánh giá hoặc không gì; lượt gán và lượt nhập chạy mỗi lúc một lượt (khoá tệp SQLite, `LABELS_BUSY`); app chép bản chụp `app-db.snapshot.sqlite` cho MCP Insight sau mỗi lần nạp S05, gán hoặc nhập (§3.3).
-- 04/11/2026 (chủ quyết F381, F385; sau bản soát Astra, migration 0071): `review.state` chỉ là trạng thái của chính đánh giá (`VALID`, `HIDDEN`, `DELETED`); sao thiếu hoặc sai → `rating_star` `NULL`, `state` `VALID`. Bảng mới `product_name_source` ghi tên sản phẩm lấy từ bản ghi nào (§2.2a). Cột mới `raw_capture.response_sha256_basis` nói dấu `response_sha256` băm cái gì (§2.1). `attributes_json` có một dạng khai báo cho mỗi nguồn (§3).
+- 04/11/2026 (chủ quyết F381, F385; sau rà soát độc lập, migration 0071): `review.state` chỉ là trạng thái của chính đánh giá (`VALID`, `HIDDEN`, `DELETED`); sao thiếu hoặc sai → `rating_star` `NULL`, `state` `VALID`. Bảng mới `product_name_source` ghi tên sản phẩm lấy từ bản ghi nào (§2.2a). Cột mới `raw_capture.response_sha256_basis` nói dấu `response_sha256` băm cái gì (§2.1). `attributes_json` có một dạng khai báo cho mỗi nguồn (§3).
 
 - 04/11/2026 (chủ quyết F368, F389): S06 đánh giá TikTok Shop vào `review` (không lưu tên, không tính khoá từ tên hiển thị) và được gán chủ đề như S05. Khi bật `TDN_RAW_DB_AUTOLOAD_ENABLED=true`, app tự nạp cả 7 nguồn db-v1 của một lần chạy (S05, S06, S07, S02b, S14, S19b, S29) rồi gán chủ đề, ngay khi bước thu (`COLLECTION`) của lần chạy xong với `SUCCEEDED` hoặc `PARTIAL`; mỗi lần ghi một dòng `raw_db_autoload` (migration 0070). `raw-db-load --source AUTOLOAD --run <id>` chạy cùng chuỗi bằng tay (§3, §5.0).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
+
+## Sơ đồ luồng dữ liệu
+
+```mermaid
+flowchart LR
+  A[Lượt chạy nghiên cứu] --> B[Gọi nguồn<br/>Metric, Shopee, Kalodata, Google…]
+  B --> C[Tệp gốc<br/>giữ nguyên byte]
+  C --> D[raw_capture<br/>1 dòng = 1 lần gọi]
+  D --> E[Bảng theo nguồn<br/>product, review, video…]
+  E --> F[Jev gán nhãn<br/>codebook, review_code]
+  F --> G[Bản sao sạch<br/>app-db.snapshot]
+  G --> H[MCP Insight<br/>chỉ đọc]
+```
 
 ## 1. Quy ước chung
 
@@ -313,6 +326,21 @@ Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản
 | `codebook.codebook_version`, `contract_version`, `status`, `approved_by`, `approved_at`, `definition_json` | Tệp `tools/mcp-insight/data/insight-theme-codebook.json`: `version`, `contractVersion`, `status`, `approvedBy`, `approvedAt`, cả tệp. Phiên bản còn nằm trong `label` và `coding_state`. `sample_review` ở kho chung ghi người rà mẫu (`reviewed_by`, `reviewed_at`, `sample_size`, `passed`), tách với việc duyệt bộ chủ đề |
 | `run_review` | Mỗi lần chạy có một kho MCP riêng, nên kho MCP không cần bảng này |
 
+### Ví dụ thật: một sản phẩm kẽm
+
+```mermaid
+flowchart LR
+  M["File Metric (sha cca455ed…)<br/>sản phẩm vị trí 3 của danh sách<br/>doanh thu 22.165.018.400 đ"] -->|product_name_source| P["product<br/>shopee:2308735412"]
+  P --> R["review<br/>đánh giá Shopee"]
+  R --> L["review_code<br/>chủ đề Jev"]
+  L --> V["review_star_sentiment<br/>1–3 sao chê, 4–5 sao khen"]
+```
+
+- File Metric → `product`: một sản phẩm kẽm DHC đứng ở vị trí 3 của danh sách trong file Metric. Tên sản phẩm lấy từ dòng đó. Bảng `product_name_source` ghi tên lấy từ file nào.
+- `product` → `review`: mỗi đánh giá Shopee của sản phẩm này là một dòng `review`, cùng `product_key`.
+- `review` → `review_code`: Jev gán chủ đề cho lời của từng đánh giá.
+- `review_code` → `review_star_sentiment`: view đọc số sao của cùng đánh giá. 1–3 sao là chê, 4–5 sao là khen.
+
 ## 4. Các nguồn khác
 
 ### 4.1 `video_reading` và `video_segment` — lời nói trong video (S14)
@@ -451,8 +479,8 @@ Mỗi lần gọi một tiền tố là một dòng `raw_capture` (`provider` = 
 
 Mỗi phản hồi S19 có khoá `ai_overview` là một dòng `raw_capture` (`provider` = `serpapi`, `billing` = `PAID_SEARCH_UNLESS_CACHED`, `cost_amount` = `NULL` vì lượt gọi đã tính ở S19 hoặc ở mức dùng của app).
 
-- Câu trả lời: `ai_overview` trong phản hồi S19 khi có `text_blocks`. Nếu chỉ có `page_token`: phản hồi `google_ai_overview` của cùng lượt chạy có `search_parameters.page_token` trùng. Không có cả hai: `outcome` = `NOT_COLLECTED`, không có dòng.
-- `raw_capture.operation` = lệnh của lần thu mang câu trả lời. `request_params_json` = `{query, aiOverviewState, pageTokenPresent, sharedWithS19}`.
+- Câu trả lời: `ai_overview` trong phản hồi S19 khi có `text_blocks`. Nếu chỉ có mã tiếp nối: lấy phản hồi `google_ai_overview` của cùng lượt chạy có mã tiếp nối trùng trong tham số tìm kiếm. Không có cả hai: `outcome` = `NOT_COLLECTED`, không có dòng.
+- `raw_capture.operation` = lệnh của lần thu mang câu trả lời. `request_params_json` ghi truy vấn, trạng thái AI Overview, cờ có mã tiếp nối và cờ dùng chung với S19. Không ghi giá trị mã tiếp nối.
 
 `ai_overview_block`:
 
