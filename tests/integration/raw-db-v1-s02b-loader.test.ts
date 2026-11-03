@@ -39,6 +39,20 @@ test('RAWDB-V V3: file maps five exact snapshots and three captures, skipping ba
   })));
   assert.deepEqual(captures.map(row => JSON.parse(row.request_params_json as string)),
     [0, 2, 3].map(index => S02B_DOCUMENT.records[index]!.requestBody));
+  assert.deepEqual(f.db.prepare('SELECT period_start,period_end,billing FROM raw_capture ORDER BY capture_id').all(), [
+    { period_start: '2026-09-01', period_end: '2026-09-30', billing: 'PAID_CREDITS' },
+    { period_start: '2026-10-01', period_end: '2026-10-30', billing: 'PAID_CREDITS' },
+    { period_start: null, period_end: null, billing: 'PAID_CREDITS' },
+  ]);
+  const large = structuredClone(S02B_DOCUMENT);
+  const last = large.records[2]!.response.data!.at(-1)! as Record<string, unknown>;
+  last.views = 10000000000000000; // Exactly representable and within SQLite INTEGER, beyond JS's safe-integer bound.
+  const file = path.join(f.root, 'large-count.json');
+  await fs.writeFile(file, JSON.stringify(large));
+  await loadKalodataVideosToDbV1(f.db, f.artifacts, { file, runId: S02B_RUN }, f.privacy);
+  const captureId = `S02b:${s07Hash(await fs.readFile(file)).slice(0, 12)}:2`;
+  assert.deepEqual(f.db.prepare('SELECT views FROM video_snapshot WHERE capture_id=? AND video_url=?').get(captureId, S02B_URLS[4]),
+    { views: 10000000000000000n }, 'finite integer counts are preserved rather than silently dropped');
 });
 
 test('RAWDB-V V4: only a named explicit product creates PROVIDER_LINK; keyword and nameless queries stay UNKNOWN', async t => {
@@ -49,7 +63,7 @@ test('RAWDB-V V4: only a named explicit product creates PROVIDER_LINK; keyword a
   nameless.productId = '79003';
   nameless.requestBody!.product_id = '79003';
   nameless.response.data = [{ video_id: '81006', belonged_creator_handle: 'synthetic_video_f',
-    belonged_creator_id: 'synthetic-private-creator-f', belonged_creator_debut_date: '2016/07/08 09:10:11',
+    belonged_creator_id: 'synthetic-private-creator-f', creator_debut: '2016/07/08 09:10:11',
     video_title: 'Synthetic nameless product', revenue: 25, views: 50 }];
   changed.records.push(nameless);
   const file = path.join(f.root, 'product-links.json');
@@ -87,7 +101,7 @@ test('RAWDB-V V5: creator keys share S07 identity; raw creator identities occur 
   for (const videoUrl of [...S02B_URLS, ...S07_URLS]) stored = stored.replaceAll(videoUrl, '[public-video-url]');
   for (const row of rows) {
     assert.equal(stored.includes(row.belonged_creator_id), false, 'creator id absent from every stored column');
-    assert.equal(stored.includes(row.belonged_creator_debut_date), false, 'creator debut date absent from every stored column');
+    assert.equal(stored.includes(row.creator_debut), false, 'creator debut date absent from every stored column');
     assert.equal(stored.includes(row.belonged_creator_handle), false, 'handle absent outside the public video URL');
   }
 });
@@ -111,6 +125,22 @@ test('RAWDB-V V6: missing privacy precedes reads; invalid video identity rolls b
       /^Error: RAW_DB_S02B_INVALID_ROW/);
     assert.deepEqual(f.db.serialize(), before, `${field}: every table stays unchanged`);
   }
+  for (const dateRange of [undefined, '2026-02-30~2026-03-01', '2026-10-30~2026-10-01']) {
+    const changed = structuredClone(S02B_DOCUMENT);
+    const request = changed.records[2]!.requestBody as Record<string, unknown>;
+    if (dateRange === undefined) delete request.date_range; else request.date_range = dateRange;
+    const file = path.join(f.root, 'invalid-window.json');
+    await fs.writeFile(file, JSON.stringify(changed));
+    await assert.rejects(loadKalodataVideosToDbV1(f.db, f.artifacts, { file, runId: S02B_RUN }, f.privacy), /^Error: RAW_DB_S02B_INVALID_ROW/);
+    assert.deepEqual(f.db.serialize(), before);
+  }
+  const repeated = structuredClone(S02B_DOCUMENT);
+  const repeatedRows: unknown[] = repeated.records[2]!.response.data!;
+  repeatedRows.push(repeatedRows[0]);
+  const file = path.join(f.root, 'duplicate-row.json');
+  await fs.writeFile(file, JSON.stringify(repeated));
+  await assert.rejects(loadKalodataVideosToDbV1(f.db, f.artifacts, { file, runId: S02B_RUN }, f.privacy), /^Error: RAW_DB_DUPLICATE_ROW/);
+  assert.deepEqual(f.db.serialize(), before, 'a duplicate after successful inserts rolls back the transaction');
 });
 
 test('RAWDB-V V7: retries count zero; an S07 video id reuses its first URL and row while adding a new snapshot', async t => {
@@ -153,6 +183,8 @@ test('RAWDB-V V8: verified run captures map rows and product names; FAILED, EMPT
         { requestedAt: record.requestedAt!, completedAt: record.completedAt!, httpStatus: record.httpStatus }));
     }
     await saveKalodataCapture(f, 6, 'kalodata.video.rank', product.requestBody, { success: true, data: [] });
+    await saveKalodataCapture(f, 7, 'kalodata.product.detail', failed.requestBody,
+      { success: true, data: { product_id: failed.productId, product_name: failed.productName } });
     assert.deepEqual(await loadKalodataVideosToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy),
       { ...S02B_RECEIPT, runId: f.runId, captures: 4, productsInserted: nameSource.success ? 1 : 0 });
     assert.deepEqual(snapshots(f.db), expectedVideoSnapshots(`S02b:${f.runId}:1`, `S02b:${f.runId}:4`));
@@ -178,15 +210,16 @@ test('RAWDB-V V8: verified run captures map rows and product names; FAILED, EMPT
       { runId: f.runId, captures: 0, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0 });
     assert.deepEqual(snapshot(f.db, tables), before);
   }
-  for (const corruption of ['outer-bytes', 'inner-digest'] as const) {
+  for (const corruption of ['outer-bytes', 'inner-digest', 'truncated'] as const) {
     const f = await googleFixture(t);
     await saveKalodataCapture(f, 0, 'kalodata.video.rank', product.requestBody, product.response);
     const stored = await saveKalodataCapture(f, 1, 'kalodata.video.rank', keyword.requestBody, keyword.response,
-      corruption === 'inner-digest' ? { responseSha256: '0'.repeat(64) } : {});
+      corruption === 'inner-digest' ? { responseSha256: '0'.repeat(64) } : corruption === 'truncated' ? { truncated: true } : {});
     if (corruption === 'outer-bytes') await fs.writeFile(stored.absolutePath, '{}');
     const before = f.db.serialize();
     await assert.rejects(loadKalodataVideosToDbV1(f.db, f.artifacts, { runId: f.runId }, s07Privacy()),
-      corruption === 'outer-bytes' ? ArtifactIntegrityError : Error);
+      corruption === 'outer-bytes' ? ArtifactIntegrityError :
+        corruption === 'inner-digest' ? /^Error: RAW_DB_ARTIFACT_MISMATCH: response bytes differ/ : /^Error: RAW_DB_ARTIFACT_MISMATCH: truncated/);
     assert.deepEqual(f.db.serialize(), before, `${corruption}: no partial capture or video writes`);
   }
   const absent = await googleFixture(t);
@@ -196,6 +229,33 @@ test('RAWDB-V V8: verified run captures map rows and product names; FAILED, EMPT
     await assert.rejects(loadKalodataVideosToDbV1(absent.db, absent.artifacts, { runId }, s07Privacy()), /^Error: RAW_DB_RUN_NOT_FOUND/);
     assert.deepEqual(absent.db.serialize(), before);
   }
+});
+
+test('RAWDB-V V11: declared canonical response hashes are verified; unknown declarations fail before writes', async t => {
+  const f = await s07Fixture(t);
+  const record = structuredClone(S02B_DOCUMENT.records[0]);
+  record.response = { success: true, data: [] };
+  // Independent canonical bytes for this response, rather than the production canonicalizer.
+  const digest = s07Hash('{"data":[],"success":true}');
+  record.responseSha256 = digest;
+  const document = { declare: { ...S02B_DOCUMENT.declare, responseSha256Basis: 'canonical-json' }, records: [record] };
+  const file = path.join(f.root, 'canonical-response.json');
+  await fs.writeFile(file, JSON.stringify(document));
+  assert.deepEqual(await loadKalodataVideosToDbV1(f.db, f.artifacts, { file, runId: S02B_RUN }, f.privacy),
+    { runId: S02B_RUN, captures: 1, videos: 0, videosAlreadyPresent: 0, snapshots: 0, productsInserted: 0 });
+  assert.deepEqual(f.db.prepare('SELECT response_sha256,outcome FROM raw_capture').all(), [{ response_sha256: digest, outcome: 'EMPTY' }]);
+  const before = f.db.serialize();
+  record.response.success = false;
+  await fs.writeFile(file, JSON.stringify(document));
+  await assert.rejects(loadKalodataVideosToDbV1(f.db, f.artifacts, { file, runId: S02B_RUN }, f.privacy),
+    /^Error: RAW_DB_FILE_BAD_RECORD: .*response differs from its responseSha256/);
+  assert.deepEqual(f.db.serialize(), before);
+  record.response.success = true;
+  document.declare.responseSha256Basis = 'unknown-encoding';
+  await fs.writeFile(file, JSON.stringify(document));
+  await assert.rejects(loadKalodataVideosToDbV1(f.db, f.artifacts, { file, runId: S02B_RUN }, f.privacy),
+    /^Error: RAW_DB_FILE_BAD_RECORD: unsupported responseSha256Basis/);
+  assert.deepEqual(f.db.serialize(), before);
 });
 
 test('RAWDB-V V9: CLI S02b --file --privacy-file --dry-run prints counts and preserves exact database bytes', async t => {

@@ -292,6 +292,8 @@ Lưu ý khi đọc: nhiều dòng có `ad_revenue_share_pct` đúng bằng 80.0.
 
 Một dòng S02b cần `video_id` dạng số và `belonged_creator_handle` thường (chữ, số, `.`, `_`), như bộ đọc của app; thiếu thì cả lần nạp hỏng (`RAW_DB_S02B_INVALID_ROW`), không ghi gì. Lần gọi bị nguồn từ chối (ví dụ mã 501 của lần chạy f0f4799a) chỉ có dòng `raw_capture` với `outcome` = `FAILED`. `raw_capture` của S02b: `provider` `kalodata`, `cost_unit` `kalodata_points`, `cost_amount` `NULL`, `period_start`/`period_end` = kỳ `date_range`.
 
+Tệp có `declare.responseSha256Basis` = `canonical-json` thì bộ nạp kiểm `responseSha256` theo JSON chuẩn hoá của `response`; không khai báo thì giữ mã băm được cung cấp. Khai báo cách băm khác bị từ chối. Capture của lần chạy bị cắt ngắn cũng bị từ chối, không nạp một phần.
+
 ### 4.2 `ad_read` và `ad` — quảng cáo (S15, S16, S17)
 
 `ad_read`: một lần đọc một thương hiệu hoặc một từ khoá.
@@ -608,7 +610,7 @@ CREATE TABLE video_snapshot (
   is_ai_video          INTEGER CHECK (is_ai_video IN (0,1)),
   precision            TEXT NOT NULL CHECK (precision = 'provider_estimate'),
   PRIMARY KEY (capture_id, video_url)
-);
+) STRICT;
 
 CREATE TABLE review_point (
   point_id       TEXT PRIMARY KEY,

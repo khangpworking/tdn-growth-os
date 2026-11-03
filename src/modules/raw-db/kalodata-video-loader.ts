@@ -68,7 +68,7 @@ export async function loadKalodataVideosToDbV1(db: Database.Database, artifacts:
       insertCapture.run(...c.values);
       result.captures++;
       let productKey: string | null = null;
-      if (c.productId !== null) {
+      if (c.rows.length && c.productId !== null) {
         const key = `tiktok_shop:${c.productId}`;
         // product_name is required: without a name from the same input the video stays UNKNOWN (never guessed).
         const name = c.productName ?? names.get(c.productId) ?? null;
@@ -106,6 +106,8 @@ async function planFromFile(file: string, runId: string): Promise<{ captures: Pl
   }
   const { declare, records, sha12, relative } = raw;
   // Response digests are checked only when the file says they are over the canonical JSON of `response`.
+  if (declare.responseSha256Basis !== undefined && declare.responseSha256Basis !== 'canonical-json')
+    throw new Error('RAW_DB_FILE_BAD_RECORD: unsupported responseSha256Basis');
   const canonicalDigest = declare.responseSha256Basis === 'canonical-json';
   const captures: PlannedCapture[] = [];
   records.forEach((record, recordIndex) => {
@@ -138,6 +140,10 @@ async function planFromFile(file: string, runId: string): Promise<{ captures: Pl
 
 async function planFromRun(db: Database.Database, artifacts: ContentAddressedArtifactStore, runId: string): Promise<{ captures: PlannedCapture[]; names: Map<string, string> }> {
   assertRun(db, runId);
+  // The shared reader excludes truncated captures. Reject them here rather than silently importing a partial run.
+  if (db.prepare(`SELECT 1 FROM analysis_research_automation_captures
+    WHERE run_id=? AND provider='kalodata' AND operation=? AND truncated<>0`).get(runId, OPERATION))
+    throw new Error(`RAW_DB_ARTIFACT_MISMATCH: truncated ${OPERATION} capture in run ${runId}`);
   const rows = runCaptures(db, runId, 'kalodata', OPERATION);
   if (!rows.length) throw new Error(`RAW_DB_RUN_NOT_FOUND: no ${OPERATION} capture for run ${runId}`);
   const captures: PlannedCapture[] = [];
@@ -164,7 +170,7 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
   }
   // Product names only when a product row is missing: from the same run's OK product rank and detail captures.
   const names = new Map<string, string>();
-  const missing = captures.some(c => c.productId !== null && !db.prepare('SELECT 1 FROM product WHERE product_key=?').get(`tiktok_shop:${c.productId}`));
+  const missing = captures.some(c => c.rows.length && c.productId !== null && !db.prepare('SELECT 1 FROM product WHERE product_key=?').get(`tiktok_shop:${c.productId}`));
   if (missing) {
     for (const operation of ['kalodata.product.rank', 'kalodata.product.detail']) {
       for (const row of runCaptures(db, runId, 'kalodata', operation)) {
@@ -252,11 +258,11 @@ function nonNegative(value: unknown): number | null {
 }
 
 function count(value: unknown): number | null {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
 function flag(value: unknown): number | null {
-  return value === true || value === 1 ? 1 : value === false || value === 0 ? 0 : null;
+  return value === 0 || value === 1 ? value : null;
 }
 
 function sha256(value: string): string {

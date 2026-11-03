@@ -54,13 +54,13 @@ export async function saveKalodataCapture(
   f: { db: Database.Database; artifacts: ContentAddressedArtifactStore; runId: string },
   ordinal: number, operation: 'kalodata.video.rank' | 'kalodata.product.rank' | 'kalodata.product.detail',
   requestParameters: Record<string, unknown>, response: { success: boolean; code?: number; data: unknown },
-  options: { requestedAt?: string; completedAt?: string; httpStatus?: number; responseSha256?: string } = {},
+  options: { requestedAt?: string; completedAt?: string; httpStatus?: number; responseSha256?: string; truncated?: boolean } = {},
 ) {
   const requestedAt = options.requestedAt ?? '2026-11-03T01:00:00Z';
   const completedAt = options.completedAt ?? '2026-11-03T01:00:01Z';
   const responseBytes = Buffer.from(JSON.stringify(response));
-  const dateRange = String(requestParameters.date_range).split('~');
-  const window = { startDate: dateRange[0]!, endDate: dateRange[1]! };
+  const dateRange = typeof requestParameters.date_range === 'string' ? requestParameters.date_range.split('~') : null;
+  const window = dateRange ? { startDate: dateRange[0]!, endDate: dateRange[1]! } : null;
   const envelope = {
     contractVersion: 'research-automation-capture-v1', captureId: `synthetic-kalodata-${ordinal}`,
     provider: 'KALODATA', operation, billing: 'PAID_CREDITS', method: 'POST',
@@ -79,7 +79,7 @@ export async function saveKalodataCapture(
     .run(stored.sha256, stored.byteSize, stored.relativePath, completedAt, completedAt);
   f.db.prepare(`INSERT INTO analysis_research_automation_captures
     (run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at)
-    VALUES (?,'COLLECTION',?,?,'application/json','kalodata',?,?,?,?,0,?)`)
-    .run(f.runId, ordinal, stored.sha256, operation, completedAt, window.startDate, window.endDate, completedAt);
+    VALUES (?,'COLLECTION',?,?,'application/json','kalodata',?,?,?,?,?,?)`)
+    .run(f.runId, ordinal, stored.sha256, operation, completedAt, window?.startDate ?? null, window?.endDate ?? null, options.truncated ? 1 : 0, completedAt);
   return { ...stored, envelope };
 }
