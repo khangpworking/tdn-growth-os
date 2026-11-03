@@ -160,7 +160,9 @@ test('service reads only the declared reader and creates one canonical determini
   assert.equal(count(state.db, 'analysis_research_results'), 1n);
   assert.equal(count(state.db, 'artifact_manifests'), 4n);
   assert.equal(count(state.db, 'foundation_research_documents'), 2n);
-  assert.deepEqual(state.db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND (name LIKE '%segment%' OR name LIKE '%citation%')").all(), []);
+  // S14 has a raw-video segment table; research-document segments/citations still live only in the Result artifact.
+  assert.deepEqual(state.db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND (name LIKE '%segment%' OR name LIKE '%citation%')").all(), [{ name: 'video_segment' }]);
+  assert.equal(count(state.db, 'video_segment'), 0n);
 
   const result = await service.replay(execution.resultId);
   assert.equal(result.coverage.documentCount, 2);

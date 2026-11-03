@@ -5,6 +5,7 @@ import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
+import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { MAX_CAPTURE_BYTES, type StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
@@ -18,6 +19,7 @@ import { createExpandedSearchSource } from '../../src/modules/analysis/research-
 import { createMetaAutoSource, metaSearchUrl } from '../../src/modules/analysis/research-automation/meta-auto-lane.js';
 import { createTikTokTopAdsSource } from '../../src/modules/analysis/research-automation/tiktok-top-ads-lane.js';
 import { VideoWatchLane } from '../../src/modules/analysis/research-automation/video-watch-lane.js';
+import { AutomationKalodataVideoIntake } from '../../src/modules/analysis/research-automation/kalodata-video-intake.js';
 import { createPdfDiscoverySource } from '../../src/modules/analysis/research-automation/pdf-discovery-lane.js';
 import type { MetricOpenCliProcessRunner } from '../../src/modules/analysis/research-automation/metric-opencli-executor.js';
 import { SYNTHETIC_CARD_ID, SYNTHETIC_SERP_KEY, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
@@ -31,6 +33,7 @@ const runId = '22222222-2222-4222-8222-222222222222';
 const now = () => new Date('2026-10-02T00:00:00.000Z');
 const keyword = 'bình giữ nhiệt';
 const period = { startDate: '2025-10-01', endDate: '2026-09-30' };
+const videoUrl = 'https://www.tiktok.com/@synthetic/video/1234567890123456789';
 const lanes = ['web', 'trends', 'geo', 'expanded', 'worldBank', 'comtrade', 'ads', 'stats', 'meta', 'tiktok', 'video', 'pdf'] as const;
 type Lane = typeof lanes[number];
 type Options = {
@@ -88,7 +91,7 @@ async function fixture(t: TestContext, options: Options = {}) {
       requestParameters: {}, requestBodyBytes: null, queryWindow: null, pageNumber: null, productRef: null },
     log.timestamp(), 'OK', 200, bytes, null);
   };
-  const product = syntheticProductSource({ salesBytes: Buffer.from(JSON.stringify({ data: [{ product_id: '12345', product_name: keyword }] })) });
+  const product = syntheticProductSource({ salesBytes: Buffer.from(JSON.stringify({ data: [{ product_id: '12345', product_name: keyword, revenue: 100 }] })) });
   const controller = new AbortController();
   const web = syntheticWebSource(() => { exchanges.web++; }, [{ position: 1, title: keyword, link: 'https://example.test/brand' }]);
   const trends = syntheticTrendsSource(() => { exchanges.trends++; });
@@ -97,7 +100,7 @@ async function fixture(t: TestContext, options: Options = {}) {
     exchanges.expanded++;
     const rows = syntheticExpandedOrganic(url);
     if ((url.searchParams.get('q') ?? '').includes('site:tiktok.com'))
-      rows[0] = { position: 1, title: keyword, link: 'https://www.tiktok.com/@synthetic/video/1234567890123456789', snippet: keyword };
+      rows[0] = { position: 1, title: keyword, link: videoUrl, snippet: keyword };
     return Response.json({ search_parameters: { q: url.searchParams.get('q') }, organic_results: rows });
   }));
   const worldBank = createWorldBankSource(transport(url => {
@@ -177,7 +180,9 @@ async function fixture(t: TestContext, options: Options = {}) {
       if (options.throwProduct) throw new Error('synthetic product collect failure');
       const bound = await product.collect(input, opts);
       if (options.abortBeforeWeb) controller.abort();
-      return bound;
+      if (!enabled.has('video')) return bound;
+      return { ...bound, step: { ...bound.step, comparables: [{ productId: SYNTHETIC_CARD_ID, provider: 'kalodata', metric: 'GMV_VND',
+        value: '100', window: bound.result.captures[0]!.queryWindow!, captureIndex: 0 }] } };
     } },
     sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'c1-v1', transport: { draftLists: async () => ({ keywords: [keyword], exclusions: [] }) } },
     pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', fetch: async () => { throw new Error('unexpected PageIndex call'); },
@@ -207,6 +212,15 @@ async function fixture(t: TestContext, options: Options = {}) {
   });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword, requestedPeriod: period, reports: options.reports ?? ['MARKET'] });
+  // F356: seed a verified same-run top-selling upload linked to the confirmed, collected product.
+  // This keeps the video lane active without adding rank calls/captures or relying on search candidates.
+  if (enabled.has('video')) {
+    const intake = new AutomationKalodataVideoIntake(new RequestScopedArtifactStore(path.join(root, 'artifacts')), db, now);
+    await intake.prepare({ contractVersion: 'automation-video-prepare-v1', requestKey: '55555555-5555-4555-8555-555555555555',
+      table: 'video', sourceLabel: 'Synthetic top-selling video', acquiredAt: null },
+    Buffer.from(`video,creator,revenue,views,units,ad_spend,publish_date,product_link\n${videoUrl},synthetic,100,,,,,https://www.kalodata.com/products/12345\n`),
+    'synthetic.csv', { workspaceId, runId });
+  }
   const read = async (stepId = 'COLLECTION') => {
     const step = db.prepare('SELECT state, result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id=?').get(runId, stepId) as { state: string; sha: string | null };
     const document = step.sha ? JSON.parse((await artifacts.read(step.sha)).toString()) as StepResultDocument : null;
@@ -352,6 +366,7 @@ test('rows 4, 5, 8: all lanes retain usage ordinals, capture order and provider 
     assert.deepEqual(document.expandedSearch?.queries.map(query => query.captureIndex), [4, 5, 6]);
     assert.deepEqual(document.worldBank?.indicators.map(indicator => [indicator.captureIndex, indicator.metadataCaptureIndex]), [[7, 8], [9, 10]]);
     assert.equal(document.videoWatch?.videos[0]?.captureIndex, 21);
+    assert.deepEqual(document.videoWatch?.candidates, [{ videoId: '1234567890123456789', url: videoUrl, origin: 'TOP_SELLING' }]);
     assert.equal(document.pdfDiscovery?.search.captureIndex, 22);
     assert.equal(document.pdfDiscovery?.files[0]?.captureIndex, 23);
     assert.ok(document.sourceEvidence, 'L9 admission precedes PDF search/download');
