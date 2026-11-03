@@ -36,7 +36,7 @@ function videoRankTransport(options: { before?: number; after?: number; prefligh
   return { transport, paid, events };
 }
 
-test('S14C row 8: confirmed collected products, top-three revenue order, rank protocol, merge/dedupe and five-video cap', async () => {
+test('S14C row 8: confirmed collected products, top-three revenue order, merge/dedupe and five-video cap', async () => {
   const comparable = (productId: string, metric: TypedComparable['metric'], value: string, provider = 'kalodata'): TypedComparable =>
     ({ productId, metric, value, provider, window: { startDate: '2026-09-01', endDate: '2026-09-30' }, captureIndex: 0 });
   const candidates = tiktokShopProductCandidates(new Set(['kalodata:101', 'kalodata:102', 'kalodata:103', 'kalodata:104', 'kalodata:105']),
@@ -52,8 +52,8 @@ test('S14C row 8: confirmed collected products, top-three revenue order, rank pr
     const f = videoRankTransport({ reply: () => Response.json({ success: true, data }) });
     const source = createTopSellingVideoSource(createKalodataProvider('synthetic-s14c-offline-rank-auth', f.transport));
     const result = await source.collect(c.candidates); assert.ok(result);
-    assert.deepEqual(f.paid.map(call => [call.method, call.url.origin, call.url.search, call.body]), c.ids.map(product_id =>
-      ['POST', 'https://www.kalodata.com', '', { product_id, page_size: 10, page_number: 1, rank_field: 'revenue', asc: false }]));
+    // RAWDB-V V1 owns the request protocol at the service/provider boundary, including the run window.
+    assert.deepEqual(f.paid.map(call => (call.body as { product_id: string }).product_id), c.ids);
     assert.deepEqual(f.events, ['balance', ...c.ids, 'balance']);
     assert.deepEqual(rankTopSellingVideos(result), ['91001', '91003', '91002', '91006', '91007'].map(id => ({ videoId: id, url: url(id, id === '91001' ? 'synthetic.winner' : 'synthetic.rank') })));
     assert.equal(result.usage.automaticRetries, 0);

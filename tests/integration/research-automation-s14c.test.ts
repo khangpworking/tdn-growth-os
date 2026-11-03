@@ -22,6 +22,9 @@ function rankSource() {
     const url = new URL(String(input));
     if (url.pathname === '/openapi/v1/credit/balance') return Response.json({ success: true, data: { totalRemain: paid.length ? 9.9 : 10 } });
     assert.equal(url.pathname, '/openapi/v1/tiktok/video/rank');
+    assert.equal(url.origin, 'https://www.kalodata.com');
+    assert.equal(url.search, '');
+    assert.equal(init?.method, 'POST');
     paid.push(JSON.parse(String(init?.body)));
     return Response.json({ success: true, data: handles.map((handle, i) => ({ video_id: String(94001 + i), belonged_creator_handle: handle,
       video_title: 'Synthetic ignored title', revenue: 200 - i, views: 10 + i })) });
@@ -53,13 +56,18 @@ test('S14C row 7: only exactly "1" enables ranking; off values issue no rank cal
   });
 });
 
-test('S14C row 8: Market and Insight persist rank lineage; handles stay only in URLs and out of reader HTML and logs', async t => {
+test('RAWDB-V V1 / S14C row 8: run-window rank requests and captures preserve lineage and creator privacy', async t => {
   const logs: string[] = [];
   for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) t.mock.method(console, method, (...args: unknown[]) => { logs.push(args.map(String).join(' ')); });
   for (const reports of [['MARKET'], ['INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) {
     const f = rankSource();
     const run = await s14cCollection(t, { topSellingVideoSource: f.source, mode: 'subtitle', reports });
-    assert.deepEqual(f.paid, [{ product_id: '12345', page_size: 10, page_number: 1, rank_field: 'revenue', asc: false }]);
+    const window = { startDate: '2026-09-01', endDate: '2026-09-30' };
+    assert.equal(f.paid.length, 1);
+    const request = f.paid[0] as Record<string, unknown>;
+    assert.equal(request.date_range, '2026-09-01~2026-09-30', 'video.rank must carry the run window in date_range');
+    assert.deepEqual(request, { region: 'VN', language: 'vi-VN', currency: 'VND', product_id: '12345',
+      date_range: '2026-09-01~2026-09-30', sort_field: { field: 'revenue', type: 'DESC' }, page_size: 10, page_number: 1 });
     const watch = run.step.videoWatch; assert.ok(watch?.topSellingRank);
     assert.equal(watch.topSellingRank.kept, 2);
     assert.deepEqual(watch.candidates.slice(0, 2), handles.map((handle, i) => ({ videoId: String(94001 + i),
@@ -71,6 +79,13 @@ test('S14C row 8: Market and Insight persist rank lineage; handles stay only in 
     const captures = run.db.prepare("SELECT ordinal, operation, provider FROM analysis_research_automation_captures WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal").all(S14C_RUN) as { ordinal: bigint; operation: string; provider: string }[];
     const rank = captures.find(capture => capture.operation === 'kalodata.video.rank'); assert.ok(rank);
     assert.equal(rank.provider, 'kalodata');
+    const storedRank = run.db.prepare(`SELECT artifact_sha256 sha,window_start,window_end FROM analysis_research_automation_captures
+      WHERE run_id=? AND step_id='COLLECTION' AND ordinal=?`).get(S14C_RUN, rank.ordinal) as { sha: string; window_start: string; window_end: string };
+    assert.deepEqual([storedRank.window_start, storedRank.window_end], [window.startDate, window.endDate]);
+    const envelope = JSON.parse((await run.artifacts.read(storedRank.sha)).toString('utf8'));
+    assert.deepEqual(envelope.queryWindow, window);
+    assert.deepEqual(envelope.requestParameters, request);
+    assert.deepEqual(JSON.parse(Buffer.from(envelope.requestBodyBytesBase64, 'base64').toString('utf8')), request);
     assert.deepEqual(watch.topSellingRank.products, [{ productId: '12345', outcome: 'OK', captureIndex: Number(rank.ordinal) }]);
     assert.ok(watch.videos.every(video => video.captureIndex! > Number(rank.ordinal)), 'lookup captures precede model captures');
     const usage = run.db.prepare("SELECT request_count, cost_state, cost_unit, cost_amount FROM analysis_research_automation_usage WHERE run_id=? AND step_id='COLLECTION' AND ordinal=21").get(S14C_RUN) as { request_count: bigint; cost_state: string; cost_unit: string | null; cost_amount: string | null };
