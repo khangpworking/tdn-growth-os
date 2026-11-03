@@ -52,40 +52,30 @@ test('flag: on only for exactly "1"', () => {
   assert.equal(videoWatchEnabled({ TDN_RESEARCH_VIDEO_WATCH_ENABLED: '1' }), true);
 });
 
-test('candidates: selection first, then TIKTOK rows in position order, deduped by video id, capped at 10 with the rest recorded', () => {
-  const ids = Array.from({ length: 14 }, (_, i) => String(1000 + i));
-  const plan = videoWatchCandidates([{ url: url(ids[0]!) }, { url: 'https://example.test/not-a-video' }, { url: url(ids[1]!) }], [
-    query('SHOPEE', [{ position: 1, url: url(ids[13]!) }]),
-    query('TIKTOK', [{ position: 3, url: url(ids[3]!) }, { position: 1, url: url(ids[1]!) }, { position: 2, url: url(ids[2]!) }, ...ids.slice(4, 13).map((id, i) => ({ position: 4 + i, url: url(id) }))]),
-    query('TIKTOK', [{ position: 1, url: url(ids[12]!) }], 'FAILED'),
-  ]);
-  assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [[ids[0], 'SELECTION'], [ids[1], 'SELECTION'], [ids[2], 'EXPANDED_SEARCH'], [ids[3], 'EXPANDED_SEARCH'],
-    ...ids.slice(4, 10).map(id => [id, 'EXPANDED_SEARCH'])]);
-  assert.deepEqual(plan.skipped, ids.slice(10, 13).map(videoId => ({ videoId, reason: 'OVER_10_VIDEOS' })));
-  assert.equal(plan.candidatesSha256, videoWatchCandidates([{ url: url(ids[0]!) }, { url: url(ids[1]!) }], [query('TIKTOK', ids.slice(1, 13).map((id, i) => ({ position: i + 1, url: url(id) })))]).candidatesSha256);
+test('RAWDB-W W1: selection then uploaded/automated top-selling, first id wins, ten-video caps, no search fallback', () => {
+  const selected = [{ url: url('1001') }, { url: 'https://example.test/not-a-video' }, { url: url('1001') }];
+  const uploaded = [{ url: 'https://www.tiktok.com/@synthetic.other/video/1001' }, { url: 'not-a-url' }, ...['2001', '2002'].map(id => ({ url: url(id) }))];
+  const automated = ['2001', ...Array.from({ length: 10 }, (_, i) => String(3001 + i))].map(id => ({ url: url(id) }));
+  const searches = [query('TIKTOK', [{ position: 1, url: url('9001') }]),
+    query('SHOPEE', [{ position: 1, url: url('9002') }]), query('TIKTOK', [{ position: 1, url: url('9003') }], 'FAILED')];
+  assert.deepEqual(videoWatchCandidates([], searches, [], []).candidates, [], 'an empty rank never falls back to search');
+  const plan = videoWatchCandidates(selected, searches, uploaded, automated);
+  assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [['1001', 'SELECTION'],
+    ...['2001', '2002', '3001', '3002', '3003', '3004', '3005', '3006', '3007'].map(id => [id, 'TOP_SELLING'])]);
+  assert.deepEqual(plan.skipped, [{ videoId: '3008', reason: 'OVER_10_VIDEOS' }]);
+  assert.equal(plan.candidates[0]?.url, selected[0]?.url);
+  assert.equal(plan.candidatesSha256, videoWatchCandidates(selected, undefined, uploaded, automated).candidatesSha256,
+    'searches do not change the pinned candidate identity');
+  const top = Array.from({ length: 12 }, (_, i) => ({ url: url(String(4001 + i)) }));
+  for (const args of [[top, undefined], [[], top]] as const) {
+    assert.deepEqual(videoWatchCandidates([], searches, args[0], args[1]).candidates.map(c => c.videoId),
+      Array.from({ length: 10 }, (_, i) => String(4001 + i)), 'up to ten uploaded or automated top-selling videos');
+  }
   assert.deepEqual(videoWatchCandidates([], undefined).candidates, []);
-});
-
-test('candidates: top-selling videos follow selection, rank order is preserved, and malformed URLs are excluded', () => {
-  const top = [{ url: url('2001') }, { url: 'https://example.test/not-a-video' }, { url: url('2002') }, { url: url('1001') }];
-  const plan = videoWatchCandidates([{ url: url('1001') }], [query('TIKTOK', [{ position: 1, url: url('3001') }])], top);
-  assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [['1001', 'SELECTION'], ['2001', 'TOP_SELLING'], ['2002', 'TOP_SELLING'], ['3001', 'EXPANDED_SEARCH']]);
-  const malformed = videoWatchCandidates([], undefined, [{ url: 'not-a-url' }]);
-  assert.deepEqual(malformed.candidates, [], 'malformed or missing URLs never become candidates');
-});
-
-const at = (account: string, id: string) => `https://www.tiktok.com/@${account}/video/${id}`;
-test('candidates: selection precedes account-spread search rows before the cap', () => {
-  const four = videoWatchCandidates([], [query('TIKTOK', [['a', '11'], ['a', '12'], ['a', '13'], ['b', '21']].map(([account, id], i) => ({ position: i + 1, url: at(account!, id!) })))]);
-  assert.deepEqual(four.candidates.map(c => c.videoId), ['11', '21', '12', '13'], 'a1, b1, a2, a3');
-  const twelve = [...['1', '2', '3', '4', '5', '6'].map(n => at('shop.a', `10${n}`)), ...['1', '2', '3', '4'].map(n => at('shop.b', `20${n}`)), at('shop.c', '301'), at('shop.c', '302')];
-  const plan = videoWatchCandidates(twelve.slice(0, 2).map(url => ({ url })), [query('TIKTOK', twelve.slice(2).map((url, i) => ({ position: i + 1, url })))]);
-  assert.deepEqual(plan.candidates.map(c => c.videoId), ['101', '102', '103', '201', '301', '104', '202', '302', '105', '203']);
-  assert.equal(new Set(plan.candidates.map(c => c.url.split('/')[3])).size, 3, 'the 10 kept cover all 3 accounts');
-  assert.deepEqual(plan.skipped, [{ videoId: '106', reason: 'OVER_10_VIDEOS' }, { videoId: '204', reason: 'OVER_10_VIDEOS' }], 'the skipped ones are the last-pass ones');
-  assert.deepEqual(plan.candidates.slice(0, 2).map(c => c.origin), ['SELECTION', 'SELECTION']);
-  const mixed = videoWatchCandidates([], [query('TIKTOK', [at('ShopA', '1'), at('shopa', '2'), at('other', '3')].map((url, i) => ({ position: i + 1, url })))]);
-  assert.deepEqual(mixed.candidates.map(c => c.videoId), ['1', '3', '2'], '@ShopA and @shopa are one account');
+  const selections = Array.from({ length: 12 }, (_, i) => ({ url: url(String(5001 + i)) }));
+  const capped = videoWatchCandidates(selections, searches);
+  assert.deepEqual(capped.candidates.map(c => c.videoId), Array.from({ length: 10 }, (_, i) => String(5001 + i)));
+  assert.deepEqual(capped.skipped, ['5011', '5012'].map(videoId => ({ videoId, reason: 'OVER_10_VIDEOS' })));
 });
 test('answer check: exact shape, intervals inside the media, ordered speech; text trimmed, never rewritten', () => {
   assert.deepEqual(validateModelAnswer(goodAnswer, 10)!.segments, [{ startSecond: 1, endSecond: 3, speech: 'Bình giữ nóng rất lâu' }]);
