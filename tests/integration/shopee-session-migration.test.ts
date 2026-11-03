@@ -43,9 +43,9 @@ for (const priorVersion of [0, 60]) test(`SHP migration 0061 applies from ${prio
   }
   const upgraded = openDatabase({ databasePath, now });
   try {
-    assert.equal(upgraded.migration.currentVersion, 65);
+    assert.equal(upgraded.migration.currentVersion, 66);
     assert.ok(upgraded.migration.applied.includes(61));
-    if (priorVersion === 60) assert.deepEqual(upgraded.migration.applied, [61, 62, 63, 64, 65]);
+    if (priorVersion === 60) assert.deepEqual(upgraded.migration.applied, [61, 62, 63, 64, 65, 66]);
     assert.deepEqual(upgraded.db.prepare('SELECT * FROM research_automation_shopee_sessions').all(), []);
     assert.deepEqual(upgraded.db.pragma('foreign_key_check'), []);
     if (runId) {
@@ -57,6 +57,6 @@ for (const priorVersion of [0, 60]) test(`SHP migration 0061 applies from ${prio
     }
   } finally { upgraded.db.close(); }
   const replay = openDatabase({ databasePath, now });
-  try { assert.deepEqual(replay.migration, { applied: [], currentVersion: 65 }); }
+  try { assert.deepEqual(replay.migration, { applied: [], currentVersion: 66 }); }
   finally { replay.db.close(); }
 });
