@@ -2,17 +2,25 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import BetterSqlite3 from 'better-sqlite3';
 import type Database from 'better-sqlite3';
+import { acquireLabelsLock } from './labels-lock.js';
 
-export interface ReviewCodeLoadInput { mcpRunFile: string; codebookFile: string; coder: string }
+export interface ReviewCodeLoadInput {
+  mcpRunFile: string; codebookFile: string; coder: string;
+  /** The caller rolls the import back; it takes no lock. */
+  dryRun?: boolean | undefined;
+}
 /** One MCP row not imported: its review has no db-v1 row, or the stored label span does not hash to the db-v1 text. */
 export interface ReviewCodeSkip { reviewId: string; themeCode: string; reason: 'REVIEW_MISSING' | 'TEXT_MISMATCH' }
+/** One MCP review none of whose rows were imported, with the reason of its first skipped row. */
+export interface ReviewCodeReviewSkip { reviewId: string; reason: ReviewCodeSkip['reason'] }
 /**
- * Rows inserted by one call. alreadyPresent: rows not inserted because the same review × version × theme is already
- * stored from another MCP run file (0 on a same-input reload). reviewsMissing counts MCP reviews, textMismatch labels.
+ * Rows inserted by one call. alreadyCoded: reviews not imported because they already have review_code rows for the
+ * version from another source (0 on a same-input reload). reviewsMissing counts MCP reviews, textMismatch labels,
+ * reviewsSkipped the reviews left out whole because of a skipped row.
  */
 export interface ReviewCodeLoadResult {
-  codebookInserted: number; labelsInserted: number; noThemeInserted: number; alreadyPresent: number;
-  reviewsMissing: number; textMismatch: number; skipped: ReviewCodeSkip[];
+  codebookInserted: number; labelsInserted: number; noThemeInserted: number; alreadyCoded: number;
+  reviewsMissing: number; textMismatch: number; skipped: ReviewCodeSkip[]; reviewsSkipped: ReviewCodeReviewSkip[];
 }
 
 const NO_THEME = 'NO_THEME';
@@ -30,9 +38,13 @@ type Row = [reviewKey: string, version: string, themeCode: string, blockKey: str
  * Imports the theme labels of one Insight MCP run warehouse (`runs/<runId>.sqlite`) into db-v1 `codebook` and
  * `review_code` (owner F361, F362). No AI call. A label is imported only when its span of the review text rebuilt
  * from db-v1 (`text` + each `attributes_json` item as two spaces + item) hashes to the label's `text_sha256`.
- * The run file is read from its bytes and never written. One transaction; per-row skips are counted, not fatal.
+ * The run file is read from its bytes and never written. One transaction; skips are counted, not fatal.
+ * All or nothing per review (owner F376): one skipped row skips every row of its review, and a review that already has
+ * any review_code row for the version is not touched (themes are never added to an existing group).
+ * Holds the labelling lock (labels-lock.ts) from before the first app DB read to the end, except in a dry run.
  */
-export async function loadReviewCodesToDbV1(db: Database.Database, { mcpRunFile, codebookFile, coder }: ReviewCodeLoadInput): Promise<ReviewCodeLoadResult> {
+export async function loadReviewCodesToDbV1(db: Database.Database, input: ReviewCodeLoadInput): Promise<ReviewCodeLoadResult> {
+  const { mcpRunFile, codebookFile, coder } = input;
   if (!coder.trim()) throw new Error('RAW_DB_CODES_INVALID_ROW: --coder must not be empty');
   const definitionBytes = await fs.readFile(codebookFile);
   const definitionJson = definitionBytes.toString('utf8');
@@ -73,6 +85,13 @@ export async function loadReviewCodesToDbV1(db: Database.Database, { mcpRunFile,
     return at;
   };
 
+  const release = input.dryRun ? () => {} : acquireLabelsLock(db);
+  try { return importRows(db, codebook, definitionJson, definitionSha256, importSha256, coder, reviews, labels, states, startedAt); }
+  finally { release(); }
+}
+
+function importRows(db: Database.Database, codebook: Codebook, definitionJson: string, definitionSha256: string, importSha256: string, coder: string,
+  reviews: McpReview[], labels: McpLabel[], states: McpState[], startedAt: (blockNorm: string, reviewId: string) => string): ReviewCodeLoadResult {
   const byId = new Map(reviews.map(r => [r.review_id, r]));
   const findReview = db.prepare("SELECT review_key, text, attributes_json FROM review WHERE platform=? AND external_id=? AND kind='product_review'");
   const dbReviews = new Map<string, { review_key: string; text: string | null; attributes_json: string | null } | null>();
@@ -86,15 +105,23 @@ export async function loadReviewCodesToDbV1(db: Database.Database, { mcpRunFile,
     return matches[0] ?? null;
   };
 
-  const result: ReviewCodeLoadResult = { codebookInserted: 0, labelsInserted: 0, noThemeInserted: 0, alreadyPresent: 0, reviewsMissing: 0, textMismatch: 0, skipped: [] };
+  const result: ReviewCodeLoadResult = { codebookInserted: 0, labelsInserted: 0, noThemeInserted: 0, alreadyCoded: 0, reviewsMissing: 0, textMismatch: 0,
+    skipped: [], reviewsSkipped: [] };
   const missingReviews = new Set<string>();
-  const rows: Row[] = [];
+  // Rows grouped by db-v1 review; a review with a skipped row is dropped whole.
+  const groups = new Map<string, Row[]>();
+  const skippedReviews = new Map<string, ReviewCodeSkip['reason']>();
+  const skip = (reviewId: string, themeCode: string, reason: ReviewCodeSkip['reason']) => {
+    result.skipped.push({ reviewId, themeCode, reason });
+    if (!skippedReviews.has(reviewId)) skippedReviews.set(reviewId, reason);
+  };
   const keys = new Set<string>();
   const add = (row: Row, reviewId: string) => {
     const key = `${row[0]}\0${row[2]}`;
     if (keys.has(key)) throw new Error(`RAW_DB_CODES_INVALID_ROW: review ${reviewId} has theme ${row[2]} twice for codebook ${codebook.version}`);
     keys.add(key);
-    rows.push(row);
+    const group = groups.get(row[0]);
+    if (group) group.push(row); else groups.set(row[0], [row]);
   };
 
   const labelled = new Set<string>();
@@ -109,12 +136,13 @@ export async function loadReviewCodesToDbV1(db: Database.Database, { mcpRunFile,
     }
     const coded = startedAt(label.block_norm, label.review_id);
     const review = lookup(label.review_id);
-    if (!review) { missingReviews.add(label.review_id); result.skipped.push({ reviewId: label.review_id, themeCode: label.theme_code, reason: 'REVIEW_MISSING' }); continue; }
-    if (!spanMatches(review, label)) { result.textMismatch++; result.skipped.push({ reviewId: label.review_id, themeCode: label.theme_code, reason: 'TEXT_MISMATCH' }); continue; }
+    if (!review) { missingReviews.add(label.review_id); skip(label.review_id, label.theme_code, 'REVIEW_MISSING'); continue; }
+    if (!spanMatches(review, label)) { result.textMismatch++; skip(label.review_id, label.theme_code, 'TEXT_MISMATCH'); continue; }
     add([review.review_key, codebook.version, label.theme_code, label.block_key, label.polarity, label.step, label.status, label.p_yes,
       coder, label.text_sha256, coded, 'MCP_IMPORT', importSha256], label.review_id);
   }
-  // Coded with no theme: a done coding_state of this version and no label row for the review.
+  // Coded with no theme: a done coding_state of this version and no label row for the review. A review whose labels
+  // failed the text proof is labelled, so it never becomes NO_THEME.
   const stateSeen = new Set<string>();
   for (const state of states) {
     if (labelled.has(state.review_id)) continue;
@@ -123,31 +151,29 @@ export async function loadReviewCodesToDbV1(db: Database.Database, { mcpRunFile,
     if (state.block_key !== null && !codebook.themes(state.block_key)) throw new Error(`RAW_DB_CODES_INVALID_ROW: review ${state.review_id} uses unknown block ${state.block_key}`);
     const coded = startedAt(state.block_norm, state.review_id);
     const review = lookup(state.review_id);
-    if (!review) { missingReviews.add(state.review_id); result.skipped.push({ reviewId: state.review_id, themeCode: NO_THEME, reason: 'REVIEW_MISSING' }); continue; }
+    if (!review) { missingReviews.add(state.review_id); skip(state.review_id, NO_THEME, 'REVIEW_MISSING'); continue; }
     add([review.review_key, codebook.version, NO_THEME, state.block_key, null, null, 'kept', null, coder, state.input_sha256, coded, 'MCP_IMPORT', importSha256], state.review_id);
   }
   result.reviewsMissing = missingReviews.size;
+  for (const [reviewId, reason] of skippedReviews) {
+    result.reviewsSkipped.push({ reviewId, reason });
+    const review = dbReviews.get(reviewId);
+    if (review) groups.delete(review.review_key);
+  }
 
-  const storedCodebook = db.prepare('SELECT definition_sha256 FROM codebook WHERE codebook_version=?');
-  const insertCodebook = db.prepare(`INSERT INTO codebook(codebook_version,contract_version,status,approved_by,approved_at,definition_json,definition_sha256,loaded_at)
-    VALUES (?,?,?,?,?,?,?,?)`);
   const insertCode = db.prepare(`INSERT INTO review_code(review_key,codebook_version,theme_code,block_key,polarity,journey_step,status,confidence,coder,text_sha256,coded_at,origin,import_sha256)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
-  const storedImport = db.prepare('SELECT import_sha256 FROM review_code WHERE review_key=? AND codebook_version=? AND theme_code=?');
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const storedImports = db.prepare('SELECT import_sha256 FROM review_code WHERE review_key=? AND codebook_version=?').pluck();
   return db.transaction((): ReviewCodeLoadResult => {
-    const stored = storedCodebook.get(codebook.version) as { definition_sha256: string } | undefined;
-    if (stored && stored.definition_sha256 !== definitionSha256) {
-      throw new Error(`RAW_DB_CODES_CODEBOOK_CHANGED: codebook ${codebook.version} is stored with a different definition`);
-    }
-    if (!stored) {
-      result.codebookInserted = insertCodebook.run(codebook.version, codebook.contractVersion, codebook.status, codebook.approvedBy, codebook.approvedAt,
-        definitionJson, definitionSha256, new Date().toISOString()).changes;
-    }
-    for (const row of rows) {
-      if (insertCode.run(...row).changes) {
+    result.codebookInserted = storeCodebook(db, codebook, definitionJson, definitionSha256);
+    for (const [reviewKey, rows] of groups) {
+      // Any stored row means the review is coded for this version: an exact replay of this file adds nothing silently,
+      // another source counts once as alreadyCoded.
+      const stored = storedImports.all(reviewKey, codebook.version) as string[];
+      if (stored.length) { if (stored.some(sha => sha !== importSha256)) result.alreadyCoded++; continue; }
+      for (const row of rows) {
+        insertCode.run(...row);
         if (row[2] === NO_THEME) result.noThemeInserted++; else result.labelsInserted++;
-      } else if ((storedImport.get(row[0], row[1], row[2]) as { import_sha256: string }).import_sha256 !== importSha256) {
-        result.alreadyPresent++;
       }
     }
     return result;
@@ -165,11 +191,26 @@ function spanMatches(review: { text: string | null; attributes_json: string | nu
   return sha256(Buffer.from(points.slice(start, end).join(''), 'utf8')) === label.text_sha256;
 }
 
-interface Codebook { version: string; contractVersion: string; status: 'DRAFT' | 'APPROVED'; approvedBy: string | null; approvedAt: string | null;
+/**
+ * Inserts the codebook row when its version is not stored yet; returns the rows inserted (0 or 1). A version already
+ * stored with other definition bytes fails with RAW_DB_CODES_CODEBOOK_CHANGED. Call inside the writer's transaction.
+ */
+export function storeCodebook(db: Database.Database, codebook: Codebook, definitionJson: string, definitionSha256: string): number {
+  const stored = db.prepare('SELECT definition_sha256 FROM codebook WHERE codebook_version=?').get(codebook.version) as { definition_sha256: string } | undefined;
+  if (stored && stored.definition_sha256 !== definitionSha256) {
+    throw new Error(`RAW_DB_CODES_CODEBOOK_CHANGED: codebook ${codebook.version} is stored with a different definition`);
+  }
+  if (stored) return 0;
+  return db.prepare(`INSERT INTO codebook(codebook_version,contract_version,status,approved_by,approved_at,definition_json,definition_sha256,loaded_at)
+    VALUES (?,?,?,?,?,?,?,?)`).run(codebook.version, codebook.contractVersion, codebook.status, codebook.approvedBy, codebook.approvedAt,
+    definitionJson, definitionSha256, new Date().toISOString()).changes;
+}
+
+export interface Codebook { version: string; contractVersion: string; status: 'DRAFT' | 'APPROVED'; approvedBy: string | null; approvedAt: string | null;
   /** Codes allowed for a block: core, the block's themes and otherCode; undefined for an unknown block. */
   themes(blockKey: string | null): Set<string> | undefined }
 
-function parseCodebook(text: string): Codebook {
+export function parseCodebook(text: string): Codebook {
   const fail = (why: string): never => { throw new Error(`RAW_DB_CODES_CODEBOOK_INVALID: ${why}`); };
   let json: Record<string, unknown>;
   try { json = JSON.parse(text) as Record<string, unknown>; } catch { return fail('not JSON'); }
@@ -198,4 +239,4 @@ function parseCodebook(text: string): Codebook {
     themes: blockKey => blockKey === null ? coreOnly : byBlock.get(blockKey) };
 }
 
-function sha256(bytes: Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }
+export function sha256(bytes: Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }

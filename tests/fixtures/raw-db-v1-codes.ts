@@ -99,6 +99,6 @@ export async function codesFixture(t: TestContext, input: Inputs = {}) {
 }
 
 export const emptyCodesReceipt = {
-  codebookInserted: 0, labelsInserted: 0, noThemeInserted: 0, alreadyPresent: 0,
-  reviewsMissing: 0, textMismatch: 0, skipped: [],
+  codebookInserted: 0, labelsInserted: 0, noThemeInserted: 0, alreadyCoded: 0,
+  reviewsMissing: 0, textMismatch: 0, skipped: [], reviewsSkipped: [],
 };
