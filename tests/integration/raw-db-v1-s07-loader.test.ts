@@ -7,7 +7,8 @@ import { loadTikTokCommentsToDbV1 } from '../../src/modules/raw-db/tiktok-commen
 import { loadShopeeReviewsToDbV1 } from '../../src/modules/raw-db/shopee-reviews-loader.js';
 import { loadAiOverviewToDbV1, loadSearchSuggestionsToDbV1 } from '../../src/modules/raw-db/google-search-loader.js';
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
-import { TIKTOK_COMMENT_ACTORS } from '../../src/platform/collectors/apify-tiktok-comments.js';
+import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { ApifyTikTokCommentsCollector, createTikTokCommentPrivacy, TIKTOK_COMMENT_ACTORS } from '../../src/platform/collectors/apify-tiktok-comments.js';
 import { rawDbFixture } from '../fixtures/raw-db-v1-s05.js';
 import { ANSWER, QUERY, saveGoogleCapture, snapshot } from '../fixtures/raw-db-v1-google.js';
 import { tiktokFixture, workspaceId, runId, url } from '../fixtures/tiktok-coding-fixture.js';
@@ -81,6 +82,17 @@ test('RAWDB-T T3: writer keys match the public collector, repeat by uid and reta
     assert.equal(stored.includes(row.uniqueId), false, 'writer handle must not occur outside required selected video URLs');
   }
   assert.equal(stored.includes('synthetic_mention'), false, 'mentioned handle must not be retained');
+  const pseudonymisedUrl = 'https://www.tiktok.com/@anon-abcdef/video/1001';
+  const pseudonymised = { ...S07_DOCUMENT, records: [
+    { operation: 'video.selection', videos: [pseudonymisedUrl] },
+    { ...S07_DOCUMENT.records[1], input: { postURLs: [pseudonymisedUrl] }, itemCount: 1,
+      items: [{ ...S07_ITEMS[0], cid: 'anon-a1b2c3', uid: 'anon-deadbeef', uniqueId: 'anon-abcdef', videoWebUrl: pseudonymisedUrl }] },
+  ] };
+  const file = path.join(f.root, 'pseudonymised.json');
+  await fs.writeFile(file, JSON.stringify(pseudonymised));
+  await loadTikTokCommentsToDbV1(f.db, f.artifacts, { file, runId: S07_RUN }, f.privacy);
+  assert.deepEqual(f.db.prepare("SELECT reviewer_key,reviewer_name,reviewer_name_state FROM review WHERE review_key='S07:anon-a1b2c3'").get(),
+    { reviewer_key: null, reviewer_name: null, reviewer_name_state: 'not_provided' });
 });
 
 test('RAWDB-T T4: text is sanitized and attributes preserve creator, empty and optional boolean facts', async t => {
@@ -99,6 +111,17 @@ test('RAWDB-T T4: text is sanitized and attributes preserve creator, empty and o
     { textForm: 'SANITIZED' },
     { textForm: 'SANITIZED', exclusionReason: 'REPLY' },
   ]);
+  const cases = [[null, 'EMPTY'], ['@synthetic_tag', 'TAG_ONLY'], ['😀', 'EMOJI_ONLY'], ['Ordinary words', null]] as const;
+  const file = path.join(f.root, 'exclusions.json');
+  await fs.writeFile(file, JSON.stringify({ ...S07_DOCUMENT, records: [S07_DOCUMENT.records[0], {
+    ...S07_DOCUMENT.records[1], items: cases.map(([text], i) => ({ ...S07_ITEMS[0], cid: String(2010 + i), text })),
+  }] }));
+  await loadTikTokCommentsToDbV1(f.db, f.artifacts, { file, runId: S07_RUN }, f.privacy);
+  for (const [i, [, reason]] of cases.entries()) {
+    const row = f.db.prepare('SELECT text,attributes_json FROM review WHERE external_id=?').get(String(2010 + i)) as { text: string | null; attributes_json: string };
+    assert.equal(JSON.parse(row.attributes_json).exclusionReason ?? null, reason);
+    if (i === 0) assert.equal(row.text, null);
+  }
 });
 
 test('RAWDB-T T5: missing privacy fails before file reads or writes, including CLI dry-run', async t => {
@@ -154,6 +177,13 @@ test('RAWDB-T T7: exact retry returns zero counters; a new label links existing 
     Object.fromEntries(Object.entries(before).filter(([table]) => table !== 'run_review')));
   assert.deepEqual(f.db.prepare('SELECT * FROM run_review WHERE run_id=? ORDER BY review_key').all(nextRun),
     (before.run_review as Record<string, unknown>[]).map(row => ({ ...row, run_id: nextRun })));
+  const changed = structuredClone(S07_DOCUMENT);
+  changed.records[1]!.items![0]!.text = 'Changed later source version';
+  const file = path.join(f.root, 'later-version.json');
+  await fs.writeFile(file, JSON.stringify(changed));
+  assert.deepEqual(await loadTikTokCommentsToDbV1(f.db, f.artifacts, { file, runId: S07_RUN }, f.privacy),
+    { runId: S07_RUN, captures: 1, videos: 0, reviewsInserted: 0, reviewsAlreadyPresent: 0, runReviewsInserted: 0 });
+  assert.deepEqual(snapshot(f.db, ['review', 'video']), { review: before.review, video: before.video });
 });
 
 test('RAWDB-T T8: stored S07 reads verified pages, rejects tampering and requires an S07 collection', async t => {
@@ -192,8 +222,9 @@ test('RAWDB-T T8: stored S07 reads verified pages, rejects tampering and require
     assert.equal(rows[0]!.reviewer_key, s07AuthorKey('author', '998877'));
     assert.equal(rows[1]!.reviewer_key, rows[0]!.reviewer_key);
     assert.equal(rows[4]!.text, '[handle removed]');
-    // Stored sanitized rows keep isReply but no parent id (collector contract), so the run path cannot name the parent.
+    // Stored P9 v1 pages retain the reply flag/reason, but never the parent id.
     assert.equal(rows[6]!.replies_to_external_id, null);
+    assert.deepEqual(JSON.parse(rows[6]!.attributes_json as string), { textForm: 'SANITIZED', exclusionReason: 'REPLY' });
     assert.deepEqual(JSON.parse(rows[3]!.attributes_json as string), { textForm: 'SANITIZED', byVideoAuthor: true });
     assert.deepEqual(JSON.parse(rows[4]!.attributes_json as string), { textForm: 'SANITIZED', exclusionReason: 'TAG_ONLY' });
     assert.deepEqual(f.db.prepare('SELECT video_url,product_key,link_basis,author_key FROM video').all(), [
@@ -202,6 +233,46 @@ test('RAWDB-T T8: stored S07 reads verified pages, rejects tampering and require
     assert.deepEqual(f.db.prepare('SELECT capture_id,provider,operation,cost_unit,cost_amount,outcome FROM raw_capture').all(), [
       { capture_id: `S07:${runId}:0`, provider: 'apify', operation: 'datadoping/tiktok-comment-reply-scraper', cost_unit: 'USD', cost_amount: 0.01, outcome: 'OK' },
     ]);
+  });
+  await t.test('a different privacy salt fails safely before any writes', async t => {
+    const f = await tiktokFixture(t);
+    const privacy = createTikTokCommentPrivacy({ salt: Buffer.alloc(32, 29), keyId: f.collector.privacyProfile.keyId });
+    const before = f.db.serialize();
+    await assert.rejects(loadTikTokCommentsToDbV1(f.db, f.artifacts, { runId }, privacy),
+      /^Error: RAW_DB_PRIVACY_KEY_MISMATCH: S07 package [0-9a-f-]+ was collected under another privacy key$/);
+    assert.deepEqual(f.db.serialize(), before);
+  });
+  await t.test('later packages cannot renumber already loaded capture provenance', async t => {
+    const f = await tiktokFixture(t);
+    const privacy = s07Privacy(f.collector.privacyProfile.keyId);
+    let calls = 0;
+    const service = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, workspaceReader: f.workspaceReader,
+      tikTokCommentsCollector: new ApifyTikTokCommentsCollector({ privacy, approvedMaxTotalChargeUsd: 0.1, transport: {
+        start: async () => ({ runId: `syntheticAppend${++calls}`, datasetId: `syntheticData${calls}`, buildId: null,
+          status: 'SUCCEEDED', retrievedAt: '2026-10-09T00:00:00.000Z', providerTotalRows: 1, usageTotalUsd: 0.01 }),
+        readPage: async () => Buffer.from(JSON.stringify([{ video_id: '1000', comment_id: String(3000 + calls),
+          item_type: 'comment', text: 'Synthetic later comment' }])),
+      } }) });
+    const collect = async (requestKey: string) => {
+      const selected = await service.selectTikTokCommentVideos(workspaceId, runId, {
+        contractVersion: 'tiktok-video-selection-request-v1', requestKey,
+        expectedRevision: (await f.service.getRun(workspaceId, runId)).revision,
+        sourcePackage: f.sourcePackage, option: 'A_TOP_20_PERCENT', reviewVideoUrls: [],
+      });
+      return service.collectTikTokComments(workspaceId, runId, selected);
+    };
+    const high = await collect('ffffffff-ffff-4fff-bfff-ffffffffffff');
+    await loadTikTokCommentsToDbV1(f.db, f.artifacts, { runId }, privacy);
+    const captures = () => f.db.prepare("SELECT capture_id,json_extract(request_params_json,'$.packageId') package_id FROM raw_capture WHERE source_code='S07' ORDER BY capture_id").all() as { capture_id: string; package_id: string }[];
+    const before = captures();
+    const low = await collect('00000000-0000-4000-8000-000000000000');
+    await loadTikTokCommentsToDbV1(f.db, f.artifacts, { runId }, privacy);
+    const after = captures();
+    assert.deepEqual(after.map(row => row.package_id).sort(),
+      [f.corpusPackage.packageId, high.package.packageId, low.package.packageId].sort());
+    for (const row of before) assert.deepEqual(after.find(stored => stored.capture_id === row.capture_id), row);
+    assert.deepEqual(f.db.prepare("SELECT json_extract(c.request_params_json,'$.packageId') package_id FROM review r JOIN raw_capture c USING(capture_id) WHERE r.review_key='S07:3002'").get(),
+      { package_id: low.package.packageId });
   });
   await t.test('same-size artifact tampering propagates the verified reader error before any writes', async t => {
     // A fresh target proves verification happens before any S07 publication, even on a cold load.
@@ -226,6 +297,24 @@ test('RAWDB-T T8: stored S07 reads verified pages, rejects tampering and require
     await assert.rejects(loadTikTokCommentsToDbV1(f.db, f.artifacts, { runId: f.runId }, privacy), /^Error: RAW_DB_RUN_NOT_FOUND/);
     assert.deepEqual(f.db.serialize(), before);
   });
+});
+
+test('RAWDB-T: invalid file errors never echo source identities', async t => {
+  const f = await s07Fixture(t);
+  const marker = '@test'; // Synthetic contact marker, never printed even on failure.
+  const invalidInputs = [JSON.stringify([marker]).replace(']', ',]'),
+    JSON.stringify({ declare: S07_DOCUMENT.declare, records: [{ operation: marker }] })];
+  for (const [index, bytes] of invalidInputs.entries()) {
+    const file = path.join(f.root, `invalid-private-${index}.json`);
+    await fs.writeFile(file, bytes);
+    const before = f.db.serialize();
+    let message = '';
+    try { await loadTikTokCommentsToDbV1(f.db, f.artifacts, { file, runId: S07_RUN }, f.privacy); }
+    catch (error) { assert.ok(error instanceof Error); message = error.message; }
+    assert.equal(message.includes(marker), false, 'source identities must not be included in load errors');
+    assert.ok(message.startsWith('RAW_DB_FILE_BAD_RECORD:'), 'invalid files must fail with a safe error');
+    assert.deepEqual(f.db.serialize(), before);
+  }
 });
 
 test('RAWDB-T T9: CLI S07 --file --privacy-file --dry-run prints counts and preserves exact DB bytes', async t => {

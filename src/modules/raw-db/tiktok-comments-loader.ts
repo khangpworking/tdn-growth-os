@@ -45,6 +45,7 @@ export async function loadTikTokCommentsToDbV1(db: Database.Database, artifacts:
   const runId = input.runId;
   const insertCapture = db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,request_params_json,keyword,requested_at,completed_at,http_status,
     outcome,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`);
+  const captureParams = db.prepare('SELECT request_params_json FROM raw_capture WHERE capture_id=?');
   const storedProduct = db.prepare('SELECT 1 FROM product WHERE product_key=?');
   const insertVideo = db.prepare(`INSERT INTO video(video_url,video_id,platform,product_key,brand,author_key,link_basis,capture_id)
     VALUES (?,?,'tiktok',?,NULL,?,?,?) ON CONFLICT DO NOTHING`);
@@ -54,7 +55,12 @@ export async function loadTikTokCommentsToDbV1(db: Database.Database, artifacts:
   const insertRunReview = db.prepare('INSERT INTO run_review(run_id,review_key,capture_id,source_position) VALUES (?,?,?,?) ON CONFLICT DO NOTHING');
   return db.transaction((): TikTokCommentsLoadResult => {
     const result: TikTokCommentsLoadResult = { runId, captures: 0, videos: 0, reviewsInserted: 0, reviewsAlreadyPresent: 0, runReviewsInserted: 0 };
-    for (const values of plan.captures) result.captures += insertCapture.run(...values).changes;
+    for (const values of plan.captures) {
+      const inserted = insertCapture.run(...values).changes;
+      const stored = captureParams.get(values[0]) as { request_params_json: string | null };
+      if (stored.request_params_json !== values[5]) throw new Error('RAW_DB_S07_CAPTURE_MISMATCH: capture identity already belongs to another input');
+      result.captures += inserted;
+    }
     for (const v of plan.videos) {
       // A product link is kept only for a product already stored; otherwise the video stays UNKNOWN.
       const linked = v.productKey !== null && v.linkBasis !== 'UNKNOWN' && storedProduct.get(v.productKey);
@@ -76,7 +82,14 @@ export async function loadTikTokCommentsToDbV1(db: Database.Database, artifacts:
 // ---- file (kem-raw-v1) ----
 
 async function planFromFile(file: string, runId: string, privacy: TikTokCommentsLoadPrivacy): Promise<Plan> {
-  const { declare, records, sha12, relative } = await readRawFile(file, SOURCE);
+  let raw: Awaited<ReturnType<typeof readRawFile>>;
+  try { raw = await readRawFile(file, SOURCE); }
+  catch (error) {
+    // JSON parser errors can include source text, including private identities.
+    if (error instanceof SyntaxError) throw new Error('RAW_DB_FILE_BAD_RECORD: S07 file is not valid JSON');
+    throw error;
+  }
+  const { declare, records, sha12, relative } = raw;
   const selections = records.filter(r => r.operation === 'video.selection');
   if (selections.length > 1) throw new Error('RAW_DB_FILE_BAD_RECORD: S07 file has more than one video.selection record');
   const selection = selections[0];
@@ -89,7 +102,7 @@ async function planFromFile(file: string, runId: string, privacy: TikTokComments
     if (record === selection) return; // the selection is the request of the Apify record, not a capture of its own
     const operation = record.operation;
     if (typeof operation !== 'string' || !operation.startsWith('apify.'))
-      throw new Error(`RAW_DB_FILE_BAD_RECORD: S07 record ${recordIndex} has unknown operation ${JSON.stringify(operation ?? null)}`);
+      throw new Error(`RAW_DB_FILE_BAD_RECORD: S07 record ${recordIndex} has an unknown operation`);
     const { requestedAt, completedAt, httpStatus, responseSha256, items, input } = record;
     if (typeof requestedAt !== 'string' || typeof completedAt !== 'string' || !Array.isArray(items) || !isRecord(input))
       throw new Error(`RAW_DB_FILE_BAD_RECORD: S07 record ${recordIndex} lacks requestedAt, completedAt, input or items`);
@@ -144,12 +157,30 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
   const entries = run ? packages.findAutomationAttachmentPackagesByKeyPrefix(p9PackagePrefix(runId, 'comments')) : [];
   if (!run || !entries.length) throw new Error(`RAW_DB_RUN_NOT_FOUND: no S07 comment collection for run ${runId}`);
   if (entries.length >= 101) throw new Error(`RAW_DB_S07_TOO_MANY_PACKAGES: run ${runId} has more S07 packages than the bounded lookup proves complete`);
+  // Package-key ordering can change when this run collects another selection.
+  // Keep each published ordinal bound to its original package, then append new ones.
+  const prefix = `${SOURCE}:${runId}:`;
+  const storedCaptures = db.prepare("SELECT capture_id,request_params_json FROM raw_capture WHERE source_code='S07' AND run_id=? AND substr(capture_id,1,?)=?")
+    .all(runId, prefix.length, prefix) as { capture_id: string; request_params_json: string | null }[];
+  const captureIds = new Map<string, string>();
+  let nextOrdinal = 0;
+  for (const stored of storedCaptures) {
+    const ordinalText = stored.capture_id.slice(prefix.length), ordinal = Number(ordinalText);
+    let params: unknown;
+    try { params = JSON.parse(stored.request_params_json ?? 'null'); }
+    catch { throw new Error('RAW_DB_S07_CAPTURE_MISMATCH: stored capture metadata is invalid'); }
+    if (!/^(0|[1-9][0-9]*)$/.test(ordinalText) || !Number.isSafeInteger(ordinal) || ordinal >= Number.MAX_SAFE_INTEGER ||
+      !isRecord(params) || typeof params.packageId !== 'string' || captureIds.has(params.packageId))
+      throw new Error('RAW_DB_S07_CAPTURE_MISMATCH: stored capture metadata is invalid');
+    captureIds.set(params.packageId, stored.capture_id);
+    nextOrdinal = Math.max(nextOrdinal, ordinal + 1);
+  }
   // The app's own verified P9 reader replays every package (digests, sizes, intent, receipt, corpus) before any row is used.
   const service = new ResearchAutomationService({ db, artifactStore: artifacts,
     workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })) });
   const plan: Plan = { captures: [], videos: [], reviews: new Map() };
   const videoUrls = new Set<string>();
-  for (const [ordinal, entry] of entries.entries()) {
+  for (const entry of entries) {
     const read = await service.readP9Source(run.workspaceId, runId, 'comments', entry.packageId);
     const p = await packages.readVerified(entry.packageId, P9_BUDGET);
     if (p.manifestArtifactSha256 !== read.receipt.package.manifestArtifactSha256 || p.packageContentSha256 !== read.receipt.package.packageContentSha256)
@@ -165,7 +196,7 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
     // Stored author hashes are under the collection's key; the video author keys must use that same key.
     if (capture.privacy.keyCommitment !== privacy.profile.keyCommitment)
       throw new Error(`RAW_DB_PRIVACY_KEY_MISMATCH: S07 package ${entry.packageId} was collected under another privacy key`);
-    const captureId = `${SOURCE}:${runId}:${ordinal}`;
+    const captureId = captureIds.get(entry.packageId) ?? `${prefix}${nextOrdinal++}`;
     const at = capture.receipt.retrievedAt;
     plan.captures.push([captureId, runId, SOURCE, 'apify', capture.actor,
       JSON.stringify({ packageId: entry.packageId, requestKey: intent.requestKey, inputSha256: capture.inputSha256, maxCommentsPerVideo: intent.maxCommentsPerVideo,
