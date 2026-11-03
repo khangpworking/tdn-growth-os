@@ -4,7 +4,7 @@ import { ShopeeCollectionService } from '../foundation/shopee-collection-service
 import { SourcePackageService } from '../foundation/source-package-service.js';
 import { CONTEXT_PATH, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, captureContextRawRefs } from '../analysis/research-automation/metric-capture-intake.js';
 
-/** Rows inserted by one call; rows already stored are counted only in reviewsAlreadyPresent. */
+/** Rows inserted by one call. reviewsAlreadyPresent: stored reviews this call newly linked to the run (0 on a same-run reload). */
 export interface RawDbLoadResult {
   runId: string; collectionId: string; captures: number; products: number;
   reviewsInserted: number; reviewsAlreadyPresent: number; runReviewsInserted: number;
@@ -74,9 +74,13 @@ export async function loadShopeeReviewsToDbV1(db: Database.Database, artifacts: 
     for (const values of captures) result.captures += insertCapture.run(...values).changes;
     for (const values of productRows) result.products += insertProduct.run(...values).changes;
     for (const values of reviews.values()) {
-      if (insertReview.run(...values).changes) result.reviewsInserted++; else result.reviewsAlreadyPresent++;
+      const inserted = insertReview.run(...values).changes;
       // run_review keeps this run's capture and position, even when the review row is from an earlier run.
-      result.runReviewsInserted += insertRunReview.run(runId, values[0], values[21], values[22]).changes;
+      const linked = insertRunReview.run(runId, values[0], values[21], values[22]).changes;
+      result.reviewsInserted += inserted;
+      result.runReviewsInserted += linked;
+      // An earlier version this call newly links to the run; a same-run reload links nothing and counts 0.
+      if (!inserted && linked) result.reviewsAlreadyPresent++;
     }
     return result;
   })();
