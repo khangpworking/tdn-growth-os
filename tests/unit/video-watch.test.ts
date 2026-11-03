@@ -62,14 +62,16 @@ test('RAWDB-W W1: selection then uploaded/automated top-selling, first id wins, 
   const plan = videoWatchCandidates(selected, searches, uploaded, automated);
   assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [['1001', 'SELECTION'],
     ...['2001', '2002', '3001', '3002', '3003', '3004', '3005', '3006', '3007'].map(id => [id, 'TOP_SELLING'])]);
-  assert.deepEqual(plan.skipped, [{ videoId: '3008', reason: 'OVER_10_VIDEOS' }]);
+  assert.deepEqual(plan.skipped, ['3008', '3009', '3010'].map(videoId => ({ videoId, reason: 'OVER_10_VIDEOS' })));
   assert.equal(plan.candidates[0]?.url, selected[0]?.url);
   assert.equal(plan.candidatesSha256, videoWatchCandidates(selected, undefined, uploaded, automated).candidatesSha256,
     'searches do not change the pinned candidate identity');
   const top = Array.from({ length: 12 }, (_, i) => ({ url: url(String(4001 + i)) }));
   for (const args of [[top, undefined], [[], top]] as const) {
-    assert.deepEqual(videoWatchCandidates([], searches, args[0], args[1]).candidates.map(c => c.videoId),
+    const cappedTop = videoWatchCandidates([], searches, args[0], args[1]);
+    assert.deepEqual(cappedTop.candidates.map(c => c.videoId),
       Array.from({ length: 10 }, (_, i) => String(4001 + i)), 'up to ten uploaded or automated top-selling videos');
+    assert.deepEqual(cappedTop.skipped, ['4011', '4012'].map(videoId => ({ videoId, reason: 'OVER_10_VIDEOS' })));
   }
   assert.deepEqual(videoWatchCandidates([], undefined).candidates, []);
   const selections = Array.from({ length: 12 }, (_, i) => ({ url: url(String(5001 + i)) }));

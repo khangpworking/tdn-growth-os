@@ -116,11 +116,8 @@ export function videoWatchCandidates(selectionVideos: readonly { readonly url: s
     seen.add(video.videoId); all.push({ videoId: video.videoId, url: video.url, origin });
   };
   for (const video of selectionVideos) add(video.url, 'SELECTION');
-  if (automatedTopSelling === undefined) for (const video of topSellingVideos) add(video.url, 'TOP_SELLING');
-  else for (const video of [...topSellingVideos, ...automatedTopSelling]) {
-    if (all.filter(item => item.origin === 'TOP_SELLING').length >= VIDEO_WATCH_MAX_TOP_SELLING) break;
-    add(video.url, 'TOP_SELLING');
-  }
+  // The total cap also bounds TOP_SELLING to ten. Retain overflow so every skipped video is accounted for.
+  for (const video of [...topSellingVideos, ...(automatedTopSelling ?? [])]) add(video.url, 'TOP_SELLING');
   const candidates = all.slice(0, VIDEO_WATCH_MAX_VIDEOS);
   return { candidates, skipped: all.slice(VIDEO_WATCH_MAX_VIDEOS).map(video => ({ videoId: video.videoId, reason: 'OVER_10_VIDEOS' as const })),
     candidatesSha256: sha(canonicalJson(candidates)) };

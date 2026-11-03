@@ -73,6 +73,16 @@ test('RAWDB-W W4: response digest pairs readings regardless of record order; unm
   const before = f.db.serialize();
   await assert.rejects(loadVideoReadingsToDbV1(f.db, f.artifacts, { file, runId: S14_RUN }, f.privacy), /^Error: RAW_DB_S14_INVALID_ROW/);
   assert.deepEqual(f.db.serialize(), before, 'valid earlier reading and calls must not partially publish');
+  const shared = await googleFixture(t), native = structuredClone(S14_READINGS);
+  native[1]!.captionSource = 'NATIVE_SUBTITLE'; native[1]!.onScreenText = [];
+  native[1]!.video.aboutProduct = true; native[1]!.video.videoKind = 'SELLER_VIDEO';
+  const calls = await saveVideoReadingRun(shared, native);
+  assert.equal(calls[0]!.capture.responseSha256, calls[1]!.capture.responseSha256,
+    'two subtitle classifiers can return identical answer bytes for different videos');
+  assert.deepEqual(await loadVideoReadingsToDbV1(shared.db, shared.artifacts, { runId: shared.runId }, f.privacy),
+    { ...S14_RECEIPT, runId: shared.runId, segments: 4 });
+  assert.deepEqual(shared.db.prepare('SELECT video_url,caption_source FROM video_reading ORDER BY video_url').all(),
+    S14_READINGS.map(reading => ({ video_url: reading.video.videoUrl, caption_source: 'NATIVE_SUBTITLE' })));
 });
 
 test('RAWDB-W W5: creator keys equal S07 handle HMAC; missing key fails before opening input', async t => {

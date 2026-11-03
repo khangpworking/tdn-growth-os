@@ -13,7 +13,7 @@ export type VideoReadingsLoadInput = { runId: string } | { file: string; runId: 
 
 /**
  * Rows inserted by one call. readingsAlreadyPresent: readings of this call's new captures that were not inserted because the same Gemini
- * answer (response sha256) is already stored as a reading for this run, for example the same run loaded once from its kẽm file and once from the app
+ * answer (response sha256) for the same video is already stored as a reading for this run, for example the same run loaded once from its kẽm file and once from the app
  * (0 on a reload of the same input, whose captures are all stored already).
  */
 export interface VideoReadingsLoadResult {
@@ -53,7 +53,8 @@ export async function loadVideoReadingsToDbV1(db: Database.Database, artifacts: 
     requested_at,completed_at,http_status,outcome,billing,cost_unit,cost_amount,response_sha256,raw_path) VALUES (?,?,?,?,?,?,?,NULL,NULL,NULL,?,?,?,?,?,NULL,NULL,?,?)`);
   const existingCapture = db.prepare('SELECT source_code,operation,request_params_json,requested_at,outcome,response_sha256 FROM raw_capture WHERE capture_id=?');
   const storedAnswer = db.prepare(`SELECT 1 FROM video_reading r JOIN raw_capture c ON c.capture_id=r.capture_id
-    WHERE c.source_code='S14' AND c.run_id=? AND c.response_sha256=? LIMIT 1`);
+    JOIN video v ON v.video_url=r.video_url
+    WHERE c.source_code='S14' AND c.run_id=? AND c.response_sha256=? AND v.video_id=? LIMIT 1`);
   const storedVideo = db.prepare("SELECT video_url FROM video WHERE video_id=? AND platform='tiktok' ORDER BY rowid LIMIT 1");
   const insertVideo = db.prepare(`INSERT INTO video(video_url,video_id,platform,product_key,brand,author_key,link_basis,capture_id)
     VALUES (?,?,'tiktok',NULL,NULL,?,'UNKNOWN',?)`);
@@ -72,7 +73,7 @@ export async function loadVideoReadingsToDbV1(db: Database.Database, artifacts: 
         continue;
       }
       // An answer imported through another input of this run is already stored; another run is a new observation even with identical bytes.
-      const known = c.reading !== null && storedAnswer.get(runId, c.reading.responseSha256) !== undefined;
+      const known = c.reading !== null && storedAnswer.get(runId, c.reading.responseSha256, c.reading.videoId) !== undefined;
       insertCapture.run(...c.values);
       result.captures++;
       const r = c.reading;
@@ -176,9 +177,8 @@ async function planFromRun(db: Database.Database, artifacts: ContentAddressedArt
 /** Each reading belongs to the successful Gemini call whose response sha256 is the reading's `model.responseSha256`. */
 function pair(captures: PlannedCapture[], readings: PlannedReading[]): PlannedCapture[] {
   for (const reading of readings) {
-    const call = captures.find(c => c.values[10] === 'OK' && c.values[12] === reading.responseSha256);
+    const call = captures.find(c => c.reading === null && c.values[10] === 'OK' && c.values[12] === reading.responseSha256);
     if (!call) throw new Error(`RAW_DB_S14_INVALID_ROW: the reading of video ${reading.videoId} has no ${OPERATION} call with its response sha256`);
-    if (call.reading !== null) throw new Error(`RAW_DB_S14_INVALID_ROW: two readings share the ${OPERATION} call ${call.captureId}`);
     call.reading = reading;
   }
   return captures;

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,7 +8,11 @@ import { operatorAppConfigurationFromEnvironment } from '../../src/api/operator-
 import { createKalodataProvider } from '../../src/modules/analysis/research-automation/provider-kalodata.js';
 import { createTopSellingVideoSource } from '../../src/modules/analysis/research-automation/top-selling-videos.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/provider-common.js';
-import { S14C_NOW, S14C_RUN, S14C_WORKSPACE, s14cCollection } from './research-automation-s14c.fixtures.js';
+import { collectionWebRows } from '../../src/modules/analysis/research-automation/expanded-search-lane.js';
+import { S14C_NOW, S14C_RUN, S14C_WORKSPACE, S14C_SEARCH_URL, s14cCollection } from './research-automation-s14c.fixtures.js';
+
+// Reproduced origin/main's fb134d22… snapshot, then changed only videoWatch's candidates/digest/videos/skipped to empty.
+const NO_SEARCH_COLLECTION_SHA256 = '216d1d9878ac93effe298120f9aa3ea54fc88814f5f118f5d04fdc9dae67593f';
 
 const handles = ['synthetic.rank.one', 'synthetic.rank.two'];
 
@@ -31,7 +36,6 @@ test('S14C row 7: only exactly "1" enables ranking; off values issue no rank cal
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-s14c-launcher-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.writeFile(path.join(root, 'index.html'), '<!doctype html><title>Synthetic</title>');
-  const results: Buffer[] = [];
   for (const value of [undefined, '0', '', 'true', ' 1', '1 ', '2', '1']) {
     const config = operatorAppConfigurationFromEnvironment({ TDN_WORKSPACE_DB: path.join(root, 'unused.sqlite'), TDN_ARTIFACT_ROOT: path.join(root, 'artifacts'),
       ...(value === undefined ? {} : { TDN_RESEARCH_TOP_SELLING_VIDEOS_ENABLED: value }) }, { frontendDist: root, version: 'synthetic' });
@@ -44,9 +48,12 @@ test('S14C row 7: only exactly "1" enables ranking; off values issue no rank cal
     assert.equal(run.step.videoWatch?.topSellingRank, undefined);
     assert.deepEqual(run.step.videoWatch?.candidates, []);
     assert.deepEqual(run.calls, { subtitle: 0, video: 0, model: 0 });
-    results.push(run.bytes);
+    const search = run.step.expandedSearch?.queries.find(query => query.kind === 'TIKTOK');
+    assert.equal(search?.status, 'COLLECTED', 'site:tiktok.com search still runs without watch candidates');
+    assert.deepEqual(search.results.map(row => row.url), [S14C_SEARCH_URL]);
+    assert.ok(collectionWebRows(run.step).some(row => row.url === S14C_SEARCH_URL), 'search rows remain in the report web table input');
+    assert.equal(createHash('sha256').update(run.bytes).digest('hex'), NO_SEARCH_COLLECTION_SHA256, String(value));
   }
-  for (const bytes of results) assert.deepEqual(bytes, results[0], 'all off values store identical bytes');
 });
 
 test('RAWDB-V V1 / S14C row 8: run-window rank requests and captures preserve lineage and creator privacy', async t => {
