@@ -9,6 +9,8 @@ import { loadKalodataVideosToDbV1 } from '../src/modules/raw-db/kalodata-video-l
 import { loadVideoReadingsToDbV1 } from '../src/modules/raw-db/video-reading-loader.js';
 import { loadReviewCodesToDbV1 } from '../src/modules/raw-db/review-code-loader.js';
 import { labelReviewsInDbV1 } from '../src/modules/raw-db/review-labeller.js';
+import { LabelsBusyError } from '../src/modules/raw-db/labels-lock.js';
+import { defaultSnapshotDir, publishAppDbSnapshot } from '../src/modules/raw-db/app-db-snapshot.js';
 import { TypesafeJevClient, typesafeJevConfigurationFromEnvironment } from '../src/platform/ai/typesafe-jev-client.js';
 import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '../src/platform/collectors/apify-tiktok-comments-free.js';
 
@@ -23,6 +25,11 @@ import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '
 // A real S05 load labels the run's reviews right after it commits (owner F366/F367); --no-label skips that. Jev needs
 // TDN_RESEARCH_JEV_ENABLED=true and TYPESAFE_API_KEY; without them the S05 load still succeeds (labelling SKIPPED_JEV_DISABLED).
 // --captures (scope.json root) defaults to TDN_METRIC_CAPTURE_DIR, else <db dir>/metric-captures.
+// LABELS passes, the S05 labelling and CODES imports run one at a time (lock <db dir>/raw-db-labels.lock.sqlite); a second
+// one waits 10 s, then fails with LABELS_BUSY (S05: the load succeeds, labelling SKIPPED_BUSY). --dry-run takes no lock.
+// A real S05 load, LABELS pass or CODES import then publishes <db dir>/app-db-snapshot/app-db.snapshot.sqlite for the
+// Insight MCP (result field snapshot; a failed publish is reported there and never fails the load).
+// raw-db-load --source SNAPSHOT [--db <path>] publishes that snapshot by hand.
 // --db defaults to TDN_WORKSPACE_DB, else runtime/tdn-growth-os.sqlite; --artifacts defaults to TDN_ARTIFACT_ROOT.
 let options;
 try {
@@ -33,7 +40,11 @@ try {
   process.exit(2);
 }
 const source = options.source;
-if (source !== 'LABELS' && source !== 'CODES' && source !== 'S02b' && source !== 'S05' && source !== 'S07' && source !== 'S14' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
+if (source !== 'SNAPSHOT' && source !== 'LABELS' && source !== 'CODES' && source !== 'S02b' && source !== 'S05' && source !== 'S07' && source !== 'S14' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
+const snapshotOnly = source === 'SNAPSHOT';
+if (snapshotOnly && Object.entries(options).some(([name, value]) => name !== 'source' && name !== 'db' && value !== undefined && value !== false)) {
+  console.error('SNAPSHOT takes only --db'); process.exit(2);
+}
 const codes = source === 'CODES';
 const labels = source === 'LABELS';
 const labelSource = labels || source === 'S05';
@@ -42,7 +53,7 @@ if (options['max-calls'] !== undefined && !labelSource) { console.error('--max-c
 if (options['no-label'] && source !== 'S05') { console.error('--no-label is only for S05'); process.exit(2); }
 const maxCalls = options['max-calls'] === undefined ? undefined : Number(options['max-calls']);
 if (maxCalls !== undefined && !(Number.isInteger(maxCalls) && maxCalls >= 1)) { console.error('--max-calls must be a positive integer'); process.exit(2); }
-if (labels) {
+if (snapshotOnly) { /* checked above */ } else if (labels) {
   if (options.file || options['mcp-run'] || options.coder) { console.error('--file, --mcp-run and --coder are not used by LABELS'); process.exit(2); }
 } else if (codes) {
   if (!options['mcp-run'] || !options.codebook || !options.coder) { console.error('CODES needs --mcp-run <file>, --codebook <json> and --coder <name>'); process.exit(2); }
@@ -51,7 +62,7 @@ if (labels) {
 else if (!options.run) { console.error('--run <runId> is required'); process.exit(2); }
 if (options.file && source === 'S05') { console.error('--file is not supported for S05'); process.exit(2); }
 const artifactRoot = options.artifacts ?? process.env.TDN_ARTIFACT_ROOT;
-if (!artifactRoot && !options.file && !codes && !(labels && options['dry-run'])) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
+if (!artifactRoot && !options.file && !codes && !snapshotOnly && !(labels && options['dry-run'])) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
 const keyed = source === 'S02b' || source === 'S07' || source === 'S14';
 if (options['privacy-file'] && !keyed) { console.error('--privacy-file is only for S02b, S07 and S14'); process.exit(2); }
 // S02b, S07, S14: the writer key is required before any input is read; the salt stays inside the privacy closure and is never printed.
@@ -75,36 +86,47 @@ try {
   const artifacts = new ContentAddressedArtifactStore(path.resolve(artifactRoot ?? 'runtime/artifacts'));
   const input = options.file ? { file: path.resolve(options.file), runId: options.run! } : { runId: options.run! };
   const captureRoot = path.resolve(options.captures ?? (process.env.TDN_METRIC_CAPTURE_DIR || path.join(path.dirname(dbPath), 'metric-captures')));
-  // Dry run: the loader's own transaction nests as a savepoint inside this one, which is then rolled back.
-  if (options['dry-run']) db.exec('BEGIN');
-  try {
-    const result = labels ? await labelReviewsInDbV1(db, artifacts, options['dry-run'] ? null : jevClient(true),
-        { runId: options.run, maxCalls, dryRun: options['dry-run'], codebookFile: options.codebook && path.resolve(options.codebook), captureRoot })
-      : codes ? await loadReviewCodesToDbV1(db, { mcpRunFile: path.resolve(options['mcp-run']!), codebookFile: path.resolve(options.codebook!), coder: options.coder! })
-      : source === 'S05' ? await loadShopeeReviewsToDbV1(db, artifacts, { runId: options.run! })
-      : source === 'S07' ? await loadTikTokCommentsToDbV1(db, artifacts, input, privacy)
-      : source === 'S02b' ? await loadKalodataVideosToDbV1(db, artifacts, input, privacy)
-      : source === 'S14' ? await loadVideoReadingsToDbV1(db, artifacts, input, privacy)
-      : source === 'S19b' ? await loadSearchSuggestionsToDbV1(db, artifacts, input)
-      : await loadAiOverviewToDbV1(db, artifacts, input);
-    // Option A: a real S05 load labels the run's reviews after its transaction committed. Labelling never fails the load.
-    if (source === 'S05' && !options['dry-run']) {
-      const client = options['no-label'] ? null : jevClient(false);
-      let labelling: unknown = options['no-label'] ? 'SKIPPED_NO_LABEL' : client ? null : 'SKIPPED_JEV_DISABLED';
-      if (client) {
-        try { labelling = await labelReviewsInDbV1(db, artifacts, client, { runId: options.run!, maxCalls, captureRoot }); }
-        catch (error) { labelling = { error: error instanceof Error ? error.message : String(error) }; }
-      }
-      console.log(JSON.stringify({ ...result, labelling }));
-    } else console.log(JSON.stringify(result));
-  } finally {
-    if (options['dry-run']) db.exec('ROLLBACK');
+  if (snapshotOnly) console.log(JSON.stringify(await publishAppDbSnapshot(db, defaultSnapshotDir(dbPath))));
+  else {
+    // Dry run: the loader's own transaction nests as a savepoint inside this one, which is then rolled back.
+    if (options['dry-run']) db.exec('BEGIN');
+    try {
+      const result = labels ? await labelReviewsInDbV1(db, artifacts, options['dry-run'] ? null : jevClient(true),
+          { runId: options.run, maxCalls, dryRun: options['dry-run'], codebookFile: options.codebook && path.resolve(options.codebook), captureRoot })
+        : codes ? await loadReviewCodesToDbV1(db, { mcpRunFile: path.resolve(options['mcp-run']!), codebookFile: path.resolve(options.codebook!), coder: options.coder!,
+          dryRun: options['dry-run'] })
+        : source === 'S05' ? await loadShopeeReviewsToDbV1(db, artifacts, { runId: options.run! })
+        : source === 'S07' ? await loadTikTokCommentsToDbV1(db, artifacts, input, privacy)
+        : source === 'S02b' ? await loadKalodataVideosToDbV1(db, artifacts, input, privacy)
+        : source === 'S14' ? await loadVideoReadingsToDbV1(db, artifacts, input, privacy)
+        : source === 'S19b' ? await loadSearchSuggestionsToDbV1(db, artifacts, input)
+        : await loadAiOverviewToDbV1(db, artifacts, input);
+      // Option A: a real S05 load labels the run's reviews after its transaction committed. Labelling never fails the load.
+      if (source === 'S05' && !options['dry-run']) {
+        const client = options['no-label'] ? null : jevClient(false);
+        let labelling: unknown = options['no-label'] ? 'SKIPPED_NO_LABEL' : client ? null : 'SKIPPED_JEV_DISABLED';
+        if (client) {
+          try { labelling = await labelReviewsInDbV1(db, artifacts, client, { runId: options.run!, maxCalls, captureRoot }); }
+          catch (error) { labelling = error instanceof LabelsBusyError ? 'SKIPPED_BUSY' : { error: error instanceof Error ? error.message : String(error) }; }
+        }
+        console.log(JSON.stringify({ ...result, labelling, snapshot: await publishSnapshot(db, dbPath) }));
+      } else if ((labels || codes) && !options['dry-run']) console.log(JSON.stringify({ ...result, snapshot: await publishSnapshot(db, dbPath) }));
+      else console.log(JSON.stringify(result));
+    } finally {
+      if (options['dry-run']) db.exec('ROLLBACK');
+    }
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 } finally {
   db?.close();
+}
+
+/** Publishes the Insight MCP snapshot of the app DB; a failure is returned, never thrown. */
+async function publishSnapshot(appDb: BetterSqlite3.Database, dbPath: string) {
+  try { return await publishAppDbSnapshot(appDb, defaultSnapshotDir(dbPath)); }
+  catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
 }
 
 /** The app Jev client, or null when Jev is disabled or not configured (required: the LABELS error RAW_DB_LABELS_JEV_DISABLED). */

@@ -32,7 +32,9 @@ test('RAWDB-X X9: CODES CLI needs no run id or privacy file and dry-run prints c
   const committed = run(false);
   assert.equal(committed.error, undefined);
   assert.equal(committed.status, 0, committed.stderr);
-  assert.deepEqual(JSON.parse(committed.stdout.trim()), { ...emptyCodesReceipt, codebookInserted: 1, labelsInserted: 1 });
+  const { snapshot, ...receipt } = JSON.parse(committed.stdout.trim());
+  assert.deepEqual(receipt, { ...emptyCodesReceipt, codebookInserted: 1, labelsInserted: 1 });
+  assert.equal(snapshot.path, path.join(f.root, 'app-db-snapshot', 'app-db.snapshot.sqlite'), 'a real import publishes the app DB snapshot');
   const persisted = new Database(f.databasePath, { readonly: true, fileMustExist: true });
   try {
     assert.equal(persisted.prepare('SELECT count(*) FROM codebook').pluck().get(), 1);

@@ -84,7 +84,8 @@ test('RAWDB-X X5: a DB text mismatch skips and counts that label while importing
   seedCodeReview(f.db, { review_key: 'S05:synthetic-codes-b', external_id: 'synthetic-codes-b', text, attributes_json: null });
   const result = await loadReviewCodesToDbV1(f.db, f.input);
   const { skipped, ...counts } = result;
-  assert.deepEqual(counts, { codebookInserted: 1, labelsInserted: 1, noThemeInserted: 0, alreadyPresent: 0, reviewsMissing: 0, textMismatch: 1 });
+  assert.deepEqual(counts, { codebookInserted: 1, labelsInserted: 1, noThemeInserted: 0, alreadyCoded: 0, reviewsMissing: 0, textMismatch: 1,
+    reviewsSkipped: [{ reviewId: 'shopee:synthetic-codes-a', reason: 'TEXT_MISMATCH' }] });
   assert.equal(skipped.length, 1);
   assert.deepEqual(f.db.prepare('SELECT review_key,theme_code FROM review_code').all(), [{ review_key: 'S05:synthetic-codes-b', theme_code: 'T-GIA' }]);
 });
@@ -100,7 +101,8 @@ test('RAWDB-X X6: missing reviews are counted skips; ambiguous platform/external
   seedCodeReview(missing.db, { review_key: 'S07:synthetic-missing', source_code: 'S07', external_id: 'synthetic-missing',
     kind: 'video_comment', video_url: 'https://example.invalid/synthetic-video' });
   const { skipped, ...counts } = await loadReviewCodesToDbV1(missing.db, missing.input);
-  assert.deepEqual(counts, { codebookInserted: 1, labelsInserted: 1, noThemeInserted: 0, alreadyPresent: 0, reviewsMissing: 1, textMismatch: 0 });
+  assert.deepEqual(counts, { codebookInserted: 1, labelsInserted: 1, noThemeInserted: 0, alreadyCoded: 0, reviewsMissing: 1, textMismatch: 0,
+    reviewsSkipped: [{ reviewId: 'shopee:synthetic-missing', reason: 'REVIEW_MISSING' }] });
   assert.equal(skipped.length, 2, 'missing counts reviews, while skipped lists both labels');
   assert.deepEqual(missing.db.prepare('SELECT review_key FROM review_code').all(), [{ review_key: 'S05:synthetic-codes-a' }]);
 
@@ -161,10 +163,10 @@ test('RAWDB-X X8: loading the identical warehouse twice returns all zeros and ch
   const before = f.db.serialize();
   assert.deepEqual(await loadReviewCodesToDbV1(f.db, f.input), emptyCodesReceipt);
   assert.deepEqual(f.db.serialize(), before);
-  // Another MCP file with the same labels counts existing rows, while preserving their original provenance.
+  // Another MCP file with the same labels counts already coded reviews, while preserving their original provenance.
   const warehouse = new Database(f.mcpRunFile);
   try { warehouse.pragma('user_version=1'); } finally { warehouse.close(); }
-  assert.deepEqual(await loadReviewCodesToDbV1(f.db, f.input), { ...emptyCodesReceipt, alreadyPresent: 2 });
+  assert.deepEqual(await loadReviewCodesToDbV1(f.db, f.input), { ...emptyCodesReceipt, alreadyCoded: 2 });
   assert.deepEqual(f.db.serialize(), before);
 });
 

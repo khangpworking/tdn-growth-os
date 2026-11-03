@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type Database from 'better-sqlite3';
 import type { ContentAddressedArtifactStore } from '../../platform/artifacts/index.js';
 import type { TypesafeJevClient, TypesafeJevQuestion } from '../../platform/ai/typesafe-jev-client.js';
+import { acquireLabelsLock } from './labels-lock.js';
 import { parseCodebook, sha256, storeCodebook } from './review-code-loader.js';
 
 /**
@@ -241,6 +242,8 @@ interface Candidate { review_key: string; text: string | null; attributes_json: 
  * review_code row for the codebook version (any origin). One review = one Jev call; its rows are written in one transaction
  * after the answer is checked. A failed call writes nothing for that review and stops the pass. The raw Jev response
  * body is stored in the artifact store; its sha256 is the rows' import_sha256.
+ * A real pass holds the labelling lock (labels-lock.ts) from before eligible reviews are selected to the end; it throws
+ * LabelsBusyError (LABELS_BUSY) when another pass holds it. A dry run takes no lock.
  */
 export async function labelReviewsInDbV1(db: Database.Database, artifacts: ContentAddressedArtifactStore | null, client: TypesafeJevClient | null,
   input: LabelInput): Promise<LabelResult> {
@@ -250,6 +253,13 @@ export async function labelReviewsInDbV1(db: Database.Database, artifacts: Conte
   const definitionSha256 = sha256(definitionBytes);
   if (input.maxCalls !== undefined && !(Number.isInteger(input.maxCalls) && input.maxCalls >= 1)) throw new Error('RAW_DB_LABELS_MAX_CALLS_INVALID: --max-calls must be a positive integer');
   if (!input.dryRun && (!client || !artifacts)) throw new Error('RAW_DB_LABELS_JEV_DISABLED: a labelling pass needs the Jev client and the artifact store');
+  const release = input.dryRun ? () => {} : acquireLabelsLock(db);
+  try { return await labelPass(db, artifacts, client, input, book, definitionJson, definitionSha256); }
+  finally { release(); }
+}
+
+async function labelPass(db: Database.Database, artifacts: ContentAddressedArtifactStore | null, client: TypesafeJevClient | null, input: LabelInput,
+  book: LabelCodebook, definitionJson: string, definitionSha256: string): Promise<LabelResult> {
   const stored = db.prepare('SELECT definition_sha256 FROM codebook WHERE codebook_version=?').get(book.version) as { definition_sha256: string } | undefined;
   if (stored && stored.definition_sha256 !== definitionSha256) throw new Error(`RAW_DB_CODES_CODEBOOK_CHANGED: codebook ${book.version} is stored with a different definition`);
 

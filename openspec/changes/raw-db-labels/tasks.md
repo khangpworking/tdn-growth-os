@@ -12,14 +12,15 @@
 - [x] 1.5 Cập nhật db-v1 §3.3, TL;DR, §5, §6
 - [x] 1.6 Cập nhật kiểm thử ghim số migration (68 → 69)
 - [x] 1.7 So khớp với Python MCP ngoại tuyến trên 3 đánh giá tổng hợp và câu trả lời giả: thân yêu cầu và nhãn bằng nhau
+- [x] 1.8 Chủ quyết F376: `CODES` theo cả đánh giá (R-RL07, R-RL08), khoá `raw-db-labels.lock.sqlite` (R-RL09, R-RL10), bản chụp `app-db.snapshot.sqlite` (R-RL11, R-RL12); cập nhật db-v1 §3.3, §5
 
 ## 2. Kiểm thử (lane Sol, phiên khác người viết mã) và hợp nhất
 
-- [ ] 2.1 Kiểm thử theo R-RL01 đến R-RL06 với fetch giả (không gọi mạng), dữ liệu tổng hợp (lời tiếng Việt, emoji, `attributes`); mỗi ca có ca đối chứng âm
+- [ ] 2.1 Kiểm thử theo R-RL01 đến R-RL12 với fetch giả (không gọi mạng), dữ liệu tổng hợp (lời tiếng Việt, emoji, `attributes`); mỗi ca có ca đối chứng âm
 - [ ] 2.2 CI Linux xanh tại SHA cuối; rà soát độc lập
 - [ ] 2.3 Merge khi chủ duyệt
 
 ## 3. Kết thúc
 
-- [ ] 3.1 Ghi mã kiểm thật vào dòng «Mã kiểm» của R-RL01 đến R-RL06
+- [ ] 3.1 Ghi mã kiểm thật vào dòng «Mã kiểm» của R-RL01 đến R-RL12
 - [ ] 3.2 `/opsx:archive` change `raw-db-labels`

@@ -6,7 +6,8 @@ Sau change `raw-db-review-code`, nhãn chủ đề chỉ vào db-v1 khi được
 
 ## What Changes
 
-- **ADDED** vào capability `raw-db`: R-RL01 đến R-RL06.
+- **ADDED** vào capability `raw-db`: R-RL01 đến R-RL12. R-RL07 đến R-RL12 theo chủ quyết F376 (rà soát Astra): nhập `CODES` theo cả đánh giá (thay phần bỏ từng nhãn của R-RC06, R-RC07), khoá mỗi lúc một lượt, bản chụp cơ sở dữ liệu app cho MCP Insight.
+- Module `src/modules/raw-db/labels-lock.ts` (khoá) và `src/modules/raw-db/app-db-snapshot.ts` (`publishAppDbSnapshot`); `--source SNAPSHOT`.
 - Migration `0069_raw_db_v1_review_code_app_jev.sql`: dựng lại `review_code` để `origin` nhận thêm `APP_JEV`; giữ mọi dòng, khoá chính, khoá ngoại, chỉ mục và trigger cấm sửa, cấm xoá. Số bảng không đổi. R-RC01 (change `raw-db-review-code`) nói `origin` chỉ nhận `MCP_IMPORT`; R-RL01 mở rộng điều đó từ migration 0069.
 - Module `src/modules/raw-db/review-labeller.ts`: bản TypeScript của bộ gán MCP (`select_block`, `build_request`, `_wire_body`, `parse_answer`, `label_rows`, giới hạn của `code_reviews`) và `labelReviewsInDbV1`.
 - `src/platform/ai/typesafe-jev-client.ts`: thêm `answerRaw` (cùng yêu cầu như `answer`, trả mã HTTP và nguyên văn phản hồi) và `typesafeJevRequestBody`. `answer` giữ nguyên hành vi.

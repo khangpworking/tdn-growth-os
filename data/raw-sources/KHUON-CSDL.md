@@ -16,6 +16,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 03/11/2026 (chủ duyệt F354, F356): S14 lời nói trong video vào `video_reading` và `video_segment` (migration 0067), thay bản phác §4.1 cũ. Không lưu nhận định của AI (giọng, loại video, có nói về sản phẩm không). Chữ giữ đúng như đọc được. Nạp S02b trước S14 cho cùng lần chạy. Từ nay app chỉ xem video chủ chọn và video bán chạy, không xem video từ tìm kiếm `site:tiktok.com` (§4.1).
 - 03/11/2026 (chủ duyệt F361–F363): nhãn chủ đề vào `codebook` và `review_code` (migration 0068), thay bản phác §3.3 cũ. Nhãn kẽm của Jev được nhập từ kho MCP, không gọi AI, chỉ khi dấu của đoạn lời khớp với lời trong `review`. Cảm xúc theo sao là view `review_star_sentiment` (1–3 sao tiêu cực, 4–5 sao tích cực).
 - 03/11/2026 (chủ quyết F366, F367): app tự gán chủ đề bằng Jev ngay sau khi nạp đánh giá Shopee (S05) vào db-v1 và ghi vào `review_code` với `origin` = `APP_JEV` (migration 0069). Cách gán giống hệt MCP Insight. Một đánh giá đã có nhãn của bản bộ chủ đề thì không gọi Jev lần nữa (§3.3).
+- 03/11/2026 (chủ quyết F376): nhập `CODES` theo cả đánh giá hoặc không gì; lượt gán và lượt nhập chạy mỗi lúc một lượt (khoá tệp SQLite, `LABELS_BUSY`); app chép bản chụp `app-db.snapshot.sqlite` cho MCP Insight sau mỗi lần nạp S05, gán hoặc nhập (§3.3).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -221,10 +222,11 @@ Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, t�
 **Quy tắc khi nhập (`raw-db-load --source CODES`):**
 
 1. Mỗi dòng `label` của MCP thành một dòng `review_code`. Mỗi đánh giá có `coding_state` `done` mà không có `label` thành một dòng `NO_THEME`.
-2. **Bằng chứng lời:** dựng lại lời từ `review`: `text` rồi mỗi mục của `attributes_json` thêm hai dấu cách đứng trước. Cắt đoạn `[text_start, text_end)` tính theo **điểm mã Unicode** (chỉ số chuỗi Python của MCP; emoji tính là một). Dấu SHA-256 (UTF-8) của đoạn phải bằng `label.text_sha256`. Không khớp thì bỏ nhãn đó và đếm `textMismatch`.
+2. **Bằng chứng lời:** dựng lại lời từ `review`: `text` rồi mỗi mục của `attributes_json` thêm hai dấu cách đứng trước. Cắt đoạn `[text_start, text_end)` tính theo **điểm mã Unicode** (chỉ số chuỗi Python của MCP; emoji tính là một). Dấu SHA-256 (UTF-8) của đoạn phải bằng `label.text_sha256`. Không khớp thì đếm nhãn đó vào `textMismatch` và bỏ **cả đánh giá** (mục 6).
 3. Đánh giá không có trong `review` thì bỏ các nhãn của nó và đếm `reviewsMissing`. Khớp hơn một dòng thì dừng (`RAW_DB_CODES_AMBIGUOUS_REVIEW`).
 4. Bản của tệp phải bằng bản của mọi nhãn (`RAW_DB_CODES_CODEBOOK_MISMATCH`). Bản đã có mà dấu tệp khác thì dừng (`RAW_DB_CODES_CODEBOOK_CHANGED`). Mã chủ đề lạ thì dừng (`RAW_DB_CODES_INVALID_ROW`).
-5. Nạp lại cùng tệp thì không thêm dòng nào. Cả lần nạp là một giao dịch, trừ các nhãn bị bỏ ở mục 2 và 3.
+5. Nạp lại cùng tệp thì không thêm dòng nào. Cả lần nạp là một giao dịch, trừ các đánh giá bị bỏ ở mục 2, 3 và 6.
+6. **Cả đánh giá hoặc không gì (chủ quyết F376):** một nhãn của đánh giá bị bỏ (mục 2, 3) thì bỏ mọi nhãn và dòng `NO_THEME` của đánh giá đó; đánh giá được đếm một lần trong `reviewsSkipped` kèm lý do. Nhãn sai bằng chứng không bao giờ biến đánh giá thành `NO_THEME`. Đánh giá đã có bất kỳ dòng `review_code` nào của bản bộ chủ đề (bất kể `origin`) thì bỏ cả đánh giá và đếm `alreadyCoded`; nạp lại đúng tệp cũ vẫn ra toàn số 0. Không bao giờ thêm chủ đề vào nhóm nhãn đã có; muốn gán lại thì dùng bản bộ chủ đề mới.
 
 **App tự gán bằng Jev (`origin` = `APP_JEV`, chủ quyết F366, F367):**
 
@@ -233,6 +235,8 @@ Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, t�
 3. **Giống MCP:** lời gửi Jev, tên sản phẩm (`product.product_name`), khối (chọn theo từ khoá hoặc danh mục đã áp dụng của lần chạy, đọc từ `scope.json` của lần chạy hoặc từ khoá của lần chạy), câu hỏi, ngưỡng và mã lỗi (`JEV_THEME_UNAVAILABLE`, `JEV_THEME_INVALID`) giống `tools/mcp-insight`. Cùng lời và cùng câu trả lời thì ra cùng nhãn (chủ đề, khối, `p_yes`, `polarity`, `kept`/`unclear`, `Sau mua`).
 4. **Ghi dòng:** một đánh giá một lần gọi Jev; các dòng của một đánh giá ghi trong một giao dịch sau khi câu trả lời đã được kiểm. `confidence` = `p_yes`, `text_sha256` = SHA-256 của cả lời đã gửi, `coded_at` = lúc gọi, `block_key` = khối đã chọn. Jev trả lời mà không có chủ đề nào thì ghi một dòng `NO_THEME`. Bộ chủ đề chưa có trong `codebook` thì được thêm (quy tắc như `CODES`).
 5. **Giới hạn và lỗi:** mỗi lượt gán gọi nhiều nhất `limits.maxCallsPerRun` lần (hoặc `--max-calls` nếu nhỏ hơn). Một lần gọi lỗi thì không ghi gì cho đánh giá đó và dừng lượt; các đánh giá đã ghi được giữ. Kết quả: `{ eligible, called, labelled, noTheme, rowsInserted, failed, skipped }`.
+6. **Mỗi lúc một lượt (chủ quyết F376):** lượt `LABELS`, lượt gán sau khi nạp S05 và lượt nhập `CODES` giữ khoá `<thư mục cơ sở dữ liệu>/raw-db-labels.lock.sqlite`: một tệp SQLite riêng được mở và giữ `BEGIN EXCLUSIVE` suốt lượt. Khoá là khoá của hệ điều hành nên tiến trình chết thì khoá tự nhả; tệp khoá không bao giờ bị xoá. Khoá được lấy trước khi chọn đánh giá đủ điều kiện; không giữ giao dịch ghi trên cơ sở dữ liệu app khi chờ Jev. Lượt thứ hai chờ tối đa 10 giây rồi dừng với `LABELS_BUSY`; khi nạp S05 thì việc nạp vẫn thành công và kết quả ghi `labelling: SKIPPED_BUSY`. `--dry-run` không lấy khoá, không gọi mạng.
+7. **Bản chụp cho MCP Insight (chủ quyết F376):** sau một lần nạp S05 thật (sau khi gán), một lượt `LABELS` hoặc một lần nhập `CODES`, app chép cơ sở dữ liệu bằng sao lưu trực tuyến của SQLite vào `<thư mục cơ sở dữ liệu>/app-db-snapshot/.tmp-….sqlite`, đặt `journal_mode=DELETE`, fsync, rồi đổi tên nguyên tử thành `app-db.snapshot.sqlite` và fsync thư mục (thư mục quyền 0700, tệp 0600). Kết quả có `snapshot: { path, bytes, publishedAt }`; chép lỗi thì `snapshot: { error }` và việc nạp vẫn thành công. `raw-db-load --source SNAPSHOT [--db <path>]` chép bằng tay.
 
 View `review_star_sentiment` (F363): cảm xúc theo số sao, tính từ `review.rating_star`, không chép ra bảng. 1–3 sao → `tieu_cuc`, 4–5 sao → `tich_cuc`, không có sao → `NULL`. Cột: `review_key`, `source_code`, `platform`, `product_key`, `rating_star`, `star_sentiment`.
 
@@ -629,6 +633,8 @@ CREATE TABLE review_code (
               ELSE polarity IS NOT NULL AND journey_step IS NOT NULL END)
 );
 CREATE INDEX review_code_by_theme ON review_code(codebook_version, theme_code);
+-- Không phải bảng: lượt gán và lượt nhập CODES giữ khoá ở tệp riêng <thư mục>/raw-db-labels.lock.sqlite (BEGIN EXCLUSIVE),
+-- và bản chụp cho MCP Insight nằm ở <thư mục>/app-db-snapshot/app-db.snapshot.sqlite (§3.3 mục 6, 7).
 
 CREATE TABLE video (
   video_url   TEXT PRIMARY KEY,

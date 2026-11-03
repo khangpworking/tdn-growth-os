@@ -109,3 +109,69 @@ Mỗi đánh giá SHALL được hỏi bằng một lần gọi Jev và các dò
 #### Scenario: Gán lỗi khi nạp
 - **WHEN** nạp S05 thật và lần gọi Jev đầu tiên lỗi
 - **THEN** đánh giá được nạp, lệnh thành công, và phần `labelling` của kết quả ghi `failed` và số đã gán
+
+### Requirement: R-RL07 Nhập CODES theo cả đánh giá
+Lệnh nhập `CODES` SHALL ghi mọi dòng của một đánh giá hoặc không ghi dòng nào. Một nhãn bị bỏ (R-RC05, R-RC06) thì mọi nhãn và dòng `NO_THEME` của đánh giá đó SHALL bị bỏ, và đánh giá SHALL được đếm một lần trong `reviewsSkipped` kèm lý do. Nhãn sai bằng chứng SHALL NOT biến đánh giá thành `NO_THEME`. Điều này thay phần bỏ từng nhãn của R-RC06, R-RC07.
+
+- Loại kiểm: Máy
+- Mã kiểm: Chưa có mã kiểm
+- Vì sao: Chủ quyết F376 (rà soát Astra): không ghi một phần của một đánh giá.
+
+#### Scenario: Một nhãn sai bằng chứng
+- **WHEN** một đánh giá có hai nhãn, một nhãn khớp lời và một nhãn không khớp
+- **THEN** đánh giá đó không có dòng nào, `reviewsSkipped` có một mục với lý do `TEXT_MISMATCH`, và không có dòng `NO_THEME`
+
+### Requirement: R-RL08 Không thêm chủ đề vào nhóm nhãn đã có
+Đánh giá đã có bất kỳ dòng `review_code` nào của bản bộ chủ đề (bất kể `origin`) SHALL bị bỏ cả đánh giá khi nhập `CODES` và được đếm `alreadyCoded`. Nạp lại đúng tệp cũ SHALL vẫn trả toàn số 0. Muốn gán lại SHALL dùng bản bộ chủ đề mới. `alreadyCoded` thay `alreadyPresent` của R-RC07.
+
+- Loại kiểm: Máy
+- Mã kiểm: Chưa có mã kiểm
+- Vì sao: Chủ quyết F376 (rà soát Astra): không trộn nhãn của hai lần gán trong một nhóm nhãn.
+
+#### Scenario: Tệp khác có chủ đề khác
+- **WHEN** đánh giá đã có dòng `review_code` của bản hiện tại và một tệp MCP khác có chủ đề khác cho nó
+- **THEN** không thêm dòng nào cho đánh giá đó và `alreadyCoded` tăng 1
+
+### Requirement: R-RL09 Khoá mỗi lúc một lượt
+Lượt `LABELS`, lượt gán sau khi nạp S05 và lượt nhập `CODES` SHALL giữ khoá `<thư mục cơ sở dữ liệu>/raw-db-labels.lock.sqlite` (tệp SQLite riêng, giữ `BEGIN EXCLUSIVE`) từ trước khi chọn đánh giá tới hết lượt. Tệp khoá SHALL NOT bị xoá. App SHALL NOT giữ giao dịch ghi trên cơ sở dữ liệu app khi chờ Jev.
+
+- Loại kiểm: Máy
+- Mã kiểm: Chưa có mã kiểm
+- Vì sao: Chủ quyết F376 (rà soát Astra): hai lượt cùng lúc không gọi Jev hai lần; tiến trình chết thì khoá của hệ điều hành tự nhả.
+
+#### Scenario: Tiến trình giữ khoá chết
+- **WHEN** tiến trình giữ khoá bị giết
+- **THEN** lượt sau lấy được khoá ngay
+
+### Requirement: R-RL10 Lượt thứ hai chờ rồi dừng
+Khi khoá R-RL09 đang bị giữ, lượt thứ hai SHALL chờ tối đa 10 giây rồi dừng với `LABELS_BUSY` mà không gọi Jev. Khi nạp S05 thì việc nạp SHALL vẫn thành công và `labelling` là `SKIPPED_BUSY`. `--dry-run` SHALL NOT lấy khoá và SHALL NOT gọi mạng.
+
+- Loại kiểm: Máy
+- Mã kiểm: Chưa có mã kiểm
+- Vì sao: Chủ quyết F376 (rà soát Astra): chờ có giới hạn, không treo lệnh.
+
+#### Scenario: Lượt LABELS thứ hai
+- **WHEN** một lượt đang giữ khoá và lượt `LABELS` thứ hai bắt đầu
+- **THEN** lượt thứ hai không gọi Jev và dừng với `LABELS_BUSY` sau khoảng 10 giây
+
+### Requirement: R-RL11 Bản chụp cơ sở dữ liệu app
+`publishAppDbSnapshot` SHALL sao lưu trực tuyến cơ sở dữ liệu (SQLite backup) vào tệp `.tmp-…` trong thư mục bản chụp, đặt `journal_mode=DELETE`, fsync, đổi tên nguyên tử thành `app-db.snapshot.sqlite`, fsync thư mục, và trả `{ path, bytes, publishedAt }`. App SHALL chỉ xoá tệp tạm của chính nó.
+
+- Loại kiểm: Máy
+- Mã kiểm: Chưa có mã kiểm
+- Vì sao: Chủ quyết F376 (rà soát Astra):  (Astra FIX3) MCP Insight đọc một bản chụp nhất quán thay vì chép tệp DB và WAL đang ghi.
+
+#### Scenario: Bản chụp mở được
+- **WHEN** bản chụp được chép xong
+- **THEN** `<thư mục cơ sở dữ liệu>/app-db-snapshot/app-db.snapshot.sqlite` mở được, `journal_mode` là `delete`, có các dòng đã ghi, thư mục có quyền 0700, tệp 0600, và không còn tệp `.tmp-` của lần chép đó
+
+### Requirement: R-RL12 Khi nào chép bản chụp
+App SHALL chép bản chụp R-RL11 sau một lần nạp S05 thật (sau khi gán), một lượt `LABELS` hoặc một lần nhập `CODES` không phải `--dry-run`, và khi chạy `raw-db-load --source SNAPSHOT`. Kết quả SHALL có trường `snapshot`. Chép lỗi SHALL NOT làm hỏng việc nạp và SHALL được ghi là `snapshot.error`.
+
+- Loại kiểm: Máy
+- Mã kiểm: Chưa có mã kiểm
+- Vì sao: Chủ quyết F376 (rà soát Astra): bản chụp luôn mới sau mỗi lần ghi nhãn.
+
+#### Scenario: Chép lỗi
+- **WHEN** không ghi được thư mục bản chụp khi nạp S05 thật
+- **THEN** lệnh vẫn thành công và kết quả có `snapshot.error`
