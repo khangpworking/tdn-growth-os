@@ -10,16 +10,18 @@ import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/arti
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
-import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
+import { bindResearchAutomationProvider } from '../../src/modules/analysis/research-automation/source-binding.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import { createExpandedSearchSource, type ExpandedSearchSource } from '../../src/modules/analysis/research-automation/expanded-search-lane.js';
 import { VideoWatchLane } from '../../src/modules/analysis/research-automation/video-watch-lane.js';
+import { createKalodataProvider } from '../../src/modules/analysis/research-automation/provider-kalodata.js';
+import { createTopSellingVideoSource } from '../../src/modules/analysis/research-automation/top-selling-videos.js';
 import { createVideoWatchModel, type VideoWatchModel } from '../../src/modules/analysis/research-automation/video-watch-gemini.js';
 import type { ProcessRunner } from '../../src/modules/analysis/research-automation/video-watch-media.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { SELLER_VIDEO_AUTO_NOTE, SELLER_VIDEO_AUTO_TITLE, SELLER_VIDEO_READING_TITLE } from '../../src/modules/analysis/research-automation/seller-video.js';
-import { SYNTHETIC_SERP_KEY, syntheticProductSource, syntheticWebSource, SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
+import { SYNTHETIC_SERP_KEY, syntheticWebSource, SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
 import { providerNameViolations } from '../helpers/report-visible-text.js';
 
 const KEYWORD = 'bình giữ nhiệt';
@@ -30,9 +32,8 @@ const organic = [{ position: 1, title: 'Bình giữ nhiệt chính hãng', link:
 const KEY = 'synthetic-proxy-key-0123456789';
 const MODEL = 'gemini-video-test-1';
 const IDS = ['1234567890123456789', '1234567890123456790', '1234567890123456791', '1234567890123456792'];
-/** Search order A, A, B, A: the lane spreads it to A, B, A, A (pinned as IDS[0], IDS[2], IDS[1], IDS[3]). */
 const ACCOUNT = ['nguoiban.vidu', 'nguoiban.vidu', 'cuahang.vidu', 'nguoiban.vidu'];
-const PINNED = [IDS[0]!, IDS[2]!, IDS[1]!, IDS[3]!];
+const PINNED = IDS;
 const tiktokUrl = (id: string) => `https://www.tiktok.com/@${ACCOUNT[IDS.indexOf(id)]}/video/${id}`;
 
 /** Extra searches whose TikTok answer holds exact public video links (and one plain page). */
@@ -96,7 +97,6 @@ function spies(mediaDir: string) {
   return { calls, lane, prompts };
 }
 
-type Options = { videoWatch?: VideoWatchLane; source?: AutomationSourcePort; webSource?: AutomationSourcePort; expandedSource?: ExpandedSearchSource };
 async function runToDraft(t: TestContext, withLane: boolean) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-video-watch-run-'));
   const mediaDir = path.join(root, 'media');
@@ -105,11 +105,26 @@ async function runToDraft(t: TestContext, withLane: boolean) {
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'video-watch', title: 'Synthetic video watch run' });
   const workspaceReader = new FlowDiscoveryWorkspaceReader(discovery);
-  const open = (options: Options) => new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader, uuid: () => runId, now,
-    renderer: (input, kind) => buildResearchAutomationReport(input, kind),
-    sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'synthetic-v1', transport: { draftLists: async () => ({ keywords: [KEYWORD], exclusions: [] }) } }, ...options });
   const spy = spies(mediaDir);
-  const service = open({ source: syntheticProductSource(), webSource: syntheticWebSource(() => {}, organic), expandedSource: expandedWithVideos(), ...(withLane ? { videoWatch: spy.lane } : {}) });
+  const productProvider = createKalodataProvider('synthetic-offline-video-rank', {
+    now: () => now().getTime(), sleep: async () => {}, fetch: async (input, init) => {
+      const target = new URL(String(input));
+      if (target.pathname.endsWith('/credit/balance')) return Response.json({ success: true, data: { totalRemain: 10 } });
+      const body = JSON.parse(String(init?.body));
+      if (target.pathname.endsWith('/product/rank')) return Response.json({ success: true, data: [{ product_id: '12345', product_name: 'Synthetic product', unit_price: 1000 }] });
+      if (target.pathname.endsWith('/product/detail')) return Response.json({ success: true, data: { product_id: body.product_id,
+        product_region: 'vn', currency: 'VND', date_range: body.date_range, product_name: 'Synthetic product', revenue: 100, sales_volumn: 5, unit_price: 1000 } });
+      assert.ok(target.pathname.endsWith('/video/rank'));
+      return Response.json({ success: true, data: IDS.map((id, index) => ({ video_id: id,
+        belonged_creator_handle: ACCOUNT[index], revenue: 100 - index, views: 10 })) });
+    },
+  });
+  const topSellingVideoSource = createTopSellingVideoSource(productProvider);
+  const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader, uuid: () => runId, now,
+    renderer: (input, kind) => buildResearchAutomationReport(input, kind),
+    sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'synthetic-v1', transport: { draftLists: async () => ({ keywords: [KEYWORD], exclusions: [] }) } },
+    source: bindResearchAutomationProvider(productProvider), webSource: syntheticWebSource(() => {}, organic), expandedSource: expandedWithVideos(),
+    ...(withLane ? { videoWatch: spy.lane, topSellingVideoSource } : {}) });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: KEYWORD, requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
@@ -125,16 +140,16 @@ async function runToDraft(t: TestContext, withLane: boolean) {
   const captures = db.prepare(`SELECT ordinal, provider, operation, artifact_sha256 sha FROM analysis_research_automation_captures WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal`).all(runId)
     .map(row => row as { ordinal: bigint | number; provider: string; operation: string; sha: string });
   const html = async (pairId?: string) => (await service.readReport(workspaceId, runId, 'MARKET', false, pairId)).bytes.toString('utf8');
-  return { db, artifacts, workspaceReader, service, open, mediaDir, spy, step, document, usage, captures, html };
+  return { db, artifacts, workspaceReader, service, mediaDir, spy, step, document, usage, captures, html };
 }
 
 const m09 = (html: string): string => { const h = [...new JSDOM(html).window.document.querySelectorAll('h3')].find(e => e.textContent === SELLER_VIDEO_AUTO_TITLE); return h ? h.outerHTML + (h.nextElementSibling?.outerHTML ?? '') : ''; };
 
-test('flag on: candidates from the stored TikTok rows, one inline model call each, off-product stored but not drawn, the block in M09', async t => {
+test('flag on: ranked videos get one inline model call each, off-product stored but not drawn, the block in M09', async t => {
   const f = await runToDraft(t, true);
   const watch = f.document.videoWatch!;
   assert.ok(watch);
-  assert.deepEqual(watch.candidates.map(c => [c.videoId, c.origin]), PINNED.map(id => [id, 'EXPANDED_SEARCH']), 'spread across accounts, then pinned');
+  assert.deepEqual(watch.candidates.map(c => [c.videoId, c.origin]), PINNED.map(id => [id, 'TOP_SELLING']), 'rank order is pinned');
   assert.deepEqual(watch.videos.map(v => [v.videoId, v.status, v.reason]), PINNED.map(id => [id, 'READ', null]), 'the off-product reading is stored');
   assert.deepEqual(f.spy.calls, { downloads: 4, probes: 4, model: 4 });
   assert.equal(f.spy.prompts.length, 4);
@@ -158,8 +173,8 @@ test('flag on: candidates from the stored TikTok rows, one inline model call eac
   assert.equal(block.includes(SELLER_VIDEO_READING_TITLE), false, 'no operator block without operator readings');
   assert.match(block, /Bình này giữ nóng cả ngày luôn/u);
   assert.match(block, /Mình dùng thử thấy nắp rất kín/u);
-  const order = ['Bình này giữ nóng', 'Cửa hàng mình giao nhanh', 'Mình dùng thử'].map(text => block.indexOf(text));
-  assert.ok(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1]!)), 'M09 follows the pinned account-spread order');
+  const order = ['Bình này giữ nóng', 'Mình dùng thử', 'Cửa hàng mình giao nhanh'].map(text => block.indexOf(text));
+  assert.ok(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1]!)), 'M09 follows the pinned rank order');
   assert.match(block, /ghi lại tự động từ video, chưa xác minh/u);
   assert.doesNotMatch(block, /Hôm nay trời đẹp quá|SALE 50%|@nguoiban|tiktok\.com\/@|cuahang|Gemini|Google|yt-dlp|gemini-video/iu);
   assert.deepEqual(providerNameViolations(html), []);
@@ -173,7 +188,7 @@ test('replay and revision: 0 downloads and 0 model calls, byte-identical, also w
   const f = await runToDraft(t, true);
   const first = await f.html();
   const before = { ...f.spy.calls };
-  assert.match(m09(first), /Bình này giữ nóng cả ngày luôn[\s\S]*Cửa hàng mình giao nhanh[\s\S]*Mình dùng thử/u, 'the replayed report keeps the pinned order');
+  assert.match(m09(first), /Bình này giữ nóng cả ngày luôn[\s\S]*Mình dùng thử[\s\S]*Cửa hàng mình giao nhanh/u, 'the replayed report keeps the pinned order');
   assert.equal(await f.html(), first);
   const cold = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, workspaceReader: f.workspaceReader, now: () => { throw new Error('a stored read must not consult the clock'); } });
   assert.equal((await cold.readReport(workspaceId, runId, 'MARKET')).bytes.toString('utf8'), first, 'cold replay without the lane is byte-identical');
