@@ -645,6 +645,617 @@
           "step": "Sau mua"
         }
       ]
+    },
+    {
+      "id": "half-even",
+      "keyword": "kẽm",
+      "text": "Mẫu thử số làm tròn 🧪",
+      "attributes": [
+        "Vị: dịu"
+      ],
+      "product_name": "Synthetic product",
+      "coding_text": "Mẫu thử số làm tròn 🧪  Vị: dịu",
+      "text_sha256": "c645895444ebcff79743c45774e8b37a3ebea28cdc6572f57f172a518959ddee",
+      "wire": {
+        "model": "jev-1.13.0",
+        "state": {
+          "T-CHINHHANG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-THIETKE": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-GIA": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-CHATLUONG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-CONGDUNG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-MUALAI": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-LOI": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-DOITRA": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-TONKHO": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-QUYCACH": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-CAMGIAC": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-THANHPHAN": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-DEUDUNG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-VI": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu",
+          "T-HANDUNG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Ăn uống, thực phẩm chức năng. Bộ chủ đề: 2026-10-30.4. Đánh giá: Mẫu thử số làm tròn 🧪  Vị: dịu"
+        },
+        "questions": {
+          "T-CHINHHANG": {
+            "type": "choice",
+            "instructions": "T-CHINHHANG Chính hãng, đúng mô tả. Tính khi: hàng thật, tem, mã vạch, đúng mẫu, đúng công bố, đúng ảnh, không phải hàng giả hoặc hàng nhái; lệch mô tả hoặc ảnh. Không tính khi: kiểu dáng, màu sắc hoặc thiết kế của chính sản phẩm (T-THIETKE); chất lượng hoặc độ bền (T-CHATLUONG); thành phần hoặc vật liệu (T-THANHPHAN).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-THIETKE": {
+            "type": "choice",
+            "instructions": "T-THIETKE Kiểu dáng, màu sắc, thiết kế. Tính khi: kiểu dáng, màu sắc, mẫu mã, thiết kế của chính sản phẩm; đẹp hoặc xấu, sang hoặc trông rẻ, hợp mắt; vẻ ngoài của bao bì, hộp, nhãn: đẹp, xấu, bắt mắt, sang (F311). Không tính khi: bao bì móp, rách, hỏng (T-LOI); cách gói, chèn, seal, mở hộp (không gán chủ đề, F310); màu hoặc kiểu khác ảnh/mô tả (T-CHINHHANG); size hoặc vừa vặn (T-SIZE).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-GIA": {
+            "type": "choice",
+            "instructions": "T-GIA Giá, khuyến mãi, quà tặng. Tính khi: giá, đắt hoặc rẻ, voucher, freeship, sale, đáng tiền, so giá, quà tặng, tặng kèm, mẫu thử. Không tính khi: phí vận chuyển (không gán chủ đề, F310); số lượng trong một gói (T-QUYCACH).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-CHATLUONG": {
+            "type": "choice",
+            "instructions": "T-CHATLUONG Chất lượng, độ bền. Tính khi: độ bền, độ hoàn thiện, cảm giác chắc chắn, hỏng sớm, hao mòn. Không tính khi: một lỗi cụ thể (T-LOI); thành phần hoặc vật liệu (T-THANHPHAN); công dụng hoặc hiệu quả (T-CONGDUNG); khen chung không nói rõ chất lượng gì, ví dụ «hàng tốt», «thấy ổn», «hài lòng» (không gán chủ đề, chủ chấm 30/10).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-CONGDUNG": {
+            "type": "choice",
+            "instructions": "T-CONGDUNG Công dụng, hiệu quả. Tính khi: tác dụng, kết quả sau khi dùng, hiệu quả, công suất, khả năng làm việc. Không tính khi: cảm giác tức thời khi dùng (T-CAMGIAC); độ bền (T-CHATLUONG); sản phẩm có thêm chất gì hoặc hợp với ai, khi khách chưa nói kết quả sau khi dùng (T-THANHPHAN hoặc không gán; chủ chấm 30/10).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-MUALAI": {
+            "type": "choice",
+            "instructions": "T-MUALAI Mua lại, giới thiệu. Tính khi: sẽ mua lại, mua tiếp, giới thiệu người khác, quay lại ủng hộ. Không tính khi: khen chung (T-CHATLUONG); chỉ kể đã mua một lần.",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-LOI": {
+            "type": "choice",
+            "instructions": "T-LOI Hàng lỗi, thiếu, sai. Tính khi: giao sai hoặc thiếu, hàng hỏng, móp, vỡ hoặc ướt do vận chuyển, hết hạn, không dùng được, sai mẫu. Không tính khi: đổi trả hoặc hoàn tiền (T-DOITRA); chất lượng chung (T-CHATLUONG); bao bì còn nguyên vẹn (không gán chủ đề, F310).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-DOITRA": {
+            "type": "choice",
+            "instructions": "T-DOITRA Đổi trả, hoàn tiền, bảo hành. Tính khi: đổi, trả, hoàn tiền, bảo hành, sửa chữa, hỗ trợ sau mua. Không tính khi: lỗi sản phẩm (T-LOI); tư vấn trước mua (không gán chủ đề, F310).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-TONKHO": {
+            "type": "choice",
+            "instructions": "T-TONKHO Tồn kho, sẵn có. Tính khi: hết hàng, còn hàng, đặt trước, giao sau, đủ hoặc thiếu số lượng, khó mua. Không tính khi: giao hàng (không gán chủ đề, F310); số lượng trong một gói (T-QUYCACH).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-QUYCACH": {
+            "type": "choice",
+            "instructions": "T-QUYCACH Quy cách, kích thước, dung tích, số lượng. Tính khi: kích thước, dung tích, khối lượng, số lượng, số đơn vị, dùng được bao lâu, đủ hoặc thiếu so với công bố. Không tính khi: vừa vặn với cơ thể (T-SIZE); vẻ ngoài bao bì (T-THIETKE, F311); tồn kho (T-TONKHO).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-CAMGIAC": {
+            "type": "choice",
+            "instructions": "T-CAMGIAC Cảm giác khi dùng. Tính khi: dễ chịu, thoải mái, đau, nóng, buồn nôn, ngủ, đói, nhẹ bụng, đầy hơi, nặng, bí, dễ uống hoặc khó uống, dễ nuốt (chủ chấm 30/10). Không tính khi: kết quả dài hạn (T-CONGDUNG); kích ứng (T-KICHUNG); vị (T-VI).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-THANHPHAN": {
+            "type": "choice",
+            "instructions": "T-THANHPHAN Thành phần, chất liệu, an toàn. Tính khi: thành phần, hàm lượng, vật liệu, nguồn gốc, an toàn, dị ứng, chất cấm, BPA. Không tính khi: độ bền (T-CHATLUONG); kích ứng (T-KICHUNG).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-DEUDUNG": {
+            "type": "choice",
+            "instructions": "T-DEUDUNG Dễ dùng, lắp đặt, hướng dẫn. Tính khi: dễ dùng, lắp đặt, hướng dẫn, điều khiển, thao tác, cồng kềnh, di chuyển, vệ sinh. Không tính khi: dịch vụ shop (không gán chủ đề, F310); công suất (T-CONGSUAT).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-VI": {
+            "type": "choice",
+            "instructions": "T-VI Vị. Tính khi: mùi vị, ngọt, mặn, chua, thơm, đậm, tan, lợn cợn, dễ uống hoặc khó uống, hậu vị. Không tính khi: mùi hương khi dùng trên da (T-MUI); cảm giác khi dùng (T-CAMGIAC); thành phần (T-THANHPHAN).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-HANDUNG": {
+            "type": "choice",
+            "instructions": "T-HANDUNG Hạn sử dụng. Tính khi: hạn còn dài hoặc ngắn, date mới hoặc cũ, hết hạn, mốc, tem date. Không tính khi: đóng gói (không gán chủ đề, F310); lỗi (T-LOI).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          }
+        }
+      },
+      "raw_response": "{\"model\": \"jev-1.13.0\", \"answers\": {\"T-CHINHHANG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5009765625, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4990234375}, \"confidence\": 0.8}, \"T-THIETKE\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5029296875, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4970703125}, \"confidence\": 0.8}, \"T-GIA\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.7, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.30000000000000004}, \"confidence\": 0.8}, \"T-CHATLUONG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.6, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4}, \"confidence\": 0.8}, \"T-CONGDUNG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.4999999994, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.5000000006}, \"confidence\": 0.8}, \"T-MUALAI\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.9, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.09999999999999998}, \"confidence\": 0.8}, \"T-LOI\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5009765625, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4990234375}, \"confidence\": 0.8}, \"T-DOITRA\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5029296875, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4970703125}, \"confidence\": 0.8}, \"T-TONKHO\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.7, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.30000000000000004}, \"confidence\": 0.8}, \"T-QUYCACH\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.6, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4}, \"confidence\": 0.8}, \"T-CAMGIAC\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.4999999994, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.5000000006}, \"confidence\": 0.8}, \"T-THANHPHAN\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.9, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.09999999999999998}, \"confidence\": 0.8}, \"T-DEUDUNG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5009765625, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4990234375}, \"confidence\": 0.8}, \"T-VI\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5029296875, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4970703125}, \"confidence\": 0.8}, \"T-HANDUNG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.7, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.30000000000000004}, \"confidence\": 0.8}}}",
+      "labels": [
+        {
+          "theme_code": "T-CHATLUONG",
+          "p_yes": 0.6,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-CHINHHANG",
+          "p_yes": 0.500976562,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-DEUDUNG",
+          "p_yes": 0.500976562,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-DOITRA",
+          "p_yes": 0.502929688,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-GIA",
+          "p_yes": 0.7,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-HANDUNG",
+          "p_yes": 0.7,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-LOI",
+          "p_yes": 0.500976562,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-MUALAI",
+          "p_yes": 0.9,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-QUYCACH",
+          "p_yes": 0.6,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-THANHPHAN",
+          "p_yes": 0.9,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-THIETKE",
+          "p_yes": 0.502929688,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-TONKHO",
+          "p_yes": 0.7,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-VI",
+          "p_yes": 0.502929688,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "thuc_pham",
+          "step": "Sau mua"
+        }
+      ]
+    },
+    {
+      "id": "category-first",
+      "keyword": "kẽm",
+      "category": "Chăm Sóc Da",
+      "text": "",
+      "attributes": [
+        "Mẫu thử chỉ thuộc tính 🍊"
+      ],
+      "product_name": "Synthetic product",
+      "coding_text": "  Mẫu thử chỉ thuộc tính 🍊",
+      "text_sha256": "a70ddc7205fd93dd2e59619c5b57d783601e29986ab0820c51a9180ea9363afc",
+      "wire": {
+        "model": "jev-1.13.0",
+        "state": {
+          "T-CHINHHANG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-THIETKE": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-GIA": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-CHATLUONG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-CONGDUNG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-MUALAI": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-LOI": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-DOITRA": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-TONKHO": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-QUYCACH": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-CAMGIAC": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-THANHPHAN": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-DEUDUNG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-MUI": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-KICHUNG": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-KETCAU": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊",
+          "T-DUONGCAT": "Nền tảng: shopee. Sản phẩm: Synthetic product. Nhóm ngành: Mỹ phẩm. Bộ chủ đề: 2026-10-30.4. Đánh giá:   Mẫu thử chỉ thuộc tính 🍊"
+        },
+        "questions": {
+          "T-CHINHHANG": {
+            "type": "choice",
+            "instructions": "T-CHINHHANG Chính hãng, đúng mô tả. Tính khi: hàng thật, tem, mã vạch, đúng mẫu, đúng công bố, đúng ảnh, không phải hàng giả hoặc hàng nhái; lệch mô tả hoặc ảnh. Không tính khi: kiểu dáng, màu sắc hoặc thiết kế của chính sản phẩm (T-THIETKE); chất lượng hoặc độ bền (T-CHATLUONG); thành phần hoặc vật liệu (T-THANHPHAN).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-THIETKE": {
+            "type": "choice",
+            "instructions": "T-THIETKE Kiểu dáng, màu sắc, thiết kế. Tính khi: kiểu dáng, màu sắc, mẫu mã, thiết kế của chính sản phẩm; đẹp hoặc xấu, sang hoặc trông rẻ, hợp mắt; vẻ ngoài của bao bì, hộp, nhãn: đẹp, xấu, bắt mắt, sang (F311). Không tính khi: bao bì móp, rách, hỏng (T-LOI); cách gói, chèn, seal, mở hộp (không gán chủ đề, F310); màu hoặc kiểu khác ảnh/mô tả (T-CHINHHANG); size hoặc vừa vặn (T-SIZE).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-GIA": {
+            "type": "choice",
+            "instructions": "T-GIA Giá, khuyến mãi, quà tặng. Tính khi: giá, đắt hoặc rẻ, voucher, freeship, sale, đáng tiền, so giá, quà tặng, tặng kèm, mẫu thử. Không tính khi: phí vận chuyển (không gán chủ đề, F310); số lượng trong một gói (T-QUYCACH).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-CHATLUONG": {
+            "type": "choice",
+            "instructions": "T-CHATLUONG Chất lượng, độ bền. Tính khi: độ bền, độ hoàn thiện, cảm giác chắc chắn, hỏng sớm, hao mòn. Không tính khi: một lỗi cụ thể (T-LOI); thành phần hoặc vật liệu (T-THANHPHAN); công dụng hoặc hiệu quả (T-CONGDUNG); khen chung không nói rõ chất lượng gì, ví dụ «hàng tốt», «thấy ổn», «hài lòng» (không gán chủ đề, chủ chấm 30/10).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-CONGDUNG": {
+            "type": "choice",
+            "instructions": "T-CONGDUNG Công dụng, hiệu quả. Tính khi: tác dụng, kết quả sau khi dùng, hiệu quả, công suất, khả năng làm việc. Không tính khi: cảm giác tức thời khi dùng (T-CAMGIAC); độ bền (T-CHATLUONG); sản phẩm có thêm chất gì hoặc hợp với ai, khi khách chưa nói kết quả sau khi dùng (T-THANHPHAN hoặc không gán; chủ chấm 30/10).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-MUALAI": {
+            "type": "choice",
+            "instructions": "T-MUALAI Mua lại, giới thiệu. Tính khi: sẽ mua lại, mua tiếp, giới thiệu người khác, quay lại ủng hộ. Không tính khi: khen chung (T-CHATLUONG); chỉ kể đã mua một lần.",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-LOI": {
+            "type": "choice",
+            "instructions": "T-LOI Hàng lỗi, thiếu, sai. Tính khi: giao sai hoặc thiếu, hàng hỏng, móp, vỡ hoặc ướt do vận chuyển, hết hạn, không dùng được, sai mẫu. Không tính khi: đổi trả hoặc hoàn tiền (T-DOITRA); chất lượng chung (T-CHATLUONG); bao bì còn nguyên vẹn (không gán chủ đề, F310).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-DOITRA": {
+            "type": "choice",
+            "instructions": "T-DOITRA Đổi trả, hoàn tiền, bảo hành. Tính khi: đổi, trả, hoàn tiền, bảo hành, sửa chữa, hỗ trợ sau mua. Không tính khi: lỗi sản phẩm (T-LOI); tư vấn trước mua (không gán chủ đề, F310).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-TONKHO": {
+            "type": "choice",
+            "instructions": "T-TONKHO Tồn kho, sẵn có. Tính khi: hết hàng, còn hàng, đặt trước, giao sau, đủ hoặc thiếu số lượng, khó mua. Không tính khi: giao hàng (không gán chủ đề, F310); số lượng trong một gói (T-QUYCACH).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-QUYCACH": {
+            "type": "choice",
+            "instructions": "T-QUYCACH Quy cách, kích thước, dung tích, số lượng. Tính khi: kích thước, dung tích, khối lượng, số lượng, số đơn vị, dùng được bao lâu, đủ hoặc thiếu so với công bố. Không tính khi: vừa vặn với cơ thể (T-SIZE); vẻ ngoài bao bì (T-THIETKE, F311); tồn kho (T-TONKHO).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-CAMGIAC": {
+            "type": "choice",
+            "instructions": "T-CAMGIAC Cảm giác khi dùng. Tính khi: dễ chịu, thoải mái, đau, nóng, buồn nôn, ngủ, đói, nhẹ bụng, đầy hơi, nặng, bí, dễ uống hoặc khó uống, dễ nuốt (chủ chấm 30/10). Không tính khi: kết quả dài hạn (T-CONGDUNG); kích ứng (T-KICHUNG); vị (T-VI).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-THANHPHAN": {
+            "type": "choice",
+            "instructions": "T-THANHPHAN Thành phần, chất liệu, an toàn. Tính khi: thành phần, hàm lượng, vật liệu, nguồn gốc, an toàn, dị ứng, chất cấm, BPA. Không tính khi: độ bền (T-CHATLUONG); kích ứng (T-KICHUNG).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-DEUDUNG": {
+            "type": "choice",
+            "instructions": "T-DEUDUNG Dễ dùng, lắp đặt, hướng dẫn. Tính khi: dễ dùng, lắp đặt, hướng dẫn, điều khiển, thao tác, cồng kềnh, di chuyển, vệ sinh. Không tính khi: dịch vụ shop (không gán chủ đề, F310); công suất (T-CONGSUAT).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-MUI": {
+            "type": "choice",
+            "instructions": "T-MUI Mùi hương. Tính khi: mùi thơm, nồng, khó chịu, lưu hương, mùi nguyên liệu. Không tính khi: vị (T-VI); kích ứng (T-KICHUNG).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-KICHUNG": {
+            "type": "choice",
+            "instructions": "T-KICHUNG Kích ứng. Tính khi: nổi mẩn, đỏ, ngứa, rát, dị ứng, bong tróc khi dùng trên da. Không tính khi: cảm giác khi dùng (T-CAMGIAC); thành phần (T-THANHPHAN).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-KETCAU": {
+            "type": "choice",
+            "instructions": "T-KETCAU Kết cấu, độ bám, độ bền màu. Tính khi: lì, bóng, dễ tán, vón, trôi, lâu trôi, bền màu, bám. Không tính khi: màu, kiểu hoặc thiết kế của chính sản phẩm (T-THIETKE); lệch ảnh/mô tả (T-CHINHHANG); dưỡng (T-DUONGCAT).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          },
+          "T-DUONGCAT": {
+            "type": "choice",
+            "instructions": "T-DUONGCAT Dưỡng, cấp ẩm. Tính khi: mềm, ẩm, khô, căng, sáng da, mịn. Không tính khi: công dụng chung (T-CONGDUNG); kích ứng (T-KICHUNG).",
+            "criteria": {
+              "CO_KHEN": "The review mentions this theme and praises it, is satisfied, or says something good.",
+              "CO_CHE": "The review mentions this theme and criticises it, is dissatisfied, or says something bad.",
+              "CO_KE": "The review mentions this theme as a fact, without praise or criticism.",
+              "KHONG_NHAC": "The review does not mention this theme."
+            }
+          }
+        }
+      },
+      "raw_response": "{\"model\": \"jev-1.13.0\", \"answers\": {\"T-CHINHHANG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5009765625, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4990234375}, \"confidence\": 0.8}, \"T-THIETKE\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5029296875, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4970703125}, \"confidence\": 0.8}, \"T-GIA\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.7, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.30000000000000004}, \"confidence\": 0.8}, \"T-CHATLUONG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.6, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4}, \"confidence\": 0.8}, \"T-CONGDUNG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.4999999994, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.5000000006}, \"confidence\": 0.8}, \"T-MUALAI\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.9, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.09999999999999998}, \"confidence\": 0.8}, \"T-LOI\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5009765625, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4990234375}, \"confidence\": 0.8}, \"T-DOITRA\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5029296875, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4970703125}, \"confidence\": 0.8}, \"T-TONKHO\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.7, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.30000000000000004}, \"confidence\": 0.8}, \"T-QUYCACH\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.6, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4}, \"confidence\": 0.8}, \"T-CAMGIAC\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.4999999994, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.5000000006}, \"confidence\": 0.8}, \"T-THANHPHAN\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.9, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.09999999999999998}, \"confidence\": 0.8}, \"T-DEUDUNG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5009765625, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4990234375}, \"confidence\": 0.8}, \"T-MUI\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.5029296875, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4970703125}, \"confidence\": 0.8}, \"T-KICHUNG\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.7, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.30000000000000004}, \"confidence\": 0.8}, \"T-KETCAU\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.6, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.4}, \"confidence\": 0.8}, \"T-DUONGCAT\": {\"type\": \"choice\", \"choice\": \"CO_KHEN\", \"probabilities\": {\"CO_KHEN\": 0.4999999994, \"CO_CHE\": 0, \"CO_KE\": 0, \"KHONG_NHAC\": 0.5000000006}, \"confidence\": 0.8}}}",
+      "labels": [
+        {
+          "theme_code": "T-CHATLUONG",
+          "p_yes": 0.6,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-CHINHHANG",
+          "p_yes": 0.500976562,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-DEUDUNG",
+          "p_yes": 0.500976562,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-DOITRA",
+          "p_yes": 0.502929688,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-GIA",
+          "p_yes": 0.7,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-KETCAU",
+          "p_yes": 0.6,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-KICHUNG",
+          "p_yes": 0.7,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-LOI",
+          "p_yes": 0.500976562,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-MUALAI",
+          "p_yes": 0.9,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-MUI",
+          "p_yes": 0.502929688,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-QUYCACH",
+          "p_yes": 0.6,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-THANHPHAN",
+          "p_yes": 0.9,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-THIETKE",
+          "p_yes": 0.502929688,
+          "polarity": "khen",
+          "status": "unclear",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        },
+        {
+          "theme_code": "T-TONKHO",
+          "p_yes": 0.7,
+          "polarity": "khen",
+          "status": "kept",
+          "block_key": "my_pham",
+          "step": "Sau mua"
+        }
+      ]
     }
   ]
 }

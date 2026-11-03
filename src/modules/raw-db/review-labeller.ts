@@ -163,7 +163,11 @@ export function labelRows(book: LabelCodebook, answers: ReadonlyMap<string, Opti
   const { keep, unclear, direction } = book.thresholds;
   const rows: LabelRow[] = [];
   for (const [code, probs] of answers) {
-    const pYes = Number((probs.CO_KHEN + probs.CO_CHE + probs.CO_KE).toFixed(9));
+    const sum = probs.CO_KHEN + probs.CO_CHE + probs.CO_KE;
+    // toFixed rounds exact ties upwards; Python round uses ties to even. At 9 decimal places a binary-exact
+    // midpoint must be an odd multiple of 1/1024 (10^9 = 2^9 * 5^9). Other values use toFixed's exact rounding.
+    const pYes = Number.isInteger(sum * 1024) && (sum * 1024) % 2 === 1
+      ? 2 * Math.round(sum * 1e9 / 2) / 1e9 : Number(sum.toFixed(9));
     if (pYes < unclear) continue;
     let top: keyof typeof POLARITY_BY_OPTION = 'CO_KHEN';
     for (const option of ['CO_CHE', 'CO_KE'] as const) if (probs[option] > probs[top]) top = option;
@@ -309,7 +313,8 @@ export async function labelReviewsInDbV1(db: Database.Database, artifacts: Conte
     })();
     if (!written) continue;
     result.rowsInserted += written;
-    if (rows.length) result.labelled++; else result.noTheme++;
+    result.labelled++;
+    if (!rows.length) result.noTheme++;
   }
   result.skipped = result.eligible - result.called;
   return result;

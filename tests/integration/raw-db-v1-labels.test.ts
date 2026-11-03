@@ -33,9 +33,17 @@ const callText = (call: LabelCall) => Object.values((call.body as { state: Recor
 
 // Each Y row has one primary owner below. Wire assertions protect MCP protocol parity;
 // row assertions protect storage/provenance; S05 exercises the separate post-commit lifecycle.
-test('RAWDB-Y Y1: the real CLI sends MCP golden wire bodies and persists the same labels for three synthetic reviews', async t => {
+test('RAWDB-Y Y1: the real CLI sends MCP golden wire bodies and persists the same labels, including rounding ties and applied category', async t => {
   for (const c of labelsGolden.cases) {
     const f = await labelsFixture(t, c.keyword);
+    if (c.category) {
+      const directory = path.join(path.dirname(f.databasePath), 'metric-captures', f.runId);
+      await fs.mkdir(directory, { recursive: true });
+      await fs.writeFile(path.join(directory, 'scope.json'), JSON.stringify({
+        contractVersion: 'autorun-scope-record-v2', runId: f.runId, keyword1: c.keyword,
+        capture2: { outcome: 'OK', keywords: [c.keyword], category: c.category },
+      }));
+    }
     seedLabelReview(f.db, f.runId, `synthetic-parity-${c.id}`, { text: c.text, attributes_json: JSON.stringify(c.attributes) });
     const result = await labelCli(f, labelsArgs(f.runId), [{ raw: c.raw_response }]);
     assert.equal(result.calls.length, 1, c.id);
@@ -188,6 +196,7 @@ test('RAWDB-Y Y5: both caps bound calls and failures stop before writing that re
     assert.equal(result.calls.length, cap);
     assert.equal(receipt.called, cap);
     assert.equal(receipt.eligible, cap + 1);
+    assert.equal(receipt.skipped, 1);
     assert.equal(receipt.labelled, cap);
     assert.equal(receipt.failed, null);
     assert.equal(labelledKeys(f.db).length, cap);
@@ -216,6 +225,7 @@ test('RAWDB-Y Y5: both caps bound calls and failures stop before writing that re
     assert.deepEqual({ called: receipt.called, labelled: receipt.labelled, rowsInserted: receipt.rowsInserted, failed: receipt.failed },
       { called: 2, labelled: 1, rowsInserted: 1, failed: { code: failure.code, reviewKey: called[1] } });
     assert.deepEqual(labelledKeys(f.db), [called[0]]);
+    assert.equal(receipt.skipped, 1, 'the failed call is counted as called, and the unattempted review is skipped');
     const prior = f.db.prepare('SELECT * FROM review_code').get();
     const resumed = await labelCli(f, labelsArgs(f.runId), noThemeResponses(2));
     assert.equal(resumed.calls.length, 2);
@@ -223,6 +233,24 @@ test('RAWDB-Y Y5: both caps bound calls and failures stop before writing that re
     assert.deepEqual(labelledKeys(f.db), keys.sort());
     assert.deepEqual(f.db.prepare('SELECT * FROM review_code WHERE review_key=?').get(called[0]), prior);
   }
+  // Reject a later INSERT after earlier themes of the same answer have been inserted. The entire review must roll back,
+  // while the prior completed review and the independently committed S05 load survive.
+  const f = await rawDbFixture(t);
+  f.db.exec(`CREATE TRIGGER synthetic_reject_late_label BEFORE INSERT ON review_code
+    WHEN NEW.theme_code='T-CONGDUNG' BEGIN SELECT RAISE(ABORT,'synthetic_late_label_failure'); END;`);
+  const interrupted = await labelCli(f, ['--source', 'S05', '--run', f.runId],
+    [...noThemeResponses(1), { raw: labelsGolden.cases[0]!.raw_response }, ...noThemeResponses(1)]);
+  assert.equal(interrupted.calls.length, 2);
+  assert.equal((interrupted.value as { reviewsInserted: number }).reviewsInserted, 3);
+  assert.match(JSON.stringify((interrupted.value as { labelling: unknown }).labelling), /synthetic_late_label_failure/);
+  const committed = f.db.prepare('SELECT * FROM review_code').all();
+  assert.equal(committed.length, 1, 'no early theme from the rejected review may leak');
+  assert.equal((committed[0] as { theme_code: string }).theme_code, 'NO_THEME');
+  const resumed = await labelCli(f, labelsArgs(f.runId), noThemeResponses(2));
+  assert.equal(resumed.calls.length, 2);
+  assert.equal(labelledKeys(f.db).length, 3);
+  assert.deepEqual(f.db.prepare("SELECT * FROM review_code WHERE review_key=?")
+    .all((committed[0] as { review_key: string }).review_key), committed);
 });
 
 test('RAWDB-Y Y6: a real S05 CLI load labels after commit and honors no-label, disabled/missing Jev, dry-run and failed calls', async t => {
@@ -269,6 +297,7 @@ test('RAWDB-Y Y7: LABELS dry-run counts without fetch or changed DB bytes and ru
     const receipt = result.value as LabelReceipt;
     assert.equal(receipt.eligible, eligible);
     assert.equal(receipt.called, 0);
+    assert.equal(receipt.planned, 1);
     assert.equal(receipt.rowsInserted, 0);
     assert.equal(result.calls.length, 0);
     assert.deepEqual(await fs.readFile(f.databasePath), physicalBefore);

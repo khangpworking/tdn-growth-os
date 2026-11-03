@@ -29,7 +29,7 @@ import { CODES_AT, codesHash, seedCodeReview } from './raw-db-v1-codes.js';
 // data = json.loads(out.read_text())
 // for c in data['cases']:
 //   text = c['text'] + ''.join('  '+a for a in c['attributes'])
-//   selection = ns['select_block'](book,[c['keyword']],None)
+//   selection = ns['select_block'](book,[c['keyword']],c.get('category'))
 //   request = ns['build_request'](book,selection,dict(text=text,platform='shopee',product_name=c['product_name']))
 //   c['coding_text'],c['text_sha256'],c['wire'] = text,hashlib.sha256(text.encode()).hexdigest(),ns['_wire_body'](request)
 //   parsed = ns['parse_answer'](book,request,200,c['raw_response'])
@@ -40,7 +40,7 @@ import { CODES_AT, codesHash, seedCodeReview } from './raw-db-v1-codes.js';
 // out.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n')
 // PY
 interface GoldenCase {
-  id: string; keyword: string; text: string; attributes: string[]; product_name: string;
+  id: string; keyword: string; category?: string; text: string; attributes: string[]; product_name: string;
   coding_text: string; text_sha256: string; wire: unknown; raw_response: string;
   labels: { theme_code: string; p_yes: number; polarity: string; status: string; block_key: string | null; step: string }[];
 }
@@ -87,8 +87,8 @@ export function seedLabelCode(db: Database.Database, reviewKey: string, origin =
 }
 
 export interface LabelReceipt {
-  eligible: number; called: number; labelled: number; noTheme: number; rowsInserted: number;
-  failed: null | { code: string; reviewKey: string }; skipped: unknown;
+  eligible: number; planned: number; called: number; labelled: number; noTheme: number; rowsInserted: number;
+  failed: null | { code: string; reviewKey: string }; skipped: number;
 }
 export interface LabelCall { url: string; method: string; body: unknown; calledAt: string }
 type CliFixture = { root: string; databasePath: string; artifactRoot: string };
@@ -100,7 +100,8 @@ export async function labelCli(f: CliFixture, args: string[], responses: Respons
   const id = randomUUID();
   const log = path.join(f.root, `fetch-${id}.jsonl`), config = path.join(f.root, `fetch-${id}.json`);
   await fs.writeFile(log, '');
-  await fs.writeFile(config, JSON.stringify({ log, responses }));
+  await fs.writeFile(config, JSON.stringify({ log, responses,
+    committedReviewsDb: args.includes('S05') ? f.databasePath : null }));
   const child = spawnSync(process.execPath, ['--import', 'tsx', '--import',
     fileURLToPath(new URL('./raw-db-v1-labels-fetch.mjs', import.meta.url)), 'scripts/raw-db-load.ts',
     '--db', f.databasePath, '--artifacts', f.artifactRoot, ...args], {
