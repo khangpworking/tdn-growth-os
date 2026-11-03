@@ -14,6 +14,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 03/11/2026 (chủ duyệt F335, F336): S07 bình luận TikTok vào `review` và `video` (migration 0065). Không lưu tên người viết; `reviewer_key` là HMAC của `uid` số; `text` là bản đã che liên hệ (§3, §4.1a).
 - 03/11/2026 (chủ duyệt F347, F349): số theo từng video của Kalodata có mã nguồn riêng **S02b «Kalodata video»**; S02 đổi tên thành «Kalodata sản phẩm». S02b vào `video` và bảng mới `video_snapshot` (migration 0066). Tên video giữ đúng như nguồn trả; người làm video chỉ lưu `author_key` (§4.1a, §4.1b).
 - 03/11/2026 (chủ duyệt F354, F356): S14 lời nói trong video vào `video_reading` và `video_segment` (migration 0067), thay bản phác §4.1 cũ. Không lưu nhận định của AI (giọng, loại video, có nói về sản phẩm không). Chữ giữ đúng như đọc được. Nạp S02b trước S14 cho cùng lần chạy. Từ nay app chỉ xem video chủ chọn và video bán chạy, không xem video từ tìm kiếm `site:tiktok.com` (§4.1).
+- 03/11/2026 (chủ duyệt F361–F363): nhãn chủ đề vào `codebook` và `review_code` (migration 0068), thay bản phác §3.3 cũ. Nhãn kẽm của Jev được nhập từ kho MCP, không gọi AI, chỉ khi dấu của đoạn lời khớp với lời trong `review`. Cảm xúc theo sao là view `review_star_sentiment` (1–3 sao tiêu cực, 4–5 sao tích cực).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -180,31 +181,51 @@ Một đánh giá có thể được thu lại ở nhiều lần chạy. Bảng 
 | capture_id | TEXT | Lần thu của lần chạy này |
 | source_position | TEXT | Vị trí trong bản gốc của lần thu này |
 
-### 3.3 `codebook` và `review_code` — chủ đề đã gán
+### 3.3 `codebook`, `review_code` và view `review_star_sentiment` — chủ đề đã gán, cảm xúc theo sao
 
-`codebook`: một bộ chủ đề một dòng.
+Chủ duyệt 03/11/2026 (F361–F363). Nhãn chủ đề nằm trong cơ sở dữ liệu app (migration 0068). Tệp JSON `tools/mcp-insight/data/insight-theme-codebook.json` vẫn là nơi sửa danh sách chủ đề. MCP Insight chỉ đọc, không ghi vào cơ sở dữ liệu app. Nhãn kẽm Jev đã gán ngày 30/10 được **nhập** từ kho của lần chạy MCP (`raw-db-load --source CODES`), không gọi AI. Giá trị giữ đúng như người gán đã ghi, không dịch (F349).
 
-| Cột | Kiểu | Nghĩa |
-|---|---|---|
-| codebook_version | TEXT | Bản bộ chủ đề, ví dụ `2026-10-30.4` |
-| status | TEXT | `DRAFT` hoặc `APPROVED` |
-| approved_by, approved_at | TEXT | Ai duyệt, lúc nào. `NULL` khi còn nháp |
-| definition_sha256 | TEXT | Dấu của tệp định nghĩa bộ chủ đề |
+`codebook`: một bản bộ chủ đề một dòng.
 
-`review_code`: một chủ đề gán cho một đánh giá một dòng.
+| Cột | Kiểu | Bắt buộc | Nghĩa | Lấy từ tệp JSON |
+|---|---|---|---|---|
+| codebook_version | TEXT | Có | Bản bộ chủ đề, ví dụ `2026-10-30.4` (khoá chính) | `version` |
+| contract_version | TEXT | Có | Khuôn của tệp | `contractVersion` |
+| status | TEXT | Có | `DRAFT` hoặc `APPROVED` | `status` |
+| approved_by, approved_at | TEXT | Không | Ai duyệt, lúc nào. Cả hai `NULL` khi `DRAFT`, cả hai có khi `APPROVED` | `approvedBy`, `approvedAt` |
+| definition_json | TEXT | Có | Nguyên văn tệp lúc nạp | cả tệp |
+| definition_sha256 | TEXT | Có | SHA-256 của các byte trong tệp | — |
+| loaded_at | TEXT | Có | Lúc nạp (ISO) | — |
 
-| Cột | Kiểu | Nghĩa |
-|---|---|---|
-| review_key | TEXT | Đánh giá |
-| codebook_version | TEXT | Bộ chủ đề đã dùng |
-| theme_code | TEXT | Mã chủ đề |
-| polarity | TEXT | `positive`, `negative`, `neutral`, `mixed` |
-| journey_step | TEXT | Bước mua: `aware`, `interest`, `desire`, `purchase`, `after_purchase` |
-| status | TEXT | `kept` (được đếm) hoặc `unclear` (không đếm) |
-| confidence | REAL | Xác suất mô hình trả (0–1); `NULL` khi người gán |
-| coder | TEXT | Mô hình hoặc người đã gán |
-| text_sha256 | TEXT | Dấu của đoạn lời được gán; không chép lại lời khách |
-| coded_at | TEXT | Lúc gán |
+Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, tức `DRAFT` → `APPROVED` có người duyệt và lúc duyệt, các cột khác giữ nguyên. Bản này chưa có lệnh duyệt.
+
+`review_code`: một đánh giá × một chủ đề × một bản bộ chủ đề một dòng. Không lưu lại lời khách.
+
+| Cột | Kiểu | Bắt buộc | Nghĩa | Lấy từ kho MCP |
+|---|---|---|---|---|
+| review_key | TEXT | Có | Đánh giá | `review.platform` + `source_review_id` → dòng `review` cùng `platform`, `external_id`, `kind = 'product_review'` |
+| codebook_version | TEXT | Có | Bộ chủ đề đã dùng | `label.codebook_version` |
+| theme_code | TEXT | Có | Mã chủ đề của bộ (lõi, chủ đề của khối, hoặc `otherCode` `T-KHAC`); `NO_THEME` = đã gán, không có chủ đề nào | `label.theme_code` |
+| block_key | TEXT | Không | Khối đã dùng, ví dụ `thuc_pham`; `NULL` khi không có khối | `label.block_key` |
+| polarity | TEXT | Có, trừ `NO_THEME` | `khen`, `che`, `ke`, `khong_ro_huong` | `label.polarity` |
+| journey_step | TEXT | Có, trừ `NO_THEME` | Bước mua, giữ như đã ghi, ví dụ `Sau mua` | `label.step` |
+| status | TEXT | Có | `kept` (được đếm) hoặc `unclear` (không đếm). `NO_THEME` là `kept` | `label.status` |
+| confidence | REAL | Không | Xác suất 0–1; `NULL` với `NO_THEME` | `label.p_yes` |
+| coder | TEXT | Có | Người hoặc mô hình đã gán, ví dụ `jev` | tham số `--coder` |
+| text_sha256 | TEXT | Có | Dấu của đoạn lời được gán. Với `NO_THEME`: dấu đầu vào của lần gán | `label.text_sha256`; `coding_state.input_sha256` |
+| coded_at | TEXT | Có | Lúc bắt đầu gán (sớm nhất nếu có nhiều) | `coding_target.started_at` cùng bản và `block_norm` |
+| origin | TEXT | Có | Cách dòng vào: `MCP_IMPORT` | — |
+| import_sha256 | TEXT | Có | SHA-256 của tệp kho MCP đã nhập | — |
+
+**Quy tắc khi nhập (`raw-db-load --source CODES`):**
+
+1. Mỗi dòng `label` của MCP thành một dòng `review_code`. Mỗi đánh giá có `coding_state` `done` mà không có `label` thành một dòng `NO_THEME`.
+2. **Bằng chứng lời:** dựng lại lời từ `review`: `text` rồi mỗi mục của `attributes_json` thêm hai dấu cách đứng trước. Cắt đoạn `[text_start, text_end)` tính theo **điểm mã Unicode** (chỉ số chuỗi Python của MCP; emoji tính là một). Dấu SHA-256 (UTF-8) của đoạn phải bằng `label.text_sha256`. Không khớp thì bỏ nhãn đó và đếm `textMismatch`.
+3. Đánh giá không có trong `review` thì bỏ các nhãn của nó và đếm `reviewsMissing`. Khớp hơn một dòng thì dừng (`RAW_DB_CODES_AMBIGUOUS_REVIEW`).
+4. Bản của tệp phải bằng bản của mọi nhãn (`RAW_DB_CODES_CODEBOOK_MISMATCH`). Bản đã có mà dấu tệp khác thì dừng (`RAW_DB_CODES_CODEBOOK_CHANGED`). Mã chủ đề lạ thì dừng (`RAW_DB_CODES_INVALID_ROW`).
+5. Nạp lại cùng tệp thì không thêm dòng nào. Cả lần nạp là một giao dịch, trừ các nhãn bị bỏ ở mục 2 và 3.
+
+View `review_star_sentiment` (F363): cảm xúc theo số sao, tính từ `review.rating_star`, không chép ra bảng. 1–3 sao → `tieu_cuc`, 4–5 sao → `tich_cuc`, không có sao → `NULL`. Cột: `review_key`, `source_code`, `platform`, `product_key`, `rating_star`, `star_sentiment`.
 
 Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản phát hành (quy chuẩn, Phần 7 mục 8 và L3). Bản nháp được đếm nhưng ghi «đề xuất, chờ chủ duyệt».
 
@@ -217,8 +238,8 @@ Chỉ dòng `kept` của bộ chủ đề `APPROVED` được đếm trong bản
 | `review.reviewer_key` (`NULL` khi thiếu) | MCP luôn có `review.writer_key`: khi thiếu danh tính thì dùng `platform:source_review_id` và `writer_known = 0`. TikTok Shop có tên dùng `w:` + 16 ký tự đầu SHA-256 của tên đã chuẩn hoá và `writer_known = 1`; đây chưa phải HMAC của mã tác giả như `db-v1` |
 | `review.rating_star` | `review.rating` |
 | `review.text` | `review_text.text` |
-| `review_code` | `label`: `theme_code`, `polarity`, `status`, `text_sha256` giữ tên; `journey_step` → `step`, `confidence` → `p_yes`. MCP còn phân biệt `block_norm`; nhãn chỉ được đếm khi `coding_state.status = 'done'` và dấu đầu vào khớp `review_input`. `coder`, `coded_at` không có cột tương ứng trong `label` |
-| `codebook.codebook_version`, `status`, `approved_by`, `approved_at` | Tệp `tools/mcp-insight/data/insight-theme-codebook.json`: `version`, `status`, `approvedBy`, `approvedAt`. Phiên bản còn nằm trong `label` và `coding_state`. `sample_review` ở kho chung ghi người rà mẫu (`reviewed_by`, `reviewed_at`, `sample_size`, `passed`), tách với việc duyệt bộ chủ đề |
+| `review_code` | `label`: `theme_code`, `block_key`, `polarity`, `status`, `text_sha256` giữ tên; `journey_step` ← `step`, `confidence` ← `p_yes`. `coded_at` ← `coding_target.started_at`; `coder` từ tham số `--coder`. `NO_THEME` ← `coding_state` `done` không có `label` (`text_sha256` ← `input_sha256`). `text_start`/`text_end` của MCP tính theo điểm mã Unicode. `block_norm` không lưu (chỉ dùng tìm `coding_target`) |
+| `codebook.codebook_version`, `contract_version`, `status`, `approved_by`, `approved_at`, `definition_json` | Tệp `tools/mcp-insight/data/insight-theme-codebook.json`: `version`, `contractVersion`, `status`, `approvedBy`, `approvedAt`, cả tệp. Phiên bản còn nằm trong `label` và `coding_state`. `sample_review` ở kho chung ghi người rà mẫu (`reviewed_by`, `reviewed_at`, `sample_size`, `passed`), tách với việc duyệt bộ chủ đề |
 | `run_review` | Mỗi lần chạy có một kho MCP riêng, nên kho MCP không cần bảng này |
 
 ## 4. Các nguồn khác
@@ -568,25 +589,35 @@ CREATE TABLE run_review (
 
 CREATE TABLE codebook (
   codebook_version  TEXT PRIMARY KEY,
+  contract_version  TEXT NOT NULL,
   status            TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED')),
   approved_by       TEXT,
   approved_at       TEXT,
+  definition_json   TEXT NOT NULL,
   definition_sha256 TEXT NOT NULL,
-  CHECK (status = 'DRAFT' OR (approved_by IS NOT NULL AND approved_at IS NOT NULL))
+  loaded_at         TEXT NOT NULL,
+  CHECK ((status = 'DRAFT' AND approved_by IS NULL AND approved_at IS NULL)
+      OR (status = 'APPROVED' AND approved_by IS NOT NULL AND approved_at IS NOT NULL))
 );
 
 CREATE TABLE review_code (
   review_key       TEXT NOT NULL REFERENCES review(review_key),
   codebook_version TEXT NOT NULL REFERENCES codebook(codebook_version),
   theme_code       TEXT NOT NULL,
-  polarity         TEXT NOT NULL CHECK (polarity IN ('positive','negative','neutral','mixed')),
-  journey_step     TEXT CHECK (journey_step IN ('aware','interest','desire','purchase','after_purchase')),
+  block_key        TEXT,
+  polarity         TEXT CHECK (polarity IN ('khen','che','ke','khong_ro_huong')),
+  journey_step     TEXT,
   status           TEXT NOT NULL CHECK (status IN ('kept','unclear')),
   confidence       REAL CHECK (confidence BETWEEN 0 AND 1),
   coder            TEXT NOT NULL,
   text_sha256      TEXT NOT NULL,
   coded_at         TEXT NOT NULL,
-  PRIMARY KEY (review_key, codebook_version, theme_code)
+  origin           TEXT NOT NULL CHECK (origin IN ('MCP_IMPORT')),
+  import_sha256    TEXT NOT NULL,
+  PRIMARY KEY (review_key, codebook_version, theme_code),
+  CHECK (CASE WHEN theme_code = 'NO_THEME'
+              THEN polarity IS NULL AND journey_step IS NULL AND confidence IS NULL AND status = 'kept'
+              ELSE polarity IS NOT NULL AND journey_step IS NOT NULL END)
 );
 CREATE INDEX review_code_by_theme ON review_code(codebook_version, theme_code);
 
@@ -825,12 +856,33 @@ SELECT r.platform,
 FROM review r
 WHERE r.product_key IS NOT NULL
 GROUP BY r.platform, r.product_key;
+
+-- Star sentiment (F363): 1–3 stars → tieu_cuc, 4–5 → tich_cuc, no star → NULL. Derived, never copied.
+CREATE VIEW review_star_sentiment AS
+SELECT r.review_key, r.source_code, r.platform, r.product_key, r.rating_star,
+       CASE WHEN r.rating_star BETWEEN 1 AND 3 THEN 'tieu_cuc'
+            WHEN r.rating_star BETWEEN 4 AND 5 THEN 'tich_cuc' END AS star_sentiment
+FROM review r;
+
+-- Example: kept theme labels per theme for one product and codebook version (NO_THEME = coded, no theme).
+SELECT c.theme_code, c.polarity, count(*) AS reviews
+FROM review_code c JOIN review r ON r.review_key = c.review_key
+WHERE r.product_key = 'shopee:2308735412' AND c.codebook_version = '2026-10-30.4' AND c.status = 'kept'
+GROUP BY c.theme_code, c.polarity
+ORDER BY reviews DESC;
+
+-- Example: star sentiment counts per product.
+SELECT product_key, star_sentiment, count(*) AS reviews
+FROM review_star_sentiment
+WHERE product_key IS NOT NULL
+GROUP BY product_key, star_sentiment;
 ```
 
 ## 6. Điều còn để ngỏ
 
 - **Mã người viết Shopee:** bộ thu gói S chưa giữ mã tác giả. Change `shopee-public-review-writer-key` chờ chủ duyệt. Cách băm dùng lại cách của bộ thu riêng cũ (`shopee-author-id-hmac-v1`).
 - **Nối video với sản phẩm (S07):** bộ kẽm chưa có dữ liệu nối. Mọi video của bộ kẽm có `link_basis` = `UNKNOWN`.
-- **`review_code` của bộ kẽm:** chủ đề của bộ kẽm nằm trong kho MCP riêng. Bộ công khai không có dòng `review_code`.
+- **`review_code` của bộ kẽm:** nhập từ kho của lần chạy MCP 30/10 bằng `--source CODES` (§3.3). Bộ công khai `kem-2910` đã đổi mã đánh giá thành `anon-…`, nên nhãn chỉ khớp với `review` của cơ sở dữ liệu app (mã thật).
+- **Duyệt bộ chủ đề:** bảng `codebook` cho phép `DRAFT` → `APPROVED`, nhưng chưa có lệnh duyệt.
 - **Bảng tính Cục Thống kê (S21, S22):** mỗi tệp có nhiều bảng con. Bản này chỉ định khuôn chung `official_stat`. Cách đọc từng bảng con theo bộ đọc của app.
 - **Bảng `ad`:** bộ kẽm chưa có quảng cáo nào đọc được, nên các cột của bảng `ad` là đề xuất. Cần kiểm lại khi có lượt đọc thật.
