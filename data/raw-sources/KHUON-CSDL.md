@@ -9,6 +9,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - Lời khách của 3 nguồn (đánh giá Shopee, đánh giá TikTok Shop, bình luận TikTok) dùng **một bảng chung `review`**.
 - Mỗi người viết có hai cột: `reviewer_key` (HMAC của mã tác giả do nguồn trả về; `NULL` nếu nguồn không trả mã tác giả) và `reviewer_name` (tên thật khi có, chỉ trong cơ sở dữ liệu riêng).
 - Bản 2 thêm 4 bảng: `run_review` (lần chạy ↔ đánh giá), `codebook` và `review_code` (chủ đề đã gán và ai duyệt), `video` (video ↔ sản phẩm).
+- Bảng `review_filter_assessment` (migration 0072) ghi kết quả lọc đánh giá. **Chế độ chạy song song, chưa ảnh hưởng số đếm** (§3.5).
 - Kho của MCP Insight dùng tên khác. Bảng đối chiếu ở Phần 3.4.
 - 03/11/2026 (chủ duyệt): §4.4 `search_suggestion` (S19b) và §4.5 `ai_overview_block`, `ai_overview_reference` (S29) có cột đầy đủ; mỗi gạch đầu dòng của AI Overview là một dòng `list_item`; bảng nguồn có thêm cột `snippet`.
 - 03/11/2026 (chủ duyệt F335, F336): S07 bình luận TikTok vào `review` và `video` (migration 0065). Không lưu tên người viết; `reviewer_key` là HMAC của `uid` số; `text` là bản đã che liên hệ (§3, §4.1a).
@@ -20,6 +21,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 - 04/11/2026 (chủ quyết F381, F385; sau rà soát độc lập, migration 0071): `review.state` chỉ là trạng thái của chính đánh giá (`VALID`, `HIDDEN`, `DELETED`); sao thiếu hoặc sai → `rating_star` `NULL`, `state` `VALID`. Bảng mới `product_name_source` ghi tên sản phẩm lấy từ bản ghi nào (§2.2a). Cột mới `raw_capture.response_sha256_basis` nói dấu `response_sha256` băm cái gì (§2.1). `attributes_json` có một dạng khai báo cho mỗi nguồn (§3).
 
 - 04/11/2026 (chủ quyết F368, F389): S06 đánh giá TikTok Shop vào `review` (không lưu tên, không tính khoá từ tên hiển thị) và được gán chủ đề như S05. Khi bật `TDN_RAW_DB_AUTOLOAD_ENABLED=true`, app tự nạp cả 7 nguồn db-v1 của một lần chạy (S05, S06, S07, S02b, S14, S19b, S29) rồi gán chủ đề, ngay khi bước thu (`COLLECTION`) của lần chạy xong với `SUCCEEDED` hoặc `PARTIAL`; mỗi lần ghi một dòng `raw_db_autoload` (migration 0070). `raw-db-load --source AUTOLOAD --run <id>` chạy cùng chuỗi bằng tay (§3, §5.0).
+- 04/11/2026 (chủ quyết F424, F427, F429, F430; migration 0072): bộ lọc đánh giá chạy song song. Jev xét mỗi đánh giá sản phẩm Shopee, TikTok Shop có nội dung có nói về sản phẩm hoặc đơn hàng này không, và có lời chê không. Code quyết định cùng số sao. Kết quả vào bảng mới `review_filter_assessment`; cột mới `raw_db_autoload.filtering` ghi kết quả lọc của lần tự nạp. Cờ `TDN_RAW_DB_REVIEW_FILTER_ENABLED` mặc định tắt. **Chế độ chạy song song, chưa ảnh hưởng số đếm:** gán nhãn, số đếm, báo cáo và MCP không đọc bảng mới (§3.5, §5.0).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -341,6 +343,40 @@ flowchart LR
 - `review` → `review_code`: Jev gán chủ đề cho lời của từng đánh giá.
 - `review_code` → `review_star_sentiment`: view đọc số sao của cùng đánh giá. 1–3 sao là chê, 4–5 sao là khen.
 
+### 3.5 `review_filter_assessment` — kết quả lọc đánh giá (chạy song song)
+
+Chủ quyết F424, F427, F429, F430 (04/11/2026, migration 0072; luật R-RF01 đến R-RF10). **Chế độ chạy song song, chưa ảnh hưởng số đếm.** Chỉ lượt lọc và lệnh `raw-db-load --source FILTER` đọc bảng này. Gán nhãn, `review_star_sentiment`, bộ nạp, báo cáo và MCP cho cùng kết quả dù đánh giá bị đánh dấu `EXCLUDE`. Loại thật cần chủ duyệt riêng, sau khi đo.
+
+Một đánh giá × một phiên bản luật một dòng. Chỉ thêm, không sửa, không xoá (lỗi `immutable_raw_db_v1_review_filter`). Không có dòng nghĩa là chưa lọc, không phải là sạch.
+
+| Cột | Kiểu | Bắt buộc | Nghĩa |
+|---|---|---|---|
+| review_key | TEXT | Có | Đánh giá (`review`). Khoá chính cùng `policy_version` |
+| policy_version | TEXT | Có | Phiên bản luật lọc, hiện là `2026-11-04.1` |
+| policy_sha256 | TEXT | Có | sha256 của lời dặn và lựa chọn của 2 câu hỏi |
+| run_id | TEXT | Có | Lần chạy đầu tiên có đánh giá này trong lượt lọc |
+| outcome | TEXT | Có | `KEEP`, `EXCLUDE`, `UNRESOLVED`, `NO_CONTENT` |
+| reason | TEXT | Có | `JEV_KEEP`, `JEV_EXCLUDE`, `JEV_UNRESOLVED`, `GUARD_LOW_STAR`, `GUARD_NO_STAR`, `GUARD_COMPLAINT`, `EMPTY` |
+| p_keep, p_exclude, p_unresolved | REAL | Không | Xác suất `GIU`, `LOAI`, `RIENG` của câu `LOC` |
+| p_complaint | REAL | Không | Xác suất `CO` của câu `CHE` |
+| rating_star | INTEGER | Không | Số sao lúc lọc. Chỉ dùng để bảo vệ, không gửi cho Jev |
+| model | TEXT | Không | Mô hình Jev |
+| text_sha256 | TEXT | Có | sha256 của đúng nội dung đã gửi; dòng `NO_CONTENT` là sha256 của chuỗi rỗng |
+| response_sha256 | TEXT | Không | sha256 của phản hồi gốc của Jev, nằm trong kho tệp |
+| assessed_at | TEXT | Có | Thời điểm lọc |
+
+Dòng `NO_CONTENT` có lý do `EMPTY` và không có xác suất, mô hình, `response_sha256`. Dòng khác có đủ các cột đó.
+
+Cách lọc:
+
+1. **Dòng được xét:** đánh giá sản phẩm Shopee, TikTok Shop (`kind = 'product_review'`) của lần chạy được chọn, chưa có dòng của phiên bản luật hiện tại. Đánh giá thuộc nhiều lần chạy được xét một lần.
+2. **Dòng trống:** lời viết trống và phần khách điền không có câu trả lời thì ghi `NO_CONTENT`, không gọi Jev. Ký tự trắng, ký tự ẩn là trống. Mục có dấu hai chấm mà sau dấu không có gì là chưa trả lời. Mục không có dấu hai chấm là câu trả lời.
+3. **Jev:** mỗi đánh giá có nội dung tốn đúng 1 lượt gọi, gồm 2 câu hỏi. `LOC`: `GIU`, `LOAI`, `RIENG`. `CHE`: `CO`, `KHONG`. Jev chỉ thấy tên sản phẩm, lời viết và phần khách điền; không thấy số sao.
+4. **Quyết định:** `LOAI` từ 0,70 trở lên: không có sao → `UNRESOLVED` (`GUARD_NO_STAR`); từ 3 sao trở xuống → `UNRESOLVED` (`GUARD_LOW_STAR`); `CO` từ 0,50 trở lên → `UNRESOLVED` (`GUARD_COMPLAINT`); còn lại → `EXCLUDE`. `LOAI` dưới 0,70: `GIU` lớn nhất hoặc bằng lớn nhất → `KEEP`, còn lại → `UNRESOLVED`.
+5. **Lỗi:** lượt gọi lỗi hoặc câu trả lời sai dạng thì dừng lượt lọc, không ghi dòng cho đánh giá đó, báo mã lỗi (`REVIEW_FILTER_UNAVAILABLE`, `REVIEW_FILTER_INVALID`) và số dòng chưa lọc (`notAssessed`).
+6. **Giới hạn và khoá:** một lượt gọi Jev tối đa 1.500 lần. Lượt thật giữ khoá `raw-db-labels.lock.sqlite` như lượt gán nhãn; khoá bận thì báo `LABELS_BUSY`. `--dry-run` không lấy khoá, không gọi Jev, không ghi gì.
+7. **Lệnh tay:** `raw-db-load --source FILTER [--run <id>] [--max-calls N] [--dry-run]`. Cần `TDN_RESEARCH_JEV_ENABLED=true` và khoá Jev như `LABELS`; thiếu thì báo `RAW_DB_FILTER_JEV_DISABLED`. Lượt thật xong thì chép bản chụp.
+
 ## 4. Các nguồn khác
 
 ### 4.1 `video_reading` và `video_segment` — lời nói trong video (S14)
@@ -557,7 +593,8 @@ Dữ liệu tổng hợp. Không phải người thật. Không nêu tên nguồ
 - **Khi nào app tự nạp:** khi `TDN_RAW_DB_AUTOLOAD_ENABLED=true` (không đặt thì tắt), ngay khi bước `COLLECTION` của lần chạy xong với `SUCCEEDED` hoặc `PARTIAL` và lần chạy chuyển sang dựng báo cáo; việc nạp chạy sau khi giao dịch đó đã ghi, trên kết nối riêng. Bước `REPORTS` hỏng sau đó (ví dụ `MARKET_NUMBER_TRACE_BLOCKED`) không chặn và không xoá phần đã nạp; việc nạp không đổi trạng thái, kết quả, báo cáo hay giờ chạy của lần chạy và của bước `REPORTS`. Bước thu `FAILED`, `UNAVAILABLE`, `CANCELLED` hoặc bị bỏ thì không tự nạp.
 - **Mỗi nguồn riêng:** dùng bộ nạp `--run` sẵn có (không `--file`). Một nguồn lỗi không dừng nguồn sau; kết quả từng nguồn ghi riêng. S07, S02b, S14 đọc khoá riêng tư như lệnh CLI (`TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE`); thiếu khoá thì nguồn đó `SKIPPED_NO_PRIVACY_KEY`, nguồn khác vẫn chạy.
 - **Gán chủ đề:** Jev tắt thì vẫn nạp, `labelling` = `SKIPPED_JEV_DISABLED`. Số lần gọi tối đa = `limits.maxCallsPerRun` của bộ chủ đề. Lượt gán giữ khoá `raw-db-labels.lock.sqlite`; đang bận thì ghi `LABELS_BUSY`, lần chạy sau hoặc lệnh `AUTOLOAD` gán tiếp.
-- **Ghi lại:** mỗi lần thử một dòng `raw_db_autoload` (chỉ thêm, không sửa, không xoá): `run_id`, `origin` (`APP` hoặc `CLI`), `started_at`, `finished_at`, một JSON kết quả cho mỗi nguồn (`s05` … `s29`: `LOADED` kèm số dòng, `SKIPPED_NO_CAPTURES`, `SKIPPED_NO_PRIVACY_KEY` hoặc `FAILED` kèm mã lỗi) và `labelling`. Sau mỗi lần thử, app chép bản chụp `app-db.snapshot.sqlite` (§3.3 mục 7). App đang chạy (máy chủ có quyền ghi, khi bật cờ) còn chép bản chụp mỗi 10 phút; đang chép thì bỏ lượt đó.
+- **Lọc đánh giá (chạy song song, chưa ảnh hưởng số đếm):** chỉ khi `TDN_RAW_DB_REVIEW_FILTER_ENABLED=true`. Lượt lọc chạy sau khi nạp các nguồn, trước khi gán chủ đề (§3.5). Cờ tắt thì không gọi Jev cho lượt lọc, `filtering` = `SKIPPED_FLAG_OFF`. Jev tắt → `SKIPPED_JEV_DISABLED`; khoá bận → `LABELS_BUSY`; lỗi → `FAILED` kèm mã lỗi. Lọc lỗi hoặc bận không dừng việc gán chủ đề.
+- **Ghi lại:** mỗi lần thử một dòng `raw_db_autoload` (chỉ thêm, không sửa, không xoá): `run_id`, `origin` (`APP` hoặc `CLI`), `started_at`, `finished_at`, một JSON kết quả cho mỗi nguồn (`s05` … `s29`: `LOADED` kèm số dòng, `SKIPPED_NO_CAPTURES`, `SKIPPED_NO_PRIVACY_KEY` hoặc `FAILED` kèm mã lỗi), `labelling` và `filtering` (migration 0072; `NULL` ở dòng ghi trước 0072). Sau mỗi lần thử, app chép bản chụp `app-db.snapshot.sqlite` (§3.3 mục 7). App đang chạy (máy chủ có quyền ghi, khi bật cờ) còn chép bản chụp mỗi 10 phút; đang chép thì bỏ lượt đó.
 - **Bằng tay:** `raw-db-load --source AUTOLOAD --run <id> [--privacy-file <path>] [--dry-run]` chạy cùng chuỗi cho lần chạy cũ hoặc để thử lại; `--dry-run` không ghi gì. Lần chạy đã dựng báo cáo trước khi bật cờ, hoặc app tắt giữa chừng, thì dùng lệnh này.
 
 ```sql
@@ -1011,6 +1048,34 @@ CREATE TABLE raw_db_autoload (
   CHECK (finished_at >= started_at)
 );
 CREATE INDEX raw_db_autoload_by_run ON raw_db_autoload(run_id, attempt_id);
+-- Migration 0072: the filter result of the attempt (NULL on rows written before 0072).
+ALTER TABLE raw_db_autoload ADD COLUMN filtering TEXT;
+
+-- Review filter in shadow mode (§3.5, migration 0072). Insert-only; nothing but the filter pass and FILTER reads it.
+CREATE TABLE review_filter_assessment (
+  review_key      TEXT NOT NULL REFERENCES review(review_key),
+  policy_version  TEXT NOT NULL,
+  policy_sha256   TEXT NOT NULL,
+  run_id          TEXT NOT NULL,
+  outcome         TEXT NOT NULL CHECK (outcome IN ('KEEP','EXCLUDE','UNRESOLVED','NO_CONTENT')),
+  reason          TEXT NOT NULL CHECK (reason IN ('JEV_KEEP','JEV_EXCLUDE','JEV_UNRESOLVED','GUARD_LOW_STAR','GUARD_NO_STAR','GUARD_COMPLAINT','EMPTY')),
+  p_keep          REAL CHECK (p_keep BETWEEN 0 AND 1),
+  p_exclude       REAL CHECK (p_exclude BETWEEN 0 AND 1),
+  p_unresolved    REAL CHECK (p_unresolved BETWEEN 0 AND 1),
+  p_complaint     REAL CHECK (p_complaint BETWEEN 0 AND 1),
+  rating_star     INTEGER,
+  model           TEXT,
+  text_sha256     TEXT NOT NULL,
+  response_sha256 TEXT,
+  assessed_at     TEXT NOT NULL,
+  PRIMARY KEY (review_key, policy_version),
+  CHECK (CASE WHEN outcome = 'NO_CONTENT'
+              THEN reason = 'EMPTY' AND p_keep IS NULL AND p_exclude IS NULL AND p_unresolved IS NULL AND p_complaint IS NULL
+                AND model IS NULL AND response_sha256 IS NULL
+              ELSE reason <> 'EMPTY' AND p_keep IS NOT NULL AND p_exclude IS NOT NULL AND p_unresolved IS NOT NULL AND p_complaint IS NOT NULL
+                AND model IS NOT NULL AND response_sha256 IS NOT NULL END)
+);
+CREATE INDEX review_filter_assessment_by_outcome ON review_filter_assessment(policy_version, outcome);
 
 -- Example: kept theme labels per theme for one product and codebook version (NO_THEME = coded, no theme).
 SELECT c.theme_code, c.polarity, count(*) AS reviews

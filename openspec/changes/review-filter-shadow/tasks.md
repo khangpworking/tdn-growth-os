@@ -5,12 +5,12 @@
 
 ## 1. Mã (một người viết mã)
 
-- [ ] 1.1 Migration `0072_raw_db_v1_review_filter.sql`
-- [ ] 1.2 `src/modules/raw-db/review-filter.ts`
-- [ ] 1.3 `autoload.ts`, `operator-app.ts`: chạy lượt lọc theo cờ
-- [ ] 1.4 `scripts/raw-db-load.ts`: `--source FILTER`
-- [ ] 1.5 Cập nhật db-v1 trong `data/raw-sources/KHUON-CSDL.md` và trang nguồn vào cơ sở dữ liệu
-- [ ] 1.6 Cập nhật kiểm thử ghim số migration và số bảng
+- [x] 1.1 Migration `0072_raw_db_v1_review_filter.sql`
+- [x] 1.2 `src/modules/raw-db/review-filter.ts`
+- [x] 1.3 `autoload.ts`, `operator-app.ts`: chạy lượt lọc theo cờ
+- [x] 1.4 `scripts/raw-db-load.ts`: `--source FILTER`
+- [x] 1.5 Cập nhật db-v1 trong `data/raw-sources/KHUON-CSDL.md` và trang nguồn vào cơ sở dữ liệu
+- [x] 1.6 Cập nhật kiểm thử ghim số migration và số bảng
 
 ## 2. Kiểm thử (lane Sol, phiên khác người viết mã) và hợp nhất
 
