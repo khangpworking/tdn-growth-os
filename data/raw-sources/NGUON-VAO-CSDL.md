@@ -49,7 +49,7 @@ Lượt chạy `3d66fbda`: từ khoá «vitamin c», Market và Insight. Ngườ
 | S29 | 1 lần gọi, 15 khối, 10 nguồn dẫn |
 | Gán chủ đề bằng Jev | 247 đánh giá có chữ, 247 lần gọi, 323 dòng `review_code`, 75 `NO_THEME`. Sao của S06: 821 khen (4–5 sao), 52 chê (1–3 sao) |
 
-- Phạm vi: người xác nhận qua owner API (`confirm-v3`). Phạm vi có 3 sản phẩm TikTok Shop từ tìm nhanh và 3 link Shopee có doanh thu cao nhất, mỗi link của một shop khác nhau. Lý do: bước thu Metric cũ dừng với `METRIC_UI_CHANGED` (giao diện Metric đổi). Bản Metric v3 chỉ chạy cho báo cáo Market (`V3_REPORT_MARKET_ONLY`).
+- Phạm vi: người xác nhận qua owner API (`confirm-v3`). Phạm vi có 3 sản phẩm TikTok Shop từ tìm nhanh và 3 link Shopee có doanh thu cao nhất, mỗi link của một shop khác nhau. Lý do: bước thu Metric cũ dừng với `METRIC_UI_CHANGED`. Nguyên nhân là trang Metric đang ở tiếng Việt, còn công cụ thu chỉ đọc nhãn tiếng Anh. Sau khi chọn English trong menu ngôn ngữ, bước thu chạy được (kiểm tra lại ngày 04/11/2026: «vitamin c», 1.621 kết quả). Bản Metric v3 chỉ chạy cho báo cáo Market (`V3_REPORT_MARKET_ONLY`).
 - Kết quả lượt chạy: bước thu `PARTIAL`; bước dựng báo cáo `FAILED` (`REPORT_RENDER_FAILED`). Việc nạp vẫn chạy, vì bước thu xong với `PARTIAL`.
 - Dấu: mọi `raw_capture` của lượt này có `response_sha256_basis` = `ORIGINAL_BYTES`. App chép lại bản sao sạch sau lượt nạp.
 - Chi phí: Kalodata 58 lần gọi (tín dụng của gói), SerpApi 7 lần (gói miễn phí), đánh giá Shopee công khai 411 lần (0 USD), Apify 0 USD.
