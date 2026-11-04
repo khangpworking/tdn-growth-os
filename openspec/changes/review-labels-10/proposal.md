@@ -22,7 +22,7 @@ Bộ 10 nhãn mới và câu lọc mới đã qua thử bằng Jev. Dòng không
 
 - Dòng cũ trong `review_code` và `review_filter_assessment` không đổi. App không gọi Jev cho dữ liệu cũ, trừ khi có người chạy lệnh gán nhãn hoặc lọc không giới hạn lượt chạy.
 - **Sau khi deploy:** Insight MCP chỉ đọc nhãn của bản bộ nhãn hiện tại. Sản phẩm cũ sẽ hiện «chưa gán nhãn» cho đến khi chủ cho gán lại. Ước tính 8 USD cho 1.399 đánh giá có chữ.
-- Mỗi đánh giá mới tốn khoảng 5.750 token vào cho lượt gán nhãn 10 câu. Con số đo trên lần thử 9 câu; 10 câu đo được khoảng 6.300 token.
+- Mỗi đánh giá mới tốn khoảng 6.300 token vào cho lượt gán nhãn 10 câu.
 - Số đếm theo chủ đề của sản phẩm mới không so trực tiếp được với số của bản bộ nhãn cũ.
 
 ## Ngoài phạm vi
