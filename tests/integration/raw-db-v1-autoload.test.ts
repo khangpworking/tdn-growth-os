@@ -28,8 +28,12 @@ test('RAWDB-A AUTOLOAD order: all seven stored sources commit in order, then bot
   assert.ok(count(f.db, 'search_suggestion') > 0);
   assert.ok(count(f.db, 'ai_overview_block') > 0);
   assert.ok(result.calls.length > 0);
-  for (const platform of ['shopee', 'tiktok_shop'])
-    assert.ok(result.calls.some(call => (JSON.stringify(call.body) ?? '').includes(`Nền tảng: ${platform}`)), `${platform} reaches Jev with its own platform`);
+  // R-RV02: the state names no platform, so each platform is traced by its own review text.
+  for (const platform of ['shopee', 'tiktok_shop']) {
+    const texts = f.db.prepare("SELECT text FROM review WHERE platform=? AND kind='product_review' AND text<>''").pluck().all(platform) as string[];
+    assert.ok(result.calls.some(call => texts.some(text => (JSON.stringify(call.body) ?? '').includes(JSON.stringify(`\nLời viết: ${text.trim()}\n`).slice(1, -1)))),
+      `${platform} reaches Jev with its own review text`);
+  }
 });
 
 test('RAWDB-A source isolation: each failing source records its own error and every remaining source still commits', async t => {

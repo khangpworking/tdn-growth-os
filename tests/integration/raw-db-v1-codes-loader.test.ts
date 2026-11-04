@@ -39,7 +39,7 @@ test('RAWDB-X X3: import preserves exact coder fields and proves full and partia
   const warehouseBefore = await fs.readFile(f.mcpRunFile);
   assert.deepEqual(await loadReviewCodesToDbV1(f.db, f.input), { ...emptyCodesReceipt, codebookInserted: 1, labelsInserted: 4 });
   const shared = { review_key: 'S05:synthetic-codes-a', codebook_version: CODES_VERSION, block_key: 'thuc_pham',
-    coder: 'synthetic-coder', coded_at: CODES_AT, origin: 'MCP_IMPORT', import_sha256: codesHash(warehouseBefore) };
+    coder: 'synthetic-coder', coded_at: CODES_AT, origin: 'MCP_IMPORT', import_sha256: codesHash(warehouseBefore), choice: null };
   assert.deepEqual(f.db.prepare('SELECT * FROM review_code ORDER BY theme_code').all(), [
     { ...shared, theme_code: 'T-CHATLUONG', polarity: 'khong_ro_huong', journey_step: 'Sau mua', status: 'kept', confidence: 1, text_sha256: codesHash(CODES_TEXT) },
     { ...shared, theme_code: 'T-GIA', polarity: 'khen', journey_step: 'Sau mua', status: 'kept', confidence: 0.91, text_sha256: codesHash(CODES_TEXT) },
@@ -69,7 +69,7 @@ test('RAWDB-X X4: only a done, unlabelled review gets one NO_THEME row; uncoded 
   assert.deepEqual(f.db.prepare('SELECT * FROM review_code').all(), [{
     review_key: 'S05:synthetic-codes-a', codebook_version: CODES_VERSION, theme_code: 'NO_THEME', block_key: null,
     polarity: null, journey_step: null, status: 'kept', confidence: null, coder: 'synthetic-coder',
-    text_sha256: codesHash(CODES_TEXT), coded_at: CODES_AT, origin: 'MCP_IMPORT', import_sha256: codesHash(await fs.readFile(f.mcpRunFile)),
+    text_sha256: codesHash(CODES_TEXT), coded_at: CODES_AT, origin: 'MCP_IMPORT', import_sha256: codesHash(await fs.readFile(f.mcpRunFile)), choice: null,
   }]);
 });
 

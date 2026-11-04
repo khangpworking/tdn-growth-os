@@ -9,16 +9,18 @@ import { parseCodebook, sha256, storeCodebook } from './review-code-loader.js';
 
 /**
  * The app labels db-v1 product reviews (Shopee S05, TikTok Shop S06) with Jev and writes `review_code` rows with origin APP_JEV (owner F366/F367).
- * Port of the Insight MCP coder (tools/mcp-insight/insight_tools.py: load_codebook checks, select_block, build_request,
- * _wire_body, parse_answer, label_rows, code_reviews caps): the same review input and the same Jev answer give the same labels.
+ * Started as a port of the Insight MCP coder (load_codebook checks, select_block, code_reviews caps). Since codebook 2026-11-04.1
+ * (owner F439 to F442, R-RV01 to R-RV05) the Jev request and the scoring are the app's own: a shared guide, options per theme,
+ * a `choice` per row and the wait row of the waitTheme.
  */
 
 export const DEFAULT_CODEBOOK_FILE = fileURLToPath(new URL('../../../tools/mcp-insight/data/insight-theme-codebook.json', import.meta.url));
 export const NO_THEME = 'NO_THEME';
 /** The MCP's fixed journey step for review labels (STEP_AFTER_PURCHASE). */
 export const STEP_AFTER_PURCHASE = 'Sau mua';
-const OPTION_KEYS = ['CO_KHEN', 'CO_CHE', 'CO_KE', 'KHONG_NHAC'] as const;
-const POLARITY_BY_OPTION = { CO_KHEN: 'khen', CO_CHE: 'che', CO_KE: 'ke' } as const;
+/** Options that never count as a mention (R-RV04); every other option is counted and carries a polarity. */
+export const NOT_COUNTED = ['KHONG_NHAC', 'CHUA_DANHGIA'] as const;
+const POLARITIES = ['khen', 'che', 'ke', 'khong_ro_huong'] as const;
 // Owner rule F310, fixed here like the MCP: a codebook holding one of these themes is rejected.
 const EXCLUDED_THEME_CODES = new Set(['T-GIAOHANG', 'T-DONGGOI', 'T-DICHVU']);
 const EXCLUDED_THEME_NAMES = ['Giao hàng', 'Đóng gói', 'Dịch vụ shop, tư vấn'];
@@ -26,11 +28,13 @@ const THEME_CODE_RE = /^T-[A-Z0-9]+$/;
 const BLOCK_KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
 const SCOPE_VERSIONS = new Set(['autorun-scope-record-v1', 'autorun-scope-record-v2']);
 
-export interface LabelTheme { code: string; name: string; include: string; exclude?: string }
+export type LabelPolarity = (typeof POLARITIES)[number];
+export interface LabelOption { key: string; meaning: string; polarity?: LabelPolarity }
+export interface LabelTheme { code: string; name: string; include: string; exclude?: string; options?: LabelOption[] }
 export interface LabelBlock { label: string; themes: LabelTheme[]; match: { categoryLabels?: string[] | null; keywords?: string[] | null } }
 export interface LabelCodebook {
-  version: string; status: string; core: LabelTheme[]; blocks: Record<string, LabelBlock>;
-  options: { key: string; meaning: string }[];
+  version: string; status: string; guide: string; waitTheme: string; core: LabelTheme[]; blocks: Record<string, LabelBlock>;
+  options: LabelOption[];
   thresholds: { keep: number; unclear: number; direction: number; probabilitySumTolerance: number };
   limits: { maxQuestionsPerCall: number; maxCallsPerRun: number };
 }
@@ -38,13 +42,14 @@ export interface BlockSelection {
   codebookVersion: string; blockKey: string | null; matchBasis: 'CATEGORY_LABEL' | 'KEYWORD' | 'NO_MATCH'; matchedTerm: string | null;
   questions: LabelTheme[];
 }
-/** One MCP request (IM-Q20): only the coding text, platform, product name, block label, codebook version and questions. */
+/** One labelling request (R-RV02): the review text and customer-filled items, platform, product name, the guide and the questions. */
 export interface LabelRequest {
-  text: string; platform: string; product_name: string | null; block_label: string | null; codebook_version: string;
-  questions: { code: string; name: string; include: string; exclude: string; options: { key: string; meaning: string }[] }[];
+  text: string; attributes: string[]; platform: string; product_name: string | null; guide: string;
+  questions: { code: string; name: string; include: string; exclude: string; options: LabelOption[] }[];
 }
-export type OptionProbabilities = Record<(typeof OPTION_KEYS)[number], number>;
-export interface LabelRow { theme_code: string; p_yes: number; polarity: 'khen' | 'che' | 'ke' | 'khong_ro_huong'; status: 'kept' | 'unclear' }
+/** Probabilities by option key of one question. */
+export type OptionProbabilities = Record<string, number>;
+export interface LabelRow { theme_code: string; p_yes: number; polarity: LabelPolarity; status: 'kept' | 'unclear'; choice: string | null }
 
 export class JevLabelCallFailed extends Error {
   constructor(readonly code: 'JEV_THEME_UNAVAILABLE' | 'JEV_THEME_INVALID') { super(code); }
@@ -56,10 +61,20 @@ const isNumber = (value: unknown): value is number => typeof value === 'number' 
 const nz = (text: string) => text.normalize('NFC').toLowerCase();
 const fold = (text: string) => text.normalize('NFC').toLowerCase().trim();
 const blankString = (value: unknown) => typeof value !== 'string' || !value.trim();
+const counted = (key: string) => !(NOT_COUNTED as readonly string[]).includes(key);
+
+function optionsOk(options: unknown): options is LabelOption[] {
+  if (!Array.isArray(options) || !options.length || !options.every(o => isRecord(o) && typeof o.key === 'string' && typeof o.meaning === 'string')) return false;
+  const keys = options.map(o => o.key as string);
+  return new Set(keys).size === keys.length && keys.includes('KHONG_NHAC')
+    && options.every(o => !counted(o.key as string) || (POLARITIES as readonly unknown[]).includes(o.polarity));
+}
+const themeOptions = (book: LabelCodebook, theme: LabelTheme) => theme.options ?? book.options;
 
 function themeOk(theme: unknown): theme is LabelTheme {
   return isRecord(theme) && typeof theme.code === 'string' && THEME_CODE_RE.test(theme.code)
-    && !blankString(theme.name) && !blankString(theme.include) && (theme.exclude === undefined || typeof theme.exclude === 'string');
+    && !blankString(theme.name) && !blankString(theme.include) && (theme.exclude === undefined || typeof theme.exclude === 'string')
+    && (theme.options === undefined || Array.isArray(theme.options));
 }
 
 /** The MCP load_codebook checks on the parsed JSON (CODES checks run first through parseCodebook). */
@@ -67,6 +82,7 @@ export function parseLabelCodebook(text: string): LabelCodebook {
   parseCodebook(text);
   const book = JSON.parse(text) as Record<string, unknown>;
   if (blankString(book.version) || blankString(book.status)) fail('version or status missing');
+  if (blankString(book.guide)) fail('the guide is missing');
   const { core, blocks, options, thresholds, limits } = book;
   if (!Array.isArray(core) || !core.length || !core.every(themeOk)) fail('the core themes are missing or malformed');
   if (!isRecord(blocks) || !Object.entries(blocks).every(([key, block]) => BLOCK_KEY_RE.test(key) && isRecord(block)
@@ -82,8 +98,13 @@ export function parseLabelCodebook(text: string): LabelCodebook {
     const codes = [...typedCore, ...block.themes].map(theme => theme.code);
     if (new Set(codes).size !== codes.length) fail('a theme code repeats within one block selection');
   }
-  if (!Array.isArray(options) || options.map(o => isRecord(o) ? o.key : null).join('\0') !== OPTION_KEYS.join('\0')
-    || !options.every(o => typeof o.meaning === 'string')) fail('the 4 answer options are missing or out of order');
+  if (!optionsOk(options)) fail('the answer options are missing, lack KHONG_NHAC or a counted option has no valid polarity');
+  for (const theme of [...typedCore, ...Object.values(typedBlocks).flatMap(block => block.themes)]) {
+    if (theme.options !== undefined && !optionsOk(theme.options)) fail(`the options of ${theme.code} are malformed, lack KHONG_NHAC or a counted option has no valid polarity`);
+  }
+  const wait = typedCore.find(theme => theme.code === book.waitTheme);
+  if (!wait) fail('waitTheme is not a core theme');
+  if (!(wait!.options ?? options as LabelOption[]).some(o => o.key === 'CHUA_DANHGIA')) fail('the options of the waitTheme lack CHUA_DANHGIA');
   if (!isRecord(thresholds) || !['keep', 'unclear', 'direction', 'probabilitySumTolerance'].every(k => isNumber(thresholds[k]))) fail('thresholds missing');
   if (!isRecord(limits) || !['maxQuestionsPerCall', 'maxCallsPerRun'].every(k => Number.isInteger(limits[k]) && (limits[k] as number) > 0)) fail('limits missing');
   return book as unknown as LabelCodebook;
@@ -118,23 +139,23 @@ export function selectBlock(book: LabelCodebook, keywords: readonly string[], ca
   return { codebookVersion: book.version, blockKey: key, matchBasis: basis, matchedTerm: term, questions };
 }
 
-export function buildRequest(book: LabelCodebook, selection: BlockSelection, review: { text: string; platform: string; product_name: string | null }): LabelRequest {
-  const options = book.options.map(o => ({ key: o.key, meaning: o.meaning }));
-  return { text: review.text, platform: review.platform, product_name: review.product_name,
-    block_label: selection.blockKey ? book.blocks[selection.blockKey]!.label : null, codebook_version: book.version,
-    questions: selection.questions.map(t => ({ code: t.code, name: t.name, include: t.include, exclude: t.exclude || '', options: options.map(o => ({ ...o })) })) };
+export function buildRequest(book: LabelCodebook, selection: BlockSelection,
+  review: { text: string | null; attributes_json: string | null; platform: string; product_name: string | null }): LabelRequest {
+  return { text: review.text ?? '', attributes: attributeItems(review.attributes_json), platform: review.platform, product_name: review.product_name, guide: book.guide,
+    questions: selection.questions.map(t => ({ code: t.code, name: t.name, include: t.include, exclude: t.exclude || '', options: themeOptions(book, t).map(o => ({ ...o })) })) };
 }
 
-/** The MCP `_wire_body` questions: one choice question per theme, each with the review as its state. */
+/** R-RV02: one choice question per theme; every question has the same state (no platform, star, group or codebook version). */
 export function jevQuestions(request: LabelRequest): TypesafeJevQuestion[] {
-  const state = `Nền tảng: ${request.platform}. Sản phẩm: ${request.product_name || 'không rõ'}. `
-    + `Nhóm ngành: ${request.block_label || 'Chỉ chủ đề lõi'}. Bộ chủ đề: ${request.codebook_version}. Đánh giá: ${request.text}`;
+  const state = `Sản phẩm đang được đánh giá: ${request.product_name || 'không rõ'}\nLời viết: ${request.text.trim() || '(trống)'}\n`
+    + `Các mục khách điền, gồm tên mục và câu trả lời: ${request.attributes.join('; ') || '(trống)'}`;
   return request.questions.map(question => ({ id: question.code, state,
-    instructions: `${question.code} ${question.name}. Tính khi: ${question.include}.${question.exclude ? ` Không tính khi: ${question.exclude}.` : ''}`,
+    instructions: `${request.guide}\n\n${question.code} ${question.name}. Tính khi: ${question.include}.${question.exclude ? ` Không tính khi: ${question.exclude}.` : ''}`
+      + '\nNội dung có nhắc đến chủ đề này không, và thuộc lựa chọn nào?',
     criteria: Object.fromEntries(question.options.map(o => [o.key, o.meaning])) }));
 }
 
-/** The MCP parse_answer: throws JevLabelCallFailed (JEV_THEME_UNAVAILABLE / JEV_THEME_INVALID); returns probabilities by theme in asked order. */
+/** R-RV03, the MCP parse_answer with the options of each question: throws JevLabelCallFailed (JEV_THEME_UNAVAILABLE / JEV_THEME_INVALID); returns probabilities by theme in asked order. */
 export function parseAnswer(book: LabelCodebook, request: LabelRequest, model: string, status: number | null, raw: Buffer | null): Map<string, OptionProbabilities> {
   if (status !== 200 || raw === null) throw new JevLabelCallFailed('JEV_THEME_UNAVAILABLE');
   let payload: unknown;
@@ -147,11 +168,11 @@ export function parseAnswer(book: LabelCodebook, request: LabelRequest, model: s
   const sameSet = (keys: string[], expected: readonly string[]) => { const a = new Set(keys), b = new Set(expected); return a.size === b.size && [...a].every(k => b.has(k)); };
   if (!sameSet(Object.keys(answers), asked)) throw invalid();
   const out = new Map<string, OptionProbabilities>();
-  for (const code of asked) {
-    const answer = answers[code];
-    if (!isRecord(answer) || answer.type !== 'choice' || !(OPTION_KEYS as readonly unknown[]).includes(answer.choice)) throw invalid();
+  for (const { code, options } of request.questions) {
+    const answer = answers[code], keys = options.map(o => o.key);
+    if (!isRecord(answer) || answer.type !== 'choice' || !keys.includes(answer.choice as string)) throw invalid();
     const probs = answer.probabilities;
-    if (!isRecord(probs) || !sameSet(Object.keys(probs), OPTION_KEYS) || !Object.values(probs).every(v => isNumber(v) && v >= 0 && v <= 1)) throw invalid();
+    if (!isRecord(probs) || !sameSet(Object.keys(probs), keys) || !Object.values(probs).every(v => isNumber(v) && v >= 0 && v <= 1)) throw invalid();
     if (Math.abs((Object.values(probs) as number[]).reduce((sum, v) => sum + v, 0) - 1) > book.thresholds.probabilitySumTolerance + 1e-9) throw invalid();
     if (!isNumber(answer.confidence) || answer.confidence < 0 || answer.confidence > 1) throw invalid();
     out.set(code, probs as OptionProbabilities);
@@ -159,29 +180,44 @@ export function parseAnswer(book: LabelCodebook, request: LabelRequest, model: s
   return out;
 }
 
-/** The MCP label_rows: kept and unclear labels by the codebook thresholds. p_yes is rounded to 9 decimals like Python round(). */
+// toFixed rounds exact ties upwards; Python round uses ties to even. At 9 decimal places a binary-exact
+// midpoint must be an odd multiple of 1/1024 (10^9 = 2^9 * 5^9). Other values use toFixed's exact rounding.
+const round9 = (sum: number) => Number.isInteger(sum * 1024) && (sum * 1024) % 2 === 1 ? 2 * Math.round(sum * 1e9 / 2) / 1e9 : Number(sum.toFixed(9));
+
+/**
+ * R-RV04, R-RV05: p_yes = the counted options, rounded to 9 decimals like Python round(). The largest counted option (earliest on a
+ * tie) sets polarity and choice from the direction threshold. Below unclear only the wait row of the waitTheme is kept.
+ */
 export function labelRows(book: LabelCodebook, answers: ReadonlyMap<string, OptionProbabilities>): LabelRow[] {
   const { keep, unclear, direction } = book.thresholds;
+  const themes = new Map([...book.core, ...Object.values(book.blocks).flatMap(block => block.themes)].map(theme => [theme.code, theme]));
   const rows: LabelRow[] = [];
   for (const [code, probs] of answers) {
-    const sum = probs.CO_KHEN + probs.CO_CHE + probs.CO_KE;
-    // toFixed rounds exact ties upwards; Python round uses ties to even. At 9 decimal places a binary-exact
-    // midpoint must be an odd multiple of 1/1024 (10^9 = 2^9 * 5^9). Other values use toFixed's exact rounding.
-    const pYes = Number.isInteger(sum * 1024) && (sum * 1024) % 2 === 1
-      ? 2 * Math.round(sum * 1e9 / 2) / 1e9 : Number(sum.toFixed(9));
-    if (pYes < unclear) continue;
-    let top: keyof typeof POLARITY_BY_OPTION = 'CO_KHEN';
-    for (const option of ['CO_CHE', 'CO_KE'] as const) if (probs[option] > probs[top]) top = option;
-    rows.push({ theme_code: code, p_yes: pYes, polarity: probs[top] >= direction ? POLARITY_BY_OPTION[top] : 'khong_ro_huong', status: pYes >= keep ? 'kept' : 'unclear' });
+    const options = themeOptions(book, themes.get(code)!).filter(o => counted(o.key));
+    const pYes = round9(options.reduce((sum, o) => sum + probs[o.key]!, 0));
+    if (pYes < unclear) {
+      const wait = probs.CHUA_DANHGIA;
+      if (code === book.waitTheme && wait !== undefined && wait >= direction) {
+        rows.push({ theme_code: code, p_yes: round9(wait), polarity: 'khong_ro_huong', status: 'unclear', choice: 'CHUA_DANHGIA' });
+      }
+      continue;
+    }
+    const top = options.reduce((best, o) => probs[o.key]! > probs[best.key]! ? o : best);
+    const directed = probs[top.key]! >= direction;
+    rows.push({ theme_code: code, p_yes: pYes, polarity: directed ? top.polarity! : 'khong_ro_huong', status: pYes >= keep ? 'kept' : 'unclear', choice: directed ? top.key : null });
   }
   return rows;
 }
 
 /** The coding text: db-v1 `text` + each `attributes_json` item as two spaces + item (the CODES and MCP rule). */
 export function codingText(text: string | null, attributesJson: string | null): string {
+  return (text ?? '') + attributeItems(attributesJson).map(item => `  ${item}`).join('');
+}
+
+function attributeItems(attributesJson: string | null): string[] {
   const attributes = attributesJson === null ? [] : JSON.parse(attributesJson) as unknown;
   if (!Array.isArray(attributes) || attributes.some(item => typeof item !== 'string')) throw new Error('RAW_DB_LABELS_INVALID_REVIEW: attributes_json is not a list of strings');
-  return (text ?? '') + (attributes as string[]).map(item => `  ${item}`).join('');
+  return attributes as string[];
 }
 
 /**
@@ -291,14 +327,14 @@ async function labelPass(db: Database.Database, artifacts: ContentAddressedArtif
 
   db.transaction(() => storeCodebook(db, parseCodebook(definitionJson), definitionJson, definitionSha256))();
   const coded = db.prepare('SELECT 1 FROM review_code WHERE review_key=? AND codebook_version=? LIMIT 1');
-  const insert = db.prepare(`INSERT INTO review_code(review_key,codebook_version,theme_code,block_key,polarity,journey_step,status,confidence,coder,text_sha256,coded_at,origin,import_sha256)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,'APP_JEV',?)`);
+  const insert = db.prepare(`INSERT INTO review_code(review_key,codebook_version,theme_code,block_key,polarity,journey_step,status,confidence,coder,text_sha256,coded_at,origin,import_sha256,choice)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,'APP_JEV',?,?)`);
   for (const review of eligible) {
     if (result.called >= cap) break;
     // Never pay twice: another writer may have coded this review since the plan.
     if (coded.get(review.review_key, book.version)) continue;
     const selection = selections.get(review.run_id)!;
-    const request = buildRequest(book, selection, { text: review.coded, platform: review.platform, product_name: review.product_name });
+    const request = buildRequest(book, selection, review);
     const codedAt = new Date().toISOString();
     result.called++;
     const response = await client!.answerRaw(jevQuestions(request));
@@ -313,11 +349,11 @@ async function labelPass(db: Database.Database, artifacts: ContentAddressedArtif
     const textSha256 = sha256(Buffer.from(review.coded, 'utf8'));
     const written = db.transaction(() => {
       if (coded.get(review.review_key, book.version)) return 0;
-      if (!rows.length) return insert.run(review.review_key, book.version, NO_THEME, selection.blockKey, null, null, 'kept', null, client!.model, textSha256, codedAt, importSha256).changes;
+      if (!rows.length) return insert.run(review.review_key, book.version, NO_THEME, selection.blockKey, null, null, 'kept', null, client!.model, textSha256, codedAt, importSha256, null).changes;
       let changes = 0;
       for (const row of rows) {
         changes += insert.run(review.review_key, book.version, row.theme_code, selection.blockKey, row.polarity, STEP_AFTER_PURCHASE, row.status, row.p_yes,
-          client!.model, textSha256, codedAt, importSha256).changes;
+          client!.model, textSha256, codedAt, importSha256, row.choice).changes;
       }
       return changes;
     })();

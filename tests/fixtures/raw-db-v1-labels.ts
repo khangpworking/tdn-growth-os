@@ -10,39 +10,28 @@ import type Database from 'better-sqlite3';
 import { fixture, workspaceId } from '../helpers/autorun-harness.js';
 import { CODES_AT, codesHash, seedCodeReview } from './raw-db-v1-codes.js';
 
-// Golden values come from the actual MCP Python functions, without importing its optional MCP server dependency.
-// Regenerate from the repository root (inputs and raw_response stay fixed):
-// python3 - <<'PY'
-// import ast, hashlib, json, math, re, unicodedata
-// from pathlib import Path
-// src = Path('tools/mcp-insight/insight_tools.py')
-// names = {'_nz','_term_matches','select_block','build_request','_wire_body','_number','parse_answer','label_rows','_CallFailed'}
-// constants = {'JEV_MODEL','OPTION_KEYS','POLARITY_BY_OPTION','STEP_AFTER_PURCHASE'}
-// nodes = [n for n in ast.parse(src.read_text()).body if
-//   isinstance(n,(ast.FunctionDef,ast.ClassDef)) and n.name in names or
-//   isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id in constants for t in n.targets)]
-// ns = dict(json=json,math=math,re=re,unicodedata=unicodedata)
-// exec(compile(ast.Module(body=nodes,type_ignores=[]),str(src),'exec'),ns)
-// bookfile = Path('tools/mcp-insight/data/insight-theme-codebook.json')
-// book = json.loads(bookfile.read_text())
-// out = Path('tests/fixtures/raw-db-v1-labels.golden.json')
-// data = json.loads(out.read_text())
-// for c in data['cases']:
-//   text = c['text'] + ''.join('  '+a for a in c['attributes'])
-//   selection = ns['select_block'](book,[c['keyword']],c.get('category'))
-//   request = ns['build_request'](book,selection,dict(text=text,platform='shopee',product_name=c['product_name']))
-//   c['coding_text'],c['text_sha256'],c['wire'] = text,hashlib.sha256(text.encode()).hexdigest(),ns['_wire_body'](request)
-//   parsed = ns['parse_answer'](book,request,200,c['raw_response'])
-//   c['labels'] = sorted([dict(**r,block_key=selection['blockKey'],step=ns['STEP_AFTER_PURCHASE'])
-//     for r in ns['label_rows'](book,parsed)],key=lambda r:r['theme_code'])
-// data.update(python_source_sha256=hashlib.sha256(src.read_bytes()).hexdigest(),
-//   codebook_sha256=hashlib.sha256(bookfile.read_bytes()).hexdigest(),codebook_version=book['version'],model=ns['JEV_MODEL'])
-// out.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n')
-// PY
+// Golden wire bodies and labels come from the app labeller (codebook 2026-11-04.1; the MCP no longer codes, IM-Q167).
+// The inputs and raw_response stay fixed. Regenerate from the repository root with `node --import tsx <file>.mts`:
+// import fs from 'node:fs';
+// import { buildRequest, codingText, jevQuestions, labelRows, parseAnswer, parseLabelCodebook, selectBlock, STEP_AFTER_PURCHASE } from './src/modules/raw-db/review-labeller.ts';
+// import { sha256 } from './src/modules/raw-db/review-code-loader.ts';
+// import { typesafeJevRequestBody } from './src/platform/ai/typesafe-jev-client.ts';
+// const bookfile = 'tools/mcp-insight/data/insight-theme-codebook.json', out = 'tests/fixtures/raw-db-v1-labels.golden.json';
+// const book = parseLabelCodebook(fs.readFileSync(bookfile, 'utf8')), data = JSON.parse(fs.readFileSync(out, 'utf8'));
+// for (const c of data.cases) {
+//   const attributes = JSON.stringify(c.attributes), selection = selectBlock(book, [c.keyword], c.category ?? null);
+//   const request = buildRequest(book, selection, { text: c.text, attributes_json: attributes, platform: 'shopee', product_name: c.product_name });
+//   c.coding_text = codingText(c.text, attributes); c.text_sha256 = sha256(Buffer.from(c.coding_text));
+//   c.wire = typesafeJevRequestBody(data.model, jevQuestions(request));
+//   c.labels = labelRows(book, parseAnswer(book, request, data.model, 200, Buffer.from(c.raw_response)))
+//     .map(r => ({ ...r, block_key: selection.blockKey, step: STEP_AFTER_PURCHASE })).sort((a, b) => a.theme_code < b.theme_code ? -1 : 1);
+// }
+// Object.assign(data, { source: 'src/modules/raw-db/review-labeller.ts', codebook_sha256: sha256(fs.readFileSync(bookfile)), codebook_version: book.version });
+// fs.writeFileSync(out, JSON.stringify(data, null, 2) + '\n');
 interface GoldenCase {
   id: string; keyword: string; category?: string; text: string; attributes: string[]; product_name: string;
   coding_text: string; text_sha256: string; wire: unknown; raw_response: string;
-  labels: { theme_code: string; p_yes: number; polarity: string; status: string; block_key: string | null; step: string }[];
+  labels: { theme_code: string; p_yes: number; polarity: string; status: string; choice: string | null; block_key: string | null; step: string }[];
 }
 export const labelsGolden = JSON.parse(readFileSync(new URL('./raw-db-v1-labels.golden.json', import.meta.url), 'utf8')) as {
   codebook_version: string; model: string; no_theme_response: string; cases: GoldenCase[];
