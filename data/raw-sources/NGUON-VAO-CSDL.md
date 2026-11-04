@@ -44,7 +44,7 @@ Lượt chạy `3d66fbda`: từ khoá «vitamin c», Market và Insight. Ngườ
 | S06 | 3 lần gọi, 3 sản phẩm (tên lấy từ lần thu của app, `APP_CAPTURE`), 873 đánh giá, `ratingInvalid` 0 |
 | S07 | Không có dữ liệu: bước chọn video (P9) chưa chạy |
 | S02b | 3 lần gọi, 30 video, 30 dòng `video_snapshot` |
-| S14 | Không có dữ liệu: bước P9 chưa có bản đọc video. Có 2 lần gọi đọc video, nhưng chưa thành bản đọc |
+| S14 | Không có dữ liệu: cả 10 video bị bỏ với lỗi `DOCUMENT_INVALID`, nên chưa có bản đọc. Chưa rõ nguyên nhân |
 | S19b | 24 lần gọi, 240 gợi ý |
 | S29 | 1 lần gọi, 15 khối, 10 nguồn dẫn |
 | Gán chủ đề bằng Jev | 247 đánh giá có chữ, 247 lần gọi, 323 dòng `review_code`, 75 `NO_THEME`. Sao của S06: 821 khen (4–5 sao), 52 chê (1–3 sao) |

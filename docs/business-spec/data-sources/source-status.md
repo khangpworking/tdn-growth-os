@@ -2,7 +2,7 @@
 
 > Bản cập nhật 04/11/2026. Bản trước: [bản 25/10/2026](../../outdated/2026-11-04/docs/business-spec/data-sources/source-status.md).
 
-Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 21/10/2026 · đi kèm [Input data sources for 30 sections](../../research/ultimate-method/input-data-sources-30-sections.md)
+Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 04/11/2026 · đi kèm [Input data sources for 30 sections](../../research/ultimate-method/input-data-sources-30-sections.md)
 
 Trang này cho biết mỗi nguồn (mã S) **đang ở trạng thái nào** và **đổi trạng thái khi nào, vì sao**. Trang chỉ để đọc thông tin:
 - không có code nào đọc nhãn ở đây;
@@ -37,40 +37,45 @@ Ngày 21/10/2026, ghi chú được cập nhật theo kết quả kiểm tra ngu
 
 Ngày 22/10/2026, gói sửa nguồn đã gộp và đã triển khai lên máy chủ (bản `2fc699d1`), chi tiết ở mục 2d. Ghi chú S05, S14, S17, S20, S21–S25 cập nhật theo gói này. Nhãn giữ nguyên. Kết quả thật chỉ có sau lượt Market chạy tiếp theo.
 
-Ngày 25/10/2026, có thêm 4 lần triển khai (bản `21f843f1`, `852b5b1f`, `af53534a`, `4f874f44`), chi tiết ở mục 2e. Ghi chú S05, S06, S07, S14, S20 cập nhật; thêm dòng S28. S06 và S28 đổi nhãn sang **Chạy thử**, vì chủ bật hai nguồn này trên máy chủ ngày 25/10/2026. Hai điểm cần nhớ:
-- Từ 20/10/2026 đến nay, máy chủ chưa có lượt chạy thật nào. Các kết quả mới chỉ đến từ lần thử riêng từng nguồn.
-- Máy chủ chưa từng chạy lượt Insight tự động nào: cả 28 lượt đã chạy đều là Market.
+Ngày 25/10/2026, có thêm 4 lần triển khai (bản `21f843f1`, `852b5b1f`, `af53534a`, `4f874f44`), chi tiết ở mục 2e. Ghi chú S05, S06, S07, S14, S20 cập nhật; thêm dòng S28. S06 và S28 đổi nhãn sang **Chạy thử**, vì chủ bật hai nguồn này trên máy chủ ngày 25/10/2026.
+
+Ngày 04/11/2026, ghi chú được cập nhật theo các lượt chạy sau 25/10/2026 (mục 2g). Bảng có thêm S02b, S19b, S29, nhãn **Chạy thử**, theo lời chủ. Hai điểm cần nhớ:
+- Sau 20/10/2026, máy chủ đã mở 20 lượt; 7 lượt ra bản nháp báo cáo.
+- Trong 48 lượt tính đến nay, 8 lượt có Insight; 1 lượt ra bản nháp Insight (canxi, 25/10/2026).
 
 | Mã | Nguồn | Nhãn | Ngày cập nhật | Ghi chú |
 |---|---|---|---|---|
-| S01 | Dữ liệu bán hàng trên sàn | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu |
-| S02 | Dữ liệu video bán hàng TikTok | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt có dữ liệu, khoảng 61 lần gọi trả phí mỗi lượt; hết điểm thì dừng |
+| S01 | Dữ liệu bán hàng trên sàn | Đã duyệt | 04/11/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu. Ngày 04/11 bước thu dừng vì trang nguồn đang ở tiếng Việt; công cụ chỉ đọc nhãn tiếng Anh. Chọn English trong menu thì chạy lại được: 1.621 kết quả «vitamin c» (mục 2g) |
+| S02 | Dữ liệu sản phẩm TikTok Shop | Đã duyệt | 04/11/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu, khoảng 61 lần gọi trả phí mỗi lượt (58 lần ở lượt 04/11); hết điểm thì dừng. Chủ tách số theo từng video sang S02b ngày 03/11 |
+| S02b | Dữ liệu video bán hàng TikTok | Chạy thử | 04/11/2026 | Chủ tách từ S02 ngày 03/11. Chủ duyệt nhãn 04/11. Trong cơ sở dữ liệu app: 60 video (kẽm 30, vitamin c 30). Chưa có báo cáo nào ra với nguồn này |
 | S03 | Dữ liệu xuất nhập khẩu theo doanh nghiệp | Không thu | 08/10/2026 | Chưa có phiên truy cập hợp lệ |
 | S04 | Trang bán sản phẩm | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu |
-| S05 | Review Shopee | Đã duyệt | 25/10/2026 | Dịch vụ Shopee API mới (gói S, #346), tối đa 300 mỗi sản phẩm. 3/3 lượt ngày 20/10 bị chặn, 0 review, do lỗi phía ứng dụng. Đã sửa 2 lần: #365 (triển khai 22/10) và #384 (giờ ghi dạng "+00:00" bị coi là sai; triển khai 25/10). Thử riêng ngày 24/10: 50/50 review đúng sản phẩm, nhưng cả 50 đều 5 sao, vì dịch vụ xếp 5 sao lên trước. Chờ lượt chạy thật. Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
-| S06 | Review TikTok Shop | Chạy thử | 25/10/2026 | Có bộ thu từ #382 (cờ TDN_RESEARCH_TIKTOK_SHOP_REVIEWS_ENABLED). Chủ bật trên máy chủ 25/10. Trả phí: tối đa 3 sản phẩm mỗi lượt Insight, khoảng 0,5 điểm mỗi sản phẩm chưa có sẵn. Thử riêng ngày 24/10: 2 sản phẩm, 452 review, 1 điểm. Chưa có phần báo cáo nào đọc review này: bước mã hoá chỉ chạy cho Shopee (mục 2e) |
-| S07 | Bình luận dưới video TikTok | Đã duyệt | 25/10/2026 | Chủ duyệt 12/10. Đường P9 cũ chỉ là code: app chưa từng tạo bộ thu, chưa có đường gọi bộ thu, và chỉ chủ chọn video được. Ngày 25/10 thêm bộ thu tạm ở gói miễn phí (#398, cờ TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED): 1 lượt mỗi video, 10 bình luận mỗi video, tối đa 5 video, trần 0,05 USD mỗi lượt. Đã triển khai 25/10, cờ đang TẮT. Gói miễn phí chỉ cho khoảng 4 lượt thật mỗi ngày; các lượt sau trả dòng mẫu, không có bình luận. Chưa có lượt Insight nào gọi bộ thu, và Insight chưa đọc nguồn TikTok nào (mục 2e) |
+| S05 | Review Shopee | Đã duyệt | 04/11/2026 | Dịch vụ Shopee API mới (gói S, #346), tối đa 300 mỗi sản phẩm. Trong cơ sở dữ liệu app: 1.152 review của kẽm (lượt 26/10). Lượt vitamin c 04/11 có 411 lần gọi, nhưng chưa vào cơ sở dữ liệu: bộ nạp cần danh sách sản phẩm của S01 để có tên sản phẩm. Thử riêng 24/10: cả 50 review đều 5 sao, vì dịch vụ xếp 5 sao lên trước. Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
+| S06 | Review TikTok Shop | Chạy thử | 04/11/2026 | Có bộ thu từ #382 (cờ TDN_RESEARCH_TIKTOK_SHOP_REVIEWS_ENABLED). Chủ bật trên máy chủ 25/10. Trả phí: tối đa 3 sản phẩm mỗi lượt Insight, khoảng 0,5 điểm mỗi sản phẩm chưa có sẵn. Có dữ liệu ở 4/4 lượt Insight sau 25/10 (mục 2g); 1 lượt chỉ thu được một phần. Trong cơ sở dữ liệu app: 873 review của vitamin c; Jev gán chủ đề cho 247 review có chữ. Chưa có phần báo cáo nào đọc review này |
+| S07 | Bình luận dưới video TikTok | Đã duyệt | 04/11/2026 | Chủ duyệt 12/10. Bộ thu tạm ở gói miễn phí (#398, cờ TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED): 1 lượt mỗi video, 10 bình luận mỗi video, tối đa 5 video. Cờ BẬT từ 04/11; trần phí đặt trên máy chủ là 2 USD mỗi lượt. Gói miễn phí chỉ cho khoảng 4 lượt thật mỗi ngày. Vẫn chưa có lượt nào gọi bộ thu: chỉ chủ chọn video được, nên lượt 04/11 không có dữ liệu S07. Trong cơ sở dữ liệu app: 262 bình luận của kẽm, nạp từ tệp có sẵn. Insight chưa đọc nguồn này |
 | S08 | Bài viết Facebook công khai | Không thu | 08/10/2026 | Chủ tạm ngừng 08/10 |
 | S09 | Instagram | Không thu | 08/10/2026 | Test không đạt: không lấy được nội dung |
 | S10 | X (Twitter) | Đã test | 08/10/2026 | Một phần; chỉ nguồn phụ, phải lọc |
 | S11 | Bình luận YouTube | Không thu | 21/10/2026 | Chủ bỏ nguồn này ngày 17/10/2026 |
 | S12 | Dữ liệu của chính shop chủ | Không thu | 08/10/2026 | Chưa có dữ liệu |
 | S13 | Công thức, bài hướng dẫn dùng sản phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
-| S14 | Nội dung video bán hàng | Chạy thử | 25/10/2026 | Gói P9, đã có checklist. 3/3 lượt ngày 20/10: đọc 2–3 trong 9 video ứng viên, 0 đoạn lên báo cáo. Đã sửa cách chọn video (#367, triển khai 22/10). Ngày 25/10 thêm #395: đọc phụ đề tiếng Việt có sẵn trước, không tải video; không có phụ đề thì xem video như cũ. Thêm danh sách tối đa 5 video bán chạy (cờ TDN_RESEARCH_TOP_SELLING_VIDEOS_ENABLED, trả phí, tối đa 3 sản phẩm mỗi lượt), chủ bật 25/10. Thử riêng: 2/3 video đọc qua phụ đề. Phụ đề là lời người bán, không phải lời khách. Insight Phần 9/13 chưa hiện phần tóm tắt (chờ). Còn lỗi: máy chủ không mở được một số video (định dạng không hỗ trợ). Video dài hơn 180 giây hoặc nặng hơn 14 MB bị bỏ |
-| S15 | Thư viện quảng cáo Meta | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) chưa lần nào ra dữ liệu: 3/3 lượt dừng ở trang đầu, vì trình duyệt trên máy chủ đang đăng nhập Facebook. Đường đọc qua bộ thu bên ngoài, không đăng nhập, đọc được (ST-20261021-04 đến -13): tối đa 150 quảng cáo mỗi lượt; cần lọc ngày, loại hàng và chủ trang. Chưa đưa vào hệ thống; cách xử lý chờ chủ quyết (mục 2c) |
-| S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 21/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; không đăng nhập (cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED). Máy tự đọc chưa lần nào ra dữ liệu: 3/3 lượt dừng, vì trang đòi đăng nhập. Thử bộ thu bên ngoài ngày 21/10 (ST-20261021-14 đến -31): thư viện quảng cáo TikTok chỉ có châu Âu, Việt Nam 0; danh sách quảng cáo nổi bật Việt Nam đọc được, không đăng nhập. 2 bộ tốt nhất: 10/27 và 7/20 là quạt thật, khoảng $0,005 mỗi từ khoá. Không có ngày chạy. Chưa đưa vào hệ thống; hướng đi chờ chủ quyết (mục 2c) |
-| S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 22/10/2026 | Chủ duyệt 17/10 (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED). 3/3 lượt ngày 20/10 chưa có mẫu quảng cáo: 9 lần tra thì 6 lần không tìm được trang web, 2 lần ra nhiều trang, 1 lần có trang web nhưng 0 quảng cáo. Đã sửa ca "nhiều trang" (#366): chọn 1 tên miền mỗi thương hiệu, ưu tiên .vn, lưu lại lựa chọn. Đã triển khai 22/10; chờ lượt chạy thật. Chưa dùng cho phép kiểm 3 của E5 |
+| S14 | Nội dung video bán hàng | Chạy thử | 04/11/2026 | Gói P9, đã có checklist. Đọc phụ đề tiếng Việt có sẵn trước, không có thì xem video (#395). Chủ quyết 03/11: chỉ đọc video chủ chọn và video bán chạy của S02b, tối đa 10 video. Sau 25/10: 5 lượt đọc được 3–6 video (mục 2g). Lượt vitamin c 04/11 đọc 0/10: cả 10 video lỗi DOCUMENT_INVALID, chưa rõ nguyên nhân. Trong cơ sở dữ liệu app: 3 bản đọc, 110 đoạn của kẽm, nạp từ tệp có sẵn. Phụ đề là lời người bán, không phải lời khách. Video dài hơn 180 giây hoặc nặng hơn 14 MB bị bỏ |
+| S15 | Thư viện quảng cáo Meta | Đã duyệt | 04/11/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) vẫn chưa ra dữ liệu: sau 25/10, 5/6 lượt dừng ở trạng thái BLOCKED, 1 lượt không có thương hiệu để đọc (mục 2g). Đường đọc qua bộ thu bên ngoài, không đăng nhập, đọc được (mục 2c). Chưa đưa vào hệ thống; cách xử lý chờ chủ quyết |
+| S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 04/11/2026 | Chủ duyệt bộ máy tự đọc 17/10; không đăng nhập (cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED). Máy tự đọc vẫn chưa ra dữ liệu: sau 25/10, 6/6 lượt dừng vì trang đòi đăng nhập, 0 quảng cáo (mục 2g). Đường đọc qua bộ thu bên ngoài ở mục 2c. Chưa đưa vào hệ thống; hướng đi chờ chủ quyết |
+| S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 04/11/2026 | Chủ duyệt 17/10 (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED). Đã sửa ca "nhiều trang" (#366). Sau 25/10 lần đầu có dữ liệu: 2/6 lượt (quạt điện 1/3 thương hiệu, son môi 2/3). 3 lượt không tìm được trang web của thương hiệu; 1 lượt không có thương hiệu để đọc (mục 2g). Chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
 | S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 21/10/2026 | Chạy trong mọi lượt Market: 3 câu tìm, 9 kết quả mỗi lượt, đúng trần; 3/3 lượt ngày 20/10 có dữ liệu |
-| S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 22/10/2026 | Theo thời gian và theo tỉnh. 2/3 lượt ngày 20/10 bị bỏ qua vì kỳ cũ. Đã sửa (#366): hỏi đúng kỳ báo cáo, bất kỳ ngày nào từ 01/01/2004 đến hôm nay; kỳ sai hoặc ở tương lai bị bỏ qua có lý do, không gọi trả phí; kỳ ngắn ghi rõ "theo ngày". Đã triển khai 22/10. Thử riêng ngày 24/10: chạy được cả theo thời gian và theo tỉnh (4 lần gọi trả phí). Chờ lượt chạy thật |
+| S19b | Gợi ý tìm kiếm Google | Chạy thử | 04/11/2026 | Cờ TDN_RESEARCH_SEARCH_SUGGEST_ENABLED bật từ 04/11. Chủ duyệt nhãn 04/11. Trong cơ sở dữ liệu app: 905 gợi ý (kẽm 665, vitamin c 240). Chưa có báo cáo nào ra với nguồn này |
+| S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 04/11/2026 | Theo thời gian và theo tỉnh. Đã sửa (#366): hỏi đúng kỳ báo cáo. Sau 25/10: 6/6 lượt có dữ liệu, 53 điểm theo thời gian, 35–63 tỉnh (mục 2g) |
 | S21 | Cục Thống kê | Đã duyệt | 22/10/2026 | Chủ duyệt 12/10; bộ thu tự động (cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED) có số ở 2/3 lượt ngày 20/10. Lượt thạch dừa có 0 số, vì bước AI chọn nhóm hàng không ra kết quả và không hỏi lại. Gói sửa (SRC2) tạm gác 21/10, chưa sửa. M05 Bảng 5.4 chỉ là bối cảnh cả nước |
 | S22 | Cục Thống kê theo tỉnh | Đã duyệt | 22/10/2026 | Chủ duyệt 12/10; đọc bảng chỉ số giá theo tỉnh trong cùng file CPI của S21 (cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED, cần cả cờ S21), nên cùng kết quả với S21: 2/3 lượt có số. Gói sửa (SRC2) tạm gác, chưa sửa. M05 Bảng 5.5 chỉ là bối cảnh theo tỉnh |
 | S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 22/10/2026 | Duyệt theo E13; bộ thu (cờ TDN_RESEARCH_WORLD_BANK_ENABLED) có số ở 3/3 lượt ngày 20/10. Một lượt thiếu 1 chỉ số: lần gọi quá giờ, và hệ thống không gọi lại. Gói sửa (SRC2) tạm gác, chưa sửa. Bối cảnh cả nước |
 | S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đã duyệt | 22/10/2026 | Chủ duyệt; bộ thu (cờ TDN_RESEARCH_COMTRADE_ENABLED) có số ở 2/3 lượt ngày 20/10. Một lượt có 0 dòng, vì bước AI xác nhận mã hàng trả lời sai mẫu và không hỏi lại. Gói sửa (SRC2) tạm gác, chưa sửa. M06 là bối cảnh cả nước |
-| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 22/10/2026 | Dùng ở M09 (cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED). 3/3 lượt ngày 20/10 chưa ra trích dẫn: 1 lượt bước tìm lỗi, 1 lượt bộ lọc loại hết, 1 lượt báo cáo dựng trước khi đọc xong tệp. Đã sửa ca cuối (#367): kết quả đọc PDF đã lưu được đưa vào mọi lần dựng lại báo cáo (cả Insight); chờ đọc PDF có một hạn chung. Đã triển khai 22/10; chờ lượt chạy thật. Giới hạn không đổi: tối đa 2 tệp, 60 trang mỗi tệp |
+| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 04/11/2026 | Dùng ở M09 (cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED). Sau 25/10: 2/6 lượt tải được 1 tệp, nhưng 2 lượt đó dừng trước khi có báo cáo. 2 lượt bị bộ lọc loại, 1 lượt lỗi tải, 1 lượt lỗi tìm (mục 2g). Vẫn chưa thấy trích dẫn nào trong báo cáo. Giới hạn không đổi: tối đa 2 tệp, 60 trang mỗi tệp |
 | S26 | Báo chí, tin an toàn thực phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S27 | Bản quét review của bên thứ ba | Không thu | 08/10/2026 | Thiếu số sao và người viết; đã thay bằng S05 |
-| S28 | Dữ liệu dân số mô phỏng (nền so sánh cho chân dung khách) | Chạy thử | 25/10/2026 | Có từ #383 (cờ TDN_RESEARCH_POPULATION_BASELINE_ENABLED và _PATH). Chủ bật trên máy chủ 25/10. Dùng làm nền "toàn dân" trong khối chân dung khách của Insight (I02); không bao giờ ghi tên bộ dữ liệu trong báo cáo. Thử riêng ngày 25/10: tệp nền hợp lệ, khối I02 đúng, 0 lần lộ tên. Chờ lượt Insight thật |
+| S28 | Dữ liệu dân số mô phỏng (nền so sánh cho chân dung khách) | Chạy thử | 04/11/2026 | Có từ #383 (cờ TDN_RESEARCH_POPULATION_BASELINE_ENABLED và _PATH). Chủ bật trên máy chủ 25/10. Dùng làm nền "toàn dân" trong khối chân dung khách của Insight (I02); không bao giờ ghi tên bộ dữ liệu trong báo cáo. Sau 25/10: 4/4 lượt Insight có tệp nền. Báo cáo Insight canxi 25/10 có khối nền, 0 lần lộ tên (mục 2g) |
+| S29 | Google AI Overview (tóm tắt AI trên trang tìm kiếm) | Chạy thử | 04/11/2026 | Cờ TDN_RESEARCH_AI_OVERVIEW_ENABLED bật từ 04/11. Chủ duyệt nhãn 04/11. Trong cơ sở dữ liệu app: 27 khối, 17 nguồn dẫn (kẽm 12 và 7, vitamin c 15 và 10). Chưa có báo cáo nào ra với nguồn này |
 
 ### 2b. Kết quả kiểm tra nguồn ngày 21/10/2026
 
@@ -204,7 +209,7 @@ Cập nhật 04/11/2026. Bảng này nói nguồn nào đã có đường vào c
 
 | Mã | Bảng db-v1 | Migration | Trạng thái vào db-v1 |
 |---|---|---|---|
-| S05 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; gán chủ đề khi đã cấu hình Jev |
+| S05 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; cần danh sách sản phẩm của S01 để có tên sản phẩm; gán chủ đề khi đã cấu hình Jev |
 | S06 | `raw_capture`, `product`, `product_name_source`, `review`, `run_review`; nhãn ở `codebook`, `review_code` | 0063, 0068, 0069, 0071 | Đã có bộ nạp; tự nạp gán chủ đề khi đã cấu hình Jev; CLI nạp riêng cần chạy thêm `LABELS` |
 | S07 | `raw_capture`, `review`, `run_review`, `video` | 0063, 0065, 0071 | Đã có bộ nạp; cần khoá riêng tư |
 | S02b | `raw_capture`, `product`, `product_name_source`, `video`, `video_snapshot` | 0063, 0065, 0066, 0071 | Đã có bộ nạp; cần khoá riêng tư; nạp trước S14 |
@@ -221,6 +226,26 @@ Cập nhật 04/11/2026. Bảng này nói nguồn nào đã có đường vào c
 
 Mỗi lần tự nạp ghi một dòng `raw_db_autoload` (migration 0070), trừ `--dry-run`. Migration 0063 tạo `raw_capture`; mọi nguồn đã có bộ nạp đều ghi vào bảng này. Migration 0071 thêm cột `raw_capture.response_sha256_basis`, bảng `product_name_source` và luật `review.state`.
 
+### 2g. Kết quả các lượt chạy sau 25/10/2026
+
+Cập nhật 04/11/2026. Căn cứ: kết quả bước thu dữ liệu đã lưu của 6 lượt trên máy chủ. Các lượt khác không có bước thu đầy đủ, nên không tính.
+
+| Mã | Canxi 25/10 | Kẽm 26/10 (lần 1) | Kẽm 26/10 (lần 2) | Quạt điện 26/10 | Son môi 26/10 | Vitamin c 04/11 |
+|---|---|---|---|---|---|---|
+| S14 | Đọc 6/10 | Đọc 3/8 | Đọc 3/8 | Đọc 3/8 | Đọc 4/8 | Đọc 0/10 (lỗi `DOCUMENT_INVALID`) |
+| S15 | Dừng (`BLOCKED`) | Dừng | Dừng | Dừng | Dừng | Không có thương hiệu |
+| S16 | Dừng (đòi đăng nhập) | Dừng | Dừng | Dừng | Dừng | Dừng |
+| S17 | Không tìm được trang web | Không tìm được trang web | Không tìm được trang web | Có (1/3 thương hiệu) | Có (2/3 thương hiệu) | Không có thương hiệu |
+| S20 | Có (53 điểm, 63 tỉnh) | Có (53, 35 tỉnh) | Có (53, 38 tỉnh) | Có (53, 63 tỉnh) | Có (53, 61 tỉnh) | Có (53, 63 tỉnh) |
+| S25 | Lỗi tải 2 tệp | Bộ lọc loại | Bộ lọc loại | Tải 1 tệp | Tải 1 tệp | Lỗi tìm |
+| S28 | Có | Không áp dụng (Market) | Không áp dụng (Market) | Có | Có | Có |
+| Bản nháp báo cáo | Market, Insight | Không | Market | Không | Không | Không |
+
+- Lượt vitamin c 04/11: bước thu của S01 dừng vì trang nguồn đang ở tiếng Việt, nên người xác nhận phạm vi bằng tay. Lượt này không có danh sách sản phẩm của S01, nên S15 và S17 không có thương hiệu để đọc.
+- Lượt vitamin c 04/11: S25 lỗi tìm vì gói tìm kiếm miễn phí đã hết lượt. Các nguồn dùng gói này cần lượt mới trước lần chạy tiếp theo.
+- Lượt này dựng báo cáo bị lỗi (`REPORT_RENDER_FAILED`). Lỗi này chưa được kiểm tra.
+- Kết quả nạp vào cơ sở dữ liệu app của lượt này nằm ở [NGUON-VAO-CSDL.md](../../../data/raw-sources/NGUON-VAO-CSDL.md).
+
 ---
 
 ## 3. Nhật ký
@@ -231,6 +256,11 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 04/11/2026 | S02b, S19b, S29 | — (chưa có dòng) → Chạy thử | Đã có dữ liệu thật trong cơ sở dữ liệu app; chưa có báo cáo nào ra với các nguồn này | Chủ (04/11: «add S02b, S19b and S29 as Chạy thử») |
+| 04/11/2026 | S15, S16, S17, S20, S25, S28 | Giữ nhãn | Kiểm lại 6 lượt sau 25/10 (mục 2g). S17 lần đầu có dữ liệu; S20, S28 chạy đều; S15, S16 vẫn chưa ra dữ liệu; S25 vẫn chưa có trích dẫn | Ghi kết quả |
+| 04/11/2026 | S05, S06, S07, S14 | Giữ nhãn | Lượt chạy thử vitamin c: S06 vào cơ sở dữ liệu app; S05 chưa vào vì thiếu tên sản phẩm; S07 không có dữ liệu; S14 đọc 0/10 video | Ghi kết quả |
+| 04/11/2026 | S01 | Giữ nhãn Đã duyệt | Bước thu dừng `METRIC_UI_CHANGED` vì trang nguồn ở tiếng Việt. Chủ chọn English; kiểm tra lại đạt, 1.621 kết quả | Chủ chọn ngôn ngữ; ghi kết quả |
+| 04/11/2026 | S07, S19b, S29 | Bật cờ, giữ nhãn | Bật cờ thu cùng lần triển khai `463ce150` để chạy thử mọi nguồn | Chủ (03/11: cho phép triển khai và chạy thử) |
 | 04/11/2026 | S05, S06, S07, S02b, S14, S19b, S29 | Giữ nhãn | Thêm mục 2f: bảy nguồn đã có bộ nạp vào cơ sở dữ liệu app (db-v1, migration 0063–0071); các nguồn khác chỉ khai báo | Ghi kết quả |
 | 25/10/2026 | S07 | Giữ nhãn Đã duyệt | Bộ thu tạm ở gói miễn phí (#398) đã gộp và đã triển khai (bản `4f874f44`), cờ tắt. Chưa có lượt nào gọi bộ thu; Insight chưa đọc nguồn TikTok (mục 2e) | Chủ (25/10: «merge and deployed it», cờ tắt) |
 | 25/10/2026 | S14 | Giữ nhãn Chạy thử | Phụ đề có sẵn trước, và danh sách video bán chạy tự động (#395), đã triển khai (bản `af53534a`); cờ video bán chạy bật | Chủ (25/10: «deploy af53534a», bật cờ video bán chạy) |
