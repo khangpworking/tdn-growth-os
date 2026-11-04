@@ -20,7 +20,7 @@ afterEach(() => mock.restoreAll());
 const POLICY = '2026-11-04.1';
 const MODEL = 'synthetic-jev-review-filter';
 const count = (db: Database.Database, table: string) => Number(db.prepare(`SELECT count(*) FROM ${table}`).pluck().get());
-const assessments = (db: Database.Database) => {
+const assessments = (db: Database.Database): Record<string, unknown>[] => {
   const rows = db.prepare('SELECT * FROM review_filter_assessment ORDER BY review_key,policy_version').all() as Record<string, unknown>[];
   return rows.map(row => ({ ...row, rating_star: row.rating_star === null ? null : Number(row.rating_star) }));
 };
@@ -335,7 +335,7 @@ test('R-RF08/R-RF09 autoload order and shadow: loaded reviews are filtered befor
   // The real autoloader uses safe integers: the 3n rating must still get its guard.
   f.db.defaultSafeIntegers(true);
   const result = await autoloadRunToDbV1(f.db, f.artifacts, f.runId,
-    { origin: 'APP', privacy: undefined, jev: jev.client, captureRoot: f.capture.captureRoot, reviewFilter: true });
+    { origin: 'APP', privacy: undefined, jev: jev.client, captureRoot: path.join(f.root, 'metric-captures'), reviewFilter: true });
   assert.equal(result.sources.S06.status, 'LOADED');
   assert.equal(result.filtering.status, 'FILTERED');
   if (result.filtering.status !== 'FILTERED') assert.fail('expected filtering receipt');
@@ -355,15 +355,15 @@ test('R-RF08 autoload isolates filter failure and still labels the committed sou
   const jev = fakeJev(wire => Object.hasOwn(wire.questions, 'LOC')
     ? { status: 503, body: 'synthetic unavailable' } : labelReply());
   const result = await autoloadRunToDbV1(f.db, f.artifacts, f.runId,
-    { origin: 'APP', privacy: undefined, jev: jev.client, captureRoot: f.capture.captureRoot, reviewFilter: true });
+    { origin: 'APP', privacy: undefined, jev: jev.client, captureRoot: path.join(f.root, 'metric-captures'), reviewFilter: true });
   assert.equal(result.sources.S06.status, 'LOADED');
-  assert.equal(result.filtering.status, 'FAILED');
   assert.equal(result.labelling.status, 'LABELLED');
   assert.equal(jev.calls.filter(w => Object.hasOwn(w.questions, 'LOC')).length, 1);
   assert.equal(jev.calls.filter(w => !Object.hasOwn(w.questions, 'LOC')).length, 2);
   assert.equal(count(f.db, 'review'), 2);
   assert.equal(count(f.db, 'review_code'), 2);
   assert.equal(count(f.db, 'review_filter_assessment'), 0);
+  assert.equal(result.filtering.status, 'FAILED');
   assert.equal((aResult(aAttempt(f.db), 'filtering') as { status: string }).status, 'FAILED');
 });
 
@@ -371,7 +371,7 @@ test('R-RF08 flag off skips filtering and keeps the legacy labels', async t => {
   const f = await s06Fixture(t, aReviews([5]));
   const jev = fakeJev(() => labelReply());
   const result = await autoloadRunToDbV1(f.db, f.artifacts, f.runId,
-    { origin: 'APP', privacy: undefined, jev: jev.client, captureRoot: f.capture.captureRoot });
+    { origin: 'APP', privacy: undefined, jev: jev.client, captureRoot: path.join(f.root, 'metric-captures') });
   assert.deepEqual(result.filtering, { status: 'SKIPPED_FLAG_OFF' });
   assert.equal(jev.calls.length, 1);
   assert.ok(jev.calls.every(w => !Object.hasOwn(w.questions, 'LOC')));
@@ -386,7 +386,7 @@ test('R-RF08 autoload dry run with the flag on returns PLANNED without calls or 
   f.db.exec('BEGIN');
   try {
     const result = await autoloadRunToDbV1(f.db, f.artifacts, f.runId,
-      { origin: 'CLI', privacy: undefined, jev: jev.client, captureRoot: f.capture.captureRoot, reviewFilter: true, dryRun: true });
+      { origin: 'CLI', privacy: undefined, jev: jev.client, captureRoot: path.join(f.root, 'metric-captures'), reviewFilter: true, dryRun: true });
     assert.equal(result.filtering.status, 'PLANNED');
     if (result.filtering.status !== 'PLANNED') assert.fail('expected plan receipt');
     assert.equal(result.filtering.result.planned, 1);
