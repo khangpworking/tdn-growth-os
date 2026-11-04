@@ -967,7 +967,14 @@ def _app_rows(con, reviews: list[dict], version: str) -> dict:
     `product_review` row with its platform and source review ID; two or more matches leave it unmatched."""
     tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')")}
     out = {"matched": {}, "ambiguous": 0, "stars": {}, "codes": {}, "codebook_sha256": None,
-           "codebook_table": "codebook" in tables}
+           "codebook_required": False}
+    if "codebook" in tables:
+        stored = con.execute("SELECT definition_sha256 FROM codebook WHERE codebook_version = ?", (version,)).fetchone()
+        out["codebook_sha256"] = stored[0] if stored else None
+        out["codebook_required"] = stored is not None
+    if not out["codebook_required"] and "review_code" in tables:
+        out["codebook_required"] = con.execute(
+            "SELECT 1 FROM review_code WHERE codebook_version = ? LIMIT 1", (version,)).fetchone() is not None
     if "review" not in tables:
         return out
     found = {}
@@ -992,9 +999,7 @@ def _app_rows(con, reviews: list[dict], version: str) -> dict:
                     "SELECT review_key, star_sentiment FROM review_star_sentiment "
                     f"WHERE review_key IN ({', '.join('?' * len(chunk))})", chunk):
                 out["stars"][by_key[review_key]] = sentiment or STAR_NONE
-    if "review_code" in tables and "codebook" in tables:
-        stored = con.execute("SELECT definition_sha256 FROM codebook WHERE codebook_version = ?", (version,)).fetchone()
-        out["codebook_sha256"] = stored[0] if stored else None
+    if "review_code" in tables:
         columns = ("review_key", "theme_code", "block_key", "polarity", "journey_step", "status", "confidence",
                    "coder", "text_sha256", "origin")
         for chunk in _chunks(keys):
@@ -1014,7 +1019,7 @@ def _proved_codes(app: dict, reviews: list[dict], version: str) -> tuple[dict, i
     (themes of any origin, NO_THEME of APP_JEV) needs the whole-text proof. One failing row drops all the
     review's rows: the review is uncoded, never NO_THEME. Returns (rows by review, reviews dropped).
     A codebook table without a row and without labels for the version is an uncoded run, not a mismatch (IM-Q175)."""
-    if (app["codes"] or app["codebook_sha256"] is not None) and app["codebook_sha256"] != _codebook_sha():
+    if app["codebook_required"] and app["codebook_sha256"] != _codebook_sha():
         raise InsightError("APP_CODEBOOK_MISMATCH",
                            "the app codebook row of the repo version is missing or has a different definition_sha256")
     by_id = {r["review_id"]: r for r in reviews}

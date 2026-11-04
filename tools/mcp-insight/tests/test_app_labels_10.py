@@ -99,11 +99,13 @@ def test_r_rv07_existing_current_book_with_bad_sha_fails_even_without_labels(app
     error(sandbox.call("build_warehouse"), "APP_CODEBOOK_MISMATCH")
 
 
-def test_r_rv07_current_labels_without_their_codebook_row_still_fail(app_labels_10, sandbox):
+@pytest.mark.parametrize("matched", [True, False], ids=["matched-review", "outside-reviewed-source"])
+def test_r_rv07_current_labels_without_their_codebook_row_still_fail(app_labels_10, sandbox, matched):
     """NC: returning uncoded for every missing book would conceal orphan current-version labels."""
     app = app_labels_10
     row = review(715)
-    app.seed([row])
+    labelled = row if matched else review(717)
+    app.seed([row], app_rows=[row] if matched else [row, labelled])
     # Deliberately incomplete synthetic snapshot. Disable only the fixture's FK
     # enforcement so this trust-boundary input can exist; no app trigger is changed.
     with closing(app.connect()) as db, db:
@@ -111,8 +113,8 @@ def test_r_rv07_current_labels_without_their_codebook_row_still_fail(app_labels_
         db.execute("""INSERT INTO review_code(review_key,codebook_version,theme_code,block_key,polarity,
             journey_step,status,confidence,coder,text_sha256,coded_at,origin,import_sha256)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
-                app_key(row), app.version, "T-GIA", None, "khen", "Sau mua", "kept", 0.94,
-                "synthetic-app-coder", sha(full_text(row)), AT, "MCP_IMPORT", "a" * 64,
+                app_key(labelled), app.version, "T-GIA", None, "khen", "Sau mua", "kept", 0.94,
+                "synthetic-app-coder", sha(full_text(labelled)), AT, "MCP_IMPORT", "a" * 64,
             ))
     error(sandbox.call("build_warehouse"), "APP_CODEBOOK_MISMATCH")
 
@@ -130,3 +132,28 @@ def test_r_rv05_high_confidence_wait_row_is_coded_but_never_counted(app_labels_1
     counts = success(sandbox.call("theme_counts"))
     coverage(counts, 1, 0)
     assert counts["rows"] == []
+
+
+def test_new_codebook_motive_guard_and_removed_theme_refuse_cleanly(app_labels_10, sandbox):
+    """R-I39 stays frozen: a missing T-QUYCACH cannot crash validation or admit an unrelated motive."""
+    app = app_labels_10
+    row = review(718)
+    app.codebook()
+    app.seed([row])
+    for theme in ("T-GIA", "T-TRAINGHIEM"):
+        app.label(row, theme, block=None)
+    success(sandbox.call("build_warehouse"))
+    counts = success(sandbox.call("theme_counts"))["rows"]
+    for theme in ("T-GIA", "T-TRAINGHIEM"):
+        count = next(r for r in counts if r["theme_code"] == theme)
+        value = dict(step="Sau mua", customer="Khách dùng sản phẩm mẫu",
+                     hidden_truth="Chưa đủ bằng chứng", motivation="Khách kể lại cân nhắc; dưới ngưỡng",
+                     conflict="Nhưng còn băn khoăn", insight="Khách cân nhắc lợi ích cùng giới hạn", three_c=None,
+                     evidence=[dict(supports="motivation", layer=None, themes=None, platform="shopee",
+                                    count_id=count["count_id"], part=8, note="dưới ngưỡng")],
+                     confidence=dict(level="Không", hypothesis=True))
+        result = success(sandbox.call("submit_statement", statement=value))
+        assert result["accepted"] is (theme == "T-GIA")
+        assert [reason["code"] for reason in result["reasons"]] == (
+            [] if theme == "T-GIA" else ["MOTIVE_KIND_NOT_KEPT"])
+    error(sandbox.call("code_claims", theme_code="T-QUYCACH", catalogue_version=1, dry_run=True), "INVALID_ARGUMENT")

@@ -245,6 +245,12 @@ test('R-RV06: the new default policy appends an assessment without touching the 
   assert.deepEqual(f.db.prepare("SELECT * FROM review_filter_assessment WHERE policy_version='2026-11-04.1'").get(), before);
   assert.deepEqual(f.db.prepare('SELECT outcome,reason FROM review_filter_assessment WHERE policy_version=?').get(POLICY),
     { outcome: 'UNRESOLVED', reason: 'GUARD_COMPLAINT' });
+  const mixed = f.db.serialize();
+  const retry = await filterReviewsInDbV1(f.db, f.artifacts, jev.client, { runId: f.runId });
+  assert.deepEqual({ called: retry.called, inserted: retry.inserted, failed: retry.failed },
+    { called: 0, inserted: 0, failed: null });
+  assert.equal(jev.calls.length, 1, 'mixed policy versions cannot pay twice for the current policy');
+  assert.deepEqual(f.db.serialize(), mixed);
 });
 
 test('R-RV07: migration 0073 keeps legacy imported and APP_JEV rows, adds nullable choice and preserves both immutability triggers', async t => {
