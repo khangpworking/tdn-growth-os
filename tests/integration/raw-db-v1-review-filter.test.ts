@@ -143,14 +143,14 @@ test('R-RF01/R-RF06 storage enforces keys, probability/nullability checks and im
   assert.deepEqual(assessments(f.db), before);
 });
 
-test('R-RF02/R-RF03 a capped pass selects only scoped product reviews and stores unanswered rows without Jev', async t => {
+test('R-RF02/R-RF03 a capped pass selects only scoped product reviews and stores empty rows without Jev', async t => {
   const f = await labelsFixture(t);
   const content = [
     seedLabelReview(f.db, f.runId, 'scope-a', { rating_star: 5 }),
     seedLabelReview(f.db, f.runId, 'scope-b', { source_code: 'S06', platform: 'tiktok_shop', rating_star: 4 }),
     seedLabelReview(f.db, f.runId, 'scope-c'),
   ];
-  const empty = seedLabelReview(f.db, f.runId, 'scope-empty', { text: '\u200b \t', attributes_json: '["Công dụng: ","Đối tượng sử dụng:"]' });
+  const empty = seedLabelReview(f.db, f.runId, 'scope-empty', { text: '\u200b \t', attributes_json: '[""," ",":"]' });
   seedLabelReview(f.db, 'synthetic-outside-run', 'scope-outside');
   seedLabelReview(f.db, f.runId, 'scope-comment', { source_code: 'S07', platform: 'tiktok', kind: 'video_comment',
     product_key: null, video_url: 'https://example.test/synthetic-video' });
@@ -167,6 +167,19 @@ test('R-RF02/R-RF03 a capped pass selects only scoped product reviews and stores
     response_sha256: noContent.response_sha256, text_sha256: noContent.text_sha256 },
   { reason: 'EMPTY', p_keep: null, p_exclude: null, p_unresolved: null, p_complaint: null,
     model: null, response_sha256: null, text_sha256: codesHash('') });
+});
+
+test('R-RF03 attribute-only prompts and feedback before a colon reach Jev', async t => {
+  const f = await labelsFixture(t);
+  const keys = ['Dùng bị ngứa:', 'Công dụng:'].map((item, i) =>
+    seedLabelReview(f.db, f.runId, `colon-${i}`, { text: '', attributes_json: JSON.stringify([item]) }));
+  const jev = fakeJev();
+  const result = await filterReviewsInDbV1(f.db, f.artifacts, jev.client, { runId: f.runId });
+  assert.deepEqual({ eligible: result.eligible, noContent: result.noContent, called: result.called, inserted: result.inserted },
+    { eligible: 2, noContent: 0, called: 2, inserted: 2 });
+  assert.equal(jev.calls.length, 2);
+  assert.deepEqual(assessments(f.db).map(row => ({ key: row.review_key, outcome: row.outcome })),
+    keys.map(key => ({ key, outcome: 'KEEP' })));
 });
 
 test('R-RF02 rerun: a review shared by runs is called once and the same policy retry writes nothing', async t => {

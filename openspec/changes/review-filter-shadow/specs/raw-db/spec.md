@@ -31,15 +31,19 @@ Một lượt lọc SHALL xét đánh giá Shopee và TikTok Shop có `kind = 'p
 - **THEN** đánh giá được xét lại, dòng cũ giữ nguyên, dòng mới được thêm
 
 ### Requirement: R-RF03 Dòng trống không gọi Jev
-Đánh giá SHALL có kết quả `NO_CONTENT`, lý do `EMPTY`, không gọi Jev, khi lời viết trống và phần khách điền không có câu trả lời. Ký tự trắng và ký tự ẩn SHALL được coi là trống. Câu hỏi có dấu hai chấm mà không có câu trả lời SHALL được coi là không có câu trả lời. Mục không có dấu hai chấm SHALL được coi là câu trả lời.
+Đánh giá SHALL chỉ có kết quả `NO_CONTENT`, lý do `EMPTY`, không gọi Jev, khi lời viết trống và không mục nào trong phần khách điền có ký tự nhìn thấy ngoài dấu hai chấm (`:` hoặc `：`). Ký tự trắng và ký tự ẩn SHALL được coi là trống. Mục có ký tự nhìn thấy khác dấu hai chấm SHALL được coi là có nội dung, kể cả khi nội dung nằm trước dấu hai chấm.
 
 - Loại kiểm: Máy
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: F427: luật miễn phí chỉ tác động đến dòng thật sự trống; không dùng danh sách từ, độ dài hay dòng trùng lời.
+- Vì sao: F427: chỉ bỏ dòng thật sự trống; không dùng danh sách từ, độ dài hay dòng trùng lời. Code không phân biệt được `Công dụng:` với `Dùng bị ngứa:` bằng luật ký tự, nên gửi cả hai cho Jev để giữ phản hồi. Trong 2.025 đánh giá hiện có, 562 có danh sách mục và không mục nào kết thúc bằng dấu hai chấm mà không có phần sau; quyết định này chưa tăng lượt gọi trên dữ liệu hiện có.
 
-#### Scenario: Câu hỏi chưa trả lời
-- **WHEN** lời viết trống và phần khách điền là `["Công dụng: ", "Đối tượng sử dụng:"]`
+#### Scenario: Mục chỉ có ký tự trống hoặc dấu hai chấm
+- **WHEN** lời viết trống và phần khách điền là `["", " ", ":"]`
 - **THEN** kết quả là `NO_CONTENT` và không có lượt gọi Jev
+
+#### Scenario: Nội dung trước dấu hai chấm
+- **WHEN** lời viết trống và phần khách điền là `["Công dụng:"]` hoặc `["Dùng bị ngứa:"]`
+- **THEN** đánh giá được gửi cho Jev
 
 #### Scenario: Lời ngắn không phải dòng trống
 - **WHEN** lời viết là `Đẹp`, `10/10` hoặc `👍`, hoặc phần khách điền là `["nắp bị xước"]`

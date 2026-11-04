@@ -370,7 +370,7 @@ Dòng `NO_CONTENT` có lý do `EMPTY` và không có xác suất, mô hình, `re
 Cách lọc:
 
 1. **Dòng được xét:** đánh giá sản phẩm Shopee, TikTok Shop (`kind = 'product_review'`) của lần chạy được chọn, chưa có dòng của phiên bản luật hiện tại. Đánh giá thuộc nhiều lần chạy được xét một lần.
-2. **Dòng trống:** lời viết trống và phần khách điền không có câu trả lời thì ghi `NO_CONTENT`, không gọi Jev. Ký tự trắng, ký tự ẩn là trống. Mục có dấu hai chấm mà sau dấu không có gì là chưa trả lời. Mục không có dấu hai chấm là câu trả lời.
+2. **Dòng trống:** lời viết trống và không mục nào trong phần khách điền có ký tự nhìn thấy ngoài dấu hai chấm (`:` hoặc `：`) thì ghi `NO_CONTENT`, không gọi Jev. Ký tự trắng, ký tự ẩn là trống. Mục `Công dụng:` hoặc `Dùng bị ngứa:` vẫn có nội dung và được gửi cho Jev, kể cả khi sau dấu hai chấm không có gì.
 3. **Jev:** mỗi đánh giá có nội dung tốn đúng 1 lượt gọi, gồm 2 câu hỏi. `LOC`: `GIU`, `LOAI`, `RIENG`. `CHE`: `CO`, `KHONG`. Jev chỉ thấy tên sản phẩm, lời viết và phần khách điền; không thấy số sao.
 4. **Quyết định:** `LOAI` từ 0,70 trở lên: không có sao → `UNRESOLVED` (`GUARD_NO_STAR`); từ 3 sao trở xuống → `UNRESOLVED` (`GUARD_LOW_STAR`); `CO` từ 0,50 trở lên → `UNRESOLVED` (`GUARD_COMPLAINT`); còn lại → `EXCLUDE`. `LOAI` dưới 0,70: `GIU` lớn nhất hoặc bằng lớn nhất → `KEEP`, còn lại → `UNRESOLVED`.
 5. **Lỗi:** lượt gọi lỗi hoặc câu trả lời sai dạng thì dừng lượt lọc, không ghi dòng cho đánh giá đó, báo mã lỗi (`REVIEW_FILTER_UNAVAILABLE`, `REVIEW_FILTER_INVALID`) và số dòng chưa lọc (`notAssessed`).

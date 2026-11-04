@@ -8,7 +8,7 @@ import { sha256 } from './review-code-loader.js';
  * The db-v1 review filter in shadow mode (owner F424, F427, F429, F430; R-RF01 to R-RF10): one Jev call per product review
  * with content asks whether it is about this product or order (LOC) and whether it complains (CHE); code then decides with
  * the star guards. Rows go to the insert-only `review_filter_assessment`. Nothing else reads that table: counts, labels,
- * reports and the MCP are unchanged.
+ * reports and the MCP are unchanged. Visible attribute content goes to Jev even when it precedes a trailing colon.
  */
 
 /** Only `true` runs the filter pass in the automatic load. */
@@ -45,15 +45,15 @@ const parseJson = (text: string): unknown => { try { return JSON.parse(text); } 
 const isStringList = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === 'string');
 
 /**
- * R-RF03: content = a non-blank text, or an attributes_json item that answers: an item with a colon answers when something
- * follows the first colon; an item without one is an answer. A JSON value of another shape counts as content unless null.
+ * R-RF03: content = a non-blank text, or an attributes_json item with a visible character other than a colon.
+ * Content before a colon counts too. A JSON value of another shape counts as content unless null.
  */
 export function hasReviewContent(text: string | null, attributesJson: string | null): boolean {
   if (text !== null && !blank(text)) return true;
   if (attributesJson === null) return false;
   const attributes = parseJson(attributesJson);
   if (!isStringList(attributes)) return attributes !== null && !blank(attributesJson);
-  return attributes.some(item => { const colon = item.search(/[:：]/); return !blank(colon < 0 ? item : item.slice(colon + 1)); });
+  return attributes.some(item => !blank(item.replace(/[:：]/g, '')));
 }
 
 /** R-RF04: both questions share one state: product name, text and the customer-filled items. No star, platform or group. */

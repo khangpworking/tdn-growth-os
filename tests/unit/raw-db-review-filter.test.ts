@@ -6,7 +6,7 @@ import {
 
 // Independent expected decisions from R-RF05. Negative control: remove the complaint
 // guard; "complaint at exactly 0.50" must fail with EXCLUDE instead of UNRESOLVED.
-// Other area controls: count an unanswered prompt as content -> R-RF03 table;
+// Other area controls: restore the old colon branch -> R-RF03 feedback before the colon;
 // add a star/group field to the state -> R-RF04 exact prompt; accept TRUE -> R-RF08 flag table.
 const decisions = [
   { name: 'missing star guard precedes complaint', keep: 0.05, exclude: 0.90, unresolved: 0.05,
@@ -35,12 +35,15 @@ for (const { name, outcome, reason, ...input } of decisions) {
   });
 }
 
-test('R-RF03 hasReviewContent: only empty text and unanswered attributes are free', () => {
+test('R-RF03 hasReviewContent: visible feedback before a colon is content', () => {
   const cases = [
     { name: 'SQL nulls', text: null, attrs: null, content: false },
     { name: 'whitespace and invisible characters', text: ' \t\r\n\u00a0\u200b\u200c\u200d\u2060\ufeff', attrs: null, content: false },
-    { name: 'unanswered prompts', text: '', attrs: '["Công dụng: ","Đối tượng sử dụng:"]', content: false },
-    { name: 'invisible answer is empty', text: null, attrs: '["Công dụng: \\u200b\\u2060"]', content: false },
+    { name: 'blank items and a colon', text: '', attrs: '[""," ",":"]', content: false },
+    { name: 'invisible items and fullwidth colon', text: null, attrs: '["\\u115f\\u1160\\u2800：\\u3164\\uffa0\\u200b\\u2060"]', content: false },
+    { name: 'Dùng bị ngứa: has visible feedback before the colon', text: '', attrs: '["Dùng bị ngứa:"]', content: true },
+    { name: 'prompt prefixes count as content', text: '', attrs: '["Công dụng: ","Đối tượng sử dụng:"]', content: true },
+    { name: 'visible prefix with invisible suffix', text: null, attrs: '["Công dụng: \\u200b\\u2060"]', content: true },
     { name: 'short word', text: 'Đẹp', attrs: null, content: true },
     { name: 'short score', text: '10/10', attrs: null, content: true },
     { name: 'emoji', text: '👍', attrs: null, content: true },
