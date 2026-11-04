@@ -17,7 +17,7 @@ import { exists, holdLabelsLock, lockPath } from '../fixtures/raw-db-v1-y2.js';
 beforeEach(() => { mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected network'); }); });
 afterEach(() => mock.restoreAll());
 
-const POLICY = '2026-11-04.1';
+const POLICY = '2026-11-04.2';
 const MODEL = 'synthetic-jev-review-filter';
 const count = (db: Database.Database, table: string) => Number(db.prepare(`SELECT count(*) FROM ${table}`).pluck().get());
 const assessments = (db: Database.Database): Record<string, unknown>[] => {
@@ -28,7 +28,7 @@ type Wire = { model: string; state: Record<string, string>; questions: Record<st
 type Reply = { status: number; body: string };
 
 function payload(loc: Record<string, unknown> = { GIU: 0.80, LOAI: 0.10, RIENG: 0.10 },
-  che: Record<string, unknown> = { CO: 0.10, KHONG: 0.90 }) {
+  che: Record<string, unknown> = { CO: 0.10, KHONG: 0.90, RIENG: 0 }) {
   return { model: MODEL, answers: {
     LOC: { type: 'choice', choice: 'GIU', probabilities: loc, confidence: 0.90 },
     CHE: { type: 'choice', choice: 'KHONG', probabilities: che, confidence: 0.90 },
@@ -219,7 +219,7 @@ test('R-RF04/R-RF06 artifact trace binds an EXCLUDE row to exact state, probabil
   const f = await labelsFixture(t);
   const key = seedLabelReview(f.db, f.runId, 'trace', { text: '  Mẫu thử 🧪\r\nCafe\u0301  ',
     attributes_json: '["Vị: dịu","Hộp thử"]', rating_star: 4 });
-  const state = 'Sản phẩm: Synthetic product. Lời viết: Mẫu thử 🧪\r\nCafe\u0301. Phần khách điền: Vị: dịu; Hộp thử';
+  const state = 'Sản phẩm đang được đánh giá: Synthetic product\nLời viết: Mẫu thử 🧪\r\nCafe\u0301\nCác mục khách điền, gồm tên mục và câu trả lời: Vị: dịu; Hộp thử';
   const raw = ' \n' + excludeReply().body + '\n';
   const jev = fakeJev(() => ({ status: 200, body: raw }));
   const result = await filterReviewsInDbV1(f.db, f.artifacts, jev.client, { runId: f.runId });
@@ -265,10 +265,10 @@ test('R-RF07 probability table requires exact choices, finite [0,1] values and t
     { name: 'sum 1.03', loc: { GIU: 0.80, LOAI: 0.13, RIENG: 0.10 }, valid: false },
     { name: 'sum 0.97', loc: { GIU: 0.77, LOAI: 0.10, RIENG: 0.10 }, valid: false },
     { name: 'complaint missing choice', che: { CO: 0.10 }, valid: false },
-    { name: 'complaint bad sum', che: { CO: 0.10, KHONG: 0.93 }, valid: false },
+    { name: 'complaint bad sum', che: { CO: 0.10, KHONG: 0.93, RIENG: 0 }, valid: false },
     { name: 'sum exactly 1.02', loc: { GIU: 0.80, LOAI: 0.12, RIENG: 0.10 }, valid: true },
     { name: 'sum exactly 0.98', loc: { GIU: 0.78, LOAI: 0.10, RIENG: 0.10 }, valid: true },
-    { name: 'complaint sum exactly 1.02', che: { CO: 0.10, KHONG: 0.92 }, valid: true },
+    { name: 'complaint sum exactly 1.02', che: { CO: 0.10, KHONG: 0.92, RIENG: 0 }, valid: true },
     { name: 'non-finite JSON number', raw: JSON.stringify(payload()).replace('"GIU":0.8', '"GIU":1e999'), valid: false },
   ];
   for (const c of cases) {

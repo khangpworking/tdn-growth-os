@@ -82,8 +82,6 @@ THEME_CODE_RE = re.compile(r"^T-[A-Z0-9]+$")
 BLOCK_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 SHOPEE_BASE_ID = re.compile(r"^1__([1-9][0-9]{0,19})__([1-9][0-9]{0,19})$")
 SCOPE_VERSIONS = {"autorun-scope-record-v1", "autorun-scope-record-v2"}
-OPTION_KEYS = ("CO_KHEN", "CO_CHE", "CO_KE", "KHONG_NHAC")
-POLARITY_BY_OPTION = {"CO_KHEN": "khen", "CO_CHE": "che", "CO_KE": "ke"}
 
 # Owner rule F310: these themes are never asked, labelled, counted or shown. Fixed here, not read from
 # the codebook's own `excluded` field, so a codebook cannot bring one back by dropping that field.
@@ -324,7 +322,14 @@ def _snapshot_age(published_at: str) -> dict:
 def _theme_entry_ok(theme) -> bool:
     return (isinstance(theme, dict) and isinstance(theme.get("code"), str) and THEME_CODE_RE.match(theme["code"])
             and all(isinstance(theme.get(k), str) and theme.get(k).strip() for k in ("name", "include"))
-            and isinstance(theme.get("exclude", ""), str))
+            and isinstance(theme.get("exclude", ""), str) and ("options" not in theme or _options_ok(theme["options"])))
+
+
+def _options_ok(options) -> bool:
+    """An answer option list (IM-Q175): non-empty dicts with string key and meaning, holding KHONG_NHAC."""
+    return (isinstance(options, list) and bool(options)
+            and all(isinstance(o, dict) and isinstance(o.get("key"), str) and isinstance(o.get("meaning"), str) for o in options)
+            and any(o["key"] == "KHONG_NHAC" for o in options))
 
 
 def load_codebook(path: Path | None = None) -> dict:
@@ -358,10 +363,8 @@ def load_codebook(path: Path | None = None) -> dict:
         block_codes = codes + [t["code"] for t in block["themes"]]
         if len(set(block_codes)) != len(block_codes):
             raise InsightError("CODEBOOK_INVALID", "a theme code repeats within one block selection")
-    options = book.get("options")
-    if not isinstance(options, list) or [o.get("key") if isinstance(o, dict) else None for o in options] != list(OPTION_KEYS) \
-            or not all(isinstance(o.get("meaning"), str) for o in options):
-        raise InsightError("CODEBOOK_INVALID", "the codebook must have the 4 answer options in order")
+    if not _options_ok(book.get("options")):
+        raise InsightError("CODEBOOK_INVALID", "the codebook answer options are missing or lack KHONG_NHAC")
     thresholds, limits = book.get("thresholds"), book.get("limits")
     if not isinstance(thresholds, dict) or not all(
             isinstance(thresholds.get(k), (int, float)) and not isinstance(thresholds.get(k), bool)
@@ -964,7 +967,14 @@ def _app_rows(con, reviews: list[dict], version: str) -> dict:
     `product_review` row with its platform and source review ID; two or more matches leave it unmatched."""
     tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')")}
     out = {"matched": {}, "ambiguous": 0, "stars": {}, "codes": {}, "codebook_sha256": None,
-           "codebook_table": "codebook" in tables}
+           "codebook_required": False}
+    if "codebook" in tables:
+        stored = con.execute("SELECT definition_sha256 FROM codebook WHERE codebook_version = ?", (version,)).fetchone()
+        out["codebook_sha256"] = stored[0] if stored else None
+        out["codebook_required"] = stored is not None
+    if not out["codebook_required"] and "review_code" in tables:
+        out["codebook_required"] = con.execute(
+            "SELECT 1 FROM review_code WHERE codebook_version = ? LIMIT 1", (version,)).fetchone() is not None
     if "review" not in tables:
         return out
     found = {}
@@ -989,9 +999,7 @@ def _app_rows(con, reviews: list[dict], version: str) -> dict:
                     "SELECT review_key, star_sentiment FROM review_star_sentiment "
                     f"WHERE review_key IN ({', '.join('?' * len(chunk))})", chunk):
                 out["stars"][by_key[review_key]] = sentiment or STAR_NONE
-    if "review_code" in tables and "codebook" in tables:
-        stored = con.execute("SELECT definition_sha256 FROM codebook WHERE codebook_version = ?", (version,)).fetchone()
-        out["codebook_sha256"] = stored[0] if stored else None
+    if "review_code" in tables:
         columns = ("review_key", "theme_code", "block_key", "polarity", "journey_step", "status", "confidence",
                    "coder", "text_sha256", "origin")
         for chunk in _chunks(keys):
@@ -1009,8 +1017,9 @@ def _proved_codes(app: dict, reviews: list[dict], version: str) -> tuple[dict, i
     A NO_THEME row of origin MCP_IMPORT is not text-proven: it means "coded under this version, no theme" and its
     stored hash is the MCP coding-input hash, so it is accepted without the check (IM-Q173). Every other row
     (themes of any origin, NO_THEME of APP_JEV) needs the whole-text proof. One failing row drops all the
-    review's rows: the review is uncoded, never NO_THEME. Returns (rows by review, reviews dropped)."""
-    if (app["codes"] or app["codebook_table"]) and app["codebook_sha256"] != _codebook_sha():
+    review's rows: the review is uncoded, never NO_THEME. Returns (rows by review, reviews dropped).
+    A codebook table without a row and without labels for the version is an uncoded run, not a mismatch (IM-Q175)."""
+    if app["codebook_required"] and app["codebook_sha256"] != _codebook_sha():
         raise InsightError("APP_CODEBOOK_MISMATCH",
                            "the app codebook row of the repo version is missing or has a different definition_sha256")
     by_id = {r["review_id"]: r for r in reviews}

@@ -5,6 +5,7 @@ The production read path is intentionally absent on the authoring baseline.
 """
 
 import json
+import sqlite3
 from contextlib import closing
 
 import pytest
@@ -104,7 +105,10 @@ def test_z2_repo_codebook_identity_is_required(app_labels, sandbox, codebook_sta
     app.seed([review(20)])
     if codebook_state == "different_sha":
         app.codebook(digest="0" * 64)
-        app.label(sandbox.reviews[0])
+    else:
+        # IM-Q175: a missing row is only a mismatch when labels of the version exist; plant one past the foreign key.
+        app.connect = lambda: sqlite3.connect(sandbox.db)
+    app.label(sandbox.reviews[0])
     error(sandbox.call("build_warehouse"), "APP_CODEBOOK_MISMATCH")
 
 

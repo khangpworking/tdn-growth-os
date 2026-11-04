@@ -40,7 +40,7 @@ test('RAWDB-Y2 B2: any existing origin or NO_THEME closes the review/version gro
       const f = await codesFixture(t, { labels: [codesLabel(), codesLabel({ theme_code: 'T-VI' })] });
       f.db.prepare(`INSERT INTO codebook VALUES (?, 'insight-theme-codebook-v1', 'DRAFT', NULL, NULL, ?, ?, ?)`)
         .run(CODES_VERSION, f.codebookText, codesHash(f.codebookText), CODES_AT);
-      f.db.prepare(`INSERT INTO review_code VALUES (?, ?, ?, NULL, ?, ?, 'kept', NULL, ?, ?, ?, ?, ?)`)
+      f.db.prepare(`INSERT INTO review_code VALUES (?, ?, ?, NULL, ?, ?, 'kept', NULL, ?, ?, ?, ?, ?, NULL)`)
         .run('S05:synthetic-codes-a', CODES_VERSION, theme, theme === 'NO_THEME' ? null : 'khen',
           theme === 'NO_THEME' ? null : 'Sau mua', 'synthetic-prior-coder', codesHash('prior evidence'),
           CODES_AT, origin, 'b'.repeat(64));

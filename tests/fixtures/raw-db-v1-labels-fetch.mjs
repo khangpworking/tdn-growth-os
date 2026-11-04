@@ -17,7 +17,7 @@ globalThis.fetch = async (url, init) => {
     calledAt: new Date().toISOString() };
   fs.appendFileSync(config.log, JSON.stringify(call) + '\n');
   const response = config.responses.find(r => r.text !== undefined &&
-    Object.values(call.body.state ?? {}).some(state => state.endsWith('Đánh giá: ' + r.text))) ?? config.responses[ordinal];
+    Object.values(call.body.state ?? {}).some(state => state.includes('\nLời viết: ' + r.text + '\n'))) ?? config.responses[ordinal];
   ordinal++;
   if (!response) throw new Error('unexpected synthetic fetch');
   return new Response(response.raw, { status: response.status ?? 200,

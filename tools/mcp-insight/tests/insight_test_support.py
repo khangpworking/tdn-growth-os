@@ -31,6 +31,8 @@ EXCLUDED_NAMES = {"Giao hàng", "Đóng gói", "Dịch vụ shop, tư vấn"}
 OPTIONS = ("CO_KHEN", "CO_CHE", "CO_KE", "KHONG_NHAC")
 INSIGHT = Path(__file__).resolve().parents[1]
 REPO = INSIGHT.parents[1]
+# The harness plays the old-shape app labeller, so it codes with the 2026-10-30.4 reference copy (IM-Q175 keeps that shape valid).
+REFERENCE_CODEBOOK = INSIGHT / "tests" / "fixtures" / "reference-codebook.json"
 DEFAULT_RUN = object()
 # The app's db-v1 review and label tables (owner F361–F367): the synthetic app DB gets them from the repo migrations.
 APP_V1_MIGRATIONS = sorted((REPO / "migrations").glob("006[3-8]_*.sql"))

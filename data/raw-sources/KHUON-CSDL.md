@@ -22,6 +22,7 @@ Bản 2 · 31/10/2026 · dùng cho mọi bộ dữ liệu theo khuôn tệp gố
 
 - 04/11/2026 (chủ quyết F368, F389): S06 đánh giá TikTok Shop vào `review` (không lưu tên, không tính khoá từ tên hiển thị) và được gán chủ đề như S05. Khi bật `TDN_RAW_DB_AUTOLOAD_ENABLED=true`, app tự nạp cả 7 nguồn db-v1 của một lần chạy (S05, S06, S07, S02b, S14, S19b, S29) rồi gán chủ đề, ngay khi bước thu (`COLLECTION`) của lần chạy xong với `SUCCEEDED` hoặc `PARTIAL`; mỗi lần ghi một dòng `raw_db_autoload` (migration 0070). `raw-db-load --source AUTOLOAD --run <id>` chạy cùng chuỗi bằng tay (§3, §5.0).
 - 04/11/2026 (chủ quyết F424, F427, F429, F430; migration 0072): bộ lọc đánh giá chạy song song. Jev xét mỗi đánh giá sản phẩm Shopee, TikTok Shop có nội dung có nói về sản phẩm hoặc đơn hàng này không, và có lời chê không. Code quyết định cùng số sao. Kết quả vào bảng mới `review_filter_assessment`; cột mới `raw_db_autoload.filtering` ghi kết quả lọc của lần tự nạp. Cờ `TDN_RAW_DB_REVIEW_FILTER_ENABLED` mặc định tắt. **Chế độ chạy song song, chưa ảnh hưởng số đếm:** gán nhãn, số đếm, báo cáo và MCP không đọc bảng mới (§3.5, §5.0).
+- 04/11/2026 (chủ quyết F439 đến F442; migration 0073): bộ chủ đề mới `2026-11-04.1` có 10 nhãn chung, không có khối. Cột mới `review_code.choice` ghi lựa chọn Jev đã chọn. Câu hỏi lọc mới có policy `2026-11-04.2`. Dòng cũ giữ nguyên. Sản phẩm cũ hiện «chưa gán nhãn» cho đến khi chủ cho gán lại (§3.3, §3.5).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -291,6 +292,7 @@ Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, t�
 | coded_at | TEXT | Có | Lúc bắt đầu gán (sớm nhất nếu có nhiều) | `coding_target.started_at` cùng bản và `block_norm` |
 | origin | TEXT | Có | Cách dòng vào: `MCP_IMPORT` (nhập từ kho MCP) hoặc `APP_JEV` (app hỏi Jev, migration 0069) | — |
 | import_sha256 | TEXT | Có | SHA-256 của bằng chứng: tệp kho MCP đã nhập (`MCP_IMPORT`), hoặc nguyên văn phản hồi của Jev (`APP_JEV`), lưu trong kho tệp theo dấu của app | — |
+| choice | TEXT | Không | Lựa chọn đã quyết định `polarity`, ví dụ `KHEN`, `HAI`, `QUA_TANG`; `CHUA_DANHGIA` ở dòng chờ đánh giá (migration 0073). `NULL` với `NO_THEME`, dòng `MCP_IMPORT`, dòng cũ và dòng dưới ngưỡng hướng | — |
 
 **Quy tắc khi nhập (`raw-db-load --source CODES`):**
 
@@ -305,7 +307,8 @@ Không xoá được dòng. Chỉ một thay đổi được phép: duyệt, t�
 
 1. **Khi nào chạy:** ngay sau khi lệnh `raw-db-load --source S05` nạp thật (không `--dry-run`) và giao dịch nạp đã ghi xong, app gán các đánh giá đủ điều kiện của lần chạy đó. Jev tắt hoặc thiếu khoá thì việc nạp vẫn thành công, kết quả ghi `labelling: SKIPPED_JEV_DISABLED`. `--no-label` bỏ qua việc gán. `raw-db-load --source LABELS [--run <id>] [--max-calls N] [--dry-run]` gán phần còn lại hoặc các đánh giá nạp trước đó; `--dry-run` chỉ lập kế hoạch, không gọi mạng, không đổi cơ sở dữ liệu.
 2. **Đủ điều kiện:** đánh giá sản phẩm Shopee hoặc TikTok Shop (`platform` là `shopee` hoặc `tiktok_shop`, `kind = 'product_review'`; chủ quyết F368), lời (`text` rồi mỗi mục `attributes_json` thêm hai dấu cách đứng trước) không trống, và chưa có dòng `review_code` nào của bản bộ chủ đề hiện tại (bất kể `origin`). Không bao giờ gọi Jev cho đánh giá không đủ điều kiện, nên một nhãn không bị trả tiền hai lần.
-3. **Giống MCP:** lời gửi Jev, tên sản phẩm (`product.product_name`), khối (chọn theo từ khoá hoặc danh mục đã áp dụng của lần chạy, đọc từ `scope.json` của lần chạy hoặc từ khoá của lần chạy), câu hỏi, ngưỡng và mã lỗi (`JEV_THEME_UNAVAILABLE`, `JEV_THEME_INVALID`) giống `tools/mcp-insight`. Cùng lời và cùng câu trả lời thì ra cùng nhãn (chủ đề, khối, `p_yes`, `polarity`, `kept`/`unclear`, `Sau mua`).
+3. **Câu hỏi (chủ quyết F439 đến F442, bộ `2026-11-04.1`):** mọi đánh giá được hỏi đúng 10 nhãn: Kết quả sau khi dùng (`T-CONGDUNG`), Phản ứng cơ thể (`T-PHANUNG`), Cảm nhận khi dùng (`T-TRAINGHIEM`), Hoàn thiện, độ bền, lỗi (`T-CHATLUONG`), Vẻ ngoài (`T-THIETKE`), Giá, ưu đãi, quà kèm (`T-GIA`), Khớp ảnh, mô tả, quảng cáo (`T-MOTA`), Tin hay nghi về hàng (`T-NIEMTIN`), Ai dùng, để làm gì (`T-NHUCAU`) và Vì sao chọn, qua đâu (`T-CHONMUA`). Bộ không có khối, nên `block_key` là `NULL`. Jev đọc tên sản phẩm, lời viết và các mục khách điền; không đọc sàn, số sao, nhóm hàng hay bản bộ chủ đề. Mỗi câu có hướng dẫn chung `guide` của tệp. Nhãn có `options` riêng thì dùng lựa chọn đó, nhãn khác dùng `options` chung. Câu trả lời sai lựa chọn thì lỗi `JEV_THEME_INVALID`.
+3a. **Cách tính:** `p_yes` là tổng các lựa chọn trừ `KHONG_NHAC` và `CHUA_DANHGIA`. Dưới ngưỡng `unclear` thì không có nhãn; từ ngưỡng `keep` là `kept`; còn lại là `unclear`. Lựa chọn lớn nhất đạt ngưỡng `direction` cho `polarity` và `choice`; không đạt thì `polarity` là `khong_ro_huong` và `choice` là `NULL`. Riêng `T-CONGDUNG`: lời «chưa dùng, chưa biết» (`CHUA_DANHGIA` đạt ngưỡng `direction`) ghi một dòng `unclear`, `choice` `CHUA_DANHGIA`. Dòng này không được đếm, và đánh giá đó không có thêm dòng `NO_THEME`.
 4. **Ghi dòng:** một đánh giá một lần gọi Jev; các dòng của một đánh giá ghi trong một giao dịch sau khi câu trả lời đã được kiểm. `confidence` = `p_yes`, `text_sha256` = SHA-256 của cả lời đã gửi, `coded_at` = lúc gọi, `block_key` = khối đã chọn. Jev trả lời mà không có chủ đề nào thì ghi một dòng `NO_THEME`. Bộ chủ đề chưa có trong `codebook` thì được thêm (quy tắc như `CODES`).
 5. **Giới hạn và lỗi:** mỗi lượt gán gọi nhiều nhất `limits.maxCallsPerRun` lần (hoặc `--max-calls` nếu nhỏ hơn). Một lần gọi lỗi thì không ghi gì cho đánh giá đó và dừng lượt; các đánh giá đã ghi được giữ. Kết quả: `{ eligible, called, labelled, noTheme, rowsInserted, failed, skipped }`.
 6. **Mỗi lúc một lượt (chủ quyết F376):** lượt `LABELS`, lượt gán sau khi nạp S05 và lượt nhập `CODES` giữ khoá `<thư mục cơ sở dữ liệu>/raw-db-labels.lock.sqlite`: một tệp SQLite riêng được mở và giữ `BEGIN EXCLUSIVE` suốt lượt. Khoá là khoá của hệ điều hành nên tiến trình chết thì khoá tự nhả; tệp khoá không bao giờ bị xoá. Khoá được lấy trước khi chọn đánh giá đủ điều kiện; không giữ giao dịch ghi trên cơ sở dữ liệu app khi chờ Jev. Lượt thứ hai chờ tối đa 10 giây rồi dừng với `LABELS_BUSY`; khi nạp S05 thì việc nạp vẫn thành công và kết quả ghi `labelling: SKIPPED_BUSY`. `--dry-run` không lấy khoá, không gọi mạng.
@@ -352,13 +355,13 @@ Một đánh giá × một phiên bản luật một dòng. Chỉ thêm, không 
 | Cột | Kiểu | Bắt buộc | Nghĩa |
 |---|---|---|---|
 | review_key | TEXT | Có | Đánh giá (`review`). Khoá chính cùng `policy_version` |
-| policy_version | TEXT | Có | Phiên bản luật lọc, hiện là `2026-11-04.1` |
+| policy_version | TEXT | Có | Phiên bản luật lọc, hiện là `2026-11-04.2` (trước đó `2026-11-04.1`; dòng cũ giữ nguyên) |
 | policy_sha256 | TEXT | Có | sha256 của lời dặn và lựa chọn của 2 câu hỏi |
 | run_id | TEXT | Có | Lần chạy đầu tiên có đánh giá này trong lượt lọc |
 | outcome | TEXT | Có | `KEEP`, `EXCLUDE`, `UNRESOLVED`, `NO_CONTENT` |
 | reason | TEXT | Có | `JEV_KEEP`, `JEV_EXCLUDE`, `JEV_UNRESOLVED`, `GUARD_LOW_STAR`, `GUARD_NO_STAR`, `GUARD_COMPLAINT`, `EMPTY` |
 | p_keep, p_exclude, p_unresolved | REAL | Không | Xác suất `GIU`, `LOAI`, `RIENG` của câu `LOC` |
-| p_complaint | REAL | Không | Xác suất `CO` của câu `CHE` |
+| p_complaint | REAL | Không | Xác suất `CO` cộng `RIENG` của câu `CHE` (tối đa 1). Dòng của policy `2026-11-04.1` chỉ có `CO` |
 | rating_star | INTEGER | Không | Số sao lúc lọc. Chỉ dùng để bảo vệ, không gửi cho Jev |
 | model | TEXT | Không | Mô hình Jev |
 | text_sha256 | TEXT | Có | sha256 của đúng nội dung đã gửi; dòng `NO_CONTENT` là sha256 của chuỗi rỗng |
@@ -370,9 +373,9 @@ Dòng `NO_CONTENT` có lý do `EMPTY` và không có xác suất, mô hình, `re
 Cách lọc:
 
 1. **Dòng được xét:** đánh giá sản phẩm Shopee, TikTok Shop (`kind = 'product_review'`) của lần chạy được chọn, chưa có dòng của phiên bản luật hiện tại. Đánh giá thuộc nhiều lần chạy được xét một lần.
-2. **Dòng trống:** lời viết trống và không mục nào trong phần khách điền có ký tự nhìn thấy ngoài dấu hai chấm (`:` hoặc `：`) thì ghi `NO_CONTENT`, không gọi Jev. Ký tự trắng, ký tự ẩn là trống. Mục `Công dụng:` hoặc `Dùng bị ngứa:` vẫn có nội dung và được gửi cho Jev, kể cả khi sau dấu hai chấm không có gì.
-3. **Jev:** mỗi đánh giá có nội dung tốn đúng 1 lượt gọi, gồm 2 câu hỏi. `LOC`: `GIU`, `LOAI`, `RIENG`. `CHE`: `CO`, `KHONG`. Jev chỉ thấy tên sản phẩm, lời viết và phần khách điền; không thấy số sao.
-4. **Quyết định:** `LOAI` từ 0,70 trở lên: không có sao → `UNRESOLVED` (`GUARD_NO_STAR`); từ 3 sao trở xuống → `UNRESOLVED` (`GUARD_LOW_STAR`); `CO` từ 0,50 trở lên → `UNRESOLVED` (`GUARD_COMPLAINT`); còn lại → `EXCLUDE`. `LOAI` dưới 0,70: `GIU` lớn nhất hoặc bằng lớn nhất → `KEEP`, còn lại → `UNRESOLVED`.
+2. **Dòng trống:** lời viết trống (chỉ có ký tự trắng, ký tự ẩn hoặc dấu câu; ký hiệu và emoji vẫn là nội dung) và không mục nào trong phần khách điền có ký tự nhìn thấy ngoài dấu hai chấm (`:` hoặc `：`) thì ghi `NO_CONTENT`, không gọi Jev. Ký tự trắng, ký tự ẩn là trống. Mục `Công dụng:` hoặc `Dùng bị ngứa:` vẫn có nội dung và được gửi cho Jev, kể cả khi sau dấu hai chấm không có gì.
+3. **Jev:** mỗi đánh giá có nội dung tốn đúng 1 lượt gọi, gồm 2 câu hỏi. `LOC`: `GIU`, `LOAI`, `RIENG`. `CHE`: `CO`, `KHONG`, `RIENG`. Jev chỉ thấy tên sản phẩm, lời viết và phần khách điền; không thấy số sao.
+4. **Quyết định:** `LOAI` từ 0,70 trở lên: không có sao → `UNRESOLVED` (`GUARD_NO_STAR`); từ 3 sao trở xuống → `UNRESOLVED` (`GUARD_LOW_STAR`); `CO` cộng `RIENG` từ 0,50 trở lên → `UNRESOLVED` (`GUARD_COMPLAINT`); còn lại → `EXCLUDE`. `LOAI` dưới 0,70: `GIU` lớn nhất hoặc bằng lớn nhất → `KEEP`, còn lại → `UNRESOLVED`.
 5. **Lỗi:** lượt gọi lỗi hoặc câu trả lời sai dạng thì dừng lượt lọc, không ghi dòng cho đánh giá đó, báo mã lỗi (`REVIEW_FILTER_UNAVAILABLE`, `REVIEW_FILTER_INVALID`) và số dòng chưa lọc (`notAssessed`).
 6. **Giới hạn và khoá:** một lượt gọi Jev tối đa 1.500 lần. Lượt thật giữ khoá `raw-db-labels.lock.sqlite` như lượt gán nhãn; khoá bận thì báo `LABELS_BUSY`. `--dry-run` không lấy khoá, không gọi Jev, không ghi gì.
 7. **Lệnh tay:** `raw-db-load --source FILTER [--run <id>] [--max-calls N] [--dry-run]`. Cần `TDN_RESEARCH_JEV_ENABLED=true` và khoá Jev như `LABELS`; thiếu thì báo `RAW_DB_FILTER_JEV_DISABLED`. Lượt thật xong thì chép bản chụp.
@@ -779,6 +782,7 @@ CREATE TABLE review_code (
   coded_at         TEXT NOT NULL,
   origin           TEXT NOT NULL CHECK (origin IN ('MCP_IMPORT','APP_JEV')),
   import_sha256    TEXT NOT NULL,
+  choice           TEXT,  -- migration 0073
   PRIMARY KEY (review_key, codebook_version, theme_code),
   CHECK (CASE WHEN theme_code = 'NO_THEME'
               THEN polarity IS NULL AND journey_step IS NULL AND confidence IS NULL AND status = 'kept'

@@ -208,21 +208,17 @@ def overlap_assertion(data):
 
 def test_im_q73_codebook_and_reference_freeze_the_owner_overlap(p2):
     """NC: independent old-rule and old-version mutations each fail the frozen oracle."""
-    paths = [p2.box.insight / "data/insight-theme-codebook.json",
-             p2.box.insight / "tests/fixtures/reference-codebook.json"]
-    copies = []
-    for path in paths:
-        raw = path.read_bytes()
-        assert b"\r" not in raw
-        data = json.loads(raw)
-        overlap_assertion(data)
-        copies.append(data)
-    assert copies[0] == copies[1]
-    old_rule = copy.deepcopy(copies[0])
+    # IM-Q175: compare the old-shape loader result with the frozen reference, not the new repo file.
+    raw = (p2.box.insight / "tests/fixtures/reference-codebook.json").read_bytes()
+    assert b"\r" not in raw
+    data = p2.box.module.load_codebook()
+    overlap_assertion(data)
+    assert data == json.loads(raw)
+    old_rule = copy.deepcopy(data)
     next(item for item in old_rule["overlaps"] if item["rule"] == OVERLAP)["rule"] = "Bao bì/hộp: no theme (F310)."
     with pytest.raises(AssertionError):
         overlap_assertion(old_rule)
-    old_version = copy.deepcopy(copies[0])
+    old_version = copy.deepcopy(data)
     old_version["version"] = "2026-10-30.3"
     with pytest.raises(AssertionError):
         overlap_assertion(old_version)

@@ -14,24 +14,28 @@ import { sha256 } from './review-code-loader.js';
 /** Only `true` runs the filter pass in the automatic load. */
 export const REVIEW_FILTER_ENV = 'TDN_RAW_DB_REVIEW_FILTER_ENABLED';
 export function reviewFilterEnabled(environment: NodeJS.ProcessEnv): boolean { return environment[REVIEW_FILTER_ENV] === 'true'; }
-export const REVIEW_FILTER_POLICY_VERSION = '2026-11-04.1';
+export const REVIEW_FILTER_POLICY_VERSION = '2026-11-04.2';
 /** F379: the one cap, per pass. */
 export const REVIEW_FILTER_MAX_CALLS = 1500;
 const EXCLUDE_AT = 0.7, COMPLAINT_AT = 0.5, PROBABILITY_SUM_TOLERANCE = 0.02;
 
 const LOC = {
   id: 'LOC',
-  instructions: 'Phân loại đánh giá của người mua theo quan hệ với sản phẩm hoặc đơn hàng này. Tính là liên quan: nội dung nói về sản phẩm, giao hàng, đóng gói, shop hoặc giá; giao sai hàng; quà tặng kèm; combo; so sánh với hàng khác; ghi chú nhận xu đi kèm nội dung khác; lời rất ngắn như Ok, Tốt, Đẹp, 10/10 hoặc emoji, vì đó vẫn là phản hồi của người mua. Không đủ căn cứ thì không chọn LOAI. Không xét thật giả, đúng sai.',
+  instructions: 'Nội dung có liên quan đến sản phẩm hoặc đơn hàng đang được đánh giá không? Đọc cả lời viết và các mục khách điền. Các mục dạng «Tên mục: câu trả lời» có thể nằm ngay trong lời viết; vẫn tính đó là nội dung người mua cung cấp. Chỉ cần có một ý hiểu được và liên quan thì giữ, dù phần khác lạc đề. So sánh, sản phẩm dùng kết hợp và quà kèm có thể liên quan. Phản hồi ngắn, emoji, chưa dùng, chưa biết kết quả hoặc chưa nhận hàng vẫn có thể liên quan. Lời ngắn kiểu khẩu ngữ (tạm, cũng cũng) vẫn là phản hồi. Không xét lời viết thật hay giả. Không loại vì văn phong giống quảng cáo, nhận xu, lặp lời hoặc ngắn. Mô tả đúng sản phẩm vẫn được giữ.',
   criteria: {
-    GIU: 'Nói về sản phẩm hoặc đơn hàng này, hoặc là phản hồi ngắn của người mua',
-    LOAI: 'Rõ ràng không liên quan đến sản phẩm và đơn hàng này: quảng cáo, tin nhắn, đoạn văn chép, đánh giá món hàng khác không liên hệ với đơn hàng, hoặc chữ vô nghĩa',
-    RIENG: 'Không đủ thông tin để quyết định',
+    GIU: 'Có ý liên quan đến sản phẩm hoặc đơn hàng này',
+    LOAI: 'Toàn bộ nội dung rõ ràng không liên quan, hoặc là chữ gõ bừa không đọc ra nghĩa',
+    RIENG: 'Chưa đủ căn cứ phân biệt hai trường hợp trên',
   },
 } as const;
 const CHE = {
   id: 'CHE',
-  instructions: 'Người viết có nói điều gì không hài lòng, lỗi, thiếu, sai, hỏng, chưa thấy hiệu quả, hoặc phàn nàn về sản phẩm, đơn hàng, giao hàng hay shop không?',
-  criteria: { CO: 'Có lời chê hoặc phàn nàn', KHONG: 'Không có lời chê hoặc phàn nàn' },
+  instructions: 'Trong phần liên quan, người viết có nêu nhận xét bất lợi về sản phẩm hoặc đơn hàng này không? Phân biệt sản phẩm hiện tại với sản phẩm khác; tình trạng có sẵn với điều xảy ra khi dùng. Bệnh trạng trước dùng và việc chưa thể đánh giá không tự động là lời chê. Vẫn tính vấn đề đi kèm lời khen.',
+  criteria: {
+    CO: 'Có vấn đề hoặc nhận xét bất lợi được nêu rõ',
+    KHONG: 'Không có nhận xét bất lợi',
+    RIENG: 'Có thể có nhận xét bất lợi nhưng chưa xác định được ý nghĩa hoặc đối tượng',
+  },
 } as const;
 const QUESTIONS = [LOC, CHE] as const;
 
@@ -40,27 +44,30 @@ export function reviewFilterPolicySha256(): string {
 }
 
 // White space, control and format characters (zero-width, BOM) and the blank-looking fillers count as empty.
-const blank = (text: string) => !text.replace(/[\s\p{Cc}\p{Cf}\p{Zs}\u115F\u1160\u2800\u3164\uFFA0]/gu, '');
+const BLANK_RE = /[\s\p{Cc}\p{Cf}\p{Zs}\u115F\u1160\u2800\u3164\uFFA0]/gu;
+const blank = (text: string) => !text.replace(BLANK_RE, '');
 const parseJson = (text: string): unknown => { try { return JSON.parse(text); } catch { return text; } };
 const isStringList = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === 'string');
 
 /**
- * R-RF03: content = a non-blank text, or an attributes_json item with a visible character other than a colon.
+ * R-RF03, R-RV06: content = a text with a character other than blank or punctuation (symbols and emoji count), or an
+ * attributes_json item with a visible character other than a colon.
  * Content before a colon counts too. A JSON value of another shape counts as content unless null.
  */
 export function hasReviewContent(text: string | null, attributesJson: string | null): boolean {
-  if (text !== null && !blank(text)) return true;
+  if (text !== null && text.replace(BLANK_RE, '').replace(/\p{P}/gu, '')) return true;
   if (attributesJson === null) return false;
   const attributes = parseJson(attributesJson);
   if (!isStringList(attributes)) return attributes !== null && !blank(attributesJson);
   return attributes.some(item => !blank(item.replace(/[:：]/g, '')));
 }
 
-/** R-RF04: both questions share one state: product name, text and the customer-filled items. No star, platform or group. */
+/** R-RF04, R-RV06: both questions share one state: product name, text and the customer-filled items. No star, platform or group. */
 export function reviewFilterQuestions(input: { productName: string | null; text: string | null; attributesJson: string | null }): TypesafeJevQuestion[] {
   const parsed = input.attributesJson === null ? null : parseJson(input.attributesJson);
   const attrs = input.attributesJson === null ? '' : isStringList(parsed) ? parsed.join('; ') : input.attributesJson;
-  const state = `Sản phẩm: ${input.productName || 'không rõ'}. Lời viết: ${(input.text ?? '').trim() || '(trống)'}. Phần khách điền: ${attrs || '(trống)'}`;
+  const state = `Sản phẩm đang được đánh giá: ${input.productName || 'không rõ'}\nLời viết: ${(input.text ?? '').trim() || '(trống)'}\n`
+    + `Các mục khách điền, gồm tên mục và câu trả lời: ${attrs || '(trống)'}`;
   return QUESTIONS.map(q => ({ id: q.id, state, instructions: q.instructions, criteria: { ...q.criteria } }));
 }
 
@@ -182,7 +189,7 @@ async function filterPass(db: Database.Database, artifacts: ContentAddressedArti
       break;
     }
     const responseSha256 = (await artifacts!.put(response.body!)).sha256;
-    const p = { keep: answer.LOC.GIU!, exclude: answer.LOC.LOAI!, unresolved: answer.LOC.RIENG!, complaint: answer.CHE.CO! };
+    const p = { keep: answer.LOC.GIU!, exclude: answer.LOC.LOAI!, unresolved: answer.LOC.RIENG!, complaint: Math.min(1, answer.CHE.CO! + answer.CHE.RIENG!) };
     const decision = decideReviewFilter({ ...p, star: star(review.rating_star) });
     done(decision.outcome, insert.run(review.review_key, version, policySha256, review.run_id, decision.outcome, decision.reason, p.keep, p.exclude, p.unresolved,
       p.complaint, star(review.rating_star), client!.model, sha256(Buffer.from(questions[0]!.state as string, 'utf8')), responseSha256, assessedAt).changes);

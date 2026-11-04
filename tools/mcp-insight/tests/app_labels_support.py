@@ -15,7 +15,7 @@ import urllib.parse
 from contextlib import closing, contextmanager
 from pathlib import Path
 
-from insight_test_support import INSIGHT, REPO, RUN, canonical, sha
+from insight_test_support import INSIGHT, REFERENCE_CODEBOOK, REPO, RUN, canonical, sha
 
 
 AT = "2026-11-03T00:00:00Z"
@@ -47,7 +47,7 @@ def full_text(row):
 class AppLabels:
     def __init__(self, box, *, app_jev=False):
         self.box = box
-        self.definition = (INSIGHT / "data" / "insight-theme-codebook.json").read_bytes()
+        self.definition = REFERENCE_CODEBOOK.read_bytes()  # the codebook the module reads in these tests (IM-Q175)
         self.book = json.loads(self.definition)
         self.version = self.book["version"]
         with closing(self.connect()) as db, db:

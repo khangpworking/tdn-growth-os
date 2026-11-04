@@ -48,7 +48,7 @@ test('RAWDB-Y Y1: the real CLI sends MCP golden wire bodies and persists the sam
     const result = await labelCli(f, labelsArgs(f.runId), [{ raw: c.raw_response }]);
     assert.equal(result.calls.length, 1, c.id);
     assert.deepEqual(result.calls[0]!.body, c.wire, `${c.id}: MCP wire includes the complete text and attributes`);
-    assert.deepEqual(f.db.prepare(`SELECT theme_code,confidence AS p_yes,polarity,status,block_key,journey_step AS step
+    assert.deepEqual(f.db.prepare(`SELECT theme_code,confidence AS p_yes,polarity,status,choice,block_key,journey_step AS step
       FROM review_code ORDER BY theme_code`).all(), c.labels, `${c.id}: MCP labels and thresholds`);
   }
 });
@@ -62,7 +62,7 @@ test('RAWDB-Y Y2: APP_JEV rows bind the model, full coding text, call time and e
   const none = seedLabelReview(f.db, f.runId, 'synthetic-z-no-theme', { text: 'Chỉ lời thử nghiệm 🧪', attributes_json: '[]' });
   const before = Date.now();
   const result = await labelCli(f, labelsArgs(f.runId), [
-    { raw: themedRaw, text: c.coding_text },
+    { raw: themedRaw, text: c.text.trim() },
     { raw: noThemeRaw, text: 'Chỉ lời thử nghiệm 🧪' },
   ], 'enabled', model);
   const after = Date.now(), receipt = result.value as LabelReceipt;
@@ -75,13 +75,13 @@ test('RAWDB-Y Y2: APP_JEV rows bind the model, full coding text, call time and e
     review_key: themed, codebook_version: labelsGolden.codebook_version, theme_code: label.theme_code,
     block_key: label.block_key, polarity: label.polarity, journey_step: label.step, status: label.status,
     confidence: label.p_yes, coder: model, text_sha256: c.text_sha256,
-    origin: 'APP_JEV', import_sha256: codesHash(themedRaw),
+    origin: 'APP_JEV', import_sha256: codesHash(themedRaw), choice: label.choice,
   })));
   const { coded_at: noThemeAt, ...noThemeRow } = rows.find(row => row.review_key === none)!;
   assert.deepEqual(noThemeRow, { review_key: none, codebook_version: labelsGolden.codebook_version,
     theme_code: 'NO_THEME', block_key: null, polarity: null, journey_step: null, status: 'kept', confidence: null,
     coder: model, text_sha256: codesHash('Chỉ lời thử nghiệm 🧪'), origin: 'APP_JEV',
-    import_sha256: codesHash(noThemeRaw) });
+    import_sha256: codesHash(noThemeRaw), choice: null });
   assert.equal(typeof noThemeAt, 'string');
   for (const row of rows) {
     const time = Date.parse(String(row.coded_at));
@@ -210,7 +210,7 @@ test('RAWDB-Y Y5: both caps bound calls and failures stop before writing that re
   }
   const malformed = JSON.parse(labelsGolden.cases[0]!.raw_response);
   // Valid earlier theme answers must not leak rows before the final answer is rejected.
-  malformed.answers['T-DEUDUNG'].probabilities.KHONG_NHAC = 2;
+  malformed.answers['T-CHONMUA'].probabilities.KHONG_NHAC = 2;
   for (const failure of [
     { status: 503, raw: '{}', code: 'JEV_THEME_UNAVAILABLE' },
     { status: 200, raw: '{', code: 'JEV_THEME_UNAVAILABLE' },
