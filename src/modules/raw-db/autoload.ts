@@ -129,6 +129,7 @@ async function filter(db: Database.Database, artifacts: ContentAddressedArtifact
   if (!options.dryRun && !options.jev) return { status: 'SKIPPED_JEV_DISABLED' };
   try {
     const result = await filterReviewsInDbV1(db, options.dryRun ? null : artifacts, options.dryRun ? null : options.jev, { runId, dryRun: options.dryRun });
+    if (result.failed) return { status: 'FAILED', error: result.failed.code, message: `review ${result.failed.reviewKey}; ${result.notAssessed} reviews not assessed` };
     return { status: options.dryRun ? 'PLANNED' : 'FILTERED', result };
   } catch (error) {
     if (error instanceof LabelsBusyError) return { status: 'LABELS_BUSY' };

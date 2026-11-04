@@ -14,7 +14,7 @@
 
 ## 2. Kiểm thử (lane Sol, phiên khác người viết mã) và hợp nhất
 
-- [ ] 2.1 Kiểm thử theo R-RF01 đến R-RF10 với Jev giả; có ca đối chứng âm
+- [x] 2.1 Kiểm thử theo R-RF01 đến R-RF10 với Jev giả; có ca đối chứng âm
 - [ ] 2.2 CI Linux xanh tại SHA cuối; Sol 6.1 xhigh rà soát độc lập
 - [ ] 2.3 Merge khi Sol PASS và CI xanh
 
