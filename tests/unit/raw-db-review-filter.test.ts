@@ -57,24 +57,28 @@ test('R-RF04 reviewFilterQuestions: exact LOC/CHE wording, separate evidence fie
   const cases = [
     { input: { productName: 'Sản phẩm giả lập 🧪', text: ' \nNắp thử nghiệm.\r\n ',
       attributesJson: '["Vị: dịu","Hộp thử"]' },
-    state: 'Sản phẩm: Sản phẩm giả lập 🧪. Lời viết: Nắp thử nghiệm.. Phần khách điền: Vị: dịu; Hộp thử' },
+    state: 'Sản phẩm đang được đánh giá: Sản phẩm giả lập 🧪\nLời viết: Nắp thử nghiệm.\nCác mục khách điền, gồm tên mục và câu trả lời: Vị: dịu; Hộp thử' },
     { input: { productName: null, text: null, attributesJson: null },
-      state: 'Sản phẩm: không rõ. Lời viết: (trống). Phần khách điền: (trống)' },
+      state: 'Sản phẩm đang được đánh giá: không rõ\nLời viết: (trống)\nCác mục khách điền, gồm tên mục và câu trả lời: (trống)' },
     { input: { productName: '', text: ' \t ', attributesJson: '{"ghiChu":"mẫu"}' },
-      state: 'Sản phẩm: không rõ. Lời viết: (trống). Phần khách điền: {"ghiChu":"mẫu"}' },
+      state: 'Sản phẩm đang được đánh giá: không rõ\nLời viết: (trống)\nCác mục khách điền, gồm tên mục và câu trả lời: {"ghiChu":"mẫu"}' },
   ];
   for (const { input, state } of cases) {
     assert.deepEqual(reviewFilterQuestions(input), [
       { id: 'LOC', state,
-        instructions: 'Phân loại đánh giá của người mua theo quan hệ với sản phẩm hoặc đơn hàng này. Tính là liên quan: nội dung nói về sản phẩm, giao hàng, đóng gói, shop hoặc giá; giao sai hàng; quà tặng kèm; combo; so sánh với hàng khác; ghi chú nhận xu đi kèm nội dung khác; lời rất ngắn như Ok, Tốt, Đẹp, 10/10 hoặc emoji, vì đó vẫn là phản hồi của người mua. Không đủ căn cứ thì không chọn LOAI. Không xét thật giả, đúng sai.',
+        instructions: 'Nội dung có liên quan đến sản phẩm hoặc đơn hàng đang được đánh giá không? Đọc cả lời viết và các mục khách điền. Các mục dạng «Tên mục: câu trả lời» có thể nằm ngay trong lời viết; vẫn tính đó là nội dung người mua cung cấp. Chỉ cần có một ý hiểu được và liên quan thì giữ, dù phần khác lạc đề. So sánh, sản phẩm dùng kết hợp và quà kèm có thể liên quan. Phản hồi ngắn, emoji, chưa dùng, chưa biết kết quả hoặc chưa nhận hàng vẫn có thể liên quan. Lời ngắn kiểu khẩu ngữ (tạm, cũng cũng) vẫn là phản hồi. Không xét lời viết thật hay giả. Không loại vì văn phong giống quảng cáo, nhận xu, lặp lời hoặc ngắn. Mô tả đúng sản phẩm vẫn được giữ.',
         criteria: {
-          GIU: 'Nói về sản phẩm hoặc đơn hàng này, hoặc là phản hồi ngắn của người mua',
-          LOAI: 'Rõ ràng không liên quan đến sản phẩm và đơn hàng này: quảng cáo, tin nhắn, đoạn văn chép, đánh giá món hàng khác không liên hệ với đơn hàng, hoặc chữ vô nghĩa',
-          RIENG: 'Không đủ thông tin để quyết định',
+          GIU: 'Có ý liên quan đến sản phẩm hoặc đơn hàng này',
+          LOAI: 'Toàn bộ nội dung rõ ràng không liên quan, hoặc là chữ gõ bừa không đọc ra nghĩa',
+          RIENG: 'Chưa đủ căn cứ phân biệt hai trường hợp trên',
         } },
       { id: 'CHE', state,
-        instructions: 'Người viết có nói điều gì không hài lòng, lỗi, thiếu, sai, hỏng, chưa thấy hiệu quả, hoặc phàn nàn về sản phẩm, đơn hàng, giao hàng hay shop không?',
-        criteria: { CO: 'Có lời chê hoặc phàn nàn', KHONG: 'Không có lời chê hoặc phàn nàn' } },
+        instructions: 'Trong phần liên quan, người viết có nêu nhận xét bất lợi về sản phẩm hoặc đơn hàng này không? Phân biệt sản phẩm hiện tại với sản phẩm khác; tình trạng có sẵn với điều xảy ra khi dùng. Bệnh trạng trước dùng và việc chưa thể đánh giá không tự động là lời chê. Vẫn tính vấn đề đi kèm lời khen.',
+        criteria: {
+          CO: 'Có vấn đề hoặc nhận xét bất lợi được nêu rõ',
+          KHONG: 'Không có nhận xét bất lợi',
+          RIENG: 'Có thể có nhận xét bất lợi nhưng chưa xác định được ý nghĩa hoặc đối tượng',
+        } },
     ]);
   }
 });
