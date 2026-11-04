@@ -46,7 +46,7 @@ def test_im_q102_eighteen_ordered_parts_missing_body_and_escaping(coded_p3):
     assert ids.index("part-17") < ids.index("statements") < ids.index("unanswered") < ids.index("part-18")
     assert result["parts"] == dict(written=2, missing=15, stale=0)
     frame = json.loads((p3.box.insight / "data/report-frame.json").read_text())
-    book = json.loads((p3.box.insight / "data/insight-theme-codebook.json").read_text())
+    book = json.loads((p3.box.insight / "tests/fixtures/reference-codebook.json").read_text())  # the module's codebook here (IM-Q175)
     for token in (RUN, frame["version"], frame["status"], book["version"], book["status"]):
         assert token in raw
     plan = p3.call("report_plan")

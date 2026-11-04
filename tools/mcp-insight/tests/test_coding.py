@@ -22,7 +22,7 @@ REFERENCE = Path(__file__).parent / "fixtures" / "reference-codebook.json"
 @pytest.mark.parametrize("missing", ["status", "version"])
 def test_im_q14_versioned_draft_codebook_and_required_metadata(built, codebook, missing):
     """NC: removing either required metadata field is CODEBOOK_INVALID."""
-    path = built.insight / "data" / "insight-theme-codebook.json"
+    path = REFERENCE  # amended by IM-Q175: the repo file moved to 2026-11-04.1; the module reads this copy here
     raw = path.read_bytes()
     expected = json.loads(REFERENCE.read_text())
     actual = json.loads(raw)
@@ -251,7 +251,7 @@ def test_im_q51_packaging_appearance_guidance_label_and_exact_count(subject, san
     assert theme_row(counts, "T-THIETKE", polarity="khen")["reviews"] == 1
     assert len(counts["rows"]) == 2
     # The app labels with the repo codebook (its sha256 is checked at build): the definition is the file's.
-    book = json.loads((sandbox.insight / "data" / "insight-theme-codebook.json").read_text(encoding="utf-8"))
+    book = json.loads(REFERENCE.read_text(encoding="utf-8"))  # the codebook the module reads here (IM-Q175)
     definition = next(t for t in book["core"] if t["code"] == "T-THIETKE")
     assert definition == next(t for t in json.loads(REFERENCE.read_text())["core"] if t["code"] == "T-THIETKE")
     assert "vẻ ngoài của bao bì, hộp, nhãn: đẹp, xấu, bắt mắt, sang (F311)" in definition["include"]

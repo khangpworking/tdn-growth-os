@@ -5,13 +5,13 @@
 
 ## 1. Mã (một người viết mã)
 
-- [ ] 1.1 `tools/mcp-insight/data/insight-theme-codebook.json` đúng tệp đã ghim
-- [ ] 1.2 Migration `0073_raw_db_v1_review_code_choice.sql`
-- [ ] 1.3 `src/modules/raw-db/review-labeller.ts`
-- [ ] 1.4 `src/modules/raw-db/review-filter.ts`
-- [ ] 1.5 `tools/mcp-insight/insight_tools.py`
-- [ ] 1.6 Cập nhật `tools/mcp-insight/CONTRACT.md`, `data/raw-sources/KHUON-CSDL.md`
-- [ ] 1.7 Cập nhật kiểm thử ghim số migration, số cột, bản bộ nhãn và bản policy
+- [x] 1.1 `tools/mcp-insight/data/insight-theme-codebook.json` đúng tệp đã ghim
+- [x] 1.2 Migration `0073_raw_db_v1_review_code_choice.sql`
+- [x] 1.3 `src/modules/raw-db/review-labeller.ts`
+- [x] 1.4 `src/modules/raw-db/review-filter.ts`
+- [x] 1.5 `tools/mcp-insight/insight_tools.py`
+- [x] 1.6 Cập nhật `tools/mcp-insight/CONTRACT.md`, `data/raw-sources/KHUON-CSDL.md`
+- [x] 1.7 Cập nhật kiểm thử ghim số migration, số cột, bản bộ nhãn và bản policy
 
 ## 2. Kiểm thử (một người khác)
 

@@ -208,8 +208,8 @@ def overlap_assertion(data):
 
 def test_im_q73_codebook_and_reference_freeze_the_owner_overlap(p2):
     """NC: independent old-rule and old-version mutations each fail the frozen oracle."""
-    paths = [p2.box.insight / "data/insight-theme-codebook.json",
-             p2.box.insight / "tests/fixtures/reference-codebook.json"]
+    # Amended by IM-Q175: the repo file is 2026-11-04.1, so only the reference copy still freezes this overlap rule.
+    paths = [p2.box.insight / "tests/fixtures/reference-codebook.json"] * 2
     copies = []
     for path in paths:
         raw = path.read_bytes()

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from insight_test_support import AuditGuard, Sandbox, no_leak
+from insight_test_support import REFERENCE_CODEBOOK, AuditGuard, Sandbox, no_leak
 
 
 GUARD = AuditGuard()
@@ -78,6 +78,7 @@ def subject(sandbox, capsys, caplog):
     caplog.set_level(logging.DEBUG)
     try:
         spec.loader.exec_module(module)
+        module.CODEBOOK_PATH = REFERENCE_CODEBOOK  # repo file is 2026-11-04.1 (IM-Q175); the harness codes the old shape
         sandbox.module = module
         yield module
         # Q40's scanner runs at the public boundary for every exercised success
@@ -93,7 +94,7 @@ def subject(sandbox, capsys, caplog):
 @pytest.fixture
 def codebook(subject, sandbox, monkeypatch):
     """Mutations affect a temporary copy, never the repository data file."""
-    path = sandbox.insight / "data" / "insight-theme-codebook.json"
+    path = REFERENCE_CODEBOOK  # the codebook the harness codes with (IM-Q175)
     data = json.loads(path.read_text(encoding="utf-8"))
     target = sandbox.root / "codebook.json"
 
