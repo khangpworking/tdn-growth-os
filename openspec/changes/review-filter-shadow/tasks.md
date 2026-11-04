@@ -20,7 +20,7 @@
 
 ## 3. Sau khi merge (cần chủ duyệt riêng)
 
-- [ ] 3.1 Chủ nói «deploy <SHA>»
-- [ ] 3.2 Chủ duyệt bật cờ và lượt lọc dữ liệu đã có
-- [ ] 3.3 Đo ngưỡng 0,70 trên dòng mới, báo chủ
+- [x] 3.1 Chủ nói «deploy <SHA>»
+- [x] 3.2 Chủ duyệt bật cờ và lượt lọc dữ liệu đã có
+- [x] 3.3 Đo ngưỡng 0,70 trên dòng mới, báo chủ
 - [ ] 3.4 Ghi mã kiểm thật vào «Mã kiểm»
