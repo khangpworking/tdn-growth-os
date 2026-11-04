@@ -1,0 +1,18 @@
+{
+  "LOC": {
+    "instructions": "Nội dung có liên quan đến sản phẩm hoặc đơn hàng đang được đánh giá không? Đọc cả lời viết và các mục khách điền. Các mục dạng «Tên mục: câu trả lời» có thể nằm ngay trong lời viết; vẫn tính đó là nội dung người mua cung cấp. Chỉ cần có một ý hiểu được và liên quan thì giữ, dù phần khác lạc đề. So sánh, sản phẩm dùng kết hợp và quà kèm có thể liên quan. Phản hồi ngắn, emoji, chưa dùng, chưa biết kết quả hoặc chưa nhận hàng vẫn có thể liên quan. Lời ngắn kiểu khẩu ngữ (tạm, cũng cũng) vẫn là phản hồi. Không xét lời viết thật hay giả. Không loại vì văn phong giống quảng cáo, nhận xu, lặp lời hoặc ngắn. Mô tả đúng sản phẩm vẫn được giữ.",
+    "criteria": {
+      "GIU": "Có ý liên quan đến sản phẩm hoặc đơn hàng này",
+      "LOAI": "Toàn bộ nội dung rõ ràng không liên quan, hoặc là chữ gõ bừa không đọc ra nghĩa",
+      "RIENG": "Chưa đủ căn cứ phân biệt hai trường hợp trên"
+    }
+  },
+  "CHE": {
+    "instructions": "Trong phần liên quan, người viết có nêu nhận xét bất lợi về sản phẩm hoặc đơn hàng này không? Phân biệt sản phẩm hiện tại với sản phẩm khác; tình trạng có sẵn với điều xảy ra khi dùng. Bệnh trạng trước dùng và việc chưa thể đánh giá không tự động là lời chê. Vẫn tính vấn đề đi kèm lời khen.",
+    "criteria": {
+      "CO": "Có vấn đề hoặc nhận xét bất lợi được nêu rõ",
+      "KHONG": "Không có nhận xét bất lợi",
+      "RIENG": "Có thể có nhận xét bất lợi nhưng chưa xác định được ý nghĩa hoặc đối tượng"
+    }
+  }
+}
