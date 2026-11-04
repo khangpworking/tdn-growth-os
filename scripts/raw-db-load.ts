@@ -11,6 +11,7 @@ import { loadTikTokShopReviewsToDbV1 } from '../src/modules/raw-db/tiktok-shop-r
 import { autoloadRunToDbV1 } from '../src/modules/raw-db/autoload.js';
 import { loadReviewCodesToDbV1 } from '../src/modules/raw-db/review-code-loader.js';
 import { labelReviewsInDbV1 } from '../src/modules/raw-db/review-labeller.js';
+import { filterReviewsInDbV1, reviewFilterEnabled } from '../src/modules/raw-db/review-filter.js';
 import { LabelsBusyError } from '../src/modules/raw-db/labels-lock.js';
 import { defaultSnapshotDir, publishAppDbSnapshot, tryPublishAppDbSnapshot } from '../src/modules/raw-db/app-db-snapshot.js';
 import { TypesafeJevClient, typesafeJevConfigurationFromEnvironment } from '../src/platform/ai/typesafe-jev-client.js';
@@ -33,10 +34,15 @@ import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '
 // A real S05 load, LABELS pass or CODES import then publishes <db dir>/app-db-snapshot/app-db.snapshot.sqlite for the
 // Insight MCP (result field snapshot; a failed publish is reported there and never fails the load).
 // raw-db-load --source SNAPSHOT [--db <path>] publishes that snapshot by hand.
+// raw-db-load --source FILTER [--run <runId>] [--max-calls N] [--db <path>] [--artifacts <dir>] [--dry-run]
+// runs the shadow review filter (review_filter_assessment; read by nothing else) over product reviews, Shopee and TikTok Shop
+// (one run, or all): one Jev call per review with content, at most 1500 per pass. Jev and the lock as LABELS; a real pass
+// then publishes the snapshot. --dry-run prints the counts only (no network, no write).
 // raw-db-load --source AUTOLOAD --run <runId> [--privacy-file <abs path>] [--captures <dir>] [--codebook <json>] [--db <path>] [--artifacts <dir>] [--dry-run]
 // runs the app's automatic sequence by hand (old runs, retries): S05, S06, S07, S02b, S14, S19b, S29 (each only when the run
 // has it), then Jev labelling of the run's product reviews, one raw_db_autoload row, then the snapshot. A missing privacy key
 // skips only S07, S02b and S14 (SKIPPED_NO_PRIVACY_KEY); Jev disabled → labelling SKIPPED_JEV_DISABLED. --dry-run records nothing.
+// The shadow review filter runs before labelling only when TDN_RAW_DB_REVIEW_FILTER_ENABLED=true (else filtering SKIPPED_FLAG_OFF).
 // --db defaults to TDN_WORKSPACE_DB, else runtime/tdn-growth-os.sqlite; --artifacts defaults to TDN_ARTIFACT_ROOT.
 let options;
 try {
@@ -47,7 +53,7 @@ try {
   process.exit(2);
 }
 const source = options.source;
-if (source !== 'SNAPSHOT' && source !== 'LABELS' && source !== 'CODES' && source !== 'AUTOLOAD' && source !== 'S02b' && source !== 'S05' && source !== 'S06' && source !== 'S07' && source !== 'S14' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
+if (source !== 'SNAPSHOT' && source !== 'FILTER' && source !== 'LABELS' && source !== 'CODES' && source !== 'AUTOLOAD' && source !== 'S02b' && source !== 'S05' && source !== 'S06' && source !== 'S07' && source !== 'S14' && source !== 'S19b' && source !== 'S29') { console.error(`source not supported yet: ${source ?? '(none)'}`); process.exit(2); }
 const snapshotOnly = source === 'SNAPSHOT';
 if (snapshotOnly && Object.entries(options).some(([name, value]) => name !== 'source' && name !== 'db' && value !== undefined && value !== false)) {
   console.error('SNAPSHOT takes only --db'); process.exit(2);
@@ -55,14 +61,17 @@ if (snapshotOnly && Object.entries(options).some(([name, value]) => name !== 'so
 const codes = source === 'CODES';
 const labels = source === 'LABELS';
 const autoload = source === 'AUTOLOAD';
+const filter = source === 'FILTER';
 const labelSource = labels || source === 'S05';
 if (options.captures && !labelSource && !autoload) { console.error('--captures is only for LABELS, S05 and AUTOLOAD'); process.exit(2); }
-if (options['max-calls'] !== undefined && !labelSource) { console.error('--max-calls is only for LABELS and S05'); process.exit(2); }
+if (options['max-calls'] !== undefined && !labelSource && !filter) { console.error('--max-calls is only for LABELS, FILTER and S05'); process.exit(2); }
 if (options['no-label'] && source !== 'S05') { console.error('--no-label is only for S05'); process.exit(2); }
 const maxCalls = options['max-calls'] === undefined ? undefined : Number(options['max-calls']);
 if (maxCalls !== undefined && !(Number.isInteger(maxCalls) && maxCalls >= 1)) { console.error('--max-calls must be a positive integer'); process.exit(2); }
 if (snapshotOnly) { /* checked above */ } else if (labels) {
   if (options.file || options['mcp-run'] || options.coder) { console.error('--file, --mcp-run and --coder are not used by LABELS'); process.exit(2); }
+} else if (filter) {
+  if (options.file || options['mcp-run'] || options.coder || options.codebook || options['privacy-file']) { console.error('--file, --mcp-run, --coder, --codebook and --privacy-file are not used by FILTER'); process.exit(2); }
 } else if (autoload) {
   if (!options.run) { console.error('--run <runId> is required'); process.exit(2); }
   if (options.file || options['mcp-run'] || options.coder) { console.error('--file, --mcp-run and --coder are not used by AUTOLOAD'); process.exit(2); }
@@ -73,7 +82,7 @@ if (snapshotOnly) { /* checked above */ } else if (labels) {
 else if (!options.run) { console.error('--run <runId> is required'); process.exit(2); }
 if (options.file && (source === 'S05' || source === 'S06')) { console.error(`--file is not supported for ${source}`); process.exit(2); }
 const artifactRoot = options.artifacts ?? process.env.TDN_ARTIFACT_ROOT;
-if (!artifactRoot && !options.file && !codes && !snapshotOnly && !(labels && options['dry-run'])) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
+if (!artifactRoot && !options.file && !codes && !snapshotOnly && !((labels || filter) && options['dry-run'])) { console.error('--artifacts <dir> or TDN_ARTIFACT_ROOT is required'); process.exit(2); }
 const keyed = source === 'S02b' || source === 'S07' || source === 'S14';
 if (options['privacy-file'] && !keyed && !autoload) { console.error('--privacy-file is only for S02b, S07, S14 and AUTOLOAD'); process.exit(2); }
 // S02b, S07, S14: the writer key is required before any input is read; the salt stays inside the privacy closure and is never printed.
@@ -112,7 +121,9 @@ try {
     if (options['dry-run']) db.exec('BEGIN');
     try {
       const result = autoload ? await autoloadRunToDbV1(db, artifacts, options.run!, { origin: 'CLI', privacy: autoloadPrivacy,
-          jev: options['dry-run'] ? null : jevClient(false), captureRoot, codebookFile: options.codebook && path.resolve(options.codebook), dryRun: options['dry-run'] })
+          jev: options['dry-run'] ? null : jevClient(false), captureRoot, codebookFile: options.codebook && path.resolve(options.codebook), dryRun: options['dry-run'],
+          reviewFilter: reviewFilterEnabled(process.env) })
+        : filter ? await filterReviewsInDbV1(db, artifacts, options['dry-run'] ? null : jevClient(false), { runId: options.run, maxCalls, dryRun: options['dry-run'] })
         : labels ? await labelReviewsInDbV1(db, artifacts, options['dry-run'] ? null : jevClient(true),
           { runId: options.run, maxCalls, dryRun: options['dry-run'], codebookFile: options.codebook && path.resolve(options.codebook), captureRoot })
         : codes ? await loadReviewCodesToDbV1(db, { mcpRunFile: path.resolve(options['mcp-run']!), codebookFile: path.resolve(options.codebook!), coder: options.coder!,
@@ -133,7 +144,7 @@ try {
           catch (error) { labelling = error instanceof LabelsBusyError ? 'SKIPPED_BUSY' : { error: error instanceof Error ? error.message : String(error) }; }
         }
         console.log(JSON.stringify({ ...result, labelling, snapshot: await publishSnapshot(db, dbPath) }));
-      } else if ((labels || codes || autoload) && !options['dry-run']) console.log(JSON.stringify({ ...result, snapshot: await publishSnapshot(db, dbPath) }));
+      } else if ((labels || filter || codes || autoload) && !options['dry-run']) console.log(JSON.stringify({ ...result, snapshot: await publishSnapshot(db, dbPath) }));
       else console.log(JSON.stringify(result));
     } finally {
       if (options['dry-run']) db.exec('ROLLBACK');

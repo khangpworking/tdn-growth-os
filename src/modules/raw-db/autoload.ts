@@ -9,6 +9,7 @@ import { defaultSnapshotDir, tryPublishAppDbSnapshot } from './app-db-snapshot.j
 import { assertRun, loadAiOverviewToDbV1, loadSearchSuggestionsToDbV1 } from './google-search-loader.js';
 import { loadKalodataVideosToDbV1 } from './kalodata-video-loader.js';
 import { LabelsBusyError } from './labels-lock.js';
+import { filterReviewsInDbV1, type ReviewFilterResult } from './review-filter.js';
 import { labelReviewsInDbV1 } from './review-labeller.js';
 import { loadShopeeReviewsToDbV1 } from './shopee-reviews-loader.js';
 import { loadTikTokCommentsToDbV1, type TikTokCommentsLoadPrivacy } from './tiktok-comments-loader.js';
@@ -40,11 +41,18 @@ export type AutoloadLabellingResult =
   | { status: 'SKIPPED_JEV_DISABLED' }
   | { status: 'LABELS_BUSY' }
   | { status: 'FAILED'; error: string; message: string };
+export type AutoloadFilteringResult =
+  | { status: 'FILTERED' | 'PLANNED'; result: ReviewFilterResult }
+  | { status: 'SKIPPED_FLAG_OFF' }
+  | { status: 'SKIPPED_JEV_DISABLED' }
+  | { status: 'LABELS_BUSY' }
+  | { status: 'FAILED'; error: string; message: string };
 export interface AutoloadResult {
   /** The raw_db_autoload row; null on a dry run (nothing is recorded). */
   attemptId: number | null;
   runId: string; origin: 'APP' | 'CLI'; startedAt: string; finishedAt: string;
   sources: Record<AutoloadSource, AutoloadSourceResult>;
+  filtering: AutoloadFilteringResult;
   labelling: AutoloadLabellingResult;
 }
 export interface AutoloadOptions {
@@ -56,6 +64,8 @@ export interface AutoloadOptions {
   /** Root of the stored `<runId>/scope.json` records (labelling block choice). */
   captureRoot: string;
   codebookFile?: string | undefined;
+  /** The shadow review filter (TDN_RAW_DB_REVIEW_FILTER_ENABLED): runs after the loads, before labelling. */
+  reviewFilter?: boolean | undefined;
   /** Plan only: loads run inside the caller's rolled-back transaction, labelling plans without Jev, no row is recorded. */
   dryRun?: boolean | undefined;
   now?: () => Date;
@@ -63,7 +73,7 @@ export interface AutoloadOptions {
 
 /**
  * Loads one research run's stored data into db-v1 in the fixed order S05, S06, S07, S02b, S14, S19b, S29 (each only when
- * the run has that source), then labels the run's eligible product reviews (S05, S06) with Jev, and records the attempt
+ * the run has that source), then runs the shadow review filter when options.reviewFilter is on, then labels the run's eligible product reviews (S05, S06) with Jev, and records the attempt
  * as one insert-only `raw_db_autoload` row. Uses the existing run loaders (stored captures only, no file). One source
  * failing never stops the next; a missing privacy key skips only S07, S02b and S14. Throws only when the run does not
  * exist or the row cannot be written; never touches the run, its steps or its reports.
@@ -74,16 +84,17 @@ export async function autoloadRunToDbV1(db: Database.Database, artifacts: Conten
   const startedAt = now().toISOString();
   const sources = {} as Record<AutoloadSource, AutoloadSourceResult>;
   for (const source of AUTOLOAD_SOURCES) sources[source] = await loadSource(db, artifacts, runId, source, options);
+  const filtering = await filter(db, artifacts, runId, options);
   const labelling = await label(db, artifacts, runId, options);
   const finishedAt = now().toISOString();
   let attemptId: number | null = null;
   if (!options.dryRun) {
     const json = (value: unknown) => JSON.stringify(value);
-    attemptId = Number(db.prepare(`INSERT INTO raw_db_autoload(run_id,origin,started_at,finished_at,s05,s06,s07,s02b,s14,s19b,s29,labelling)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(runId, options.origin, startedAt, finishedAt, json(sources.S05), json(sources.S06), json(sources.S07),
-      json(sources.S02b), json(sources.S14), json(sources.S19b), json(sources.S29), json(labelling)).lastInsertRowid);
+    attemptId = Number(db.prepare(`INSERT INTO raw_db_autoload(run_id,origin,started_at,finished_at,s05,s06,s07,s02b,s14,s19b,s29,labelling,filtering)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(runId, options.origin, startedAt, finishedAt, json(sources.S05), json(sources.S06), json(sources.S07),
+      json(sources.S02b), json(sources.S14), json(sources.S19b), json(sources.S29), json(labelling), json(filtering)).lastInsertRowid);
   }
-  return { attemptId, runId, origin: options.origin, startedAt, finishedAt, sources, labelling };
+  return { attemptId, runId, origin: options.origin, startedAt, finishedAt, sources, filtering, labelling };
 }
 
 async function loadSource(db: Database.Database, artifacts: ContentAddressedArtifactStore, runId: string, source: AutoloadSource,
@@ -109,6 +120,19 @@ async function loadSource(db: Database.Database, artifacts: ContentAddressedArti
     const failed = failure(error);
     // A loader that finds nothing of its own to read (for example captures without a stored S14 reading) is a skip.
     return failed.error === 'RAW_DB_RUN_NOT_FOUND' ? { status: 'SKIPPED_NO_CAPTURES' } : { status: 'FAILED', ...failed };
+  }
+}
+
+/** The shadow filter pass of the run; a failure or a busy lock never stops labelling. */
+async function filter(db: Database.Database, artifacts: ContentAddressedArtifactStore, runId: string, options: AutoloadOptions): Promise<AutoloadFilteringResult> {
+  if (!options.reviewFilter) return { status: 'SKIPPED_FLAG_OFF' };
+  if (!options.dryRun && !options.jev) return { status: 'SKIPPED_JEV_DISABLED' };
+  try {
+    const result = await filterReviewsInDbV1(db, options.dryRun ? null : artifacts, options.dryRun ? null : options.jev, { runId, dryRun: options.dryRun });
+    return { status: options.dryRun ? 'PLANNED' : 'FILTERED', result };
+  } catch (error) {
+    if (error instanceof LabelsBusyError) return { status: 'LABELS_BUSY' };
+    return { status: 'FAILED', ...failure(error) };
   }
 }
 
@@ -147,6 +171,8 @@ export interface RawDbAutoloaderOptions {
   privacyFile?: string | undefined;
   /** The app's Jev configuration when enabled. */
   jev?: TypesafeJevConfiguration | undefined;
+  /** reviewFilterEnabled(process.env): runs the shadow review filter in each attempt. */
+  reviewFilter?: boolean | undefined;
   /** Called with every attempt result or failure; for logs. Never sees a key. */
   onResult?: (outcome: { runId: string; result?: AutoloadResult; error?: string }) => void;
 }
@@ -186,7 +212,8 @@ export class RawDbAutoloader {
       }
       let jev: TypesafeJevClient | null = null;
       try { if (this.#options.jev?.enabled) jev = new TypesafeJevClient(this.#options.jev); } catch { jev = null; }
-      const result = await autoloadRunToDbV1(db, artifacts, runId, { origin: 'APP', privacy, jev, captureRoot: this.#options.captureRoot });
+      const result = await autoloadRunToDbV1(db, artifacts, runId, { origin: 'APP', privacy, jev, captureRoot: this.#options.captureRoot,
+        reviewFilter: this.#options.reviewFilter });
       await tryPublishAppDbSnapshot(db, defaultSnapshotDir(this.#options.databasePath));
       this.#report({ runId, result });
     } catch (error) {

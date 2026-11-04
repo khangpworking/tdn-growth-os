@@ -25,6 +25,7 @@ import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from '.
 import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
 import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
 import { RawDbAutoloader, rawDbAutoloadEnabled } from '../modules/raw-db/autoload.js';
+import { reviewFilterEnabled } from '../modules/raw-db/review-filter.js';
 import { startAppDbSnapshotTimer } from '../modules/raw-db/app-db-snapshot.js';
 import { assertKalodataReplayNotProduction, kalodataReplaySourceRunIdFromEnvironment, KalodataReplayRefusedError, KALODATA_REPLAY_REFUSED } from '../modules/analysis/research-automation/kalodata-replay.js';
 import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
@@ -315,7 +316,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   // Only the OWNER executor loads db-v1 after a run's collection; it runs beside the worker on its own connection.
   const autoloader = configuration.ownerWritesEnabled && configuration.rawDbAutoload ? new RawDbAutoloader({
     databasePath, artifactRoot: configuration.artifactRoot, captureRoot: configuration.rawDbAutoload.captureRoot,
-    privacyFile: configuration.rawDbAutoload.privacyFile, jev: configuration.researchJev,
+    privacyFile: configuration.rawDbAutoload.privacyFile, jev: configuration.researchJev, reviewFilter: reviewFilterEnabled(process.env),
   }) : undefined;
   let stopSnapshotTimer: (() => void) | undefined;
   try {
