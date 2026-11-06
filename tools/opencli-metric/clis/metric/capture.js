@@ -108,9 +108,10 @@ const OMIT = Symbol('omit');
 const IDENTITY_KEY = /^(?:user|username|email|phone|account|nickname|avatar|uid|userid|profile|userinfo|loggedinuser|owner|ownername|ownerid|shopowner|loggedinshop|accountshop)$/;
 const FORBIDDEN_KEY = /authorization|cookie|token|secret|password|credential|session/i;
 const INLINE_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
-const JWT_TOKEN = /^[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
+const JWT_TOKEN = /^eyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
+const INLINE_JWT = /\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
+const WHOLE_URL = /^(?:https?:)?\/\/\S+$/i;
 const HEX_TOKEN = /^[a-f0-9]{32,}$/i;
-const PHONE_OR_SAFE_NUMBER = /((?:\+|%2B)84(?:[ .-]|%20)*\d[\d .-]{7,}\d|84(?:%20)+\d[\d .-]{7,}\d|1[89]00[ .-]+\d(?:[ .-]*\d){3,5})|%[0-9a-f]{2}|\\u[0-9a-f]{4}|\d+(?:__\d+)+|(?:19|20)\d{2}[-.](?:0[1-9]|1[0-2])[-.](?:0[1-9]|[12]\d|3[01])(?!\d)|(?!840\d{9}(?!\d))\d{12,}|(?!0|84)\d+|((?:84|0)\d[\d .-]{7,}\d)/gi;
 const BASE64_TOKEN = /^(?:[A-Za-z0-9+/]{40,}={0,2})$/;
 const IDENTITY_RESPONSE_PATH = /\/(?:users|profile|paid)(?:\/|$)/i;
 const IDENTITY_HTML_MARKER = /account|avatar|profile|user(?:[-_: ]?(?:info|profile|menu|widget))/i;
@@ -149,15 +150,19 @@ function identityValuesFromHtml(html) {
   return [...new Set(values)].sort((left, right) => right.length - left.length);
 }
 
-function sanitizeText(value, identityValues = []) {
-  let output = String(value)
-    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
-    .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_TOKEN]')
+function maskOpaqueTokens(text) {
+  return text
     .replace(/\b[a-f0-9]{32,}\b/gi, '[REDACTED_TOKEN]')
-    .replace(/\b[A-Za-z0-9+/]{40,}={0,2}\b/g, '[REDACTED_TOKEN]')
+    .replace(/\b[A-Za-z0-9+/]{40,}={0,2}\b/g, '[REDACTED_TOKEN]');
+}
+
+function sanitizeText(value, identityValues = []) {
+  const source = String(value);
+  const text = source.replace(INLINE_TOKEN, '[REDACTED_TOKEN]').replace(INLINE_JWT, '[REDACTED_TOKEN]');
+  const urlPathEnd = WHOLE_URL.test(source) ? text.search(/[?#]|$/) : 0;
+  let output = (text.slice(0, urlPathEnd) + maskOpaqueTokens(text.slice(urlPathEnd)))
     .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
-    .replace(PHONE_OR_SAFE_NUMBER, (match, early, plain) => (early || plain ? '[REDACTED_PHONE]' : match));
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]');
   for (const identity of identityValues) {
     const escaped = String(identity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (escaped) output = output.replace(new RegExp(escaped, 'gi'), '[REDACTED_IDENTITY]');
@@ -213,7 +218,7 @@ function sanitizeHtmlTag(token, identityValues = []) {
       return ` ${name}=${quote}${sanitizeText(value, identityValues)}${quote}`;
     })
     .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
-    .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_TOKEN]');
+    .replace(INLINE_JWT, '[REDACTED_TOKEN]');
 }
 
 export function sanitizeResultsHtml(html, providedIdentityValues = []) {
