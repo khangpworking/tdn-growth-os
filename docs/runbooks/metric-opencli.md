@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`1b89f17a2f10d29b37047e98ca3402d45e8eca47b802e638400b322840ae95c8`.
+`947ee825aa9a172cb9c5e11bc4fbb5e677dd62a730a0130c4cca1deea49eb74c`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -338,7 +338,7 @@ drops the change marker; the full displayed text stays in the snapshot. The
 product variant price range `a₫ - b₫` gives `minPrice` its low end. Captures
 made before v11 keep those cells empty.
 
-Adapter manifest SHA-256: `1b89f17a2f10d29b37047e98ca3402d45e8eca47b802e638400b322840ae95c8`.
+Adapter manifest SHA-256: `947ee825aa9a172cb9c5e11bc4fbb5e677dd62a730a0130c4cca1deea49eb74c`.
 
 ## M3 step 2 — explicit colleague preset
 

@@ -111,6 +111,7 @@ const INLINE_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const JWT_TOKEN = /^eyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
 const INLINE_JWT = /\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 const WHOLE_URL = /^(?:https?:)?\/\/\S+$/i;
+const URL_PATH_LOGIN_MARKER = /[;/](?:j?session(?:[_-]?id)?|sid|token|auth)[=/]/i;
 const HEX_TOKEN = /^[a-f0-9]{32,}$/i;
 const BASE64_TOKEN = /^(?:[A-Za-z0-9+/]{40,}={0,2})$/;
 const IDENTITY_RESPONSE_PATH = /\/(?:users|profile|paid)(?:\/|$)/i;
@@ -159,7 +160,8 @@ function maskOpaqueTokens(text) {
 function sanitizeText(value, identityValues = []) {
   const source = String(value);
   const text = source.replace(INLINE_TOKEN, '[REDACTED_TOKEN]').replace(INLINE_JWT, '[REDACTED_TOKEN]');
-  const urlPathEnd = WHOLE_URL.test(source) ? text.search(/[?#]|$/) : 0;
+  const urlPath = WHOLE_URL.test(source) ? text.slice(0, text.search(/[?#]|$/)) : '';
+  const urlPathEnd = URL_PATH_LOGIN_MARKER.test(urlPath) ? 0 : urlPath.length;
   let output = (text.slice(0, urlPathEnd) + maskOpaqueTokens(text.slice(urlPathEnd)))
     .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]');
