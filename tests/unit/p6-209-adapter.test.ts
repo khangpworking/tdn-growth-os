@@ -258,6 +258,80 @@ test('archive sanitization removes identity and token-like values from every sav
   assert.match(html, /Revenue 8/);
 });
 
+test('phone mask contract masks phone text in network response bodies', async t => {
+  const { sanitizeNetworkResponses } = await import(captureUrl.href);
+  for (const [name, examples] of [
+    ['mobile', [['0912345678', '[REDACTED_PHONE]']]],
+    ['mobile with separators', [
+      ['0912 345 678', '[REDACTED_PHONE]'],
+      ['0912.345.678', '[REDACTED_PHONE]'],
+      ['0912-345-678', '[REDACTED_PHONE]'],
+    ]],
+    ['country code', [
+      ['+84912345678', '[REDACTED_PHONE]'],
+      ['84912345678', '[REDACTED_PHONE]'],
+      ['+84 912 345 678', '[REDACTED_PHONE]'],
+    ]],
+    ['landline, 11 digits', [
+      ['028 3812 3456', '[REDACTED_PHONE]'],
+      ['02838123456', '[REDACTED_PHONE]'],
+    ]],
+    ['phone next to text', [
+      ['Hotline:0912345678', 'Hotline:[REDACTED_PHONE]'],
+      ['(0912345678)', '([REDACTED_PHONE])'],
+      ['sdt0912345678', 'sdt[REDACTED_PHONE]'],
+    ]],
+    ['two phones, both masked', [['0912345678 0987654321', '[REDACTED_PHONE] [REDACTED_PHONE]']]],
+  ] as const) {
+    await t.test(name, () => {
+      for (const [input, expected] of examples) {
+        const clean = sanitizeNetworkResponses([{ body: { text: input } }]);
+        assert.equal(clean[0].body.text, expected, input);
+      }
+    });
+  }
+});
+
+test('phone mask contract preserves IDs, dates and short numbers in network response bodies', async t => {
+  const { sanitizeNetworkResponses } = await import(captureUrl.href);
+  for (const [name, inputs] of [
+    ['0 inside a Shopee item ID', ['1__40123456789__1234567890']],
+    ['84 at the start of a shop ID', ['1__28123456789__84123456789']],
+    ['84 at the start of an item ID', ['1__84123456789__1234567890']],
+    ['long TikTok-style IDs', ['2__7512034567890123456__7512034567890123457']],
+    ['long digit run, no separator', ['7512034567890123456']],
+    ['timestamps', ['2026-08-01 12:52:29', '2026-08-01T12:52:29.000Z']],
+    ['two dates', ['2026-10-04 2026-11-02']],
+    ['too short for 84 plus 9 digits', ['8412345678']],
+  ] as const) {
+    await t.test(name, () => {
+      for (const input of inputs) {
+        const clean = sanitizeNetworkResponses([{ body: { text: input } }]);
+        assert.equal(clean[0].body.text, input, input);
+      }
+    });
+  }
+});
+
+test('phone mask contract also masks a debug object string field', async () => {
+  const { sanitizeDebugObject } = await import(captureUrl.href);
+  assert.deepEqual(sanitizeDebugObject({ text: '0912345678' }), { text: '[REDACTED_PHONE]' });
+});
+
+test('phone mask contract keeps a sanitized product row eligible for the app ID shape', async () => {
+  const { sanitizeNetworkResponses } = await import(captureUrl.href);
+  const product = {
+    product_base_id: '1__40123456789__1234567890',
+    platform_created_at: '2026-08-01 12:52:29',
+    text: 'Hotline:0912345678',
+  };
+  const clean = sanitizeNetworkResponses([{ body: { data: { products: [product] } } }])[0].body.data.products[0];
+  assert.equal(clean.product_base_id, product.product_base_id);
+  assert.equal(clean.platform_created_at, product.platform_created_at);
+  assert.equal(clean.text, 'Hotline:[REDACTED_PHONE]');
+  assert.match(clean.product_base_id, /^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$/);
+});
+
 test('search submit inspection is scoped to the form and ignores the sidebar Analytics link', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
