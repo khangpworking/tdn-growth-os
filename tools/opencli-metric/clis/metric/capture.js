@@ -110,6 +110,7 @@ const FORBIDDEN_KEY = /authorization|cookie|token|secret|password|credential|ses
 const INLINE_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const JWT_TOKEN = /^[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
 const HEX_TOKEN = /^[a-f0-9]{32,}$/i;
+const PHONE_OR_SAFE_NUMBER = /%[0-9a-f]{2}|\\u[0-9a-f]{4}|\d+(?:__\d+)+|(?:19|20)\d{2}[-.](?:0[1-9]|1[0-2])[-.](?:0[1-9]|[12]\d|3[01])(?!\d)|(?!840\d{9}(?!\d))\d{12,}|(?!0|84)\d+|((?:\+84[ .-]*|84|0)\d[\d .-]{7,}\d)/gi;
 const BASE64_TOKEN = /^(?:[A-Za-z0-9+/]{40,}={0,2})$/;
 const IDENTITY_RESPONSE_PATH = /\/(?:users|profile|paid)(?:\/|$)/i;
 const IDENTITY_HTML_MARKER = /account|avatar|profile|user(?:[-_: ]?(?:info|profile|menu|widget))/i;
@@ -156,7 +157,7 @@ function sanitizeText(value, identityValues = []) {
     .replace(/\b[A-Za-z0-9+/]{40,}={0,2}\b/g, '[REDACTED_TOKEN]')
     .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
-    .replace(/(?<!\d)(?<!\d__)(?<!\d{4}[-.]\d{2}[-.])(?:\+84[ .-]{0,3}|84|0)\d(?:[ .-]{0,3}\d){8,9}(?!\d)(?!__\d)/g, '[REDACTED_PHONE]');
+    .replace(PHONE_OR_SAFE_NUMBER, (match, phone) => (phone ? '[REDACTED_PHONE]' : match));
   for (const identity of identityValues) {
     const escaped = String(identity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (escaped) output = output.replace(new RegExp(escaped, 'gi'), '[REDACTED_IDENTITY]');
