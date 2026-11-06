@@ -248,9 +248,10 @@ test('collectResults keeps the overview combined and does not switch result tabs
 test('archive sanitization removes identity and token-like values from every saved file', async () => {
   const { sanitizeNetworkResponses, sanitizeResultsHtml } = await import(captureUrl.href);
   const sensitive = await load('metric-sensitive-archive');
+  sensitive.responses[0].body.jwtValue = 'eyJsynthetichead.syntheticpayload.syntheticsignature';
   const clean = sanitizeNetworkResponses(sensitive.responses);
   const serialized = JSON.stringify(clean);
-  for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'https://example.test/avatar.png', 'synthetic-user-id', 'Synthetic shop owner', 'synthetic-secret-token', 'synthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
+  for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'https://example.test/avatar.png', 'synthetic-user-id', 'Synthetic shop owner', 'synthetic-secret-token', 'eyJsynthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
   assert.match(JSON.stringify(clean), /"business"/);
   const html = sanitizeResultsHtml('<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main data-state="identity-state"><div data-metric-region="overview">Revenue 8</div></main></body></html>');
   assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|account-area/i);
@@ -258,99 +259,77 @@ test('archive sanitization removes identity and token-like values from every sav
   assert.match(html, /Revenue 8/);
 });
 
-test('phone mask contract masks phone text in network response bodies', async t => {
-  const { sanitizeNetworkResponses } = await import(captureUrl.href);
-  for (const [name, examples] of [
-    ['mobile', [['0912345678', '[REDACTED_PHONE]']]],
-    ['mobile with separators', [
-      ['0912 345 678', '[REDACTED_PHONE]'],
-      ['0912.345.678', '[REDACTED_PHONE]'],
-      ['0912-345-678', '[REDACTED_PHONE]'],
-    ]],
-    ['country code', [
-      ['+84912345678', '[REDACTED_PHONE]'],
-      ['84912345678', '[REDACTED_PHONE]'],
-      ['+84 912 345 678', '[REDACTED_PHONE]'],
-    ]],
-    ['landline, 11 digits', [
-      ['028 3812 3456', '[REDACTED_PHONE]'],
-      ['02838123456', '[REDACTED_PHONE]'],
-    ]],
-    ['phone next to text', [
-      ['Hotline:0912345678', 'Hotline:[REDACTED_PHONE]'],
-      ['(0912345678)', '([REDACTED_PHONE])'],
-      ['sdt0912345678', 'sdt[REDACTED_PHONE]'],
-    ]],
-    ['two phones, both masked', [['0912345678 0987654321', '[REDACTED_PHONE]']]],
-    ['mobile with repeated spaces', [['0912  345 678', '[REDACTED_PHONE]']]],
-    ['country code with repeated spaces', [['+84912  345 678', '[REDACTED_PHONE]']]],
-    ['landline with mixed separators', [['028 - 3812 - 3456', '[REDACTED_PHONE]']]],
-    ['phone after an underscore', [['sdt_0912345678', 'sdt_[REDACTED_PHONE]']]],
-    ['phone after a URL underscore', [['https://example.test/call_0912345678', 'https://example.test/call_[REDACTED_PHONE]']]],
-    ['phone after a date', [['2026-11-02-0912345678', '2026-11-02-[REDACTED_PHONE]']]],
-    ['mobile with four spaces', [['0912    345 678', '[REDACTED_PHONE]']]],
-    ['phone after a percent-encoded space', [['https://example.test/?q=%200912345678', 'https://example.test/?q=%20[REDACTED_PHONE]']]],
-    ['country code after a percent-encoded plus', [['https://example.test/?q=%2B84912345678', 'https://example.test/?q=%2B[REDACTED_PHONE]']]],
-    ['phone after backslash-u text', [['\\u00200912345678', '\\u0020[REDACTED_PHONE]']]],
-    ['mobile with dotted groups', [['0912.34.56.78', '[REDACTED_PHONE]']]],
-    ['country code before a leading zero', [['840912345678', '[REDACTED_PHONE]']]],
-    ['phone after a short number', [['12-0912345678', '12-[REDACTED_PHONE]']]],
-  ] as const) {
-    await t.test(name, () => {
-      for (const [input, expected] of examples) {
-        const clean = sanitizeNetworkResponses([{ body: { text: input } }]);
-        assert.equal(clean[0].body.text, expected, input);
-      }
-    });
-  }
-});
-
-test('phone mask contract preserves IDs, dates and short numbers in network response bodies', async t => {
-  const { sanitizeNetworkResponses } = await import(captureUrl.href);
-  for (const [name, inputs] of [
-    ['0 inside a Shopee item ID', ['1__40123456789__1234567890']],
-    ['84 at the start of a shop ID', ['1__28123456789__84123456789']],
-    ['84 at the start of an item ID', ['1__84123456789__1234567890']],
-    ['long TikTok-style IDs', ['2__7512034567890123456__7512034567890123457']],
-    ['long digit run, no separator', ['7512034567890123456']],
-    ['timestamps', ['2026-08-01 12:52:29', '2026-08-01T12:52:29.000Z']],
-    ['two dates', ['2026-10-04 2026-11-02']],
-    ['too short for 84 plus 9 digits', ['8412345678']],
-    ['money or a count as a string', ['84.123.456.789']],
-    ['IDs in a URL path', ['https://shopee.example/product/1234567890/40123456789']],
+test('public Metric data contract stays byte-identical', async t => {
+  const { sanitizeNetworkResponses, sanitizeResultsHtml, sanitizeDebugObject } = await import(captureUrl.href);
+  for (const [name, boundary, inputs] of [
+    ['IDs', 'network', ['1__40123456789__1234567890', '2__7512034567890123456__7512034567890123457']],
+    ['timestamps', 'network', ['2026-08-01 12:52:29', '2026-08-01T12:52:29.000Z']],
+    ['product URL', 'network', ['https://shopee.example/Vien-uong-kem-tong-hop-i.1234567890.12345678901?sp_atk=abc']],
+    ['image URL', 'network', ['https://cf.shopee.example/file/0123456789abcdef0123456789abcdef']],
+    ['image URL with a short signature', 'network', ['https://img.example/tos-x/0123456789abcdef0123456789abcdef~tplv-crop.webp?dr=1&t=5&shp=01234567']],
+    ['long path', 'network', ['https://shop.example/path/AAAAAAAAAAAAAAAAAAAAAAAAAAAA/BBBBBBBBBBBBBBBBBBBBBBBB/1']],
+    ['public text with numbers', 'network', ['Nha thuoc 0912345678', 'Điện thoại: 0912.345.678', 'Hop 12345678901234567']],
+    ['SVG numbers', 'html', ['<path d="M 0912345678 0"></path>']],
+    ['HTML link', 'html', ['<a href="https://shopee.example/Vien-uong-kem-tong-hop-i.1234567890.12345678901">']],
   ] as const) {
     await t.test(name, () => {
       for (const input of inputs) {
-        const clean = sanitizeNetworkResponses([{ body: { text: input } }]);
-        assert.equal(clean[0].body.text, input, input);
+        if (boundary === 'html') assert.equal(sanitizeResultsHtml(input), input);
+        else assert.equal(sanitizeNetworkResponses([{ body: { text: input } }])[0].body.text, input);
       }
+      if (name === 'IDs') assert.deepEqual(sanitizeDebugObject({ text: [...inputs] }), { text: [...inputs] });
     });
   }
 });
 
-test('phone mask contract masks phone text and preserves a product ID in HTML', async () => {
-  const { sanitizeResultsHtml } = await import(captureUrl.href);
-  const clean = sanitizeResultsHtml('<p>0912345678</p><p>1__40123456789__1234567890</p>');
-  assert.equal(clean, '<p>[REDACTED_PHONE]</p><p>1__40123456789__1234567890</p>');
+test('login and session contract removes sensitive values', async t => {
+  const { sanitizeNetworkResponses, sanitizeResultsHtml } = await import(captureUrl.href);
+  const jwt = 'eyJsynthetichead.syntheticpayload.syntheticsignature';
+  const hash = '0123456789abcdef'.repeat(4);
+  const metadata = { urlPath: '/synthetic', responseOrder: 0, status: null };
+  for (const [name, input, expected] of [
+    ['identity and session keys', { body: {
+      authorization: 'Bearer abc123', cookie: 'abc123', token: 'abc123', session: 'abc123', password: 'abc123',
+      user: 'someone', email: 'someone@example.test', phone: '0912345678', account: 'someone',
+    } }, { ...metadata, body: {} }],
+    ['profile response body', { urlPath: '/v2/market/users/profile/', body: { text: 'someone' } },
+      { urlPath: '/v2/market/users/profile/', responseOrder: 0, dropped: 'identity_response_body' }],
+    ['whole token values', { body: { bearerValue: 'Bearer abc123', jwtValue: jwt,
+      opaqueHex: '0123456789abcdef'.repeat(2), opaqueBase64: 'A'.repeat(40) + '=' } }, { ...metadata, body: {} }],
+    ['inline Bearer and JWT', { body: { bearerValue: 'note Bearer abc123', jwtValue: `note ${jwt}` } },
+      { ...metadata, body: { bearerValue: 'note [REDACTED_TOKEN]', jwtValue: 'note [REDACTED_TOKEN]' } }],
+    ['JWT in a URL path', { body: { text: `https://example.test/${jwt}` } },
+      { ...metadata, body: { text: 'https://example.test/[REDACTED_TOKEN]' } }],
+    ['named token query', { body: { text: 'https://example.test/?token=abc' } },
+      { ...metadata, body: { text: 'https://example.test/?token=[REDACTED_TOKEN]' } }],
+    ['eb_email request body', { body: {}, requestBody: `{"eb_email":"${hash}"}` },
+      { ...metadata, body: {}, requestBody: '{"eb_email":"[REDACTED_TOKEN]"}' }],
+    ['pixel email hash query', { body: { text: `https://pixel.example/tr?em=${hash}` } },
+      { ...metadata, body: { text: 'https://pixel.example/tr?em=[REDACTED_TOKEN]' } }],
+    ['inline email', { body: { text: 'Email: someone@example.test' } },
+      { ...metadata, body: { text: 'Email: [REDACTED_EMAIL]' } }],
+    ['marked account container', '<header class="account-area">Nha thuoc 0912345678</header><main>Nha thuoc 0912345678 Revenue 8</main>',
+      '<main>[REDACTED_IDENTITY] Revenue 8</main>'],
+  ] as const) {
+    await t.test(name, () => {
+      if (typeof input === 'string') assert.equal(sanitizeResultsHtml(input), expected);
+      else assert.deepEqual(sanitizeNetworkResponses([{ urlPath: '/synthetic', ...input }]), [expected]);
+    });
+  }
 });
 
-test('phone mask contract also masks a debug object string field', async () => {
-  const { sanitizeDebugObject } = await import(captureUrl.href);
-  assert.deepEqual(sanitizeDebugObject({ text: '0912345678' }), { text: '[REDACTED_PHONE]' });
-});
-
-test('phone mask contract keeps a sanitized product row eligible for the app ID shape', async () => {
+test('public Metric data contract preserves a complete product row', async () => {
   const { sanitizeNetworkResponses } = await import(captureUrl.href);
   const product = {
     product_base_id: '1__40123456789__1234567890',
     platform_created_at: '2026-08-01 12:52:29',
-    text: 'Hotline:0912345678',
+    price_updated_at: '2026-08-01T12:52:29.000Z',
+    url_product: 'https://shopee.example/Vien-uong-kem-tong-hop-i.1234567890.12345678901?sp_atk=abc',
+    url_thumbnail: 'https://cf.shopee.example/file/0123456789abcdef0123456789abcdef',
+    shop: 'Nha thuoc 0912345678',
   };
   const clean = sanitizeNetworkResponses([{ body: { data: { products: [product] } } }])[0].body.data.products[0];
-  assert.equal(clean.product_base_id, product.product_base_id);
-  assert.equal(clean.platform_created_at, product.platform_created_at);
-  assert.equal(clean.text, 'Hotline:[REDACTED_PHONE]');
-  assert.match(clean.product_base_id, /^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$/);
+  assert.deepEqual(clean, product);
 });
 
 test('search submit inspection is scoped to the form and ignores the sidebar Analytics link', async () => {
@@ -1405,6 +1384,7 @@ test('capture archive contains no fixture identity or token in any archived file
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const base = await load('metric-results-response'); const sensitive = await load('metric-sensitive-archive');
+  sensitive.responses[0].body.jwtValue = 'eyJsynthetichead.syntheticpayload.syntheticsignature';
   const dom = { ...(await load('metric-results-dom')), html: '<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Synthetic history', selected: true, selector: '[role="tab"]', index: 0 }] };
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...gateResponsesFor(commandSpec.platforms), ...base.responses, ...sensitive.responses], {
     resultDom: (state: any, original: any) => ({ ...original, platformViews: original.platformViews.map((view: any) => ({ ...view, selected: view.label === (state.platformSwitches ? 'TikTok Shop' : 'Shopee') })) }),
@@ -1414,7 +1394,7 @@ test('capture archive contains no fixture identity or token in any archived file
   assert.ok(page.screenshotCalls.some((options: any) => options.fullPage === true));
   assert.ok(page.screenshotCalls.filter((options: any) => options.fullPage === false).every((options: any) => options.clip));
   assert.ok(page.maskCalls.includes('prepare'));
-  const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /Synthetic owner nickname/i, /https:\/\/example\.test\/avatar\.png/i, /synthetic-user-id/i, /Synthetic shop owner/i, /synthetic-secret-token/i, /synthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
+  const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /Synthetic owner nickname/i, /https:\/\/example\.test\/avatar\.png/i, /synthetic-user-id/i, /Synthetic shop owner/i, /synthetic-secret-token/i, /eyJsynthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
   const archiveFiles = (await readdir(captureDir)).filter(name => name !== 'debug');
   const debugFiles = (await readdir(join(captureDir, 'debug'))).filter(name => !name.endsWith('.png'))
     .map(name => join('debug', name));
