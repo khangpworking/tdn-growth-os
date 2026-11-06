@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -52,7 +52,7 @@ test('keyword chip read-back is retained and cannot silently become empty', asyn
 });
 
 test('results extractor prefers response JSON, captures both platforms, and records paginated products', async () => {
-  const { extractResultsPage, sanitizeNetworkResponses } = await import(captureUrl.href);
+  const { extractResultsPage } = await import(captureUrl.href);
   const { validateMetricWebSnapshot } = await import('../../src/modules/analysis/research-automation/metric-web-snapshot.js');
   const fixture = await load('metric-results-response');
   const scope = { keywords: ['synthetic-chip-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-07-01', endDate: '2026-08-31' }, category: null };
@@ -69,8 +69,6 @@ test('results extractor prefers response JSON, captures both platforms, and reco
   assert.deepEqual(result.snapshot.groups.W4_monthly.map((row: any) => row.platform), ['shopee', 'shopee', 'tiktok', 'tiktok']);
   assert.equal(result.sourceMap.W15.source, 'dom');
   assert.equal(validateMetricWebSnapshot(result.snapshot), result.snapshot);
-  const raw = sanitizeNetworkResponses([{ url: 'https://metric.vn/api/synthetic?token=secret', status: 200, body: { safe: 1, accessToken: 'must-not-survive' } }]);
-  assert.deepEqual(raw, [{ urlPath: '/api/synthetic', responseOrder: 0, status: 200, body: { safe: 1 } }]);
 });
 
 test('results extractor accepts object-shaped response platform maps', async () => {
@@ -162,7 +160,7 @@ test('sales-data keeps independent platform values when revenue or a breakdown v
 });
 
 test('unlabelled monthly rows stay all and DOM fills a platform missing from responses', async () => {
-  const { extractResultsPage, sanitizeNetworkResponses } = await import(captureUrl.href);
+  const { extractResultsPage } = await import(captureUrl.href);
   const fixture = await load('metric-results-response');
   const monthly = fixture.responses.find((response: any) => response.body.region === 'monthly');
   const withoutPlatform = { ...monthly, viewPlatform: 'shopee', body: { ...monthly.body, items: [{ ...monthly.body.items[0], platform: undefined }] } };
@@ -183,7 +181,6 @@ test('unlabelled monthly rows stay all and DOM fills a platform missing from res
   assert.equal(result.snapshot.groups.W4_monthly[0].platform, 'all');
   assert.deepEqual(result.snapshot.groups.W12_topProducts.rows.map((row: any) => row.cells.name.text), ['Synthetic item A', 'Synthetic item B', 'Synthetic TikTok item']);
   assert.deepEqual(result.sourceMap.W12.platforms.sort(), ['shopee', 'tiktok']);
-  assert.deepEqual(sanitizeNetworkResponses([{ body: { userId: 'identity', tokenLike: 'Bearer identity-token', revenue: 2 } }])[0].body, { revenue: 2 });
 });
 
 test('search and capture declare a long OpenCLI timeout so network-idle waits are not cut at 60s', async () => {
@@ -245,17 +242,69 @@ test('collectResults keeps the overview combined and does not switch result tabs
   await rm(directory, { recursive: true, force: true });
 });
 
-test('archive sanitization removes identity and token-like values from every saved file', async () => {
+test('archive preserves business data and result markup', async () => {
   const { sanitizeNetworkResponses, sanitizeResultsHtml } = await import(captureUrl.href);
   const sensitive = await load('metric-sensitive-archive');
   const clean = sanitizeNetworkResponses(sensitive.responses);
-  const serialized = JSON.stringify(clean);
-  for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'https://example.test/avatar.png', 'synthetic-user-id', 'Synthetic shop owner', 'synthetic-secret-token', 'synthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
   assert.match(JSON.stringify(clean), /"business"/);
   const html = sanitizeResultsHtml('<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main data-state="identity-state"><div data-metric-region="overview">Revenue 8</div></main></body></html>');
-  assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|account-area/i);
   assert.match(html, /<meta|<script|data-state="identity-state"/i);
   assert.match(html, /Revenue 8/);
+});
+
+test('capture contract preserves values byte-identically through every real export', async t => {
+  const { sanitizeNetworkResponses, sanitizeDebugObject, sanitizeResultsHtml, sanitizeDomSnapshots } = await import(captureUrl.href);
+  const jwt = 'eyJsynthetichead.syntheticpayload.syntheticsignature';
+  const hash = '0123456789abcdef'.repeat(4);
+  const rows: Array<{ name: string; value: string | Record<string, unknown>; urlPath?: string }> = [
+    { name: 'product row with IDs, dates and URLs', value: {
+      product_base_id: '1__40123456789__1234567890',
+      related_product_id: '2__7512034567890123456__7512034567890123457',
+      platform_created_at: '2026-08-01 12:52:29',
+      price_updated_at: '2026-08-01T12:52:29.000Z',
+      url_product: 'https://shopee.example/Vien-uong-kem-tong-hop-i.1234567890.12345678901?sp_atk=abc',
+      url_thumbnail: 'https://cf.shopee.example/file/0123456789abcdef0123456789abcdef',
+      url_signed_thumbnail: 'https://img.example/tos-x/0123456789abcdef0123456789abcdef~tplv-crop.webp?dr=1&t=5&shp=01234567',
+      url_source: 'https://shop.example/path/AAAAAAAAAAAAAAAAAAAAAAAAAAAA/BBBBBBBBBBBBBBBBBBBBBBBB/1',
+      shop: 'Nha thuoc 0912345678', description: 'Hop 12345678901234567',
+    } },
+    { name: 'token values and token in text', value: {
+      tokenValue: 'Bearer synthetic-token', text: 'note Bearer synthetic-token',
+      opaqueHex: '0123456789abcdef'.repeat(2), opaqueBase64: 'A'.repeat(40) + '=',
+      url: 'https://example.test/?token=synthetic-token', eb_email: hash,
+      pixelUrl: `https://pixel.example/tr?em=${hash}`,
+    } },
+    { name: 'eyJ JWT and JWT in text and a URL', value: {
+      jwtValue: jwt, text: `note ${jwt}`, url: `https://example.test/${jwt}`,
+    } },
+    { name: 'email in text', value: { text: 'Email: synthetic-owner@example.test' } },
+    { name: 'phone in text', value: { text: ' \tĐiện thoại: 0912.345.678; +1 (202) 555-0100\r\n' } },
+    { name: 'account fields', value: {
+      authorization: 'Bearer synthetic-token', cookie: 'synthetic-cookie', token: 'synthetic-token',
+      session: 'synthetic-session', password: 'synthetic-password', user: 'synthetic-user',
+      email: 'synthetic-owner@example.test', phone: '+1 (202) 555-0100', account: 'synthetic-account',
+    } },
+    { name: 'profile body without a dropped field', urlPath: '/v2/market/users/profile/', value: {
+      userId: 'synthetic-user-id', account: 'synthetic-account', email: 'synthetic-owner@example.test',
+    } },
+    { name: 'account container in HTML', value: '<meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-token</script><style>.account-area { color: red; }</style><header class="account-area" data-email="synthetic-owner@example.test">Synthetic account +1 (202) 555-0100</header><main data-state="synthetic-state">Revenue 8<svg><path d="M 0912345678 0"></path></svg><a href="https://shopee.example/Vien-uong-kem-tong-hop-i.1234567890.12345678901">Synthetic product</a></main>' },
+    { name: 'comment delimiters in an HTML attribute', value: '<div title="<!--gift-->">8</div>' },
+    { name: 'real HTML comment', value: '<div>8<!--synthetic comment--></div>' },
+  ];
+  for (const { name, value, urlPath = '/synthetic' } of rows) {
+    await t.test(name, () => {
+      const body = typeof value === 'string' ? { text: value } : value;
+      const html = typeof value === 'string' ? value : JSON.stringify(value);
+      for (const requestBody of [body, JSON.stringify(body)]) {
+        assert.deepEqual(sanitizeNetworkResponses([{ urlPath, responseOrder: 7, status: 200, body: structuredClone(body), requestBody: structuredClone(requestBody) }]),
+          [{ urlPath, responseOrder: 7, status: 200, body, requestBody }], 'sanitizeNetworkResponses');
+      }
+      assert.deepEqual(sanitizeDebugObject(structuredClone(value)), value, 'sanitizeDebugObject');
+      assert.equal(sanitizeResultsHtml(html), html, 'sanitizeResultsHtml');
+      const snapshot = { html, regionsHtml: { overview: html }, regions: { overview: { rows: [body] } } };
+      assert.deepEqual(sanitizeDomSnapshots(structuredClone([snapshot])), [snapshot], 'sanitizeDomSnapshots');
+    });
+  }
 });
 
 test('search submit inspection is scoped to the form and ignores the sidebar Analytics link', async () => {
@@ -282,14 +331,13 @@ test('search submit inspection is scoped to the form and ignores the sidebar Ana
   assert.throws(() => adapter.assertSearchSubmitInspection({ ...inspection, candidateCount: 2, descriptor: null }), /METRIC_UI_CHANGED/);
 });
 
-test('sanitized full DOM keeps the app form and results while dropping account nodes', async () => {
+test('sanitized full DOM keeps the app form and results', async () => {
   const { sanitizeResultsHtml } = await import(captureUrl.href);
   const clean = sanitizeResultsHtml('<header class="account-area">Synthetic owner</header><nav><a>Analytics</a></nav><main id="app"><form id="QuerySearchBuilder"><input name="keyword" /></form><section data-metric-region="overview">Revenue 8</section></main>');
   assert.match(clean, /QuerySearchBuilder/);
   assert.match(clean, /data-metric-region="overview"/);
   assert.match(clean, /Revenue 8/);
   assert.match(clean, />Analytics</);
-  assert.doesNotMatch(clean, /Synthetic owner|account-area/);
 });
 
 test('search-applied gate distinguishes missing search, wrong platforms, missing result endpoints, and success', async () => {
@@ -984,12 +1032,10 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
   const calls: string[] = [];
   const clickRecords: Array<{ selector: string; options?: any }> = [];
   const screenshotCalls: any[] = [];
-  const maskCalls: string[] = [];
   const page: any = {
     calls,
     clickRecords,
     screenshotCalls,
-    maskCalls,
     newTab: async () => 'synthetic-tab',
     selectTab: async (target: string) => calls.push(`select:${target}`),
     closeTab: async (target: string) => calls.push(`close:${target}`),
@@ -1026,9 +1072,9 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
       if (fn.name === 'readMetricSelectOptionLabels') return ['Shopee', 'Lazada', 'Tiki', 'Tiktok'];
       if (fn.toString().includes('document.activeElement === input')) return true;
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
-      if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
+      if (fn.name === 'prepareScreenshotClip') return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 };
       if (!fn.name && fn.toString().includes('getBoundingClientRect') && fn.toString().includes('querySelector(selector)')) return true;
-      if (fn.name === 'restoreScreenshotMask') { maskCalls.push('restore'); return true; }
+      if (fn.name === 'restoreScreenshotMask') return true;
       if (fn.name === 'setCheckbox') return { selector: '#synthetic', index: 0 };
       if (fn.name === 'visibleOptionIndex' || fn.name === 'clickVisibleText') return 0;
       if (fn.name === 'repairMetricFunctionDefaults') {
@@ -1302,31 +1348,22 @@ test('non-default periods fail closed in capture before form actions or submit',
   await rm(directory, { recursive: true, force: true });
 });
 
-test('capture archive contains no fixture identity or token in any archived file', async () => {
+test('capture archive contains screenshots and extracted products', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
-  const directory = await mkdtemp(join(tmpdir(), 'p6-209-archive-sanitize-'));
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-archive-'));
   const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
-  const base = await load('metric-results-response'); const sensitive = await load('metric-sensitive-archive');
-  const dom = { ...(await load('metric-results-dom')), html: '<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Synthetic history', selected: true, selector: '[role="tab"]', index: 0 }] };
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...gateResponsesFor(commandSpec.platforms), ...base.responses, ...sensitive.responses], {
+  const base = await load('metric-results-response');
+  const dom = { ...(await load('metric-results-dom')), html: '<html><body><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Synthetic history', selected: true, selector: '[role="tab"]', index: 0 }] };
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...gateResponsesFor(commandSpec.platforms), ...base.responses], {
     resultDom: (state: any, original: any) => ({ ...original, platformViews: original.platformViews.map((view: any) => ({ ...view, selected: view.label === (state.platformSwitches ? 'TikTok Shop' : 'Shopee') })) }),
   });
   await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
   assert.ok(page.screenshotCalls.length > 0);
   assert.ok(page.screenshotCalls.some((options: any) => options.fullPage === true));
   assert.ok(page.screenshotCalls.filter((options: any) => options.fullPage === false).every((options: any) => options.clip));
-  assert.ok(page.maskCalls.includes('prepare'));
-  const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /Synthetic owner nickname/i, /https:\/\/example\.test\/avatar\.png/i, /synthetic-user-id/i, /Synthetic shop owner/i, /synthetic-secret-token/i, /synthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
-  const archiveFiles = (await readdir(captureDir)).filter(name => name !== 'debug');
-  const debugFiles = (await readdir(join(captureDir, 'debug'))).filter(name => !name.endsWith('.png'))
-    .map(name => join('debug', name));
-  for (const name of [...archiveFiles, ...debugFiles]) {
-    const text = (await readFile(join(captureDir, name))).toString('utf8');
-    for (const marker of markers) assert.doesNotMatch(text, marker, `${name} retained sanitized fixture data`);
-  }
   assert.ok(await readFile(join(captureDir, 'platform-all-region-overview.png')));
   assert.match(await readFile(join(captureDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
   await rm(directory, { recursive: true, force: true });
