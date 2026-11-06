@@ -1,5 +1,5 @@
 {
-  "version": "p6-209-metric-adapter-v11",
+  "version": "p6-209-metric-adapter-v12",
   "files": [
     {
       "path": "clis/metric/metric.js",
@@ -11,7 +11,7 @@
     },
     {
       "path": "clis/metric/capture.js",
-      "sha256": "532d13af4cd13528b3edb6090a9a61833c73608bb173b68be803807a41bd8efa"
+      "sha256": "cd3bf50a3f8b074db5e74cba83d961f254d56b7ba791a17dc8845bff877c844b"
     }
   ]
 }

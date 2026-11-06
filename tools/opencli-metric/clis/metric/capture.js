@@ -156,7 +156,7 @@ function sanitizeText(value, identityValues = []) {
     .replace(/\b[A-Za-z0-9+/]{40,}={0,2}\b/g, '[REDACTED_TOKEN]')
     .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
-    .replace(/(?:\+?84|0)\d[\d .-]{7,}\d/g, '[REDACTED_PHONE]');
+    .replace(/(?<![\d_])(?<!\d[-.])(?:\+?84|0)(?:[ .-]?\d){9,10}(?![\d_])/g, '[REDACTED_PHONE]');
   for (const identity of identityValues) {
     const escaped = String(identity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (escaped) output = output.replace(new RegExp(escaped, 'gi'), '[REDACTED_IDENTITY]');
