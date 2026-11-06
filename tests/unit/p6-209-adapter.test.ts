@@ -288,6 +288,8 @@ test('capture contract preserves values byte-identically through every real expo
       userId: 'synthetic-user-id', account: 'synthetic-account', email: 'synthetic-owner@example.test',
     } },
     { name: 'account container in HTML', value: '<meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-token</script><style>.account-area { color: red; }</style><header class="account-area" data-email="synthetic-owner@example.test">Synthetic account +1 (202) 555-0100</header><main data-state="synthetic-state">Revenue 8<svg><path d="M 0912345678 0"></path></svg><a href="https://shopee.example/Vien-uong-kem-tong-hop-i.1234567890.12345678901">Synthetic product</a></main>' },
+    { name: 'comment delimiters in an HTML attribute', value: '<div title="<!--gift-->">8</div>' },
+    { name: 'real HTML comment', value: '<div>8<!--synthetic comment--></div>' },
   ];
   for (const { name, value, urlPath = '/synthetic' } of rows) {
     await t.test(name, () => {

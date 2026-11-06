@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`213bb59ae7e2f91910189403caa5569089570d7758c6d27e29cb3277eae60c66`.
+`37b8eb87f201b0f87323bfc700608f84692ebc4b8e65506a6995c37945e27977`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -158,8 +158,7 @@ The archive is written immediately outside Git and contains:
 - `snapshot.json`: the normalized `automation-metric-web-snapshot-v1` W2–W14
   and W16 groups, with W1 in `scope`; every field has a `response:` or `dom:`
   source pointer;
-- `results.html`: result-region HTML as captured. Only HTML comments are
-  removed;
+- `results.html`: result-region HTML saved as captured;
 - `platform-*-region-*.png`: one clipped screenshot for every result region in
   the combined result view; the account/header/avatar and overlapping
   sticky/fixed elements are hidden before capture. Unlocatable or unbounded
@@ -184,8 +183,8 @@ Capture creates a `debug/` directory under the requested output directory before
 results validation or extraction. Each snapshot stores the full document
 `outerHTML`, per-region HTML, the network input and one masked full-page
 screenshot when available. Saved strings are not changed, and response bodies
-for `/users/`, `/profile/` and `/paid/` are kept. Only HTML comments are removed
-from HTML. The debug directory is diagnostic evidence only and is never
+for `/users/`, `/profile/` and `/paid/` are kept. HTML is saved as captured.
+The debug directory is diagnostic evidence only and is never
 included in the published archive. If a later gate, selector or archive step
 fails, the error includes the debug directory so the page can be investigated
 without spending another lookup.
@@ -336,7 +335,7 @@ drops the change marker; the full displayed text stays in the snapshot. The
 product variant price range `a₫ - b₫` gives `minPrice` its low end. Captures
 made before v11 keep those cells empty.
 
-Adapter manifest SHA-256: `213bb59ae7e2f91910189403caa5569089570d7758c6d27e29cb3277eae60c66`.
+Adapter manifest SHA-256: `37b8eb87f201b0f87323bfc700608f84692ebc4b8e65506a6995c37945e27977`.
 
 ## M3 step 2 — explicit colleague preset
 

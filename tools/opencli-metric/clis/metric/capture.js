@@ -109,7 +109,7 @@ export function sanitizeDebugObject(value) {
 }
 
 export function sanitizeResultsHtml(html) {
-  return String(html ?? '').replace(/<!--[\s\S]*?-->/g, '');
+  return String(html ?? '');
 }
 
 export function sanitizeDomSnapshots(domSnapshots) {
