@@ -104,181 +104,26 @@ function platformOf(value, fallback = 'all') {
   return fallback;
 }
 
-const OMIT = Symbol('omit');
-const IDENTITY_KEY = /^(?:user|username|email|phone|account|nickname|avatar|uid|userid|profile|userinfo|loggedinuser|owner|ownername|ownerid|shopowner|loggedinshop|accountshop)$/;
-const FORBIDDEN_KEY = /authorization|cookie|token|secret|password|credential|session/i;
-const INLINE_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
-const JWT_TOKEN = /^eyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
-const INLINE_JWT = /\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
-const WHOLE_URL = /^(?:https?:)?\/\/\S+$/i;
-const URL_PATH_LOGIN_MARKER = /[;/](?:j?session(?:[_-]?id)?|sid|token|auth)[=/]/i;
-const HEX_TOKEN = /^[a-f0-9]{32,}$/i;
-const BASE64_TOKEN = /^(?:[A-Za-z0-9+/]{40,}={0,2})$/;
-const IDENTITY_RESPONSE_PATH = /\/(?:users|profile|paid)(?:\/|$)/i;
-const IDENTITY_HTML_MARKER = /account|avatar|profile|user(?:[-_: ]?(?:info|profile|menu|widget))/i;
-
-function normalizedKey(key) {
-  return String(key ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-}
-
-function isIdentityKey(key) {
-  const normalized = normalizedKey(key);
-  return IDENTITY_KEY.test(normalized)
-    || normalized.startsWith('user') || normalized.startsWith('account')
-    || normalized.startsWith('email') || normalized.startsWith('phone')
-    || normalized.startsWith('avatar') || normalized.startsWith('userprofile')
-    || normalized.startsWith('loggedinaccount');
-}
-
-function isTokenLike(value) {
-  const text = clean(value);
-  return /^Bearer\s+/i.test(text) || JWT_TOKEN.test(text) || HEX_TOKEN.test(text) || BASE64_TOKEN.test(text);
-}
-
-function identityValuesFromHtml(html) {
-  const source = String(html ?? '');
-  const values = [];
-  const nodePattern = /<([a-z][\w:-]*)\b([^>]*)>([\s\S]*?)<\/\1\s*>/gi;
-  for (const match of source.matchAll(nodePattern)) {
-    const marker = `${match[1]} ${match[2]}`;
-    if (!IDENTITY_HTML_MARKER.test(marker)) continue;
-    const text = String(match[3] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (text.length >= 3 && text.length <= 240) values.push(text);
-    for (const attribute of String(match[2] || '').matchAll(/([a-z][\w:-]*)\s*=\s*(["'])(.*?)\2/gi)) {
-      if (isIdentityKey(attribute[1]) && attribute[3].length >= 3 && attribute[3].length <= 240) values.push(attribute[3]);
-    }
-  }
-  return [...new Set(values)].sort((left, right) => right.length - left.length);
-}
-
-function maskOpaqueTokens(text) {
-  return text
-    .replace(/\b[a-f0-9]{32,}\b/gi, '[REDACTED_TOKEN]')
-    .replace(/\b[A-Za-z0-9+/]{40,}={0,2}\b/g, '[REDACTED_TOKEN]');
-}
-
-function sanitizeText(value, identityValues = []) {
-  const source = String(value);
-  const text = source.replace(INLINE_TOKEN, '[REDACTED_TOKEN]').replace(INLINE_JWT, '[REDACTED_TOKEN]');
-  const urlPath = WHOLE_URL.test(source) ? text.slice(0, text.search(/[?#]|$/)) : '';
-  const urlPathEnd = URL_PATH_LOGIN_MARKER.test(urlPath) ? 0 : urlPath.length;
-  let output = (text.slice(0, urlPathEnd) + maskOpaqueTokens(text.slice(urlPathEnd)))
-    .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]');
-  for (const identity of identityValues) {
-    const escaped = String(identity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (escaped) output = output.replace(new RegExp(escaped, 'gi'), '[REDACTED_IDENTITY]');
-  }
-  return output;
-}
-
-function sanitizeValue(value, key = null, identityValues = []) {
-  if (key !== null && (isIdentityKey(key) || FORBIDDEN_KEY.test(String(key)))) return OMIT;
-  if (typeof value === 'string') {
-    if (isTokenLike(value)) return OMIT;
-    return sanitizeText(value, identityValues);
-  }
-  if (Array.isArray(value)) return value.map(child => sanitizeValue(child, null, identityValues)).filter(child => child !== OMIT);
-  if (!value || typeof value !== 'object') return value;
-  const output = {};
-  for (const [childKey, child] of Object.entries(value)) {
-    const sanitized = sanitizeValue(child, childKey, identityValues);
-    if (sanitized !== OMIT) output[childKey] = sanitized;
-  }
-  return output;
-}
-
 export function sanitizeDebugObject(value) {
-  const sanitized = sanitizeValue(value);
-  return sanitized === OMIT ? {} : sanitized;
+  return value;
 }
 
-function htmlOpeningTag(token) {
-  const match = /^<\s*\/?\s*([a-z0-9:-]+)/i.exec(token);
-  return match?.[1]?.toLowerCase() || '';
-}
-
-function htmlAttributes(token) {
-  return token.replace(/^<\s*[a-z0-9:-]+|\/?>$/gi, ' ');
-}
-
-function isSensitiveHtmlContainer(token, tag) {
-  const attributes = htmlAttributes(token).toLowerCase();
-  const structuralTag = new Set(['html', 'head', 'body', 'main', 'section', 'article', 'div']).has(tag);
-  return tag === 'header' || (!structuralTag && IDENTITY_HTML_MARKER.test(attributes));
-}
-
-function sanitizeHtmlTag(token, identityValues = []) {
-  if (/^<!--/.test(token)) return '';
-  return token
-    .replace(/\s+([a-z][\w:-]*)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (_whole, name, rawValue) => {
-      const dataName = name.replace(/^data[-_:]?/i, '');
-      if (isIdentityKey(name) || isIdentityKey(dataName) || /token|secret|authorization|cookie|session|credential|password/i.test(name)) return '';
-      const quote = rawValue[0] === '"' || rawValue[0] === "'" ? rawValue[0] : '';
-      const value = quote ? rawValue.slice(1, -1) : rawValue;
-      if (isTokenLike(value)) return '';
-      return ` ${name}=${quote}${sanitizeText(value, identityValues)}${quote}`;
-    })
-    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
-    .replace(INLINE_JWT, '[REDACTED_TOKEN]');
-}
-
-export function sanitizeResultsHtml(html, providedIdentityValues = []) {
-  const source = String(html ?? '');
-  const identityValues = [...new Set([...(providedIdentityValues || []), ...identityValuesFromHtml(source)])]
-    .filter(value => String(value).length >= 3).sort((left, right) => String(right).length - String(left).length);
-  const tokens = /<!--[\s\S]*?-->|<\/?[^>]+>/g;
-  const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
-  const stack = [];
-  let output = '';
-  let cursor = 0;
-  const dropped = () => stack.some(entry => entry.drop);
-  for (const match of source.matchAll(tokens)) {
-    if (!dropped()) output += sanitizeText(source.slice(cursor, match.index), identityValues);
-    const token = match[0];
-    const closing = /^<\s*\//.test(token);
-    const tag = htmlOpeningTag(token);
-    if (/^<!--/.test(token)) { cursor = match.index + token.length; continue; }
-    if (closing) {
-      const entryIndex = [...stack].reverse().findIndex(entry => entry.tag === tag);
-      if (entryIndex >= 0) {
-        const index = stack.length - 1 - entryIndex;
-        const entry = stack[index];
-        stack.splice(index, 1);
-        if (!entry.drop && !dropped()) output += `</${tag}>`;
-      }
-      cursor = match.index + token.length;
-      continue;
-    }
-    const selfClosing = /\/\s*>$/.test(token) || voidTags.has(tag);
-    const drop = dropped() || isSensitiveHtmlContainer(token, tag);
-    if (!drop) output += sanitizeHtmlTag(token, identityValues);
-    if (!selfClosing) stack.push({ tag, drop });
-    cursor = match.index + token.length;
-  }
-  if (!dropped()) output += sanitizeText(source.slice(cursor), identityValues);
-  return output;
+export function sanitizeResultsHtml(html) {
+  return String(html ?? '').replace(/<!--[\s\S]*?-->/g, '');
 }
 
 export function sanitizeDomSnapshots(domSnapshots) {
   const sourceSnapshots = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
-  const htmlValues = sourceSnapshots.flatMap(snapshot => {
-    const values = [];
-    if (snapshot?.html) values.push(...identityValuesFromHtml(snapshot.html));
-    for (const html of Object.values(snapshot?.regionsHtml || {})) values.push(...identityValuesFromHtml(html));
-    return values;
-  });
-  const identityValues = [...new Set(htmlValues)].sort((left, right) => String(right).length - String(left).length);
   const rewriteHtml = (value, key = null) => {
-    if (key === 'html') return sanitizeResultsHtml(value, identityValues);
+    if (key === 'html') return sanitizeResultsHtml(value);
     if (key === 'regionsHtml' && value && typeof value === 'object') {
-      return Object.fromEntries(Object.entries(value).map(([name, html]) => [name, sanitizeResultsHtml(html, identityValues)]));
+      return Object.fromEntries(Object.entries(value).map(([name, html]) => [name, sanitizeResultsHtml(html)]));
     }
     if (Array.isArray(value)) return value.map(child => rewriteHtml(child));
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, rewriteHtml(child, childKey)]));
     return value;
   };
-  return sourceSnapshots.map(snapshot => rewriteHtml(sanitizeValue(snapshot, null, identityValues))).filter(snapshot => snapshot !== OMIT);
+  return sourceSnapshots.map(snapshot => rewriteHtml(snapshot));
 }
 
 function periodOf(raw, fallbackPeriod) {
@@ -933,15 +778,12 @@ export function sanitizeNetworkResponses(responses) {
   return (Array.isArray(responses) ? responses : []).map((response, index) => {
     const urlPath = responsePath(response, index);
     const order = responseOrder(response, index);
-    if (IDENTITY_RESPONSE_PATH.test(urlPath)) {
-      return { urlPath, responseOrder: order, dropped: 'identity_response_body' };
-    }
     const body = rawBody(response);
-    const cleanResponse = { urlPath, responseOrder: order, status: response?.status ?? response?.responseStatus ?? null, body: sanitizeValue(body) };
+    const cleanResponse = { urlPath, responseOrder: order, status: response?.status ?? response?.responseStatus ?? null, body };
     if (response?.method != null) cleanResponse.method = String(response.method);
     if (response?.timestamp != null) cleanResponse.timestamp = response.timestamp;
     if (response?.durationMs != null) cleanResponse.durationMs = response.durationMs;
-    if (response?.requestBodyPreview != null || response?.requestBody != null) cleanResponse.requestBody = sanitizeValue(response.requestBodyPreview ?? response.requestBody);
+    if (response?.requestBodyPreview != null || response?.requestBody != null) cleanResponse.requestBody = response.requestBodyPreview ?? response.requestBody;
     const requestLabel = requestPlatform(response);
     if (requestLabel !== 'all') cleanResponse.request = { params: { platform: requestLabel } };
     return response?.viewPlatform ? { observedInView: response.viewPlatform, ...cleanResponse } : cleanResponse;

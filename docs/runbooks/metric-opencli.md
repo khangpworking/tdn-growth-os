@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`947ee825aa9a172cb9c5e11bc4fbb5e677dd62a730a0130c4cca1deea49eb74c`.
+`213bb59ae7e2f91910189403caa5569089570d7758c6d27e29cb3277eae60c66`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -153,14 +153,13 @@ capture immediately; the tab is closed and no archive is published.
 
 The archive is written immediately outside Git and contains:
 
-- `raw-responses.json`: response bodies with only URL paths and status; headers,
-  cookies, identity fields and token-like values are stripped while business
-  fields such as products, shops, brands, revenue, units and prices remain;
+- `raw-responses.json`: response bodies with URL path and status, and no
+  headers. Body values are not changed;
 - `snapshot.json`: the normalized `automation-metric-web-snapshot-v1` W2–W14
   and W16 groups, with W1 in `scope`; every field has a `response:` or `dom:`
   source pointer;
-- `results.html`: sanitized result-region HTML with scripts, inline state, meta
-  tags and account/header content removed;
+- `results.html`: result-region HTML as captured. Only HTML comments are
+  removed;
 - `platform-*-region-*.png`: one clipped screenshot for every result region in
   the combined result view; the account/header/avatar and overlapping
   sticky/fixed elements are hidden before capture. Unlocatable or unbounded
@@ -168,6 +167,9 @@ The archive is written immediately outside Git and contains:
   a viewport screenshot);
 - `manifest.json`: applied scope, view list, W1–W16 source map, pagination and
   exact file digests.
+
+Raw capture files can hold account data, so they do not go to the public repo
+unchanged.
 
 Network JSON already received by the page is the preferred source when the
 response body or its request parameters explicitly names a platform. DOM
@@ -180,13 +182,10 @@ adapter, and no account, settings or authentication action is performed.
 
 Capture creates a `debug/` directory under the requested output directory before
 results validation or extraction. Each snapshot stores the full document
-`outerHTML`, sanitized per-region HTML, the sanitized network input and one
-masked full-page screenshot when available. Only header/account/avatar/profile
-nodes and inline account-identity values are removed from HTML; the app root,
-search form and result regions remain. Response bodies for `/users/`,
-`/profile/` and `/paid/` are never stored; only their path and the fact that
-the body was dropped are retained. Every saved string passes identity/token
-redaction. The debug directory is diagnostic evidence only and is never
+`outerHTML`, per-region HTML, the network input and one masked full-page
+screenshot when available. Saved strings are not changed, and response bodies
+for `/users/`, `/profile/` and `/paid/` are kept. Only HTML comments are removed
+from HTML. The debug directory is diagnostic evidence only and is never
 included in the published archive. If a later gate, selector or archive step
 fails, the error includes the debug directory so the page can be investigated
 without spending another lookup.
@@ -318,11 +317,10 @@ edited and again in the submit preflight. A disabled button without the icon
 is a form problem, so the wait stops after 5 polls and the preflight fails as
 before. Dry-run `preflight.submitIdle` records the polls.
 
-Debug capture is complete on submit failure and gate failure: sanitized full DOM
+Debug capture is complete on submit failure and gate failure: full DOM
 and a masked screenshot are saved before submit and at 3 s and 15 s after it.
 The input log keeps every captured request after submit with path, method,
-status, timestamp and sanitized request/response bodies. Identity endpoint bodies
-remain dropped.
+status, timestamp and request/response bodies.
 
 The archive filters result extraction at the applied-search response baseline,
 so stale pre-search widgets cannot supply headline or table values. The
@@ -338,7 +336,7 @@ drops the change marker; the full displayed text stays in the snapshot. The
 product variant price range `a₫ - b₫` gives `minPrice` its low end. Captures
 made before v11 keep those cells empty.
 
-Adapter manifest SHA-256: `947ee825aa9a172cb9c5e11bc4fbb5e677dd62a730a0130c4cca1deea49eb74c`.
+Adapter manifest SHA-256: `213bb59ae7e2f91910189403caa5569089570d7758c6d27e29cb3277eae60c66`.
 
 ## M3 step 2 — explicit colleague preset
 
@@ -380,7 +378,7 @@ request drift, missing responses, login, and restrictions have distinct stop
 codes. No lookup is automatically retried and no default date range is silently
 substituted.
 
-Each `30d/` and `12m/` directory contains sanitized `raw-responses.json` and a
+Each `30d/` and `12m/` directory contains `raw-responses.json` and a
 schema-validated `manifest.json` with actual applied state, requested period,
 source pointers, displayed KPIs, and raw-file hash/size. The root manifest is
 written only after both windows pass and binds both window manifests. A stopped
