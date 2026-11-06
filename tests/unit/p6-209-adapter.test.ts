@@ -282,6 +282,12 @@ test('phone mask contract masks phone text in network response bodies', async t 
       ['sdt0912345678', 'sdt[REDACTED_PHONE]'],
     ]],
     ['two phones, both masked', [['0912345678 0987654321', '[REDACTED_PHONE] [REDACTED_PHONE]']]],
+    ['mobile with repeated spaces', [['0912  345 678', '[REDACTED_PHONE]']]],
+    ['country code with repeated spaces', [['+84912  345 678', '[REDACTED_PHONE]']]],
+    ['landline with mixed separators', [['028 - 3812 - 3456', '[REDACTED_PHONE]']]],
+    ['phone after an underscore', [['sdt_0912345678', 'sdt_[REDACTED_PHONE]']]],
+    ['phone after a URL underscore', [['https://example.test/call_0912345678', 'https://example.test/call_[REDACTED_PHONE]']]],
+    ['phone after a date', [['2026-11-02-0912345678', '2026-11-02-[REDACTED_PHONE]']]],
   ] as const) {
     await t.test(name, () => {
       for (const [input, expected] of examples) {
@@ -303,6 +309,7 @@ test('phone mask contract preserves IDs, dates and short numbers in network resp
     ['timestamps', ['2026-08-01 12:52:29', '2026-08-01T12:52:29.000Z']],
     ['two dates', ['2026-10-04 2026-11-02']],
     ['too short for 84 plus 9 digits', ['8412345678']],
+    ['money or a count as a string', ['84.123.456.789']],
   ] as const) {
     await t.test(name, () => {
       for (const input of inputs) {
@@ -311,6 +318,12 @@ test('phone mask contract preserves IDs, dates and short numbers in network resp
       }
     });
   }
+});
+
+test('phone mask contract masks phone text and preserves a product ID in HTML', async () => {
+  const { sanitizeResultsHtml } = await import(captureUrl.href);
+  const clean = sanitizeResultsHtml('<p>0912345678</p><p>1__40123456789__1234567890</p>');
+  assert.equal(clean, '<p>[REDACTED_PHONE]</p><p>1__40123456789__1234567890</p>');
 });
 
 test('phone mask contract also masks a debug object string field', async () => {
