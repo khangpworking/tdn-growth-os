@@ -155,16 +155,24 @@ class ProductConcurrencyTests(ProductTest):
             [sys.executable, str(SCRIPT), 'add-product', '--stdin'],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, env=self.env()) for _ in values]
+        # Feed every writer before waiting on any of them, so the saves really compete
+        # for the store lock instead of running one after another.
+        for proc, value in zip(procs, values):
+            proc.stdin.write(json.dumps(value))
+            proc.stdin.flush()
         saved = {}
         for proc, value in zip(procs, values):
-            stdout, stderr = proc.communicate(json.dumps(value), timeout=120)
+            stdout, stderr = proc.communicate(timeout=120)
             payload = json.loads(stdout) if stdout.strip() else None
             if proc.returncode == 0:
                 self.assertEqual(payload['format'], 'add-product-v1', (payload, stderr))
+                self.assertEqual(payload['presetId'], value['presetId'], (payload, stderr))
+                self.assertEqual(payload['label'], value['label'], (payload, stderr))
                 saved[payload['presetId']] = payload['label']
             else:
                 self.assertEqual(proc.returncode, 2, (payload, stderr))
                 self.assertEqual(payload['code'], 'PRESET_BUSY', (payload, stderr))
+        self.assertTrue(saved, 'at least one competing writer must save')
         files = self.preset_files()
         extra = {p.name for p in self.presets.iterdir()} - set(files) - {'.presets.lock'}
         self.assertEqual(extra, set(), 'a failed save left a partial file')
@@ -172,7 +180,8 @@ class ProductConcurrencyTests(ProductTest):
         self.assertEqual(set(stored), set(saved))
         for preset_id, name in stored.items():
             item = json.loads((self.presets / name).read_text())
-            self.assertEqual(item['label'], saved[preset_id])
+            self.assertEqual(item['label'], saved[preset_id], 'a competing writer overwrote another product')
+            self.assertEqual(item['presetId'], preset_id)
             self.assertEqual(set(item), {'format', 'presetId', 'label', 'preset', 'principalTitles', 'source'})
 
     @unittest.skipUnless(sys.platform != 'win32', 'flock lock test is POSIX only')
