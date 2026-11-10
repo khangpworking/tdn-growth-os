@@ -236,6 +236,25 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -m pytest tools/mcp-insight/tests -v -p no:cacheprovider
 
+  shopee-skill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Run Shopee flow offline tests
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py' -v
+
   prep:
     needs: scope
     if: needs.scope.outputs.mode == 'full'
@@ -361,7 +380,7 @@ jobs:
 
   check:
     name: check
-    needs: [scope, research, market-mcp, insight-mcp, prep, backend, frontend]
+    needs: [scope, research, market-mcp, insight-mcp, shopee-skill, prep, backend, frontend]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -373,14 +392,19 @@ jobs:
           RESEARCH_RESULT: ${{ needs.research.result }}
           MARKET_MCP_RESULT: ${{ needs.market-mcp.result }}
           INSIGHT_MCP_RESULT: ${{ needs.insight-mcp.result }}
+          SHOPEE_SKILL_RESULT: ${{ needs.shopee-skill.result }}
           PREP_RESULT: ${{ needs.prep.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
         shell: bash
         run: |
-          echo "scope=$SCOPE_RESULT mode=$MODE research=$RESEARCH_RESULT market-mcp=$MARKET_MCP_RESULT insight-mcp=$INSIGHT_MCP_RESULT prep=$PREP_RESULT backend=$BACKEND_RESULT frontend=$FRONTEND_RESULT"
+          echo "scope=$SCOPE_RESULT mode=$MODE research=$RESEARCH_RESULT market-mcp=$MARKET_MCP_RESULT insight-mcp=$INSIGHT_MCP_RESULT shopee-skill=$SHOPEE_SKILL_RESULT prep=$PREP_RESULT backend=$BACKEND_RESULT frontend=$FRONTEND_RESULT"
           if [[ "$SCOPE_RESULT" != success ]]; then
             echo "::error::scope job did not succeed ($SCOPE_RESULT)"
+            exit 1
+          fi
+          if [[ "$SHOPEE_SKILL_RESULT" != success ]]; then
+            echo "::error::shopee-skill job result: $SHOPEE_SKILL_RESULT"
             exit 1
           fi
           if [[ "$MARKET_MCP_RESULT" != success && "$MARKET_MCP_RESULT" != skipped ]]; then
