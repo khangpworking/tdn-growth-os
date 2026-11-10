@@ -155,24 +155,40 @@ class ProductConcurrencyTests(ProductTest):
             [sys.executable, str(SCRIPT), 'add-product', '--stdin'],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, env=self.env()) for _ in values]
-        # Feed every writer before waiting on any of them, so the saves really compete
-        # for the store lock instead of running one after another.
+        # The CLI reads stdin to EOF, so a written request alone leaves its process
+        # blocked. Close every request stream before waiting on any writer: that
+        # releases all six together, so they really compete for the store lock
+        # instead of saving one after another.
         for proc, value in zip(procs, values):
             proc.stdin.write(json.dumps(value))
             proc.stdin.flush()
+        for proc in procs:
+            proc.stdin.close()
+            proc.stdin = None  # communicate() must not flush a pipe we already closed
         saved = {}
-        for proc, value in zip(procs, values):
-            stdout, stderr = proc.communicate(timeout=120)
-            payload = json.loads(stdout) if stdout.strip() else None
-            if proc.returncode == 0:
-                self.assertEqual(payload['format'], 'add-product-v1', (payload, stderr))
-                self.assertEqual(payload['presetId'], value['presetId'], (payload, stderr))
-                self.assertEqual(payload['label'], value['label'], (payload, stderr))
-                saved[payload['presetId']] = payload['label']
-            else:
-                self.assertEqual(proc.returncode, 2, (payload, stderr))
-                self.assertEqual(payload['code'], 'PRESET_BUSY', (payload, stderr))
-        self.assertTrue(saved, 'at least one competing writer must save')
+        outcomes = {}
+        try:
+            for proc, value in zip(procs, values):
+                stdout, stderr = proc.communicate(timeout=120)
+                payload = json.loads(stdout) if stdout.strip() else None
+                if proc.returncode == 0:
+                    self.assertEqual(payload['format'], 'add-product-v1', (payload, stderr))
+                    self.assertEqual(payload['presetId'], value['presetId'], (payload, stderr))
+                    self.assertEqual(payload['label'], value['label'], (payload, stderr))
+                    saved[payload['presetId']] = payload['label']
+                    outcomes[value['presetId']] = 'saved'
+                else:
+                    self.assertEqual(proc.returncode, 2, (payload, stderr))
+                    self.assertEqual(payload['code'], 'PRESET_BUSY', (payload, stderr))
+                    outcomes[value['presetId']] = 'busy'
+        except subprocess.TimeoutExpired:
+            for proc in procs:
+                proc.kill()
+            raise
+        self.assertEqual(set(outcomes), {v['presetId'] for v in values}, outcomes)
+        self.assertEqual({k for k, outcome in outcomes.items() if outcome == 'saved'},
+                         set(saved), outcomes)
+        self.assertIn('saved', outcomes.values(), f'no writer saved: {outcomes}')
         files = self.preset_files()
         extra = {p.name for p in self.presets.iterdir()} - set(files) - {'.presets.lock'}
         self.assertEqual(extra, set(), 'a failed save left a partial file')
