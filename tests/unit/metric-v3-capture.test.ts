@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import { JSDOM } from 'jsdom';
+import { JSDOM, type DOMWindow } from 'jsdom';
 import { buildCaptureSpec } from '../../src/modules/analysis/research-automation/autorun-derive.js';
 import { validateMetricV3CaptureSpec } from '../../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
 
@@ -17,6 +17,15 @@ const ajv = new Ajv2020({ strict: true });
 require('ajv-formats')(ajv);
 ajv.addSchema(JSON.parse(await readFile(new URL('../../contracts/analysis/metric-v3-capture-spec.schema.json', import.meta.url), 'utf8')));
 const validateWindowManifest = ajv.compile<Record<string, unknown>>(JSON.parse(await readFile(new URL('../../contracts/analysis/metric-v3-window-capture.schema.json', import.meta.url), 'utf8')));
+
+function stubVisibleLayout(window: DOMWindow) {
+  Object.defineProperty(window.HTMLElement.prototype, 'getBoundingClientRect', {
+    value(this: HTMLElement) {
+      const hidden = this.style.visibility === 'hidden' || this.style.display === 'none';
+      return { width: hidden ? 0 : 100, height: hidden ? 0 : 30 };
+    },
+  });
+}
 
 test('window manifest versions retain old captures and require method provenance for new captures', () => {
   const row = fixture.windows[0];
@@ -46,6 +55,7 @@ test('explicit preset contract rows preserve applied state and reject page or re
         return this.textContent ?? '';
       },
     });
+    stubVisibleLayout(dom.window);
     const root = document.querySelector('#__nuxt') as any;
     const taxonomy = observation.taxonomy;
     root._vnode = {
@@ -352,6 +362,21 @@ test('availability follows enabled calendar dates across months without submitti
 // structure in both languages so extraction is proven on the real DOM, not on flags.
 const englishForm = await readFile(new URL('../fixtures/metric-v3/form.en.html', import.meta.url), 'utf8');
 const vietnameseForm = await readFile(new URL('../fixtures/metric-v3/form.vi.html', import.meta.url), 'utf8');
+const overviewKPIs = {
+  English: [
+    ['Revenue (VNĐ)', '1,350,000'],
+    ['Sold products', '3,500'],
+    ['Products', '250'],
+    ['Shops', '50'],
+  ],
+  Vietnamese: [
+    ['Doanh số (VNĐ)', '1,350,000'],
+    ['Lượt bán', '3,500'],
+    ['Sản phẩm có lượt bán', '250'],
+    ['Gian hàng có lượt bán', '50'],
+  ],
+} as const;
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Bind the fixture's Vue taxonomy, then read the page exactly as the capture does. */
 function readBilingualObservation(html: string) {
@@ -359,6 +384,7 @@ function readBilingualObservation(html: string) {
   try {
     const { document } = dom.window;
     Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', { get() { return this.textContent ?? ''; } });
+    stubVisibleLayout(dom.window);
     const observation = fixture.windows[0].observation;
     const taxonomy = observation.taxonomy;
     const root = document.querySelector('#__nuxt') as any;
@@ -392,6 +418,15 @@ test('bilingual forms bind real DOM controls, results and trend interval to the 
       assert.equal(observed.stop, undefined, language + ': no stop');
       assert.equal(observed.formReady, true, language + ': form is ready from the DOM');
       assert.equal(observed.resultsReady, true, language + ': results are visible');
+      const overviewHeading = language === 'English' ? 'Market Overview' : 'Tổng quan thị trường';
+      assert.match(observed.displayedKPIs, new RegExp(`^${escapeRegExp(overviewHeading)}\\b`), language + ': exact heading');
+      for (const [label, value] of overviewKPIs[language]) {
+        assert.match(
+          observed.displayedKPIs,
+          new RegExp(`${escapeRegExp(label)}\\s*${escapeRegExp(value)}`),
+          language + ': KPI evidence retains ' + label,
+        );
+      }
       assert.equal(observed.submitReady, true, language + ': submit is ready');
       assert.equal(observed.submitIdle, true, language + ': submit is idle');
       assert.equal(observed.trendIntervalDays, intervalDays, language + ': ' + bucket + ' interval');
@@ -408,6 +443,50 @@ test('bilingual forms bind real DOM controls, results and trend interval to the 
     }
     const unsupported = readBilingualObservation(html.replace('TREND_LABEL', language === 'English' ? 'Quarter' : 'Hàng quý'));
     assert.equal(unsupported.trendIntervalDays, null, language + ': an unlisted bucket is not guessed');
+  }
+});
+
+test('overview readiness requires one visible exact heading in the scoped overview section', () => {
+  const spec = buildCaptureSpec(validateMetricV3CaptureSpec(fixture.spec));
+  const start = englishForm.indexOf('<!-- market-overview -->');
+  const end = englishForm.indexOf('<!-- /market-overview -->') + '<!-- /market-overview -->'.length;
+  assert.ok(start >= 0 && end > start, 'overview fixture markers are intact');
+  const overviewBlock = englishForm.slice(start, end);
+  const withoutOverview = englishForm.slice(0, start) + englishForm.slice(end);
+  const duplicateOverview = englishForm.slice(0, end) + overviewBlock + englishForm.slice(end);
+  const hiddenOverview = englishForm.replace(
+    '<div class="market-overview-section">',
+    '<div class="market-overview-section" style="visibility:hidden">',
+  );
+  const renamedHeading = englishForm.replace(
+    '<h3 class="section-title">Market Overview</h3>',
+    '<h3 class="section-title">Market summary</h3>',
+  );
+  const unrelatedBrand = englishForm.slice(0, start) +
+    '<div class="brand-analysis-section"><div class="section-header"><h3 class="section-title">Market Overview</h3></div>' +
+    '<div class="SummaryStatistic"><div class="statistic-cards"><div class="statistic-card">' +
+    '<div class="statistic-card__value">9,999</div></div></div></div></div>' +
+    englishForm.slice(end);
+  const cases: [string, string][] = [
+    ['missing overview', withoutOverview],
+    ['duplicate overview', duplicateOverview],
+    ['hidden overview', hiddenOverview],
+    ['renamed heading', renamedHeading],
+    ['unrelated brand-section heading', unrelatedBrand],
+  ];
+  for (const [name, html] of cases) {
+    const observed = readBilingualObservation(html);
+    assert.equal(observed.formReady, true, name + ': form remains ready');
+    assert.equal(observed.resultsReady, false, name + ': results are not ready');
+    assert.equal(observed.displayedKPIs, '', name + ': no unrelated text is published as KPIs');
+    assert.throws(
+      () => adapter.buildV3WindowManifest(spec, spec.windows[0], observed, fixture.windows[0].responses, '2026-10-26T07:00:00.000Z'),
+      (error: any) => {
+        assert.equal(error.message, 'CAPTURE_UI_CHANGED', name);
+        assert.equal(error.details?.stage, 'results-readiness', name);
+        return true;
+      },
+    );
   }
 });
 
@@ -464,6 +543,7 @@ test('wrong, incomplete, ambiguous or loading controls stop before any submit cl
     const dom = new JSDOM(html, { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
     const w = dom.window, document = w.document;
     Object.defineProperty(w.HTMLElement.prototype, 'innerText', { get() { return this.textContent ?? ''; } });
+    stubVisibleLayout(w);
     const submits = observeSubmits(document);
     const page = {
       evaluate: async (fn: Function, arg?: unknown) => w.eval(`(${fn.toString()})(${JSON.stringify(arg === undefined ? '' : arg)})`),
