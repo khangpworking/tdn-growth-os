@@ -58,7 +58,17 @@ export function readV3Page({ categoryId }) {
       getComputedStyle(e).display !== 'none' &&
       getComputedStyle(e).visibility !== 'hidden',
     );
-  const txt = (e) => (e?.innerText || e?.textContent || '').replace(/\s+/g, ' ').trim();
+  const txt = (e) => (e?.innerText || e?.textContent || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+  // Live labels contain mode buttons, help links and badges. Read the label's
+  // own node, rather than prefix-matching a whole container of other controls.
+  const labelText = (e) => {
+    const label = e?.querySelector('.label,.keyword-selector');
+    if (label) return txt(label);
+    const copy = e?.cloneNode(true);
+    copy?.querySelectorAll('button,a,template,.get-shop-url-wrapper,.ant-badge,.ant-tag,.anticon').forEach(n => n.remove());
+    return txt(copy);
+  };
+  const one = (items) => items.length === 1 ? items[0] : null;
   if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
     return { stop: 'CAPTURE_ORIGIN_CHANGED' };
   if (!document.body) return { stop: 'CAPTURE_UI_CHANGED' };
@@ -82,18 +92,18 @@ export function readV3Page({ categoryId }) {
     return { stop: 'CAPTURE_ACCESS_RESTRICTED' };
   if (!root) return { stop: 'CAPTURE_UI_CHANGED' };
   const labels = [...root.querySelectorAll('.filter-label')];
-  const select = (pattern) => labels.find((e) => pattern.test(txt(e)))?.parentElement?.querySelector('.ant-select');
+  const select = (pattern) => one(labels.filter((e) => pattern.test(labelText(e))))?.parentElement?.querySelector('.ant-select');
   const selected = (e) =>
     [...(e?.querySelectorAll('.ant-select-selection-item-content,.ant-select-selection-item') || [])]
       .filter((n) => !n.querySelector('.ant-select-selection-item-content'))
       .map(txt);
   const check = (pattern) => {
-    const e = [...root.querySelectorAll('label.ant-checkbox-wrapper')].find((e) => pattern.test(txt(e)));
+    const e = one([...root.querySelectorAll('label.ant-checkbox-wrapper')].filter((e) => pattern.test(txt(e))));
     return e?.querySelector('input')?.checked ?? null;
   };
   const switches = [...root.querySelectorAll('[role=switch]')];
   const switchValue = (pattern) => {
-    const e = switches.find((e) => pattern.test(txt(e.parentElement)));
+    const e = one(switches.filter((e) => pattern.test(txt(e.parentElement))));
     return e ? e.getAttribute('aria-checked') === 'true' : null;
   };
   let taxonomy = null,
@@ -159,11 +169,11 @@ export function readV3Page({ categoryId }) {
         }
       : null;
   const exclusionControls = [...root.querySelectorAll('.filter-label')].filter((e) =>
-    /^(Exclude|Loại trừ|Brand$|Thương hiệu$)/i.test(txt(e)),
+    /^(?:(?:Exclude|Loại trừ)(?:\s*\([^)]*\)| brand| thương hiệu| location| kho)?|Brand|Thương hiệu)$/i.test(labelText(e)),
   );
   const exclusions = exclusionControls.flatMap((e) => selected(e.parentElement?.querySelector('.ant-select')));
-  if (check(/^(Smart exclusion|Loại trừ thông minh)/i) === true) exclusions.push('smart-exclusion');
-  const keywordControl = select(/^(Keywords|Từ kh[oó]a)/i);
+  if (check(/^(Smart exclusion|Loại trừ thông minh)$/i) === true) exclusions.push('smart-exclusion');
+  const keywordControl = select(/^(Keywords|Từ khóa|Từ khoá)(?:\s*\([^)]*\))?$/i);
   const keywords = [...(keywordControl?.querySelectorAll('.ks-chip') || [])].map((e) => {
     const n = e.cloneNode(true);
     n.querySelectorAll('.ant-tag-close-icon').forEach((x) => x.remove());
@@ -174,51 +184,51 @@ export function readV3Page({ categoryId }) {
     return m ? `${m[3]}-${m[2]}-${m[1]}` : value;
   };
   const dates = [...root.querySelectorAll('.ant-picker input')].map((e) => date(e.value));
-  const submit = [...root.querySelectorAll('button')].find((e) => /^(Analytics|Phân tích)$/.test(txt(e)));
-  const overview = [...document.querySelectorAll('.statistic-item')].find((e) =>
-    /Market Overview|Tổng quan thị trường/i.test(txt(e.querySelector('.statistic-item__title'))),
-  );
-  const bodyText = document.body.innerText;
-  const overviewText = overview
-    ? txt(overview)
-    : (bodyText.split(/Market Overview\n|Tổng quan thị trường\n/)[1] || '')
-        .split(/Brand\/Keyword Analysis|Phân tích theo thương hiệu/)[0]
-        .trim();
-  const comparison = [...document.querySelectorAll('.ant-select')].find((e) =>
-    /Compare with time period|So sánh với khoảng thời gian/.test(txt(e)),
-  );
+  const submit = one([...root.querySelectorAll('button')].filter((e) => /^(Analytics|Phân tích)$/i.test(txt(e))));
+  const overview = one([...document.querySelectorAll('.statistic-item')].filter((e) =>
+    /^(Market Overview|Tổng quan thị trường)$/i.test(txt(e.querySelector('.statistic-item__title')))));
+  const comparison = one([...document.querySelectorAll('.ant-select')].filter((e) =>
+    /^(Compare with time period|So sánh với khoảng thời gian)\s*:/i.test(txt(e))));
+  const platformControl = select(/^(Platform|Kênh bán hàng|Nền tảng)$/i);
+  const busy = submit?.querySelector('.anticon-loading') || submit?.getAttribute('aria-busy') === 'true';
+  const trend = one([...document.querySelectorAll('#growth-detail-chart .ant-select')].filter(e =>
+    /^(Day|Ngày|Week|Tuần|Month|Tháng)$/i.test(txt(e.querySelector('.ant-select-selection-item')))));
+  const trendLabel = txt(trend?.querySelector('.ant-select-selection-item'));
   return {
     taxonomy,
     selectedCategoryIds,
     advancedVisible: Boolean(root.querySelector('.category-tab__button')),
     categoryMode: txt(root.querySelector('.category-tab__button.active')),
     breadcrumb,
-    multi: Boolean(select(/^(Platform|Kênh bán hàng|Nền tảng)/i)?.classList.contains('ant-select-multiple')),
+    formReady: Boolean(keywordControl && platformControl && dates.length === 2 && submit),
+    multi: Boolean(platformControl?.classList.contains('ant-select-multiple')),
     keywordInput: keywordControl?.querySelector('input')?.value ?? null,
     period: { startDate: dates[0], endDate: dates[1] },
-    submitReady: Boolean(submit && !submit.disabled && !submit.querySelector('.anticon-loading')),
-    submitIdle: Boolean(submit && !submit.querySelector('.anticon-loading')),
-    comparisonDefault: Boolean(comparison && /Not selected|Không chọn/i.test(txt(comparison))),
-    displayedKPIs: overviewText.slice(0, 700),
+    submitReady: Boolean(submit && !submit.disabled && submit.getAttribute('aria-disabled') !== 'true' && !busy),
+    submitIdle: Boolean(submit && !busy),
+    resultsReady: Boolean(overview && comparison),
+    trendIntervalDays: /^(Week|Tuần)$/i.test(trendLabel) ? 7 : /^(Month|Tháng)$/i.test(trendLabel) ? 30 : null,
+    comparisonDefault: Boolean(comparison && /:\s*(Not selected|Không chọn|Chưa chọn)$/i.test(txt(comparison))),
+    displayedKPIs: txt(overview).slice(0, 700),
     appliedState: {
       keywords,
-      platforms: selected(select(/^(Platform|Kênh bán hàng|Nền tảng)/i)).map((s) =>
+      platforms: selected(platformControl).map((s) =>
         s.trim().toLowerCase().replace('tiktok shop', 'tiktok'),
       ),
-      smartQuery: check(/^(Smart query|Tìm kiếm thông minh)/i),
+      smartQuery: check(/^(Smart query|Tìm kiếm thông minh)$/i),
       category,
       usefulFilters: {
-        fake: check(/^(Filter fake\/abnormal products|Lọc sản phẩm ảo)/i),
-        gifts: check(/^(Exclude gifts|Lọc sản phẩm quà tặng)/i),
-        deleted: check(/^(Exclude deleted products|Lọc bỏ sản phẩm đã bị xóa)/i),
+        fake: check(/^(Filter fake\/abnormal products|Lọc sản phẩm ảo(?:\/bất thường)?)$/i),
+        gifts: check(/^(Exclude gifts|Lọc sản phẩm quà tặng)(?:\s*\(\s*(Detail|Chi tiết)\s*\))?$/i),
+        deleted: check(/^(Exclude deleted products|Lọc bỏ sản phẩm đã bị xóa)$/i),
       },
       advancedFilter: review,
       shopTypes: [
-        check(/^(Mall shop|Shop Chính Hãng)/i) === true ? 'mall' : null,
-        check(/^(Normal shop|Shop Thông thường)/i) === true ? 'regular' : null,
+        check(/^(Mall shop|Shop Chính Hãng(?:\s*\(Mall\))?)$/i) === true ? 'mall' : null,
+        check(/^(Normal shop|Shop Thông thường)$/i) === true ? 'regular' : null,
       ].filter(Boolean),
-      aiNormalisation: switchValue(/^AI /i),
-      customizeCategory: switchValue(/Customize category|Tùy chỉnh danh mục/i),
+      aiNormalisation: switchValue(/^(AI (?:data )?normali[sz]ation|AI chuẩn (?:hóa|hoá) dữ liệu)(?:\s+(NEW|MỚI))?$/i),
+      customizeCategory: switchValue(/^(Customize category|Tùy chỉnh danh mục|Tuỳ chỉnh danh mục)\s*:?$/i),
       exclusions,
     },
   };
@@ -229,8 +239,17 @@ function formAction(action) {
   if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
     return { stop: 'CAPTURE_ORIGIN_CHANGED' };
   const root = document.querySelector('#QuerySearchBuilder');
-  const txt = (e) => (e?.innerText || e?.textContent || '').replace(/\s+/g, ' ').trim();
+  const txt = (e) => (e?.innerText || e?.textContent || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+  const labelText = (e) => {
+    const label = e?.querySelector('.label,.keyword-selector');
+    if (label) return txt(label);
+    const copy = e?.cloneNode(true);
+    copy?.querySelectorAll('button,a,template,.get-shop-url-wrapper,.ant-badge,.ant-tag,.anticon').forEach(n => n.remove());
+    return txt(copy);
+  };
+  const one = (items) => items.length === 1 ? items[0] : null;
   const fail = () => ({ stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' });
+  if (!root) return { stop: 'CAPTURE_UI_CHANGED' };
   const click = (e) => {
     if (!e || e.disabled || e.getAttribute('aria-disabled') === 'true') return fail();
     e.click();
@@ -243,13 +262,13 @@ function formAction(action) {
     return { ok: true };
   };
   const findSelect = (name) =>
-    [...root.querySelectorAll('.filter-label')]
-      .find((e) => new RegExp(name, 'i').test(txt(e)))
+    one([...root.querySelectorAll('.filter-label')]
+      .filter((e) => new RegExp(name, 'i').test(labelText(e))))
       ?.parentElement?.querySelector('.ant-select');
   if (action.kind === 'advanced') return click(root.querySelector('.toggle-advanced-filter-btn'));
   if (action.kind === 'multi') return click(root.querySelector('.switch-button'));
   if (action.kind === 'categoryMode')
-    return click([...root.querySelectorAll('.category-tab__button')].find((e) => /^(Advanced|Nâng cao)$/.test(txt(e))));
+    return click(one([...root.querySelectorAll('.category-tab__button')].filter((e) => /^(Advanced|Nâng cao)$/i.test(txt(e)))));
   if (action.kind === 'openSelect') return gesture(findSelect(action.name)?.querySelector('.ant-select-selector'));
   if (action.kind === 'option') {
     const control = findSelect(action.name),
@@ -259,6 +278,14 @@ function formAction(action) {
       action.labels.includes(txt(e)),
     );
     return choices.length === 1 ? click(choices[0]) : fail();
+  }
+  if (action.kind === 'trendOpen' || action.kind === 'trendOption') {
+    const control = one([...document.querySelectorAll('#growth-detail-chart .ant-select')].filter(e =>
+      /^(Day|Ngày|Week|Tuần|Month|Tháng)$/i.test(txt(e.querySelector('.ant-select-selection-item')))));
+    if (action.kind === 'trendOpen') return gesture(control?.querySelector('.ant-select-selector'));
+    const input = control?.querySelector('input');
+    const dropdown = document.getElementById(input?.getAttribute('aria-controls'))?.closest('.ant-select-dropdown');
+    return click(one([...(dropdown?.querySelectorAll('.ant-select-item-option') || [])].filter(e => action.labels.includes(txt(e)))));
   }
   if (action.kind === 'closePopups') {
     for (const e of root.querySelectorAll('.ant-select input,.ant-picker input'))
@@ -270,37 +297,37 @@ function formAction(action) {
   if (action.kind === 'categoryRoot') return click(document.querySelector('#breadcrumb .vs-breadcrumb-link'));
   if (action.kind === 'categoryAll')
     return click(
-      [...root.querySelectorAll('.vs-tree-text')]
-        .find((e) => /^(All|Tất cả)$/.test(txt(e)))
+      one([...root.querySelectorAll('.vs-tree-text')]
+        .filter((e) => /^(All|Tất cả)$/i.test(txt(e))))
         ?.parentElement.querySelector('input'),
     );
   if (action.kind === 'categoryParent')
     return click(
-      [...root.querySelectorAll('.vs-tree-text')].find((e) => action.labels.includes(txt(e).replace(/\(\d+\)$/, ''))),
+      one([...root.querySelectorAll('.vs-tree-text')].filter((e) => action.labels.includes(txt(e).replace(/\s*\(\d+\)$/, '').trim()))),
     );
   if (action.kind === 'categoryChild') {
-    const n = [...root.querySelectorAll('.vs-tree-text')]
-      .find((e) => action.labels.includes(txt(e)))
+    const n = one([...root.querySelectorAll('.vs-tree-text')]
+      .filter((e) => action.labels.includes(txt(e))))
       ?.parentElement.querySelector('input');
     if (!n) return fail();
     return n.checked === action.checked ? { ok: true } : click(n);
   }
   if (action.kind === 'checkbox') {
-    const n = [...root.querySelectorAll('label.ant-checkbox-wrapper')]
-      .find((e) => new RegExp(action.label, 'i').test(txt(e)))
+    const n = one([...root.querySelectorAll('label.ant-checkbox-wrapper')]
+      .filter((e) => new RegExp(action.label, 'i').test(txt(e))))
       ?.querySelector('input');
     if (!n) return fail();
     return n.checked === action.checked ? { ok: true } : click(n);
   }
   if (action.kind === 'switch') {
-    const n = [...root.querySelectorAll('[role=switch]')].find((e) =>
+    const n = one([...root.querySelectorAll('[role=switch]')].filter((e) =>
       new RegExp(action.label, 'i').test(txt(e.parentElement)),
-    );
+    ));
     if (!n) return fail();
     return (n.getAttribute('aria-checked') === 'true') === action.checked ? { ok: true } : click(n);
   }
   if (action.kind === 'keyword' || action.kind === 'comma' || action.kind === 'keyup') {
-    const n = findSelect('^(Keywords|Từ kh[oó]a)')?.querySelector('input');
+    const n = findSelect('^(Keywords|Từ khóa|Từ khoá)(?:\\s*\\([^)]*\\))?$')?.querySelector('input');
     if (!n) return fail();
     n.focus();
     const key = {
@@ -385,8 +412,14 @@ function formAction(action) {
       done: false,
     };
   }
+  if (action.kind === 'revealTrend') {
+    // The chart may be lazy-mounted outside the viewport. Scrolling is a UI
+    // action only; its data still has to pass the five-response scope gate.
+    document.querySelector('#growth-detail-chart')?.scrollIntoView({ block: 'center' });
+    return { ok: true };
+  }
   if (action.kind === 'submit')
-    return click([...root.querySelectorAll('button')].find((e) => /^(Analytics|Phân tích)$/.test(txt(e))));
+    return click(one([...root.querySelectorAll('button')].filter((e) => /^(Analytics|Phân tích)$/i.test(txt(e)))));
   return fail();
 }
 
@@ -613,7 +646,10 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
     )
       stop('CAPTURE_RESPONSE_MISSING');
   }
-  if (missingEndpoints.length) stop(captureMethod === 'ui' ? 'CAPTURE_UI_CHANGED' : 'CAPTURE_RESPONSE_MISSING', { missingEndpoints });
+  if (missingEndpoints.length) stop(captureMethod === 'ui' ? 'CAPTURE_UI_CHANGED' : 'CAPTURE_RESPONSE_MISSING',
+    { missingEndpoints, window: window.id, stage: 'response-readiness' });
+  if (captureMethod === 'ui' && (observation.resultsReady === false || observation.submitIdle === false))
+    stop('CAPTURE_UI_CHANGED', { window: window.id, stage: 'results-readiness' });
   const manifest = {
     contractVersion: 'metric-v3-window-capture-v2',
     captureId: randomUUID(),
@@ -689,6 +725,27 @@ export async function selectV3Dates(page, period) {
   }
 }
 
+/** Use the chart's interval selector before submit, while old responses are discarded. */
+export async function selectV3TrendInterval(page, intervalDays) {
+  const labels = intervalDays === 7 ? ['Week', 'Tuần'] : intervalDays === 30 ? ['Month', 'Tháng'] : null;
+  if (!labels) stop('CAPTURE_PRESET_INVALID');
+  const read = async () => {
+    const state = await page.evaluate(readV3Page, { categoryId: '' });
+    if (state.stop) stop(state.stop);
+    return state;
+  };
+  if ((await read()).trendIntervalDays === intervalDays) return;
+  await performFormAction(page, { kind: 'revealTrend' });
+  await performFormAction(page, { kind: 'trendOpen' });
+  await performFormAction(page, { kind: 'trendOption', labels });
+  await performFormAction(page, { kind: 'closePopups' });
+  for (let i = 0; i < 15; i++) {
+    if ((await read()).trendIntervalDays === intervalDays) return;
+    await page.wait(500);
+  }
+  stop('CAPTURE_CONTROL_NOT_SELECTABLE');
+}
+
 export async function captureV3Preset(page, spec, outputDir, progress = () => {}, options = {}) {
   if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
   for (let i = 0; i < 30; i++) {
@@ -699,8 +756,9 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
   // and access stops still terminate immediately; only a missing form may wait.
   for (let i = 0; i < 60; i++) {
     const initial = await page.evaluate(readV3Page, { categoryId: spec.preset.category.id });
-    if (!initial.stop) break;
-    if (initial.stop !== 'CAPTURE_UI_CHANGED' || i === 59) stop(initial.stop);
+    if (!initial.stop && initial.formReady) break;
+    if ((initial.stop && initial.stop !== 'CAPTURE_UI_CHANGED') || i === 59)
+      stop(initial.stop || 'CAPTURE_UI_CHANGED', { stage: 'form-readiness' });
     await page.wait(500);
   }
   const read = async () => {
@@ -730,11 +788,11 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
   for (const p of spec.preset.platforms) {
     state = await read();
     if (state.appliedState.platforms.includes(p)) continue;
-    await act({ kind: 'openSelect', name: '^(Platform|Kênh bán hàng|Nền tảng)' });
+    await act({ kind: 'openSelect', name: '^(Platform|Kênh bán hàng|Nền tảng)$' });
     await act({
       kind: 'option',
-      name: '^(Platform|Kênh bán hàng|Nền tảng)',
-      labels: [p === 'tiktok' ? 'Tiktok' : p[0].toUpperCase() + p.slice(1)],
+      name: '^(Platform|Kênh bán hàng|Nền tảng)$',
+      labels: p === 'tiktok' ? ['Tiktok', 'TikTok', 'TikTok Shop'] : [p[0].toUpperCase() + p.slice(1)],
     });
   }
   await act({ kind: 'closePopups' });
@@ -756,16 +814,17 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     await act({ kind: 'categoryChild', labels: [node.label, node.displayLabel], checked: true });
   }
   for (const [label, checked] of [
-    ['^(Smart query|Tìm kiếm thông minh)', true],
-    ['^(Filter fake/abnormal products|Lọc sản phẩm ảo)', true],
-    ['^(Exclude gifts|Lọc sản phẩm quà tặng)', true],
-    ['^(Exclude deleted products|Lọc bỏ sản phẩm đã bị xóa)', true],
-    ['^(Mall shop|Shop Chính Hãng)', true],
-    ['^(Normal shop|Shop Thông thường)', true],
-    ['^(Smart exclusion|Loại trừ thông minh)', false],
+    ['^(Smart query|Tìm kiếm thông minh)$', true],
+    ['^(Filter fake/abnormal products|Lọc sản phẩm ảo(?:/bất thường)?)$', true],
+    ['^(Exclude gifts|Lọc sản phẩm quà tặng)(?:\\s*\\(\\s*(Detail|Chi tiết)\\s*\\))?$', true],
+    ['^(Exclude deleted products|Lọc bỏ sản phẩm đã bị xóa)$', true],
+    ['^(Mall shop|Shop Chính Hãng(?:\\s*\\(Mall\\))?)$', true],
+    ['^(Normal shop|Shop Thông thường)$', true],
+    ['^(Smart exclusion|Loại trừ thông minh)$', false],
   ])
     await act({ kind: 'checkbox', label, checked });
-  for (const label of ['^AI ', 'Customize category|Tùy chỉnh danh mục'])
+  for (const label of ['^(AI (?:data )?normali[sz]ation|AI chuẩn (?:hóa|hoá) dữ liệu)(?:\\s+(NEW|MỚI))?$',
+    '^(Customize category|Tùy chỉnh danh mục|Tuỳ chỉnh danh mục)\\s*:?$'])
     await act({ kind: 'switch', label, checked: false });
   state = await read();
   if (state.appliedState.keywords.length) stop('CAPTURE_INITIAL_STATE_UNEXPECTED');
@@ -798,11 +857,12 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
   const manifests = [];
   for (const window of spec.windows) {
     progress(`Applying ${window.id}`);
-    await act({ kind: 'openSelect', name: '^(Time period|Thời gian)' });
+    await act({ kind: 'openSelect', name: '^(Time period|Thời gian)$' });
     const days = window.id === '30d' ? 30 : 365;
-    await act({ kind: 'option', name: '^(Time period|Thời gian)', labels: [`${days} days`, `Trong ${days} ngày`] });
+    await act({ kind: 'option', name: '^(Time period|Thời gian)$', labels: [`${days} days`, `Trong ${days} ngày`] });
     await act({ kind: 'closePopups' });
     await selectV3Dates(page, window.period);
+    await selectV3TrendInterval(page, window.intervalDays);
     await act({ kind: 'closePopups' });
     state = await until((s) => s.submitReady, 'CAPTURE_CONTROL_NOT_SELECTABLE');
     assertV3Applied(spec, window, state);
@@ -814,6 +874,7 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     await act({ kind: 'submit' });
     await page.wait(1000);
     await idle();
+    await act({ kind: 'revealTrend' });
     // Wait for all five endpoints, not just the first successful headline.
     for (let i = 0; i < 90; i++) {
       const paths = await page.evaluate(() =>
@@ -1004,7 +1065,14 @@ export async function captureV3WithFallback(page, spec, outputDir, options = {})
       try { await rename(join(outputDir, name), join(diagnostics, name)); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
-    await writeFile(join(diagnostics, 'stopped.json'), bytes({ code: uiCode }), { flag: 'wx', mode: 0o600 });
+    const details = uiError.details;
+    // Bounded diagnostics only; never persist whole DOM observations or account text.
+    const diagnostic = { code: uiCode,
+      ...(spec.windows.some(w => w.id === details?.window) ? { window: details.window } : {}),
+      ...(['response-readiness', 'results-readiness', 'form-readiness'].includes(details?.stage) ? { stage: details.stage } : {}),
+      ...(Array.isArray(details?.missingEndpoints) ? { missingEndpoints: details.missingEndpoints.filter(e => endpoints.includes(e)) } : {}),
+    };
+    await writeFile(join(diagnostics, 'stopped.json'), bytes(diagnostic), { flag: 'wx', mode: 0o600 });
     try { return await captureV3PageRequests(page, spec, outputDir, uiCode, options); }
     catch (requestError) {
       const pageRequestCode = errorCode(requestError);
