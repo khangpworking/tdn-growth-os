@@ -251,6 +251,79 @@ class GuardTests(ModuleTest):
         self.assert_no_subprocess()
 
 
+class StartRefusalTests(ModuleTest):
+    """S10/S11: a refused start keeps an existing slip; M1 output blocks M1."""
+
+    def run_info(self):
+        proc = subprocess.run([sys.executable, str(SCRIPT), 'run-info', '--run', RUN_ID],
+                              capture_output=True, text=True, env=self.env(), timeout=60)
+        payload = json.loads(proc.stdout) if proc.stdout.strip() else None
+        self.assertEqual(proc.returncode, 0, (payload, proc.stderr))
+        return payload
+
+    def assert_slip_unchanged(self, name, code, call):
+        path = self.run / 'gates' / f'{name}.json'
+        before = path.read_bytes()
+        rc, payload, stderr = call()
+        after = path.read_bytes()
+        self.assertEqual(rc, code, (payload, stderr))
+        self.assertEqual(after, before, f'gates/{name}.json changed on a refused start')
+        self.assert_no_subprocess()
+        return payload
+
+    def test_s10_guard_refusal_keeps_existing_m1_slip(self):
+        self.m2_pass()
+        self.guard_on()
+        payload = self.assert_slip_unchanged('m1', 20, lambda: self.module('m1'))
+        self.assertEqual(payload.get('errorCode'), 'READONLY_ON', payload)
+
+    def test_s10_guard_refusal_keeps_existing_m3_slip(self):
+        self.m2_pass()
+        self.slip('m3', 'FAIL', error='PROVIDER_BLOCKED')
+        self.guard_on()
+        payload = self.assert_slip_unchanged('m3', 20, lambda: self.module('m3'))
+        self.assertEqual(payload.get('errorCode'), 'READONLY_ON', payload)
+
+    def test_s10_gate_refusal_keeps_existing_m3_slip(self):
+        self.m1_folder()
+        self.m2_selection()
+        self.slip('m3', 'FAIL', error='PROVIDER_BLOCKED')
+        payload = self.assert_slip_unchanged('m3', 22, lambda: self.module('m3'))
+        self.assertEqual(payload.get('errorCode'), 'GATE_NOT_PASSED', payload)
+
+    def test_s10_refusal_without_slip_still_writes_one(self):
+        self.entry_pass()
+        self.guard_on()
+        path = self.run / 'gates' / 'm1.json'
+        self.assertFalse(path.exists())
+        rc, payload, stderr = self.module('m1')
+        self.assertEqual(rc, 20, (payload, stderr))
+        self.assertEqual(payload.get('errorCode'), 'READONLY_ON', payload)
+        written = json.loads(path.read_text())
+        self.assertEqual(written['module'], 'M1')
+        self.assertEqual(written['verdict'], 'FAIL')
+        self.assertEqual(written['errorCode'], 'READONLY_ON')
+        self.assert_no_subprocess()
+
+    def test_s11_existing_m1_output_refuses_m1_and_keeps_slip(self):
+        self.entry_pass()
+        folder = self.m1_folder()
+        self.slip('m1', 'PASS', sha_folder(folder))
+        payload = self.assert_slip_unchanged('m1', 20, lambda: self.module('m1'))
+        self.assertEqual(payload.get('format'), 'module-result-v1', payload)
+        self.assertEqual(payload.get('errorCode'), 'M1_OUTPUT_EXISTS', payload)
+
+    def test_s11_run_info_reports_m1_output_exists(self):
+        self.entry_pass()
+        folder = self.m1_folder()
+        self.slip('m1', 'PASS', sha_folder(folder))
+        info = self.run_info()
+        self.assertEqual(info.get('format'), 'run-info-v1', info)
+        m1 = next(m for m in info['modules'] if m['id'] == 'M1')
+        self.assertFalse(m1['canRun'], m1)
+        self.assertEqual(m1['blockedBy'], {'code': 'M1_OUTPUT_EXISTS', 'gate': None})
+
+
 class CaptureSpecTests(ModuleTest):
     """D15 + R2: entry warns, m1 stops hard without a capture spec."""
 

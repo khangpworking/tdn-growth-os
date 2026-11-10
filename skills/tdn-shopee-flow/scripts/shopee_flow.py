@@ -1005,6 +1005,8 @@ def module_blocking(run, module, manual=False, owner_pid=None):
             return {'code': error, 'gate': previous}, code
     if module in ('m1', 'm3') and module_readonly():
         return {'code': 'READONLY_ON', 'gate': None}, 20
+    if module == 'm1' and gate_path(run, 'm1').exists():
+        return {'code': 'M1_OUTPUT_EXISTS', 'gate': None}, 20
     return None, 0
 
 
@@ -1088,20 +1090,24 @@ def flow_failed(slip):
 def module_execute(run, module, ns, repo, config):
     """One locked module; no printing, no nested lock and no retry."""
     manual = bool(getattr(ns, 'manual', None))
+    work_started, start_refused = False, False
     try:
         module_barrier(run, module, manual, os.getpid())
+        work_started = True
         error = module_work(run, module, ns, repo, config)
         slip, code = evaluate_gate(run, module)
         if error:
             slip.update(verdict='WAIT_OWNER' if error in config['params']['handToOwnerCodes'] else 'FAIL', errorCode=error, next=None)
             code = {'GATE_NOT_PASSED': 22, 'GATE_INPUT_CHANGED': 23}.get(error, 21 if slip['verdict'] == 'WAIT_OWNER' else 20)
     except ModuleFailure as failure:
+        start_refused = not work_started
         slip, code = module_failure_slip(run, module, failure.code, config, manual), failure.exit_code
     except (OSError, ValueError, KeyError, TypeError):
         slip, code = module_failure_slip(run, module, 'MODULE_IO_FAILED', config, manual), 20
     except KeyboardInterrupt:
         slip, code = module_failure_slip(run, module, 'RUN_INTERRUPTED', config, manual), 20
-    module_atomic_json(run, f'gates/{module}.json', slip)
+    if not start_refused or not gate_path(run, f'gates/{module}.json').exists():
+        module_atomic_json(run, f'gates/{module}.json', slip)
     return slip, code
 
 
@@ -1210,7 +1216,9 @@ def cmd_module(ns):
         if run is not None and started and code not in (2, 24):
             if module != 'entry':
                 slip = module_failure_slip(run, module, error, config, bool(getattr(ns, 'manual', None)))
-                module_atomic_json(run, f'gates/{module}.json', slip)
+                start_refused = error in ('RUN_BUSY', 'GATE_NOT_PASSED', 'GATE_INPUT_CHANGED', 'READONLY_ON', 'M1_OUTPUT_EXISTS')
+                if not start_refused or not gate_path(run, f'gates/{module}.json').exists():
+                    module_atomic_json(run, f'gates/{module}.json', slip)
             if not interrupted or work_started:
                 module_atomic_json(run, 'state.json', flow_state(run, 'STOPPED', mode, module.upper(), os.getpid(), started, error))
     except (OSError, ValueError, KeyError, TypeError):
