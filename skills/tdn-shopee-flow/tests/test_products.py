@@ -138,9 +138,9 @@ class ProductUnicodeSizeTests(ProductTest):
         self.assertTrue(all(len(title) == 500 for title in titles))
         raw = json.dumps({'presetId': 'kem-chong-nang-abc', 'label': 'Kem chống nắng ABC',
                           'keyword': 'kem chống nắng', 'categoryId': HEALTH,
-                          'principalTitles': titles}, ensure_ascii=False).encode('utf8')
-        self.assertLessEqual(len(raw), 65536)
-        rc, payload, stderr = self.add(principalTitles=titles)
+                          'principalTitles': titles}, ensure_ascii=False, separators=(',', ':'))
+        self.assertLessEqual(len(raw.encode('utf8')), 65536)
+        rc, payload, stderr = self.command('add-product', '--stdin', stdin=raw)
         self.assertEqual(rc, 0, (payload, stderr))
         self.assertEqual(payload.get('format'), 'add-product-v1', (payload, stderr))
         stored = json.loads((self.presets / 'kem-chong-nang-abc.json').read_text())
