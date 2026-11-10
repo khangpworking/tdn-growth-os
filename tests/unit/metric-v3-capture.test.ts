@@ -411,6 +411,17 @@ test('bilingual forms bind real DOM controls, results and trend interval to the 
   }
 });
 
+function observeSubmits(document: Document) {
+  // The adapter clicks inside page.evaluate, so only real DOM events can catch it.
+  const events: string[] = [];
+  document.addEventListener('click', (event) => {
+    const button = (event.target as Element | null)?.closest?.('button');
+    if (button && /Analytics|Phân tích/i.test(button.textContent ?? '')) events.push('click:' + button.textContent!.trim());
+  }, true);
+  document.addEventListener('submit', () => events.push('submit'), true);
+  return events;
+}
+
 test('wrong, incomplete, ambiguous or loading controls stop before any submit click', async () => {
   const spec = buildCaptureSpec(validateMetricV3CaptureSpec(fixture.spec));
   const platformStart = englishForm.indexOf('<!-- platform-control -->');
@@ -423,6 +434,16 @@ test('wrong, incomplete, ambiguous or loading controls stop before any submit cl
   const disabledSubmit = englishForm.replace('<button>Analytics</button>', '<button aria-disabled="true">Analytics</button>');
   const duplicateSubmit = englishForm.replace('<button>Analytics</button>', '<button>Analytics</button><button>Analytics</button>');
   const wrongLabel = englishForm.replace('<div class="label">Platform</div>', '<div class="label">Channel</div>');
+
+  // Calibrate the instrument: a real Analytics click must be observed.
+  const calibrationDom = new JSDOM(englishForm, { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
+  try {
+    const calibration = observeSubmits(calibrationDom.window.document);
+    const submit = [...calibrationDom.window.document.querySelectorAll('button')]
+      .find((button) => /Analytics/.test(button.textContent ?? ''));
+    submit!.click();
+    assert.deepEqual(calibration, ['click:Analytics'], 'the observer sees a real Analytics click');
+  } finally { calibrationDom.window.close(); }
 
   const busy = readBilingualObservation(busySubmit);
   assert.deepEqual({ formReady: busy.formReady, submitIdle: busy.submitIdle, submitReady: busy.submitReady }, { formReady: true, submitIdle: false, submitReady: false });
@@ -443,11 +464,11 @@ test('wrong, incomplete, ambiguous or loading controls stop before any submit cl
     const dom = new JSDOM(html, { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
     const w = dom.window, document = w.document;
     Object.defineProperty(w.HTMLElement.prototype, 'innerText', { get() { return this.textContent ?? ''; } });
-    let clicks = 0;
+    const submits = observeSubmits(document);
     const page = {
       evaluate: async (fn: Function, arg?: unknown) => w.eval(`(${fn.toString()})(${JSON.stringify(arg === undefined ? '' : arg)})`),
       wait: async () => {},
-      click: async (selector: string) => { clicks++; (document.querySelector(selector) as HTMLElement | null)?.click(); },
+      click: async (selector: string) => { document.querySelector<HTMLElement>(selector)?.click(); },
     };
     try {
       await assert.rejects(
@@ -458,7 +479,7 @@ test('wrong, incomplete, ambiguous or loading controls stop before any submit cl
           return true;
         },
       );
-      assert.equal(clicks, 0, name + ': no control was clicked');
+      assert.deepEqual(submits, [], name + ': no Analytics submission was triggered');
     } finally { w.close(); }
   }
 });
