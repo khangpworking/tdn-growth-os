@@ -42,15 +42,15 @@ Mỗi dòng là một luật, kèm chỗ ở trong code hoặc tham số.
 8. Mỗi dòng kết quả giữ mã bình luận, `shopId`, `itemId`, `sourceUrl`, `sourcePage`, `sourceRow`, giờ gửi, số sao và lý do không nhận nếu có. Giờ gửi `postedAtLocal` đổi sang `createdAt` với múi giờ `+07:00`. (`shopee-public-reviews.ts` → `mapPublicReviewResult`, `publicReviewLocalTime`)
 9. Kết luận thu: mất đăng nhập hoặc chờ đăng nhập → `SHOPEE_LOGIN_REQUIRED`; cần xác minh → `SHOPEE_VERIFICATION_REQUIRED`; bộ thu không phản hồi → `SHOPEE_COLLECTOR_DOWN`; không có bình luận nào → `PROVIDER_BLOCKED`; hết giờ mà không có bình luận → `PROVIDER_TIMEOUT_NO_REVIEWS`; có link thiếu bình luận hoặc chưa đủ mục tiêu → `PARTIAL_LISTINGS`; mọi link đủ → `OK`. (`src/modules/analysis/research-automation/exact-shopee-outcome.ts` → `classifyPublicExactShopee`)
 10. Mục tiêu mỗi link là 300 bình luận (`TARGET_REVIEWS`). Trần của yêu cầu nhỏ hơn thì theo trần. (`exact-shopee-outcome.ts`; `shopee-public-reviews.ts` → `maxReviewsPerProduct`)
-11. Mỗi link phải có ít nhất 1 bình luận; đây là điều kiện của cổng M3. (`modules.json` → `params.minReviewsPerLink`)
+11. Mỗi link phải có ít nhất 1 bình luận; đây là điều kiện của cổng M3. Link có ít bình luận hơn trần chỉ là cảnh báo, không làm cổng trượt. Kết luận thu giữ lại các dòng đã thu khi nằm trong `params.collectionSuccessVerdicts` (`OK`, `PARTIAL_LISTINGS`). (`modules.json` → `params.minReviewsPerLink`, `params.collectionSuccessVerdicts`)
 12. Số lần thử lại ở mức module là 0. Trong code, mỗi lần hỏi trạng thái/ kết quả tự thử lại 1 lần khi gặp `SHOPEE_REVIEW_TIMEOUT`, `SHOPEE_REVIEW_TRANSPORT` hoặc lỗi HTTP 5xx; đó là luật code, không phải retry module. (`shopee-public-reviews.ts` → `get`)
 13. Token của bộ thu không vào file lượt và không vào phiếu. Lệnh chỉ đọc env lúc chạy, không đọc env của tiến trình khác và không đọc file bí mật. Kết quả chứa token bị từ chối (`CREDENTIAL_ECHO_REFUSED`). (`shopee-public-reviews.ts` → `#exchange`)
 14. Bộ thu dùng chung phiên Shopee với app. App đang thu thì M3 dừng với `HEALTH_NOT_READY`. (`shopee-public-reviews.ts` → `ensureSession`; session state `COLLECTOR_BUSY`)
 
 ## 4. Đầu ra
 
-- `m3/reviews.json`: mảng trần theo khuôn `shopee-public-rows` (JSON Schema trong `contracts/foundation/shopee-public-rows.schema.json`), không bọc trong object. Khi lần thu thất bại, file là `[]`. Trường mỗi dòng: `reviewId`, `shopId`, `itemId`, `postedAtLocal`, `createdAt`, `variation`, `ratingStar`, `ratingState`, `comment`, `attributes`, `contentType`, `sourcePage`, `sourceUrl`, `sourceRow`, `admissionReasons`.
-- `m3/outcome.json`, chuẩn `m3-outcome-v1` (D7): `format` = `"m3-outcome-v1"`, `verdict` = kết luận thu của app nguyên văn (`OK`, `PARTIAL_LISTINGS`, `PROVIDER_BLOCKED`, `SHOPEE_LOGIN_REQUIRED`, ...), `errorCode` = mã lỗi app hoặc `null`. Được phép thêm trường từ outcome của app nếu không có nội dung bình luận và không có bí mật.
+- `m3/reviews.json`: mảng trần theo khuôn `shopee-public-rows` (JSON Schema trong `contracts/foundation/shopee-public-rows.schema.json`), không bọc trong object. File giữ các dòng đã thu khi kết luận thu nằm trong `modules.json` → `params.collectionSuccessVerdicts` (`OK`, `PARTIAL_LISTINGS`); mọi kết luận khác thì file là `[]`. Trường mỗi dòng: `reviewId`, `shopId`, `itemId`, `postedAtLocal`, `createdAt`, `variation`, `ratingStar`, `ratingState`, `comment`, `attributes`, `contentType`, `sourcePage`, `sourceUrl`, `sourceRow`, `admissionReasons`.
+- `m3/outcome.json`, chuẩn `m3-outcome-v1` (D7): `format` = `"m3-outcome-v1"`, `verdict` = kết luận thu của app nguyên văn (`OK`, `PARTIAL_LISTINGS`, `PROVIDER_BLOCKED`, `SHOPEE_LOGIN_REQUIRED`, ...), `errorCode` = mã lỗi app hoặc `null`. `errorCode` là `null` khi `verdict` nằm trong `params.collectionSuccessVerdicts`. Được phép thêm trường từ outcome của app nếu không có nội dung bình luận và không có bí mật.
 - Mã băm: SHA-256 của mã băm đệ quy thư mục `m3/` (D8): mỗi file một dòng `<đường dẫn tương đối posix>\t<sha256>\n`, sắp theo đường dẫn; chữ thường.
 - Phiếu `gates/m3.json` (chuẩn `handoff-v1`). `next` là `null` sau cổng M3, kể cả khi `PASS`. Phiếu chỉ chứa số đếm, mã băm, phiên bản và trạng thái; không có nội dung bình luận.
 
@@ -66,12 +66,15 @@ Exit code: `0` PASS, `20` FAIL, `21` WAIT_OWNER, `22` GATE_NOT_PASSED, `23` GATE
 
 Phép kiểm của cổng M3 (hợp đồng mục 8):
 
-- `verdict_ok`: `m3/outcome.json` có, đúng `m3-outcome-v1`, `verdict` = `modules.json` → `params.collectionSuccessVerdict` (`OK`), `errorCode` = `null`. Thiếu file → phép kiểm sai (D8).
+- `verdict_ok`: `m3/outcome.json` có, đúng `m3-outcome-v1`, `verdict` nằm trong `modules.json` → `params.collectionSuccessVerdicts` (`OK`, `PARTIAL_LISTINGS`), `errorCode` = `null`. Thiếu file → phép kiểm sai (D8).
 - `min_reviews_per_link`: mỗi link có ít nhất `params.minReviewsPerLink` bình luận (1).
 - `cap_not_exceeded`: không link nào vượt trần của yêu cầu.
 - `no_duplicate_review_ids`: không mã bình luận nào xuất hiện hai lần.
 - `product_ids_match_m2`: mã sản phẩm trong kết quả bằng link của M2.
 - `shape_shopee_public_rows`: file đúng khuôn `shopee-public-rows`.
+- `links_below_cap` (cảnh báo): `got` = `{ "belowCap": <số link có ít bình luận hơn trần>, "cap": <trần> }`; `ok` sai khi `belowCap` > 0, nhưng cảnh báo không đổi kết luận cổng.
+
+M3 đạt khi mỗi link có ít nhất 1 bình luận. Một link có ít bình luận hơn trần là chuyện bình thường: nó chỉ là cảnh báo `links_below_cap`, không làm cổng M3 trượt. Kết luận thu `PARTIAL_LISTINGS` vẫn giữ các dòng đã thu và cổng M3 vẫn `PASS`.
 
 Mã chặn của luồng (hợp đồng mục 7, không phải mã app):
 
@@ -94,7 +97,8 @@ Bảng mã lỗi app:
 | `SHOPEE_REVIEW_HTTP_401`, `SHOPEE_REVIEW_HTTP_403`, `SHOPEE_REVIEW_HTTP_5XX` (`shopee-public-reviews.ts`) | Dừng. | Luôn: 401/403 owner kiểm đăng nhập Shopee; 5xx báo người phụ trách bộ thu. |
 | `CREDENTIAL_ECHO_REFUSED` (`shopee-public-reviews.ts`) | Dừng, không in nội dung phản hồi. | Luôn: báo người phụ trách; đây là lỗi an toàn. |
 | `SHOPEE_REVIEW_INVALID_RESPONSE`, `SHOPEE_REVIEW_LIMIT` (`shopee-public-reviews.ts`) | Dừng. | Luôn: báo mã lỗi và số dòng đã nhận. |
-| `PROVIDER_BLOCKED`, `PROVIDER_TIMEOUT_NO_REVIEWS`, `PARTIAL_LISTINGS` (`exact-shopee-outcome.ts`) | Dừng. Cổng M3 trả `FAIL` ở `verdict_ok`. 0 lần thử lại. | Luôn: báo kết luận thu và số bình luận mỗi link. |
+| `PROVIDER_BLOCKED`, `PROVIDER_TIMEOUT_NO_REVIEWS` (`exact-shopee-outcome.ts`) | Dừng. Cổng M3 trả `FAIL` ở `verdict_ok`. 0 lần thử lại. | Luôn: báo kết luận thu và số bình luận mỗi link. |
+| `PARTIAL_LISTINGS` (`exact-shopee-outcome.ts`) | Chạy tiếp: giữ các dòng đã thu. Cổng M3 `PASS` khi mỗi link có ít nhất 1 bình luận; link dưới trần chỉ là cảnh báo. | Chỉ khi có link 0 bình luận: cổng M3 `FAIL` ở `min_reviews_per_link`, báo link đó cho owner. |
 | `SHOPEE_LOGIN_REQUIRED`, `SHOPEE_VERIFICATION_REQUIRED` (`exact-shopee-outcome.ts` → `classifyExactShopee`) | Dừng. Không thử lại. | Luôn: owner đăng nhập hoặc xử lý xác minh Shopee rồi chạy lại M3. |
 
 Bảng chuyển cho người — chỉ mã của M3 trong `modules.json` → `params.handToOwnerCodes` (D4):
@@ -110,7 +114,7 @@ Cổng trả `WAIT_OWNER` khi mã lỗi nằm trong `params.handToOwnerCodes`. M
 
 ## 6. Phiên bản
 
-- Skill `tdn-shopee-m3-binh-luan`, phiên bản `1.0.0`. Giá trị này phải bằng `modules.json` → `modules[M3].skillVersion`, và bằng `skillVersion` trên phiếu.
+- Skill `tdn-shopee-m3-binh-luan`, phiên bản `1.0.1`. Giá trị này phải bằng `modules.json` → `modules[M3].skillVersion`, và bằng `skillVersion` trên phiếu.
 - Bản luật code: không có (`modules.json` → `modules[M3].ruleVersion` = `null`).
 - File code chịu trách nhiệm: `src/platform/collectors/shopee-public-reviews.ts` (`ShopeePublicReviewCollector`, `mapPublicReviewResult`); `src/modules/analysis/research-automation/exact-shopee-outcome.ts` (`classifyExactShopee`); khuôn `contracts/foundation/shopee-public-rows.schema.json`.
 - Số lần thử lại `0`, số bình luận tối thiểu mỗi link `1`, trần mỗi link `1..300`: sửa trong `modules.json`, không sửa code.

@@ -448,8 +448,60 @@ class M3CheckTests(GateTest):
                            'errorCode': 'PROVIDER_BLOCKED'})
         code, slip = self.gate('m3')
         self.assertEqual(code, 20)
+        self.assertEqual(slip['verdict'], 'FAIL')
         self.assertFalse(self.checks(slip)['verdict_ok']['ok'])
+        self.assertEqual(self.checks(slip)['verdict_ok']['got'], 'PROVIDER_BLOCKED')
         self.assertEqual(slip['errorCode'], 'PROVIDER_BLOCKED')
+
+    def test_partial_listings_below_cap_passes_with_warning(self):
+        links = [shopee_link(rank=1, item='11111111111', shop='222222222'),
+                 shopee_link(rank=2, item='33333333333', shop='444444444')]
+        self.m2_pass(links=links, cap=5)
+        rows = [review_row(f'rv-1-{i}') for i in range(5)]
+        rows += [review_row(f'rv-2-{i}', shop='444444444', item='33333333333') for i in range(2)]
+        self.m3_files(rows, {'format': 'm3-outcome-v1', 'verdict': 'PARTIAL_LISTINGS', 'errorCode': None})
+        code, slip = self.gate('m3')
+        self.assertEqual(code, 0, slip)
+        self.assertEqual(slip['verdict'], 'PASS')
+        checks = self.checks(slip)
+        self.assertTrue(checks['verdict_ok']['ok'])
+        self.assertEqual(checks['verdict_ok']['got'], 'PARTIAL_LISTINGS')
+        self.assertTrue(checks['min_reviews_per_link']['ok'])
+        self.assertEqual(checks['min_reviews_per_link']['got'], [5, 2])
+        warning = checks['links_below_cap']
+        self.assertFalse(warning['ok'])
+        self.assertEqual(warning['level'], 'warn')
+        self.assertEqual(warning['got'], {'belowCap': 1, 'cap': 5})
+        self.assertIsNone(slip['errorCode'])
+        self.assertIsNone(slip['next'])
+
+    def test_partial_listings_zero_link_fails_min_reviews(self):
+        links = [shopee_link(rank=1, item='11111111111', shop='222222222'),
+                 shopee_link(rank=2, item='33333333333', shop='444444444')]
+        self.m2_pass(links=links, cap=5)
+        rows = [review_row(f'rv-1-{i}') for i in range(5)]
+        self.m3_files(rows, {'format': 'm3-outcome-v1', 'verdict': 'PARTIAL_LISTINGS', 'errorCode': None})
+        code, slip = self.gate('m3')
+        checks = self.checks(slip)
+        self.assertEqual(code, 20, slip)
+        self.assertEqual(slip['verdict'], 'FAIL')
+        self.assertTrue(checks['verdict_ok']['ok'])
+        self.assertFalse(checks['min_reviews_per_link']['ok'])
+        self.assertEqual(checks['min_reviews_per_link']['got'], [5, 0])
+
+    def test_verdict_ok_all_links_at_cap(self):
+        links = [shopee_link(rank=1, item='11111111111', shop='222222222'),
+                 shopee_link(rank=2, item='33333333333', shop='444444444')]
+        self.m2_pass(links=links, cap=2)
+        rows = [review_row(f'rv-1-{i}') for i in range(2)]
+        rows += [review_row(f'rv-2-{i}', shop='444444444', item='33333333333') for i in range(2)]
+        self.m3_files(rows, OK_OUTCOME)
+        code, slip = self.gate('m3')
+        checks = self.checks(slip)
+        self.assertEqual(code, 0, slip)
+        self.assertEqual(slip['verdict'], 'PASS')
+        self.assertTrue(checks['links_below_cap']['ok'])
+        self.assertEqual(checks['links_below_cap']['got'], {'belowCap': 0, 'cap': 2})
 
     def test_handover_code_wait_owner(self):
         self.m2_pass()

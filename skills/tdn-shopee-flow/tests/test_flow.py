@@ -308,5 +308,118 @@ class RunTests(FlowTest):
         self.assert_no_subprocess()
 
 
+FAKE_NODE = '''#!/usr/bin/env python3
+import hashlib, json, pathlib, sys
+
+args = sys.argv[1:]
+script = next(a for a in args if a.endswith('.ts'))
+index = args.index(script)
+LINKS = [('11111111111', '222222222'), ('33333333333', '444444444')]
+
+
+def write(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value), encoding='utf8')
+
+
+def sha_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def sha_folder(folder):
+    names = sorted(p.relative_to(folder).as_posix() for p in folder.rglob('*') if p.is_file())
+    text = ''.join(f'{name}\\t{sha_file(folder / name)}\\n' for name in names)
+    return hashlib.sha256(text.encode('utf8')).hexdigest()
+
+
+def review_row(review_id, item, shop, row):
+    return {
+        'reviewId': review_id, 'shopId': shop, 'itemId': item,
+        'postedAtLocal': '2026-11-01 10:00', 'createdAt': '2026-11-01T10:00:00+07:00',
+        'variation': None, 'ratingStar': 5, 'ratingState': 'VALID',
+        'comment': 'Synthetic review text for tests.', 'attributes': [], 'contentType': 'COMMENT',
+        'sourcePage': 1, 'sourceUrl': f'https://shopee.vn/product/{shop}/{item}',
+        'sourceRow': row, 'admissionReasons': [],
+    }
+
+
+if script.endswith('capture-metric-preset.ts'):
+    out = pathlib.Path(args[index + 2])
+    request = json.loads((out.parent / 'request.json').read_text())
+    refs = []
+    for window in request['windows']:
+        wid = window['id']
+        write(out / wid / 'manifest.json', {'contractVersion': 'metric-v3-window-capture-v2',
+                                            'captureGate': 'PASSED',
+                                            'window': {'id': wid, 'period': window['period']}})
+        write(out / wid / 'raw-responses.json',
+              {'rows': [{'product_base_id': f'1__{item}__{shop}'} for item, shop in LINKS]})
+        refs.append({'window': wid, 'path': f'{wid}/manifest.json',
+                     'sha256': sha_file(out / wid / 'manifest.json')})
+    write(out / 'manifest.json', {'contractVersion': 'metric-v3-capture-v1', 'windows': refs})
+elif script.endswith('module-pick.ts'):
+    run = pathlib.Path(args[index + 1])
+    repo = pathlib.Path(script).resolve().parents[1]
+    config = json.loads((repo / 'skills/tdn-shopee-flow/modules.json').read_text())
+    rule = next(m['ruleVersion'] for m in config['modules'] if m['id'] == 'M2')
+    write(run / 'm2' / 'selection.json', {
+        'format': 'selection-v1', 'runId': run.name, 'source': 'auto', 'pickRuleVersion': rule,
+        'metricInputSha256': sha_folder(run / 'm1'),
+        'links': [{'rank': i + 1, 'productBaseId': f'1__{item}__{shop}', 'shopId': shop, 'itemId': item,
+                   'url': f'https://shopee.vn/product/{shop}/{item}', 'brand': 'Synthetic brand',
+                   'revenue': 1000 * (i + 1),
+                   'reason': f'Hạng {i + 1}, doanh thu kỳ {1000 * (i + 1)}, thương hiệu Synthetic brand'}
+                  for i, (item, shop) in enumerate(LINKS)],
+        'counts': {'walked': 9, 'deleted': 0, 'notIncluded': 3, 'tokenGuardRejected': 0, 'eligible': 6,
+                   'picked': len(LINKS), 'maskedRows': 0, 'maskedAboveLowestPick': 0},
+    })
+elif script.endswith('module-collect-public.ts'):
+    run = pathlib.Path(args[index + 1])
+    rows = [review_row(f'rv-1-{i}', *LINKS[0], i) for i in range(5)]
+    rows += [review_row(f'rv-2-{i}', *LINKS[1], i) for i in range(2)]
+    write(run / 'm3' / 'reviews.json', rows)
+    write(run / 'm3' / 'outcome.json',
+          {'format': 'm3-outcome-v1', 'verdict': 'PARTIAL_LISTINGS', 'errorCode': None})
+else:
+    raise SystemExit('unexpected module script')
+'''
+
+
+class PartialOutcomeFlowTests(FlowTest):
+    """S13/S14: M3 with PARTIAL_LISTINGS and at least one row per link lets the flow reach DONE."""
+
+    def setUp(self):
+        super().setUp()
+        node = self.bin / 'node'
+        node.write_text(FAKE_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+
+    def env(self):
+        env = super().env()
+        env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
+        return env
+
+    def test_flow_ends_done_when_m3_keeps_partial_rows(self):
+        self.make_run(request=request_payload(cap=5))
+        rc, payload, stderr = self.command('run', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload.get('format'), 'run-result-v1', payload)
+        self.assertEqual(payload['status'], 'DONE', payload)
+        self.assertIsNone(payload['stoppedAt'], payload)
+        state = json.loads((self.runs / RUN_ID / 'state.json').read_text())
+        self.assertEqual(state['status'], 'DONE')
+        slip = json.loads((self.runs / RUN_ID / 'gates' / 'm3.json').read_text())
+        self.assertEqual(slip['verdict'], 'PASS', slip)
+        self.assertEqual(slip['module'], 'M3')
+        checks = {c['id']: c for c in slip['checks']}
+        self.assertTrue(checks['verdict_ok']['ok'])
+        self.assertEqual(checks['verdict_ok']['got'], 'PARTIAL_LISTINGS')
+        self.assertTrue(checks['min_reviews_per_link']['ok'])
+        self.assertEqual(checks['links_below_cap']['got'], {'belowCap': 1, 'cap': 5})
+        self.assertEqual(checks['links_below_cap']['level'], 'warn')
+        rows = json.loads((self.runs / RUN_ID / 'm3' / 'reviews.json').read_text())
+        self.assertEqual(len(rows), 7)
+
+
 if __name__ == '__main__':
     unittest.main()

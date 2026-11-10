@@ -45,6 +45,8 @@ The whole flow above is one autorun inside the app. The module flow is the secon
 
 Add `--detach` to a module command to start it in the background. It prints `{ "format": "detached-v1", "runId", "pid" }` and exits 0 at once. The blocking rules run before the detach, so a blocked start still returns 22, 23 or 24.
 
+M3 đạt khi mỗi link có ít nhất 1 bình luận. Kết luận thu `PARTIAL_LISTINGS` vẫn giữ các dòng đã thu và cổng M3 vẫn `PASS`; link có ít bình luận hơn trần chỉ là cảnh báo (`links_below_cap`), không làm cổng trượt.
+
 The four gates are `entry`, `m1`, `m2`, `m3`. A gate reads the run folder, runs its checks, writes the slip to `gates/<gate>.json` and prints the same slip as one JSON object. It never calls the network and never writes outside the run folder. Gate command:
 
 ```

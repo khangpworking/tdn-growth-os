@@ -61,6 +61,7 @@ export async function main(deps: CollectDependencies) {
   const requestSha256 = await hashFile(run, 'request.json');
   const config = object(await readJson(repoRoot, 'skills/tdn-shopee-flow/modules.json'));
   const handover = object(config.params).handToOwnerCodes as string[];
+  const successVerdicts = object(config.params).collectionSuccessVerdicts as string[];
   let verdict: string, errorCode: string | null, rows: ShopeePublicRows = [];
   try {
     let collector = deps.collector;
@@ -79,8 +80,8 @@ export async function main(deps: CollectDependencies) {
     const mapped = publicRows(collected);
     const counts = countReviewsPerListing(selected, collected.pages);
     verdict = classifyPublicExactShopee({ receipts: collected.listings, counts, maxReviewsPerProduct: request.reviewCapPerLink });
-    errorCode = verdict === 'OK' ? null : verdict;
-    rows = verdict === 'OK' ? mapped : [];
+    errorCode = successVerdicts.includes(verdict) ? null : verdict;
+    rows = successVerdicts.includes(verdict) ? mapped : [];
   } catch (error) {
     const candidate = error instanceof ShopeePublicReviewError || error instanceof ModuleError ? error.code : null;
     verdict = typeof candidate === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(candidate) ? candidate : 'MODULE_FAILED';
@@ -91,8 +92,8 @@ export async function main(deps: CollectDependencies) {
   await atomicJson(run, 'm3/outcome.json', { format: 'm3-outcome-v1', verdict: 'RUN_INTERRUPTED', errorCode: 'RUN_INTERRUPTED' });
   await atomicJson(run, 'm3/reviews.json', rows);
   await atomicJson(run, 'm3/outcome.json', { format: 'm3-outcome-v1', verdict, errorCode });
-  return { format: 'module-script-result-v1', verdict: verdict === 'OK' ? 'PASS' : handover.includes(verdict) ? 'WAIT_OWNER' : 'FAIL',
-    errorCode, exitCode: verdict === 'OK' ? 0 : handover.includes(verdict) ? 21 : 20, reviews: rows.length };
+  return { format: 'module-script-result-v1', verdict: successVerdicts.includes(verdict) ? 'PASS' : handover.includes(verdict) ? 'WAIT_OWNER' : 'FAIL',
+    errorCode, exitCode: successVerdicts.includes(verdict) ? 0 : handover.includes(verdict) ? 21 : 20, reviews: rows.length };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const task = process.argv.length === 3 ? main({ runDir: process.argv[2]! }) : Promise.reject(new ModuleError('USAGE', 2));

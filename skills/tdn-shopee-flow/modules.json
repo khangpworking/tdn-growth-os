@@ -22,7 +22,10 @@
       "SHOPEE_LOGIN_REQUIRED",
       "SHOPEE_VERIFICATION_REQUIRED"
     ],
-    "collectionSuccessVerdict": "OK",
+    "collectionSuccessVerdicts": [
+      "OK",
+      "PARTIAL_LISTINGS"
+    ],
     "nodeCommand": [
       "node",
       "--import",
@@ -80,7 +83,7 @@
     {
       "id": "M3",
       "skill": "tdn-shopee-m3-binh-luan",
-      "skillVersion": "1.0.0",
+      "skillVersion": "1.0.1",
       "command": "shopee_flow.py m3 --run <id>",
       "input": "m2/selection.json",
       "output": "m3/",
@@ -125,7 +128,11 @@
       "cap_not_exceeded",
       "no_duplicate_review_ids",
       "product_ids_match_m2",
-      "shape_shopee_public_rows"
+      "shape_shopee_public_rows",
+      "links_below_cap"
     ]
+  },
+  "checkLabels": {
+    "links_below_cap": "Số link có ít bình luận hơn trần (cảnh báo)"
   }
 }

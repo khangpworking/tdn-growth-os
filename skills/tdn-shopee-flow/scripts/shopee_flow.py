@@ -858,14 +858,14 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         receipt = read('m3/outcome.json')
         receipt = receipt if isinstance(receipt, dict) else {}
         outcome, error = receipt.get('verdict'), receipt.get('errorCode')
-        success = params['collectionSuccessVerdict']
+        success = params['collectionSuccessVerdicts']
         valid_code = lambda value: isinstance(value, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', value) is not None
         valid_receipt = (receipt.get('format') == 'm3-outcome-v1' and valid_code(outcome) and
                          'errorCode' in receipt and (error is None or valid_code(error)))
-        code = (error or (outcome if outcome != success else None)) if valid_receipt else None
+        code = (error or (outcome if outcome not in success else None)) if valid_receipt else None
         if not isinstance(code, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code):
             code = None
-        check('verdict_ok', valid_receipt and outcome == success and error is None, outcome if valid_receipt else 'MISSING_OR_INVALID')
+        check('verdict_ok', valid_receipt and outcome in success and error is None, outcome if valid_receipt else 'MISSING_OR_INVALID')
         links = selection.get('links')
         links = links if isinstance(links, list) else []
         pair = lambda row: (row.get('shopId'), row.get('itemId')) if isinstance(row, dict) and isinstance(row.get('shopId'), str) and isinstance(row.get('itemId'), str) else None
@@ -881,6 +881,8 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         check('product_ids_match_m2', bool(expected) and None not in expected and None not in actual and set(expected) == set(actual), {'selected': len(set(expected)), 'observed': len(set(actual))})
         rows_schema = gate_read(base.parents[1] / 'contracts/foundation/shopee-public-rows.schema.json')
         check('shape_shopee_public_rows', isinstance(rows_schema, dict) and gate_schema(data, rows_schema), len(rows))
+        below_cap = sum(n < cap for n in per_link) if type(cap) is int else None
+        check('links_below_cap', below_cap == 0, {'belowCap': below_cap, 'cap': cap}, warn=True)
     if code in params['handToOwnerCodes']:
         verdict, exit_code = 'WAIT_OWNER', 21
     elif code or any(not c['ok'] and c.get('level') != 'warn' for c in checks):
