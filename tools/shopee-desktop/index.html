@@ -963,7 +963,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     runsRoot: null,
     poll: null,
     pollRunId: null,
-    lib: null
+    lib: null,
+    productBusy: false
   };
 
   function showError(error) {
@@ -1456,8 +1457,20 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     return { value: value };
   }
 
+  var productSaveSeq = 0;
+
+  function setProductBusy(busy) {
+    state.productBusy = busy;
+    Array.prototype.forEach.call($('productForm').querySelectorAll('input,select,button'), function (el) {
+      el.disabled = busy;
+    });
+    $('productPending').hidden = !busy;
+    $('btnProductSave').disabled = busy || !state.connected;
+  }
+
   async function onSaveProduct(ev) {
     ev.preventDefault();
+    if (state.productBusy) return;
     clearError();
     clearProductMessages();
     var form = readProductForm();
@@ -1466,28 +1479,31 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       if (form.error.focus) $(form.error.focus).focus();
       return;
     }
-    var btn = $('btnProductSave');
-    btn.disabled = true;
-    $('productPending').hidden = false;
-    var res = await api.addProduct(form.value);
-    $('productPending').hidden = true;
-    btn.disabled = !state.connected;
-    if (!res.ok) {
-      showProductError(productErrorText(res.error));
-      return;
+    var seq = ++productSaveSeq;
+    setProductBusy(true);
+    try {
+      var res = await api.addProduct(form.value);
+      if (seq !== productSaveSeq) return;
+      if (!res.ok) {
+        showProductError(productErrorText(res.error));
+        return;
+      }
+      var saved = res.data;
+      var pres = await api.presets();
+      if (seq !== productSaveSeq) return;
+      if (!pres.ok) {
+        showProductSaved('Đã lưu “' + saved.label + '”.');
+        showError(pres.error);
+        return;
+      }
+      state.presets = (pres.data && pres.data.presets) || [];
+      renderPresets(saved.presetId);
+      showProductSaved('Đã lưu “' + saved.label + '” và chọn trong danh sách preset.');
+      $('productForm').reset();
+      $('productCategory').value = '';
+    } finally {
+      if (seq === productSaveSeq) setProductBusy(false);
     }
-    var saved = res.data;
-    var pres = await api.presets();
-    if (!pres.ok) {
-      showProductSaved('Đã lưu “' + saved.label + '”.');
-      showError(pres.error);
-      return;
-    }
-    state.presets = (pres.data && pres.data.presets) || [];
-    renderPresets(saved.presetId);
-    showProductSaved('Đã lưu “' + saved.label + '” và chọn trong danh sách preset.');
-    $('productForm').reset();
-    $('productCategory').value = '';
   }
 
   async function onCreate() {
