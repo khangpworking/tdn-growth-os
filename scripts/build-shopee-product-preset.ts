@@ -18,6 +18,7 @@ const text = (value: string) => {
 async function main() {
   if (process.argv.length !== 2) invalid();
   let source = '';
+  process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) {
     source += chunk;
     if (Buffer.byteLength(source) > 65536) invalid();

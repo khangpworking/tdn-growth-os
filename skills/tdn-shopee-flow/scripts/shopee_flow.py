@@ -1265,7 +1265,8 @@ def flow_add_product():
     repo, config = module_config()
     try:
         result = subprocess.run([*config['params']['nodeCommand'], str(repo / 'scripts/build-shopee-product-preset.ts')],
-                                cwd=repo, input=json.dumps(value), capture_output=True, text=True, timeout=30)
+                                cwd=repo, input=json.dumps(value, ensure_ascii=False, separators=(',', ':')), capture_output=True,
+                                encoding='utf8', timeout=30)
         preset = json.loads(result.stdout)
     except (OSError, ValueError, subprocess.TimeoutExpired):
         raise ModuleFailure('PRESET_WRITE_FAILED', 2)
