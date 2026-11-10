@@ -1,0 +1,8 @@
+{
+  "sshCommand": ["ssh", "-T", "-o", "BatchMode=yes", "<user>@<host>", "bash", "-s"],
+  "remoteScript": "$HOME/<repo>/skills/tdn-shopee-flow/scripts/shopee_flow.py",
+  "runsRoot": "$HOME/.local/state/tdn-shopee-modules/runs",
+  "presetsRoot": "$HOME/.local/state/tdn-shopee-modules/presets",
+  "remoteEnvFile": null,
+  "timeoutSeconds": 30
+}

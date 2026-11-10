@@ -1,0 +1,1676 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luồng review Shopee · app desktop</title>
+<style>
+:root {
+  --bg: #eef3f4; --panel: #ffffff; --fg: #14272e; --muted: #556970; --line: #c9d5d9; --band: #e6eef0;
+  --accent: #0a6c78; --accent-tint: #dceef0; --on-solid: #ffffff;
+  --ok: #24734a; --ok-tint: #dcefe3;
+  --stop: #b0352a; --stop-tint: #f7e2de;
+  --need: #855c00; --need-tint: #f7ecd0;
+  --idle: #8a9aa0; --shadow: rgba(20, 39, 46, .16);
+  --body: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f181c; --panel: #172429; --fg: #e4edef; --muted: #9db0b7; --line: #33464d; --band: #1d2c32;
+    --accent: #5cc3cf; --accent-tint: #163a41; --on-solid: #0f181c;
+    --ok: #6fcf97; --ok-tint: #173526;
+    --stop: #f0877b; --stop-tint: #3d201c;
+    --need: #e3bd6b; --need-tint: #3a3018;
+    --idle: #6d7f86; --shadow: rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 15px/1.55 var(--body); }
+p { margin: 0; }
+code { font: 400 12.5px/1.5 var(--mono); overflow-wrap: anywhere; }
+button { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 80px; display: grid; gap: 16px; }
+
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-start; justify-content: space-between; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.kicker { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+header.top h1 { margin: 2px 0 0; font-size: clamp(20px, 3vw, 26px); line-height: 1.2; }
+header.top .sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.conn { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13.5px; font-weight: 600; max-width: 460px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--idle); display: inline-block; flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.stop { background: var(--stop); }
+.ro { flex-basis: 100%; font-size: 13px; font-weight: 600; color: var(--need); background: var(--need-tint); border-radius: 6px; padding: 6px 10px; }
+
+.errbar { background: var(--stop-tint); color: var(--stop); border: 1px solid var(--stop); border-radius: 8px; padding: 10px 14px; font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-weight: 600; font-size: 14px; padding: 9px 14px; cursor: pointer; }
+.tabs button:hover { color: var(--fg); }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: clamp(16px, 2.4vw, 24px); display: grid; gap: 14px; min-width: 0; }
+.panel h2 { margin: 0; font-size: clamp(18px, 2.4vw, 22px); }
+.lead { color: var(--muted); font-size: 14px; max-width: 80ch; }
+
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 18px; align-items: end; }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+select, input { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; width: 100%; }
+.windowline { grid-column: 1 / -1; font-size: 13.5px; font-weight: 600; color: var(--accent); background: var(--accent-tint); border-radius: 8px; padding: 8px 12px; }
+
+.btnrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.abtn { font-size: 13.5px; font-weight: 600; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--band); color: var(--fg); cursor: pointer; }
+.abtn:hover:not(:disabled) { border-color: var(--accent); }
+.abtn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-solid); }
+.abtn:disabled { opacity: .5; cursor: not-allowed; }
+.hint { font-size: 12.5px; font-weight: 600; color: var(--need); }
+.muted { color: var(--muted); font-size: 13.5px; }
+.runline { font-size: 13.5px; color: var(--muted); }
+.runline code { font-weight: 600; color: var(--fg); }
+.codechip { font: 600 11.5px/1.6 var(--mono); color: var(--stop); background: var(--stop-tint); border-radius: 4px; padding: 1px 7px; overflow-wrap: anywhere; }
+
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chip.s-pass, .chip.s-done { color: var(--ok); background: var(--ok-tint); }
+.chip.s-fail { color: var(--stop); background: var(--stop-tint); }
+.chip.s-warn, .chip.s-run { color: var(--need); background: var(--need-tint); }
+.chip.s-ready { color: var(--accent); background: var(--accent-tint); }
+.chip.s-idle { color: var(--muted); border: 1px dashed var(--line); }
+
+.track { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 880px) { .track { grid-template-columns: minmax(0, 1fr); } }
+.runs { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; align-content: start; }
+.runs h2 { margin: 0; font-size: 15px; }
+#runList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.runbtn { width: 100%; text-align: left; display: grid; gap: 3px; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; cursor: pointer; }
+.runbtn:hover { border-color: var(--accent); }
+.runbtn.on { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); background: var(--accent-tint); }
+.runbtn .rid { font: 500 11.5px/1.4 var(--mono); color: var(--muted); }
+.runbtn .rname { font-weight: 600; font-size: 14px; }
+.runbtn .rmeta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+
+.detail { display: grid; gap: 12px; min-width: 0; }
+.dhead { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+.dhead h2 { margin: 0; font-size: 17px; }
+.seq { display: flex; flex-wrap: wrap; gap: 6px; }
+.seqch { display: grid; gap: 2px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 104px; }
+.seqch b { font-size: 12.5px; }
+.seqch span { font-size: 11.5px; color: var(--muted); }
+.roline { font-size: 13px; font-weight: 600; color: var(--need); background: var(--need-tint); border-radius: 8px; padding: 8px 12px; }
+
+.gate { border: 1.5px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; background: var(--panel); }
+.gate[data-tone="pass"] { border-left: 5px solid var(--ok); }
+.gate[data-tone="fail"] { border-left: 5px solid var(--stop); }
+.gate[data-tone="warn"] { border-left: 5px solid var(--need); }
+.gate[data-tone="idle"] { border-left: 5px dashed var(--idle); }
+.gh { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gh h3 { margin: 0; font-size: 15px; }
+.cks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ck { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; align-items: start; font-size: 14px; }
+.ci { width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; }
+.c-ok .ci { background: var(--ok-tint); color: var(--ok); }
+.c-fail .ci { background: var(--stop-tint); color: var(--stop); }
+.c-warn .ci { background: var(--need-tint); color: var(--need); }
+.ck .cl { font-weight: 600; }
+.ck .cid { font: 400 11.5px/1.5 var(--mono); color: var(--muted); margin-left: 8px; }
+.ck .got { font: 400 12px/1.55 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.ck .warnnote { font-size: 12px; font-weight: 600; color: var(--need); }
+.gkv { margin: 0; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.gkv > div { display: grid; grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr); gap: 10px; }
+.gkv dt { font-size: 12.5px; color: var(--muted); }
+.gkv dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+
+.mod { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; background: var(--panel); }
+.mh { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mh h3 { margin: 0; font-size: 15px; }
+.mm { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.mm code { font-size: 12px; }
+
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); }
+th { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.libcard h2 { font-size: 17px; }
+.kv { display: grid; gap: 7px; margin: 0; }
+.kv > div { display: grid; grid-template-columns: minmax(0, 10em) minmax(0, 1fr); gap: 10px; }
+.kv dt { font-size: 12.5px; color: var(--muted); }
+.kv dd { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.chklist { display: grid; gap: 3px; }
+.libsec { display: grid; gap: 6px; }
+.libsec h3 { margin: 0; font-size: 14px; }
+.skilltext { white-space: pre-wrap; font: 400 12.5px/1.6 var(--mono); background: var(--band); border-radius: 8px; padding: 12px 14px; max-height: 300px; overflow: auto; margin: 0; }
+.libnote { font-size: 13px; color: var(--muted); }
+.empty { border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px 16px; color: var(--muted); font-size: 13.5px; }
+#scr-new { display: grid; gap: 16px; }
+.form .btnrow { grid-column: 1 / -1; }
+#productNote { grid-column: 1 / -1; }
+.saveline { font-size: 13.5px; font-weight: 600; color: var(--ok); background: var(--ok-tint); border-radius: 8px; padding: 8px 12px; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="kicker">TDN Growth OS</p>
+      <h1>Luồng review Shopee</h1>
+      <p class="sub">App desktop · 3 module, 4 cổng chặn</p>
+    </div>
+    <div class="conn">
+      <span class="dot" id="connDot"></span>
+      <span id="connText">Đang kiểm tra kết nối…</span>
+      <span class="ro" id="roText" hidden>Đang bật khóa chỉ-đọc: lượt mới dừng ở cổng vào (readonly_off); M1 và M3 bị khóa; M2 vẫn chạy được trên lượt đã qua cổng M1.</span>
+    </div>
+  </header>
+
+  <div class="errbar" id="errbar" role="alert" hidden></div>
+
+  <nav class="tabs" role="tablist" aria-label="Màn hình">
+    <button type="button" role="tab" data-screen="new" aria-selected="true">Lượt mới</button>
+    <button type="button" role="tab" data-screen="track" aria-selected="false">Theo dõi lượt</button>
+    <button type="button" role="tab" data-screen="lib" aria-selected="false">Thư viện module</button>
+  </nav>
+
+  <main>
+    <section id="scr-new" aria-label="Lượt mới">
+      <div class="panel">
+        <h2>Lượt mới</h2>
+        <p class="lead">Chọn preset, ngày cuối kỳ và trần bình luận. Cổng vào kiểm tra cấu hình trước khi chạy.</p>
+        <div class="form">
+          <label class="field"><span>Preset</span><select id="presetSel"></select></label>
+          <label class="field"><span>Ngày cuối kỳ</span><input type="date" id="endDate"></label>
+          <label class="field"><span>Trần bình luận mỗi link (1–300)</span><input type="number" id="cap" min="1" max="300" step="1" value="300"></label>
+          <p class="windowline" id="windowText"></p>
+        </div>
+        <div class="btnrow">
+          <button class="abtn primary" id="btnNew" type="button" disabled>Tạo lượt và kiểm cổng vào</button>
+        </div>
+        <div id="newResult" hidden>
+          <p class="runline" id="newRunLine"></p>
+          <div id="entrySlip"></div>
+          <div class="btnrow" style="margin-top:10px">
+            <button class="abtn primary" id="btnFlow" type="button" disabled>Chạy cả luồng</button>
+            <span class="hint" id="flowHint" hidden></span>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Thêm sản phẩm</h2>
+        <p class="lead">Lưu sản phẩm vào danh sách preset trên máy chạy. Lưu sản phẩm không tạo lượt và không chạy thu thập.</p>
+        <form class="form" id="productForm" novalidate>
+          <label class="field"><span>Tên hiển thị sản phẩm</span><input type="text" id="productLabel" maxlength="120" autocomplete="off" placeholder="Ví dụ: Viên uống vitamin C"></label>
+          <label class="field"><span>Từ khóa chính</span><input type="text" id="productKeyword" maxlength="200" autocomplete="off" placeholder="Ví dụ: vitamin C"></label>
+          <label class="field"><span>Từ khóa phụ (không bắt buộc)</span><input type="text" id="productKeyword2" maxlength="200" autocomplete="off" placeholder="Ví dụ: viên uống vitamin C"></label>
+          <label class="field"><span>Danh mục</span>
+            <select id="productCategory">
+              <option value="">Chọn danh mục</option>
+              <option value="c2035652732">Sức Khoẻ</option>
+            </select>
+          </label>
+          <p class="windowline" id="productNote">Hiện chỉ hỗ trợ danh mục <b>Sức Khoẻ</b>, gồm 4 nhóm con: Chăm sóc sức khỏe; Dinh dưỡng thể thao, protein; Sức khỏe khác; Thực phẩm chức năng. Danh mục khác chưa được hỗ trợ.</p>
+          <div class="btnrow">
+            <button class="abtn primary" id="btnProductSave" type="submit" disabled>Lưu sản phẩm</button>
+            <span class="hint" id="productPending" hidden>Đang lưu…</span>
+            <span class="hint" id="productHint" hidden>Chưa kết nối máy chạy.</span>
+          </div>
+        </form>
+        <p class="saveline" id="productSaved" role="status" hidden></p>
+        <p class="errbar" id="productErr" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <section id="scr-track" aria-label="Theo dõi lượt" hidden>
+      <div class="track">
+        <aside class="runs">
+          <h2>Lượt đã tạo</h2>
+          <ol id="runList"></ol>
+          <p class="muted" id="runsEmpty" hidden>Chưa có lượt nào.</p>
+        </aside>
+        <section class="detail" id="runDetail" aria-live="polite">
+          <p class="muted">Chọn một lượt bên trái.</p>
+        </section>
+      </div>
+    </section>
+
+    <section id="scr-lib" aria-label="Thư viện module" hidden>
+      <div class="panel">
+        <h2>Thư viện module</h2>
+        <p class="libnote">App chạy lệnh trực tiếp; skill là đường thứ hai, dành cho AI agent.</p>
+        <div id="libBody"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function h(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = String(text);
+    return n;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function clone(v) { return v === null || v === undefined ? v : JSON.parse(JSON.stringify(v)); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  var CHECK_LABELS = {
+    product_text: 'Có chữ sản phẩm',
+    period_dates: 'Kỳ có ngày hợp lệ',
+    review_cap_1_300: 'Trần bình luận từ 1 đến 300',
+    readonly_off: 'Không bật khóa chỉ-đọc',
+    capture_spec_present: 'Có captureSpec (cảnh báo khi thiếu)',
+    capture_success: 'Capture Metric báo thành công',
+    files_readable: 'File capture đọc được',
+    has_shopee_rows: 'Có ít nhất một dòng Shopee',
+    period_matches: 'Kỳ capture khớp kỳ yêu cầu',
+    masked_ids: 'Số dòng bị che ID',
+    links_1_to_5: 'Có 1 đến 5 link',
+    ids_numeric: 'ID shop và item toàn số',
+    no_duplicate_shop: 'Không trùng shop',
+    no_masked_above_lowest_pick: 'Không có dòng bị che trên link thấp nhất',
+    links_in_m1: 'Mọi link có trong đầu ra M1',
+    pick_rule_version: 'Phiên bản luật chọn khớp',
+    pick_reason_present: 'Mỗi link có lý do chọn',
+    verdict_ok: 'Kết luận thu được chấp nhận (OK hoặc PARTIAL_LISTINGS)',
+    min_reviews_per_link: 'Mỗi link đủ bình luận tối thiểu',
+    cap_not_exceeded: 'Không vượt trần bình luận',
+    no_duplicate_review_ids: 'Không trùng ID bình luận',
+    product_ids_match_m2: 'Mã sản phẩm khớp với M2',
+    shape_shopee_public_rows: 'Đúng dạng shopee-public-rows',
+    links_below_cap: 'Số link có ít bình luận hơn trần (cảnh báo)'
+  };
+
+  var GATE_TITLES = { entry: 'Cổng vào', m1: 'Cổng M1', m2: 'Cổng M2', m3: 'Cổng M3' };
+
+  var STATUS = {
+    IDLE: { label: 'Chờ chạy', cls: 's-idle' },
+    RUNNING: { label: 'Đang chạy', cls: 's-run' },
+    STOPPED: { label: 'Đã dừng', cls: 's-fail' },
+    DONE: { label: 'Xong', cls: 's-pass' }
+  };
+
+  var BLOCK_TEXT = {
+    GATE_NOT_PASSED: 'Cổng trước chưa đạt',
+    GATE_INPUT_CHANGED: 'File đã đổi sau khi qua cổng',
+    RUN_BUSY: 'Lượt đang chạy',
+    READONLY_ON: 'Đang khóa chỉ-đọc',
+    M1_OUTPUT_EXISTS: 'M1 đã có đầu ra ở lượt này. Muốn lấy lại số Metric thì tạo lượt mới.'
+  };
+
+  var ERROR_TEXT = {
+    SSH_FAILED: 'Không mở được kết nối tới máy chạy.',
+    SSH_TIMEOUT: 'Máy chạy không trả lời trong thời gian chờ.',
+    REMOTE_OUTPUT_INVALID: 'Máy chạy trả về dữ liệu không đúng dạng.',
+    CONFIG_MISSING: 'Chưa có file cấu hình trên máy này.',
+    CONFIG_INVALID: 'File cấu hình sai hoặc chứa đường dẫn không hợp lệ.',
+    ARG_INVALID: 'Tham số gửi đi không hợp lệ nên không gọi máy chạy.',
+    RUN_NOT_FOUND: 'Không thấy lượt này trên máy chạy.',
+    PRESET_NOT_FOUND: 'Không thấy preset đã chọn.',
+    NEW_RUN_INPUT_INVALID: 'Dữ liệu tạo lượt không hợp lệ: preset, ngày cuối kỳ hoặc trần bình luận.',
+    GATE_NOT_PASSED: 'Cổng trước chưa đạt nên lệnh chạy bị từ chối.',
+    GATE_INPUT_CHANGED: 'File đầu vào đã đổi sau khi qua cổng nên lệnh chạy bị từ chối.',
+    RUN_BUSY: 'Lượt này đang chạy nên lệnh chạy bị từ chối.',
+    READONLY_ON: 'Đang bật khóa chỉ-đọc nên lệnh chạy bị từ chối.',
+    M1_OUTPUT_EXISTS: 'M1 đã có đầu ra ở lượt này. Muốn lấy lại số Metric thì tạo lượt mới.'
+  };
+
+  var GATE_NAMES = { entry: 'vào', m1: 'M1', m2: 'M2', m3: 'M3' };
+
+  function blockText(blockedBy) {
+    var code = blockedBy && blockedBy.code ? blockedBy.code : '';
+    var text = BLOCK_TEXT[code] || code;
+    if (blockedBy && blockedBy.gate) text += ' (cổng ' + blockedBy.gate + ')';
+    return text + (code ? ' · ' + code : '');
+  }
+
+  function gateFailedText(error) {
+    var detail = (error && error.detail) || {};
+    var where = detail.stoppedAt || detail.module || '';
+    var key = String(where).toLowerCase();
+    var gate = GATE_NAMES[key] || String(where || 'không rõ');
+    var checks = Array.isArray(detail.failedChecks) ? detail.failedChecks : [];
+    var checkId = detail.failedCheck || checks[0] || '';
+    if (!checkId) return 'Cổng ' + gate + ' không đạt.';
+    var label = checkId === 'readonly_off' ? 'Đang bật khóa chỉ-đọc' : (CHECK_LABELS[checkId] || checkId);
+    return 'Cổng ' + gate + ' không đạt: ' + label + ' (`' + checkId + '`).';
+  }
+
+  function plainError(error) {
+    var code = error && error.code !== null && error.code !== undefined ? String(error.code) : '';
+    if (code && ERROR_TEXT[code]) return ERROR_TEXT[code] + ' (' + code + ')';
+    if (code === 'GATE_FAILED') return gateFailedText(error);
+    var message = error && error.message !== null && error.message !== undefined ? String(error.message) : '';
+    var rawFormat = error && error.detail && error.detail.format ? String(error.detail.format) : '';
+    if (code) {
+      if (message) return code + ': ' + message;
+      if (rawFormat) return code + ': ' + rawFormat;
+      return code;
+    }
+    if (message) return message;
+    if (rawFormat) return 'Lỗi không rõ (định dạng ' + rawFormat + ').';
+    return 'Lỗi không rõ.';
+  }
+
+  var SEQUENCE = [
+    { kind: 'gate', key: 'entry' },
+    { kind: 'mod', id: 'M1' },
+    { kind: 'gate', key: 'm1' },
+    { kind: 'mod', id: 'M2' },
+    { kind: 'gate', key: 'm2' },
+    { kind: 'mod', id: 'M3' },
+    { kind: 'gate', key: 'm3' }
+  ];
+
+  function ok(data) { return { ok: true, data: data }; }
+  function err(code, message) { return { ok: false, error: { code: code, message: message } }; }
+
+  function isoDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function parseIso(s) {
+    var p = String(s).split('-').map(Number);
+    return new Date(p[0], p[1] - 1, p[2]);
+  }
+  function addDays(d, n) { var c = new Date(d.getFullYear(), d.getMonth(), d.getDate()); c.setDate(c.getDate() + n); return c; }
+  function fmtDate(s) {
+    var d = parseIso(s);
+    return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
+  }
+  function todayIso() { return isoDate(new Date()); }
+
+  function fakeSha(seed) {
+    var h1 = 0x811c9dc5, h2 = 0x01000193, out = '';
+    for (var i = 0; i < 64; i++) {
+      var c = seed.charCodeAt(i % seed.length) + i * 131;
+      h1 = Math.imul(h1 ^ c, 16777619) >>> 0;
+      h2 = (h2 + c * (i + 7)) >>> 0;
+      out += ((h1 ^ h2) >>> 28).toString(16);
+    }
+    return out;
+  }
+  function shaFor(runId, part) { return fakeSha(runId + ':' + part); }
+
+  function randomHex8() {
+    var bytes = new Uint8Array(4);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (var i = 0; i < 4; i++) bytes[i] = Math.floor(Math.random() * 256);
+    return Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+  }
+
+  function createMockApi(mockCase) {
+    var presets = [
+      { presetId: 'p-ao-mau', label: 'Preset áo mẫu', keywords: ['áo thun mẫu'], categoryLabel: 'Thời trang mẫu › Áo mẫu', source: 'manual' },
+      { presetId: 'p-ke-mau', label: 'Preset kệ mẫu', keywords: ['kệ gỗ mẫu', 'kệ trang trí mẫu'], categoryLabel: 'Nhà cửa mẫu › Nội thất mẫu', source: 'manual' }
+    ];
+
+    var MOCK_MODULES = {
+      format: 'modules-v1',
+      flow: { skill: 'tdn-shopee-flow', skillVersion: '1.0.0' },
+      params: {
+        reviewCapPerLink: { min: 1, max: 300, default: 300 },
+        minReviewsPerLink: 1,
+        moduleRetries: 0,
+        handToOwnerCodes: ['CAPTURE_LOGIN_REQUIRED', 'CAPTURE_ACCESS_RESTRICTED', 'METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'HUMAN_LOGIN_REQUIRED', 'HUMAN_VERIFICATION_REQUIRED', 'SHOPEE_LOGIN_REQUIRED', 'SHOPEE_VERIFICATION_REQUIRED'],
+        collectionSuccessVerdicts: ['OK', 'PARTIAL_LISTINGS']
+      },
+      modules: [
+        { id: 'M1', skill: 'tdn-shopee-m1-metric', skillVersion: '1.0.0', command: 'shopee_flow.py m1 --run <id>', input: 'request.json', output: 'm1/', standard: 'request-v1 with captureSpec; spec.json + generated run ID/run1/metric-v3-capture-v1', gate: 'm1', ruleVersion: null, code: ['scripts/capture-metric-preset.ts'] },
+        { id: 'M2', skill: 'tdn-shopee-m2-chon', skillVersion: '1.0.0', command: 'shopee_flow.py m2 --run <id>', input: 'm1/', output: 'm2/selection.json', standard: 'selection-v1', gate: 'm2', ruleVersion: 'autorun-pick-v3', code: ['src/modules/analysis/research-automation/autorun-derive.ts'] },
+        { id: 'M3', skill: 'tdn-shopee-m3-binh-luan', skillVersion: '1.0.1', command: 'shopee_flow.py m3 --run <id>', input: 'm2/selection.json', output: 'm3/', standard: 'shopee-public-rows + m3-outcome-v1', gate: 'm3', ruleVersion: null, code: ['src/platform/collectors/shopee-public-reviews.ts', 'src/modules/foundation/shopee-collection-service.ts'] }
+      ],
+      gates: {
+        entry: ['product_text', 'period_dates', 'review_cap_1_300', 'readonly_off', 'capture_spec_present'],
+        m1: ['capture_success', 'files_readable', 'has_shopee_rows', 'period_matches', 'masked_ids'],
+        m2: ['links_1_to_5', 'ids_numeric', 'no_duplicate_shop', 'no_masked_above_lowest_pick', 'links_in_m1', 'pick_rule_version', 'pick_reason_present'],
+        m3: ['verdict_ok', 'min_reviews_per_link', 'cap_not_exceeded', 'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_below_cap']
+      }
+    };
+
+    var MOCK_SKILLS = [
+      { name: 'tdn-shopee-m1-metric', version: '1.0.0', text: 'tdn-shopee-m1-metric · v1.0.0\n\nĐầu vào: request.json của lượt.\nViệc: gọi capture Metric theo captureSpec, ghi m1/.\nĐầu ra: m1/spec.json và m1/<UUID>/run1/ với manifest và file từng cửa sổ.\nKhông thử lại; gặp bước đăng nhập hoặc xác minh thì trả mã chuyển chủ.' },
+      { name: 'tdn-shopee-m2-chon', version: '1.0.0', text: 'tdn-shopee-m2-chon · v1.0.0\n\nĐầu vào: m1/ đã qua cổng M1.\nViệc: chọn tối đa 5 link Shopee theo luật autorun-pick-v3; không gọi mạng, không dùng AI.\nĐầu ra: m2/selection.json (selection-v1) kèm số dòng bị che ID và lý do chọn cho từng link.' },
+      { name: 'tdn-shopee-m3-binh-luan', version: '1.0.1', text: 'tdn-shopee-m3-binh-luan · v1.0.1\n\nĐầu vào: m2/selection.json đã qua cổng M2.\nViệc: thu bình luận công khai theo từng link, tối đa trần của request.\nĐầu ra: m3/reviews.json và m3/outcome.json.\nM3 đạt khi mỗi link có ít nhất 1 bình luận; link có ít bình luận hơn trần chỉ là cảnh báo.\nKhông ghi vào cơ sở dữ liệu của app.' }
+    ];
+
+    var store = new Map();
+
+    function makeRequest(keywords, endDate, cap) {
+      var end = parseIso(endDate);
+      return {
+        format: 'request-v1',
+        preset: { keywords: keywords.slice() },
+        principalTitles: [],
+        windows: [
+          { id: '30d', period: { startDate: isoDate(addDays(end, -29)), endDate: endDate }, intervalDays: 7 },
+          { id: '12m', period: { startDate: isoDate(addDays(end, -364)), endDate: endDate }, intervalDays: 30 }
+        ],
+        reviewCapPerLink: cap
+      };
+    }
+
+    function selectionFor(runId) {
+      var rows = [
+        [1, '111', '222', 'Nhãn mẫu A', 123450000],
+        [2, '333', '444', null, 98760000],
+        [3, '555', '666', 'Nhãn mẫu C', 75500000],
+        [4, '777', '888', 'Nhãn mẫu D', 51200000],
+        [5, '999', '1010', null, 48750000]
+      ];
+      var links = rows.map(function (r) {
+        var brand = r[3];
+        var revenue = r[4];
+        return {
+          rank: r[0],
+          shopId: r[1],
+          itemId: r[2],
+          productBaseId: '1__' + r[2] + '__' + r[1],
+          url: 'https://shopee.vn/product/' + r[1] + '/' + r[2],
+          brand: brand,
+          revenue: revenue,
+          reason: 'Hạng ' + r[0] + ', doanh thu kỳ ' + revenue.toLocaleString('vi-VN') + ' đ, ' + (brand ? 'thương hiệu ' + brand : 'chưa rõ thương hiệu') + '.'
+        };
+      });
+      return {
+        format: 'selection-v1',
+        runId: runId,
+        source: 'auto',
+        pickRuleVersion: 'autorun-pick-v3',
+        metricInputSha256: shaFor(runId, 'm1'),
+        links: links,
+        counts: { walked: 120, deleted: 2, notIncluded: 8, tokenGuardRejected: 0, eligible: 110, picked: 5, maskedRows: 3, maskedAboveLowestPick: 0 }
+      };
+    }
+
+    function entrySlip(runId, cap) {
+      return {
+        format: 'handoff-v1', module: 'ENTRY', runId: runId, skillVersion: '1.0.0', verdict: 'PASS',
+        inputSha256: null, outputSha256: shaFor(runId, 'request'),
+        checks: [
+          { id: 'product_text', ok: true, got: 1 },
+          { id: 'period_dates', ok: true, got: { windows: 2, valid: true } },
+          { id: 'review_cap_1_300', ok: true, got: cap },
+          { id: 'readonly_off', ok: true, got: true },
+          { id: 'capture_spec_present', ok: false, got: 'absent', level: 'warn' }
+        ],
+        errorCode: null, next: 'M1'
+      };
+    }
+    function m1Slip(runId) {
+      return {
+        format: 'handoff-v1', module: 'M1', runId: runId, skillVersion: '1.0.0', verdict: 'PASS',
+        inputSha256: shaFor(runId, 'request'), outputSha256: shaFor(runId, 'm1'),
+        checks: [
+          { id: 'capture_success', ok: true, got: { windows: 2, passed: 2 } },
+          { id: 'files_readable', ok: true, got: { windows: 2, readable: 2 } },
+          { id: 'has_shopee_rows', ok: true, got: { perWindow: [130, 96] } },
+          { id: 'period_matches', ok: true, got: { windowsMatch: true, matched: 2 } },
+          { id: 'masked_ids', ok: false, got: 3, level: 'warn' }
+        ],
+        errorCode: null, next: 'M2'
+      };
+    }
+    function m2Slip(runId) {
+      return {
+        format: 'handoff-v1', module: 'M2', runId: runId, skillVersion: '1.0.0', verdict: 'PASS',
+        inputSha256: shaFor(runId, 'm1'), outputSha256: shaFor(runId, 'selection'),
+        checks: [
+          { id: 'links_1_to_5', ok: true, got: 5 },
+          { id: 'ids_numeric', ok: true, got: 5 },
+          { id: 'no_duplicate_shop', ok: true, got: 0 },
+          { id: 'no_masked_above_lowest_pick', ok: true, got: 0 },
+          { id: 'links_in_m1', ok: true, got: { matched: 5, links: 5, hashMatches: true } },
+          { id: 'pick_rule_version', ok: true, got: 'MATCH' },
+          { id: 'pick_reason_present', ok: true, got: 5 }
+        ],
+        errorCode: null, next: 'M3'
+      };
+    }
+    function m3Slip(runId) {
+      return {
+        format: 'handoff-v1', module: 'M3', runId: runId, skillVersion: '1.0.1', verdict: 'PASS',
+        inputSha256: shaFor(runId, 'selection'), outputSha256: shaFor(runId, 'reviews'),
+        checks: [
+          { id: 'verdict_ok', ok: true, got: 'PARTIAL_LISTINGS' },
+          { id: 'min_reviews_per_link', ok: true, got: 5 },
+          { id: 'cap_not_exceeded', ok: true, got: 5 },
+          { id: 'no_duplicate_review_ids', ok: true, got: 0 },
+          { id: 'product_ids_match_m2', ok: true, got: { matched: 5 } },
+          { id: 'shape_shopee_public_rows', ok: true, got: 'shopee-public-rows' },
+          { id: 'links_below_cap', ok: false, got: { belowCap: 1, cap: 300 }, level: 'warn' }
+        ],
+        errorCode: null, next: null
+      };
+    }
+    function m3BlockedSlip(runId) {
+      return {
+        format: 'handoff-v1', module: 'M3', runId: runId, skillVersion: '1.0.0', verdict: 'FAIL',
+        inputSha256: shaFor(runId, 'selection'), outputSha256: shaFor(runId, 'reviews'),
+        checks: [{ id: 'verdict_ok', ok: false, got: 'PROVIDER_BLOCKED' }],
+        errorCode: 'PROVIDER_BLOCKED', next: null
+      };
+    }
+    function entryFailSlip(runId) {
+      return {
+        format: 'handoff-v1', module: 'ENTRY', runId: runId, skillVersion: '1.0.0', verdict: 'FAIL',
+        inputSha256: null, outputSha256: shaFor(runId, 'request'),
+        checks: [
+          { id: 'product_text', ok: true, got: 1 },
+          { id: 'period_dates', ok: false, got: { windows: 2, valid: false } },
+          { id: 'review_cap_1_300', ok: true, got: 300 },
+          { id: 'readonly_off', ok: true, got: true },
+          { id: 'capture_spec_present', ok: false, got: 'absent', level: 'warn' }
+        ],
+        errorCode: null, next: null
+      };
+    }
+    function blockingSlip(module, runId, errorCode) {
+      return {
+        format: 'handoff-v1', module: module, runId: runId, skillVersion: '1.0.0', verdict: 'FAIL',
+        inputSha256: shaFor(runId, module === 'M2' ? 'm1' : 'selection'),
+        outputSha256: shaFor(runId, module === 'M2' ? 'selection' : 'reviews'),
+        checks: [], errorCode: errorCode, next: null
+      };
+    }
+
+    function baseState(runId) {
+      return {
+        format: 'state-v1', runId: runId, status: 'IDLE', mode: null, module: null, pid: null,
+        startedAt: null, endedAt: null, errorCode: null, failedCheck: null
+      };
+    }
+    function makeRun(runId, createdAt, product, opts) {
+      var run = {
+        runId: runId,
+        createdAt: createdAt,
+        product: product,
+        request: makeRequest(opts.keywords, opts.endDate, opts.cap),
+        gates: { entry: null, m1: null, m2: null, m3: null },
+        selection: null,
+        state: baseState(runId),
+        demoBlock: opts.demoBlock || null
+      };
+      store.set(runId, run);
+      return run;
+    }
+    function finishState(runId, status, module, errorCode, failedCheck) {
+      return {
+        format: 'state-v1', runId: runId, status: status, mode: 'flow', module: module, pid: null,
+        startedAt: '2026-11-10T01:00:00Z', endedAt: '2026-11-10T01:08:00Z',
+        errorCode: errorCode || null, failedCheck: failedCheck || null
+      };
+    }
+    function isPass(slip) { return !!(slip && slip.verdict === 'PASS'); }
+    function firstFailed(slip) {
+      var found = (slip.checks || []).find(function (c) { return !c.ok && c.level !== 'warn'; });
+      return found ? found.id : null;
+    }
+
+    var ra = makeRun('a1b2c3d4', '2026-11-08T02:10:00Z', 'Sản phẩm mẫu A', { keywords: ['áo thun mẫu'], endDate: '2026-11-08', cap: 300 });
+    ra.gates.entry = entrySlip(ra.runId, 300);
+    ra.gates.m1 = m1Slip(ra.runId);
+    ra.selection = selectionFor(ra.runId);
+    ra.gates.m2 = m2Slip(ra.runId);
+    ra.gates.m3 = m3Slip(ra.runId);
+    ra.state = finishState(ra.runId, 'DONE', 'M3', null, null);
+
+    var rb = makeRun('b2c3d4e5', '2026-11-09T03:20:00Z', 'Sản phẩm mẫu B', { keywords: ['kệ gỗ mẫu'], endDate: '2026-11-09', cap: 300, demoBlock: 'm3' });
+    rb.gates.entry = entrySlip(rb.runId, 300);
+    rb.gates.m1 = m1Slip(rb.runId);
+    rb.selection = selectionFor(rb.runId);
+    rb.gates.m2 = m2Slip(rb.runId);
+    rb.gates.m3 = m3BlockedSlip(rb.runId);
+    rb.state = finishState(rb.runId, 'STOPPED', 'M3', 'PROVIDER_BLOCKED', 'verdict_ok');
+
+    var rc = makeRun('c3d4e5f6', '2026-11-10T01:05:00Z', 'Sản phẩm mẫu C', { keywords: ['áo thun mẫu'], endDate: '2026-11-10', cap: 300 });
+    rc.gates.entry = entrySlip(rc.runId, 300);
+
+    var rd = makeRun('d4e5f6a7', '2026-11-07T04:00:00Z', 'Sản phẩm mẫu D', { keywords: ['áo thun mẫu'], endDate: '2026-11-07', cap: 300 });
+    rd.gates.entry = entryFailSlip(rd.runId);
+    rd.state = finishState(rd.runId, 'STOPPED', 'ENTRY', null, 'period_dates');
+
+    var re = makeRun('e5f6a7b8', '2026-11-06T04:00:00Z', 'Sản phẩm mẫu E', { keywords: ['kệ gỗ mẫu'], endDate: '2026-11-06', cap: 300 });
+    re.gates.entry = entrySlip(re.runId, 300);
+    re.gates.m1 = m1Slip(re.runId);
+    re.gates.m2 = blockingSlip('M2', re.runId, 'GATE_INPUT_CHANGED');
+    re.state = finishState(re.runId, 'STOPPED', 'M2', 'GATE_INPUT_CHANGED', null);
+
+    var rf = makeRun('f6a7b8c9', '2026-11-05T04:00:00Z', 'Sản phẩm mẫu F', { keywords: ['áo thun mẫu'], endDate: '2026-11-05', cap: 300 });
+    rf.gates.entry = entrySlip(rf.runId, 300);
+    rf.gates.m1 = m1Slip(rf.runId);
+    rf.selection = selectionFor(rf.runId);
+    rf.gates.m2 = m2Slip(rf.runId);
+    rf.gates.m3 = blockingSlip('M3', rf.runId, 'READONLY_ON');
+    rf.state = finishState(rf.runId, 'STOPPED', 'M3', 'READONLY_ON', null);
+
+    function runInfo(run) {
+      var running = run.state.status === 'RUNNING';
+      var defs = [
+        { id: 'M1', title: 'Thu thập Metric', skill: 'tdn-shopee-m1-metric', inputGate: 'entry', outputGate: 'm1' },
+        { id: 'M2', title: 'Chọn 5 link Shopee', skill: 'tdn-shopee-m2-chon', inputGate: 'm1', outputGate: 'm2' },
+        { id: 'M3', title: 'Thu bình luận công khai', skill: 'tdn-shopee-m3-binh-luan', inputGate: 'm2', outputGate: 'm3' }
+      ];
+      var modules = defs.map(function (m) {
+        var blockedBy = null;
+        var own = run.gates[m.outputGate];
+        if (running) blockedBy = { code: 'RUN_BUSY' };
+        else if (own && (own.errorCode === 'GATE_INPUT_CHANGED' || own.errorCode === 'READONLY_ON')) blockedBy = { code: own.errorCode };
+        else if (m.outputGate === 'm1' && run.gates.m1) blockedBy = { code: 'M1_OUTPUT_EXISTS', gate: null };
+        else if (!isPass(run.gates[m.inputGate])) blockedBy = { code: 'GATE_NOT_PASSED', gate: m.inputGate };
+        return { id: m.id, title: m.title, skill: m.skill, inputGate: m.inputGate, outputGate: m.outputGate, canRun: !blockedBy, blockedBy: blockedBy };
+      });
+      return {
+        format: 'run-info-v1',
+        runId: run.runId,
+        readonly: false,
+        request: clone(run.request),
+        state: clone(run.state),
+        modules: modules,
+        gates: clone(run.gates),
+        selection: run.selection ? clone(run.selection) : null
+      };
+    }
+
+    function runSummary(run) {
+      var lastGate = null, lastVerdict = null;
+      ['entry', 'm1', 'm2', 'm3'].forEach(function (k) {
+        if (run.gates[k]) { lastGate = k; lastVerdict = run.gates[k].verdict; }
+      });
+      var gateError = lastGate && run.gates[lastGate] ? run.gates[lastGate].errorCode : null;
+      return {
+        runId: run.runId,
+        createdAt: run.createdAt,
+        product: run.product,
+        status: run.state.status,
+        lastGate: lastGate,
+        lastVerdict: lastVerdict,
+        errorCode: run.state.errorCode || gateError || null
+      };
+    }
+
+    function applyGate(run, module) {
+      if (module === 'm1') {
+        if (!isPass(run.gates.entry)) return { ok: false, code: 'GATE_NOT_PASSED' };
+        run.gates.m1 = m1Slip(run.runId);
+      } else if (module === 'm2') {
+        if (!isPass(run.gates.m1)) return { ok: false, code: 'GATE_NOT_PASSED' };
+        run.selection = selectionFor(run.runId);
+        run.gates.m2 = m2Slip(run.runId);
+      } else if (module === 'm3') {
+        if (!isPass(run.gates.m2)) return { ok: false, code: 'GATE_NOT_PASSED' };
+        run.gates.m3 = run.demoBlock === 'm3' ? m3BlockedSlip(run.runId) : m3Slip(run.runId);
+      } else {
+        return { ok: false, code: 'MODULE_INVALID' };
+      }
+      var slip = run.gates[module];
+      return { ok: true, verdict: slip.verdict, errorCode: slip.errorCode, slip: slip };
+    }
+
+    function finishSingle(runId, module) {
+      var run = store.get(runId);
+      if (!run || run.state.status !== 'RUNNING') return;
+      run.state.pid = null;
+      run.state.endedAt = new Date().toISOString();
+      run.state.module = module.toUpperCase();
+      var res = applyGate(run, module);
+      if (!res.ok) {
+        run.state.status = 'STOPPED';
+        run.state.errorCode = res.code;
+        run.state.failedCheck = null;
+        return;
+      }
+      if (res.verdict === 'PASS') {
+        run.state.status = module === 'm3' ? 'DONE' : 'IDLE';
+        run.state.errorCode = null;
+        run.state.failedCheck = null;
+      } else {
+        run.state.status = 'STOPPED';
+        run.state.errorCode = res.errorCode;
+        run.state.failedCheck = firstFailed(res.slip);
+      }
+    }
+
+    return {
+      connection: function () {
+        return Promise.resolve(ok({ connected: true, readonly: false, runsRoot: 'runs (mock)' }));
+      },
+      presets: function () {
+        var list = presets.map(function (p) {
+          return { presetId: p.presetId, label: p.label, keywords: p.keywords.slice(), categoryLabel: p.categoryLabel, source: p.source };
+        });
+        return Promise.resolve(ok({ format: 'presets-v1', presets: list }));
+      },
+      addProduct: function (input) {
+        if (!input || typeof input !== 'object' || typeof input.presetId !== 'string' ||
+            typeof input.label !== 'string' || typeof input.keyword !== 'string' ||
+            typeof input.categoryId !== 'string') {
+          return Promise.resolve(err('PRODUCT_INPUT_INVALID', 'PRODUCT_INPUT_INVALID'));
+        }
+        if (input.categoryId !== 'c2035652732') {
+          return Promise.resolve(err('PRODUCT_CATEGORY_UNSUPPORTED', 'PRODUCT_CATEGORY_UNSUPPORTED'));
+        }
+        var id = input.presetId.toLowerCase();
+        if (presets.some(function (p) { return p.presetId.toLowerCase() === id; })) {
+          return Promise.resolve(err('PRESET_ID_EXISTS', 'PRESET_ID_EXISTS'));
+        }
+        var name = input.label.trim().replace(/\s+/g, ' ').toLowerCase();
+        if (presets.some(function (p) { return p.label.trim().replace(/\s+/g, ' ').toLowerCase() === name; })) {
+          return Promise.resolve(err('PRESET_NAME_EXISTS', 'PRESET_NAME_EXISTS'));
+        }
+        presets.push({
+          presetId: input.presetId,
+          label: input.label.trim(),
+          keywords: [input.keyword.trim()].concat(input.keyword2 ? [input.keyword2.trim()] : []),
+          categoryLabel: 'Sức Khoẻ',
+          source: 'manual'
+        });
+        return Promise.resolve(ok({ format: 'add-product-v1', presetId: input.presetId, label: input.label.trim() }));
+      },
+      listRuns: function () {
+        var runs = Array.from(store.values())
+          .sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); })
+          .map(runSummary);
+        return Promise.resolve(ok({ format: 'runs-v1', runs: runs }));
+      },
+      newRun: function (input) {
+        var preset = presets.find(function (p) { return p.presetId === (input && input.presetId); });
+        if (!preset) return Promise.resolve(err('PRESET_NOT_FOUND', 'Không thấy preset đã chọn.'));
+        var cap = Number(input && input.reviewCapPerLink);
+        if (!Number.isInteger(cap) || cap < 1 || cap > 300) {
+          return Promise.resolve(err('NEW_RUN_INPUT_INVALID', 'Trần bình luận mỗi link phải từ 1 đến 300.'));
+        }
+        var endDate = String((input && input.endDate) || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+          return Promise.resolve(err('NEW_RUN_INPUT_INVALID', 'Ngày cuối kỳ không hợp lệ.'));
+        }
+        var runId;
+        do { runId = randomHex8(); } while (store.has(runId));
+        var run = makeRun(runId, new Date().toISOString(), preset.keywords[0] || preset.label, {
+          keywords: preset.keywords.slice(), endDate: endDate, cap: cap
+        });
+        run.gates.entry = entrySlip(runId, cap);
+        return Promise.resolve(ok({ runId: runId, entry: clone(run.gates.entry) }));
+      },
+      status: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(ok(runInfo(run)));
+      },
+      runModule: function (runId, module) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        if (module !== 'm1' && module !== 'm2' && module !== 'm3') {
+          return Promise.resolve(err('MODULE_INVALID', 'Module phải là m1, m2 hoặc m3.'));
+        }
+        if (run.state.status === 'RUNNING') return Promise.resolve(err('RUN_BUSY', 'Lượt đang chạy.'));
+        if (mockCase === 'm1_output' && module === 'm1') {
+          return Promise.resolve(err('M1_OUTPUT_EXISTS', BLOCK_TEXT.M1_OUTPUT_EXISTS));
+        }
+        var info = runInfo(run);
+        var mod = info.modules.find(function (m) { return m.id === module.toUpperCase(); });
+        if (!mod.canRun) {
+          var code = mod.blockedBy ? mod.blockedBy.code : 'GATE_NOT_PASSED';
+          return Promise.resolve(err(code, BLOCK_TEXT[code] || code));
+        }
+        run.state.status = 'RUNNING';
+        run.state.mode = 'single';
+        run.state.module = module.toUpperCase();
+        run.state.pid = 4242;
+        run.state.startedAt = new Date().toISOString();
+        run.state.endedAt = null;
+        run.state.errorCode = null;
+        run.state.failedCheck = null;
+        setTimeout(function () { finishSingle(runId, module); }, 4000);
+        return Promise.resolve(ok({ format: 'detached-v1', runId: runId, pid: 4242 }));
+      },
+      runFlow: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        if (run.state.status === 'RUNNING') return Promise.resolve(err('RUN_BUSY', 'Lượt đang chạy.'));
+        if (mockCase === 'gate_failed') {
+          return Promise.resolve({ ok: false, error: { code: 'GATE_FAILED', message: 'GATE_FAILED',
+            detail: { format: 'run-result-v1', runId: runId, status: 'STOPPED', stoppedAt: 'entry',
+                      errorCode: null, failedCheck: 'readonly_off' } } });
+        }
+        if (!isPass(run.gates.entry)) {
+          return Promise.resolve({ ok: false, error: { code: 'GATE_FAILED', message: 'GATE_FAILED',
+            detail: { format: 'run-result-v1', runId: runId, status: 'STOPPED', stoppedAt: 'entry',
+                      errorCode: null, failedCheck: firstFailed(run.gates.entry) || null } } });
+        }
+        if (run.gates.m1) return Promise.resolve(err('M1_OUTPUT_EXISTS', BLOCK_TEXT.M1_OUTPUT_EXISTS));
+        run.state.status = 'RUNNING';
+        run.state.mode = 'flow';
+        run.state.module = 'M1';
+        run.state.pid = 4242;
+        run.state.startedAt = new Date().toISOString();
+        run.state.endedAt = null;
+        run.state.errorCode = null;
+        run.state.failedCheck = null;
+        var order = ['m1', 'm2', 'm3'];
+        var i = 0;
+        function step() {
+          var r = store.get(runId);
+          if (!r || r.state.status !== 'RUNNING') return;
+          var module = order[i++];
+          r.state.module = module.toUpperCase();
+          var res = applyGate(r, module);
+          if (!res.ok || res.verdict !== 'PASS') {
+            r.state.status = 'STOPPED';
+            r.state.pid = null;
+            r.state.endedAt = new Date().toISOString();
+            r.state.errorCode = res.ok ? res.errorCode : res.code;
+            r.state.failedCheck = res.ok ? firstFailed(res.slip) : null;
+            return;
+          }
+          if (i >= order.length) {
+            r.state.status = 'DONE';
+            r.state.pid = null;
+            r.state.endedAt = new Date().toISOString();
+            return;
+          }
+          setTimeout(step, 2500);
+        }
+        setTimeout(step, 2500);
+        return Promise.resolve(ok({ format: 'detached-v1', runId: runId, pid: 4242 }));
+      },
+      library: function () {
+        return Promise.resolve(ok({ format: 'library-v1', modules: clone(MOCK_MODULES), skills: clone(MOCK_SKILLS) }));
+      }
+    };
+  }
+
+  var NO_BRIDGE_TEXT = 'Không nối được phần nền của app. Đóng app rồi mở lại.';
+  var BRIDGE_WAIT_MS = 20000;
+
+  function pageParam(name) {
+    try { return new URLSearchParams(window.location.search).get(name); }
+    catch (e) { return null; }
+  }
+
+  var api = (function () {
+    var mockAllowed = pageParam('mock') === '1';
+    var mockCase = pageParam('case') || '';
+    var mode = 'pending';   // pending | mock | real | none
+    var resolveReady;
+    var readyPromise = new Promise(function (res) { resolveReady = res; });
+    var mock = mockAllowed ? createMockApi(mockCase) : null;
+
+    function bridgePresent() { return !!(window.pywebview && window.pywebview.api); }
+    function settle(next) {
+      if (mode !== 'pending') return;
+      mode = next;
+      resolveReady(next);
+    }
+    if (mockAllowed) {
+      settle('mock');
+    } else if (bridgePresent()) {
+      settle('real');
+    } else {
+      window.addEventListener('pywebviewready', function () { if (bridgePresent()) settle('real'); });
+      var poll = setInterval(function () {
+        if (bridgePresent()) { clearInterval(poll); settle('real'); }
+      }, 100);
+      setTimeout(function () {
+        clearInterval(poll);
+        if (bridgePresent()) settle('real'); else settle('none');
+      }, BRIDGE_WAIT_MS);
+    }
+
+    function call(method, args) {
+      return (async function () {
+        await readyPromise;
+        if (mode === 'none') return err('BRIDGE_MISSING', NO_BRIDGE_TEXT);
+        if (mode === 'mock') return mock[method].apply(null, args);
+        try {
+          var res = await window.pywebview.api[method].apply(window.pywebview.api, args);
+          if (res && typeof res === 'object' && 'ok' in res) return res;
+          return err('BRIDGE_SHAPE', 'Phản hồi cầu nối không đúng dạng.');
+        } catch (e) {
+          return err('BRIDGE_ERROR', String((e && e.message) || e));
+        }
+      })();
+    }
+
+    return {
+      connection: function () { return call('connection', []); },
+      presets: function () { return call('presets', []); },
+      listRuns: function () { return call('listRuns', []); },
+      newRun: function (input) { return call('newRun', [input]); },
+      addProduct: function (input) { return call('addProduct', [input]); },
+      status: function (runId) { return call('status', [runId]); },
+      runFlow: function (runId) { return call('runFlow', [runId]); },
+      runModule: function (runId, module) { return call('runModule', [runId, module]); },
+      library: function () { return call('library', []); }
+    };
+  })();
+
+  var state = {
+    presets: [],
+    runs: [],
+    selectedRunId: null,
+    info: null,
+    newRunId: null,
+    newEntry: null,
+    connected: false,
+    readonly: false,
+    runsRoot: null,
+    poll: null,
+    pollRunId: null,
+    lib: null,
+    productBusy: false
+  };
+
+  function showError(error) {
+    var bar = $('errbar');
+    bar.textContent = plainError(error);
+    bar.hidden = false;
+  }
+  function clearError() {
+    var bar = $('errbar');
+    bar.textContent = '';
+    bar.hidden = true;
+  }
+
+  function statusChip(status) {
+    var s = STATUS[status] || { label: status || '—', cls: 's-idle' };
+    return h('span', 'chip ' + s.cls, s.label);
+  }
+
+  function hash12(v) { return v ? String(v).slice(0, 12) : 'null'; }
+  function formatGot(g) {
+    if (g === undefined) return 'undefined';
+    if (typeof g === 'string') return g;
+    try { return JSON.stringify(g); } catch (e) { return String(g); }
+  }
+  function kvRow(label, value) {
+    var div = h('div');
+    div.appendChild(h('dt', null, label));
+    div.appendChild(h('dd', null, value));
+    return div;
+  }
+  function kvRowEl(label, node) {
+    var div = h('div');
+    div.appendChild(h('dt', null, label));
+    var dd = h('dd');
+    dd.appendChild(node);
+    div.appendChild(dd);
+    return div;
+  }
+
+  function gateCard(key, slip) {
+    var card = h('article', 'gate');
+    var head = h('div', 'gh');
+    head.appendChild(h('h3', null, GATE_TITLES[key] || key));
+
+    if (!slip) {
+      card.dataset.tone = 'idle';
+      head.appendChild(h('span', 'chip s-idle', 'Chưa có phiếu'));
+      card.appendChild(head);
+      card.appendChild(h('p', 'muted', 'Cổng này chưa chạy nên chưa có phiếu.'));
+      return card;
+    }
+
+    var verdict = slip.verdict || 'FAIL';
+    var tone = verdict === 'PASS' ? 'pass' : verdict === 'WAIT_OWNER' ? 'warn' : 'fail';
+    card.dataset.tone = tone;
+    head.appendChild(h('span', 'chip ' + (verdict === 'PASS' ? 's-pass' : verdict === 'WAIT_OWNER' ? 's-warn' : 's-fail'), verdict));
+    if (slip.errorCode) head.appendChild(h('span', 'codechip', slip.errorCode));
+    card.appendChild(head);
+
+    var list = h('ul', 'cks');
+    (slip.checks || []).forEach(function (c) {
+      var warn = c.level === 'warn';
+      var li = h('li', 'ck ' + (warn ? 'c-warn' : c.ok ? 'c-ok' : 'c-fail'));
+      li.appendChild(h('span', 'ci', warn ? '!' : c.ok ? '✓' : '✕'));
+      var body = h('div');
+      var line = h('div');
+      line.appendChild(h('code', 'cl', CHECK_LABELS[c.id] || c.id));
+      line.appendChild(h('span', 'cid', c.id));
+      body.appendChild(line);
+      body.appendChild(h('div', 'got', 'got: ' + formatGot(c.got)));
+      if (warn) body.appendChild(h('div', 'warnnote', 'cảnh báo — không đổi kết luận'));
+      li.appendChild(body);
+      list.appendChild(li);
+    });
+    if ((slip.checks || []).length) card.appendChild(list);
+    else card.appendChild(h('p', 'muted', 'Phiếu không có phép kiểm.'));
+
+    var kv = h('dl', 'gkv');
+    kv.appendChild(kvRow('Mã lỗi', slip.errorCode || '—'));
+    kv.appendChild(kvRowEl('Hash đầu vào', h('code', null, hash12(slip.inputSha256))));
+    kv.appendChild(kvRowEl('Hash đầu ra', h('code', null, hash12(slip.outputSha256))));
+    card.appendChild(kv);
+    return card;
+  }
+
+  function moduleStateText(info, mod) {
+    var st = info.state || {};
+    if (st.status === 'RUNNING' && st.module === mod.id) return 'Đang chạy';
+    var slip = info.gates ? info.gates[mod.outputGate] : null;
+    if (slip) return slip.verdict === 'PASS' ? 'Đã xong' : 'Phiếu ' + slip.verdict;
+    if (mod.canRun) return 'Sẵn sàng';
+    return 'Chưa tới';
+  }
+  function moduleStateCls(info, mod) {
+    var st = info.state || {};
+    if (st.status === 'RUNNING' && st.module === mod.id) return 's-run';
+    var slip = info.gates ? info.gates[mod.outputGate] : null;
+    if (slip) return slip.verdict === 'PASS' ? 's-pass' : 's-fail';
+    return mod.canRun ? 's-ready' : 's-idle';
+  }
+
+  function money(v) {
+    if (v === null || v === undefined) return '—';
+    if (typeof v !== 'number' || !isFinite(v)) return String(v);
+    return v.toLocaleString('vi-VN') + ' đ';
+  }
+
+  function selectionTable(sel) {
+    var wrap = h('div', 'tw');
+    var table = h('table');
+    var thead = h('thead');
+    var tr = h('tr');
+    ['Hạng', 'Thương hiệu', 'Doanh thu kỳ', 'Lý do chọn'].forEach(function (t) { tr.appendChild(h('th', null, t)); });
+    thead.appendChild(tr);
+    table.appendChild(thead);
+    var tbody = h('tbody');
+    (sel.links || []).forEach(function (l) {
+      var r = h('tr');
+      r.appendChild(h('td', 'num', String(l.rank)));
+      r.appendChild(h('td', null, l.brand === null || l.brand === undefined ? '—' : l.brand));
+      r.appendChild(h('td', 'num', money(l.revenue)));
+      r.appendChild(h('td', null, l.reason || '—'));
+      tbody.appendChild(r);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  async function onRunModule(moduleId, button) {
+    var runId = state.selectedRunId;
+    if (!runId) return;
+    clearError();
+    button.disabled = true;
+    var res = await api.runModule(runId, String(moduleId).toLowerCase());
+    if (!res.ok) showError(res.error);
+    await loadInfo(runId);
+    await refreshRuns();
+  }
+
+  function moduleCard(mod, info) {
+    var card = h('article', 'mod');
+    var head = h('div', 'mh');
+    head.appendChild(h('h3', null, mod.id + ' · ' + (mod.title || mod.skill)));
+    head.appendChild(h('span', 'chip ' + moduleStateCls(info, mod), moduleStateText(info, mod)));
+    card.appendChild(head);
+
+    var meta = h('p', 'mm');
+    meta.appendChild(document.createTextNode('Skill: '));
+    meta.appendChild(h('code', null, mod.skill));
+    meta.appendChild(document.createTextNode(' · Cổng vào: '));
+    meta.appendChild(h('code', null, mod.inputGate));
+    meta.appendChild(document.createTextNode(' · Cổng ra: '));
+    meta.appendChild(h('code', null, mod.outputGate));
+    card.appendChild(meta);
+
+    var row = h('div', 'btnrow');
+    var btn = h('button', 'abtn', 'Chạy module này');
+    btn.type = 'button';
+    btn.disabled = !state.connected || !mod.canRun;
+    btn.addEventListener('click', function () { onRunModule(mod.id, btn); });
+    row.appendChild(btn);
+    if (!state.connected) {
+      row.appendChild(h('span', 'hint', 'Chưa kết nối máy chạy.'));
+    } else if (!mod.canRun && mod.blockedBy) {
+      row.appendChild(h('span', 'hint', blockText(mod.blockedBy)));
+    }
+    card.appendChild(row);
+
+    if (mod.id === 'M2' && info.selection) card.appendChild(selectionTable(info.selection));
+    return card;
+  }
+
+  function seqChip(step, info) {
+    var c = h('div', 'seqch');
+    if (step.kind === 'gate') {
+      var slip = info.gates ? info.gates[step.key] : null;
+      c.appendChild(h('b', null, GATE_TITLES[step.key]));
+      c.appendChild(h('span', null, slip ? slip.verdict : 'Chưa có phiếu'));
+    } else {
+      var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
+      c.appendChild(h('b', null, step.id));
+      c.appendChild(h('span', null, mod ? moduleStateText(info, mod) : '—'));
+    }
+    return c;
+  }
+
+  function renderDetail() {
+    var root = $('runDetail');
+    clear(root);
+    var info = state.info;
+    if (!info) {
+      root.appendChild(h('p', 'muted', state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chạy.'));
+      return;
+    }
+    var item = state.runs.find(function (r) { return r.runId === info.runId; }) || {};
+    var head = h('div', 'dhead');
+    head.appendChild(h('h2', null, 'Lượt ' + info.runId));
+    head.appendChild(statusChip(info.state && info.state.status));
+    if (item.product) head.appendChild(h('span', 'muted', item.product));
+    if (info.state && info.state.errorCode) head.appendChild(h('span', 'codechip', info.state.errorCode));
+    if (info.state && info.state.status === 'RUNNING') head.appendChild(h('span', 'muted', 'tự cập nhật mỗi 10 giây'));
+    root.appendChild(head);
+
+    if (info.readonly) root.appendChild(h('p', 'roline', 'Đang bật khóa chỉ-đọc: lượt mới dừng ở cổng vào (readonly_off); M1 và M3 bị khóa; M2 vẫn chạy được trên lượt đã qua cổng M1.'));
+
+    var seq = h('div', 'seq');
+    SEQUENCE.forEach(function (step) { seq.appendChild(seqChip(step, info)); });
+    root.appendChild(seq);
+
+    SEQUENCE.forEach(function (step) {
+      if (step.kind === 'gate') {
+        root.appendChild(gateCard(step.key, info.gates ? info.gates[step.key] : null));
+      } else {
+        var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
+        if (mod) root.appendChild(moduleCard(mod, info));
+      }
+    });
+  }
+
+  function renderRunList() {
+    var list = $('runList');
+    clear(list);
+    state.runs.forEach(function (run) {
+      var li = h('li');
+      var btn = h('button', 'runbtn' + (run.runId === state.selectedRunId ? ' on' : ''));
+      btn.type = 'button';
+      btn.appendChild(h('span', 'rid', run.runId));
+      btn.appendChild(h('span', 'rname', run.product || 'Lượt chưa đặt tên'));
+      var meta = h('span', 'rmeta');
+      meta.appendChild(statusChip(run.status));
+      if (run.errorCode) meta.appendChild(h('span', 'codechip', run.errorCode));
+      btn.appendChild(meta);
+      btn.addEventListener('click', function () { selectRun(run.runId); });
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+    $('runsEmpty').hidden = state.runs.length > 0;
+  }
+
+  async function refreshRuns() {
+    if (!state.connected) {
+      state.runs = [];
+      renderRunList();
+      return;
+    }
+    var res = await api.listRuns();
+    if (!res.ok) { showError(res.error); return; }
+    state.runs = (res.data && res.data.runs) || [];
+    if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
+      state.selectedRunId = null;
+    }
+    renderRunList();
+  }
+
+  async function loadInfo(runId) {
+    var res = await api.status(runId);
+    if (!res.ok) {
+      showError(res.error);
+      state.info = null;
+      renderDetail();
+      return;
+    }
+    if (state.selectedRunId !== runId) return;
+    state.info = res.data;
+    renderDetail();
+    managePoll();
+  }
+
+  async function selectRun(runId) {
+    state.selectedRunId = runId;
+    renderRunList();
+    await loadInfo(runId);
+  }
+
+  function stopPoll() {
+    if (state.poll) {
+      clearInterval(state.poll);
+      state.poll = null;
+      state.pollRunId = null;
+    }
+  }
+
+  async function pollOnce(runId) {
+    var res = await api.status(runId);
+    if (!res.ok) {
+      showError(res.error);
+      stopPoll();
+      return;
+    }
+    var data = res.data;
+    var running = !!(data.state && data.state.status === 'RUNNING');
+    if (state.selectedRunId === runId) {
+      state.info = data;
+      renderDetail();
+    }
+    if (!running) {
+      stopPoll();
+      await refreshRuns();
+    }
+  }
+
+  function managePoll() {
+    var info = state.info;
+    var running = !!(info && info.state && info.state.status === 'RUNNING');
+    if (!running) { stopPoll(); return; }
+    if (state.poll && state.pollRunId === info.runId) return;
+    stopPoll();
+    state.pollRunId = info.runId;
+    state.poll = setInterval(function () { pollOnce(info.runId); }, 10000);
+  }
+
+  function renderConnection(res) {
+    var dot = $('connDot');
+    var text = $('connText');
+    var ro = $('roText');
+    var data = res && res.ok && res.data ? res.data : null;
+    var connected = !!(data && data.connected);
+    var bridgeMissing = !!(res && !res.ok && res.error && res.error.code === 'BRIDGE_MISSING');
+    state.connected = connected;
+    state.readonly = !!(data && data.readonly);
+    state.runsRoot = (data && data.runsRoot) || null;
+    if (res && !res.ok && !bridgeMissing) showError(res.error);
+    dot.className = 'dot ' + (connected ? 'ok' : 'stop');
+    if (connected) {
+      text.textContent = 'Đã kết nối máy chạy' + (state.runsRoot ? ' · ' + state.runsRoot : '');
+    } else if (bridgeMissing) {
+      text.textContent = NO_BRIDGE_TEXT;
+    } else {
+      var reason = (data && data.reason) || (res && res.error && res.error.code) || 'không rõ lý do';
+      text.textContent = 'Chưa kết nối máy chạy (' + reason + ')';
+    }
+    ro.hidden = !state.readonly;
+    $('btnNew').disabled = !connected;
+    $('btnProductSave').disabled = !connected;
+    $('productHint').hidden = connected;
+    updateFlowButton();
+    if (state.info) renderDetail();
+  }
+
+  function renderPresets(selectedId) {
+    var sel = $('presetSel');
+    var keep = selectedId !== undefined ? selectedId : sel.value;
+    clear(sel);
+    if (!state.presets.length) {
+      var empty = h('option', null, 'Không có preset');
+      empty.value = '';
+      sel.appendChild(empty);
+      return;
+    }
+    state.presets.forEach(function (p) {
+      var text = [p.label, (p.keywords || []).join(', '), p.categoryLabel || ''].filter(Boolean).join(' · ');
+      var opt = h('option', null, text);
+      opt.value = p.presetId;
+      sel.appendChild(opt);
+    });
+    if (keep) {
+      sel.value = keep;
+      if (sel.value !== keep) sel.selectedIndex = 0;
+    }
+  }
+
+  function windowLine() {
+    var out = $('windowText');
+    var v = $('endDate').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      out.textContent = 'Chọn ngày cuối kỳ để xem khung 30 ngày.';
+      return;
+    }
+    var end = parseIso(v);
+    var start = addDays(end, -29);
+    out.textContent = 'Khung 30 ngày: ' + fmtDate(isoDate(start)) + ' – ' + fmtDate(isoDate(end)) + ' (tính cả hai đầu).';
+  }
+
+  function updateFlowButton() {
+    var btn = $('btnFlow');
+    var hint = $('flowHint');
+    var entryPass = !!(state.newEntry && state.newEntry.verdict === 'PASS');
+    btn.disabled = !state.connected || !entryPass || state.readonly;
+    if (!state.connected) {
+      hint.textContent = 'Chưa kết nối máy chạy.';
+      hint.hidden = false;
+    } else if (state.readonly) {
+      hint.textContent = 'Đang bật khóa chỉ-đọc: lượt mới dừng ở cổng vào (readonly_off).';
+      hint.hidden = false;
+    } else if (!entryPass) {
+      hint.textContent = 'Cần cổng vào đạt trước.';
+      hint.hidden = false;
+    } else {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
+  }
+
+  function renderNewResult() {
+    var box = $('newResult');
+    var line = $('newRunLine');
+    clear(line);
+    clear($('entrySlip'));
+    if (!state.newRunId || !state.newEntry) {
+      box.hidden = true;
+      updateFlowButton();
+      return;
+    }
+    box.hidden = false;
+    line.appendChild(document.createTextNode('Lượt '));
+    line.appendChild(h('code', null, state.newRunId));
+    line.appendChild(document.createTextNode(' đã tạo. Phiếu cổng vào ở dưới.'));
+    $('entrySlip').appendChild(gateCard('entry', state.newEntry));
+    updateFlowButton();
+  }
+
+  function readForm() {
+    var presetId = $('presetSel').value;
+    var endDate = $('endDate').value;
+    var cap = Number($('cap').value);
+    if (!presetId) return { error: { code: 'PRESET_REQUIRED', message: 'Chọn một preset.' } };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) return { error: { code: 'END_DATE_REQUIRED', message: 'Chọn ngày cuối kỳ.' } };
+    if (!Number.isInteger(cap) || cap < 1 || cap > 300) {
+      return { error: { code: 'REVIEW_CAP_RANGE', message: 'Trần bình luận mỗi link phải là số nguyên từ 1 đến 300.' } };
+    }
+    return { presetId: presetId, endDate: endDate, reviewCapPerLink: cap };
+  }
+
+  var PRODUCT_ERROR_TEXT = {
+    PRODUCT_INPUT_INVALID: 'Dữ liệu sản phẩm không hợp lệ. Kiểm tra tên, từ khóa (không dấu phẩy) và độ dài cho phép.',
+    PRODUCT_CATEGORY_UNSUPPORTED: 'Danh mục chưa được hỗ trợ. Hiện chỉ hỗ trợ Sức Khoẻ.',
+    PRESET_ID_EXISTS: 'Tên này tạo ra mã sản phẩm đã tồn tại. Đổi tên hiển thị hoặc thêm hậu tố phân biệt.',
+    PRESET_NAME_EXISTS: 'Đã có sản phẩm cùng tên. Đổi tên hiển thị rồi lưu lại.',
+    PRESET_BUSY: 'Danh sách sản phẩm đang được ghi bởi thao tác khác. Đợi vài giây rồi lưu lại.',
+    PRESET_WRITE_FAILED: 'Không ghi được sản phẩm lên máy chạy. Kiểm tra kết nối rồi thử lại.'
+  };
+
+  function productErrorText(error) {
+    var code = error && error.code !== null && error.code !== undefined ? String(error.code) : '';
+    if (code && PRODUCT_ERROR_TEXT[code]) return PRODUCT_ERROR_TEXT[code] + ' (' + code + ')';
+    return plainError(error);
+  }
+
+  function safePresetId(label) {
+    var s = String(label);
+    if (s.normalize) s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    s = s.replace(/[đĐ]/g, function (c) { return c === 'đ' ? 'd' : 'D'; });
+    s = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (s.length > 64) s = s.slice(0, 64).replace(/-+$/g, '');
+    return s;
+  }
+
+  function clearProductMessages() {
+    $('productErr').hidden = true;
+    $('productErr').textContent = '';
+    $('productSaved').hidden = true;
+    $('productSaved').textContent = '';
+  }
+  function showProductError(message) {
+    var box = $('productErr');
+    $('productSaved').hidden = true;
+    box.textContent = message;
+    box.hidden = false;
+  }
+  function showProductSaved(message) {
+    $('productErr').hidden = true;
+    var box = $('productSaved');
+    box.textContent = message;
+    box.hidden = false;
+  }
+
+  function readProductForm() {
+    var label = $('productLabel').value.trim();
+    var keyword = $('productKeyword').value.trim();
+    var keyword2 = $('productKeyword2').value.trim();
+    var categoryId = $('productCategory').value;
+    function bad(message, focus) { return { error: { message: message, focus: focus } }; }
+    var control = /[\u0000-\u001f\u007f-\u009f]/;
+    if (!label) return bad('Nhập tên hiển thị sản phẩm.', 'productLabel');
+    if (label.length > 120) return bad('Tên hiển thị tối đa 120 ký tự.', 'productLabel');
+    if (control.test(label)) return bad('Tên hiển thị không được chứa ký tự điều khiển.', 'productLabel');
+    if (!keyword) return bad('Nhập từ khóa chính.', 'productKeyword');
+    if (keyword.length > 200) return bad('Từ khóa chính tối đa 200 ký tự.', 'productKeyword');
+    if (keyword.indexOf(',') !== -1) return bad('Từ khóa chính không được chứa dấu phẩy vì sẽ tách thành nhiều truy vấn.', 'productKeyword');
+    if (control.test(keyword)) return bad('Từ khóa chính không được chứa ký tự điều khiển.', 'productKeyword');
+    if (keyword2.length > 200) return bad('Từ khóa phụ tối đa 200 ký tự.', 'productKeyword2');
+    if (keyword2.indexOf(',') !== -1) return bad('Từ khóa phụ không được chứa dấu phẩy vì sẽ tách thành nhiều truy vấn.', 'productKeyword2');
+    if (control.test(keyword2)) return bad('Từ khóa phụ không được chứa ký tự điều khiển.', 'productKeyword2');
+    if (!categoryId) return bad('Chọn danh mục Sức Khoẻ.', 'productCategory');
+    var presetId = safePresetId(label);
+    if (!presetId) return bad('Tên hiển thị cần có chữ cái Latinh hoặc số để tạo mã sản phẩm ổn định.', 'productLabel');
+    var value = { presetId: presetId, label: label, keyword: keyword, categoryId: categoryId };
+    if (keyword2) value.keyword2 = keyword2;
+    return { value: value };
+  }
+
+  var productSaveSeq = 0;
+
+  function setProductBusy(busy) {
+    state.productBusy = busy;
+    Array.prototype.forEach.call($('productForm').querySelectorAll('input,select,button'), function (el) {
+      el.disabled = busy;
+    });
+    $('productPending').hidden = !busy;
+    $('btnProductSave').disabled = busy || !state.connected;
+  }
+
+  async function onSaveProduct(ev) {
+    ev.preventDefault();
+    if (state.productBusy) return;
+    clearError();
+    clearProductMessages();
+    var form = readProductForm();
+    if (form.error) {
+      showProductError(form.error.message);
+      if (form.error.focus) $(form.error.focus).focus();
+      return;
+    }
+    var seq = ++productSaveSeq;
+    setProductBusy(true);
+    try {
+      var res = await api.addProduct(form.value);
+      if (seq !== productSaveSeq) return;
+      if (!res.ok) {
+        showProductError(productErrorText(res.error));
+        return;
+      }
+      var saved = res.data;
+      var pres = await api.presets();
+      if (seq !== productSaveSeq) return;
+      if (!pres.ok) {
+        showProductSaved('Đã lưu “' + saved.label + '”.');
+        showError(pres.error);
+        return;
+      }
+      state.presets = (pres.data && pres.data.presets) || [];
+      renderPresets(saved.presetId);
+      showProductSaved('Đã lưu “' + saved.label + '” và chọn trong danh sách preset.');
+      $('productForm').reset();
+      $('productCategory').value = '';
+    } finally {
+      if (seq === productSaveSeq) setProductBusy(false);
+    }
+  }
+
+  async function onCreate() {
+    clearError();
+    var form = readForm();
+    if (form.error) { showError(form.error); return; }
+    var btn = $('btnNew');
+    btn.disabled = true;
+    var res = await api.newRun({ presetId: form.presetId, endDate: form.endDate, reviewCapPerLink: form.reviewCapPerLink });
+    btn.disabled = false;
+    if (!res.ok) { showError(res.error); return; }
+    state.newRunId = res.data.runId;
+    state.newEntry = res.data.entry || null;
+    renderNewResult();
+    await refreshRuns();
+  }
+
+  async function onRunFlow() {
+    if (!state.newRunId) return;
+    clearError();
+    var btn = $('btnFlow');
+    btn.disabled = true;
+    var res = await api.runFlow(state.newRunId);
+    if (!res.ok) {
+      showError(res.error);
+      await refreshRuns();
+      await loadInfo(state.newRunId);
+      updateFlowButton();
+      return;
+    }
+    showScreen('track');
+    await refreshRuns();
+    await selectRun(state.newRunId);
+    updateFlowButton();
+  }
+
+  function renderLibrary() {
+    var root = $('libBody');
+    clear(root);
+    var lib = state.lib;
+    if (!lib || !lib.modules || !(lib.modules.modules || []).length) {
+      root.appendChild(h('p', 'empty', 'Thư viện chưa có module.'));
+      return;
+    }
+    var gatesMap = lib.modules.gates || {};
+    var skills = lib.skills || [];
+    lib.modules.modules.forEach(function (m) {
+      var card = h('article', 'panel libcard');
+      card.appendChild(h('h2', null, m.id + ' · ' + m.skill));
+
+      var kv = h('dl', 'kv');
+      kv.appendChild(kvRowEl('Đầu vào', h('code', null, m.input)));
+      kv.appendChild(kvRow('Skill', m.skill + ' · v' + m.skillVersion));
+      kv.appendChild(kvRowEl('Đầu ra', h('code', null, m.output)));
+      kv.appendChild(kvRow('Chuẩn', m.standard || '—'));
+      kv.appendChild(kvRow('Phiên bản luật', m.ruleVersion || '—'));
+      var params = lib.modules.params || {};
+      if (m.id === 'M3' && Array.isArray(params.collectionSuccessVerdicts)) {
+        kv.appendChild(kvRow('Kết luận thu được chấp nhận', params.collectionSuccessVerdicts.join(', ')));
+      }
+
+      var checks = h('div', 'chklist');
+      (gatesMap[m.gate] || []).forEach(function (id) {
+        var line = h('div');
+        line.appendChild(h('code', null, id));
+        line.appendChild(document.createTextNode(' — ' + (CHECK_LABELS[id] || '')));
+        checks.appendChild(line);
+      });
+      kv.appendChild(kvRowEl('Phép kiểm cổng ' + m.gate, checks));
+
+      var codeFiles = h('div', 'chklist');
+      (m.code || []).forEach(function (f) { codeFiles.appendChild(h('code', null, f)); });
+      kv.appendChild(kvRowEl('File code chịu trách nhiệm', codeFiles));
+      kv.appendChild(kvRowEl('Lệnh', h('code', null, m.command)));
+      card.appendChild(kv);
+
+      var sk = skills.find(function (s) { return s.name === m.skill && String(s.version) === String(m.skillVersion); })
+        || skills.find(function (s) { return s.name === m.skill; });
+      var sec = h('div', 'libsec');
+      sec.appendChild(h('h3', null, 'Nội dung skill'));
+      if (sk) {
+        var pre = h('pre', 'skilltext');
+        pre.textContent = String(sk.text || '');
+        sec.appendChild(pre);
+      } else {
+        sec.appendChild(h('p', 'muted', 'Không có bản skill trong thư viện.'));
+      }
+      card.appendChild(sec);
+      root.appendChild(card);
+    });
+  }
+
+  async function openLibrary() {
+    if (!state.connected) {
+      clear($('libBody'));
+      $('libBody').appendChild(h('p', 'empty', 'Chưa kết nối máy chạy.'));
+      return;
+    }
+    if (state.lib) { renderLibrary(); return; }
+    clearError();
+    var res = await api.library();
+    if (!res.ok) { showError(res.error); return; }
+    state.lib = res.data;
+    renderLibrary();
+  }
+
+  function showScreen(name) {
+    var tabs = document.querySelectorAll('.tabs button');
+    Array.prototype.forEach.call(tabs, function (b) {
+      b.setAttribute('aria-selected', String(b.dataset.screen === name));
+    });
+    ['new', 'track', 'lib'].forEach(function (n) { $('scr-' + n).hidden = n !== name; });
+  }
+
+  async function openTrack() {
+    clearError();
+    await refreshRuns();
+    if (state.selectedRunId) await selectRun(state.selectedRunId);
+    else if (state.runs.length) await selectRun(state.runs[0].runId);
+    else renderDetail();
+  }
+
+  function bindEvents() {
+    Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (b) {
+      b.addEventListener('click', function () {
+        showScreen(b.dataset.screen);
+        if (b.dataset.screen === 'track') openTrack();
+        if (b.dataset.screen === 'lib') openLibrary();
+      });
+    });
+    $('endDate').addEventListener('input', windowLine);
+    $('btnNew').addEventListener('click', onCreate);
+    $('btnFlow').addEventListener('click', onRunFlow);
+    $('productForm').addEventListener('submit', onSaveProduct);
+  }
+
+  async function boot() {
+    bindEvents();
+    $('endDate').value = todayIso();
+    windowLine();
+
+    var conn = await api.connection();
+    renderConnection(conn);
+    if (!state.connected) {
+      renderPresets();
+      renderRunList();
+      renderDetail();
+      return;
+    }
+
+    var pres = await api.presets();
+    if (pres.ok) {
+      state.presets = (pres.data && pres.data.presets) || [];
+      renderPresets();
+    } else {
+      showError(pres.error);
+    }
+
+    await refreshRuns();
+    if (state.runs.length) await selectRun(state.runs[0].runId);
+    else renderDetail();
+  }
+
+  boot().catch(function (e) {
+    showError({ code: 'PAGE_ERROR', message: String((e && e.message) || e) });
+  });
+})();
+</script>
+</body>
+</html>
