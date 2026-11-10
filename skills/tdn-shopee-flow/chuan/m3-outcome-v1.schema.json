@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/m3-outcome-v1.schema.json",
+  "type": "object",
+  "required": [
+    "format",
+    "verdict",
+    "errorCode"
+  ],
+  "properties": {
+    "format": {
+      "const": "m3-outcome-v1"
+    },
+    "verdict": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+    },
+    "errorCode": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        }
+      ]
+    }
+  }
+}

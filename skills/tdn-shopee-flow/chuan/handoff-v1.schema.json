@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/handoff-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "module",
+    "runId",
+    "skillVersion",
+    "verdict",
+    "inputSha256",
+    "outputSha256",
+    "checks",
+    "errorCode",
+    "next"
+  ],
+  "properties": {
+    "format": {
+      "const": "handoff-v1"
+    },
+    "module": {
+      "enum": [
+        "ENTRY",
+        "M1",
+        "M2",
+        "M3"
+      ]
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "skillVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "WAIT_OWNER"
+      ]
+    },
+    "inputSha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outputSha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "ok",
+          "got"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "got": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "array"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "level": {
+            "const": "warn"
+          }
+        }
+      }
+    },
+    "errorCode": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        }
+      ]
+    },
+    "next": {
+      "enum": [
+        "M1",
+        "M2",
+        "M3",
+        null
+      ]
+    }
+  },
+  "anyOf": [
+    {
+      "properties": {
+        "verdict": {
+          "enum": [
+            "FAIL",
+            "WAIT_OWNER"
+          ]
+        },
+        "next": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "verdict": {
+          "const": "PASS"
+        },
+        "module": {
+          "const": "ENTRY"
+        },
+        "errorCode": {
+          "type": "null"
+        },
+        "next": {
+          "const": "M1"
+        }
+      }
+    },
+    {
+      "properties": {
+        "verdict": {
+          "const": "PASS"
+        },
+        "module": {
+          "const": "M1"
+        },
+        "errorCode": {
+          "type": "null"
+        },
+        "next": {
+          "const": "M2"
+        }
+      }
+    },
+    {
+      "properties": {
+        "verdict": {
+          "const": "PASS"
+        },
+        "module": {
+          "const": "M2"
+        },
+        "errorCode": {
+          "type": "null"
+        },
+        "next": {
+          "const": "M3"
+        }
+      }
+    },
+    {
+      "properties": {
+        "verdict": {
+          "const": "PASS"
+        },
+        "module": {
+          "const": "M3"
+        },
+        "errorCode": {
+          "type": "null"
+        },
+        "next": {
+          "const": null
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "format": "modules-v1",
+  "flow": {
+    "skill": "tdn-shopee-flow",
+    "skillVersion": "1.0.0"
+  },
+  "params": {
+    "reviewCapPerLink": {
+      "min": 1,
+      "max": 300,
+      "default": 300
+    },
+    "minReviewsPerLink": 1,
+    "moduleRetries": 0,
+    "handToOwnerCodes": [
+      "CAPTURE_LOGIN_REQUIRED",
+      "CAPTURE_ACCESS_RESTRICTED",
+      "METRIC_LOGIN_REQUIRED",
+      "METRIC_CAPTCHA",
+      "HUMAN_LOGIN_REQUIRED",
+      "HUMAN_VERIFICATION_REQUIRED",
+      "SHOPEE_LOGIN_REQUIRED",
+      "SHOPEE_VERIFICATION_REQUIRED"
+    ],
+    "collectionSuccessVerdict": "OK",
+    "nodeCommand": [
+      "node",
+      "--import",
+      "tsx"
+    ],
+    "pickWindow": {
+      "legacy": "run2 when usedScope(scope).captureNumber is 2; otherwise run1",
+      "preset": "30d"
+    },
+    "windows": [
+      {
+        "id": "30d",
+        "startOffsetDays": -29,
+        "intervalDays": 7
+      },
+      {
+        "id": "12m",
+        "startOffsetDays": -364,
+        "intervalDays": 30
+      }
+    ]
+  },
+  "modules": [
+    {
+      "id": "M1",
+      "skill": "tdn-shopee-m1-metric",
+      "skillVersion": "1.0.0",
+      "command": "shopee_flow.py m1 --run <id>",
+      "input": "request.json",
+      "output": "m1/",
+      "standard": "request-v1 with captureSpec; spec.json + generated run ID/run1/metric-v3-capture-v1",
+      "gate": "m1",
+      "ruleVersion": null,
+      "code": [
+        "scripts/capture-metric-preset.ts"
+      ],
+      "title": "Thu thập Metric"
+    },
+    {
+      "id": "M2",
+      "skill": "tdn-shopee-m2-chon",
+      "skillVersion": "1.0.0",
+      "command": "shopee_flow.py m2 --run <id>",
+      "input": "m1/",
+      "output": "m2/selection.json",
+      "standard": "selection-v1",
+      "gate": "m2",
+      "ruleVersion": "autorun-pick-v3",
+      "code": [
+        "scripts/module-pick.ts",
+        "src/modules/analysis/research-automation/autorun-derive.ts"
+      ],
+      "title": "Chọn liên kết Shopee"
+    },
+    {
+      "id": "M3",
+      "skill": "tdn-shopee-m3-binh-luan",
+      "skillVersion": "1.0.0",
+      "command": "shopee_flow.py m3 --run <id>",
+      "input": "m2/selection.json",
+      "output": "m3/",
+      "standard": "shopee-public-rows + m3-outcome-v1",
+      "gate": "m3",
+      "ruleVersion": null,
+      "code": [
+        "scripts/module-collect-public.ts",
+        "src/platform/collectors/shopee-public-reviews.ts",
+        "src/modules/foundation/shopee-collection-service.ts"
+      ],
+      "title": "Thu thập bình luận công khai"
+    }
+  ],
+  "gates": {
+    "entry": [
+      "product_text",
+      "period_dates",
+      "review_cap_1_300",
+      "readonly_off",
+      "capture_spec_present"
+    ],
+    "m1": [
+      "capture_success",
+      "files_readable",
+      "has_shopee_rows",
+      "period_matches",
+      "masked_ids"
+    ],
+    "m2": [
+      "links_1_to_5",
+      "ids_numeric",
+      "no_duplicate_shop",
+      "no_masked_above_lowest_pick",
+      "links_in_m1",
+      "pick_rule_version",
+      "pick_reason_present"
+    ],
+    "m3": [
+      "verdict_ok",
+      "min_reviews_per_link",
+      "cap_not_exceeded",
+      "no_duplicate_review_ids",
+      "product_ids_match_m2",
+      "shape_shopee_public_rows"
+    ]
+  }
+}
