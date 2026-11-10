@@ -197,6 +197,28 @@ test('explicit preset contract rows preserve applied state and reject page or re
       name,
     );
   }
+  // A missing insight response keeps bounded diagnostics that name the endpoint and stage.
+  const missingInsight = structuredClone(fixture.windows[0]);
+  missingInsight.responses = missingInsight.responses.filter((response: any) => !response.urlPath.endsWith('/insight/'));
+  const diagnostics = { missingEndpoints: ['insight'], window: '30d', stage: 'response-readiness' };
+  assert.throws(
+    () => adapter.buildV3WindowManifest(spec, spec.windows[0], missingInsight.observation, missingInsight.responses, '2026-10-26T07:00:00.000Z'),
+    (error: any) => {
+      assert.equal(error.message, 'CAPTURE_UI_CHANGED');
+      assert.deepEqual(error.details, diagnostics);
+      return true;
+    },
+    'missing insight after a UI capture',
+  );
+  assert.throws(
+    () => adapter.buildV3WindowManifest(spec, spec.windows[0], missingInsight.observation, missingInsight.responses, '2026-10-26T07:00:00.000Z', 'page-request', 'CAPTURE_UI_CHANGED'),
+    (error: any) => {
+      assert.equal(error.message, 'CAPTURE_RESPONSE_MISSING');
+      assert.deepEqual(error.details, diagnostics);
+      return true;
+    },
+    'missing insight after a page-request capture',
+  );
 });
 
 test('unknown parent or child stops at category resolution without falling back to All', () => {
@@ -324,4 +346,140 @@ test('availability follows enabled calendar dates across months without submitti
     assert.equal(submissions, 0); assert.equal(selections, 0);
     assert.deepEqual([...document.querySelectorAll('input')].map(i => i.value), ['01-01-2026', '15-01-2026']);
   } finally { w.close(); }
+});
+
+// Live labels carry mode buttons, help links and badges. These fixtures keep that
+// structure in both languages so extraction is proven on the real DOM, not on flags.
+const englishForm = await readFile(new URL('../fixtures/metric-v3/form.en.html', import.meta.url), 'utf8');
+const vietnameseForm = await readFile(new URL('../fixtures/metric-v3/form.vi.html', import.meta.url), 'utf8');
+
+/** Bind the fixture's Vue taxonomy, then read the page exactly as the capture does. */
+function readBilingualObservation(html: string) {
+  const dom = new JSDOM(html, { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
+  try {
+    const { document } = dom.window;
+    Object.defineProperty(dom.window.HTMLElement.prototype, 'innerText', { get() { return this.textContent ?? ''; } });
+    const observation = fixture.windows[0].observation;
+    const taxonomy = observation.taxonomy;
+    const root = document.querySelector('#__nuxt') as any;
+    root._vnode = {
+      component: {
+        type: { name: 'CategorySelector' },
+        props: {
+          value: observation.selectedCategoryIds,
+          option: { options: [{
+            value: taxonomy.id, label: taxonomy.label, en_label: taxonomy.displayLabel,
+            children: taxonomy.children.map((c: any) => ({ value: c.id, label: c.label, en_label: c.displayLabel })),
+          }] },
+        },
+      },
+    };
+    return JSON.parse(JSON.stringify(
+      dom.window.eval(`(${adapter.readV3Page.toString()})(${JSON.stringify({ categoryId: taxonomy.id })})`),
+    ));
+  } finally { dom.window.close(); }
+}
+
+test('bilingual forms bind real DOM controls, results and trend interval to the preset gate', () => {
+  const spec = buildCaptureSpec(validateMetricV3CaptureSpec(fixture.spec));
+  const forms = [
+    ['English', englishForm, 'Advanced', { week: 'Week', month: 'Month' }],
+    ['Vietnamese', vietnameseForm, 'Nâng cao', { week: 'Tuần', month: 'Tháng' }],
+  ] as const;
+  for (const [language, html, categoryMode, trends] of forms) {
+    for (const [bucket, intervalDays] of [['week', 7], ['month', 30]] as const) {
+      const observed = readBilingualObservation(html.replace('TREND_LABEL', trends[bucket]));
+      assert.equal(observed.stop, undefined, language + ': no stop');
+      assert.equal(observed.formReady, true, language + ': form is ready from the DOM');
+      assert.equal(observed.resultsReady, true, language + ': results are visible');
+      assert.equal(observed.submitReady, true, language + ': submit is ready');
+      assert.equal(observed.submitIdle, true, language + ': submit is idle');
+      assert.equal(observed.trendIntervalDays, intervalDays, language + ': ' + bucket + ' interval');
+      assert.equal(observed.categoryMode, categoryMode);
+      assert.deepEqual(observed.period, { startDate: '2026-09-20', endDate: '2026-10-19' });
+      assert.deepEqual(observed.selectedCategoryIds, fixture.windows[0].observation.selectedCategoryIds);
+      assert.equal(observed.keywordInput, '');
+      assert.equal(observed.multi, true);
+      assert.equal(observed.comparisonDefault, true);
+      assert.deepEqual(observed.appliedState, fixture.spec.preset, language + ': DOM controls bind every preset field');
+      const manifest = adapter.buildV3WindowManifest(spec, spec.windows[0], observed, fixture.windows[0].responses, '2026-10-26T07:00:00.000Z');
+      assert.equal(manifest.captureGate, 'PASSED', language + ': ' + bucket);
+      assert.deepEqual(manifest.appliedState, fixture.spec.preset);
+    }
+    const unsupported = readBilingualObservation(html.replace('TREND_LABEL', language === 'English' ? 'Quarter' : 'Hàng quý'));
+    assert.equal(unsupported.trendIntervalDays, null, language + ': an unlisted bucket is not guessed');
+  }
+});
+
+function observeSubmits(document: Document) {
+  // The adapter clicks inside page.evaluate, so only real DOM events can catch it.
+  const events: string[] = [];
+  document.addEventListener('click', (event) => {
+    const button = (event.target as Element | null)?.closest?.('button');
+    if (button && /Analytics|Phân tích/i.test(button.textContent ?? '')) events.push('click:' + button.textContent!.trim());
+  }, true);
+  document.addEventListener('submit', () => events.push('submit'), true);
+  return events;
+}
+
+test('wrong, incomplete, ambiguous or loading controls stop before any submit click', async () => {
+  const spec = buildCaptureSpec(validateMetricV3CaptureSpec(fixture.spec));
+  const platformStart = englishForm.indexOf('<!-- platform-control -->');
+  const platformClose = englishForm.indexOf('<!-- /platform-control -->');
+  assert.ok(platformStart >= 0 && platformClose > platformStart, 'platform fixture markers are intact');
+  const platformEnd = platformClose + '<!-- /platform-control -->'.length;
+  const platformBlock = englishForm.slice(platformStart, platformEnd);
+  const duplicatePlatforms = englishForm.replace(platformBlock, platformBlock + platformBlock);
+  const busySubmit = englishForm.replace('<button>Analytics</button>', '<button aria-busy="true">Analytics<span class="anticon-loading"></span></button>');
+  const disabledSubmit = englishForm.replace('<button>Analytics</button>', '<button aria-disabled="true">Analytics</button>');
+  const duplicateSubmit = englishForm.replace('<button>Analytics</button>', '<button>Analytics</button><button>Analytics</button>');
+  const wrongLabel = englishForm.replace('<div class="label">Platform</div>', '<div class="label">Channel</div>');
+
+  // Calibrate the instrument: a real Analytics click must be observed.
+  const calibrationDom = new JSDOM(englishForm, { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
+  try {
+    const calibration = observeSubmits(calibrationDom.window.document);
+    const submit = [...calibrationDom.window.document.querySelectorAll('button')]
+      .find((button) => /Analytics/.test(button.textContent ?? ''));
+    submit!.click();
+    assert.deepEqual(calibration, ['click:Analytics'], 'the observer sees a real Analytics click');
+  } finally { calibrationDom.window.close(); }
+
+  const busy = readBilingualObservation(busySubmit);
+  assert.deepEqual({ formReady: busy.formReady, submitIdle: busy.submitIdle, submitReady: busy.submitReady }, { formReady: true, submitIdle: false, submitReady: false });
+  const disabled = readBilingualObservation(disabledSubmit);
+  assert.deepEqual({ submitIdle: disabled.submitIdle, submitReady: disabled.submitReady }, { submitIdle: true, submitReady: false });
+  const ambiguous = readBilingualObservation(duplicateSubmit);
+  assert.deepEqual({ formReady: ambiguous.formReady, submitIdle: ambiguous.submitIdle, submitReady: ambiguous.submitReady }, { formReady: false, submitIdle: false, submitReady: false });
+  assert.equal(readBilingualObservation(duplicatePlatforms).formReady, false, 'two platform controls are ambiguous');
+  assert.equal(readBilingualObservation(wrongLabel).formReady, false, 'a renamed control is not guessed');
+
+  const cases: [string, string, string, string | undefined][] = [
+    ['wrong platform label', wrongLabel, 'CAPTURE_UI_CHANGED', 'form-readiness'],
+    ['ambiguous platform labels', duplicatePlatforms, 'CAPTURE_UI_CHANGED', 'form-readiness'],
+    ['ambiguous submit buttons', duplicateSubmit, 'CAPTURE_UI_CHANGED', 'form-readiness'],
+    ['loading submit', busySubmit, 'CAPTURE_CONTROL_NOT_SELECTABLE', undefined],
+  ];
+  for (const [name, html, code, stage] of cases) {
+    const dom = new JSDOM(html, { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
+    const w = dom.window, document = w.document;
+    Object.defineProperty(w.HTMLElement.prototype, 'innerText', { get() { return this.textContent ?? ''; } });
+    const submits = observeSubmits(document);
+    const page = {
+      evaluate: async (fn: Function, arg?: unknown) => w.eval(`(${fn.toString()})(${JSON.stringify(arg === undefined ? '' : arg)})`),
+      wait: async () => {},
+      click: async (selector: string) => { document.querySelector<HTMLElement>(selector)?.click(); },
+    };
+    try {
+      await assert.rejects(
+        adapter.captureV3Preset(page, spec, '/tmp/metric-v3-start-gate-unused', () => {}),
+        (error: any) => {
+          assert.equal(error.message, code, name);
+          if (stage) assert.equal(error.details?.stage, stage, name);
+          return true;
+        },
+      );
+      assert.deepEqual(submits, [], name + ': no Analytics submission was triggered');
+    } finally { w.close(); }
+  }
 });

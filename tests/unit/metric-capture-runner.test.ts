@@ -300,6 +300,8 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
             response = outcome === 'logged-out' ? { stop: 'CAPTURE_LOGIN_REQUIRED' } : {
               ...structuredClone(fixture.windows[windowIndex].observation),
               advancedVisible: true, submitIdle: true, submitReady: true,
+              formReady: true, resultsReady: true,
+              trendIntervalDays: fixture.spec.windows[windowIndex].intervalDays,
               selectedCategoryIds: [...selected],
               appliedState: { ...structuredClone(fixture.spec.preset), keywords: [...keywords] },
             };
@@ -357,6 +359,12 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
         assert.equal(window.window.id, id);
       }
       assert.equal(pageRequests, outcome === 'ready' ? 0 : 10);
+      if (outcome === 'missing-trend') {
+        const diagnostic = JSON.parse(await readFile(join(dir, 'ui-failed', 'stopped.json'), 'utf8'));
+        assert.deepEqual(diagnostic, {
+          code: 'CAPTURE_UI_CHANGED', window: '12m', stage: 'response-readiness', missingEndpoints: ['insight'],
+        });
+      }
     } else {
       assert.equal(!result.ok && result.code, outcome === 'logged-out' ? 'CAPTURE_LOGIN_REQUIRED' : outcome === 'unknown-category' ? 'CAPTURE_CATEGORY_NOT_SELECTABLE' : outcome.startsWith('both-fail') ? 'CAPTURE_FALLBACK_FAILED' : 'CAPTURE_RESPONSE_MISSING');
       assert.equal(pageRequests, outcome.startsWith('both-fail') ? 1 : 0);
