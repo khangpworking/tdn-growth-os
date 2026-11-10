@@ -1241,6 +1241,87 @@ def flow_presets_root():
     return pathlib.Path(os.environ.get('SHOPEE_FLOW_PRESETS', str(MODULE_DATA / 'presets'))).expanduser()
 
 
+def flow_add_product():
+    """Save a complete, locally validated preset without starting any module."""
+    import fcntl
+    import unicodedata
+
+    def unique_object(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError('duplicate input key')
+            value[key] = item
+        return value
+
+    try:
+        source = sys.stdin.read(65537)
+        if len(source.encode('utf8')) > 65536:
+            raise ValueError('oversized input')
+        value = json.loads(source, object_pairs_hook=unique_object,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError('invalid constant')))
+    except ValueError:
+        raise ModuleFailure('PRODUCT_INPUT_INVALID', 2)
+    repo, config = module_config()
+    try:
+        result = subprocess.run([*config['params']['nodeCommand'], str(repo / 'scripts/build-shopee-product-preset.ts')],
+                                cwd=repo, input=json.dumps(value, ensure_ascii=False, separators=(',', ':')), capture_output=True,
+                                encoding='utf8', timeout=30)
+        preset = json.loads(result.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        raise ModuleFailure('PRESET_WRITE_FAILED', 2)
+    if result.returncode:
+        code = preset.get('code') if isinstance(preset, dict) else None
+        raise ModuleFailure(code if code in ('PRODUCT_INPUT_INVALID', 'PRODUCT_CATEGORY_UNSUPPORTED')
+                            else 'PRESET_WRITE_FAILED', 2)
+    root = flow_presets_root()
+    key = lambda s: ' '.join(unicodedata.normalize('NFC', s).split()).casefold()
+    temp = '.' + uuid.uuid4().hex + '.tmp'
+    try:
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # Pin the directory and refuse symlinks, including the lock and destination.
+        root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            lock_fd = os.open('.presets.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=root_fd)
+            with os.fdopen(lock_fd, 'a') as lock:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    raise ModuleFailure('PRESET_BUSY', 2)
+                for name in os.listdir(root_fd):
+                    if not name.endswith('.json'):
+                        continue
+                    if name[:-5].casefold() == preset['presetId'].casefold():
+                        raise ModuleFailure('PRESET_ID_EXISTS', 2)
+                    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=root_fd)
+                    with os.fdopen(fd) as stored:
+                        previous = json.load(stored)
+                    if not isinstance(previous, dict) or not isinstance(previous.get('label'), str):
+                        raise ModuleFailure('PRESET_WRITE_FAILED', 2)
+                    if key(previous['label']) == key(preset['label']):
+                        raise ModuleFailure('PRESET_NAME_EXISTS', 2)
+                fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=root_fd)
+                try:
+                    with os.fdopen(fd, 'w') as output:
+                        json.dump(preset, output, ensure_ascii=True)
+                        output.write('\n')
+                        output.flush()
+                        os.fsync(output.fileno())
+                    # Publish complete bytes atomically; an existing name is never replaced.
+                    os.link(temp, preset['presetId'] + '.json', src_dir_fd=root_fd, dst_dir_fd=root_fd,
+                            follow_symlinks=False)
+                    os.fsync(root_fd)
+                finally:
+                    os.unlink(temp, dir_fd=root_fd)
+        finally:
+            os.close(root_fd)
+    except FileExistsError:
+        raise ModuleFailure('PRESET_ID_EXISTS', 2)
+    except (OSError, ValueError):
+        raise ModuleFailure('PRESET_WRITE_FAILED', 2)
+    return {'format': 'add-product-v1', 'presetId': preset['presetId'], 'label': preset['label']}
+
+
 def flow_preset(path):
     value = gate_read(path)
     if not isinstance(value, dict) or value.get('format') != 'preset-v1' or value.get('presetId') != path.stem:
@@ -1340,7 +1421,9 @@ def cmd_flow_query(ns):
             print(json.dumps({'format': 'connection-v1', 'readonly': module_readonly(), 'runsRoot': display}))
             return
         repo, config = module_config()
-        if ns.cmd == 'new-run':
+        if ns.cmd == 'add-product':
+            result = flow_add_product()
+        elif ns.cmd == 'new-run':
             result = flow_new_run()
         elif ns.cmd == 'presets':
             values = []
@@ -1391,7 +1474,7 @@ def cmd_flow_query(ns):
 
 class FlowArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'new-run', 'runs', 'run-info', 'library', 'run', 'm1', 'm2', 'm3'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library', 'run', 'm1', 'm2', 'm3'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -1408,9 +1491,9 @@ def main():
         x.add_argument('--worker-lock-fd', type=int, help=argparse.SUPPRESS)
         x.add_argument('--worker-ready-fd', type=int, help=argparse.SUPPRESS)
         x.set_defaults(f=cmd_module)
-    for name in ('connection', 'presets', 'new-run', 'runs', 'run-info', 'library'):
+    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library'):
         x = sp.add_parser(name)
-        if name == 'new-run': x.add_argument('--stdin', action='store_true', required=True)
+        if name in ('new-run', 'add-product'): x.add_argument('--stdin', action='store_true', required=True)
         if name == 'run-info': x.add_argument('--run', dest='run_id', required=True)
         x.set_defaults(f=cmd_flow_query)
     sp.add_parser('status').set_defaults(f=cmd_status)
