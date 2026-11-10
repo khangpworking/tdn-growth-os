@@ -185,8 +185,11 @@ export function readV3Page({ categoryId }) {
   };
   const dates = [...root.querySelectorAll('.ant-picker input')].map((e) => date(e.value));
   const submit = one([...root.querySelectorAll('button')].filter((e) => /^(Analytics|Phân tích)$/i.test(txt(e))));
-  const overview = one([...document.querySelectorAll('.statistic-item')].filter((e) =>
-    /^(Market Overview|Tổng quan thị trường)$/i.test(txt(e.querySelector('.statistic-item__title')))));
+  // The overview section owns both its exact heading and the displayed statistic cards.
+  const overview = one([...document.querySelectorAll('.market-overview-section')].filter((e) => {
+    const heading = one([...e.querySelectorAll(':scope > .section-header > h3.section-title')]);
+    return visible(e) && visible(heading) && /^(Market Overview|Tổng quan thị trường)$/i.test(txt(heading));
+  }));
   const comparison = one([...document.querySelectorAll('.ant-select')].filter((e) =>
     /^(Compare with time period|So sánh với khoảng thời gian)\s*:/i.test(txt(e))));
   const platformControl = select(/^(Platform|Kênh bán hàng|Nền tảng)$/i);
