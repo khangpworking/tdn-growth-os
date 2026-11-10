@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/selection-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "runId",
+    "source",
+    "pickRuleVersion",
+    "metricInputSha256",
+    "links",
+    "counts"
+  ],
+  "properties": {
+    "format": {
+      "const": "selection-v1"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "source": {
+      "enum": [
+        "auto",
+        "manual"
+      ]
+    },
+    "pickRuleVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metricInputSha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "links": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rank",
+          "productBaseId",
+          "shopId",
+          "itemId",
+          "url",
+          "brand",
+          "revenue",
+          "reason"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "productBaseId": {
+            "type": "string",
+            "pattern": "^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$"
+          },
+          "shopId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "itemId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://shopee\\.vn/",
+            "maxLength": 2000
+          },
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revenue": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "walked",
+        "deleted",
+        "notIncluded",
+        "tokenGuardRejected",
+        "eligible",
+        "picked",
+        "maskedRows",
+        "maskedAboveLowestPick"
+      ],
+      "properties": {
+        "walked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deleted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notIncluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokenGuardRejected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eligible": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "picked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maskedRows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maskedAboveLowestPick": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "description": "productBaseId is 1__itemId__shopId. Auto counts must be supplied by M2, never invented for old runs. Manual uses null metricInputSha256 and pickRuleVersion manual.",
+  "anyOf": [
+    {
+      "properties": {
+        "source": {
+          "const": "auto"
+        },
+        "metricInputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    {
+      "properties": {
+        "source": {
+          "const": "manual"
+        },
+        "metricInputSha256": {
+          "type": "null"
+        },
+        "pickRuleVersion": {
+          "const": "manual"
+        }
+      }
+    }
+  ]
+}
