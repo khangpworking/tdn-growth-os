@@ -264,6 +264,11 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py' -v
 
+      - name: Run desktop bridge tests
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest discover -s tools/shopee-desktop/tests -p 'test_*.py' -v
+
   prep:
     needs: scope
     if: needs.scope.outputs.mode == 'full'
