@@ -16,6 +16,8 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve };
 }
 
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+
 async function waitFor(check: () => boolean, label: string, ms = 3000): Promise<void> {
   const start = Date.now();
   while (!check()) {
@@ -25,18 +27,35 @@ async function waitFor(check: () => boolean, label: string, ms = 3000): Promise<
 }
 
 /** The real page, with a fake pywebview bridge whose preset refresh can be held open. */
-function harness() {
+function harness(options: {
+  runInfo?: any; runs?: any[]; sampling?: any;
+  saveGate?: Deferred<any> | undefined; refreshCountResult?: any;
+} = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
+    refreshCountCalls: number;
     presets: ReturnType<typeof preset>[];
     refresh: Deferred<any> | undefined;
     addResult: ((input: any) => any) | undefined;
+    sampling: any;
+    reviewSamplingCalls: number;
+    saveCalls: any[];
+    launchCalls: any[];
+    controlCalls: any[];
+    refreshCountResult: any;
+    saveGate: Deferred<any> | undefined;
   } = {
-    addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0,
+    addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0,
     presets: [preset('kem', 'Kem chống nắng')],
     refresh: undefined,
     addResult: undefined,
+    sampling: options.sampling ? clone(options.sampling) : undefined,
+    reviewSamplingCalls: 0,
+    saveCalls: [], launchCalls: [], controlCalls: [],
+    refreshCountResult: options.refreshCountResult,
+    saveGate: options.saveGate,
   };
+  const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
     connection: async () => ({ ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } }),
     presets: async () => {
@@ -46,16 +65,83 @@ function harness() {
     },
     listRuns: async () => {
       state.listRunsCalls++;
-      return { ok: true, data: { format: 'runs-v1', runs: [] } };
+      return { ok: true, data: { format: 'runs-v1', runs: options.runs || [] } };
     },
     library: async () => ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } }),
     newRun: async () => {
       state.newRunCalls++;
       return { ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } };
     },
-    status: async () => ({ ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } }),
+    status: async () => {
+      if (options.runInfo) return { ok: true, data: options.runInfo };
+      return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
+    },
     runFlow: async () => ({ ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } }),
-    runModule: async () => ({ ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } }),
+    reviewSampling: async (runId: string) => {
+      state.reviewSamplingCalls++;
+      if (!state.sampling || state.sampling.runId !== runId) {
+        return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
+      }
+      return { ok: true, data: clone(state.sampling) };
+    },
+    saveReviewPlan: async (runId: string, input: any) => {
+      state.saveCalls.push({ runId, input: clone(input) });
+      if (state.saveGate) await state.saveGate.promise;
+      const sha = planSha();
+      const plan = {
+        format: 'shopee-review-plan-v1', runId, requestSha256: 'b'.repeat(64),
+        m2Digest: state.sampling.m2Digest,
+        policy: {
+          format: 'shopee-review-policy-v1', mode: input.mode, stars: input.stars.slice().sort(),
+          totalPerLink: input.totalPerLink, allocation: input.allocation, textRule: 'comment-or-attributes-v1',
+        },
+        policySha256: sha, targets: [], links: clone(state.sampling.links),
+      };
+      state.sampling.plans.push({ planSha256: sha, plan });
+      state.sampling.plans.sort((a: any, b: any) => a.planSha256.localeCompare(b.planSha256));
+      return { ok: true, data: { format: 'review-plan-saved-v1', runId, planSha256: sha, plan } };
+    },
+    runModule: async (runId: string, module: string, sha?: string) => {
+      state.launchCalls.push({ runId, module, sha });
+      const saved = (state.sampling?.plans || []).find((entry: any) => entry.planSha256 === sha);
+      if (module !== 'm3' || !saved) return { ok: false, error: { code: 'PLAN_NOT_SAVED', message: 'PLAN_NOT_SAVED' } };
+      return { ok: true, data: {
+        format: 'review-attempt-start-v1', runId, attemptId: 'attempt-synthetic',
+        planSha256: sha, status: 'RUNNING', pid: 1234,
+      } };
+    },
+    refreshReviewCounts: async () => {
+      state.refreshCountCalls++;
+      if (state.refreshCountResult) {
+        const res = state.refreshCountResult;
+        if (res.ok) {
+          state.sampling.countRefresh = {
+            attemptId: res.data.attemptId, status: 'RUNNING', errorCode: null,
+            stopRequested: false, reconcilable: false,
+          };
+        }
+        return res;
+      }
+      return { ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } };
+    },
+    stopReviewAttempt: async (runId: string, kind: string, attemptId: string) => {
+      state.controlCalls.push({ action: 'stop', runId, kind, attemptId });
+      if (kind === 'counts' && state.sampling.countRefresh) state.sampling.countRefresh.stopRequested = true;
+      if (kind === 'custom' && state.sampling.attempts.length) {
+        state.sampling.attempts[state.sampling.attempts.length - 1].stopRequested = true;
+      }
+      return { ok: true, data: {
+        format: 'review-attempt-control-v1', runId, kind, attemptId,
+        status: 'STOP_REQUESTED', pid: 1234, errorCode: null,
+      } };
+    },
+    reconcileReviewAttempt: async (runId: string, kind: string, attemptId: string) => {
+      state.controlCalls.push({ action: 'reconcile', runId, kind, attemptId });
+      return { ok: true, data: {
+        format: 'review-attempt-control-v1', runId, kind, attemptId,
+        status: 'RUNNING', pid: 5678, errorCode: null,
+      } };
+    },
     addProduct: async (input: any) => {
       state.addCalls++;
       if (state.addResult) return state.addResult(input);
@@ -170,5 +256,404 @@ test('a rejected save restores the form, shows the product error and does not re
     assert.equal(element<HTMLElement>(doc, 'productSaved').hidden, true);
     assert.equal(element<HTMLButtonElement>(doc, 'btnProductSave').disabled, false);
     assert.equal(state.presetsCalls, presetsBefore, 'a rejected save does not refresh presets');
+  } finally { dom.window.close(); }
+});
+
+const passSlip = (module: string) => ({
+  format: 'handoff-v1', module, verdict: 'PASS', checks: [], errorCode: null,
+  inputSha256: 'synthetic-in', outputSha256: 'synthetic-out', next: null,
+});
+
+/** Synthetic run-info for the M3 panel; no live source or native DOM is involved. */
+function syntheticRunInfo() {
+  const module = (id: string, inputGate: string, canRun: boolean) => ({
+    id, title: id, skill: 'synthetic-module', inputGate, outputGate: id.toLowerCase(), canRun, blockedBy: null,
+  });
+  return {
+    format: 'run-info-v1', runId: 'run-synthetic', readonly: false,
+    request: { format: 'request-v1', reviewCapPerLink: 300 },
+    state: { status: 'IDLE', module: null, errorCode: null },
+    modules: [module('M1', 'entry', false), module('M2', 'm1', false), module('M3', 'm2', true)],
+    gates: { entry: passSlip('ENTRY'), m1: passSlip('M1'), m2: passSlip('M2'), m3: null },
+    selection: {
+      format: 'selection-v1', runId: 'run-synthetic',
+      links: [{ rank: 1, brand: 'Nhãn tổng hợp', revenue: 123456, reason: 'Dòng tổng hợp' }],
+    },
+  };
+}
+
+function fire(window: any, node: Element, type: string): void {
+  node.dispatchEvent(new window.Event(type, { bubbles: true }));
+}
+
+/** A synthetic review-sampling view bound to the same validated M2 links. */
+function syntheticSampling(overrides: any = {}) {
+  return {
+    format: 'review-sampling-view-v1', runId: 'run-synthetic', readonly: false,
+    m2Digest: 'a'.repeat(64),
+    links: [
+      { shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200' },
+      { shopId: '101', itemId: '201', url: 'https://shopee.vn/product/101/201' },
+    ],
+    defaultInput: { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' },
+    plans: [], counts: [], countRefresh: null, attempts: [], blockedBy: null,
+    ...overrides,
+  };
+}
+
+async function samplingHarness(sampling: any = {}, options: {
+  saveGate?: Deferred<any> | undefined; refreshCountResult?: any;
+} = {}) {
+  const result = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE' }],
+    runInfo: syntheticRunInfo(),
+    sampling: syntheticSampling(sampling),
+    saveGate: options.saveGate,
+    refreshCountResult: options.refreshCountResult,
+  });
+  await waitFor(() => result.doc.getElementById('rsPanel') !== null, 'sampling panel');
+  await waitFor(() => result.doc.getElementById('rsN') !== null, 'sampling defaults');
+  return result;
+}
+
+function buttonByText(doc: Document, text: string): HTMLButtonElement | undefined {
+  return [...doc.querySelectorAll('#rsPanel button')]
+    .find((button) => button.textContent === text) as HTMLButtonElement | undefined;
+}
+
+test('the M3 panel keeps legacy with-comments and one shared 300 input for a selected run', async () => {
+  const { dom, doc, state } = await samplingHarness();
+  try {
+    assert.equal(element<HTMLInputElement>(doc, 'rsMode-with-comments').checked, true);
+    assert.equal(element<HTMLInputElement>(doc, 'rsN').value, '300');
+    assert.equal(element<HTMLInputElement>(doc, 'rsN').min, '1');
+    assert.equal(element<HTMLInputElement>(doc, 'rsN').max, '2000');
+    assert.equal(element<HTMLInputElement>(doc, 'rsBalanced').disabled, true);
+    assert.equal(element<HTMLElement>(doc, 'rsStars').hidden, true);
+    assert.equal(doc.querySelectorAll('#rsPanel input[type="number"]').length, 1);
+    assert.equal(doc.querySelectorAll('#rsPanel input[data-star]').length, 5);
+    assert.equal(doc.querySelectorAll('#rsStars input:checked').length, 0);
+    assert.match(element<HTMLElement>(doc, 'rsSummary').textContent!, /Có bình luận · 300/);
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /Chỉ thu bình luận có chữ/);
+    assert.doesNotMatch(doc.getElementById('rsPanel')!.textContent!, /ảnh|video|hình ảnh|media/i);
+    assert.equal(state.refreshCountCalls, 0, 'opening the run must not refresh source counts');
+
+    assert.equal(element<HTMLInputElement>(doc, 'cap').max, '300');
+    assert.equal(element<HTMLInputElement>(doc, 'cap').value, '300');
+  } finally { dom.window.close(); }
+});
+
+test('star mode uses OR selection and one shared total; equal quotas are read-only with an ascending remainder', async () => {
+  const { dom, doc, window, state } = await samplingHarness();
+  try {
+    const starsMode = element<HTMLInputElement>(doc, 'rsMode-stars');
+    starsMode.checked = true;
+    fire(window, starsMode, 'change');
+    assert.equal(element<HTMLElement>(doc, 'rsStars').hidden, false);
+    assert.equal(element<HTMLInputElement>(doc, 'rsBalanced').disabled, false);
+    assert.match(element<HTMLElement>(doc, 'rsHint').textContent!, /ít nhất một mức sao/);
+
+    for (const star of [1, 2, 3, 4, 5]) {
+      const box = doc.querySelector(`#rsStars input[data-star="${star}"]`) as HTMLInputElement;
+      box.checked = true;
+      fire(window, box, 'change');
+    }
+    assert.match(element<HTMLElement>(doc, 'rsOrder').textContent!, /từ sao thấp đến cao/,
+      'pooled order is disclosed as deterministic low-star-first');
+    const balanced = element<HTMLInputElement>(doc, 'rsBalanced');
+    balanced.checked = true;
+    fire(window, balanced, 'change');
+    assert.match(element<HTMLElement>(doc, 'rsOrder').textContent!, /Chia đều/);
+    assert.match(element<HTMLElement>(doc, 'rsOrder').textContent!, /không bù/);
+    const n = element<HTMLInputElement>(doc, 'rsN');
+    n.value = '302';
+    fire(window, n, 'input');
+
+    const quotas = [...doc.querySelectorAll('#rsQuota > div')].map((row) => [
+      row.querySelector('dt')!.textContent,
+      row.querySelector('dd')!.textContent,
+    ]);
+    assert.deepEqual(quotas, [
+      ['Sao 1★', '61'], ['Sao 2★', '61'], ['Sao 3★', '60'], ['Sao 4★', '60'], ['Sao 5★', '60'],
+    ]);
+    assert.equal(doc.querySelectorAll('#rsPanel input[type="number"]').length, 1, 'one shared quantity input');
+    assert.equal(doc.querySelectorAll('#rsQuota input').length, 0, 'quotas are read-only');
+    assert.match(element<HTMLElement>(doc, 'rsSummary').textContent!, /Sao 1, 2, 3, 4, 5 · 302/);
+    assert.equal(state.refreshCountCalls, 0, 'changing the selection must not refresh source counts');
+  } finally { dom.window.close(); }
+});
+
+test('the shared M3 quantity accepts 1 and 2000 and refuses values outside that range', async () => {
+  const { dom, doc, window } = await samplingHarness();
+  try {
+    const starsMode = element<HTMLInputElement>(doc, 'rsMode-stars');
+    starsMode.checked = true;
+    fire(window, starsMode, 'change');
+    const star = doc.querySelector('#rsStars input[data-star="3"]') as HTMLInputElement;
+    star.checked = true;
+    fire(window, star, 'change');
+
+    const n = element<HTMLInputElement>(doc, 'rsN');
+    for (const invalid of ['2001', '0', '']) {
+      n.value = invalid;
+      fire(window, n, 'input');
+      assert.equal(element<HTMLElement>(doc, 'rsHint').hidden, false, `${invalid || 'empty'} is refused`);
+      assert.match(element<HTMLElement>(doc, 'rsHint').textContent!, /1 đến 2000/);
+    }
+
+    n.value = '2000';
+    fire(window, n, 'input');
+    assert.equal(element<HTMLElement>(doc, 'rsHint').hidden, true);
+    assert.match(element<HTMLElement>(doc, 'rsSummary').textContent!, /2000/);
+
+    n.value = '1';
+    fire(window, n, 'input');
+    assert.equal(element<HTMLElement>(doc, 'rsHint').hidden, true);
+    assert.match(element<HTMLElement>(doc, 'rsSummary').textContent!, /1 bình luận/);
+  } finally { dom.window.close(); }
+});
+
+test('switching source modes keeps stars exclusive and both plain modes text-only', async () => {
+  const { dom, doc, window } = await samplingHarness();
+  try {
+    const starsMode = element<HTMLInputElement>(doc, 'rsMode-stars');
+    starsMode.checked = true;
+    fire(window, starsMode, 'change');
+    const star = doc.querySelector('#rsStars input[data-star="4"]') as HTMLInputElement;
+    star.checked = true;
+    fire(window, star, 'change');
+    const balanced = element<HTMLInputElement>(doc, 'rsBalanced');
+    balanced.checked = true;
+    fire(window, balanced, 'change');
+    assert.equal(element<HTMLElement>(doc, 'rsQuota').hidden, false);
+
+    const allMode = element<HTMLInputElement>(doc, 'rsMode-all');
+    allMode.checked = true;
+    fire(window, allMode, 'change');
+    assert.equal(element<HTMLElement>(doc, 'rsStars').hidden, true);
+    assert.equal(element<HTMLInputElement>(doc, 'rsBalanced').disabled, true);
+    assert.equal(element<HTMLInputElement>(doc, 'rsBalanced').checked, false);
+    assert.equal(element<HTMLElement>(doc, 'rsQuota').hidden, true);
+    assert.equal(element<HTMLElement>(doc, 'rsOrder').hidden, true, 'order notes are stars-only');
+    assert.match(element<HTMLElement>(doc, 'rsSummary').textContent!, /Tất cả đánh giá · 300/);
+
+    const legacyMode = element<HTMLInputElement>(doc, 'rsMode-with-comments');
+    legacyMode.checked = true;
+    fire(window, legacyMode, 'change');
+    assert.match(element<HTMLElement>(doc, 'rsSummary').textContent!, /Có bình luận · 300/);
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /Chỉ thu bình luận có chữ/);
+  } finally { dom.window.close(); }
+});
+
+test('saving sends exactly the four contract keys and launch uses that saved plan', async () => {
+  const { dom, doc, window, state } = await samplingHarness();
+  try {
+    assert.equal(buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled, true, 'no unsaved plan can launch');
+
+    const starsMode = element<HTMLInputElement>(doc, 'rsMode-stars');
+    starsMode.checked = true;
+    fire(window, starsMode, 'change');
+    for (const star of [3, 1, 2]) {
+      const box = doc.querySelector(`#rsStars input[data-star="${star}"]`) as HTMLInputElement;
+      box.checked = true;
+      fire(window, box, 'change');
+    }
+    const balanced = element<HTMLInputElement>(doc, 'rsBalanced');
+    balanced.checked = true;
+    fire(window, balanced, 'change');
+    const n = element<HTMLInputElement>(doc, 'rsN');
+    n.value = '302';
+    fire(window, n, 'input');
+
+    assert.equal(buttonByText(doc, 'Lưu lựa chọn')!.disabled, false);
+    buttonByText(doc, 'Lưu lựa chọn')!.click();
+    await waitFor(() => state.saveCalls.length === 1, 'plan saved');
+    assert.deepEqual(state.saveCalls[0].input, {
+      mode: 'stars', stars: [1, 2, 3], totalPerLink: 302, allocation: 'equal-stars',
+    });
+
+    await waitFor(() => buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled === false, 'launch after save');
+    const savedSha = state.sampling.plans[0].planSha256;
+    buttonByText(doc, 'Thu bình luận theo lựa chọn')!.click();
+    await waitFor(() => state.launchCalls.length === 1, 'custom M3 launch');
+    assert.deepEqual(state.launchCalls[0], { runId: 'run-synthetic', module: 'm3', sha: savedSha });
+    assert.equal(state.refreshCountCalls, 0, 'saving or launching never refreshes source counts');
+  } finally { dom.window.close(); }
+});
+
+test('editing after saving invalidates launch until the new draft is saved', async () => {
+  const { dom, doc, window, state } = await samplingHarness();
+  try {
+    buttonByText(doc, 'Lưu lựa chọn')!.click();
+    await waitFor(() => state.sampling.plans.length === 1, 'first plan');
+    await waitFor(() => buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled === false, 'launch after first save');
+
+    const n = element<HTMLInputElement>(doc, 'rsN');
+    n.value = '301';
+    fire(window, n, 'input');
+    assert.equal(buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled, true,
+      'a changed draft must not reuse the older saved plan');
+    assert.match(doc.querySelector('#rsPanel .rs-head .chip')!.textContent!, /Có thay đổi chưa lưu/);
+
+    buttonByText(doc, 'Lưu lựa chọn')!.click();
+    await waitFor(() => state.sampling.plans.length === 2, 'second plan');
+    await waitFor(() => buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled === false, 'launch after second save');
+    assert.equal(state.launchCalls.length, 0, 'an unsaved edit never reached the launch command');
+  } finally { dom.window.close(); }
+});
+
+test('a late save completion keeps edits made while the save was in flight', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, window, state } = await samplingHarness({}, { saveGate: gate });
+  try {
+    buttonByText(doc, 'Lưu lựa chọn')!.click();
+    await waitFor(() => state.saveCalls.length === 1, 'save started');
+    const n = element<HTMLInputElement>(doc, 'rsN');
+    n.value = '301';
+    fire(window, n, 'input');
+
+    gate.resolve(undefined);
+    await waitFor(() => state.sampling.plans.length === 1 && /Có thay đổi chưa lưu/.test(
+      doc.querySelector('#rsPanel .rs-head .chip')!.textContent!), 'reload after late save');
+
+    assert.equal(element<HTMLInputElement>(doc, 'rsN').value, '301', 'the newer edit survives the late completion');
+    assert.equal(buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled, true,
+      'the older saved policy does not authorize the edited draft');
+  } finally { dom.window.close(); }
+});
+
+test('source counts show observed values and short reasons for unknown cells without leaking digests', async () => {
+  const observedAt = '2026-11-01T02:03:04.000Z';
+  const counts = [
+    {
+      format: 'shopee-review-counts-v1', shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200',
+      observedAt, snapshotDigest: 'c'.repeat(64),
+      stars: {
+        '1': { status: 'observed', value: 3 }, '2': { status: 'observed', value: 2 },
+        '3': { status: 'observed', value: 4 }, '4': { status: 'observed', value: 5 },
+        '5': { status: 'observed', value: 10 },
+      },
+      withComments: { status: 'observed', value: 20 },
+    },
+    {
+      format: 'shopee-review-counts-v1', shopId: '101', itemId: '201', url: 'https://shopee.vn/product/101/201',
+      observedAt, snapshotDigest: 'd'.repeat(64),
+      stars: {
+        '1': { status: 'missing', value: null }, '2': { status: 'ambiguous', value: null },
+        '3': { status: 'unavailable', value: null }, '4': { status: 'observed', value: 0 },
+        '5': { status: 'observed', value: 7 },
+      },
+      withComments: { status: 'unavailable', value: null },
+    },
+  ];
+  const { dom, doc, state } = await samplingHarness({ counts });
+  try {
+    const rows = [...doc.querySelectorAll('#rsPanel .rs-counts tbody tr')];
+    assert.equal(rows.length, 2);
+    assert.deepEqual([...rows[0]!.querySelectorAll('td')].slice(1, 7).map((cell) => cell.textContent), [
+      '10', '5', '4', '2', '3', '20',
+    ]);
+    assert.deepEqual([...rows[1]!.querySelectorAll('td')].slice(1, 7).map((cell) => cell.textContent), [
+      '7', '0', '— không đọc được', '— không rõ', '— không thấy', '— không đọc được',
+    ]);
+    const panelText = doc.getElementById('rsPanel')!.textContent!;
+    assert.doesNotMatch(panelText, /snapshotDigest/);
+    assert.ok(!panelText.includes('c'.repeat(64)) && !panelText.includes('d'.repeat(64)), 'digests stay internal');
+    assert.match(panelText, /có thể gồm đánh giá không có chữ/);
+    assert.equal(state.refreshCountCalls, 0, 'opening the view never refreshes source counts');
+  } finally { dom.window.close(); }
+});
+
+test('a refresh start is running only; last counts stay and stop targets the exact counts attempt', async () => {
+  const refreshCountResult = { ok: true, data: {
+    format: 'review-counts-start-v1', runId: 'run-synthetic',
+    attemptId: 'counts-attempt-1', status: 'RUNNING', pid: 4242,
+  } };
+  const { dom, doc, state } = await samplingHarness({}, { refreshCountResult });
+  try {
+    buttonByText(doc, 'Đọc số đánh giá trên Shopee')!.click();
+    await waitFor(() => state.refreshCountCalls === 1, 'refresh started');
+    await waitFor(() => /Đang đọc số đánh giá trên Shopee/.test(doc.getElementById('rsPanel')!.textContent!), 'running state');
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /Chưa có số đánh giá/, 'a start is not completed counts');
+    assert.ok(buttonByText(doc, 'Dừng đọc số đánh giá'), 'the counts attempt can be stopped by attempt id');
+
+    buttonByText(doc, 'Dừng đọc số đánh giá')!.click();
+    await waitFor(() => state.controlCalls.length === 1, 'counts stop');
+    assert.deepEqual(state.controlCalls[0], {
+      action: 'stop', runId: 'run-synthetic', kind: 'counts', attemptId: 'counts-attempt-1',
+    });
+    await waitFor(() => /Đang dừng đọc số đánh giá/.test(doc.getElementById('rsPanel')!.textContent!), 'stop requested');
+    assert.equal(buttonByText(doc, 'Dừng đọc số đánh giá'), undefined);
+  } finally { dom.window.close(); }
+});
+
+test('an unfinished attempt shows dash for unobserved star values and stops by exact attempt id', async () => {
+  const attempt = {
+    attemptId: 'attempt-live-1', planSha256: 'e'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{
+      shopId: '100', itemId: '200', requested: 120, actual: null, shortfall: null, stopReason: '',
+      stars: [
+        { star: 1, target: 60, actual: null, shortfall: null },
+        { star: 2, target: 60, actual: null, shortfall: null },
+      ],
+    }],
+  };
+  const { dom, doc, state } = await samplingHarness({ attempts: [attempt] });
+  try {
+    const text = doc.getElementById('rsPanel')!.textContent!;
+    assert.match(text, /Sao 1: —\/60 \(thiếu —\)/, 'an unobserved star is a dash, never zero');
+    assert.doesNotMatch(text, /\(thiếu 0\)|actual: 0/);
+    assert.ok(!text.includes('attempt-live-1'), 'the attempt namespace stays internal');
+
+    buttonByText(doc, 'Dừng lần chạy này')!.click();
+    await waitFor(() => state.controlCalls.length === 1, 'custom stop');
+    assert.deepEqual(state.controlCalls[0], {
+      action: 'stop', runId: 'run-synthetic', kind: 'custom', attemptId: 'attempt-live-1',
+    });
+    await waitFor(() => /Đã yêu cầu dừng lần chạy này/.test(doc.getElementById('rsPanel')!.textContent!), 'stop requested');
+    assert.equal(buttonByText(doc, 'Dừng lần chạy này'), undefined);
+  } finally { dom.window.close(); }
+});
+
+test('an uncertain attempt reconciles the same attempt and never offers a new run', async () => {
+  const attempt = {
+    attemptId: 'attempt-uncertain-1', planSha256: 'f'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'UNCERTAIN', errorCode: null, gate: null, stopRequested: false, reconcilable: true,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  const { dom, doc, state } = await samplingHarness({ attempts: [attempt], blockedBy: { code: 'ATTEMPT_UNCERTAIN' } });
+  try {
+    assert.equal(buttonByText(doc, 'Dừng lần chạy này'), undefined);
+    assert.equal(buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled, true);
+    buttonByText(doc, 'Đối soát lần chạy')!.click();
+    await waitFor(() => state.controlCalls.length === 1, 'reconcile');
+    assert.deepEqual(state.controlCalls[0], {
+      action: 'reconcile', runId: 'run-synthetic', kind: 'custom', attemptId: 'attempt-uncertain-1',
+    });
+    assert.equal(state.launchCalls.length, 0, 'reconcile never submits a new attempt');
+  } finally { dom.window.close(); }
+});
+
+test('readonly keeps offline save and stop but refuses launch, refresh and reconcile', async () => {
+  const { dom, doc, state } = await samplingHarness({
+    readonly: true, blockedBy: { code: 'READONLY_ON' },
+    countRefresh: { attemptId: 'counts-ro', status: 'RUNNING', errorCode: null, stopRequested: false, reconcilable: true },
+    attempts: [{
+      attemptId: 'attempt-ro', planSha256: 'a'.repeat(63) + 'b', createdAt: '2026-11-01T02:00:00.000Z',
+      status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: true,
+      links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+    }],
+  });
+  try {
+    assert.equal(buttonByText(doc, 'Lưu lựa chọn')!.disabled, false, 'offline save may proceed with valid M2');
+    assert.equal(buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled, true);
+    assert.equal(buttonByText(doc, 'Đọc số đánh giá trên Shopee')!.disabled, true);
+    assert.ok(buttonByText(doc, 'Dừng đọc số đánh giá'), 'offline stop remains allowed');
+    assert.equal(buttonByText(doc, 'Đối soát lần đọc'), undefined);
+    assert.ok(buttonByText(doc, 'Dừng lần chạy này'), 'custom stop remains allowed');
+    assert.equal(buttonByText(doc, 'Đối soát lần chạy'), undefined);
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /khóa chỉ-đọc/);
+    assert.equal(state.refreshCountCalls, 0);
   } finally { dom.window.close(); }
 });

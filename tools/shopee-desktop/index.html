@@ -151,6 +151,37 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 .form .btnrow { grid-column: 1 / -1; }
 #productNote { grid-column: 1 / -1; }
 .saveline { font-size: 13.5px; font-weight: 600; color: var(--ok); background: var(--ok-tint); border-radius: 8px; padding: 8px 12px; overflow-wrap: anywhere; }
+.rs { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 10px; }
+.rs h4 { margin: 0; font-size: 14px; }
+.rs-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rs-lead { font-size: 13px; color: var(--muted); }
+.rs-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 18px; align-items: start; }
+.rs-group { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0; display: grid; gap: 8px; min-width: 0; }
+.rs-group > legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 0 4px; }
+.rs-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
+.rs-opt input { width: auto; margin-top: 3px; flex: none; }
+.rs-stars { display: flex; flex-wrap: wrap; gap: 6px 12px; padding-left: 4px; }
+.rs-stars label { display: flex; gap: 4px; align-items: center; font-size: 13.5px; font-weight: 600; }
+.rs-stars input { width: auto; flex: none; }
+.rs-summary { font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-tint); border-radius: 8px; padding: 6px 10px; }
+.rs-note { font-size: 12.5px; color: var(--muted); }
+.rs-hint { font-size: 12.5px; font-weight: 600; color: var(--need); }
+.rs-quota { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 4px 10px; }
+.rs-quota > div { display: flex; justify-content: space-between; gap: 6px; font-size: 12.5px; border-bottom: 1px dotted var(--line); padding-bottom: 2px; }
+.rs-quota dt { color: var(--muted); }
+.rs-quota dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rs-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.rs-block { font-size: 13px; font-weight: 600; color: var(--need); background: var(--need-tint); border-radius: 8px; padding: 8px 12px; }
+.rs-counts { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
+.rs-counts-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
+.rs-counts-head h4 { font-size: 13px; }
+.rs-counts-meta { font-size: 12.5px; color: var(--muted); }
+.rs-url { display: block; max-width: 280px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.rs-why { color: var(--muted); font-weight: 400; }
+.rs-attempt { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
+.rs-attempt h4 { font-size: 13px; }
+.rs-stop { font-size: 12.5px; color: var(--muted); }
+.rs-stars-cell { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -489,6 +520,125 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       };
     }
 
+    function samplingLinks(run) {
+      return run.selection ? run.selection.links.map(function (link) {
+        return { shopId: link.shopId, itemId: link.itemId, url: link.url };
+      }) : [];
+    }
+
+    function samplingView(run) {
+      var links = samplingLinks(run);
+      var blockedBy = null;
+      if (!run.selection) blockedBy = { code: 'M2_INVALID' };
+      else if (run.state.status === 'RUNNING') blockedBy = { code: 'RUN_BUSY' };
+      return {
+        format: 'review-sampling-view-v1',
+        runId: run.runId,
+        readonly: false,
+        m2Digest: run.selection ? shaFor(run.runId, 'selection') : null,
+        links: links,
+        defaultInput: { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' },
+        plans: (run.reviewPlans || []).slice().sort(function (a, b) { return a.planSha256.localeCompare(b.planSha256); }),
+        counts: (run.reviewCounts || []).slice(),
+        countRefresh: run.reviewCountRefresh ? clone(run.reviewCountRefresh) : null,
+        attempts: (run.reviewAttempts || []).slice(),
+        blockedBy: blockedBy
+      };
+    }
+
+    function saveMockPlan(run, input) {
+      if (!input || typeof input !== 'object' || Object.keys(input).sort().join(',') !== 'allocation,mode,stars,totalPerLink') {
+        return err('ARG_INVALID', 'ARG_INVALID');
+      }
+      if (['all', 'with-comments', 'stars'].indexOf(input.mode) === -1 ||
+          ['pooled', 'equal-stars'].indexOf(input.allocation) === -1 ||
+          !Number.isInteger(input.totalPerLink) || input.totalPerLink < 1 || input.totalPerLink > 2000 ||
+          !Array.isArray(input.stars)) {
+        return err('ARG_INVALID', 'ARG_INVALID');
+      }
+      var stars = input.stars.slice().sort(function (a, b) { return a - b; });
+      if (stars.some(function (star) { return !Number.isInteger(star) || star < 1 || star > 5; }) ||
+          new Set(stars).size !== stars.length ||
+          (input.mode === 'stars' ? !stars.length : stars.length) ||
+          (input.allocation === 'equal-stars' && input.mode !== 'stars')) {
+        return err('ARG_INVALID', 'ARG_INVALID');
+      }
+      if (!run.selection) return err('M2_INVALID', 'M2_INVALID');
+      var policy = {
+        mode: input.mode, stars: stars, totalPerLink: input.totalPerLink,
+        allocation: input.allocation, textRule: 'comment-or-attributes-v1'
+      };
+      var plan = {
+        format: 'shopee-review-plan-v1',
+        runId: run.runId,
+        requestSha256: shaFor(run.runId, 'request'),
+        m2Digest: shaFor(run.runId, 'selection'),
+        policy: policy,
+        policySha256: shaFor(run.runId, 'policy:' + JSON.stringify(policy)),
+        targets: input.allocation === 'equal-stars' && input.mode === 'stars'
+          ? equalStarQuotas(input.totalPerLink, stars).map(function (q) { return { star: q.star, target: q.quota }; }) : [],
+        links: samplingLinks(run)
+      };
+      var planSha = shaFor(run.runId, 'plan:' + JSON.stringify(policy));
+      run.reviewPlans = (run.reviewPlans || []).filter(function (p) { return p.planSha256 !== planSha; });
+      run.reviewPlans.push({ planSha256: planSha, plan: plan });
+      return ok({ format: 'review-plan-saved-v1', runId: run.runId, planSha256: planSha, plan: plan });
+    }
+
+    function addMockAttempt(run, planSha) {
+      var saved = (run.reviewPlans || []).find(function (p) { return p.planSha256 === planSha; });
+      if (!saved) return;
+      var policy = saved.plan.policy;
+      run.reviewAttempts.push({
+        attemptId: 'attempt-' + randomHex8(),
+        planSha256: planSha,
+        createdAt: new Date().toISOString(),
+        status: 'SUCCEEDED',
+        errorCode: null,
+        gate: null,
+        links: samplingLinks(run).map(function (link, index) {
+          var actual = index === 0 ? policy.totalPerLink : 2;
+          var shortfall = Math.max(0, policy.totalPerLink - actual);
+          return {
+            shopId: link.shopId, itemId: link.itemId,
+            requested: policy.totalPerLink, actual: actual, shortfall: shortfall,
+            stopReason: shortfall ? 'last_page' : 'record_limit',
+            stars: policy.stars.map(function (star) {
+              var target = (saved.plan.targets || []).find(function (t) { return t.star === star; });
+              var targetValue = target ? target.target : null;
+              var starActual = index === 0 && targetValue !== null ? targetValue : null;
+              return {
+                star: star, target: targetValue, actual: starActual,
+                shortfall: starActual === null || targetValue === null ? null : Math.max(0, targetValue - starActual)
+              };
+            })
+          };
+        })
+      });
+    }
+
+    function finishMockCounts(run, attemptId) {
+      run.reviewCounts = samplingLinks(run).map(function (link, index) {
+        var values = [
+          { 5: 341, 4: 26, 3: 20, 2: 3, 1: 17 }, { 5: 88, 4: 9, 3: 4, 2: 1, 1: 2 },
+          { 5: 120, 4: 14, 3: 9, 2: 2, 1: 6 }, { 5: 54, 4: 7, 3: 3, 2: 1, 1: 1 },
+          { 5: 210, 4: 18, 3: 11, 2: 2, 1: 9 }
+        ][index % 5];
+        var stars = {};
+        [1, 2, 3, 4, 5].forEach(function (star) {
+          var status = index === 1 && star === 4 ? 'ambiguous' : index === 2 && star === 2 ? 'missing' : 'observed';
+          stars[String(star)] = { status: status, value: status === 'observed' ? values[star] : null };
+        });
+        return {
+          format: 'shopee-review-counts-v1', shopId: link.shopId, itemId: link.itemId, url: link.url,
+          observedAt: new Date().toISOString(), snapshotDigest: shaFor(run.runId, 'counts:' + attemptId + ':' + index),
+          stars: stars,
+          withComments: index === 3 ? { status: 'unavailable', value: null } : { status: 'observed', value: 136 }
+        };
+      });
+      run.reviewCountRefresh = { attemptId: attemptId, status: 'SUCCEEDED', errorCode: null };
+    }
+
     function entrySlip(runId, cap) {
       return {
         format: 'handoff-v1', module: 'ENTRY', runId: runId, skillVersion: '1.0.0', verdict: 'PASS',
@@ -594,6 +744,11 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
         request: makeRequest(opts.keywords, opts.endDate, opts.cap),
         gates: { entry: null, m1: null, m2: null, m3: null },
         selection: null,
+        reviewPlans: [],
+        reviewCounts: [],
+        reviewCountRefresh: null,
+        reviewAttempts: [],
+        pendingPlanSha: null,
         state: baseState(runId),
         demoBlock: opts.demoBlock || null
       };
@@ -730,6 +885,10 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
         run.state.status = module === 'm3' ? 'DONE' : 'IDLE';
         run.state.errorCode = null;
         run.state.failedCheck = null;
+        if (module === 'm3' && run.pendingPlanSha) {
+          addMockAttempt(run, run.pendingPlanSha);
+          run.pendingPlanSha = null;
+        }
       } else {
         run.state.status = 'STOPPED';
         run.state.errorCode = res.errorCode;
@@ -803,11 +962,15 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         return Promise.resolve(ok(runInfo(run)));
       },
-      runModule: function (runId, module) {
+      runModule: function (runId, module, planSha256) {
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         if (module !== 'm1' && module !== 'm2' && module !== 'm3') {
           return Promise.resolve(err('MODULE_INVALID', 'Module phải là m1, m2 hoặc m3.'));
+        }
+        if (planSha256 !== undefined && (module !== 'm3' ||
+            !(run.reviewPlans || []).some(function (p) { return p.planSha256 === planSha256; }))) {
+          return Promise.resolve(err('ARG_INVALID', 'ARG_INVALID'));
         }
         if (run.state.status === 'RUNNING') return Promise.resolve(err('RUN_BUSY', 'Lượt đang chạy.'));
         if (mockCase === 'm1_output' && module === 'm1') {
@@ -819,6 +982,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
           var code = mod.blockedBy ? mod.blockedBy.code : 'GATE_NOT_PASSED';
           return Promise.resolve(err(code, BLOCK_TEXT[code] || code));
         }
+        run.pendingPlanSha = module === 'm3' && planSha256 ? planSha256 : null;
         run.state.status = 'RUNNING';
         run.state.mode = 'single';
         run.state.module = module.toUpperCase();
@@ -829,6 +993,56 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
         run.state.failedCheck = null;
         setTimeout(function () { finishSingle(runId, module); }, 4000);
         return Promise.resolve(ok({ format: 'detached-v1', runId: runId, pid: 4242 }));
+      },
+      reviewSampling: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(ok(samplingView(run)));
+      },
+      saveReviewPlan: function (runId, input) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(saveMockPlan(run, input));
+      },
+      refreshReviewCounts: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        if (!run.selection) return Promise.resolve(err('M2_INVALID', 'M2_INVALID'));
+        if (run.state.status === 'RUNNING') return Promise.resolve(err('RUN_BUSY', 'RUN_BUSY'));
+        var attemptId = 'counts-' + randomHex8();
+        run.reviewCountRefresh = { attemptId: attemptId, status: 'RUNNING', errorCode: null,
+          stopRequested: false, reconcilable: false };
+        setTimeout(function () { finishMockCounts(run, attemptId); }, 1200);
+        return Promise.resolve(ok({
+          format: 'review-counts-start-v1', runId: runId, attemptId: attemptId, status: 'RUNNING', pid: 4343
+        }));
+      },
+      stopReviewAttempt: function (runId, kind, attemptId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'RUN_NOT_FOUND'));
+        var target = kind === 'counts' ? run.reviewCountRefresh
+          : (run.reviewAttempts || []).find(function (a) { return a.attemptId === attemptId; });
+        if (!target || target.attemptId !== attemptId) return Promise.resolve(err('ARG_INVALID', 'ARG_INVALID'));
+        target.stopRequested = true;
+        if (kind === 'custom') target.status = 'SUCCEEDED';
+        return Promise.resolve(ok({
+          format: 'review-attempt-control-v1', runId: runId, kind: kind, attemptId: attemptId,
+          status: 'STOP_REQUESTED', pid: null, errorCode: null
+        }));
+      },
+      reconcileReviewAttempt: function (runId, kind, attemptId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'RUN_NOT_FOUND'));
+        var target = kind === 'counts' ? run.reviewCountRefresh
+          : (run.reviewAttempts || []).find(function (a) { return a.attemptId === attemptId; });
+        if (!target || target.attemptId !== attemptId) return Promise.resolve(err('ARG_INVALID', 'ARG_INVALID'));
+        target.reconcilable = false;
+        target.status = 'SUCCEEDED';
+        if (kind === 'counts') run.reviewCountRefresh = null;
+        return Promise.resolve(ok({
+          format: 'review-attempt-control-v1', runId: runId, kind: kind, attemptId: attemptId,
+          status: 'SUCCEEDED', pid: null, errorCode: null
+        }));
       },
       runFlow: function (runId) {
         var run = store.get(runId);
@@ -946,7 +1160,19 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       addProduct: function (input) { return call('addProduct', [input]); },
       status: function (runId) { return call('status', [runId]); },
       runFlow: function (runId) { return call('runFlow', [runId]); },
-      runModule: function (runId, module) { return call('runModule', [runId, module]); },
+      runModule: function (runId, module, planSha256) {
+        return planSha256 === undefined ? call('runModule', [runId, module])
+          : call('runModule', [runId, module, planSha256]);
+      },
+      reviewSampling: function (runId) { return call('reviewSampling', [runId]); },
+      refreshReviewCounts: function (runId) { return call('refreshReviewCounts', [runId]); },
+      saveReviewPlan: function (runId, input) { return call('saveReviewPlan', [runId, input]); },
+      stopReviewAttempt: function (runId, kind, attemptId) {
+        return call('stopReviewAttempt', [runId, kind, attemptId]);
+      },
+      reconcileReviewAttempt: function (runId, kind, attemptId) {
+        return call('reconcileReviewAttempt', [runId, kind, attemptId]);
+      },
       library: function () { return call('library', []); }
     };
   })();
@@ -964,7 +1190,15 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     poll: null,
     pollRunId: null,
     lib: null,
-    productBusy: false
+    productBusy: false,
+    reviewDrafts: {},
+    sampling: {},
+    samplingErrors: {},
+    samplingSeq: {},
+    samplingTokens: {},
+    samplingBusy: {},
+    samplingPoll: null,
+    samplingPollRunId: null
   };
 
   function showError(error) {
@@ -1105,6 +1339,600 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     await refreshRuns();
   }
 
+  var RS_MODE_LABEL = { 'with-comments': 'Có bình luận', all: 'Tất cả đánh giá', stars: 'Chọn sao' };
+  var RS_BLOCK_TEXT = {
+    READONLY_ON: 'Đang khóa chỉ-đọc nên không chạy được thao tác nguồn.',
+    M2_INVALID: 'Cần M2 hợp lệ trước khi thu bình luận.',
+    M2_MISSING: 'Cần M2 hợp lệ trước khi thu bình luận.',
+    ATTEMPT_ACTIVE: 'Lần chạy trước đang chạy nên chưa chạy lần mới.',
+    ATTEMPT_UNCERTAIN: 'Lần chạy trước chưa rõ kết quả. Không tự chạy lại.',
+    RUN_BUSY: 'Lượt đang chạy.'
+  };
+  var RS_REFRESH_TEXT = {
+    RUNNING: 'Đang đọc số đánh giá trên Shopee…',
+    SUCCEEDED: 'Đã đọc số đánh giá trên Shopee.',
+    FAILED: 'Đọc số đánh giá chưa xong.',
+    UNCERTAIN: 'Chưa rõ kết quả đọc số đánh giá. Không tự thử lại.'
+  };
+  var RS_ATTEMPT_TEXT = { RUNNING: 'Đang chạy', SUCCEEDED: 'Xong', FAILED: 'Lỗi', UNCERTAIN: 'Chưa rõ kết quả' };
+  var RS_STOP_TEXT = {
+    record_limit: 'Đủ số lượng', expected_count_reached: 'Đủ số đánh giá nguồn', last_page: 'Hết trang',
+    cancelled: 'Đã dừng', timeout: 'Quá thời gian', control_changed: 'Bộ lọc nguồn thay đổi',
+    human_stop: 'Dừng theo người vận hành'
+  };
+  var RS_COUNT_WHY = { missing: 'không thấy', ambiguous: 'không rõ', unavailable: 'không đọc được' };
+
+  function equalStarQuotas(n, stars) {
+    var list = stars.slice().sort(function (a, b) { return a - b; });
+    if (!Number.isInteger(n) || n < 1 || n > 2000 || !list.length) return null;
+    var base = Math.floor(n / list.length);
+    var remainder = n % list.length;
+    return list.map(function (star, index) {
+      return { star: star, quota: base + (index < remainder ? 1 : 0) };
+    });
+  }
+
+  function samplingDraft(runId, view) {
+    var digest = view && view.m2Digest;
+    var existing = state.reviewDrafts[runId];
+    if (!existing || existing.m2 !== digest) {
+      var input = view && view.defaultInput ? view.defaultInput : {};
+      var mode = input.mode === 'all' || input.mode === 'stars' ? input.mode : 'with-comments';
+      var stars = Array.isArray(input.stars) ? input.stars.filter(function (star) {
+        return Number.isInteger(star) && star >= 1 && star <= 5;
+      }) : [];
+      var n = Number.isInteger(input.totalPerLink) && input.totalPerLink >= 1 && input.totalPerLink <= 2000
+        ? input.totalPerLink : 300;
+      state.reviewDrafts[runId] = {
+        mode: mode, stars: stars, n: n, m2: digest,
+        balanced: mode === 'stars' && input.allocation === 'equal-stars'
+      };
+    }
+    return state.reviewDrafts[runId];
+  }
+
+  function selectedStarsFrom(panel) {
+    return Array.prototype.map.call(panel.querySelectorAll('input[data-star]'), function (input) {
+      return input.checked ? Number(input.getAttribute('data-star')) : null;
+    }).filter(function (star) { return star !== null; }).sort(function (a, b) { return a - b; });
+  }
+
+  function draftPolicy(draft) {
+    return {
+      mode: draft.mode,
+      stars: draft.mode === 'stars' ? draft.stars.slice().sort(function (a, b) { return a - b; }) : [],
+      totalPerLink: draft.n,
+      allocation: draft.mode === 'stars' && draft.balanced ? 'equal-stars' : 'pooled'
+    };
+  }
+
+  function sameStars(left, right) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    for (var i = 0; i < left.length; i++) if (left[i] !== right[i]) return false;
+    return true;
+  }
+
+  function policyMatches(policy, saved) {
+    return !!saved && saved.mode === policy.mode && saved.totalPerLink === policy.totalPerLink &&
+      saved.allocation === policy.allocation && sameStars(saved.stars, policy.stars);
+  }
+
+  function savedPlanFor(view, policy) {
+    var plans = (view && view.plans) || [];
+    for (var i = 0; i < plans.length; i++) {
+      if (plans[i] && plans[i].plan && policyMatches(policy, plans[i].plan.policy)) return plans[i];
+    }
+    return null;
+  }
+
+  function draftIssue(draft) {
+    if (!Number.isInteger(draft.n) || draft.n < 1 || draft.n > 2000) {
+      return 'Tổng số bình luận mỗi link phải là số nguyên từ 1 đến 2000.';
+    }
+    if (draft.mode === 'stars' && !draft.stars.length) return 'Chọn ít nhất một mức sao.';
+    return '';
+  }
+
+  function samplingSummary(policy) {
+    var mode = RS_MODE_LABEL[policy.mode] || policy.mode;
+    if (policy.mode !== 'stars') return mode + ' · ' + policy.totalPerLink + ' bình luận mỗi link';
+    if (!policy.stars.length) return 'Chọn sao · chưa chọn mức sao';
+    var text = 'Sao ' + policy.stars.join(', ') + ' · ' + policy.totalPerLink + ' bình luận chung mỗi link';
+    return policy.allocation === 'equal-stars' ? text + ' · chia đều' : text;
+  }
+
+  function rsBlockText(code) { return RS_BLOCK_TEXT[code] || ('Chưa chạy được: ' + code); }
+  function valOrDash(value) { return value === null || value === undefined ? '—' : String(value); }
+
+  function stampText(value) {
+    if (!value) return '—';
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return String(value);
+    return date.toLocaleString('vi-VN');
+  }
+
+  function countText(cv) {
+    if (cv && cv.status === 'observed' && Number.isInteger(cv.value) && cv.value >= 0) return String(cv.value);
+    return '— ' + (RS_COUNT_WHY[cv && cv.status] || 'chưa có');
+  }
+
+  function rsToken(runId) {
+    state.samplingTokens[runId] = (state.samplingTokens[runId] || 0) + 1;
+    return state.samplingTokens[runId];
+  }
+
+  async function loadSampling(runId) {
+    var seq = (state.samplingSeq[runId] || 0) + 1;
+    state.samplingSeq[runId] = seq;
+    var res = await api.reviewSampling(runId);
+    if (seq !== state.samplingSeq[runId]) return;
+    if (res.ok) {
+      state.sampling[runId] = res.data;
+      delete state.samplingErrors[runId];
+    } else {
+      state.samplingErrors[runId] = res.error;
+    }
+    if (state.selectedRunId === runId) renderDetail();
+    manageSamplingPoll(runId);
+  }
+
+  function stopSamplingPoll() {
+    if (state.samplingPoll) {
+      clearInterval(state.samplingPoll);
+      state.samplingPoll = null;
+      state.samplingPollRunId = null;
+    }
+  }
+
+  function manageSamplingPoll(runId) {
+    var view = state.sampling[runId];
+    var running = !!(view && (
+      (view.countRefresh && view.countRefresh.status === 'RUNNING') ||
+      (view.attempts || []).some(function (attempt) { return attempt && attempt.status === 'RUNNING'; })
+    ));
+    if (!running || state.selectedRunId !== runId) { stopSamplingPoll(); return; }
+    if (state.samplingPoll && state.samplingPollRunId === runId) return;
+    stopSamplingPoll();
+    state.samplingPollRunId = runId;
+    state.samplingPoll = setInterval(function () { loadSampling(runId); }, 3000);
+  }
+
+  function countsTable(view) {
+    var wrap = h('div', 'tw');
+    var table = h('table');
+    var thead = h('thead');
+    var tr = h('tr');
+    ['Link', '5★', '4★', '3★', '2★', '1★', 'Có bình luận', 'Chụp lúc'].forEach(function (title) {
+      tr.appendChild(h('th', null, title));
+    });
+    thead.appendChild(tr);
+    table.appendChild(thead);
+
+    var tbody = h('tbody');
+    (view.links || []).forEach(function (link, index) {
+      var snapshot = (view.counts || []).find(function (count) {
+        return count && count.shopId === link.shopId && count.itemId === link.itemId;
+      });
+      var row = h('tr');
+      var name = h('td');
+      name.appendChild(h('div', null, 'Link ' + (index + 1)));
+      name.appendChild(h('code', 'rs-url', link.url || (link.shopId + '/' + link.itemId)));
+      row.appendChild(name);
+      [5, 4, 3, 2, 1].forEach(function (star) {
+        row.appendChild(h('td', 'num', countText(snapshot && snapshot.stars ? snapshot.stars[String(star)] : null)));
+      });
+      row.appendChild(h('td', 'num', countText(snapshot ? snapshot.withComments : null)));
+      row.appendChild(h('td', null, snapshot ? stampText(snapshot.observedAt) : '— chưa có'));
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  function attemptBlock(view, control) {
+    var attempts = view.attempts || [];
+    if (!attempts.length) return null;
+    var latest = attempts[attempts.length - 1];
+    var target = null;
+    for (var i = attempts.length - 1; i >= 0 && !target; i -= 1) {
+      if (attempts[i] && (attempts[i].status === 'RUNNING' || attempts[i].reconcilable)) target = attempts[i];
+    }
+    target = target || latest;
+    var block = h('section', 'rs-attempt');
+    var head = h('div', 'rs-head');
+    head.appendChild(h('h4', null, 'Lần chạy gần nhất'));
+    var status = latest.status || 'UNCERTAIN';
+    head.appendChild(h('span', 'chip ' + (status === 'SUCCEEDED' ? 's-pass' : status === 'RUNNING' ? 's-run'
+      : status === 'FAILED' ? 's-fail' : 's-warn'), RS_ATTEMPT_TEXT[status] || status));
+    block.appendChild(head);
+
+    var wrap = h('div', 'tw');
+    var table = h('table');
+    var thead = h('thead');
+    var tr = h('tr');
+    ['Link', 'Yêu cầu', 'Thực tế', 'Thiếu', 'Ghi chú'].forEach(function (title) { tr.appendChild(h('th', null, title)); });
+    thead.appendChild(tr);
+    table.appendChild(thead);
+    var tbody = h('tbody');
+    (latest.links || []).forEach(function (link, index) {
+      var row = h('tr');
+      var name = h('td');
+      name.appendChild(h('div', null, 'Link ' + (index + 1)));
+      if (link.url) name.appendChild(h('code', 'rs-url', link.url));
+      row.appendChild(name);
+      row.appendChild(h('td', 'num', valOrDash(link.requested)));
+      row.appendChild(h('td', 'num', valOrDash(link.actual)));
+      row.appendChild(h('td', 'num', valOrDash(link.shortfall)));
+      var note = h('td');
+      var stars = link.stars || [];
+      if (stars.length) {
+        var detail = stars.map(function (star) {
+          return 'Sao ' + star.star + ': ' + valOrDash(star.actual) + '/' + valOrDash(star.target) +
+            ' (thiếu ' + valOrDash(star.shortfall) + ')';
+        }).join(' · ');
+        note.appendChild(h('div', 'rs-stars-cell', detail));
+      }
+      if (link.stopReason) {
+        note.appendChild(h('div', 'rs-stop', 'Dừng: ' + (RS_STOP_TEXT[link.stopReason] || link.stopReason)));
+      }
+      row.appendChild(note);
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    block.appendChild(wrap);
+    if (latest.stopRequested) block.appendChild(h('p', 'rs-hint', 'Đã yêu cầu dừng lần chạy này.'));
+    if (target !== latest) {
+      block.appendChild(h('p', 'rs-hint', 'Còn một lần chạy chưa xong cần xử lý trước.'));
+    }
+    var controls = h('div', 'rs-actions');
+    if (target.status === 'RUNNING' && !target.stopRequested) {
+      var stop = h('button', 'abtn', 'Dừng lần chạy này');
+      stop.type = 'button';
+      stop.addEventListener('click', function () {
+        control('stop', 'custom', target.attemptId);
+      });
+      controls.appendChild(stop);
+    }
+    if (target.reconcilable && !view.readonly) {
+      var reconcile = h('button', 'abtn', 'Đối soát lần chạy');
+      reconcile.type = 'button';
+      reconcile.addEventListener('click', function () {
+        control('reconcile', 'custom', target.attemptId);
+      });
+      controls.appendChild(reconcile);
+    }
+    if (controls.childNodes.length) block.appendChild(controls);
+    return block;
+  }
+
+  function reviewSamplingPanel(info) {
+    var runId = info.runId;
+    var view = state.sampling[runId];
+    var panel = h('section', 'rs');
+    panel.id = 'rsPanel';
+    panel.setAttribute('aria-label', 'Tuỳ chọn thu bình luận');
+
+    var head = h('div', 'rs-head');
+    head.appendChild(h('h4', null, 'Thu theo lựa chọn'));
+    var statusChip = h('span', 'chip s-idle', 'Đang đọc lựa chọn…');
+    head.appendChild(statusChip);
+    panel.appendChild(head);
+    panel.appendChild(h('p', 'rs-lead', 'Áp dụng cho các link đã chọn ở M2. Không chạy lại Metric.'));
+
+    if (state.samplingErrors[runId]) {
+      panel.appendChild(h('p', 'errbar', plainError(state.samplingErrors[runId])));
+      var retryRow = h('div', 'rs-actions');
+      var retry = h('button', 'abtn', 'Đọc lại lựa chọn');
+      retry.type = 'button';
+      retry.addEventListener('click', function () { loadSampling(runId); });
+      retryRow.appendChild(retry);
+      panel.appendChild(retryRow);
+      return panel;
+    }
+    if (!view) {
+      panel.appendChild(h('p', 'muted', 'Đang đọc lựa chọn đã lưu…'));
+      return panel;
+    }
+
+    var draft = samplingDraft(runId, view);
+    var cols = h('div', 'rs-cols');
+
+    var modes = h('fieldset', 'rs-group');
+    modes.appendChild(h('legend', null, 'Nguồn bình luận'));
+    [['with-comments', 'Có bình luận (mặc định)'], ['all', 'Tất cả đánh giá'], ['stars', 'Chọn sao']].forEach(function (entry) {
+      var label = h('label', 'rs-opt');
+      var input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'rsMode';
+      input.value = entry[0];
+      input.id = 'rsMode-' + entry[0];
+      input.checked = draft.mode === entry[0];
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(entry[1]));
+      modes.appendChild(label);
+    });
+
+    var starsBox = h('div', 'rs-stars');
+    starsBox.id = 'rsStars';
+    [5, 4, 3, 2, 1].forEach(function (star) {
+      var label = h('label');
+      var input = document.createElement('input');
+      input.type = 'checkbox';
+      input.setAttribute('data-star', String(star));
+      input.checked = draft.stars.indexOf(star) !== -1;
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(star + '★'));
+      starsBox.appendChild(label);
+    });
+    modes.appendChild(starsBox);
+    cols.appendChild(modes);
+
+    var options = h('div', 'rs-group');
+    var nField = h('label', 'field');
+    nField.appendChild(h('span', null, 'Tổng số bình luận mỗi link (1–2000)'));
+    var nInput = document.createElement('input');
+    nInput.type = 'number';
+    nInput.id = 'rsN';
+    nInput.min = '1';
+    nInput.max = '2000';
+    nInput.step = '1';
+    nInput.value = String(draft.n);
+    nField.appendChild(nInput);
+    options.appendChild(nField);
+
+    var balancedLabel = h('label', 'rs-opt');
+    var balancedInput = document.createElement('input');
+    balancedInput.type = 'checkbox';
+    balancedInput.id = 'rsBalanced';
+    balancedInput.checked = draft.balanced;
+    balancedLabel.appendChild(balancedInput);
+    balancedLabel.appendChild(document.createTextNode('Chia đều số lượng cho các sao đã chọn (tùy chọn)'));
+    options.appendChild(balancedLabel);
+    options.appendChild(h('p', 'rs-note',
+      'Dùng để so sánh nội dung giữa các mức sao; tỷ lệ sao trong mẫu không đại diện tỷ lệ đánh giá của sản phẩm.'));
+
+    var quota = h('dl', 'rs-quota');
+    quota.id = 'rsQuota';
+    options.appendChild(quota);
+
+    var orderNote = h('p', 'rs-note');
+    orderNote.id = 'rsOrder';
+    options.appendChild(orderNote);
+
+    var hintNode = h('p', 'rs-hint');
+    hintNode.id = 'rsHint';
+    hintNode.setAttribute('aria-live', 'polite');
+    hintNode.hidden = true;
+    options.appendChild(hintNode);
+    cols.appendChild(options);
+
+    panel.appendChild(cols);
+
+    var summary = h('p', 'rs-summary');
+    summary.id = 'rsSummary';
+    summary.setAttribute('aria-live', 'polite');
+    panel.appendChild(summary);
+
+    panel.appendChild(h('p', 'rs-note',
+      'Số lượng là tổng chung cho mỗi link sau khi gộp các sao đã chọn, không phải trần từng sao. ' +
+      'Bình luận trùng chỉ tính một lần. Chỉ thu bình luận có chữ.'));
+
+    var blocked = view.blockedBy;
+    if (blocked && blocked.code) panel.appendChild(h('p', 'rs-block', rsBlockText(blocked.code)));
+
+    var actions = h('div', 'rs-actions');
+    var saveBtn = h('button', 'abtn primary', 'Lưu lựa chọn');
+    saveBtn.type = 'button';
+    var launchBtn = h('button', 'abtn', 'Thu bình luận theo lựa chọn');
+    launchBtn.type = 'button';
+    var refreshBtn = h('button', 'abtn', 'Đọc số đánh giá trên Shopee');
+    refreshBtn.type = 'button';
+    actions.appendChild(saveBtn);
+    actions.appendChild(launchBtn);
+    actions.appendChild(refreshBtn);
+    var actionHint = h('span', 'hint');
+    actionHint.id = 'rsActionHint';
+    actionHint.setAttribute('aria-live', 'polite');
+    actions.appendChild(actionHint);
+    panel.appendChild(actions);
+
+    var counts = h('section', 'rs-counts');
+    var countsHead = h('div', 'rs-counts-head');
+    countsHead.appendChild(h('h4', null, 'Số đánh giá trên Shopee'));
+    var countsMeta = h('span', 'rs-counts-meta', '');
+    countsHead.appendChild(countsMeta);
+    counts.appendChild(countsHead);
+    if (view.countRefresh) {
+      var refreshStatus = view.countRefresh.status || 'UNCERTAIN';
+      countsMeta.textContent = view.countRefresh.stopRequested && refreshStatus === 'RUNNING'
+        ? 'Đang dừng đọc số đánh giá…' : (RS_REFRESH_TEXT[refreshStatus] || '');
+      var countControls = h('div', 'rs-actions');
+      if (refreshStatus === 'RUNNING' && !view.countRefresh.stopRequested) {
+        var stopCounts = h('button', 'abtn', 'Dừng đọc số đánh giá');
+        stopCounts.type = 'button';
+        stopCounts.addEventListener('click', function () {
+          onControl('stop', 'counts', view.countRefresh.attemptId);
+        });
+        countControls.appendChild(stopCounts);
+      }
+      if (view.countRefresh.reconcilable && !view.readonly) {
+        var reconcileCounts = h('button', 'abtn', 'Đối soát lần đọc');
+        reconcileCounts.type = 'button';
+        reconcileCounts.addEventListener('click', function () {
+          onControl('reconcile', 'counts', view.countRefresh.attemptId);
+        });
+        countControls.appendChild(reconcileCounts);
+      }
+      if (countControls.childNodes.length) counts.appendChild(countControls);
+    }
+    if ((view.links || []).length && (view.counts || []).length) {
+      counts.appendChild(countsTable(view));
+      counts.appendChild(h('p', 'rs-note',
+        'Số đánh giá trên trang nguồn; có thể gồm đánh giá không có chữ. Không phải số bình luận sẽ thu được.'));
+    } else {
+      counts.appendChild(h('p', 'rs-note', 'Chưa có số đánh giá. Bấm “Đọc số đánh giá trên Shopee” để đọc.'));
+    }
+    panel.appendChild(counts);
+
+    var attempts = attemptBlock(view, onControl);
+    if (attempts) panel.appendChild(attempts);
+
+    function busy() { return state.samplingBusy[runId] || (state.samplingBusy[runId] = {}); }
+
+    async function onControl(action, kind, attemptId) {
+      var work = busy();
+      if (work.save || work.launch || work.refresh || work.control) return;
+      if (action === 'reconcile' && view.readonly) return;
+      var run = runId;
+      var token = rsToken(run);
+      work.control = true;
+      updateActions();
+      var res = action === 'stop'
+        ? await api.stopReviewAttempt(run, kind, attemptId)
+        : await api.reconcileReviewAttempt(run, kind, attemptId);
+      if (token !== state.samplingTokens[run]) { work.control = false; return; }
+      work.control = false;
+      if (state.selectedRunId !== run) return;
+      if (!res.ok) { showError(res.error); return; }
+      if (kind === 'counts' && view.countRefresh && view.countRefresh.attemptId === attemptId &&
+          res.data && res.data.status === 'STOP_REQUESTED') {
+        view.countRefresh.stopRequested = true;
+      }
+      renderDetail();
+      manageSamplingPoll(run);
+      await loadSampling(run);
+    }
+
+    function updateActions() {
+      var policy = draftPolicy(draft);
+      var match = savedPlanFor(view, policy);
+      var issue = draftIssue(draft);
+      var work = busy();
+      var anyBusy = !!(work.save || work.launch || work.refresh || work.control);
+      var m3Running = !!(info.state && info.state.status === 'RUNNING' && info.state.module === 'M3');
+
+      statusChip.textContent = work.save ? 'Đang lưu…' : match ? 'Đã lưu lựa chọn'
+        : ((view.plans || []).length ? 'Có thay đổi chưa lưu' : 'Chưa lưu lựa chọn');
+      statusChip.className = 'chip ' + (match ? 's-pass' : 's-idle');
+
+      saveBtn.disabled = !!issue || anyBusy || !state.connected || !view.m2Digest;
+      launchBtn.disabled = !!issue || anyBusy || !match || !state.connected || m3Running || !!blocked;
+      refreshBtn.disabled = anyBusy || !state.connected || !(view.links || []).length || !!blocked ||
+        !!view.readonly || !!(view.countRefresh && view.countRefresh.status === 'RUNNING');
+
+      var message = '';
+      if (work.save) message = 'Đang lưu lựa chọn…';
+      else if (work.launch) message = 'Đang bắt đầu thu bình luận…';
+      else if (work.refresh) message = 'Đang đọc số đánh giá trên Shopee…';
+      else if (work.control) message = 'Đang xử lý lần chạy…';
+      else if (m3Running) message = 'M3 đang chạy.';
+      else if (issue) message = issue;
+      else if (!match) message = 'Lưu lựa chọn trước khi chạy.';
+      actionHint.textContent = message;
+      actionHint.hidden = !message;
+    }
+
+    function sync() {
+      var modeInput = panel.querySelector('input[name="rsMode"]:checked');
+      draft.mode = modeInput ? modeInput.value : 'with-comments';
+      draft.stars = selectedStarsFrom(panel);
+      draft.n = Number(nInput.value);
+      var starsMode = draft.mode === 'stars';
+      starsBox.hidden = !starsMode;
+      balancedInput.disabled = !starsMode;
+      if (!starsMode) balancedInput.checked = false;
+      draft.balanced = balancedInput.checked;
+
+      var issue = draftIssue(draft);
+      hintNode.textContent = issue;
+      hintNode.hidden = !issue;
+
+      clear(quota);
+      var quotas = starsMode && draft.balanced && !issue && draft.stars.length
+        ? equalStarQuotas(draft.n, draft.stars) : null;
+      quota.hidden = !quotas;
+      if (quotas) {
+        quotas.forEach(function (q) {
+          var row = h('div');
+          row.appendChild(h('dt', null, 'Sao ' + q.star + '★'));
+          row.appendChild(h('dd', null, String(q.quota)));
+          quota.appendChild(row);
+        });
+      }
+      summary.textContent = samplingSummary(draftPolicy(draft));
+      orderNote.hidden = !starsMode;
+      orderNote.textContent = !starsMode ? '' : (draft.balanced
+        ? 'Chia đều: thu lần lượt theo từng mức sao đã chọn, đủ chỉ tiêu mỗi sao thì sang mức kế tiếp; không bù giữa các mức.'
+        : 'Dùng chung số lượng: thu lần lượt từ sao thấp đến cao; có thể đủ số lượng trước khi tới mức sao cao hơn.');
+      updateActions();
+    }
+
+    saveBtn.addEventListener('click', async function () {
+      var work = busy();
+      if (work.save || work.launch || work.refresh || work.control) return;
+      var issue = draftIssue(draft);
+      if (issue) { hintNode.textContent = issue; hintNode.hidden = false; return; }
+      var policy = draftPolicy(draft);
+      var run = runId;
+      var token = rsToken(run);
+      work.save = true;
+      updateActions();
+      var res = await api.saveReviewPlan(run, policy);
+      if (token !== state.samplingTokens[run]) { work.save = false; return; }
+      work.save = false;
+      if (state.selectedRunId !== run) return;
+      if (!res.ok) { showError(res.error); updateActions(); return; }
+      await loadSampling(run);
+    });
+
+    launchBtn.addEventListener('click', async function () {
+      var work = busy();
+      if (work.save || work.launch || work.refresh || work.control) return;
+      var policy = draftPolicy(draft);
+      var match = savedPlanFor(view, policy);
+      if (!match) { actionHint.textContent = 'Lưu lựa chọn trước khi chạy.'; actionHint.hidden = false; return; }
+      if (blocked) { actionHint.textContent = rsBlockText(blocked.code); actionHint.hidden = false; return; }
+      var run = runId;
+      var token = rsToken(run);
+      work.launch = true;
+      updateActions();
+      var res = await api.runModule(run, 'm3', match.planSha256);
+      if (token !== state.samplingTokens[run]) { work.launch = false; return; }
+      work.launch = false;
+      if (state.selectedRunId !== run) return;
+      if (!res.ok) { showError(res.error); updateActions(); return; }
+      await loadInfo(run);
+      await refreshRuns();
+    });
+
+    refreshBtn.addEventListener('click', async function () {
+      var work = busy();
+      if (work.save || work.launch || work.refresh || work.control) return;
+      if (view.readonly || blocked) { actionHint.textContent = rsBlockText(blocked ? blocked.code : 'READONLY_ON'); actionHint.hidden = false; return; }
+      var run = runId;
+      var token = rsToken(run);
+      work.refresh = true;
+      updateActions();
+      var res = await api.refreshReviewCounts(run);
+      if (token !== state.samplingTokens[run]) { work.refresh = false; return; }
+      work.refresh = false;
+      if (state.selectedRunId !== run) return;
+      if (!res.ok) { showError(res.error); updateActions(); return; }
+      view.countRefresh = { attemptId: res.data.attemptId, status: 'RUNNING', errorCode: null,
+        stopRequested: false, reconcilable: false };
+      renderDetail();
+      manageSamplingPoll(run);
+      await loadSampling(run);
+    });
+
+    panel.addEventListener('change', sync);
+    nInput.addEventListener('input', sync);
+    sync();
+    return panel;
+  }
+
   function moduleCard(mod, info) {
     var card = h('article', 'mod');
     var head = h('div', 'mh');
@@ -1120,6 +1948,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     meta.appendChild(document.createTextNode(' · Cổng ra: '));
     meta.appendChild(h('code', null, mod.outputGate));
     card.appendChild(meta);
+
+    if (mod.id === 'M3' && info.selection) card.appendChild(reviewSamplingPanel(info));
 
     var row = h('div', 'btnrow');
     var btn = h('button', 'abtn', 'Chạy module này');
@@ -1232,9 +2062,11 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     state.info = res.data;
     renderDetail();
     managePoll();
+    if (res.data && res.data.selection) loadSampling(runId);
   }
 
   async function selectRun(runId) {
+    stopSamplingPoll();
     state.selectedRunId = runId;
     renderRunList();
     await loadInfo(runId);
@@ -1261,6 +2093,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       state.info = data;
       renderDetail();
     }
+    if (data.selection) loadSampling(runId);
     if (!running) {
       stopPoll();
       await refreshRuns();
