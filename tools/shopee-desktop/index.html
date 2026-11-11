@@ -3606,16 +3606,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     }
     var generation = state.newFormSeq;
     var presetId = form.value.presetId;
+    var submittedProduct = form.value.newProduct ? clone(form.value.newProduct) : null;
     var justSaved = null;
     setNewBusy(true);
     try {
       if (form.value.newProduct) {
         var saved = await api.addProduct(form.value.newProduct);
-        if (generation !== state.newFormSeq) {
-          await refreshPresetList();
-          showNewNotice('Sản phẩm đã được lưu nhưng biểu mẫu đã thay đổi nên chưa tạo lượt. Danh sách sản phẩm đã được làm mới.');
-          return;
-        }
         if (!saved.ok) {
           showNewError('Chưa lưu được sản phẩm. ' + productErrorText(saved.error));
           return;
@@ -3623,15 +3619,31 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         justSaved = saved.data;
         state.savedProduct = justSaved;
         var pres = await refreshPresetList();
-        if (generation !== state.newFormSeq) {
-          showNewNotice('Đã lưu sản phẩm “' + justSaved.label + '” nhưng biểu mẫu đã thay đổi nên chưa tạo lượt.');
-          return;
-        }
         if (!state.presets.some(function (p) { return p.presetId === justSaved.presetId; })) {
           state.presets.push({
             presetId: justSaved.presetId, label: justSaved.label, keywords: [],
             categoryLabel: 'Sức Khoẻ', source: 'manual'
           });
+        }
+        if (generation !== state.newFormSeq) {
+          var currentPreset = $('presetSel').value;
+          var currentProduct = currentPreset === NEW_PRODUCT ? readProductForm() : null;
+          var sameProduct = !!submittedProduct && !!currentProduct && !currentProduct.error &&
+            JSON.stringify(currentProduct.value) === JSON.stringify(submittedProduct);
+          state.newSilent = true;
+          renderPresets(sameProduct ? justSaved.presetId : currentPreset);
+          state.newSilent = false;
+          if (sameProduct) {
+            renderNewSummary();
+            updateNewButton();
+            showNewNotice('Đã lưu sản phẩm “' + justSaved.label + '” và chọn sản phẩm đó. ' +
+              'Thay đổi ngày hoặc cấu hình vẫn được giữ; lượt chưa được tạo.');
+          } else {
+            showNewNotice('Đã lưu sản phẩm “' + justSaved.label + '”. Biểu mẫu hiện tại được giữ nguyên; ' +
+              'chọn sản phẩm đó trong danh sách để tạo lượt.');
+          }
+          if (!pres.ok) showError(pres.error);
+          return;
         }
         state.newSilent = true;
         renderPresets(justSaved.presetId);

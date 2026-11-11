@@ -720,6 +720,12 @@ class ConfiguredFlowTests(FlowTest):
         self.assertEqual([row['reviewId'] for row in archive['rows']],
                          [row['reviewId'] for row in rows], 'the export keeps the collected rows verbatim')
 
+        rc, sampling, stderr = self.command('review-sampling', '--run', run_id)
+        self.assertEqual(rc, 0, (sampling, stderr))
+        marked = [a for a in sampling['attempts'] if a.get('automatic')]
+        self.assertEqual([a['attemptId'] for a in marked], [attempt_id],
+                         'the saved automatic binding is the only attempt marked automatic')
+
         info = self.info(run_id)
         view = info['execution']['modules']['M3']
         self.assertEqual(view['status'], 'SUCCEEDED')
@@ -802,6 +808,12 @@ class ConfiguredFlowTests(FlowTest):
         self.assertEqual((self.runs / run_id / 'm3-custom' / 'automatic.json').read_bytes(), binding_bytes)
         run = self.command('runs')[1]['runs'][0]
         self.assertNotEqual(run['execution']['modules']['M3']['status'], 'SUCCEEDED')
+        sampling = self.command('review-sampling', '--run', run_id)[1]
+        by_id = {a['attemptId']: a for a in sampling['attempts']}
+        self.assertIs(by_id[json.loads(binding_bytes)['attemptId']].get('automatic'), True,
+                      'the saved automatic binding stays marked automatic')
+        self.assertIs(by_id[view['attemptId']].get('automatic'), False,
+                      'the explicit failed attempt is never marked automatic')
 
 
 if __name__ == '__main__':

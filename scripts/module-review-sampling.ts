@@ -176,14 +176,19 @@ export async function reviewSamplingView(run:string){
   const plans=[];for(const name of await children(run,'m3-custom/plans')){if(/^[a-f0-9]{64}\.json\.[a-f0-9-]{36}\.tmp$/.test(name))continue;if(!/^[a-f0-9]{64}\.json$/.test(name))throw new ModuleError('REVIEW_PLAN_INVALID');const plan=validateReviewPlan(await readJson(run,`m3-custom/plans/${name}`),name.slice(0,64));if(context&&plan.m2Digest===context.m2Digest&&plan.requestSha256===context.requestSha256)plans.push({planSha256:name.slice(0,64),plan});}
   const attempts:Record<string,unknown>[]=[],countAttempts:Record<string,unknown>[]=[],counts=new Map<string,ReviewCounts>();
   const automatic=await automaticBinding(run);
+  if(automatic){
+    const plan=validateReviewPlan(await readJson(run,`m3-custom/plans/${automatic.planSha256}.json`),automatic.planSha256);
+    if(plan.runId!==automatic.runId||plan.requestSha256!==automatic.requestSha256||plan.m2Digest!==automatic.m2Digest||plan.policySha256!==automatic.policySha256)throw new ModuleError('REVIEW_PLAN_CHANGED');
+  }
   for(const kind of ['counts','custom'] as const)for(const id of await children(run,attemptRoot(kind))){
     if(!uuid.test(id))throw new ModuleError('REVIEW_ATTEMPT_INVALID');
+    const binding=kind==='custom'&&automatic?.attemptId===id?automatic:null;
     if(await optional(run,`${attemptPath(kind,id)}/attempt.json`)===null){
-      const binding=kind==='custom'&&automatic?.attemptId===id?automatic:null;
-      (kind==='custom'?attempts:countAttempts).push({attemptId:id,executionId:binding?.executionId??null,sequence:binding?.sequence??null,createdAt:binding?.createdAt??null,planSha256:binding?.planSha256??null,requestSha256:binding?.requestSha256??null,m2Digest:binding?.m2Digest??null,status:'UNCERTAIN',errorCode:'REVIEW_RESERVATION_INCOMPLETE',gate:null,links:[],receiptMatchesCurrentInputs:false,stopRequested:false,reconcilable:false});
+      (kind==='custom'?attempts:countAttempts).push({attemptId:id,automatic:binding!==null,executionId:binding?.executionId??null,sequence:binding?.sequence??null,createdAt:binding?.createdAt??null,planSha256:binding?.planSha256??null,requestSha256:binding?.requestSha256??null,m2Digest:binding?.m2Digest??null,status:'UNCERTAIN',errorCode:'REVIEW_RESERVATION_INCOMPLETE',gate:null,links:[],receiptMatchesCurrentInputs:false,stopRequested:false,reconcilable:false});
       blockedBy??={code:'REVIEW_RESERVATION_INCOMPLETE'};continue;
     }
     const attempt=await metadata(run,kind,id),stored=await stateFor(run,kind,id),js=await journalsFor(run,attempt);
+    if(binding&&(attempt.executionId!==binding.executionId||attempt.sequence!==binding.sequence||attempt.planSha256!==binding.planSha256||attempt.requestSha256!==binding.requestSha256||attempt.m2Digest!==binding.m2Digest))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
     const unresolved=await attemptUnresolved(run,attempt,stored),live=stored.status==='RUNNING'&&await pidLive(stored.pid);
     const status=stored.status==='RUNNING'&&!live?'UNCERTAIN':unresolved&&stored.status!=='RUNNING'?'UNCERTAIN':stored.status;
     const stopRequested=await optional(run,`${attemptPath(kind,id)}/stop.json`)!==null;
@@ -206,13 +211,13 @@ export async function reviewSamplingView(run:string){
       }else if(stored.outputSha256!==samplingDigest(js.map(j=>j?.result??null)))throw new ModuleError('REVIEW_COUNTS_CHANGED');
     }
     if(!unresolved&&stored.status==='SUCCEEDED'&&!stored.outputSha256)throw new ModuleError('REVIEW_RESULT_CHANGED');
-    const summary={attemptId:id,executionId:attempt.executionId??null,sequence:attempt.sequence??null,requestSha256:attempt.requestSha256,m2Digest:attempt.m2Digest,receiptMatchesCurrentInputs:!unresolved&&stored.outputSha256!==null&&context!==null&&context.requestSha256===attempt.requestSha256&&context.m2Digest===attempt.m2Digest,planSha256:attempt.planSha256,createdAt:attempt.createdAt,status,errorCode:stored.errorCode,stopRequested,reconcilable:!live,
+    const summary={attemptId:id,automatic:binding!==null,executionId:attempt.executionId??null,sequence:attempt.sequence??null,requestSha256:attempt.requestSha256,m2Digest:attempt.m2Digest,receiptMatchesCurrentInputs:!unresolved&&stored.outputSha256!==null&&context!==null&&context.requestSha256===attempt.requestSha256&&context.m2Digest===attempt.m2Digest,planSha256:attempt.planSha256,createdAt:attempt.createdAt,status,errorCode:stored.errorCode,stopRequested,reconcilable:!live,
       gate:await optional(run,`${attemptPath(kind,id)}/gate.json`),links:attempt.links.map((link,index)=>summarizeLink(link,plan,js[index]??null))};
     if(context&&attempt.m2Digest===context.m2Digest)for(const j of js){const count=j?.result?.format==='shopee-review-counts-v1'?j.result:j?.result?.sourceCounts;if(count){validateReviewCounts(count);if(!counts.has(count.url)||counts.get(count.url)!.observedAt<count.observedAt)counts.set(count.url,count);}}
     (kind==='custom'?attempts:countAttempts).push(summary);
   }
   if(automatic&&!attempts.some(a=>a.attemptId===automatic.attemptId)){
-    attempts.push({attemptId:automatic.attemptId,executionId:automatic.executionId,sequence:automatic.sequence,createdAt:automatic.createdAt,planSha256:automatic.planSha256,requestSha256:automatic.requestSha256,m2Digest:automatic.m2Digest,status:'UNCERTAIN',errorCode:'REVIEW_RESERVATION_INCOMPLETE',gate:null,links:[],receiptMatchesCurrentInputs:false,stopRequested:false,reconcilable:false});
+    attempts.push({attemptId:automatic.attemptId,automatic:true,executionId:automatic.executionId,sequence:automatic.sequence,createdAt:automatic.createdAt,planSha256:automatic.planSha256,requestSha256:automatic.requestSha256,m2Digest:automatic.m2Digest,status:'UNCERTAIN',errorCode:'REVIEW_RESERVATION_INCOMPLETE',gate:null,links:[],receiptMatchesCurrentInputs:false,stopRequested:false,reconcilable:false});
     blockedBy??={code:'REVIEW_RESERVATION_INCOMPLETE'};
   }
   const sort=(a:Record<string,unknown>,b:Record<string,unknown>)=>String(a.createdAt).localeCompare(String(b.createdAt))||String(a.attemptId).localeCompare(String(b.attemptId));
