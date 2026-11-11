@@ -612,6 +612,7 @@ async function readJournal(file: string): Promise<ShopeePublicJournal | null> {
         v.terminal.productUrl !== v.productUrl || v.terminal.shopId !== v.shopId || v.terminal.itemId !== v.itemId || v.terminal.inputSha256 !== v.inputSha256 || v.terminal.jobId !== (v.job?.id ?? null) || v.terminal.state !== v.lastState || v.terminal.timedOut !== v.timedOut || v.terminal.cancelIntent !== v.cancelIntent)) return fail();
   return v;
 }
+export { readJournal as readPublicReviewJournal };
 async function writeJournal(file: string, journal: ShopeePublicJournal) {
   if (!validJournal(journal)) return fail();
   const previous = await readJournal(file); if (previous?.terminal && !bytes(previous).equals(bytes(journal))) return fail();

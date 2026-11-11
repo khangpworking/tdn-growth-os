@@ -31,6 +31,8 @@ function harness(options: {
   runInfo?: any; runInfoByRun?: Record<string, any>; runs?: any[]; sampling?: any;
   samplingByRun?: Record<string, any>; reviewGates?: Record<string, Deferred<void>>;
   saveGate?: Deferred<any> | undefined; refreshCountResult?: any;
+  reviewData?: any; reviewDataByRun?: Record<string, any>;
+  exportReviewResult?: (runId: string, input: any) => any;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -43,6 +45,13 @@ function harness(options: {
     reviewGates: Record<string, Deferred<void>> | undefined;
     reviewSamplingCalls: number;
     reviewSamplingCallsByRun: Record<string, number>;
+    reviewDataCalls: number;
+    reviewDataCallsByRun: Record<string, number>;
+    reviewDataView: any;
+    reviewDataByRun: Record<string, any>;
+    saveReviewDataCalls: any[];
+    exportReviewDataCalls: any[];
+    exportReviewResult: ((runId: string, input: any) => any) | undefined;
     saveCalls: any[];
     launchCalls: any[];
     controlCalls: any[];
@@ -58,6 +67,13 @@ function harness(options: {
     reviewGates: options.reviewGates,
     reviewSamplingCalls: 0,
     reviewSamplingCallsByRun: {},
+    reviewDataCalls: 0,
+    reviewDataCallsByRun: {},
+    reviewDataView: options.reviewData ? clone(options.reviewData) : undefined,
+    reviewDataByRun: options.reviewDataByRun ? clone(options.reviewDataByRun) : {},
+    saveReviewDataCalls: [],
+    exportReviewDataCalls: [],
+    exportReviewResult: options.exportReviewResult,
     saveCalls: [], launchCalls: [], controlCalls: [],
     refreshCountResult: options.refreshCountResult,
     saveGate: options.saveGate,
@@ -85,6 +101,38 @@ function harness(options: {
       return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
     },
     runFlow: async () => ({ ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } }),
+    reviewData: async (runId: string) => {
+      state.reviewDataCalls++;
+      state.reviewDataCallsByRun[runId] = (state.reviewDataCallsByRun[runId] || 0) + 1;
+      const view = state.reviewDataByRun[runId] || state.reviewDataView;
+      if (view) return { ok: true, data: clone(view) };
+      return { ok: true, data: {
+        format: 'review-data-view-v1', runId, readonly: false, tracking: null,
+        db: { configured: false, schemaReady: false, blockedBy: null }, sources: [],
+      } };
+    },
+    saveReviewData: async (runId: string, input: any) => {
+      state.saveReviewDataCalls.push({ runId, input: clone(input) });
+      return { ok: true, data: {
+        format: 'review-data-saved-v1', runId, sourceSha256: input.sourceSha256,
+        datasetId: 'dataset-synthetic', importPolicyVersion: 'module-m3-s05-v1',
+        importedAt: '2026-11-11T04:30:00.000Z', rowCount: 12, reviewsInserted: 10,
+        reviewsAlreadyPresent: 2, runReviewsInserted: 12, firstVersionDiffers: 0, reused: false,
+      } };
+    },
+    exportReviewData: async (runId: string, input: any) => {
+      state.exportReviewDataCalls.push({ runId, input: clone(input) });
+      if (state.exportReviewResult) return state.exportReviewResult(runId, clone(input));
+      return { ok: true, data: {
+        receipt: {
+          format: 'review-data-export-v1', runId, sourceSha256: input.sourceSha256,
+          exportFormat: input.format, exportVersion: 'module-review-export-v1',
+          exportSha256: 'd'.repeat(64), byteSize: 100,
+          fileName: 'shopee-' + runId + '.' + input.format, rowCount: 12, reused: false,
+        },
+        fileName: 'shopee-' + runId + '.' + input.format, saved: true, cancelled: false,
+      } };
+    },
     reviewSampling: async (runId: string) => {
       state.reviewSamplingCalls++;
       state.reviewSamplingCallsByRun[runId] = (state.reviewSamplingCallsByRun[runId] || 0) + 1;
@@ -309,6 +357,39 @@ function syntheticSampling(overrides: any = {}) {
     ],
     defaultInput: { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' },
     plans: [], counts: [], countRefresh: null, attempts: [], blockedBy: null,
+    ...overrides,
+  };
+}
+
+function syntheticReviewSource(overrides: any = {}) {
+  return {
+    sourceSha256: 'c'.repeat(64), kind: 'custom', attemptId: 'attempt-review',
+    planSha256: 'b'.repeat(64), status: 'SUCCEEDED', gateVerdict: 'PASS',
+    completedAt: '2026-11-11T04:30:00.000Z', rowBasis: 'published', rowCount: 12,
+    links: [{
+      shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200',
+      requested: 12, actual: 12, shortfall: 0, complete: true, status: 'SUCCEEDED',
+    }],
+    canExport: true, exportBlockedBy: null,
+    exportFormats: {
+      json: { canExport: true, blockedBy: null, receipt: null },
+      txt: { canExport: true, blockedBy: null, receipt: null },
+    },
+    canSaveDb: true, dbBlockedBy: null, importReceipt: null,
+    ...overrides,
+  };
+}
+
+function syntheticReviewData(overrides: any = {}) {
+  return {
+    format: 'review-data-view-v1', runId: 'run-synthetic', readonly: false,
+    tracking: {
+      primaryKeyword: 'kem', firstRunAt: '2026-11-11T04:26:00.000Z',
+      timeBasis: 'recorded-first-accepted', displayTimezone: 'Asia/Ho_Chi_Minh',
+      lastKnownStartedAt: null,
+    },
+    db: { configured: true, schemaReady: true, blockedBy: null },
+    sources: [syntheticReviewSource()],
     ...overrides,
   };
 }
@@ -782,6 +863,236 @@ test('supported stop reasons are translated and an unknown code never leaks raw'
     assert.match(panel, /Dừng: Không rõ lý do dừng/);
     assert.doesNotMatch(panel, /vendor_limit_7/);
   } finally { dom.window.close(); }
+});
+
+test('run labels use the keyword and Vietnam first-launch time, and keep legacy and unstarted runs honest', async () => {
+  const cases = [
+    {
+      name: 'recorded first launch',
+      status: 'DONE',
+      tracking: {
+        primaryKeyword: 'viên uống kẽm', firstRunAt: '2026-11-11T04:26:00.000Z',
+        timeBasis: 'recorded-first-accepted', displayTimezone: 'Asia/Ho_Chi_Minh',
+        lastKnownStartedAt: null,
+      },
+      title: 'viên uống kẽm: 11/11/2026 11:26am',
+      statusText: 'Xong',
+    },
+    {
+      name: 'legacy first launch unknown',
+      status: 'DONE',
+      tracking: {
+        primaryKeyword: 'kem', firstRunAt: null, timeBasis: 'legacy-first-unproven',
+        displayTimezone: 'Asia/Ho_Chi_Minh', lastKnownStartedAt: null,
+      },
+      title: 'kem · chưa rõ giờ bắt đầu',
+      statusText: 'Xong',
+    },
+    {
+      name: 'honest unstarted run',
+      status: 'IDLE',
+      tracking: {
+        primaryKeyword: 'kem', firstRunAt: null, timeBasis: 'not-started',
+        displayTimezone: 'Asia/Ho_Chi_Minh', lastKnownStartedAt: null,
+      },
+      title: 'kem',
+      statusText: 'Chưa chạy',
+    },
+  ];
+  for (const sample of cases) {
+    const info: any = syntheticRunInfo('run-label');
+    info.state = { status: sample.status, module: null, errorCode: null };
+    info.tracking = sample.tracking;
+    const result = harness({
+      runs: [{ runId: 'run-label', product: 'Sản phẩm nội bộ', status: sample.status, tracking: sample.tracking }],
+      runInfo: info,
+    });
+    try {
+      await waitFor(() => result.doc.querySelector('.rname')?.textContent === sample.title, `${sample.name} list label`);
+      const head = result.doc.querySelector('#runDetail .dhead')!;
+      assert.equal(head.querySelector('h2')!.textContent, sample.title, `${sample.name} detail label`);
+      assert.match(head.textContent!, new RegExp(sample.statusText));
+      assert.match(head.textContent!, /Lượt run-label/);
+      if (sample.name === 'legacy first launch unknown') {
+        assert.doesNotMatch(head.textContent!, /Chưa chạy/);
+      }
+    } finally { result.dom.window.close(); }
+  }
+});
+
+test('the save and export panel stays available without M2, keeps the chosen source and sends exact inputs', async () => {
+  const older = syntheticReviewSource({
+    sourceSha256: 'a'.repeat(64), kind: 'legacy', attemptId: null, planSha256: null,
+    completedAt: '2026-11-10T02:00:00.000Z', rowCount: 8,
+  });
+  const latest = syntheticReviewSource({
+    exportFormats: {
+      json: { canExport: true, blockedBy: null, receipt: { fileName: 'shopee-cached.json' } },
+      txt: { canExport: false, blockedBy: { code: 'EXPORT_BLOCKED' }, receipt: null },
+    },
+  });
+  const info: any = syntheticRunInfo();
+  info.gates.m2 = null;
+  info.selection = null;
+  info.modules = info.modules.map((mod: any) => mod.id === 'M3' ? { ...mod, canRun: false } : mod);
+  const result = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: info,
+    reviewData: syntheticReviewData({ sources: [older, latest] }),
+  });
+  try {
+    await waitFor(() => result.doc.getElementById('rdSource') !== null, 'review panel loaded without M2');
+    assert.equal(result.doc.getElementById('rdPanel')!.textContent!.includes('Lưu và xuất bình luận'), true);
+    assert.equal(element<HTMLSelectElement>(result.doc, 'rdSource').value, latest.sourceSha256,
+      'the latest completed usable source is selected by default');
+    assert.match(element<HTMLElement>(result.doc, 'rdSummary').textContent!, /12 bình luận/);
+    assert.match(result.doc.getElementById('rdPanel')!.textContent!, /Đã tạo tệp JSON trước đó: shopee-cached\.json/);
+    assert.match(result.doc.getElementById('rdPanel')!.textContent!, /Xuất TXT: Chưa xuất được kết quả này/);
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdSave').textContent, 'Lưu vào DB');
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdJson').textContent, 'Xuất JSON');
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdTxt').textContent, 'Xuất TXT');
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdTxt').disabled, true,
+      'the unavailable format is disabled');
+    assert.equal(result.state.saveReviewDataCalls.length + result.state.exportReviewDataCalls.length, 0,
+      'opening the panel never saves or downloads');
+
+    element<HTMLButtonElement>(result.doc, 'rdSave').click();
+    await waitFor(() => result.state.saveReviewDataCalls.length === 1, 'save action');
+    assert.deepEqual(result.state.saveReviewDataCalls[0], {
+      runId: 'run-synthetic', input: { sourceSha256: latest.sourceSha256 },
+    });
+    await waitFor(() => /Đã lưu 12 bình luận/.test(result.doc.getElementById('rdHint')!.textContent!), 'save notice');
+
+    element<HTMLButtonElement>(result.doc, 'rdJson').click();
+    await waitFor(() => result.state.exportReviewDataCalls.length === 1, 'JSON export action');
+    assert.deepEqual(result.state.exportReviewDataCalls[0], {
+      runId: 'run-synthetic', input: { sourceSha256: latest.sourceSha256, format: 'json' },
+    });
+    await waitFor(() => /Đã lưu tệp/.test(result.doc.getElementById('rdHint')!.textContent!), 'export notice');
+
+    const calls = result.state.reviewDataCallsByRun['run-synthetic'] ?? 0;
+    result.doc.querySelector<HTMLButtonElement>('.runbtn')!.click();
+    await waitFor(() => (result.state.reviewDataCallsByRun['run-synthetic'] ?? 0) > calls, 'refresh after reselect');
+    assert.equal(element<HTMLSelectElement>(result.doc, 'rdSource').value, latest.sourceSha256,
+      'a refresh keeps the exact chosen source');
+
+    result.state.reviewDataView.sources = [older];
+    const beforeLoss = result.state.reviewDataCallsByRun['run-synthetic'] ?? 0;
+    result.doc.querySelector<HTMLButtonElement>('.runbtn')!.click();
+    await waitFor(() => (result.state.reviewDataCallsByRun['run-synthetic'] ?? 0) > beforeLoss, 'refresh after source loss');
+    const sourceSelect = element<HTMLSelectElement>(result.doc, 'rdSource');
+    assert.equal(sourceSelect.value, '', 'a vanished source requires a new selection');
+    assert.match(element<HTMLElement>(result.doc, 'rdSummary').textContent!, /không còn trong danh sách/);
+    sourceSelect.value = older.sourceSha256;
+    fire(result.window, sourceSelect, 'change');
+    assert.equal(sourceSelect.value, older.sourceSha256, 'the operator can select another stored source');
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdSave').disabled, false);
+
+    result.state.exportReviewResult = () => ({ ok: true, data: {
+      receipt: null, fileName: 'shopee-run-synthetic.json', saved: false, cancelled: true,
+    } });
+    element<HTMLButtonElement>(result.doc, 'rdJson').click();
+    await waitFor(() => /Đã hủy lưu tệp\./.test(result.doc.getElementById('rdHint')!.textContent!), 'cancel notice');
+  } finally { result.dom.window.close(); }
+});
+
+test('a pending action refreshes the panel that replaced its original run selection', async () => {
+  const runA = 'run-a';
+  const runB = 'run-b';
+  const sourceA = 'a'.repeat(64);
+  const sourceB = 'b'.repeat(64);
+  const result = harness({
+    runs: [
+      { runId: runA, product: 'Sản phẩm A', status: 'IDLE' },
+      { runId: runB, product: 'Sản phẩm B', status: 'IDLE' },
+    ],
+    runInfoByRun: { [runA]: syntheticRunInfo(runA), [runB]: syntheticRunInfo(runB) },
+    reviewDataByRun: {
+      [runA]: syntheticReviewData({ runId: runA, sources: [syntheticReviewSource({ sourceSha256: sourceA })] }),
+      [runB]: syntheticReviewData({ runId: runB, sources: [syntheticReviewSource({ sourceSha256: sourceB })] }),
+    },
+  });
+  const doc = result.doc;
+  const runButton = (runId: string): HTMLButtonElement => {
+    const button = [...doc.querySelectorAll<HTMLButtonElement>('.runbtn')]
+      .find(candidate => candidate.textContent!.includes(runId));
+    assert.ok(button, 'run button for ' + runId);
+    return button;
+  };
+  try {
+    const failure = deferred<any>();
+    result.state.exportReviewResult = () => failure.promise;
+    await waitFor(() => doc.querySelectorAll('.runbtn').length === 2, 'run list');
+    runButton(runA).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel');
+    element<HTMLButtonElement>(doc, 'rdJson').click();
+    await waitFor(() => result.state.exportReviewDataCalls.length === 1, 'pending JSON export');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the original panel is busy');
+
+    runButton(runB).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel');
+    runButton(runA).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'replacement run A panel');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the replacement panel is busy');
+
+    failure.resolve({ ok: false, error: { code: 'EXPORT_FAILED', message: 'EXPORT_FAILED' } });
+    await waitFor(() => !element<HTMLButtonElement>(doc, 'rdJson').disabled, 'failure re-enables the visible panel');
+    assert.equal(doc.getElementById('errbar')!.hidden, false, 'the failure remains visible');
+    assert.equal(result.state.exportReviewDataCalls.length, 1, 'the failure is not retried');
+
+    const success = deferred<any>();
+    result.state.exportReviewResult = () => success.promise;
+    element<HTMLButtonElement>(doc, 'rdJson').click();
+    await waitFor(() => result.state.exportReviewDataCalls.length === 2, 'second pending JSON export');
+    runButton(runB).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel again');
+    runButton(runA).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel again');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the visible panel is busy again');
+
+    success.resolve({ ok: true, data: {
+      receipt: null, fileName: 'shopee-run-a.json', saved: true, cancelled: false,
+    } });
+    await waitFor(() => !element<HTMLButtonElement>(doc, 'rdJson').disabled &&
+      /Đã lưu tệp/.test(doc.getElementById('rdHint')!.textContent!), 'success re-enables and reports the visible panel');
+    assert.equal(result.state.exportReviewDataCalls.length, 2, 'success does not retry the action');
+  } finally { result.dom.window.close(); }
+});
+
+test('readonly blocks new DB save and new export while permitting an already created exact export', async () => {
+  const cached = syntheticReviewSource({
+    canSaveDb: false, dbBlockedBy: { code: 'READONLY_ON' },
+    exportFormats: {
+      json: { canExport: true, blockedBy: null, receipt: { fileName: 'shopee-cached.json' } },
+      txt: { canExport: false, blockedBy: { code: 'READONLY_ON' }, receipt: null },
+    },
+  });
+  const result = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(),
+    reviewData: syntheticReviewData({ readonly: true, sources: [cached] }),
+  });
+  try {
+    await waitFor(() => result.doc.getElementById('rdSource') !== null, 'readonly review panel');
+    const panel = result.doc.getElementById('rdPanel')!;
+    assert.match(panel.textContent!, /Đang bật khóa chỉ-đọc/);
+    assert.match(panel.textContent!, /Lưu vào DB: Đang bật khóa chỉ-đọc/);
+    assert.match(panel.textContent!, /Xuất TXT: Đang bật khóa chỉ-đọc/);
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdSave').disabled, true,
+      'the guard blocks a new DB save');
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdTxt').disabled, true,
+      'the guard blocks a new TXT generation');
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdJson').disabled, false,
+      'a previously created JSON file remains downloadable');
+
+    element<HTMLButtonElement>(result.doc, 'rdSave').click();
+    assert.equal(result.state.saveReviewDataCalls.length, 0, 'a disabled save sends nothing');
+    element<HTMLButtonElement>(result.doc, 'rdJson').click();
+    await waitFor(() => result.state.exportReviewDataCalls.length === 1, 'cached JSON download');
+    assert.deepEqual(result.state.exportReviewDataCalls[0], {
+      runId: 'run-synthetic', input: { sourceSha256: cached.sourceSha256, format: 'json' },
+    });
+  } finally { result.dom.window.close(); }
 });
 
 test('readonly keeps offline save and stop but refuses launch, refresh and reconcile', async () => {

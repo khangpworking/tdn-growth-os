@@ -546,6 +546,149 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       };
     }
 
+    function reviewLinks(links, requested, actuals) {
+      return (links || []).map(function (link, index) {
+        var actual = actuals ? actuals[index] : null;
+        return {
+          shopId: link.shopId, itemId: link.itemId, url: link.url,
+          requested: requested, actual: actual, shortfall: actual === null ? null : Math.max(0, requested - actual),
+          complete: actual === null ? null : actual >= requested, status: 'exhausted'
+        };
+      });
+    }
+
+    function reviewSources(run) {
+      var list = [];
+      var cap = run.request.reviewCapPerLink;
+      var selectionLinks = run.selection ? run.selection.links : [];
+      if (run.gates.m3) {
+        var pass = isPass(run.gates.m3);
+        var actuals = pass ? [136, 120, 90, 110, 75] : null;
+        var links = reviewLinks(selectionLinks, cap, actuals);
+        var sourceSha = shaFor(run.runId, 'legacy-review-source');
+        var importReceipt = run.reviewImportReceipts[sourceSha] || null;
+        var formats = {};
+        ['json', 'txt'].forEach(function (format) {
+          var receipt = run.reviewExportReceipts[sourceSha + ':' + format] || null;
+          formats[format] = {
+            canExport: pass, blockedBy: pass ? null : { code: 'SOURCE_NOT_EXPORTABLE' },
+            receipt: receipt ? clone(receipt) : null
+          };
+        });
+        list.push({
+          sourceSha256: sourceSha, kind: 'legacy', attemptId: null, planSha256: null,
+          status: pass ? 'SUCCEEDED' : 'FAILED', gateVerdict: run.gates.m3.verdict || null,
+          completedAt: run.state.endedAt || null,
+          rowBasis: pass ? 'published' : 'terminal-retained',
+          rowCount: links.reduce(function (sum, link) { return sum + (link.actual || 0); }, 0),
+          links: links, canExport: pass, exportBlockedBy: pass ? null : { code: 'SOURCE_NOT_EXPORTABLE' },
+          exportFormats: formats,
+          canSaveDb: pass, dbBlockedBy: pass ? null : { code: 'M3_NOT_PASS' },
+          importReceipt: importReceipt ? clone(importReceipt) : null
+        });
+      }
+      (run.reviewAttempts || []).forEach(function (attempt) {
+        if (!attempt || (attempt.status !== 'SUCCEEDED' && attempt.status !== 'FAILED')) return;
+        var sourceSha = shaFor(run.runId, 'custom-review-source:' + attempt.attemptId);
+        var importReceipt = run.reviewImportReceipts[sourceSha] || null;
+        var links = (attempt.links || []).map(function (link) {
+          return {
+            shopId: link.shopId, itemId: link.itemId, url: link.url || '',
+            requested: link.requested, actual: link.actual, shortfall: link.shortfall,
+            complete: link.actual === null || link.actual === undefined || link.requested === null ||
+              link.requested === undefined ? null : link.actual >= link.requested,
+            status: link.stopReason || ''
+          };
+        });
+        var pass = attempt.status === 'SUCCEEDED';
+        var formats = {};
+        ['json', 'txt'].forEach(function (format) {
+          var receipt = run.reviewExportReceipts[sourceSha + ':' + format] || null;
+          formats[format] = {
+            canExport: pass, blockedBy: pass ? null : { code: 'SOURCE_NOT_EXPORTABLE' },
+            receipt: receipt ? clone(receipt) : null
+          };
+        });
+        list.push({
+          sourceSha256: sourceSha, kind: 'custom', attemptId: attempt.attemptId,
+          planSha256: attempt.planSha256 || null,
+          status: attempt.status,
+          gateVerdict: attempt.gate && attempt.gate.verdict ? attempt.gate.verdict : (pass ? 'PASS' : 'FAIL'),
+          completedAt: attempt.createdAt || null,
+          rowBasis: pass ? 'published' : 'terminal-retained',
+          rowCount: links.reduce(function (sum, link) { return sum + (link.actual || 0); }, 0),
+          links: links, canExport: pass, exportBlockedBy: pass ? null : { code: 'SOURCE_NOT_EXPORTABLE' },
+          exportFormats: formats,
+          canSaveDb: pass, dbBlockedBy: pass ? null : { code: 'M3_NOT_PASS' },
+          importReceipt: importReceipt ? clone(importReceipt) : null
+        });
+      });
+      return list;
+    }
+
+    function reviewDataView(run) {
+      return {
+        format: 'review-data-view-v1', runId: run.runId, readonly: false,
+        tracking: clone(run.tracking),
+        db: { configured: true, schemaReady: true, blockedBy: null },
+        sources: reviewSources(run)
+      };
+    }
+
+    function saveMockReviewData(run, input) {
+      if (!input || typeof input !== 'object' || Object.keys(input).sort().join(',') !== 'sourceSha256' ||
+          typeof input.sourceSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(input.sourceSha256)) {
+        return err('ARG_INVALID', 'ARG_INVALID');
+      }
+      var source = reviewSources(run).find(function (item) { return item.sourceSha256 === input.sourceSha256; });
+      if (!source) return err('SOURCE_NOT_FOUND', 'SOURCE_NOT_FOUND');
+      if (!source.canSaveDb) return err(source.dbBlockedBy ? source.dbBlockedBy.code : 'SOURCE_NOT_SAVED', 'SOURCE_NOT_SAVED');
+      var existing = run.reviewImportReceipts[source.sourceSha256];
+      if (existing) return Promise.resolve(ok(Object.assign({}, clone(existing), { reused: true })));
+      var receipt = {
+        format: 'review-data-saved-v1', runId: run.runId, sourceSha256: source.sourceSha256,
+        datasetId: 'module-m3:' + run.runId + ':' + source.sourceSha256,
+        importPolicyVersion: 'module-m3-s05-v1', importedAt: new Date().toISOString(),
+        rowCount: source.rowCount, reviewsInserted: source.rowCount, reviewsAlreadyPresent: 0,
+        runReviewsInserted: source.rowCount, firstVersionDiffers: 0, reused: false
+      };
+      run.reviewImportReceipts[source.sourceSha256] = receipt;
+      return Promise.resolve(ok(clone(receipt)));
+    }
+
+    function exportMockReviewData(run, input) {
+      if (!input || typeof input !== 'object' ||
+          Object.keys(input).sort().join(',') !== 'format,sourceSha256' ||
+          (input.format !== 'json' && input.format !== 'txt') ||
+          typeof input.sourceSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(input.sourceSha256)) {
+        return err('ARG_INVALID', 'ARG_INVALID');
+      }
+      var source = reviewSources(run).find(function (item) { return item.sourceSha256 === input.sourceSha256; });
+      if (!source) return err('SOURCE_NOT_FOUND', 'SOURCE_NOT_FOUND');
+      var availability = source.exportFormats[input.format];
+      if (!availability || !availability.canExport) {
+        return err(availability && availability.blockedBy ? availability.blockedBy.code : 'SOURCE_NOT_EXPORTABLE', 'SOURCE_NOT_EXPORTABLE');
+      }
+      var key = source.sourceSha256 + ':' + input.format;
+      var reused = !!run.reviewExportReceipts[key];
+      var receipt = run.reviewExportReceipts[key];
+      if (!receipt) {
+        receipt = {
+          format: 'review-data-export-v1', runId: run.runId, sourceSha256: source.sourceSha256,
+          exportFormat: input.format, exportVersion: 'module-review-export-v1',
+          exportSha256: shaFor(run.runId, 'export:' + key),
+          byteSize: source.rowCount ? 2048 : 0,
+          fileName: 'shopee-' + run.runId + '-' + source.sourceSha256.slice(0, 12) + '.' + input.format,
+          rowCount: source.rowCount, reused: false
+        };
+        run.reviewExportReceipts[key] = receipt;
+      }
+      return Promise.resolve(ok({
+        receipt: Object.assign({}, clone(receipt), { reused: reused }),
+        fileName: receipt.fileName, saved: true, cancelled: false
+      }));
+    }
+
     function saveMockPlan(run, input) {
       if (!input || typeof input !== 'object' || Object.keys(input).sort().join(',') !== 'allocation,mode,stars,totalPerLink') {
         return err('ARG_INVALID', 'ARG_INVALID');
@@ -737,10 +880,19 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       };
     }
     function makeRun(runId, createdAt, product, opts) {
+      var basis = opts.timeBasis || 'recorded-first-accepted';
+      var firstRunAt = basis === 'not-started' ? null : (opts.firstRunAt || createdAt || null);
       var run = {
         runId: runId,
         createdAt: createdAt,
         product: product,
+        tracking: {
+          primaryKeyword: (opts.keywords && opts.keywords[0]) || null,
+          firstRunAt: firstRunAt,
+          timeBasis: basis,
+          displayTimezone: 'Asia/Ho_Chi_Minh',
+          lastKnownStartedAt: firstRunAt
+        },
         request: makeRequest(opts.keywords, opts.endDate, opts.cap),
         gates: { entry: null, m1: null, m2: null, m3: null },
         selection: null,
@@ -748,6 +900,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         reviewCounts: [],
         reviewCountRefresh: null,
         reviewAttempts: [],
+        reviewExportReceipts: {},
+        reviewImportReceipts: {},
         pendingPlanSha: null,
         state: baseState(runId),
         demoBlock: opts.demoBlock || null
@@ -784,10 +938,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     rb.gates.m3 = m3BlockedSlip(rb.runId);
     rb.state = finishState(rb.runId, 'STOPPED', 'M3', 'PROVIDER_BLOCKED', 'verdict_ok');
 
-    var rc = makeRun('c3d4e5f6', '2026-11-10T01:05:00Z', 'Sản phẩm mẫu C', { keywords: ['áo thun mẫu'], endDate: '2026-11-10', cap: 300 });
+    var rc = makeRun('c3d4e5f6', '2026-11-10T01:05:00Z', 'Sản phẩm mẫu C', { keywords: ['áo thun mẫu'], endDate: '2026-11-10', cap: 300, timeBasis: 'not-started' });
     rc.gates.entry = entrySlip(rc.runId, 300);
 
-    var rd = makeRun('d4e5f6a7', '2026-11-07T04:00:00Z', 'Sản phẩm mẫu D', { keywords: ['áo thun mẫu'], endDate: '2026-11-07', cap: 300 });
+    var rd = makeRun('d4e5f6a7', '2026-11-07T04:00:00Z', 'Sản phẩm mẫu D', { keywords: ['áo thun mẫu'], endDate: '2026-11-07', cap: 300, timeBasis: 'not-started' });
     rd.gates.entry = entryFailSlip(rd.runId);
     rd.state = finishState(rd.runId, 'STOPPED', 'ENTRY', null, 'period_dates');
 
@@ -825,6 +979,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         format: 'run-info-v1',
         runId: run.runId,
         readonly: false,
+        tracking: clone(run.tracking),
         request: clone(run.request),
         state: clone(run.state),
         modules: modules,
@@ -843,6 +998,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         runId: run.runId,
         createdAt: run.createdAt,
         product: run.product,
+        tracking: clone(run.tracking),
         status: run.state.status,
         lastGate: lastGate,
         lastVerdict: lastVerdict,
@@ -952,7 +1108,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         var runId;
         do { runId = randomHex8(); } while (store.has(runId));
         var run = makeRun(runId, new Date().toISOString(), preset.keywords[0] || preset.label, {
-          keywords: preset.keywords.slice(), endDate: endDate, cap: cap
+          keywords: preset.keywords.slice(), endDate: endDate, cap: cap, timeBasis: 'not-started'
         });
         run.gates.entry = entrySlip(runId, cap);
         return Promise.resolve(ok({ runId: runId, entry: clone(run.gates.entry) }));
@@ -991,6 +1147,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         run.state.endedAt = null;
         run.state.errorCode = null;
         run.state.failedCheck = null;
+        if (run.tracking.timeBasis === 'not-started') {
+          var firstLaunch = new Date().toISOString();
+          run.tracking.firstRunAt = firstLaunch;
+          run.tracking.lastKnownStartedAt = firstLaunch;
+          run.tracking.timeBasis = 'recorded-first-accepted';
+        }
         setTimeout(function () { finishSingle(runId, module); }, 4000);
         return Promise.resolve(ok({ format: 'detached-v1', runId: runId, pid: 4242 }));
       },
@@ -998,6 +1160,21 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         return Promise.resolve(ok(samplingView(run)));
+      },
+      reviewData: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(ok(reviewDataView(run)));
+      },
+      saveReviewData: function (runId, input) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(saveMockReviewData(run, input));
+      },
+      exportReviewData: function (runId, input) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(exportMockReviewData(run, input));
       },
       saveReviewPlan: function (runId, input) {
         var run = store.get(runId);
@@ -1173,6 +1350,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       reconcileReviewAttempt: function (runId, kind, attemptId) {
         return call('reconcileReviewAttempt', [runId, kind, attemptId]);
       },
+      reviewData: function (runId) { return call('reviewData', [runId]); },
+      saveReviewData: function (runId, input) { return call('saveReviewData', [runId, input]); },
+      exportReviewData: function (runId, input) { return call('exportReviewData', [runId, input]); },
       library: function () { return call('library', []); }
     };
   })();
@@ -1198,7 +1378,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     samplingTokens: {},
     samplingBusy: {},
     samplingPoll: null,
-    samplingPollRunId: null
+    samplingPollRunId: null,
+    reviewData: {},
+    reviewDataErrors: {},
+    reviewDataSeq: {},
+    reviewSelection: {},
+    reviewNeedsPick: {},
+    reviewBusy: {},
+    reviewNotice: {}
   };
 
   function showError(error) {
@@ -1212,7 +1399,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     bar.hidden = true;
   }
 
-  function statusChip(status) {
+  function statusChip(status, tracking) {
+    if (status === 'IDLE' && tracking) {
+      if (tracking.timeBasis === 'not-started') return h('span', 'chip s-idle', 'Chưa chạy');
+      if (tracking.timeBasis === 'legacy-first-unproven') {
+        return h('span', 'chip s-warn', 'Chưa rõ giờ bắt đầu');
+      }
+    }
     var s = STATUS[status] || { label: status || '—', cls: 's-idle' };
     return h('span', 'chip ' + s.cls, s.label);
   }
@@ -1454,6 +1647,42 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     return date.toLocaleString('vi-VN');
   }
 
+  function vnStamp(value) {
+    if (!value) return '';
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return '';
+    var shifted = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+    var hour = shifted.getUTCHours();
+    var suffix = hour < 12 ? 'am' : 'pm';
+    var hour12 = hour % 12 || 12;
+    return pad(shifted.getUTCDate()) + '/' + pad(shifted.getUTCMonth() + 1) + '/' +
+      shifted.getUTCFullYear() + ' ' + hour12 + ':' + pad(shifted.getUTCMinutes()) + suffix;
+  }
+
+  function runTracking(value) { return value && value.tracking ? value.tracking : null; }
+
+  function runDisplayName(tracking, fallback) {
+    var keyword = tracking && typeof tracking.primaryKeyword === 'string'
+      ? tracking.primaryKeyword.trim() : '';
+    if (tracking && tracking.timeBasis === 'recorded-first-accepted' && keyword && tracking.firstRunAt) {
+      return keyword + ': ' + vnStamp(tracking.firstRunAt);
+    }
+    if (tracking && tracking.timeBasis === 'legacy-first-unproven') {
+      return (keyword || 'Chưa rõ từ khóa') + ' · chưa rõ giờ bắt đầu';
+    }
+    return keyword || fallback || 'Lượt chưa đặt tên';
+  }
+
+  function trackingNote(tracking) {
+    if (!tracking) return '';
+    if (tracking.timeBasis === 'legacy-first-unproven') {
+      return tracking.lastKnownStartedAt
+        ? 'Lần chạy gần nhất: ' + vnStamp(tracking.lastKnownStartedAt) + '.'
+        : 'Chưa rõ giờ bắt đầu.';
+    }
+    return '';
+  }
+
   function countText(cv) {
     if (cv && cv.status === 'observed' && Number.isInteger(cv.value) && cv.value >= 0) return String(cv.value);
     return '— ' + (RS_COUNT_WHY[cv && cv.status] || 'chưa có');
@@ -1477,6 +1706,22 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     }
     if (state.selectedRunId === runId) renderDetail();
     manageSamplingPoll(runId);
+  }
+
+  async function loadReviewData(runId) {
+    var seq = (state.reviewDataSeq[runId] || 0) + 1;
+    state.reviewDataSeq[runId] = seq;
+    var res = await api.reviewData(runId);
+    if (seq !== state.reviewDataSeq[runId]) return;
+    var work = state.reviewBusy[runId];
+    if (work && (work.save || work.exporting)) return;
+    if (res.ok) {
+      state.reviewData[runId] = res.data;
+      delete state.reviewDataErrors[runId];
+    } else {
+      state.reviewDataErrors[runId] = res.error;
+    }
+    if (state.selectedRunId === runId) renderDetail();
   }
 
   function stopSamplingPoll() {
@@ -1972,6 +2217,337 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     return counts;
   }
 
+  var RD_BLOCK_TEXT = {
+    READONLY_ON: 'Đang bật khóa chỉ-đọc.',
+    READONLY_NEW_EXPORT_BLOCKED: 'Đang bật khóa chỉ-đọc nên không tạo tệp mới; chỉ tải được bản đã tạo trước đó.',
+    DB_NOT_CONFIGURED: 'Chưa cấu hình cơ sở dữ liệu trên máy chạy.',
+    DB_SCHEMA_NOT_READY: 'Cơ sở dữ liệu chưa sẵn sàng để lưu.',
+    PRODUCT_IDENTITY_MISSING: 'Thiếu thông tin nhận diện sản phẩm để lưu.',
+    PRODUCT_NAME_PROVENANCE_MISSING: 'Thiếu thông tin tên sản phẩm để lưu.',
+    M3_NOT_PASS: 'Kết quả này chưa đạt M3 nên không lưu vào DB.',
+    SOURCE_NOT_SAVED: 'Chưa lưu được kết quả này vào DB.',
+    SOURCE_NOT_EXPORTABLE: 'Nguồn đã thu chưa đủ điều kiện để xuất.',
+    EXPORT_BLOCKED: 'Chưa xuất được kết quả này.',
+    EXPORT_PROOF_INVALID: 'Không xác minh được nguồn đã thu.',
+    EXPORT_SOURCE_CHANGED: 'Nguồn đã đổi so với kết quả đã chọn.',
+    EXPORT_CACHE_UNAVAILABLE: 'Chưa tạo được tệp xuất.',
+    EXPORT_TOO_LARGE: 'Tệp xuất vượt giới hạn 64 MiB.',
+    EXPORT_NOT_FOUND: 'Không thấy tệp xuất đã tạo.',
+    SAVE_DIALOG_UNAVAILABLE: 'Máy này không mở được hộp thoại lưu tệp.',
+    SAVE_DIALOG_FAILED: 'Không mở được hộp thoại lưu tệp.',
+    SAVE_FAILED: 'Không ghi được tệp đã chọn.',
+    EXPORT_SIZE_MISMATCH: 'Tệp nhận về không khớp kích thước đã ghi.',
+    EXPORT_DIGEST_MISMATCH: 'Tệp nhận về không khớp mã kiểm tra.'
+  };
+
+  function rdBlockText(blockedBy) {
+    var code = blockedBy && blockedBy.code ? String(blockedBy.code) : '';
+    return RD_BLOCK_TEXT[code] || 'Kết quả này chưa dùng được cho thao tác đã chọn.';
+  }
+
+  function rdBlockNode(prefix, blockedBy) {
+    var code = blockedBy && blockedBy.code ? String(blockedBy.code) : '';
+    var node = h('p', 'rs-block', prefix + rdBlockText(blockedBy));
+    if (code) node.title = code;
+    return node;
+  }
+
+  function rdDefaultSha(sources) {
+    function stamp(source) {
+      var parsed = Date.parse((source && source.completedAt) || '');
+      return isNaN(parsed) ? -1 : parsed;
+    }
+    var usable = (sources || []).filter(function (source) {
+      return source && (source.canExport || source.canSaveDb);
+    });
+    var pool = usable.length ? usable : (sources || []);
+    if (!pool.length) return null;
+    return pool.slice().sort(function (left, right) { return stamp(right) - stamp(left); })[0].sourceSha256;
+  }
+
+  function rdSelectedSha(view, runId) {
+    var sources = (view && view.sources) || [];
+    if (!sources.length) return null;
+    var current = state.reviewSelection[runId];
+    if (current && sources.some(function (source) { return source.sourceSha256 === current; })) return current;
+    if (current) {
+      state.reviewSelection[runId] = null;
+      state.reviewNeedsPick[runId] = true;
+      return null;
+    }
+    if (state.reviewNeedsPick[runId]) return null;
+    var fallback = rdDefaultSha(sources);
+    if (fallback) state.reviewSelection[runId] = fallback;
+    return fallback;
+  }
+
+  function rdSourceLabel(source) {
+    var kind = source.kind === 'custom' ? 'Lần chạy riêng' : 'Kết quả M3 gốc';
+    var when = source.completedAt ? vnStamp(source.completedAt) : 'chưa rõ thời điểm';
+    var outcome = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS'
+      ? 'đạt' : (source.rowBasis === 'terminal-retained' ? 'giữ lại sau lần chưa đạt' : 'chưa đạt');
+    return kind + ' · ' + when + ' · ' + source.rowCount + ' bình luận · ' + outcome;
+  }
+
+  function rdLinksTable(links) {
+    if (!links || !links.length) return null;
+    var wrap = h('div', 'tw');
+    var table = h('table');
+    var thead = h('thead');
+    var head = h('tr');
+    [['Link', ''], ['Yêu cầu', 'num'], ['Thực tế', 'num'], ['Thiếu', 'num'], ['Hoàn tất', '']]
+      .forEach(function (entry) { head.appendChild(h('th', entry[1], entry[0])); });
+    thead.appendChild(head);
+    table.appendChild(thead);
+    var body = h('tbody');
+    links.forEach(function (link, index) {
+      var row = h('tr');
+      var name = h('td');
+      name.appendChild(h('div', null, 'Link ' + (index + 1)));
+      if (link.url) name.appendChild(h('code', 'rs-url', link.url));
+      row.appendChild(name);
+      row.appendChild(h('td', 'num', valOrDash(link.requested)));
+      row.appendChild(h('td', 'num', valOrDash(link.actual)));
+      row.appendChild(h('td', 'num', valOrDash(link.shortfall)));
+      row.appendChild(h('td', null, link.complete === true ? 'Có' : link.complete === false ? 'Không' : '—'));
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  function reviewDataPanel(info) {
+    var runId = info.runId;
+    var view = state.reviewData[runId];
+    var panel = h('section', 'rs');
+    panel.id = 'rdPanel';
+    panel.setAttribute('aria-label', 'Lưu và xuất bình luận');
+
+    var head = h('div', 'rs-head');
+    head.appendChild(h('h4', null, 'Lưu và xuất bình luận'));
+    var chip = h('span', 'chip s-idle', 'Đang đọc kết quả…');
+    head.appendChild(chip);
+    panel.appendChild(head);
+    panel.appendChild(h('p', 'rs-lead', 'Dùng kết quả đã thu trong lượt này.'));
+
+    if (state.reviewDataErrors[runId]) {
+      panel.appendChild(h('p', 'errbar', plainError(state.reviewDataErrors[runId])));
+      var retryRow = h('div', 'rs-actions');
+      var retry = h('button', 'abtn', 'Đọc lại kết quả đã thu');
+      retry.type = 'button';
+      retry.addEventListener('click', function () { loadReviewData(runId); });
+      retryRow.appendChild(retry);
+      panel.appendChild(retryRow);
+      return panel;
+    }
+    if (!view) {
+      panel.appendChild(h('p', 'muted', 'Đang đọc kết quả đã thu…'));
+      return panel;
+    }
+
+    if (view.readonly) panel.appendChild(h('p', 'rs-note', 'Đang bật khóa chỉ-đọc.'));
+
+    var sources = view.sources || [];
+    chip.textContent = sources.length ? 'Có kết quả đã thu' : 'Chưa có kết quả đã thu';
+    chip.className = 'chip ' + (sources.length ? 's-pass' : 's-idle');
+    if (!sources.length) {
+      panel.appendChild(h('p', 'muted', 'Chưa có kết quả đã thu đủ điều kiện để lưu hoặc xuất.'));
+      return panel;
+    }
+
+    var field = h('label', 'field');
+    field.appendChild(h('span', null, 'Kết quả đã thu'));
+    var select = document.createElement('select');
+    select.id = 'rdSource';
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Chọn kết quả đã thu';
+    select.appendChild(placeholder);
+    sources.forEach(function (source) {
+      var option = document.createElement('option');
+      option.value = source.sourceSha256;
+      option.textContent = rdSourceLabel(source);
+      select.appendChild(option);
+    });
+    field.appendChild(select);
+    panel.appendChild(field);
+
+    var summary = h('p', 'rs-summary');
+    summary.id = 'rdSummary';
+    summary.setAttribute('aria-live', 'polite');
+    panel.appendChild(summary);
+
+    var links = h('div');
+    links.id = 'rdLinks';
+    panel.appendChild(links);
+
+    var blocks = h('div');
+    blocks.id = 'rdBlocks';
+    panel.appendChild(blocks);
+
+    var hint = h('p', 'rs-hint');
+    hint.id = 'rdHint';
+    hint.setAttribute('aria-live', 'polite');
+    hint.hidden = true;
+    panel.appendChild(hint);
+
+    var actions = h('div', 'rs-actions');
+    var saveBtn = h('button', 'abtn primary', 'Lưu vào DB');
+    saveBtn.type = 'button';
+    saveBtn.id = 'rdSave';
+    var jsonBtn = h('button', 'abtn', 'Xuất JSON');
+    jsonBtn.type = 'button';
+    jsonBtn.id = 'rdJson';
+    var txtBtn = h('button', 'abtn', 'Xuất TXT');
+    txtBtn.type = 'button';
+    txtBtn.id = 'rdTxt';
+    actions.appendChild(saveBtn);
+    actions.appendChild(jsonBtn);
+    actions.appendChild(txtBtn);
+    panel.appendChild(actions);
+
+    function work() { return state.reviewBusy[runId] || (state.reviewBusy[runId] = {}); }
+    function busy(w) { return !!(w.save || w.exporting); }
+    function sourceFor(sha) {
+      return sources.find(function (source) { return source.sourceSha256 === sha; }) || null;
+    }
+    function formatAvailable(source, format) {
+      return !!(source && source.exportFormats && source.exportFormats[format] &&
+        source.exportFormats[format].canExport);
+    }
+
+    function update() {
+      var sha = rdSelectedSha(view, runId);
+      var source = sourceFor(sha);
+      select.value = source ? sha : '';
+      var w = work();
+      var isBusy = busy(w);
+      select.disabled = isBusy;
+
+      if (source) {
+        var completion = source.completedAt
+          ? 'Hoàn tất ' + vnStamp(source.completedAt) : 'Chưa rõ thời điểm hoàn tất';
+        var outcome = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS'
+          ? 'Kết quả đã đạt M3' : 'Dữ liệu giữ lại sau lần chạy chưa đạt';
+        summary.textContent = source.rowCount + ' bình luận · ' + outcome + ' · ' + completion;
+      } else {
+        summary.textContent = state.reviewNeedsPick[runId]
+          ? 'Kết quả đã chọn không còn trong danh sách; chọn lại một kết quả đã thu.'
+          : 'Chọn một kết quả đã thu để xem số lượng và thao tác.';
+      }
+
+      clear(links);
+      if (source) {
+        var table = rdLinksTable(source.links);
+        if (table) links.appendChild(table);
+      }
+
+      clear(blocks);
+      var dbBlocked = view.db && view.db.blockedBy;
+      if (dbBlocked) blocks.appendChild(rdBlockNode('Lưu vào DB: ', dbBlocked));
+      if (view.db && !view.db.configured) blocks.appendChild(rdBlockNode('Lưu vào DB: ', { code: 'DB_NOT_CONFIGURED' }));
+      if (view.db && !view.db.schemaReady) blocks.appendChild(rdBlockNode('Lưu vào DB: ', { code: 'DB_SCHEMA_NOT_READY' }));
+      if (source) {
+        if (!source.canSaveDb) {
+          blocks.appendChild(rdBlockNode('Lưu vào DB: ', source.dbBlockedBy || { code: 'SOURCE_NOT_SAVED' }));
+        }
+        if (source.rowBasis === 'terminal-retained') {
+          blocks.appendChild(h('p', 'rs-note',
+            'Kết quả này được giữ lại sau lần chạy chưa đạt; chỉ dùng để xuất, không lưu vào DB.'));
+        }
+        if (source.importReceipt) {
+          var imported = source.importReceipt;
+          blocks.appendChild(h('p', 'rs-note',
+            'Đã lưu vào DB lúc ' + (vnStamp(imported.importedAt) || '—') + ' · ' +
+            imported.rowCount + ' bình luận.'));
+        }
+        ['json', 'txt'].forEach(function (format) {
+          var availability = source.exportFormats && source.exportFormats[format];
+          if (availability && !availability.canExport) {
+            blocks.appendChild(rdBlockNode('Xuất ' + format.toUpperCase() + ': ',
+              availability.blockedBy || { code: 'EXPORT_BLOCKED' }));
+          }
+          if (availability && availability.receipt) {
+            blocks.appendChild(h('p', 'rs-note',
+              'Đã tạo tệp ' + format.toUpperCase() + ' trước đó: ' + availability.receipt.fileName + '.'));
+          }
+        });
+        if (!source.canExport && !formatAvailable(source, 'json') && !formatAvailable(source, 'txt')) {
+          blocks.appendChild(rdBlockNode('Xuất tệp: ', source.exportBlockedBy || { code: 'SOURCE_NOT_EXPORTABLE' }));
+        }
+      }
+
+      var dbReady = !!(view.db && view.db.configured && view.db.schemaReady && !view.db.blockedBy);
+      saveBtn.disabled = isBusy || !state.connected || !source || !source.canSaveDb || !dbReady;
+      jsonBtn.disabled = isBusy || !state.connected || !source || !formatAvailable(source, 'json');
+      txtBtn.disabled = isBusy || !state.connected || !source || !formatAvailable(source, 'txt');
+
+      var message = '';
+      if (w.save) message = 'Đang lưu vào DB…';
+      else if (w.exporting === 'json') message = 'Đang xuất JSON…';
+      else if (w.exporting === 'txt') message = 'Đang xuất TXT…';
+      else if (state.reviewNotice[runId]) message = state.reviewNotice[runId];
+      else if (!state.connected) message = 'Chưa kết nối máy chạy.';
+      else if (!source) message = state.reviewNeedsPick[runId]
+        ? 'Chọn lại kết quả đã thu.' : 'Chọn một kết quả đã thu.';
+      hint.textContent = message;
+      hint.hidden = !message;
+    }
+
+    select.addEventListener('change', function () {
+      state.reviewSelection[runId] = select.value || null;
+      state.reviewNeedsPick[runId] = !select.value;
+      state.reviewNotice[runId] = '';
+      update();
+    });
+
+    async function onAction(kind) {
+      var w = work();
+      if (busy(w)) return;
+      var sha = state.reviewSelection[runId];
+      var source = sourceFor(sha);
+      if (!source) {
+        state.reviewNotice[runId] = 'Chọn một kết quả đã thu.';
+        update();
+        return;
+      }
+      clearError();
+      state.reviewNotice[runId] = '';
+      if (kind === 'save') w.save = true; else w.exporting = kind;
+      update();
+      var res = kind === 'save'
+        ? await api.saveReviewData(runId, { sourceSha256: source.sourceSha256 })
+        : await api.exportReviewData(runId, { sourceSha256: source.sourceSha256, format: kind });
+      if (kind === 'save') w.save = false; else w.exporting = '';
+      if (state.selectedRunId !== runId) return;
+      if (!res.ok) {
+        showError(res.error);
+        renderDetail();
+        return;
+      }
+      if (kind === 'save') {
+        state.reviewNotice[runId] = res.data.reused
+          ? 'Kết quả này đã có trong cơ sở dữ liệu.'
+          : 'Đã lưu ' + res.data.rowCount + ' bình luận vào DB (' +
+            res.data.reviewsInserted + ' mới, ' + res.data.reviewsAlreadyPresent + ' đã có).';
+      } else {
+        var data = res.data || {};
+        state.reviewNotice[runId] = data.cancelled ? 'Đã hủy lưu tệp.'
+          : data.saved ? 'Đã lưu tệp “' + (data.fileName || (data.receipt && data.receipt.fileName) || '') + '”.'
+          : 'Chưa lưu tệp.';
+      }
+      renderDetail();
+      await loadReviewData(runId);
+    }
+
+    saveBtn.addEventListener('click', function () { onAction('save'); });
+    jsonBtn.addEventListener('click', function () { onAction('json'); });
+    txtBtn.addEventListener('click', function () { onAction('txt'); });
+    update();
+    return panel;
+  }
+
   function moduleCard(mod, info) {
     var card = h('article', 'mod');
     var head = h('div', 'mh');
@@ -1993,6 +2569,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         samplingRecoveryPending(samplingView))) {
       card.appendChild(reviewSamplingPanel(info));
     }
+    if (mod.id === 'M3') card.appendChild(reviewDataPanel(info));
 
     var row = h('div', 'btnrow');
     var btn = h('button', 'abtn', 'Chạy module này');
@@ -2034,10 +2611,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       return;
     }
     var item = state.runs.find(function (r) { return r.runId === info.runId; }) || {};
+    var tracking = info.tracking || item.tracking || null;
     var head = h('div', 'dhead');
-    head.appendChild(h('h2', null, 'Lượt ' + info.runId));
-    head.appendChild(statusChip(info.state && info.state.status));
-    if (item.product) head.appendChild(h('span', 'muted', item.product));
+    head.appendChild(h('h2', null, runDisplayName(tracking, item.product || ('Lượt ' + info.runId))));
+    head.appendChild(statusChip(info.state && info.state.status, tracking));
+    head.appendChild(h('span', 'muted', 'Lượt ' + info.runId));
+    if (item.product && item.product !== runDisplayName(tracking, item.product)) {
+      head.appendChild(h('span', 'muted', item.product));
+    }
+    var note = trackingNote(tracking);
+    if (note) head.appendChild(h('span', 'muted', note));
     if (info.state && info.state.errorCode) head.appendChild(h('span', 'codechip', info.state.errorCode));
     if (info.state && info.state.status === 'RUNNING') head.appendChild(h('span', 'muted', 'tự cập nhật mỗi 10 giây'));
     root.appendChild(head);
@@ -2065,10 +2648,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       var li = h('li');
       var btn = h('button', 'runbtn' + (run.runId === state.selectedRunId ? ' on' : ''));
       btn.type = 'button';
+      var tracking = runTracking(run);
+      btn.appendChild(h('span', 'rname', runDisplayName(tracking, run.product || run.runId)));
       btn.appendChild(h('span', 'rid', run.runId));
-      btn.appendChild(h('span', 'rname', run.product || 'Lượt chưa đặt tên'));
       var meta = h('span', 'rmeta');
-      meta.appendChild(statusChip(run.status));
+      meta.appendChild(statusChip(run.status, tracking));
       if (run.errorCode) meta.appendChild(h('span', 'codechip', run.errorCode));
       btn.appendChild(meta);
       btn.addEventListener('click', function () { selectRun(run.runId); });
@@ -2105,7 +2689,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     state.info = res.data;
     renderDetail();
     managePoll();
-    if (res.data) loadSampling(runId);
+    if (res.data) {
+      loadSampling(runId);
+      loadReviewData(runId);
+    }
   }
 
   async function selectRun(runId) {
@@ -2137,6 +2724,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       renderDetail();
     }
     loadSampling(runId);
+    loadReviewData(runId);
     if (!running) {
       stopPoll();
       await refreshRuns();

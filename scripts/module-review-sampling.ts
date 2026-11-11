@@ -46,7 +46,7 @@ async function planFor(run:string,digest:string):Promise<ShopeeReviewPlan>{
   if(plan.runId!==basename(run)||plan.m2Digest!==context.m2Digest||plan.requestSha256!==context.requestSha256||canonicalJson(plan.links)!==canonicalJson(context.links))throw new ModuleError('REVIEW_PLAN_CHANGED',23);
   return plan;
 }
-async function frozenAttemptProof(run:string,kind:Kind,id:string){
+export async function frozenAttemptProof(run:string,kind:Kind,id:string){
   const attempt=await metadata(run,kind,id);
   const plan=attempt.planSha256?validateReviewPlan(await readJson(run,`m3-custom/plans/${attempt.planSha256}.json`),attempt.planSha256):null;
   if(plan&&(plan.runId!==attempt.runId||plan.m2Digest!==attempt.m2Digest||plan.requestSha256!==attempt.requestSha256||canonicalJson(plan.links)!==canonicalJson(attempt.links)))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
@@ -75,7 +75,7 @@ async function metadata(run:string,kind:Kind,id:string):Promise<ReviewSamplingAt
   if(attempt.attemptId!==id||attempt.kind!==kind||attempt.runId!==basename(run)||kind==='custom'&&!attempt.planSha256||kind==='counts'&&attempt.planSha256!==null)throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
   return attempt;
 }
-async function stateFor(run:string,kind:Kind,id:string):Promise<ReviewSamplingAttemptState>{
+export async function stateFor(run:string,kind:Kind,id:string):Promise<ReviewSamplingAttemptState>{
   const state=validateSampling<ReviewSamplingAttemptState>('attemptState',await readJson(run,`${attemptPath(kind,id)}/state.json`));
   if(state.attemptSha256!==samplingDigest(await metadata(run,kind,id)))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');return state;
 }
@@ -83,7 +83,7 @@ async function pidLive(pid:number|null):Promise<boolean>{
   if(pid===null)return false;
   try{process.kill(pid,0);try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');if(['Z','X'].includes(stat.slice(stat.lastIndexOf(')')+2).split(' ')[0]!))return false;}catch{/* Non-Linux: kill(0) remains conservative. */}return true;}catch{return false;}
 }
-async function journalsFor(run:string,attempt:ReviewSamplingAttempt):Promise<(SamplingJournal|null)[]>{
+export async function journalsFor(run:string,attempt:ReviewSamplingAttempt):Promise<(SamplingJournal|null)[]>{
   const base=attemptPath(attempt.kind,attempt.attemptId);
   return Promise.all(attempt.links.map(link=>readSamplingJournal(join(run,`${base}/journal/${samplingDigest(link)}.json`))));
 }

@@ -60,7 +60,7 @@ test('current source/profile bytes and every manifest/member reauthenticate on w
   t.mock.method(f.artifacts, 'put', forbidden);
   const reader = new SourcePackageService({ db: f.db, artifactStore: f.artifacts, now: forbidden });
   f.db.pragma('query_only=ON'); const before = await f.snapshot();
-  assert.equal(before.tableCount, 125); // +1: 0072 review_filter_assessment
+  assert.equal(before.tableCount, 126); // +2: 0072 review_filter_assessment, 0074 raw_db_module_review_import
   for (const expected of [a, b, a]) assert.deepEqual(await reader.readVerified(expected.packageId), expected);
   for (const digest of new Set([first.manifestArtifactSha256, ...a.files.map(file => file.sha256)])) {
     const filename = f.artifacts.pathForDigest(digest), bytes = await fs.readFile(filename);

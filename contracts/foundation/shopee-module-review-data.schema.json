@@ -1,0 +1,848 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/foundation/shopee-module-review-data.schema.json",
+  "title": "ShopeeModuleReviewData",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/tracking"
+    },
+    {
+      "$ref": "#/$defs/trackingRecord"
+    },
+    {
+      "$ref": "#/$defs/saveInput"
+    },
+    {
+      "$ref": "#/$defs/exportInput"
+    },
+    {
+      "$ref": "#/$defs/saved"
+    },
+    {
+      "$ref": "#/$defs/export"
+    },
+    {
+      "$ref": "#/$defs/link"
+    },
+    {
+      "$ref": "#/$defs/exportAvailability"
+    },
+    {
+      "$ref": "#/$defs/source"
+    },
+    {
+      "$ref": "#/$defs/view"
+    },
+    {
+      "$ref": "#/$defs/exportManifest"
+    },
+    {
+      "$ref": "#/$defs/archive"
+    }
+  ],
+  "$defs": {
+    "tracking": {
+      "title": "RunTracking",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primaryKeyword",
+        "firstRunAt",
+        "timeBasis",
+        "displayTimezone",
+        "lastKnownStartedAt"
+      ],
+      "properties": {
+        "primaryKeyword": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firstRunAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timeBasis": {
+          "enum": [
+            "recorded-first-accepted",
+            "not-started",
+            "legacy-first-unproven"
+          ]
+        },
+        "displayTimezone": {
+          "const": "Asia/Ho_Chi_Minh"
+        },
+        "lastKnownStartedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "trackingRecord": {
+      "title": "RunTrackingRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "requestSha256",
+        "primaryKeyword",
+        "createdAt",
+        "firstRunAt",
+        "firstObservedLaunchAt",
+        "historyBasis"
+      ],
+      "properties": {
+        "format": {
+          "const": "run-tracking-v1"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "requestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "primaryKeyword": {
+          "type": "string"
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firstRunAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firstObservedLaunchAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "historyBasis": {
+          "enum": [
+            "new-run",
+            "legacy-first-unproven"
+          ]
+        }
+      }
+    },
+    "saveInput": {
+      "title": "ReviewDataSaveInput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSha256"
+      ],
+      "properties": {
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "exportInput": {
+      "title": "ReviewDataExportInput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSha256",
+        "format"
+      ],
+      "properties": {
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "format": {
+          "enum": [
+            "json",
+            "txt"
+          ]
+        }
+      }
+    },
+    "saved": {
+      "title": "ReviewDataSaved",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "sourceSha256",
+        "datasetId",
+        "importPolicyVersion",
+        "importedAt",
+        "rowCount",
+        "reviewsInserted",
+        "reviewsAlreadyPresent",
+        "runReviewsInserted",
+        "firstVersionDiffers",
+        "reused"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-data-saved-v1"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "datasetId": {
+          "type": "string"
+        },
+        "importPolicyVersion": {
+          "const": "module-m3-s05-v1"
+        },
+        "importedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reviewsInserted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reviewsAlreadyPresent": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runReviewsInserted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstVersionDiffers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reused": {
+          "type": "boolean"
+        }
+      }
+    },
+    "export": {
+      "title": "ReviewDataExport",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "sourceSha256",
+        "exportFormat",
+        "exportVersion",
+        "exportSha256",
+        "byteSize",
+        "fileName",
+        "rowCount",
+        "reused"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-data-export-v1"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "exportFormat": {
+          "enum": [
+            "json",
+            "txt"
+          ]
+        },
+        "exportVersion": {
+          "const": "module-review-export-v1"
+        },
+        "exportSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reused": {
+          "type": "boolean"
+        }
+      }
+    },
+    "link": {
+      "title": "ReviewDataLink",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shopId",
+        "itemId",
+        "url",
+        "requested",
+        "actual",
+        "shortfall",
+        "complete",
+        "status"
+      ],
+      "properties": {
+        "shopId": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "requested": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actual": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shortfall": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "complete": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "exportAvailability": {
+      "title": "ReviewDataExportAvailability",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canExport",
+        "blockedBy",
+        "receipt"
+      ],
+      "properties": {
+        "canExport": {
+          "type": "boolean"
+        },
+        "blockedBy": {
+          "anyOf": [
+            {
+              "title": "ReviewDataBlockedReason",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/export"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "source": {
+      "title": "ReviewDataSource",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSha256",
+        "kind",
+        "attemptId",
+        "planSha256",
+        "status",
+        "gateVerdict",
+        "completedAt",
+        "rowBasis",
+        "rowCount",
+        "links",
+        "canExport",
+        "exportBlockedBy",
+        "exportFormats",
+        "canSaveDb",
+        "dbBlockedBy",
+        "importReceipt"
+      ],
+      "properties": {
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "kind": {
+          "enum": [
+            "legacy",
+            "custom"
+          ]
+        },
+        "attemptId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "FAILED"
+          ]
+        },
+        "gateVerdict": {
+          "anyOf": [
+            {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "WAIT_OWNER"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rowBasis": {
+          "enum": [
+            "published",
+            "terminal-retained"
+          ]
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          },
+          "maxItems": 5
+        },
+        "canExport": {
+          "type": "boolean"
+        },
+        "exportBlockedBy": {
+          "anyOf": [
+            {
+              "title": "ReviewDataBlockedReason",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exportFormats": {
+          "title": "ReviewDataExportFormats",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "json",
+            "txt"
+          ],
+          "properties": {
+            "json": {
+              "$ref": "#/$defs/exportAvailability"
+            },
+            "txt": {
+              "$ref": "#/$defs/exportAvailability"
+            }
+          }
+        },
+        "canSaveDb": {
+          "type": "boolean"
+        },
+        "dbBlockedBy": {
+          "anyOf": [
+            {
+              "title": "ReviewDataBlockedReason",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "importReceipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/saved"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "view": {
+      "title": "ReviewDataView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "readonly",
+        "tracking",
+        "db",
+        "sources"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-data-view-v1"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "readonly": {
+          "type": "boolean"
+        },
+        "tracking": {
+          "$ref": "#/$defs/tracking"
+        },
+        "db": {
+          "title": "ReviewDataDatabase",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "configured",
+            "schemaReady",
+            "blockedBy"
+          ],
+          "properties": {
+            "configured": {
+              "type": "boolean"
+            },
+            "schemaReady": {
+              "type": "boolean"
+            },
+            "blockedBy": {
+              "anyOf": [
+                {
+                  "title": "ReviewDataBlockedReason",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    },
+    "exportManifest": {
+      "title": "ReviewDataExportManifest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "receipt"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-data-export-cache-v1"
+        },
+        "receipt": {
+          "$ref": "#/$defs/export"
+        }
+      }
+    },
+    "archive": {
+      "title": "ModuleReviewArchive",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "sourceSha256",
+        "runId",
+        "kind",
+        "attemptId",
+        "planSha256",
+        "status",
+        "gateVerdict",
+        "completedAt",
+        "rowBasis",
+        "links",
+        "rows",
+        "proof"
+      ],
+      "properties": {
+        "format": {
+          "const": "module-review-archive-v1"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "legacy",
+            "custom"
+          ]
+        },
+        "attemptId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "FAILED"
+          ]
+        },
+        "gateVerdict": {
+          "anyOf": [
+            {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "WAIT_OWNER"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rowBasis": {
+          "enum": [
+            "published",
+            "terminal-retained"
+          ]
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object"
+          }
+        },
+        "proof": {
+          "type": "array",
+          "items": {
+            "title": "ModuleReviewProofFile",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256",
+              "bytesBase64"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "bytesBase64": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

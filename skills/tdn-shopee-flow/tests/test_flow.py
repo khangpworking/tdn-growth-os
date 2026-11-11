@@ -197,7 +197,11 @@ class ReadOnlyCommandTests(FlowTest):
         self.assertEqual(ids, ['bbbbbbbb', 'aaaaaaaa'])
         for item in payload['runs']:
             self.assertEqual(set(item), {'runId', 'createdAt', 'product', 'status',
-                                         'lastGate', 'lastVerdict', 'errorCode'})
+                                         'lastGate', 'lastVerdict', 'errorCode', 'tracking'})
+            self.assertEqual(item['tracking'], {
+                'primaryKeyword': 'kem chống nắng', 'firstRunAt': None,
+                'timeBasis': 'legacy-first-unproven', 'displayTimezone': 'Asia/Ho_Chi_Minh',
+                'lastKnownStartedAt': None})
         self.assertEqual(sha_folder(self.runs), before)
         self.assertTrue(older and newer)
 
@@ -213,6 +217,10 @@ class ReadOnlyCommandTests(FlowTest):
         self.assertEqual(payload.get('format'), 'run-info-v1', payload)
         self.assertEqual(payload['runId'], RUN_ID)
         self.assertIsInstance(payload['readonly'], bool)
+        self.assertEqual(payload['tracking'], {
+            'primaryKeyword': 'kem chống nắng', 'firstRunAt': None,
+            'timeBasis': 'legacy-first-unproven', 'displayTimezone': 'Asia/Ho_Chi_Minh',
+            'lastKnownStartedAt': None})
         self.assertNotIn('captureSpec', payload['request'])
         self.assertEqual([m['id'] for m in payload['modules']], ['M1', 'M2', 'M3'])
         blocked_codes = {None, 'GATE_NOT_PASSED', 'GATE_INPUT_CHANGED', 'RUN_BUSY', 'READONLY_ON'}
