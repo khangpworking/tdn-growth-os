@@ -996,6 +996,69 @@ test('the save and export panel stays available without M2, keeps the chosen sou
   } finally { result.dom.window.close(); }
 });
 
+test('a pending action refreshes the panel that replaced its original run selection', async () => {
+  const runA = 'run-a';
+  const runB = 'run-b';
+  const sourceA = 'a'.repeat(64);
+  const sourceB = 'b'.repeat(64);
+  const result = harness({
+    runs: [
+      { runId: runA, product: 'Sản phẩm A', status: 'IDLE' },
+      { runId: runB, product: 'Sản phẩm B', status: 'IDLE' },
+    ],
+    runInfoByRun: { [runA]: syntheticRunInfo(runA), [runB]: syntheticRunInfo(runB) },
+    reviewDataByRun: {
+      [runA]: syntheticReviewData({ runId: runA, sources: [syntheticReviewSource({ sourceSha256: sourceA })] }),
+      [runB]: syntheticReviewData({ runId: runB, sources: [syntheticReviewSource({ sourceSha256: sourceB })] }),
+    },
+  });
+  const doc = result.doc;
+  const runButton = (runId: string): HTMLButtonElement => {
+    const button = [...doc.querySelectorAll<HTMLButtonElement>('.runbtn')]
+      .find(candidate => candidate.textContent!.includes(runId));
+    assert.ok(button, 'run button for ' + runId);
+    return button;
+  };
+  try {
+    const failure = deferred<any>();
+    result.state.exportReviewResult = () => failure.promise;
+    await waitFor(() => doc.querySelectorAll('.runbtn').length === 2, 'run list');
+    runButton(runA).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel');
+    element<HTMLButtonElement>(doc, 'rdJson').click();
+    await waitFor(() => result.state.exportReviewDataCalls.length === 1, 'pending JSON export');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the original panel is busy');
+
+    runButton(runB).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel');
+    runButton(runA).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'replacement run A panel');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the replacement panel is busy');
+
+    failure.resolve({ ok: false, error: { code: 'EXPORT_FAILED', message: 'EXPORT_FAILED' } });
+    await waitFor(() => !element<HTMLButtonElement>(doc, 'rdJson').disabled, 'failure re-enables the visible panel');
+    assert.equal(doc.getElementById('errbar')!.hidden, false, 'the failure remains visible');
+    assert.equal(result.state.exportReviewDataCalls.length, 1, 'the failure is not retried');
+
+    const success = deferred<any>();
+    result.state.exportReviewResult = () => success.promise;
+    element<HTMLButtonElement>(doc, 'rdJson').click();
+    await waitFor(() => result.state.exportReviewDataCalls.length === 2, 'second pending JSON export');
+    runButton(runB).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel again');
+    runButton(runA).click();
+    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel again');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the visible panel is busy again');
+
+    success.resolve({ ok: true, data: {
+      receipt: null, fileName: 'shopee-run-a.json', saved: true, cancelled: false,
+    } });
+    await waitFor(() => !element<HTMLButtonElement>(doc, 'rdJson').disabled &&
+      /Đã lưu tệp/.test(doc.getElementById('rdHint')!.textContent!), 'success re-enables and reports the visible panel');
+    assert.equal(result.state.exportReviewDataCalls.length, 2, 'success does not retry the action');
+  } finally { result.dom.window.close(); }
+});
+
 test('readonly blocks new DB save and new export while permitting an already created exact export', async () => {
   const cached = syntheticReviewSource({
     canSaveDb: false, dbBlockedBy: { code: 'READONLY_ON' },

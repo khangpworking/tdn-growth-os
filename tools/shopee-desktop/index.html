@@ -2524,7 +2524,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       if (state.selectedRunId !== runId) return;
       if (!res.ok) {
         showError(res.error);
-        update();
+        renderDetail();
         return;
       }
       if (kind === 'save') {
@@ -2538,6 +2538,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
           : data.saved ? 'Đã lưu tệp “' + (data.fileName || (data.receipt && data.receipt.fileName) || '') + '”.'
           : 'Chưa lưu tệp.';
       }
+      renderDetail();
       await loadReviewData(runId);
     }
 

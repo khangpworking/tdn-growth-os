@@ -54,13 +54,14 @@ Sol-owned backend paths and the canonical schema/generated types were read but n
 
 - `python3 -m py_compile tools/shopee-desktop/tdn_shopee_app.py tools/shopee-desktop/tests/test_review_data_bridge.py` - passed.
 - `PYTHONDONTWRITEBYTECODE=1 python3 -W error::ResourceWarning -m unittest discover -s tools/shopee-desktop/tests -p 'test_*.py' -v` - 25 passed.
-- Node 24.15.0 (`/home/pkhang/lanes/shopee-1111-review-sampling/tools/with-node24.sh node --test tests/integration/shopee-desktop-ui.test.ts`) - 22 passed.
+- Node 24.15.0 (`/home/pkhang/lanes/shopee-1111-review-sampling/tools/with-node24.sh node --test tests/integration/shopee-desktop-ui.test.ts`) - 23 passed.
 
 The new desktop tests cover:
 
 - the exact `11/11/2026 11:26am` label, the legacy unknown label, and the honest unstarted label;
 - panel availability without readable M2, source selection stability and reselection after loss;
 - exact save/export payloads, per-format unavailability, read-only display and no automatic action;
+- a pending action that outlives a run switch re-enables and reports the visible replacement panel on both failure and success;
 - native dialog arguments and cancel, exact JSON/TXT bytes, sanitized filenames;
 - digest mismatch, truncation, bounded stderr, spawn failure and stdin failure with the old destination preserved and no temporary file left behind.
 
