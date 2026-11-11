@@ -78,3 +78,15 @@ M3 at 900 and 1280 CSS pixels, with no horizontal overflow or console errors.
 Root inspected the resulting images. No native Windows PASS is inferred.
 A new isolated read-only fixture supports bounded Windows view checks; its
 creation action remains disabled by the UI guard. Production stays unchanged.
+
+## Deferred list response correction
+
+The whole-flow success handler also rechecks context after refreshing the run
+list, accounting for its own transition to tracking. A user selection made
+during that second wait is preserved. The focused regression fails on the
+previous committed HTML and passes on the final source. All53 DOM integration
+tests and typecheck pass with stable HTML/test hashes. This last change touches
+only asynchronous context handling; visual markup remains as rendered in the
+previous bounded Chromium pass. Native Windows evidence remains partial: the
+previous candidate connected read-only and updated300-to500 through accessibility,
+but screenshots, mouse geometry and keyboard focus could not be verified.

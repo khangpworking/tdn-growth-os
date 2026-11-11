@@ -4325,8 +4325,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       hint.textContent = '';
       hint.hidden = true;
       showScreen('track');
+      var trackNavSeq = state.navSeq;
+      var trackSelectionSeq = state.selectionSeq;
       await refreshRuns();
-      await selectRun(runId);
+      var current = state.newBinding;
+      var stillBound = !!current && current.runId === context.runId &&
+        current.generation === context.generation && state.newFormSeq === context.formSeq;
+      if (stillBound && state.selectionSeq === trackSelectionSeq &&
+          state.navSeq === trackNavSeq && state.screen === 'track') {
+        await selectRun(runId);
+      }
       updateFlowButton();
     } else {
       await refreshRuns();

@@ -42,6 +42,7 @@ function harness(options: {
   addProductResult?: (input: any) => any;
   runFlowResult?: any;
   runFlowGate?: Deferred<any> | undefined;
+  listRunsGate?: Deferred<any> | undefined;
   presets?: ReturnType<typeof preset>[];
   connectionResult?: any;
 } = {}) {
@@ -98,6 +99,7 @@ function harness(options: {
     },
     listRuns: async () => {
       state.listRunsCalls++;
+      if (options.listRunsGate && state.flowCalls.length > 0) await options.listRunsGate.promise;
       return { ok: true, data: { format: 'runs-v1', runs: state.runsView.slice() } };
     },
     library: async () => ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } }),
@@ -803,6 +805,45 @@ test('a pending whole-flow launch leaves the run the user is tracking selected',
     await waitFor(() => element<HTMLElement>(doc, 'scr-new').hidden === false, 'back on the form');
     assert.match(element<HTMLElement>(doc, 'newRunLine').textContent || '', /run-flow/,
       'the original binding is preserved when the user returns');
+  } finally { dom.window.close(); }
+});
+
+test('a flow success whose run list reloads late never steals the run selected meanwhile', async () => {
+  const listGate = deferred<any>();
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-older', product: 'Lượt cũ', status: 'DONE', request: { format: 'request-v1', reviewCapPerLink: 300 } }],
+    runInfoByRun: {
+      'run-older': syntheticRunInfo('run-older'), 'run-flow': createdRunInfo('run-flow'),
+    },
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-flow' } }),
+    runFlowResult: { ok: true, data: { format: 'flow-start-v1', runId: 'run-flow' } },
+    listRunsGate: listGate,
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => element<HTMLButtonElement>(doc, 'btnFlow').disabled === false, 'binding');
+    await openFlowConfirmation(doc);
+    element<HTMLButtonElement>(doc, 'flowConfirmBtn').click();
+    await waitFor(() => state.flowCalls.length === 1, 'flow dispatched');
+    await waitFor(() => element<HTMLElement>(doc, 'scr-track').hidden === false,
+      'the successful flow opens tracking');
+
+    runListButton(doc, 'run-older').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-older'),
+      'the user selects another run while the list reload is pending');
+    const flowReads = state.statusCalls.filter((runId) => runId === 'run-flow').length;
+
+    listGate.resolve(undefined);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assert.equal((doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-older'), true,
+      'the late list reply never reselects the launched run over the user choice');
+    assert.equal(element<HTMLElement>(doc, 'scr-track').hidden, false, 'the user stays on tracking');
+    assert.equal(state.statusCalls.filter((runId) => runId === 'run-flow').length, flowReads,
+      'the late handler neither reads nor selects the launched run');
+    assert.deepEqual(state.flowCalls, ['run-flow'], 'the already-dispatched flow is not retried');
+    assert.deepEqual(state.controlCalls, [], 'the running flow is not stopped or reconciled');
   } finally { dom.window.close(); }
 });
 
