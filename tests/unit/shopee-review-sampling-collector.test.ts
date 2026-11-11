@@ -56,6 +56,7 @@ function sourceCounts() {
 const RECORD = {
   review_id: 'r1', author: 'Synthetic', posted_at_local: '2026-11-01 09:00', variation: '',
   stars: 5, comment: 'Sản phẩm tốt', attributes: ['Màu: đen'], content_type: 'comment',
+  review_text: 'Sản phẩm tốt', source_filter: 'with-comments', source_url: LINK.url, page: 1,
 };
 const PAGES = [{ filter: 'with-comments', page: 1, cards: 1, collected: 1, ids: ['r1'] }];
 const GROUPS = [{ filter: 'with-comments', stopReason: 'exhausted' }];
