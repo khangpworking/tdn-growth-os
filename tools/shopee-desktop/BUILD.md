@@ -47,8 +47,30 @@ The M3 panel of a run with a passed M2 saves an immutable custom plan, then laun
 - Source counts are native rating counts, including ratings without text; they are not the number of eligible written reviews. A missing or unknown count is shown as a dash, never `0`. An observed `0` on a loaded filter is a verified empty result.
 - Outcomes keep requested, written actual and shortfall separate. Zero-result, partial, exhaustion, timeout, cancel and control-changed are distinct. A running checkpoint is `checkpoint`, not a terminal outcome. Only text reviews are collected; there is no media field, count or claim.
 - A changed M2 digest invalidates the old plan: the panel drops it and launching it fails with `REVIEW_PLAN_CHANGED` before any worker starts.
-- The read-only guard is the remote marker `${SHOPEE_FLOW_STATE}/shopee-flow/READONLY` (or `TDN_SHOPEE_FLOW_READONLY=1`). With `SHOPEE_FLOW_STATE` isolated, the marker blocks counts, launch and reconcile while offline view/save and exact-attempt stop remain usable. Do not change a shared or production guard for a test.
+- The read-only guard is the remote marker `${SHOPEE_FLOW_STATE}/shopee-flow/READONLY` (or `TDN_SHOPEE_FLOW_READONLY=1`). With `SHOPEE_FLOW_STATE` isolated, the marker blocks counts, launch and reconcile while offline viewing and saving of the review plan remain usable; saving a plan is not a DB import. Exact-attempt stop remains usable. Do not change a shared or production guard for a test.
 - Offline coverage: `skills/tdn-shopee-flow/tests/test_sampling.py` runs the real CLI against a synthetic M2-pass run with isolated `SHOPEE_FLOW_RUNS` and `SHOPEE_FLOW_STATE`, Node 24 and the repository `tsx`. Launch without a collector configuration fails closed with `COLLECTOR_NOT_CONFIGURED`; no journal is written and no network is used.
+
+## Run names
+
+The run list and detail title show the primary search keyword and the first accepted launch time in Vietnam time (`Asia/Ho_Chi_Minh`), for example `viên uống kẽm: 11/11/2026 11:26am`. The opaque run ID stays visible as secondary text. A rerun or later attempt never renames the run. A completed legacy run with an unproven first launch shows `chưa rõ giờ bắt đầu`; only a run with honest no-launch evidence shows `Chưa chạy`.
+
+## Save and export collected comments
+
+Every M3 card shows **Lưu và xuất bình luận** after collection, independently of whether the current M2 input is readable. The panel uses stored settled results only; it never reruns Metric, Shopee, or a collector. The operator chooses one exact stored source, then uses one of the three buttons: **Lưu vào DB**, **Xuất JSON**, or **Xuất TXT**. Opening the panel or refresh does not save, import, or download anything.
+
+- The source selector stays on the exact selected source across refreshes. If that source disappears, the panel requires a new selection instead of silently choosing another one.
+- JSON and TXT availability are per format. Under the read-only guard, a new DB save and new JSON/TXT generation are blocked; only an exact export with an existing cache receipt remains downloadable. The panel shows the blocked reason or that receipt.
+- Export runs offline through the bridge route `export-review-data`, then streams the exact file through bridge-private `read-review-export`. The desktop asks for a native Save As destination and sends only the sanitized suggested base name to the dialog. Raw contents and filesystem paths do not cross into the page, logs, or error text.
+- The bridge accepts at most 64 MiB, verifies the declared size and SHA-256 while streaming, and only replaces the chosen destination after both checks pass. It uses a temporary file in the destination folder, so a failure or cancel leaves the existing destination and no `.part` file. Cancel is a normal result, not an error.
+- Save uses `save-review-data` with exactly `{sourceSha256}`. Export uses `export-review-data` with exactly `{sourceSha256, format}`. A changed source, missing proof, or blocked format is shown with its static reason; it is never retried against a different source.
+
+Offline bridge coverage, including fake native dialogs, cancellation, digest and size mismatch, spawn failure, bounded stderr, and no-partial-file behavior:
+
+```bash
+python3 -m unittest discover -s tools/shopee-desktop/tests -p 'test_review_data_bridge.py' -v
+```
+
+For packaged Windows QA, use a synthetic config and a fake remote that emits the same canonical fixtures. Never point test QA at the real runs folder, production database, or a real source. The fake remote in `tools/shopee-desktop/tests/test_review_data_bridge.py` is the reference shape; it records argv/stdin and emits only synthetic export bytes. Windows packaging, the native dialog, and WebView2 rendering still require verification on Windows.
 
 Build one windowed executable with the HTML bundled:
 

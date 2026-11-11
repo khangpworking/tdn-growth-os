@@ -269,6 +269,9 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: python3 -m unittest discover -s tools/shopee-desktop/tests -p 'test_*.py' -v
 
+      - name: Run desktop UI tests
+        run: node --test tests/integration/shopee-desktop-ui.test.ts
+
   prep:
     needs: scope
     if: needs.scope.outputs.mode == 'full'
