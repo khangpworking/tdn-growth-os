@@ -4,7 +4,7 @@ import { metricV3Category } from '../../../shared/metric-v3-preset.js';
 import { prepareV3MarketRevision } from './reader-publish.js';
 import { loadV3Archive, renderV3Report, buildV3Body, checkV3NumberTrace, v3Hash, type V3TextModel } from './metric-v3-report.js';
 import type { AutomationPdfRenderer } from './pdf.js';
-import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
+import { metricCapturePeriod, validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import publicSourceConfirmSchema from '../../../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
 import publicSourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set-v2.schema.json' with { type: 'json' };
 import publicCollectionSchema from '../../../../contracts/foundation/shopee-public-collection.schema.json' with { type: 'json' };
@@ -5863,7 +5863,7 @@ export class ResearchAutomationService {
     // database phase write-back failed. Only an unanswered suggestion still belongs to capture 1.
     // The wait-point confirmation authorizes both keywords and windows. Use that
     // effective scope for runner admission while preserving the saved start snapshot.
-    const capturePeriod = start!.metricV3Preset?.windows[1]!.period ?? { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate };
+    const capturePeriod = start!.metricV3Preset ? metricCapturePeriod(start!.metricV3Preset) : { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate };
     this.#launchCapture(runId, start!, capturePeriod,
       scope?.capture2 && scope.capture2.outcome !== 'AWAITING_KEYWORD2' ? scope : null);
     return progressed;
@@ -6989,6 +6989,8 @@ function validateStart(value: unknown): ResearchAutomationStartRequest {
     if (object.contractVersion === 'research-automation-start-v1') throw new ResearchAutomationValidationError('Capture preset requires contract v2.');
     try {
       const preset = validateMetricV3CaptureSpec(object.metricV3Preset);
+      // This web autorun includes the established two-window Market report pipeline.
+      if (preset.contractVersion === 'metric-v3-capture-spec-v3') throw new Error('Single-window preset requires Shopee module flow');
       if (preset.preset.keywords[0] !== keyword || preset.windows.some(({ period: window }) => window.startDate < period.startDate || window.endDate > period.endDate))
         throw new Error('Preset outside run scope');
       output.metricV3Preset = { ...preset };
@@ -7032,7 +7034,8 @@ function validateAutoRunRetry(value: unknown): ResearchAutomationAutoRunRetryReq
     let metricV3Preset;
     if (object.metricV3Preset !== undefined) {
       if (object.contractVersion === 'research-automation-autorun-keyword-v1') throw new ResearchAutomationValidationError('Capture preset requires contract v2.');
-      try { metricV3Preset = validateMetricV3CaptureSpec(object.metricV3Preset); }
+      try { metricV3Preset = validateMetricV3CaptureSpec(object.metricV3Preset);
+        if (metricV3Preset.contractVersion === 'metric-v3-capture-spec-v3') throw new Error('Single-window preset requires Shopee module flow'); }
       catch { throw new ResearchAutomationValidationError('Invalid capture preset.'); }
     }
     return { ...(metricV3Preset ? { metricV3Preset } : {}), contractVersion: object.contractVersion, requestKey: object.requestKey, keyword2: object.keyword2 === null ? null : text(object.keyword2, 80) };

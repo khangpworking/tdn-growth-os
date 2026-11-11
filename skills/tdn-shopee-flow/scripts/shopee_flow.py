@@ -804,12 +804,14 @@ def evaluate_gate(run, gate, *, readonly_file=None):
             check('review_cap_1_300', type(cap) is int and params['reviewCapPerLink']['min'] <= cap <= params['reviewCapPerLink']['max'], cap if type(cap) is int else None)
         off = os.environ.get('TDN_SHOPEE_FLOW_READONLY') != '1' and not (READONLY_FILE if readonly_file is None else pathlib.Path(readonly_file)).exists()
         check('readonly_off', off, off)
-        spec = request.get('captureSpec')
-        spec_windows = spec.get('windows') if isinstance(spec, dict) else None
-        present = (isinstance(spec_windows, list) and len(spec_windows) == 2 and
-                   all(isinstance(w, dict) for w in spec_windows) and
-                   [w.get('id') for w in spec_windows] == ['30d', '12m'])
-        check('capture_spec_present', present, bool(present) if 'captureSpec' in request else 'absent', 'captureSpec' not in request)
+        spec_checks = flow_capture_checks(request)
+        # Historical no-spec entry/manual M2/M3 reading remains possible. A fresh
+        # M1 always requires all checks below, irrespective of this legacy warning.
+        legacy_missing = 'captureSpec' not in request and 'metricInput' not in request
+        for item in spec_checks:
+            check(item['id'], item['ok'], item['got'], legacy_missing)
+        if not legacy_missing:
+            code = next((c['errorCode'] for c in spec_checks if not c['ok']), None)
     elif not code and gate == 'm1':
         manifest, windows = gate_metric_windows(run)
         successes, readable, row_counts, periods = [], [], [], []
@@ -1097,13 +1099,13 @@ def module_launch_admission(run, module, ns, repo, config):
                 selection.get('metricInputSha256') is not None or not gate_schema(selection, schema)):
             raise ModuleFailure('MANUAL_SELECTION_INVALID')
         return command, selection, None
+    if module == 'm1':
+        flow_assert_capture(request)
     entry, entry_code = evaluate_gate(run, 'entry')
     if entry_code:
         raise ModuleFailure(entry.get('errorCode') or 'MODULE_INPUT_INVALID', entry_code)
     request = gate_read(gate_path(run, 'request.json'))
     if module == 'm1':
-        if not isinstance(request, dict) or not isinstance(request.get('captureSpec'), dict):
-            raise ModuleFailure('CAPTURE_SPEC_MISSING')
         if gate_path(run, 'm1').exists():
             raise ModuleFailure('M1_OUTPUT_EXISTS')
         db = os.environ.get('TDN_WORKSPACE_DB')
@@ -1119,6 +1121,9 @@ def module_work(run, module, ns, repo, config, admission=None):
         module_atomic_json(run, 'm2/selection.json', selection)
         return None
     if module == 'm1':
+        # Detached/whole-flow admissions are not a cached authorization to use changed inputs.
+        command, _, request = module_launch_admission(run, module, ns, repo, config)
+        flow_assert_capture(request)
         flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
         module_atomic_json(run, 'capture-spec.json', request['captureSpec'])
         args = [str(repo / 'scripts/capture-metric-preset.ts'), str(run / 'capture-spec.json'), str(run / 'm1'), os.environ['TDN_WORKSPACE_DB']]
@@ -1892,7 +1897,7 @@ def flow_preset(path):
 
 
 def flow_expand_schema(schema, root=None):
-    """Resolve only local references in the existing canonical capture schema."""
+    """Resolve canonical capture definitions only; no network/schema discovery."""
     root = schema if root is None else root
     if isinstance(schema, list):
         return [flow_expand_schema(s, root) for s in schema]
@@ -1904,6 +1909,116 @@ def flow_expand_schema(schema, root=None):
             raise ValueError('unsupported schema reference')
         return flow_expand_schema(root['$defs'][ref.split('/')[-1]], root)
     return {k: flow_expand_schema(v, root) for k, v in schema.items() if k != '$defs'}
+
+
+def flow_capture_schema(version):
+    names = {'metric-v3-capture-spec-v1': 'metric-v3-capture-spec-v1',
+             'metric-v3-capture-spec-v2': 'metric-v3-capture-spec',
+             'metric-v3-capture-spec-v3': 'metric-v3-capture-spec-v3'}
+    repo, _ = module_config()
+    name = names.get(version) if isinstance(version, str) else None
+    return gate_read(repo / 'contracts/analysis' / (name + '.schema.json')) if name else None
+
+
+def flow_capture_checks(request):
+    """Current M1 input proof, separate from M3 policy and operational guard."""
+    request = request if isinstance(request, dict) else {}
+    spec = request.get('captureSpec')
+    checks = []
+    def check(identifier, ok, code):
+        checks.append({'id': 'capture_spec_' + identifier, 'ok': bool(ok), 'got': bool(ok), 'errorCode': code})
+    present = (isinstance(spec, dict) and isinstance(spec.get('windows'), list) and bool(spec['windows']) and
+               all(isinstance(w, dict) for w in spec['windows']))
+    check('present', present, 'CAPTURE_SPEC_MISSING' if spec is None or spec == {} else 'CAPTURE_SPEC_INVALID')
+    if 'captureSpec' not in request:
+        checks[-1]['got'] = 'absent'
+    schema = flow_capture_schema(spec.get('contractVersion')) if isinstance(spec, dict) else None
+    valid = isinstance(schema, dict) and gate_schema(spec, flow_expand_schema(schema))
+    if valid:
+        import unicodedata
+        keys = spec['preset']['keywords']
+        valid = (all(k and k == unicodedata.normalize('NFC', k).strip() for k in keys) and
+                 len({k.lower() for k in keys}) == len(keys) and
+                 len({c['id'] for c in spec['preset']['category']['children']}) == len(spec['preset']['category']['children']) and
+                 all(w['period']['startDate'] <= w['period']['endDate'] for w in spec['windows']))
+        if spec['contractVersion'] != 'metric-v3-capture-spec-v3':
+            windows = spec['windows']
+            valid = (valid and [w['id'] for w in windows] == ['30d', '12m'] and
+                     [w['intervalDays'] for w in windows] == [7, 30] and
+                     windows[0]['period']['endDate'] == windows[1]['period']['endDate'] and
+                     [(dt.date.fromisoformat(w['period']['endDate']) - dt.date.fromisoformat(w['period']['startDate'])).days + 1 for w in windows] == [30, 365])
+    check('schema', valid, 'CAPTURE_SPEC_INVALID')
+    fields = spec.get('preset') if isinstance(spec, dict) else None
+    fields = fields if isinstance(fields, dict) else {}
+    selected = isinstance(spec, dict) and spec.get('contractVersion') == 'metric-v3-capture-spec-v3'
+    confirmed = request.get('metricInput')
+    expected = confirmed.get('preset') if isinstance(confirmed, dict) else None
+    new_schema = flow_capture_schema('metric-v3-capture-spec-v3')
+    confirmed_valid = (isinstance(confirmed, dict) and
+                       gate_schema(confirmed, flow_expand_schema(new_schema['$defs']['confirmedInput'], new_schema)))
+    check('confirmed_input', confirmed_valid if selected else 'metricInput' not in request, 'CAPTURE_INPUT_INVALID')
+    expected = expected if isinstance(expected, dict) else {}
+    keys = request.get('preset')
+    check('keywords', valid and fields.get('keywords') == (keys.get('keywords') if isinstance(keys, dict) else None) and
+          (not selected or confirmed_valid and fields.get('keywords') == expected.get('keywords')), 'CAPTURE_KEYWORDS_MISMATCH')
+    for key, identifier in [('platforms', 'platforms'), ('category', 'category'), ('usefulFilters', 'filters'),
+                            ('shopTypes', 'shops'), ('smartQuery', 'smart_query'), ('aiNormalisation', 'ai'),
+                            ('customizeCategory', 'custom_category'), ('smartExclusion', 'smart_exclusion'),
+                            ('advancedFilter', 'advanced_filter'), ('exclusions', 'exclusions')]:
+        check(identifier, valid and (not selected or confirmed_valid and fields.get(key) == expected.get(key)), 'CAPTURE_' + identifier.upper() + '_MISMATCH')
+    windows = spec.get('windows') if isinstance(spec, dict) else None
+    requested = request.get('windows')
+    # Legacy manual records may omit intervalDays in request windows, never in capture specs.
+    same = isinstance(windows, list) and isinstance(requested, list) and len(windows) == len(requested) and all(
+        isinstance(w, dict) and w.get('id') == actual.get('id') and w.get('period') == actual.get('period') and
+        ('intervalDays' not in w or w['intervalDays'] == actual.get('intervalDays'))
+        for w, actual in zip(requested, windows) if isinstance(actual, dict))
+    check('window', valid and same and (not selected or confirmed_valid and windows == [confirmed['window']]), 'CAPTURE_WINDOW_MISMATCH')
+    return checks
+
+
+def flow_assert_capture(request):
+    failed = next((c for c in flow_capture_checks(request) if not c['ok']), None)
+    if failed:
+        raise ModuleFailure(failed['errorCode'])
+
+
+def flow_capture_specs(run):
+    """Return the saved JSON value AND its exact embedded text, without reconstruction."""
+    import hashlib
+    path = gate_path(run, 'request.json')
+    raw = path.read_bytes()
+    text = raw.decode('utf-8')
+    request = json.loads(text, parse_constant=lambda _: (_ for _ in ()).throw(ValueError('invalid JSON')))
+    if not isinstance(request, dict):
+        raise ModuleFailure('REQUEST_INVALID', 2)
+    decoder = json.JSONDecoder()
+    index, spec_text = text.index('{') + 1, None
+    while True:
+        while index < len(text) and text[index].isspace(): index += 1
+        if text[index] == '}': break
+        key, index = decoder.raw_decode(text, index)
+        while text[index].isspace(): index += 1
+        if text[index] != ':': raise ValueError('invalid object')
+        index += 1
+        while text[index].isspace(): index += 1
+        start = index
+        _, index = decoder.raw_decode(text, index)
+        if key == 'captureSpec': spec_text = text[start:index]
+        while text[index].isspace(): index += 1
+        if text[index] == '}': break
+        if text[index] != ',': raise ValueError('invalid object')
+        index += 1
+    checks = flow_capture_checks(request)
+    record = flow_tracking_record(run)
+    request_sha = hashlib.sha256(raw).hexdigest()
+    checks.append({'id': 'capture_spec_request_identity', 'ok': record is None or record['requestSha256'] == request_sha,
+                   'got': record is None or record['requestSha256'] == request_sha, 'errorCode': 'RUN_TRACKING_CHANGED'})
+    failed = next((c for c in checks if not c['ok']), None)
+    return {'format': 'capture-specs-view-v1', 'runId': run.name, 'requestSha256': request_sha,
+            'specSha256': hashlib.sha256(spec_text.encode('utf-8')).hexdigest() if spec_text is not None else None,
+            'specDigestBasis': 'request-member-utf8', 'captureSpec': request.get('captureSpec'), 'captureSpecJson': spec_text,
+            'inputsMatch': failed is None, 'checks': checks, 'errorCode': failed['errorCode'] if failed else None}
 
 
 def flow_policy(value, full=False):
@@ -1924,7 +2039,7 @@ def flow_policy(value, full=False):
 def flow_new_run():
     import fcntl
     value = json.load(sys.stdin)
-    if not isinstance(value, dict) or set(value) - {'presetId', 'endDate', 'reviewCapPerLink', 'collectionPolicy'}:
+    if not isinstance(value, dict) or set(value) - {'presetId', 'startDate', 'endDate', 'metricOptions', 'reviewCapPerLink', 'collectionPolicy'}:
         raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
     preset_id, end_date, cap = value.get('presetId'), value.get('endDate'), value.get('reviewCapPerLink')
     if not isinstance(preset_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', preset_id):
@@ -1941,18 +2056,42 @@ def flow_new_run():
         raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
     policy = flow_policy(value['collectionPolicy'] if 'collectionPolicy' in value else
                          {'mode': 'with-comments', 'stars': [], 'totalPerLink': cap if cap is not None else 300, 'allocation': 'pooled'})
-    end = dt.date.fromisoformat(end_date)
-    windows = [{'id': w['id'], 'period': {'startDate': (end + dt.timedelta(days=w['startOffsetDays'])).isoformat(),
-                'endDate': end_date}, 'intervalDays': w['intervalDays']} for w in config['params']['windows']]
-    spec = {**spec, 'windows': windows}
-    name = 'metric-v3-capture-spec-v1.schema.json' if spec.get('contractVersion') == 'metric-v3-capture-spec-v1' else 'metric-v3-capture-spec.schema.json'
-    schema = gate_read(repo / 'contracts/analysis' / name)
+    selected = 'startDate' in value or 'metricOptions' in value
+    metric_input = None
+    if selected:
+        if ('startDate' not in value or 'metricOptions' not in value or not gate_date(value['startDate']) or
+                value['startDate'] > end_date or dt.date.fromisoformat(end_date) >= dt.date.today()):
+            raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
+        schema = flow_capture_schema('metric-v3-capture-spec-v3')
+        options = value['metricOptions']
+        if not gate_schema(options, flow_expand_schema(schema['$defs']['options'], schema)):
+            raise ModuleFailure('METRIC_OPTIONS_INVALID', 2)
+        import copy
+        # Fixed unchanged defaults are schema-owned, not inherited mutable profile options.
+        fields = {'keywords': copy.deepcopy(spec['preset']['keywords']),
+                  'platforms': ['shopee', 'lazada', 'tiki', 'tiktok'],
+                  'category': {'id': 'c2035652732', 'label': 'Sức Khoẻ',
+                               'children': [copy.deepcopy(c) for c in schema['$defs']['preset']['properties']['category']['properties']['children']['items']['enum'] if c['id'] in options['categoryIds']]},
+                  'advancedFilter': {key: definition['const'] for key, definition in schema['$defs']['preset']['properties']['advancedFilter']['properties'].items()},
+                  'exclusions': [], **{key: copy.deepcopy(v) for key, v in options.items() if key != 'categoryIds'}}
+        windows = [{'id': 'selected', 'period': {'startDate': value['startDate'], 'endDate': end_date}, 'intervalDays': 7}]
+        metric_input = {'format': 'shopee-metric-input-v1', 'preset': copy.deepcopy(fields), 'window': copy.deepcopy(windows[0])}
+        spec = {'contractVersion': 'metric-v3-capture-spec-v3', 'preset': fields, 'windows': windows}
+    else:
+        end = dt.date.fromisoformat(end_date)
+        windows = [{'id': w['id'], 'period': {'startDate': (end + dt.timedelta(days=w['startOffsetDays'])).isoformat(),
+                    'endDate': end_date}, 'intervalDays': w['intervalDays']} for w in config['params']['windows']]
+        spec = {**spec, 'windows': windows}
+        schema = flow_capture_schema(spec.get('contractVersion'))
     titles = preset.get('principalTitles', [])
-    if (not gate_schema(spec, flow_expand_schema(schema)) or not isinstance(titles, list) or
+    if (not isinstance(schema, dict) or not gate_schema(spec, flow_expand_schema(schema)) or not isinstance(titles, list) or
             not all(isinstance(t, str) for t in titles)):
         raise ModuleFailure('PRESET_INVALID', 2)
     request = {'format': 'request-v2', 'preset': {'keywords': spec['preset']['keywords']}, 'windows': windows,
                'collectionPolicy': policy, 'principalTitles': titles, 'captureSpec': spec}
+    if metric_input is not None:
+        request['metricInput'] = metric_input
+    flow_assert_capture(request)
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     while True:
@@ -2018,6 +2157,8 @@ def cmd_flow_query(ns):
                 values.append({'presetId': value['presetId'], 'label': value['label'], 'keywords': fields['keywords'],
                                'categoryLabel': fields.get('category', {}).get('label'), 'source': value['source']})
             result = {'format': 'presets-v1', 'presets': values}
+        elif ns.cmd == 'capture-specs':
+            result = flow_capture_specs(module_run_folder(ns.run_id))
         elif ns.cmd == 'run-info':
             result = flow_run_info(module_run_folder(ns.run_id), config)
         elif ns.cmd == 'runs':
@@ -2061,7 +2202,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'save-review-data', 'export-review-data'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'save-review-data', 'export-review-data'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -2095,10 +2236,10 @@ def main():
         if name == 'review-attempt-worker':
             x.add_argument('--reconcile', action='store_true'); x.add_argument('--worker-lock-fd', type=int); x.add_argument('--worker-ready-fd', type=int)
         x.set_defaults(f=cmd_review_sampling)
-    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library'):
+    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'capture-specs', 'library'):
         x = sp.add_parser(name)
         if name in ('new-run', 'add-product'): x.add_argument('--stdin', action='store_true', required=True)
-        if name == 'run-info': x.add_argument('--run', dest='run_id', required=True)
+        if name in ('run-info', 'capture-specs'): x.add_argument('--run', dest='run_id', required=True)
         x.set_defaults(f=cmd_flow_query)
     sp.add_parser('status').set_defaults(f=cmd_status)
     sp.add_parser('guard-check').set_defaults(f=cmd_guard_check)

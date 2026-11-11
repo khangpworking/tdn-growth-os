@@ -102,6 +102,57 @@ def configured_request_payload(total=500):
     }
 
 
+METRIC_START = '2026-10-12'
+METRIC_END = '2026-10-28'
+CATEGORY_CHILDREN = (
+    {'id': 'c407923064', 'label': 'Chăm sóc sức khỏe'},
+    {'id': 'c1221630203', 'label': 'Dinh dưỡng thể thao, protein'},
+    {'id': 'c1110582659', 'label': 'Sức khỏe khác'},
+    {'id': 'c2140822537', 'label': 'Thực phẩm chức năng'},
+)
+METRIC_OPTIONS = {
+    'smartQuery': True,
+    'usefulFilters': {'fake': True, 'gifts': True, 'deleted': True},
+    'shopTypes': ['mall', 'regular'],
+    'categoryIds': [child['id'] for child in CATEGORY_CHILDREN],
+    'aiNormalisation': False,
+    'customizeCategory': False,
+    'smartExclusion': False,
+}
+CAPTURE_CHECK_IDS = tuple('capture_spec_' + name for name in (
+    'present', 'schema', 'confirmed_input', 'keywords', 'platforms', 'category', 'filters', 'shops',
+    'smart_query', 'ai', 'custom_category', 'smart_exclusion', 'advanced_filter', 'exclusions', 'window'))
+
+
+def selected_spec(options=None, start=METRIC_START, end=METRIC_END):
+    """Expected capture spec for the desktop's selected-window creation input."""
+    options = json.loads(json.dumps(METRIC_OPTIONS if options is None else options))
+    fields = {
+        'keywords': ['kem chống nắng'],
+        'platforms': ['shopee', 'lazada', 'tiki', 'tiktok'],
+        'category': {'id': 'c2035652732', 'label': 'Sức Khoẻ',
+                     'children': [dict(child) for child in CATEGORY_CHILDREN if child['id'] in options['categoryIds']]},
+        'advancedFilter': {'firstField': 'rating_count', 'operator': '>', 'firstRate': 1,
+                           'secondField': 'order_count', 'secondRate': 0.02},
+        'exclusions': [],
+        **{key: value for key, value in options.items() if key != 'categoryIds'},
+    }
+    window = {'id': 'selected', 'period': {'startDate': start, 'endDate': end}, 'intervalDays': 7}
+    return {'contractVersion': 'metric-v3-capture-spec-v3', 'preset': fields, 'windows': [window]}
+
+
+def selected_request_payload():
+    spec = selected_spec()
+    return {
+        'format': 'request-v2', 'preset': {'keywords': ['kem chống nắng']},
+        'principalTitles': ['Kem chống nắng mẫu A'], 'windows': json.loads(json.dumps(spec['windows'])),
+        'collectionPolicy': configured_request_payload()['collectionPolicy'],
+        'captureSpec': spec,
+        'metricInput': {'format': 'shopee-metric-input-v1', 'preset': json.loads(json.dumps(spec['preset'])),
+                        'window': json.loads(json.dumps(spec['windows'][0]))},
+    }
+
+
 class FlowTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -254,6 +305,72 @@ class NewRunTests(FlowTest):
         self.assertEqual(set(self.runs.iterdir()), before)
         self.assert_no_subprocess()
 
+    def test_selected_window_options_roundtrip_into_the_saved_request(self):
+        preset = self.write_preset()
+        options = {
+            'smartQuery': False,
+            'usefulFilters': {'fake': False, 'gifts': True, 'deleted': False},
+            'shopTypes': ['regular'],
+            'categoryIds': ['c2140822537', 'c407923064'],
+            'aiNormalisation': True,
+            'customizeCategory': True,
+            'smartExclusion': True,
+        }
+        rc, payload, stderr = self.create({
+            'presetId': 'kem', 'startDate': METRIC_START, 'endDate': METRIC_END, 'metricOptions': options,
+            'collectionPolicy': {'mode': 'stars', 'stars': [3, 2], 'totalPerLink': 500, 'allocation': 'pooled'}})
+        self.assertEqual(rc, 0, (payload, stderr))
+        run, request = self.read_request(payload)
+        expected = selected_spec(options)
+        self.assertEqual(request['format'], 'request-v2')
+        self.assertEqual(request['captureSpec'], expected)
+        self.assertEqual(request['windows'], expected['windows'])
+        self.assertEqual(request['metricInput'], {
+            'format': 'shopee-metric-input-v1',
+            'preset': expected['preset'],
+            'window': expected['windows'][0],
+        })
+        self.assertEqual(request['preset']['keywords'], preset['preset']['preset']['keywords'])
+        self.assertEqual(request['principalTitles'], preset['principalTitles'])
+        self.assertNotIn('reviewCapPerLink', request)
+        self.assertEqual(request['collectionPolicy']['stars'], [2, 3])
+        self.assertEqual(json.loads((run / 'request.json').read_text()), request)
+        self.assert_no_subprocess()
+
+    def test_partial_or_invalid_selected_inputs_create_no_run(self):
+        self.write_preset()
+        before = set(self.runs.iterdir())
+        today = dt.date.today()
+
+        def value(start=METRIC_START, end=METRIC_END, options=None):
+            return {'presetId': 'kem', 'startDate': start, 'endDate': end,
+                    'metricOptions': {**json.loads(json.dumps(METRIC_OPTIONS)), **(options or {})}}
+
+        missing = json.loads(json.dumps(METRIC_OPTIONS))
+        missing.pop('smartExclusion')
+        cases = (
+            ('start only', {'presetId': 'kem', 'endDate': METRIC_END,
+                            'metricOptions': json.loads(json.dumps(METRIC_OPTIONS))}, 'NEW_RUN_INPUT_INVALID'),
+            ('options only', {'presetId': 'kem', 'startDate': METRIC_START, 'endDate': METRIC_END},
+             'NEW_RUN_INPUT_INVALID'),
+            ('reverse dates', value(start=METRIC_END, end=METRIC_START), 'NEW_RUN_INPUT_INVALID'),
+            ('end not completed today', value(start=(today - dt.timedelta(days=17)).isoformat(),
+                                             end=today.isoformat()), 'NEW_RUN_INPUT_INVALID'),
+            ('empty groups', value(options={'categoryIds': []}), 'METRIC_OPTIONS_INVALID'),
+            ('unknown group', value(options={'categoryIds': ['c999']}), 'METRIC_OPTIONS_INVALID'),
+            ('empty shops', value(options={'shopTypes': []}), 'METRIC_OPTIONS_INVALID'),
+            ('extra option', value(options={'keywords': ['kem chống nắng']}), 'METRIC_OPTIONS_INVALID'),
+            ('missing option', {'presetId': 'kem', 'startDate': METRIC_START, 'endDate': METRIC_END,
+                                'metricOptions': missing}, 'METRIC_OPTIONS_INVALID'),
+        )
+        for name, input_value, expected in cases:
+            with self.subTest(name):
+                rc, payload, _ = self.create(input_value)
+                self.assertEqual(rc, 2, (name, payload))
+                self.assertEqual(payload, {'format': 'error-v1', 'code': expected, 'message': expected}, name)
+        self.assertEqual(set(self.runs.iterdir()), before)
+        self.assert_no_subprocess()
+
 
 class ReadOnlyCommandTests(FlowTest):
     def test_presets_format(self):
@@ -349,6 +466,121 @@ class ReadOnlyCommandTests(FlowTest):
         flow = MODULES['flow']
         self.assertIn(flow['skill'], skills)
         self.assertEqual(skills[flow['skill']]['version'], flow['skillVersion'])
+
+
+class CaptureSpecReviewTests(FlowTest):
+    """Read-only review of the actual saved spec member and its independent digests."""
+
+    def test_capture_specs_returns_the_exact_saved_member_and_digests(self):
+        run = self.make_run(request=selected_request_payload())
+        before = sha_folder(run)
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload['format'], 'capture-specs-view-v1')
+        self.assertEqual(payload['runId'], RUN_ID)
+        self.assertEqual(payload['specDigestBasis'], 'request-member-utf8')
+        self.assertTrue(payload['inputsMatch'])
+        self.assertIsNone(payload['errorCode'])
+        raw = (run / 'request.json').read_bytes()
+        text = raw.decode('utf-8')
+        self.assertIn(payload['captureSpecJson'], text, 'the review returns the retained member text verbatim')
+        self.assertEqual(payload['requestSha256'], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(payload['specSha256'], hashlib.sha256(payload['captureSpecJson'].encode('utf-8')).hexdigest())
+        self.assertEqual(json.loads(payload['captureSpecJson']), payload['captureSpec'])
+        self.assertEqual(payload['captureSpec'], selected_request_payload()['captureSpec'])
+        checks = {check['id']: check for check in payload['checks']}
+        self.assertEqual(len(checks), len(CAPTURE_CHECK_IDS) + 1)
+        for identifier in (*CAPTURE_CHECK_IDS, 'capture_spec_request_identity'):
+            self.assertEqual(set(checks[identifier]), {'id', 'ok', 'got', 'errorCode'}, identifier)
+            self.assertTrue(checks[identifier]['ok'], (identifier, checks[identifier]))
+            self.assertIs(checks[identifier]['got'], True, identifier)
+        self.assertEqual(sha_folder(run), before, 'review performs no write')
+
+    def test_capture_specs_names_the_failing_check_without_rebuilding_the_spec(self):
+        request = selected_request_payload()
+        request['metricInput']['preset']['smartQuery'] = False
+        self.make_run(request=request)
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertFalse(payload['inputsMatch'])
+        self.assertEqual(payload['errorCode'], 'CAPTURE_SMART_QUERY_MISMATCH')
+        self.assertEqual([check['id'] for check in payload['checks'] if not check['ok']],
+                         ['capture_spec_smart_query'])
+        self.assertEqual(payload['captureSpec'], request['captureSpec'])
+
+    def test_capture_specs_request_identity_is_independent_of_the_spec_digest(self):
+        run = self.make_run(request=selected_request_payload())
+        write_json(run / 'run-tracking.json', {
+            'format': 'run-tracking-v1', 'runId': RUN_ID, 'requestSha256': '0' * 64,
+            'primaryKeyword': 'kem chống nắng', 'createdAt': None, 'firstRunAt': None,
+            'firstObservedLaunchAt': None, 'historyBasis': 'new-run',
+        })
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        checks = {check['id']: check for check in payload['checks']}
+        self.assertFalse(checks['capture_spec_request_identity']['ok'])
+        self.assertEqual(checks['capture_spec_request_identity']['errorCode'], 'RUN_TRACKING_CHANGED')
+        self.assertTrue(all(check['ok'] for identifier, check in checks.items()
+                            if identifier != 'capture_spec_request_identity'))
+        self.assertFalse(payload['inputsMatch'])
+        self.assertEqual(payload['errorCode'], 'RUN_TRACKING_CHANGED')
+        self.assertEqual(payload['requestSha256'],
+                         hashlib.sha256((run / 'request.json').read_bytes()).hexdigest())
+
+    def test_capture_specs_missing_request_is_an_error_not_a_reconstruction(self):
+        run = self.make_run()
+        (run / 'request.json').unlink()
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 2, (payload, stderr))
+        self.assertEqual(payload, {'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID',
+                                   'message': 'Invalid or unreadable flow input.'})
+
+
+class SelectedWindowFlowTests(FlowTest):
+    """Flow admission and dispatch for one saved selected Metric window."""
+
+    def setUp(self):
+        super().setUp()
+        node = self.bin / 'node'
+        node.write_text(FAKE_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+
+    def env(self):
+        env = super().env()
+        env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
+        return env
+
+    def test_m1_dispatches_only_the_saved_selected_window(self):
+        self.make_run(request=selected_request_payload())
+        rc, entry, stderr = self.command('gate', 'entry', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (entry, stderr))
+        self.assertEqual(entry['verdict'], 'PASS', entry)
+        rc, payload, stderr = self.command('m1', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload['verdict'], 'PASS', payload)
+        run = self.runs / RUN_ID
+        self.assertEqual(json.loads((run / 'capture-spec.json').read_text()), selected_spec())
+        self.assertTrue((run / 'm1' / 'selected' / 'manifest.json').is_file())
+        for legacy in ('30d', '12m', 'run1'):
+            self.assertFalse((run / 'm1' / legacy).exists(), legacy)
+
+    def test_changed_confirmation_blocks_a_fresh_m1_despite_a_matching_entry_pass(self):
+        self.make_run(request=selected_request_payload())
+        request = json.loads((self.runs / RUN_ID / 'request.json').read_text())
+        request['metricInput']['preset']['smartQuery'] = False
+        write_json(self.runs / RUN_ID / 'request.json', request)
+        # A stored PASS whose hash matches the current request still cannot authorize
+        # drifted confirmed inputs; only a fresh capture check can.
+        digest = hashlib.sha256((self.runs / RUN_ID / 'request.json').read_bytes()).hexdigest()
+        write_json(self.runs / RUN_ID / 'gates' / 'entry.json', {
+            'format': 'handoff-v1', 'module': 'ENTRY', 'runId': RUN_ID, 'skillVersion': '1.0.0',
+            'verdict': 'PASS', 'inputSha256': None, 'outputSha256': digest, 'checks': [],
+            'errorCode': None, 'next': 'M1'})
+        rc, payload, stderr = self.command('m1', '--run', RUN_ID)
+        self.assertEqual(rc, 20, (payload, stderr))
+        self.assertEqual(payload['errorCode'], 'CAPTURE_SMART_QUERY_MISMATCH', payload)
+        self.assertFalse((self.runs / RUN_ID / 'm1').exists(), 'no capture executor may start for drifted inputs')
+        self.assertFalse((self.runs / RUN_ID / 'capture-spec.json').exists())
 
 
 class ConnectionTests(FlowTest):

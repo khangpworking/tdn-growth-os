@@ -12,6 +12,7 @@ import {
 import { executeMetricOpenCli, type MetricOpenCliExecutorInput, type MetricOpenCliProcessOptions, type MetricOpenCliProcessResult } from '../../src/modules/analysis/research-automation/metric-opencli-executor.js';
 import { createMetricOpenCliProcessRunner } from '../../src/modules/analysis/research-automation/metric-opencli-process-runner.js';
 import { withOpenCliBrowserLock } from '../../src/modules/analysis/research-automation/opencli-browser-lock.js';
+import type { MetricV3CaptureSpecV3 } from '../../contracts/analysis/metric-v3-capture-spec-v3.generated.js';
 
 // Synthetic only: no live process, no real adapter, no real product data.
 const manifest = new TextEncoder().encode('synthetic adapter manifest for tests');
@@ -348,6 +349,7 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
     const dir = join(root, req.runId, 'run1');
     if (['ready', 'ui-broken', 'bridge-timeout', 'bridge-first-eval-timeout', 'late-ui-break', 'missing-trend'].includes(outcome)) {
       assert.ok(result.ok, JSON.stringify(result));
+      assert.deepEqual(result.period, spec.windows[1].period, 'legacy presets keep the annual window as the run period');
       const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
       assert.deepEqual(manifest.windows.map((w: any) => w.window), ['30d', '12m']);
       for (const id of ['30d', '12m']) {
@@ -378,4 +380,80 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
       await assert.rejects(readFile(join(dir, 'manifest.json')), { code: 'ENOENT' });
     }
   });
+});
+
+// v3 owns one exact operator window. The runner must persist and report that window,
+// never the legacy annual slot, and the adapter must request its exact dates and trend interval.
+test('CAPTURE v3 preset persists the selected window and returns its exact period', async () => {
+  const fixture = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
+  const window = { id: 'selected', period: { startDate: '2026-09-16', endDate: '2026-10-02' }, intervalDays: 7 } as const;
+  const spec: MetricV3CaptureSpecV3 = {
+    contractVersion: 'metric-v3-capture-spec-v3',
+    preset: { ...structuredClone(fixture.spec.preset), smartExclusion: false },
+    windows: [structuredClone(window)],
+  };
+  const responses = fixture.windows[0].responses.map((response: any) => ({
+    ...structuredClone(response),
+    requestBody: { ...structuredClone(response.requestBody), start_date: '20260916', end_date: '20261002' },
+  }));
+  const observation = {
+    ...structuredClone(fixture.windows[0].observation),
+    period: structuredClone(window.period),
+    selectedCategoryIds: spec.preset.category.children.map((child: any) => child.id),
+    advancedVisible: true, submitIdle: true, submitReady: true, formReady: true, resultsReady: true,
+    trendIntervalDays: 7,
+  };
+  // Model only the control transitions the real adapter performs: clear the inherited
+  // category selection, re-add the requested groups, and commit each keyword chip.
+  let categories = [...observation.selectedCategoryIds];
+  let keywords: string[] = [];
+  const readObservation = () => ({
+    ...structuredClone(observation),
+    selectedCategoryIds: [...categories],
+    appliedState: { ...structuredClone(spec.preset), keywords: [...keywords] },
+  });
+  let opened = false;
+  let closed = false;
+  const transport: MetricCaptureRunnerDependencies = {
+    sourceEnv: {},
+    createProcessRunner: () => async (_executable: string, argv: readonly string[]) => {
+      let response: unknown;
+      if (argv[2] === 'tab') {
+        if (argv[3] === 'new') { opened = true; response = { page: 'ABC123' }; }
+        else { closed = true; response = { ok: true }; }
+      } else {
+        const js = argv[5]!;
+        if (js.includes('function readV3RequestContext(')) response = { taxonomy: structuredClone(observation.taxonomy) };
+        else if (js.includes('function readV3Page(')) response = readObservation();
+        else if (js.includes('function formAction(')) {
+          const action = JSON.parse(js.slice(js.lastIndexOf('\n})(') + 4, -1));
+          if (action.kind === 'categoryAll') categories = [];
+          else if (action.kind === 'categoryChild') {
+            const child = spec.preset.category.children.find((node: any) => action.labels.includes(node.label));
+            if (child) categories.push(child.id);
+          } else if (action.kind === 'keyword') keywords.push(action.value);
+          response = action.kind === 'date' ? { done: true } : { ok: true };
+        } else if (js.includes('ready:')) response = { ready: true };
+        else if (js.includes('pending:')) response = { pending: 0, quiet: 1001, overflow: false };
+        else if (js.includes('.filter((r)')) response = responses.map((r: any) => r.urlPath);
+        else if (js.includes('=> window.__tdnV3Capture.responses')) response = structuredClone(responses);
+        else response = { ok: true };
+      }
+      return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout: JSON.stringify(response), stderr: '' }) };
+    },
+  };
+  const req = {
+    runId: newRunId(), keyword: spec.preset.keywords[0], requestedPeriod: structuredClone(window.period), metricV3Preset: spec,
+  };
+  const result = await runMetricCapture(config({ adapterManifestPath: undefined, adapterManifestSha256: undefined }), req, transport);
+  assert.ok(result.ok, JSON.stringify(result));
+  assert.deepEqual(result.period, window.period, 'the run period is the selected window, not an inferred legacy slot');
+  assert.equal(opened, true);
+  assert.equal(closed, true, 'owned tab must close after the v3 capture');
+  const persisted = JSON.parse(await readFile(join(root, req.runId, 'spec.json'), 'utf8'));
+  assert.deepEqual(persisted.windows, [window], 'only the exact selected window is persisted');
+  const manifest = JSON.parse(await readFile(join(root, req.runId, 'run1', 'selected', 'manifest.json'), 'utf8'));
+  assert.equal(manifest.contractVersion, 'metric-v3-window-capture-v3');
+  assert.deepEqual(manifest.window, window);
+  assert.deepEqual(manifest.appliedState, spec.preset);
 });

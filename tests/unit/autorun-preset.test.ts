@@ -58,6 +58,25 @@ test('K2 start contracts reject v1 extras and out-of-period presets before creat
   assert.equal(f.capture.calls.length, 0);
 });
 
+test('v3 single-window presets are rejected at the Market autorun boundaries before any run or capture', async t => {
+  const f = await fixture(t, 'on');
+  const v3 = validateMetricV3CaptureSpec({
+    contractVersion: 'metric-v3-capture-spec-v3',
+    preset: { ...structuredClone(legacyCapture.spec.preset), smartExclusion: false },
+    windows: [{ id: 'selected', period: { startDate: '2026-09-16', endDate: '2026-10-02' }, intervalDays: 7 }],
+  });
+  const start = {
+    contractVersion: 'research-automation-start-v2', requestKey: randomUUID(), mode: 'CATEGORY',
+    keyword: v3.preset.keywords[0], requestedPeriod: v3.windows[0]!.period, reports: ['MARKET'], metricV3Preset: v3,
+  };
+  await assert.rejects(f.service.start(workspaceId, start), /Invalid explicit capture preset or run scope/);
+  await assert.rejects(f.service.retryAutoRunCapture(workspaceId, randomUUID(), {
+    contractVersion: 'research-automation-autorun-keyword-v2', requestKey: randomUUID(), keyword2: 'synthetic term one', metricV3Preset: v3,
+  }), /Invalid capture preset/);
+  assert.equal((f.db.prepare('SELECT count(*) n FROM analysis_research_automation_runs').get() as { n: bigint }).n, 0n);
+  assert.equal(f.capture.calls.length, 0);
+});
+
 test('K2 one-keyword creation preset skips waiting and reaches the capture runner unchanged', async t => {
   const calls: Parameters<typeof runMetricCapture>[1][] = [];
   const f = await fixture(t, 'on', undefined, () => async (_config, request) => {

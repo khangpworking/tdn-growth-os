@@ -11,6 +11,7 @@ const contracts = [
   ['api', 'content-insight-reports-api'],
   ['analysis', 'metric-v3-capture-spec'],
   ['analysis', 'metric-v3-capture-spec-v1'],
+  ['analysis', 'metric-v3-capture-spec-v3'],
   ['foundation', 'shopee-public-collection'],
   ['foundation', 'shopee-public-rows'],
   ['foundation', 'shopee-public-journal'],

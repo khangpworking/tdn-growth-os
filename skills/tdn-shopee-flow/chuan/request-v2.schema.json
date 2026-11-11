@@ -18,16 +18,78 @@
       "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/preset"
     },
     "windows": {
-      "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/windows"
+      "anyOf": [
+        {
+          "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/windows"
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json#/$defs/window"
+          }
+        }
+      ]
     },
     "collectionPolicy": {
       "$ref": "https://tdn.local/contracts/foundation/shopee-review-sampling.schema.json#/$defs/policy"
     },
     "captureSpec": {
-      "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/captureSpec"
+      "anyOf": [
+        {
+          "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/captureSpec"
+        },
+        {
+          "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json"
+        }
+      ]
     },
     "principalTitles": {
       "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/principalTitles"
+    },
+    "metricInput": {
+      "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json#/$defs/confirmedInput"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "metricInput"
+        ],
+        "properties": {
+          "metricInput": {}
+        }
+      },
+      "then": {
+        "required": [
+          "captureSpec"
+        ],
+        "properties": {
+          "captureSpec": {
+            "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json"
+          },
+          "windows": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json#/$defs/window"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "captureSpec": {
+            "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/captureSpec"
+          },
+          "windows": {
+            "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/windows"
+          }
+        }
+      }
+    }
+  ]
 }

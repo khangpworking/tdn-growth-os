@@ -7,7 +7,7 @@
 // root, executable) comes from the injected config; nothing machine-specific is
 // hard-coded. Explicit presets use the checkout v3 adapter under the same lock.
 import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
-import { METRIC_V3_STOP_CODES, type MetricV3StopCode } from './metric-v3-capture-spec.js';
+import { metricCapturePeriod, METRIC_V3_STOP_CODES, type MetricV3StopCode } from './metric-v3-capture-spec.js';
 import { captureMetricV3, readMetricAvailableEndDate } from './metric-v3-browser-capture.js';
 import { chmod, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
@@ -224,7 +224,7 @@ async function runPresetCapture(config: MetricCaptureRunnerConfig, request: Metr
         ...(signal ? { signal } : {}),
         ...(config.evidence ? { evidence: true } : {}),
       });
-      return { ok: true, captureDir: outputDir, period: spec.windows[1].period, executorCalls: 1 };
+      return { ok: true, captureDir: outputDir, period: metricCapturePeriod(spec), executorCalls: 1 };
     } catch (error) {
       const errors = (error as { details?: { uiCode?: string; pageRequestCode?: string } })?.details;
       const message = error instanceof Error ? error.message : '';
