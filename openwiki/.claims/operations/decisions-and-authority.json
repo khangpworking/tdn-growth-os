@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:a3cda04c6bc4d0bc60ed61166218061e1b73967c5ddf5b5d6a4f1b047e1331cd",
+  "claims": [
+    {
+      "id": "claim_a1feebae8c00474ba509d4deb9edfa3e",
+      "statement": "Ultimate §1 is the authority record for the 30-section business method.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research/ultimate-method/ultimate-method-30-sections.md#L38-L49",
+          "version": "repo-lines-v1:sha256:8e4373ab399e0228a89c60f7ae6ec1dadf393d7b84fa84e585e7ccc67db50666:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlOWYzNjI2Nzg0ZmU1MzJkYjljMzYyZTIwOTIwNTdmZjY2MDc1MzJmOGNjMjJlZmZjOTcxOWFlY2FiZGY4NzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyMTQ1YjViNDczNDljNWMwOGU3MWY2OGFkN2IxMzFiZmU4NTEwNDViMGMyNzQyZTQ2MjI3NTBiNzdjNWI1NjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYzNDExYWFmM2Y1YTc0NGUwZDZhNzEyYmI3ZDk2NDYyNTc5MTkzMGY5OTI2NDNiMzA4ZTM2NDQxZWE1YjkwNDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2addd5b966714086aafb646a2bea2c8b",
+      "statement": "The Ultimate CHANGELOG requires a separately identified row for every business-rule change in the same commit, preserves the historical change content, and requires a new row when a decision changes; its TDN column records synchronization state.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research/ultimate-method/CHANGELOG.md#L3-L19",
+          "version": "repo-lines-v1:sha256:b802b8b36c9f8ab481adb84a5b8d7beaa35bd14b9d60565e65b3ef3ebee6e8e4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjNTE5N2RhMmM2OTkxZWViOTVjNWQzOTMxOWFmZmE5OTQzYWRjZjFlMDgzMzcwNGU3ZjU5NDY5NjU1NjI1MmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNGNkODc2MDVhYTNhNzUwZDI1MmNlNTc3NTJlYzFlN2VlZWIzOTQxMjhjNDgyMzQyYjRjMjcxZGUwOTI3YjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoyLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MWI5MGQwYjAxNWIxNTI0ZDU3NGE1M2MxMDYxZDViNDA5YjE1NmIyZTE3MTMwZmIwNjRlOThhOTI5MGU0OWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2NmUyOTQ4ZTA2MWJiM2IwNWQ5NThhNDhhNjI4M2NmYzcwOWNlZDAxODA2NTNhZDQ2YmY3M2Y1NDNjNDhmYTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_21bdcd65501443b1b34f4f133757d3b8",
+      "statement": "INTENT distinguishes confirmed decisions, deferred items, and unresolved questions, and says that it records business intent while architecture, status, code, tests, and handoffs establish distinct implementation evidence.",
+      "evidence": [
+        {
+          "resource": "repo://INTENT.md#L17-L26",
+          "version": "repo-lines-v1:sha256:e7b58e323cc5643ddef03d7c58e746a79d028a3a522865d5e053d2547cac263b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZTIyYThiNjEwMThhOTU3NzI1MDllNDIxOTMxMTZjM2ZkMDlmMjZiZjFhNTk2NzQ5NjQ1ODJhNDhjNjgxOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkNGNhNDUxMjc1MjI1ODBlMjE3ZmFmNjE1M2UwMDBkMTQwOWQ2MzRhNGU3NGQzYWQ5MDI2MGQxYmQ2YmVmYmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1MGEyYjA1OGEwYzQ5MWUwMTY3NGNlYzQzYWZiYzBhNzhmMmFiM2E1OGY2MDA5OGY3ZWRjMzUwZmJkODY1YTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZkNzhmYzAzODEzNTZkNzBmMDRjMGUwYjQwZTI3MDg1MmIxY2NjZmJlMTM2Yjc2Njg2MjhiNjJkNTFjZGM2MTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_56df0cc07afb4a2b973a0447532c483b",
+      "statement": "ARCHITECTURE.md is the living implementation baseline and requires ADRs for changes to its architectural invariants; material changes to invariant boundaries, authoritative stores, trust boundaries, topology, or major runtime dependencies require an ADR.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L537-L561",
+          "version": "repo-lines-v1:sha256:c7b780e0446e6977a728505138808643f9b2e933ef8ae46d6937570b8d21cde3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjOTY3YmQ4NGZjNWFjM2NkM2M4YmYwMGQwYjI4MzY1NWYyNTc3YTVhMGVmOWZlNDU4NWM0MDU2MjJhNzc4NTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ1NmNmMWY5MDc2NWRkN2Q0MmQ4NDA4NDcyMjI5MjJmNjMyNTdkZWY3YWFlODM1ODY3OGNkMTU0MWRiNTE1ZDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYyYTIxN2JiMjg2MTU0ZjhmZTZkZjMwNGMzMmJlZjgxNTI3Y2IxMGNkNDYxY2EyMDQxYjlhYTMxMjRkNjZhMDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1MWMzOTJkMTQ0MzBhMjljMmMxMjM2NGFhNmM4N2YxZGViMjdlNjBkM2I2ZWY5NjFiNTU2NTUzY2MzNzRiYTgifQ"
+        },
+        {
+          "resource": "repo://ARCHITECTURE.md#L96-L123",
+          "version": "repo-lines-v1:sha256:68f187505f37eb72d4a138b21489ee823e5d5be43def5940aa12d05305363937:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxZmNmNjY5ZTIyZTdkMGE0YmE5YjZlYjcxNTA3NjAyZTFkNTMxNjAxYzUyZGUwOTVmOWE0ZTJjOTI5ZDJjN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1Y2RhYTgzNDc1NThjMzFhMDIzYmVkYjI4OTVmNWEwNTBlOWZjNjkzOGIxYjg0N2Q5MWEzODc5YjFhNGNmNjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlNDIwYzk5YzBmYjkyYjAzMTc0MWNjN2IzMjViZDk0ZGRmMGRlOTA4YTMyYWRjMTg4MDk0OWRjOTYyZmNlNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3ZDM1NjBmNTAyZDgxZDdlYTQzNjBhMzU5YzNhM2YxMmMxNzFhNTU2MTAzMjJmZDljNWE3NDNhMWNiZmFhOGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_46d88238752d47e99991ca94b74a2d60",
+      "statement": "The accepted report architecture keeps source evidence, deterministic calculations, AI interpretations, and human decisions as separate layers; human decisions are append-only reviews of exact semantic versions, and neither framework approval nor rendering creates a review decision.",
+      "evidence": [
+        {
+          "resource": "repo://docs/adr/0005-report-evidence-and-decision-ledger.md#L20-L49",
+          "version": "repo-lines-v1:sha256:f64975749d3b1999c094b00f13bdb53cbf1529083701efcba4f744f3a837bb8b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkM2RiYzRlN2U3Y2JlNWRkYzg5MWIwODA3MTJmNjM1MWM5NGI3MjhlYzhiZDg1NTZmNDYxMmIwNzBkMjdiNDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhMzlmN2U0Y2UyYWViYzA4NWY0YzAyMTU5MzhjNTVkNTc4NmZjMDExNWFlOGI5MjJjNjFmOWNkZjFjY2Y3NTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFlMTdkMzczZmEzM2M4MWUyZDM0NDg4M2M3MTJkYjFhNmFjMzAyOTA4YWYzYmI0ODk3YWIyMzI5MzQ5M2M0NzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYxMjdkZjA3YzA5NzVmNjA0YmJkZDc1YzRiYjZjOTFhN2FlZWY2YmIzM2IzYzA4OTg1Y2Y0ZjVlMzI3MDMwOWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_286a12b3e2e54a68bd61c138d5465a4e",
+      "statement": "The Ultimate alignment plan records merged packages separately from unresolved work and explicitly leaves U-26, U-11, and U-32 escalated rather than treating them as complete.",
+      "evidence": [
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L1-L16",
+          "version": "repo-lines-v1:sha256:5013f644a62ef9aea13f87bc8c705ed164bdd1cf1e5a10ac3890165acd902093:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyNGViNWM0MGU1MmE2N2RlNmMyM2Y2ZGIxNDU3NWZmYjQ4MDMyYTA1NGRkNTIyODkzOGRjZDE1OTkwOGVmYTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5OTI0NGY0MWQxN2VmZTEwN2Q5OTQ3MTE4ZTdkN2FhYTQyZDY0YTUzNGY3MDE1NzJmZTc3ZjA1ZDI5ODc3YWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiZGM2N2E4MDg2N2VmZWFiMjk2YjAxNzVkYWNmYWJiZjVmNTU5YTI0MGU3MDFlNTFjZGJkMzQyMWNkNzIyNmEifQ"
+        },
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L18-L31",
+          "version": "repo-lines-v1:sha256:1662b0ff6bc6909213dcdeab269f5e9e3827f1f0cfd8090696f0a5793f854060:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyMGMzYjkwMGMzNmNlOTU4MWU4Y2Q1MzRmZTMzYjMyNjU2MjNiNzNiMjJlYjI0M2EwMDVhNmRjNGQwMzllMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxY2FlNmI4NzI0MTZiMWY0MjAxM2Y2YzBhOTQzZjUzNWUwNjM2M2IyNzkxNjc3OGI3ZjNhMzI0YTgyZGExYmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxNGMwNzA0YjYzOWEwMzAyNmNiYjUyMzlhZjhjOGVhZmVhNTk3NmM1OTE0MGY4YWU2MTBjZDk4OGJiYTYyMmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNhNjE5NjUyYWVkNTcxYjVjN2QwYjI5YWFhMzdhNmNhM2Q3MzBkNWRiOTQ1ZTAwYjQxN2YxYTQzMGI1YTg4MTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_12ea5220e1b64755a7b8b10415a5a5ff",
+      "statement": "The research-automation ADR index directs authors to add a new record for a changed accepted decision, mark the earlier record as superseded, and retain the historical record rather than editing the accepted decision in place.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research-automation/adr/README.md#L21-L25",
+          "version": "repo-lines-v1:sha256:131e6edfa9b60327a16caebcc529a9ddfcbf7de74744fdb5d9e1399b4590ff5d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGE0YTU3ZjM0NDQ0YTJkMDhlM2IyNmI1YmRhY2FlYjQ1YTIwNzRmZDc2OWJlODRhNDE4ZmRlNWE4NTYwMDFjMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGQ2MjdmM2FkN2FhZDZhNGVkNjkyM2VjNThmZDZhZGFkYzI1YmQwMWM3YjY1ZWVmYjU4NDI0ZWVjZTRjMjI2ZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWZiZTU1MmFmZGU1YzE0NDQ4MWM1MjIzYWRkZTdhMTU2ZWUzNzdmYmE3MjQ1NWQ5YWJkOTFmMzg3N2Q2YmQ2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:51:03.342Z"
+  }
+}
