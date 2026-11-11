@@ -1,3 +1,4 @@
+import { derivePeriodProductPick, ProductPickError } from './module-product-pick.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -111,9 +112,9 @@ export async function readRequest(run: string) {
       w.id !== captureSpec.windows[i]?.id || w.period.startDate !== captureSpec.windows[i]?.period.startDate ||
       w.period.endDate !== captureSpec.windows[i]?.period.endDate ||
       (object(w).intervalDays !== undefined && object(w).intervalDays !== captureSpec.windows[i]?.intervalDays)))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
-  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec };
+  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: value.selectionPolicy === 'metric-products-unique-v1' ? value.selectionPolicy : null };
 }
-export async function pickRaw(run: string, request?: Awaited<ReturnType<typeof readRequest>>): Promise<unknown> {
+export async function readPickSource(run: string, request?: Awaited<ReturnType<typeof readRequest>>) {
   if (!request) {
     try { await lstat(await safePath(run, 'request.json')); request = await readRequest(run); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
@@ -124,7 +125,7 @@ export async function pickRaw(run: string, request?: Awaited<ReturnType<typeof r
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   const legacy = usedScope(scope)?.captureNumber === 2 ? 'run2' : 'run1';
   if (!selected) {
-    try { return await readJson(run, `m1/${legacy}/raw-responses.json`); }
+    try { return { raw: await readJson(run, `m1/${legacy}/raw-responses.json`), prefix: null, part: null, rawBytes: null }; }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   }
   let prefix = 'm1';
@@ -168,13 +169,16 @@ export async function pickRaw(run: string, request?: Awaited<ReturnType<typeof r
         part.captureMethod, part.fallbackReason);
     } catch { throw new ModuleError('CAPTURE_SPEC_MISMATCH'); }
     if (canonicalJson(replay.sourceMap) !== canonicalJson(part.sourceMap)) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
-    return raw;
+    return { raw, prefix, part, rawBytes };
   }
   const config = object(await readJson(repoRoot, 'skills/tdn-shopee-flow/modules.json'));
   const rule = object(object(config.params).pickWindow);
   const ref = refs.map(object).find(r => r.window === rule.preset);
   if (!ref || typeof ref.window !== 'string' || ref.path !== `${ref.window}/manifest.json`) throw new ModuleError('PICK_WINDOW_MISSING');
-  return readJson(run, `${prefix}/${ref.window}/raw-responses.json`);
+  return { raw: await readJson(run, `${prefix}/${ref.window}/raw-responses.json`), prefix: null, part: null, rawBytes: null };
+}
+export async function pickRaw(run: string, request?: Awaited<ReturnType<typeof readRequest>>): Promise<unknown> {
+  return (await readPickSource(run, request)).raw;
 }
 export function derivePickCandidate(raw: unknown, keywords: readonly string[], principalTitles: readonly string[]) {
   const terms = [...deriveIncludeTerms(keywords[0] ?? '', principalTitles), ...keywords.slice(1)];
@@ -213,15 +217,27 @@ export async function main(runDir: string) {
   const run = resolve(runDir);
   const metricInputSha256 = await prerequisite(run, 'm1');
   const request = await readRequest(run);
-  const raw = await pickRaw(run, request);
-  const picked = derivePickCandidate(raw, request.keywords, request.principalTitles);
-  const counts = { ...picked.counts, ...auditMaskedRows(raw, picked.links) };
-  const selection = { format: 'selection-v1', runId: basename(run), source: 'auto',
-    pickRuleVersion: picked.pickRuleVersion, metricInputSha256, links: picked.links, counts };
+  const source = await readPickSource(run, request);
+  let picked, selection;
+  if (request.selectionPolicy) {
+    if (!source.part || !source.rawBytes) throw new ModuleError('PICK_WINDOW_MISSING');
+    try { picked = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes)); }
+    catch (error) { throw new ModuleError(error instanceof ProductPickError ? error.message : 'PICK_CANDIDATE_INVALID'); }
+    selection = { format: 'selection-v1', runId: basename(run), source: 'auto',
+      pickRuleVersion: picked.pickRuleVersion, metricInputSha256, links: picked.links, counts: picked.counts,
+      selectionProof: picked.selectionProof };
+  } else {
+    const legacy = derivePickCandidate(source.raw, request.keywords, request.principalTitles);
+    picked = { ...legacy, counts: { ...legacy.counts, ...auditMaskedRows(source.raw, legacy.links) } };
+    selection = { format: 'selection-v1', runId: basename(run), source: 'auto',
+      pickRuleVersion: picked.pickRuleVersion, metricInputSha256, links: picked.links, counts: picked.counts };
+  }
+  const counts = picked.counts;
   await validateModuleValue('selection-v1', selection);
   if (await prerequisite(run, 'm1') !== metricInputSha256) throw new ModuleError('GATE_INPUT_CHANGED', 23);
   await atomicJson(run, 'm2/selection.json', selection);
-  return { format: 'module-script-result-v1', verdict: 'PASS', errorCode: null, exitCode: 0,
+  const errorCode = 'selectionProof' in selection ? selection.selectionProof.shortageReason : null;
+  return { format: 'module-script-result-v1', verdict: errorCode ? 'FAIL' : 'PASS', errorCode, exitCode: errorCode ? 20 : 0,
     runId: basename(run), metricInputSha256, pickedIds: picked.links.map(l => l.productBaseId),
     reasonsPresent: picked.links.filter(l => l.reason.trim()).length, counts };
 }

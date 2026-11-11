@@ -26,6 +26,8 @@ _COMMANDS = {
     'runs': ('runs',),
     'status': ('run-info', '--run'),
     'captureSpecs': ('capture-specs', '--run'),
+    'moduleOutputs': ('outputs', '--run'),
+    'readModuleEvidence': ('evidence', '--run'),
     'library': ('library',),
     'new': ('new-run', '--stdin'),
     'addProduct': ('add-product', '--stdin'),
@@ -160,7 +162,7 @@ class Api:
     def _remote_plan(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
                      kind=None, attempt_id=None, export_sha256=None):
         words = list(_COMMANDS[action])
-        if action in ('status', 'captureSpecs', 'entry', 'flow', 'm1', 'm2', 'm3',
+        if action in ('status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence', 'entry', 'flow', 'm1', 'm2', 'm3',
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData',
                       'saveReviewData', 'exportReviewData', 'readReviewExport'):
@@ -173,6 +175,10 @@ class Api:
             words.extend(['--plan-sha256', plan_sha256])
         if action == 'readReviewExport':
             words.extend(['--export-sha256', export_sha256])
+        if action == 'readModuleEvidence':
+            if kind not in ('full-page', 'top-products', 'raw'):
+                raise _BridgeFailure('ARG_INVALID')
+            words.extend(['--kind', kind, '--output-sha256', self._sha256(export_sha256)])
         if action in ('flow', 'm1', 'm2', 'm3', 'refreshReviewCounts', 'reconcileReviewAttempt'):
             words.append('--detach')
         config = _load_config() if config is None else config
@@ -252,6 +258,50 @@ class Api:
 
     def captureSpecs(self, runId):
         return self._safe(lambda: self._remote('captureSpecs', run_id=self._run_id(runId)))
+
+    def moduleOutputs(self, runId):
+        return self._safe(lambda: self._remote('moduleOutputs', run_id=self._run_id(runId)))
+
+    def openModuleEvidence(self, runId, kind, sha256):
+        return self._safe(lambda: self._open_module_evidence(runId, kind, sha256))
+
+    def _open_module_evidence(self, run_id, kind, digest):
+        run_id, digest = self._run_id(run_id), self._sha256(digest)
+        names = {'full-page': ('m1', 'fullPage', 'full-page.png', 'image/png'),
+                 'top-products': ('m2', 'topProducts', 'top-products.png', 'image/png'),
+                 'raw': ('m1', 'raw', 'raw-responses.json', 'application/json')}
+        if kind not in names:
+            raise _BridgeFailure('ARG_INVALID')
+        result = self._remote('moduleOutputs', run_id=run_id)
+        if not result['ok']:
+            return result
+        data = result['data']
+        module, key, file_name, media_type = names[kind]
+        if data.get('format') != 'module-outputs-v1' or data.get('runId') != run_id:
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        descriptor = data.get(module, {}).get('evidence', {}).get(key)
+        if not isinstance(descriptor, dict) or set(descriptor) != {'available', 'kind', 'sha256', 'byteSize', 'mediaType', 'fileName', 'errorCode'}:
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        if descriptor['available'] is False:
+            failure = descriptor.get('errorCode')
+            raise _BridgeFailure(failure if isinstance(failure, str) and _STATIC_ERROR.fullmatch(failure) else 'EVIDENCE_UNAVAILABLE')
+        if (descriptor['available'] is not True or descriptor['kind'] != kind or descriptor['sha256'] != digest or
+                descriptor['fileName'] != file_name or descriptor['mediaType'] != media_type or descriptor['errorCode'] is not None or
+                type(descriptor['byteSize']) is not int or not 1 <= descriptor['byteSize'] <= EXPORT_MAX_BYTES):
+            raise _BridgeFailure('EVIDENCE_IDENTITY_MISMATCH')
+        try:
+            folder = Path(tempfile.mkdtemp(prefix='tdn-shopee-evidence-'))
+            destination = folder / file_name
+            self._stream_export(run_id, digest, descriptor['byteSize'], destination, evidence_kind=kind)
+            if sys.platform == 'win32':
+                os.startfile(str(destination))
+            else:
+                subprocess.Popen(['open' if sys.platform == 'darwin' else 'xdg-open', str(destination)],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            raise _BridgeFailure('EVIDENCE_OPEN_FAILED') from None
+        return {'ok': True, 'data': {'format': 'module-evidence-open-v1', 'runId': run_id,
+                                     'kind': kind, 'sha256': digest, 'opened': True}}
 
     def newRun(self, input=None):
         return self._safe(lambda: self._new_run(input))
@@ -593,11 +643,12 @@ class Api:
                 type(receipt.get('reused')) is not bool):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
 
-    def _stream_export(self, run_id, digest, byte_size, destination):
+    def _stream_export(self, run_id, digest, byte_size, destination, evidence_kind=None):
         folder = destination.parent
         if not folder.is_dir():
             raise _BridgeFailure('SAVE_FAILED')
-        config, lines = self._remote_plan('readReviewExport', run_id=run_id, export_sha256=digest)
+        config, lines = self._remote_plan('readModuleEvidence' if evidence_kind else 'readReviewExport',
+                                          run_id=run_id, export_sha256=digest, kind=evidence_kind)
         try:
             handle, temp_name = tempfile.mkstemp(prefix='.tdn-shopee-', suffix='.part', dir=str(folder))
         except OSError:

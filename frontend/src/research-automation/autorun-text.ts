@@ -103,6 +103,7 @@ export const AUTORUN_STOP_TEXT: Readonly<Record<string, string>> = {
   CAPTURE_PAGE_REQUEST_FAILED: INTERRUPTED,
   CAPTURE_FALLBACK_FAILED: INTERRUPTED,
   CAPTURE_PAGE_SESSION_UNAVAILABLE: CHANGED,
+  CAPTURE_PRODUCT_SORT_UNAVAILABLE: 'Chưa sắp xếp được sản phẩm bán chạy theo doanh số trong kỳ nên phần tự động dừng. Số liệu không được dùng.',
   CAPTURE_CUSTOM_CATEGORY_FALLBACK_UNSUPPORTED: 'Tùy chỉnh danh mục chưa gửi được đúng lên trang số liệu nên phần tự động dừng. Số liệu không được dùng.',
   // Intake rejections and later automatic steps.
   CAPTURE_OVERSIZE: INCOMPLETE,

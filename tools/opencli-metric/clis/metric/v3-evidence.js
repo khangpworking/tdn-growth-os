@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 import { screenPdf } from './v3-screen-pdf.js';
+import { inspectV3ProductsPanel } from './v3-products-panel.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js');
@@ -14,6 +15,10 @@ const ajv = new Ajv2020({ strict: true });
 require('ajv-formats')(ajv);
 const validateEvidence = ajv.compile(
   JSON.parse(readFileSync(new URL('../../../../contracts/analysis/metric-v3-evidence.schema.json', import.meta.url), 'utf8')),
+);
+
+const validateRunEvidence = ajv.compile(
+  JSON.parse(readFileSync(new URL('../../../../contracts/analysis/metric-v3-evidence-v2.schema.json', import.meta.url), 'utf8')),
 );
 
 export const V3_EVIDENCE_VERSION = 'metric-v3-evidence-v1';
@@ -38,7 +43,7 @@ export const V3_EVIDENCE_SECTIONS = Object.freeze({
   'price-bands': { name: 'Doanh số theo dải giá', title: '^(Price range|Khoảng giá|Phân khúc giá)$', selector: null },
   'top-brands': { name: 'Top thương hiệu', title: '^(Top Brands|Top thương hiệu)$', selector: '.brand-list-container, .BrandTable' },
   'top-shops': { name: 'Top shop', title: '^(Top Shops|Top shop|Top gian hàng)$', selector: '.shop-list-container, .ShopTable' },
-  'top-products': { name: 'Sản phẩm bán chạy nhất', title: '^(Top Products|Top sản phẩm)$', selector: '.products-list-container, .ProductTable' },
+  'top-products': { name: 'Sản phẩm bán chạy nhất', title: '^(Top Products|Top sản phẩm|Sản phẩm bán chạy)$', selector: '.products-list-container, .ProductTable' },
 });
 
 /** Runs in the owned tab. Page coordinates of each section and the page size; read only. */
@@ -236,7 +241,7 @@ export function cropV3Png(image, rect, scale) {
  * in the manifest as an explicit code. Only an abort or the capture deadline is rethrown.
  * `images: false` (request capture) records the settings and the raw copy without screenshots.
  */
-export async function writeV3EvidencePackage(page, { windowDir, manifest, rawBytes, images = true }) {
+export async function writeV3EvidencePackage(page, { windowDir, manifest, rawBytes, images = true, moduleEvidence }) {
   const dir = join(windowDir, 'evidence');
   await mkdir(join(dir, 'sections'), { recursive: true, mode: 0o700 });
   const write = async (path, body) => {
@@ -245,7 +250,8 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
   };
   const state = manifest.appliedState;
   const evidence = {
-    contractVersion: V3_EVIDENCE_VERSION,
+    contractVersion: moduleEvidence ? 'metric-v3-evidence-v2' : V3_EVIDENCE_VERSION,
+    ...(moduleEvidence ? { ...moduleEvidence, specDigest: manifest.specDigest } : {}),
     captureId: manifest.captureId,
     capturedAt: manifest.capturedAt,
     windowId: manifest.window.id,
@@ -255,7 +261,7 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
     platforms: state.platforms,
     smartQuery: state.smartQuery,
     captureMethod: manifest.captureMethod ?? 'ui',
-    adapterVersion: V3_ADAPTER_VERSION,
+    adapterVersion: { ...V3_ADAPTER_VERSION, contract: manifest.contractVersion },
     rawResponses: await write('raw-responses.json', Buffer.from(rawBytes)),
     fullPage: null,
     sourcePdf: null,
@@ -266,6 +272,15 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
     status: 'NO_IMAGES',
   };
   const keys = Object.keys(V3_EVIDENCE_SECTIONS);
+  let products = [];
+  if (moduleEvidence) {
+    const raw = JSON.parse(Buffer.from(rawBytes).toString('utf8'));
+    const match = /^raw-responses\.json#\/(\d+)\/body\/data$/.exec(manifest.sourceMap.products);
+    const response = match ? raw[Number(match[1])] : null;
+    products = response?.body?.data?.products ?? [];
+    evidence.topProductsProof = { status: 'UNAVAILABLE', code: 'EVIDENCE_SCREENSHOT_UNAVAILABLE',
+      title: null, metricLabel: null, orderLabel: null, candidates: [], candidateCount: products.length };
+  }
   if (!images || typeof page.screenshot !== 'function') {
     evidence.code = images ? 'EVIDENCE_SCREENSHOT_UNAVAILABLE' : 'EVIDENCE_REQUEST_CAPTURE';
     evidence.missingSections = keys.map((sectionKey) => ({ sectionKey, reason: evidence.code }));
@@ -275,7 +290,20 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
       try {
         masked = true;
         evidence.maskedCount = Number((await page.evaluate(maskV3EvidenceAccount))?.maskedCount) || 0;
+        if (moduleEvidence) {
+          const proof = await page.evaluate(inspectV3ProductsPanel, { candidates: products });
+          evidence.topProductsProof = { status: proof.stop ? 'UNAVAILABLE' : 'AVAILABLE', code: proof.stop ?? null,
+            title: proof.title ?? null, metricLabel: proof.metricLabel ?? null, orderLabel: proof.orderLabel ?? null,
+            candidates: proof.candidates ?? [], candidateCount: products.length };
+        }
         captured = await captureV3EvidencePage(page, dir);
+        if (moduleEvidence && evidence.topProductsProof.status === 'AVAILABLE') {
+          const after = await page.evaluate(inspectV3ProductsPanel, { candidates: products });
+          if (after.stop || JSON.stringify(after.candidates) !== JSON.stringify(evidence.topProductsProof.candidates)) {
+            evidence.topProductsProof.status = 'UNAVAILABLE'; evidence.topProductsProof.code = 'EVIDENCE_LAYOUT_CHANGED';
+          }
+          captured.located.sections['top-products'] = after.stop ? { reason: after.stop } : after.rect;
+        }
       } finally {
         if (masked) await page.evaluate(restoreV3EvidenceAccount).catch(() => {});
       }
@@ -284,7 +312,8 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
       const pdf = screenPdf(image);
       evidence.sourcePdf = { ...await write('source-page.pdf', pdf.bytes), pageCount: pdf.pageCount, kind: 'screenshot-pdf' };
       for (const sectionKey of keys) {
-        const rect = located?.sections?.[sectionKey];
+        const rect = moduleEvidence && sectionKey === 'top-products' && evidence.topProductsProof.status !== 'AVAILABLE'
+          ? { reason: evidence.topProductsProof.code } : located?.sections?.[sectionKey];
         if (!rect || rect.reason || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) {
           evidence.missingSections.push({ sectionKey, reason: rect?.reason ?? 'SECTION_NOT_FOUND' });
           continue;
@@ -305,9 +334,10 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
       evidence.status = evidence.fullPage ? 'PARTIAL' : 'NO_IMAGES';
     }
   }
-  if (!validateEvidence(evidence)) {
+  if (!(moduleEvidence ? validateRunEvidence : validateEvidence)(evidence)) {
     // A manifest that does not validate is replaced by an explicit failure record, never dropped.
-    const failed = { contractVersion: V3_EVIDENCE_VERSION, captureId: manifest.captureId, capturedAt: manifest.capturedAt,
+    const failed = { contractVersion: moduleEvidence ? 'metric-v3-evidence-v2' : V3_EVIDENCE_VERSION,
+      ...(moduleEvidence ? { ...moduleEvidence, specDigest: manifest.specDigest } : {}), captureId: manifest.captureId, capturedAt: manifest.capturedAt,
       windowId: manifest.window.id, status: 'FAILED', code: 'EVIDENCE_MANIFEST_INVALID' };
     await writeFile(join(dir, 'manifest.json'), bytes(failed), { flag: 'wx', mode: 0o600 });
     return failed;

@@ -50,6 +50,9 @@
     },
     "metricInput": {
       "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json#/$defs/confirmedInput"
+    },
+    "selectionPolicy": {
+      "const": "metric-products-unique-v1"
     }
   },
   "allOf": [
@@ -88,6 +91,27 @@
           "windows": {
             "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/windows"
           }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "selectionPolicy"
+        ],
+        "properties": {
+          "selectionPolicy": {}
+        }
+      },
+      "then": {
+        "required": [
+          "metricInput"
+        ],
+        "properties": {
+          "captureSpec": {
+            "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json"
+          },
+          "metricInput": {}
         }
       }
     }

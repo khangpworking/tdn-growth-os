@@ -1,0 +1,439 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/module-outputs-v1.schema.json",
+  "title": "Stored M1/M2 module output projection",
+  "description": "Read-only projection; current execution/gate identity remains authoritative in run-info. Unknown historical fields are null; no backfill.",
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "kind",
+        "sha256",
+        "byteSize",
+        "mediaType",
+        "fileName",
+        "errorCode"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "full-page",
+            "top-products",
+            "raw"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "byteSize": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "mediaType": {
+          "enum": [
+            null,
+            "image/png",
+            "application/json"
+          ]
+        },
+        "fileName": {
+          "enum": [
+            null,
+            "full-page.png",
+            "top-products.png",
+            "raw-responses.json"
+          ]
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "available": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "sha256": {
+                "type": "string"
+              },
+              "byteSize": {
+                "type": "integer"
+              },
+              "mediaType": {
+                "type": "string"
+              },
+              "fileName": {
+                "type": "string"
+              },
+              "errorCode": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "sha256": {
+                "type": "null"
+              },
+              "byteSize": {
+                "type": "null"
+              },
+              "mediaType": {
+                "type": "null"
+              },
+              "fileName": {
+                "type": "null"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "runId",
+    "m1",
+    "m2"
+  ],
+  "properties": {
+    "format": {
+      "const": "module-outputs-v1"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "m1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captureSuccess",
+        "dataValid",
+        "errorCode",
+        "keywords",
+        "period",
+        "shopeeRowCount",
+        "evidence"
+      ],
+      "properties": {
+        "captureSuccess": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dataValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "period": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "startDate",
+                "endDate"
+              ],
+              "properties": {
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shopeeRowCount": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fullPage",
+            "raw"
+          ],
+          "properties": {
+            "fullPage": {
+              "$ref": "#/$defs/evidence"
+            },
+            "raw": {
+              "$ref": "#/$defs/evidence"
+            }
+          }
+        }
+      }
+    },
+    "m2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "legacyVerdict",
+        "linksMatchSourceOrder",
+        "fiveDistinct",
+        "selectedCount",
+        "shortageReason",
+        "errorCode",
+        "links",
+        "skipped",
+        "evidence"
+      ],
+      "properties": {
+        "policy": {
+          "enum": [
+            "metric-products-unique-v1",
+            "legacy"
+          ]
+        },
+        "legacyVerdict": {
+          "enum": [
+            null,
+            "PASS",
+            "FAIL",
+            "WAIT_OWNER"
+          ]
+        },
+        "linksMatchSourceOrder": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "fiveDistinct": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "selectedCount": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 5
+        },
+        "shortageReason": {
+          "enum": [
+            null,
+            "PICK_TITLE_GROUP_UNRESOLVED",
+            "FEWER_THAN_FIVE_DISTINCT_PRODUCTS"
+          ]
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        },
+        "links": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rank",
+              "productBaseId",
+              "shopId",
+              "itemId",
+              "url",
+              "brand",
+              "revenue",
+              "reason",
+              "sourceRank",
+              "productName",
+              "shopName",
+              "groupKey",
+              "groupingBasis"
+            ],
+            "properties": {
+              "rank": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "productBaseId": {
+                "type": "string",
+                "pattern": "^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$"
+              },
+              "shopId": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              },
+              "itemId": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^https://shopee\\.vn/",
+                "maxLength": 2000
+              },
+              "brand": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revenue": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              "sourceRank": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 200
+              },
+              "productName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1
+              },
+              "shopName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "groupKey": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1
+              },
+              "groupingBasis": {
+                "enum": [
+                  null,
+                  "finite-title-components-v1"
+                ]
+              }
+            }
+          }
+        },
+        "skipped": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sourceRank",
+              "productBaseId",
+              "reason",
+              "duplicateOfRank"
+            ],
+            "properties": {
+              "sourceRank": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              },
+              "productBaseId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "duplicateOfRank": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              }
+            }
+          }
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "topProducts"
+          ],
+          "properties": {
+            "topProducts": {
+              "$ref": "#/$defs/evidence"
+            }
+          }
+        }
+      }
+    }
+  }
+}

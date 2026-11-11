@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { readRequest, sha256 } from './module-pick.js';
 import { runMetricCapture } from '../src/modules/analysis/research-automation/metric-capture-runner.js';
 import { buildCaptureSpec } from '../src/modules/analysis/research-automation/autorun-derive.js';
 import { metricCapturePeriod, validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
@@ -17,10 +18,23 @@ const inside = (parent: string, child: string) => {
 };
 
 async function main() {
-  const [specPath, outputArg, guardDb, executable = 'opencli'] = process.argv.slice(2);
-  if (!specPath || !outputArg || !guardDb || process.argv.length > 6) throw new Error('CAPTURE_ARGUMENTS_INVALID');
+  const args = process.argv.slice(2);
+  const moduleIndex = args.indexOf('--module-run');
+  const moduleRun = moduleIndex < 0 ? undefined : args[moduleIndex + 1];
+  if (moduleIndex >= 0 && (!moduleRun || moduleIndex !== args.length - 2)) throw new Error('CAPTURE_ARGUMENTS_INVALID');
+  const positional = moduleIndex < 0 ? args : args.slice(0, moduleIndex);
+  const [specPath, outputArg, guardDb, executable = 'opencli'] = positional;
+  if (!specPath || !outputArg || !guardDb || positional.length > 4) throw new Error('CAPTURE_ARGUMENTS_INVALID');
   const spec = buildCaptureSpec(validateMetricV3CaptureSpec(JSON.parse(await readFile(specPath, 'utf8'))));
   const outputDir = resolve(outputArg);
+  let moduleEvidence: { runId: string; requestSha256: string } | undefined;
+  if (moduleRun) {
+    const run = resolve(moduleRun), request = await readRequest(run);
+    if (request.selectionPolicy !== 'metric-products-unique-v1' || spec.contractVersion !== 'metric-v3-capture-spec-v3' ||
+        JSON.stringify(spec) !== JSON.stringify(request.captureSpec) || outputDir !== join(run, 'm1') ||
+        resolve(specPath) !== join(run, 'capture-spec.json')) throw new Error('CAPTURE_MODULE_BINDING_INVALID');
+    moduleEvidence = { runId: basename(run), requestSha256: sha256(await readFile(join(run, 'request.json'))) };
+  }
   const parent = await realpath(dirname(outputDir));
   const actualOutput = join(parent, basename(outputDir));
   const repo = fileURLToPath(new URL('..', import.meta.url));
@@ -49,7 +63,8 @@ async function main() {
   process.on('SIGINT', interrupt);
   process.on('SIGTERM', interrupt);
   try {
-    const result = await runMetricCapture({ enabledEnv: '1', captureRoot: actualOutput, opencliExecutable: executable }, {
+    const result = await runMetricCapture({ enabledEnv: '1', captureRoot: actualOutput, opencliExecutable: executable,
+      ...(moduleEvidence ? { evidence: true, moduleEvidence } : {}) }, {
       runId: randomUUID(), keyword: spec.preset.keywords[0],
       requestedPeriod: metricCapturePeriod(spec), metricV3Preset: spec, signal: controller.signal,
     });

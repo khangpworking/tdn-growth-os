@@ -91,6 +91,47 @@ async function packageFixture(t: TestContext, missingProducts = false) {
   const retainPackages = () => retainEvidencePackages({ dir, workspaceId, runId: fakeRunId, archive: bundle.archive, store: remote.store, retain });
   return { ...bundle, dir, page, remote, local, retainPackages };
 }
+const evidenceSections = () => Object.entries(evidenceAdapter.V3_EVIDENCE_SECTIONS).map(([key, section]: [string, any]) =>
+  ({ key, title: section.title, selector: section.selector }));
+/** The Top Products region with its heading, both native sorting controls and the list, on the shared fake page. */
+function panelPage({ title, controls }: { title?: string; controls: boolean }) {
+  const browser = fakeEvidencePage(true);
+  const { document } = browser.dom.window;
+  const panel = document.createElement('div');
+  panel.className = 'statistic-item';
+  if (controls) {
+    const heading = document.createElement('h2');
+    heading.className = 'statistic-item__title';
+    heading.textContent = title!;
+    const dropdowns = document.createElement('div');
+    dropdowns.className = 'panel-controls';
+    dropdowns.append(document.createElement('select'), document.createElement('select'));
+    panel.append(heading, dropdowns);
+  }
+  const list = document.createElement('div');
+  list.className = 'products-list-container';
+  list.textContent = 'Synthetic product row';
+  panel.append(list);
+  document.body.append(panel);
+  const bounds = (element: Element, top: number, height: number) => {
+    (element as HTMLElement).getBoundingClientRect = () => ({ x: 0, y: top, left: 0, top, right: 100, bottom: top + height, width: 100, height, toJSON() {} });
+  };
+  const children = Array.from(panel.children);
+  bounds(panel, 100, 80);
+  if (controls) {
+    bounds(children[0]!, 100, 10);
+    bounds(children[1]!, 110, 20);
+    bounds(list, 130, 50);
+  } else bounds(list, 100, 50);
+  return browser;
+}
+async function panelEvidence(t: TestContext, browser: ReturnType<typeof panelPage>) {
+  const bundle = await syntheticCapture();
+  const dir = await temporary(t);
+  return evidenceAdapter.writeV3EvidencePackage(browser.page, {
+    windowDir: dir, manifest: bundle.archive.windows[0]!.manifest, rawBytes: bundle.files['30d/raw-responses.json']!,
+  });
+}
 async function published(t: TestContext, evidence = false, pdf?: ReturnType<typeof createChromiumPdfRenderer>, failUpload = false) {
   const bundle = await syntheticCapture();
   const remote = fakeR2(); t.after(remote.close);
@@ -240,6 +281,23 @@ test('A2 fake-page capture packages preserve settings, PNGs and raw bytes throug
     for (const pkg of index.packages) { assert.equal(pkg.status, 'LOCAL_ONLY'); assert.equal(pkg.code, 'EVIDENCE_UPLOAD_FAILED'); }
     assert.match((await report.service.readReport(workspaceId, report.runId, 'MARKET')).bytes.toString(), /Synthetic zinc/);
   });
+});
+
+test('Top Products evidence crops the whole titled panel for both English and Vietnamese headings', async t => {
+  const located = [];
+  for (const [label, title] of [['English', 'Top Products'], ['Vietnamese', 'Sản phẩm bán chạy']] as const) {
+    const browser = panelPage({ title, controls: true });
+    t.after(browser.close);
+    const found = await browser.page.evaluate(evidenceAdapter.locateV3EvidenceSections, { sections: evidenceSections() }) as
+      { sections: Record<string, { x: number; y: number; width: number; height: number }> };
+    const rect = { ...found.sections['top-products']! };
+    assert.deepEqual(rect, { x: 0, y: 100, width: 100, height: 80 },
+      `${label} heading must select the panel that holds both sorting controls and the list`);
+    located.push(rect);
+    const m = await panelEvidence(t, browser);
+    assert.equal(m.status, 'COMPLETE', label);
+  }
+  assert.deepEqual(located[0], located[1], 'both headings must describe the same panel region');
 });
 
 test('scroll capture retains lower source pixels in images and a readable PDF; stalled scrolling is explicit', async t => {

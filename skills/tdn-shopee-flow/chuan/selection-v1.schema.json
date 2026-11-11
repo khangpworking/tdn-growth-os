@@ -43,7 +43,7 @@
     },
     "links": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "maxItems": 5,
       "items": {
         "type": "object",
@@ -97,6 +97,28 @@
           "reason": {
             "type": "string",
             "pattern": "\\S"
+          },
+          "sourceRank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "productName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shopName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "groupKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "groupingBasis": {
+            "const": "finite-title-components-v1"
           }
         }
       }
@@ -148,6 +170,98 @@
           "minimum": 0
         }
       }
+    },
+    "selectionProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceMap",
+        "rawSha256",
+        "windowId",
+        "sortBy",
+        "candidateCount",
+        "distinctCount",
+        "unresolvedCount",
+        "shortageReason",
+        "skipped"
+      ],
+      "properties": {
+        "sourceMap": {
+          "type": "string",
+          "pattern": "^raw-responses\\.json#/\\d+/body/data$"
+        },
+        "rawSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "windowId": {
+          "const": "selected"
+        },
+        "sortBy": {
+          "const": "revenue_custom__desc"
+        },
+        "candidateCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200
+        },
+        "distinctCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "unresolvedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200
+        },
+        "shortageReason": {
+          "enum": [
+            null,
+            "PICK_TITLE_GROUP_UNRESOLVED",
+            "FEWER_THAN_FIVE_DISTINCT_PRODUCTS"
+          ]
+        },
+        "skipped": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sourceRank",
+              "productBaseId",
+              "reason",
+              "duplicateOfRank"
+            ],
+            "properties": {
+              "sourceRank": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              },
+              "productBaseId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "duplicateOfRank": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              }
+            }
+          }
+        }
+      }
     }
   },
   "description": "productBaseId is 1__itemId__shopId. Auto counts must be supplied by M2, never invented for old runs. Manual uses null metricInputSha256 and pickRuleVersion manual.",
@@ -173,6 +287,57 @@
         },
         "pickRuleVersion": {
           "const": "manual"
+        }
+      }
+    }
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "pickRuleVersion": {
+            "const": "metric-products-unique-v1"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "selectionProof"
+        ],
+        "properties": {
+          "source": {
+            "const": "auto"
+          },
+          "links": {
+            "items": {
+              "required": [
+                "sourceRank",
+                "productName",
+                "shopName",
+                "groupKey",
+                "groupingBasis"
+              ],
+              "properties": {
+                "sourceRank": {},
+                "productName": {},
+                "shopName": {},
+                "groupKey": {},
+                "groupingBasis": {}
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "selectionProof": {}
+        }
+      },
+      "else": {
+        "properties": {
+          "links": {
+            "minItems": 1,
+            "type": "array"
+          },
+          "selectionProof": false
         }
       }
     }

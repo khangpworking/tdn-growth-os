@@ -839,39 +839,58 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         check('masked_ids', masked == 0, masked, True)
         error = manifest.get('errorCode') or manifest.get('code')
         code = error if isinstance(error, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', error) else None
+        if request.get('selectionPolicy') == 'metric-products-unique-v1':
+            try:
+                metric_output_script(run, 'verify-capture')
+                check('saved_capture_source_verified', True, True)
+            except ModuleFailure as failure:
+                check('saved_capture_source_verified', False, failure.code)
+                code = failure.code
     elif not code and gate == 'm2':
-        links = selection.get('links')
-        links = links if isinstance(links, list) else []
-        records = [link for link in links if isinstance(link, dict)]
-        count = len(links)
-        shape = (selection.get('format') == 'selection-v1' and selection.get('runId') == run.name and
-                 selection.get('source') in ('auto', 'manual') and len(records) == count)
-        check('links_1_to_5', shape and 1 <= count <= 5, count)
-        numeric = lambda v: isinstance(v, str) and re.fullmatch(r'[1-9][0-9]{0,19}', v) is not None
-        check('ids_numeric', bool(records) and len(records) == count and all(numeric(l.get('shopId')) and numeric(l.get('itemId')) and
-              l.get('productBaseId') == f"1__{l.get('itemId')}__{l.get('shopId')}" for l in records), count)
-        shops = [l.get('shopId') for l in records]
-        check('no_duplicate_shop', bool(records) and all(isinstance(s, str) for s in shops) and len(set(s for s in shops if isinstance(s, str))) == count, count - len(set(s for s in shops if isinstance(s, str))))
-        counts = selection.get('counts')
-        masked = counts.get('maskedAboveLowestPick') if isinstance(counts, dict) else None
-        if manual:
-            for identifier in ('no_masked_above_lowest_pick', 'links_in_m1', 'pick_rule_version'):
-                check(identifier, True, 'manual', True)
-            # Manual still has a defined source identity, not an arbitrary bypass.
-            checks[0]['ok'] &= selection.get('metricInputSha256') is None and selection.get('pickRuleVersion') == 'manual'
+        if request.get('selectionPolicy') == 'metric-products-unique-v1':
+            try:
+                proof = metric_output_script(run, 'verify-selection')
+                check('links_match_source_order', proof.get('linksMatchSourceOrder') is True, proof.get('selectedCount'))
+                check('five_distinct_products', proof.get('fiveDistinct') is True, proof.get('shortageReason'))
+                check('selected_ranks_evidenced', proof.get('panelCovered') is True, proof.get('panelCovered'))
+                code = proof.get('errorCode')
+            except ModuleFailure as failure:
+                check('links_match_source_order', False, failure.code)
+                check('five_distinct_products', False, 'UNVERIFIED')
+                code = failure.code
         else:
-            check('no_masked_above_lowest_pick', is_count(masked) and masked == 0, masked if is_count(masked) else 'not measurable in B1')
-            _, windows = gate_metric_windows(run)
-            # Structural membership across the capture, not a choice of ranking window (D11).
-            ids = set().union(*(gate_metric_ids(w['raw']) for w in windows))
-            members = sum(isinstance(l.get('productBaseId'), str) and l['productBaseId'] in ids for l in records)
-            check('links_in_m1', bool(records) and members == count and selection.get('metricInputSha256') == input_sha, {'matched': members, 'links': count, 'hashMatches': selection.get('metricInputSha256') == input_sha})
-            version_ok = selection.get('pickRuleVersion') == modules['M2']['ruleVersion']
-            check('pick_rule_version', version_ok, 'MATCH' if version_ok else 'MISMATCH')
-        reasons = sum(isinstance(l.get('reason'), str) and bool(l['reason'].strip()) for l in records)
-        check('pick_reason_present', bool(records) and reasons == count, reasons)
-        error = selection.get('errorCode')
-        code = error if isinstance(error, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', error) else None
+            links = selection.get('links')
+            links = links if isinstance(links, list) else []
+            records = [link for link in links if isinstance(link, dict)]
+            count = len(links)
+            shape = (selection.get('format') == 'selection-v1' and selection.get('runId') == run.name and
+                     selection.get('source') in ('auto', 'manual') and len(records) == count)
+            check('links_1_to_5', shape and 1 <= count <= 5, count)
+            numeric = lambda v: isinstance(v, str) and re.fullmatch(r'[1-9][0-9]{0,19}', v) is not None
+            check('ids_numeric', bool(records) and len(records) == count and all(numeric(l.get('shopId')) and numeric(l.get('itemId')) and
+                  l.get('productBaseId') == f"1__{l.get('itemId')}__{l.get('shopId')}" for l in records), count)
+            shops = [l.get('shopId') for l in records]
+            check('no_duplicate_shop', bool(records) and all(isinstance(s, str) for s in shops) and len(set(s for s in shops if isinstance(s, str))) == count, count - len(set(s for s in shops if isinstance(s, str))))
+            counts = selection.get('counts')
+            masked = counts.get('maskedAboveLowestPick') if isinstance(counts, dict) else None
+            if manual:
+                for identifier in ('no_masked_above_lowest_pick', 'links_in_m1', 'pick_rule_version'):
+                    check(identifier, True, 'manual', True)
+                # Manual still has a defined source identity, not an arbitrary bypass.
+                checks[0]['ok'] &= selection.get('metricInputSha256') is None and selection.get('pickRuleVersion') == 'manual'
+            else:
+                check('no_masked_above_lowest_pick', is_count(masked) and masked == 0, masked if is_count(masked) else 'not measurable in B1')
+                _, windows = gate_metric_windows(run)
+                # Structural membership across the capture, not a choice of ranking window (D11).
+                ids = set().union(*(gate_metric_ids(w['raw']) for w in windows))
+                members = sum(isinstance(l.get('productBaseId'), str) and l['productBaseId'] in ids for l in records)
+                check('links_in_m1', bool(records) and members == count and selection.get('metricInputSha256') == input_sha, {'matched': members, 'links': count, 'hashMatches': selection.get('metricInputSha256') == input_sha})
+                version_ok = selection.get('pickRuleVersion') == modules['M2']['ruleVersion']
+                check('pick_rule_version', version_ok, 'MATCH' if version_ok else 'MISMATCH')
+            reasons = sum(isinstance(l.get('reason'), str) and bool(l['reason'].strip()) for l in records)
+            check('pick_reason_present', bool(records) and reasons == count, reasons)
+            error = selection.get('errorCode')
+            code = error if isinstance(error, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', error) else None
     elif not code and gate == 'm3':
         data = read('m3/reviews.json')
         rows = data if isinstance(data, list) else []
@@ -1127,6 +1146,8 @@ def module_work(run, module, ns, repo, config, admission=None):
         flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
         module_atomic_json(run, 'capture-spec.json', request['captureSpec'])
         args = [str(repo / 'scripts/capture-metric-preset.ts'), str(run / 'capture-spec.json'), str(run / 'm1'), os.environ['TDN_WORKSPACE_DB']]
+        if request.get('selectionPolicy') == 'metric-products-unique-v1':
+            args.extend(['--module-run', str(run)])
     else:
         args = [str(repo / ('scripts/module-pick.ts' if module == 'm2' else 'scripts/module-collect-public.ts')), str(run)]
         flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
@@ -2094,6 +2115,7 @@ def flow_new_run():
                'collectionPolicy': policy, 'principalTitles': titles, 'captureSpec': spec}
     if metric_input is not None:
         request['metricInput'] = metric_input
+        request['selectionPolicy'] = 'metric-products-unique-v1'
     flow_assert_capture(request)
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -2134,6 +2156,50 @@ def flow_run_info(run, config):
             'selection': gate_read(gate_path(run, 'm2/selection.json'))}
 
 
+def metric_output_script(run, action, *args, stream=False):
+    """Canonical offline TS reader/replay; never starts a source or writes artifacts."""
+    import shlex
+    repo, config = module_config()
+    command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+    command = shlex.split(command) if isinstance(command, str) else command
+    if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+        raise ModuleFailure('NODE_COMMAND_INVALID')
+    try:
+        result = subprocess.run([*command, str(repo / 'scripts/module-metric-output.ts'), action, str(run), *args],
+                                cwd=repo, capture_output=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        raise ModuleFailure('MODULE_OUTPUT_TIMEOUT') from None
+    if stream:
+        if result.returncode:
+            code = result.stderr.decode('utf-8', 'replace').strip()
+            raise ModuleFailure(code if re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'EVIDENCE_READ_FAILED')
+        return result.stdout
+    try:
+        value = json.loads(result.stdout)
+    except ValueError:
+        raise ModuleFailure('MODULE_OUTPUT_INVALID') from None
+    if result.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
+        code = value.get('code') if isinstance(value, dict) else None
+        raise ModuleFailure(code if isinstance(code, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'MODULE_OUTPUT_INVALID')
+    return value
+
+
+def cmd_metric_evidence(ns):
+    try:
+        if not re.fullmatch(r'[a-f0-9]{64}', ns.output_sha256):
+            raise ModuleFailure('ARG_INVALID', 2)
+        data = metric_output_script(module_run_folder(ns.run_id), 'read', ns.kind, ns.output_sha256, stream=True)
+        if len(data) > 64 * 1024 * 1024:
+            raise ModuleFailure('EVIDENCE_FILE_INVALID')
+        sys.stdout.buffer.write(data)
+    except ModuleFailure as failure:
+        print(failure.code, file=sys.stderr)
+        sys.exit(failure.exit_code)
+    except (OSError, ValueError, TypeError):
+        print('EVIDENCE_READ_FAILED', file=sys.stderr)
+        sys.exit(20)
+
+
 def cmd_flow_query(ns):
     try:
         if ns.cmd == 'connection':
@@ -2160,6 +2226,8 @@ def cmd_flow_query(ns):
                 values.append({'presetId': value['presetId'], 'label': value['label'], 'keywords': fields['keywords'],
                                'categoryLabel': fields.get('category', {}).get('label'), 'source': value['source']})
             result = {'format': 'presets-v1', 'presets': values}
+        elif ns.cmd == 'outputs':
+            result = metric_output_script(module_run_folder(ns.run_id), 'view')
         elif ns.cmd == 'capture-specs':
             result = flow_capture_specs(module_run_folder(ns.run_id))
         elif ns.cmd == 'run-info':
@@ -2239,11 +2307,14 @@ def main():
         if name == 'review-attempt-worker':
             x.add_argument('--reconcile', action='store_true'); x.add_argument('--worker-lock-fd', type=int); x.add_argument('--worker-ready-fd', type=int)
         x.set_defaults(f=cmd_review_sampling)
-    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'capture-specs', 'library'):
+    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'capture-specs', 'outputs', 'library'):
         x = sp.add_parser(name)
         if name in ('new-run', 'add-product'): x.add_argument('--stdin', action='store_true', required=True)
-        if name in ('run-info', 'capture-specs'): x.add_argument('--run', dest='run_id', required=True)
+        if name in ('run-info', 'capture-specs', 'outputs'): x.add_argument('--run', dest='run_id', required=True)
         x.set_defaults(f=cmd_flow_query)
+    x = sp.add_parser('evidence'); x.add_argument('--run', dest='run_id', required=True)
+    x.add_argument('--kind', choices=['full-page', 'top-products', 'raw'], required=True); x.add_argument('--output-sha256', required=True)
+    x.set_defaults(f=cmd_metric_evidence)
     sp.add_parser('status').set_defaults(f=cmd_status)
     sp.add_parser('guard-check').set_defaults(f=cmd_guard_check)
     for name, f in (('run-status', cmd_run_status), ('verify', cmd_verify), ('usage', cmd_usage)):

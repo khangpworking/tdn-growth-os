@@ -243,6 +243,85 @@ test('main picks from a reordered producer capture behind a passing M1 gate', as
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+/** Synthetic source rows for the accepted metric-products-unique-v1 policy. */
+const uniqueRows = (titles: readonly [string, string][]) => titles.map(([title, item], i) => ({
+  product_base_id: `1__${item}__801`, product_name: title, shop_base_id: '801', platform_id: 1,
+  revenue_custom: 1000 - i * 10, brand: 'DHC', final_brand: 'DHC',
+}));
+function uniqueCapture(rows: unknown[]) {
+  const responses = structuredClone(selectedResponses) as any[];
+  responses.find(response => response.urlPath === '/v2/market/analytics/products/')!.body.data.products = rows;
+  return responses;
+}
+const uniqueRequest = () => ({ ...selectedRequest(), selectionPolicy: 'metric-products-unique-v1' });
+async function writePassingM1Gate(dir: string) {
+  await mkdir(join(dir, 'gates'), { recursive: true });
+  await writeJson(dir, 'gates/m1.json', {
+    format: 'handoff-v1', module: 'M1', runId: basename(dir), skillVersion: '1.0.0', verdict: 'PASS',
+    inputSha256: null, outputSha256: await hashFolder(dir, 'm1'), checks: [], errorCode: null, next: null,
+  });
+}
+
+test('main applies the named policy in source order and skips a later pack-count duplicate', async () => {
+  const dir = await runDir();
+  try {
+    const rows = uniqueRows([
+      ['DHC Kẽm 60 viên', '8101'], ['DHC Kẽm 120 viên', '8102'], ['DHC Vitamin C 60 ngày', '8103'],
+      ['DHC Biotin 60 ngày', '8104'], ['DHC Magiê 60 ngày', '8105'], ['DHC Canxi 60 ngày', '8106'],
+    ]);
+    await writeJson(dir, 'request.json', uniqueRequest());
+    await writeSelectedCapture(dir, { responses: uniqueCapture(rows) });
+    await writePassingM1Gate(dir);
+    const result = await main(dir);
+    assert.equal(result.verdict, 'PASS');
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(result.pickedIds, ['1__8101__801', '1__8103__801', '1__8104__801', '1__8105__801', '1__8106__801']);
+    const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+    assert.equal(saved.pickRuleVersion, 'metric-products-unique-v1');
+    assert.deepEqual(saved.links.map((link: any) => link.sourceRank), [1, 3, 4, 5, 6]);
+    assert.deepEqual(saved.selectionProof.skipped, [
+      { sourceRank: 2, productBaseId: '1__8102__801', reason: 'SAME_TITLE_COMPONENT_GROUP', duplicateOfRank: 1 }]);
+    assert.equal(saved.selectionProof.shortageReason, null);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('main reports a relevant unresolved title before the fifth pick instead of claiming five distinct', async () => {
+  const dir = await runDir();
+  try {
+    const rows = uniqueRows([
+      ['DHC Kẽm 60 ngày', '8201'], ['DHC Vitamin C 60 ngày', '8202'], ['DHC Kẽm / DHC Vitamin C', '8203'],
+      ['DHC Biotin 60 ngày', '8204'], ['DHC Magiê 60 ngày', '8205'], ['DHC Canxi 60 ngày', '8206'],
+    ]);
+    await writeJson(dir, 'request.json', uniqueRequest());
+    await writeSelectedCapture(dir, { responses: uniqueCapture(rows) });
+    await writePassingM1Gate(dir);
+    const result = await main(dir);
+    assert.equal(result.verdict, 'FAIL');
+    assert.equal(result.exitCode, 20);
+    assert.equal(result.errorCode, 'PICK_TITLE_GROUP_UNRESOLVED');
+    const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+    assert.equal(saved.links.length, 5, 'five resolved rows are still shown truthfully');
+    assert.equal(saved.selectionProof.unresolvedCount, 1);
+    assert.equal(saved.selectionProof.shortageReason, 'PICK_TITLE_GROUP_UNRESOLVED');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('main reports a captured-product shortage without padding the list', async () => {
+  const dir = await runDir();
+  try {
+    const rows = uniqueRows([['DHC Kẽm', '8301'], ['DHC Vitamin C', '8302'], ['DHC Biotin', '8303']]);
+    await writeJson(dir, 'request.json', uniqueRequest());
+    await writeSelectedCapture(dir, { responses: uniqueCapture(rows) });
+    await writePassingM1Gate(dir);
+    const result = await main(dir);
+    assert.equal(result.verdict, 'FAIL');
+    assert.equal(result.exitCode, 20);
+    assert.equal(result.errorCode, 'FEWER_THAN_FIVE_DISTINCT_PRODUCTS');
+    const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+    assert.equal(saved.links.length, 3);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('pickRaw refuses captures whose applied sets are missing, foreign, duplicated, mislabeled or tampered', async () => {
   const cases: [string, (state: any, dir: string) => Promise<void>, string][] = [
     ['missing platform', async (state, dir) => {
