@@ -107,3 +107,10 @@ Windows and real Metric verification require separately recorded evidence.
 No live Metric/Shopee run or deployment is authorized by this implementation
 task. Merge requires CI success and Astra medium approval of the exact commit.
 Other business success gates and skill separation remain pending.
+
+
+## Boundary corrections from exact-head review
+
+- M2 replays the real capture producer's semantic validation for applied membership. Equivalent platform/category/shop/keyword/exclusion sets may be observed in a different DOM order; missing, duplicate, foreign or mislabeled members remain invalid. Exact artifact hashes, window dates and order-sensitive source/reference data are still checked.
+- The supported deployment is the owner's current Windows machine in Asia/Bangkok (UTC+07). New single-window CLI creation uses that explicit completed-day boundary rather than Fedora's process-local date. The desktop bridge retains its local completed-day check. There is no caller-provided clock, no timezone configuration change, and no shifting/recomputing of saved dates. Moving the app to another timezone requires revisiting this policy; general multi-timezone support is not claimed.
+- Legacy direct CLI creation without the new startDate/metricOptions wire keeps its existing two-window semantics. Read-only history is not rewritten by this correction.

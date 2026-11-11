@@ -153,6 +153,30 @@ def selected_request_payload():
     }
 
 
+CLOCK_JAIL = '''"""Test harness: freezes one instant for a child CLI process, no production seam."""
+import datetime as _datetime
+import os
+
+_frozen = _datetime.datetime.fromisoformat(os.environ['TEST_FROZEN_UTC'])
+
+
+class _FrozenDate(_datetime.date):
+    @classmethod
+    def today(cls):
+        return cls.fromtimestamp(_frozen.timestamp())
+
+
+class _FrozenDatetime(_datetime.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return _frozen.astimezone(tz) if tz is not None else _frozen.replace(tzinfo=None)
+
+
+_datetime.date = _FrozenDate
+_datetime.datetime = _FrozenDatetime
+'''
+
+
 class FlowTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -173,11 +197,12 @@ class FlowTest(unittest.TestCase):
         finished.wait()
         self.dead_pid = finished.pid
 
-    def env(self):
+    def env(self, extra=None):
         env = {k: v for k, v in os.environ.items()
                if not k.startswith('TDN_') and k not in ('SHOPEE_FLOW_RUNS', 'SHOPEE_FLOW_STATE',
                                                          'SHOPEE_FLOW_PRESETS', 'NODE_MARKER',
-                                                         'LEGACY_MARKER', 'REAL_TS_SAMPLING')}
+                                                         'LEGACY_MARKER', 'REAL_TS_SAMPLING',
+                                                         'TEST_FROZEN_UTC', 'PYTHONPATH')}
         env['SHOPEE_FLOW_RUNS'] = str(self.runs)
         env['SHOPEE_FLOW_STATE'] = str(self.state)
         env['SHOPEE_FLOW_PRESETS'] = str(self.presets)
@@ -186,16 +211,22 @@ class FlowTest(unittest.TestCase):
         env['LEGACY_MARKER'] = str(self.legacy_marker)
         env['REAL_TS_SAMPLING'] = '0'
         env['PATH'] = f'{self.bin}{os.pathsep}{env.get("PATH", "")}'
+        if extra:
+            env.update(extra)
         return env
 
-    def command(self, *args, stdin=None):
+    def command(self, *args, stdin=None, extra_env=None):
         proc = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
-                              env=self.env(), input=stdin, timeout=90)
+                              env=self.env(extra_env), input=stdin, timeout=90)
         payload = json.loads(proc.stdout) if proc.stdout.strip() else None
         return proc.returncode, payload, proc.stderr
 
     def assert_no_subprocess(self):
         self.assertFalse(self.marker.exists(), 'a module subprocess was started')
+
+    def read_request(self, payload):
+        run = self.runs / payload['runId']
+        return run, json.loads((run / 'request.json').read_text())
 
     def write_preset(self, preset_id='kem', **over):
         value = json.loads(json.dumps(PRESET))
@@ -219,10 +250,6 @@ class FlowTest(unittest.TestCase):
 class NewRunTests(FlowTest):
     def create(self, payload):
         return self.command('new-run', '--stdin', stdin=json.dumps(payload))
-
-    def read_request(self, payload):
-        run = self.runs / payload['runId']
-        return run, json.loads((run / 'request.json').read_text())
 
     def test_legacy_cap_input_maps_to_request_v2_default_policy(self):
         preset = self.write_preset()
@@ -340,7 +367,8 @@ class NewRunTests(FlowTest):
     def test_partial_or_invalid_selected_inputs_create_no_run(self):
         self.write_preset()
         before = set(self.runs.iterdir())
-        today = dt.date.today()
+        # The completed-day cutoff follows the supported desktop calendar, not the host's.
+        today = dt.datetime.now(dt.timezone(dt.timedelta(hours=7))).date()
 
         def value(start=METRIC_START, end=METRIC_END, options=None):
             return {'presetId': 'kem', 'startDate': start, 'endDate': end,
@@ -370,6 +398,80 @@ class NewRunTests(FlowTest):
                 self.assertEqual(payload, {'format': 'error-v1', 'code': expected, 'message': expected}, name)
         self.assertEqual(set(self.runs.iterdir()), before)
         self.assert_no_subprocess()
+
+
+class SelectedDateBoundaryTests(FlowTest):
+    """The selected-window cutoff follows the supported desktop calendar (Asia/Bangkok, UTC+07)."""
+
+    def create_at(self, frozen_utc, tz, payload):
+        jail = pathlib.Path(self._tmp.name) / f'clock-{uuid.uuid4().hex[:8]}'
+        jail.mkdir()
+        (jail / 'sitecustomize.py').write_text(CLOCK_JAIL, encoding='utf8')
+        return self.command('new-run', '--stdin', stdin=json.dumps(payload),
+                            extra_env={'PYTHONPATH': str(jail), 'TEST_FROZEN_UTC': frozen_utc, 'TZ': tz})
+
+    def selected(self, start, end):
+        return {'presetId': 'kem', 'startDate': start, 'endDate': end,
+                'metricOptions': json.loads(json.dumps(METRIC_OPTIONS))}
+
+    def test_accepts_the_last_completed_desktop_day_across_the_midnight_gap(self):
+        self.write_preset()
+        for tz in ('UTC', '<+07>-7'):
+            with self.subTest(tz):
+                rc, payload, stderr = self.create_at(
+                    '2026-11-11T17:30:00+00:00', tz, self.selected('2026-11-10', '2026-11-11'))
+                self.assertEqual(rc, 0, (tz, payload, stderr))
+                _, request = self.read_request(payload)
+                window = {'startDate': '2026-11-10', 'endDate': '2026-11-11'}
+                self.assertEqual(request['windows'][0]['period'], window)
+                self.assertEqual(request['captureSpec']['windows'][0]['period'], window)
+                self.assertEqual(request['metricInput']['window']['period'], window)
+                self.assert_no_subprocess()
+
+    def test_refuses_the_same_end_before_the_desktop_day_completes(self):
+        self.write_preset()
+        before = set(self.runs.iterdir())
+        for tz in ('UTC', '<+07>-7'):
+            with self.subTest(tz):
+                rc, payload, _ = self.create_at(
+                    '2026-11-11T16:30:00+00:00', tz, self.selected('2026-11-10', '2026-11-11'))
+                self.assertEqual(rc, 2, (tz, payload))
+                self.assertEqual(payload, {'format': 'error-v1', 'code': 'NEW_RUN_INPUT_INVALID',
+                                           'message': 'NEW_RUN_INPUT_INVALID'})
+        self.assertEqual(set(self.runs.iterdir()), before)
+        self.assert_no_subprocess()
+
+    def test_refuses_unfinished_future_malformed_or_reversed_desktop_dates(self):
+        self.write_preset()
+        before = set(self.runs.iterdir())
+        cases = (
+            ('desktop day not completed', self.selected('2026-11-11', '2026-11-12')),
+            ('future end', self.selected('2026-11-11', '2026-11-13')),
+            ('malformed end', self.selected('2026-11-10', '2026-02-30')),
+            ('reversed range', self.selected('2026-11-11', '2026-11-10')),
+        )
+        for name, payload in cases:
+            with self.subTest(name):
+                rc, result, _ = self.create_at('2026-11-11T17:30:00+00:00', 'UTC', payload)
+                self.assertEqual(rc, 2, (name, result))
+                self.assertEqual(result, {'format': 'error-v1', 'code': 'NEW_RUN_INPUT_INVALID',
+                                          'message': 'NEW_RUN_INPUT_INVALID'})
+        self.assertEqual(set(self.runs.iterdir()), before)
+        self.assert_no_subprocess()
+
+    def test_legacy_creation_keeps_two_periods_without_the_completed_day_cutoff(self):
+        self.write_preset()
+        for tz in ('UTC', '<+07>-7'):
+            with self.subTest(tz):
+                rc, payload, stderr = self.create_at(
+                    '2026-11-11T16:30:00+00:00', tz, {'presetId': 'kem', 'endDate': '2026-11-11'})
+                self.assertEqual(rc, 0, (tz, payload, stderr))
+                _, request = self.read_request(payload)
+                self.assertEqual([window['id'] for window in request['windows']], ['30d', '12m'])
+                for window in request['windows']:
+                    self.assertEqual(window['period']['endDate'], '2026-11-11')
+                self.assertEqual(request['captureSpec']['windows'][1]['id'], '12m')
+                self.assert_no_subprocess()
 
 
 class ReadOnlyCommandTests(FlowTest):
@@ -545,8 +647,8 @@ class SelectedWindowFlowTests(FlowTest):
         node.write_text(FAKE_NODE, encoding='utf8')
         node.chmod(node.stat().st_mode | stat.S_IXUSR)
 
-    def env(self):
-        env = super().env()
+    def env(self, extra=None):
+        env = super().env(extra)
         env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
         return env
 
@@ -747,8 +849,8 @@ class PartialOutcomeFlowTests(FlowTest):
         node.write_text(FAKE_NODE, encoding='utf8')
         node.chmod(node.stat().st_mode | stat.S_IXUSR)
 
-    def env(self):
-        env = super().env()
+    def env(self, extra=None):
+        env = super().env(extra)
         env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
         return env
 
@@ -894,8 +996,8 @@ class ConfiguredFlowTests(FlowTest):
             self.skipTest('127.0.0.1:8877 is unavailable for the local collector transport')
         self.addCleanup(self.transport.close)
 
-    def env(self):
-        env = super().env()
+    def env(self, extra=None):
+        env = super().env(extra)
         env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
         env['TDN_REAL_NODE'] = self.real_node
         env['REAL_TS_SAMPLING'] = '1'

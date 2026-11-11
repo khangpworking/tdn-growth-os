@@ -2059,8 +2059,11 @@ def flow_new_run():
     selected = 'startDate' in value or 'metricOptions' in value
     metric_input = None
     if selected:
+        # The supported desktop is Asia/Bangkok (UTC+07). Fedora's local calendar
+        # must not reject yesterday there during the UTC/desktop midnight gap.
+        desktop_today = dt.datetime.now(dt.timezone(dt.timedelta(hours=7))).date()
         if ('startDate' not in value or 'metricOptions' not in value or not gate_date(value['startDate']) or
-                value['startDate'] > end_date or dt.date.fromisoformat(end_date) >= dt.date.today()):
+                value['startDate'] > end_date or dt.date.fromisoformat(end_date) >= desktop_today):
             raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
         schema = flow_capture_schema('metric-v3-capture-spec-v3')
         options = value['metricOptions']

@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
-import { auditMaskedRows, derivePickCandidate, main, ModuleError, pickRaw, readRequest, sha256 } from '../../scripts/module-pick.js';
+import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pickRaw, readRequest, sha256 } from '../../scripts/module-pick.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
 
@@ -58,15 +58,20 @@ function selectedRequest(): Record<string, unknown> {
 }
 
 /** Writes the outer manifest, the selected window manifest and its raw source, all hashed as the flow writes them. */
-async function writeSelectedCapture(dir: string) {
-  const rawBytes = `${JSON.stringify(selectedResponses, null, 2)}\n`;
+async function writeSelectedCapture(dir: string, observation: {
+  appliedState?: any;
+  selectedCategoryIds?: string[];
+  responses?: unknown[];
+} = {}) {
+  const responses = observation.responses ?? selectedResponses;
+  const rawBytes = `${JSON.stringify(responses, null, 2)}\n`;
   const part = buildV3WindowManifest(selectedSpec, structuredClone(selectedWindow), {
     taxonomy: structuredClone(selectedPreset.category),
-    appliedState: structuredClone(selectedPreset),
-    keywordInput: '', selectedCategoryIds: selectedPreset.category.children.map((child: any) => child.id),
+    appliedState: observation.appliedState ?? structuredClone(selectedPreset),
+    keywordInput: '', selectedCategoryIds: observation.selectedCategoryIds ?? selectedPreset.category.children.map((child: any) => child.id),
     period: structuredClone(selectedWindow.period), categoryMode: 'Advanced', multi: true,
     comparisonDefault: true, displayedKPIs: 'synthetic selected-window capture',
-  }, selectedResponses, '2026-11-10T00:00:00.000Z');
+  }, responses, '2026-11-10T00:00:00.000Z');
   const partBytes = `${JSON.stringify(part, null, 2)}\n`;
   const specDigest = sha256(`${JSON.stringify(selectedSpec, null, 2)}\n`);
   const outer = {
@@ -78,6 +83,32 @@ async function writeSelectedCapture(dir: string) {
   await writeJson(dir, 'm1/selected/manifest.json', part);
   await writeFile(join(dir, 'm1/selected/raw-responses.json'), rawBytes);
   return { outer, part, partBytes, specDigest };
+}
+
+/** Republishes a mutated window manifest with hashes recomputed exactly as the flow would. */
+async function publishWindow(dir: string, state: { outer: any; part: any }) {
+  const partBytes = `${JSON.stringify(state.part, null, 2)}\n`;
+  state.outer.windows[0].sha256 = sha256(partBytes);
+  await writeFile(join(dir, 'm1/selected/manifest.json'), partBytes);
+  await writeJson(dir, 'm1/manifest.json', state.outer);
+}
+
+/** Rewrites the raw source and the window manifest hash chain, leaving every digest internally consistent. */
+async function rewriteRaw(dir: string, state: { outer: any; part: any }, raw: unknown) {
+  const rawBytes = `${JSON.stringify(raw, null, 2)}\n`;
+  state.part.files[0].sha256 = sha256(rawBytes);
+  state.part.files[0].byteSize = Buffer.byteLength(rawBytes);
+  await writeFile(join(dir, 'm1/selected/raw-responses.json'), rawBytes);
+  await publishWindow(dir, state);
+}
+
+/** The saved preset with every set-valued member in a different but equivalent order. */
+function reorderedAppliedState() {
+  const appliedState = structuredClone(selectedPreset);
+  appliedState.platforms.reverse();
+  appliedState.shopTypes.reverse();
+  appliedState.category.children.reverse();
+  return { appliedState, selectedCategoryIds: appliedState.category.children.map((child: any) => child.id) };
 }
 
 test('derivePickCandidate ranks the real pick result by revenue descending', () => {
@@ -168,6 +199,114 @@ test('pickRaw reads only the selected v3 window after verifying every capture di
     await writeJson(dir, 'm1/run1/raw-responses.json', { decoy: 'legacy 30-day capture' });
     await writeSelectedCapture(dir);
     assert.deepEqual(await pickRaw(dir), selectedResponses, 'M2 reads the run window, never the legacy 30-day folder');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('pickRaw accepts a producer capture whose applied sets are equivalent but reordered', async () => {
+  const dir = await runDir();
+  try {
+    const { appliedState, selectedCategoryIds } = reorderedAppliedState();
+    await writeJson(dir, 'request.json', selectedRequest());
+    const state = await writeSelectedCapture(dir, { appliedState, selectedCategoryIds });
+    const rawBytes = await readFile(join(dir, 'm1/selected/raw-responses.json'));
+    assert.equal(state.outer.windows[0]!.sha256, sha256(await readFile(join(dir, 'm1/selected/manifest.json'))));
+    assert.equal(state.part.specDigest, state.specDigest);
+    assert.equal(state.part.files[0]!.sha256, sha256(rawBytes));
+    assert.equal(state.part.files[0]!.byteSize, rawBytes.length);
+    assert.deepEqual(state.part.appliedState.platforms, [...selectedPreset.platforms].reverse());
+    assert.deepEqual(state.part.appliedState.shopTypes, [...selectedPreset.shopTypes].reverse());
+    assert.deepEqual(state.part.selectedCategoryIds, [...selectedPreset.category.children.map((child: any) => child.id)].reverse());
+    assert.deepEqual(await pickRaw(dir), selectedResponses);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('main picks from a reordered producer capture behind a passing M1 gate', async () => {
+  const dir = await runDir();
+  try {
+    const responses = structuredClone(selectedResponses) as any[];
+    responses.find(response => response.urlPath === '/v2/market/analytics/products/')!
+      .body.data.products.push({ product_base_id: '1__9101__911', product_name: 'Synthetic term one pickable',
+        shop_base_id: '911', revenue_custom: 900, order_custom: 2, brand: 'Synthetic Brand' });
+    const { appliedState, selectedCategoryIds } = reorderedAppliedState();
+    await writeJson(dir, 'request.json', selectedRequest());
+    await writeSelectedCapture(dir, { appliedState, selectedCategoryIds, responses });
+    await mkdir(join(dir, 'gates'), { recursive: true });
+    await writeJson(dir, 'gates/m1.json', {
+      format: 'handoff-v1', module: 'M1', runId: basename(dir), skillVersion: '1.0.0', verdict: 'PASS',
+      inputSha256: null, outputSha256: await hashFolder(dir, 'm1'), checks: [], errorCode: null, next: null,
+    });
+    const result = await main(dir);
+    assert.equal(result.verdict, 'PASS');
+    assert.deepEqual(result.pickedIds, ['1__9101__911']);
+    const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+    assert.deepEqual(saved.links.map((link: any) => link.productBaseId), ['1__9101__911']);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('pickRaw refuses captures whose applied sets are missing, foreign, duplicated, mislabeled or tampered', async () => {
+  const cases: [string, (state: any, dir: string) => Promise<void>, string][] = [
+    ['missing platform', async (state, dir) => {
+      state.part.appliedState.platforms = state.part.appliedState.platforms.slice(1);
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['duplicate platform', async (state, dir) => {
+      state.part.appliedState.platforms = [state.part.appliedState.platforms[0], ...state.part.appliedState.platforms.slice(0, 3)];
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['missing shop type', async (state, dir) => {
+      state.part.appliedState.shopTypes = state.part.appliedState.shopTypes.slice(0, 1);
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['mislabeled category child', async (state, dir) => {
+      state.part.appliedState.category.children[0] = { id: 'c407923064', label: 'Synthetic foreign label' };
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['missing category child', async (state, dir) => {
+      state.part.appliedState.category.children.pop();
+      state.part.selectedCategoryIds.pop();
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['foreign selected category id', async (state, dir) => {
+      state.part.selectedCategoryIds = [...state.part.selectedCategoryIds.slice(0, 3), 'c999999999'];
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['duplicate selected category id', async (state, dir) => {
+      state.part.selectedCategoryIds = [state.part.selectedCategoryIds[0], ...state.part.selectedCategoryIds.slice(0, 3)];
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['source map', async (state, dir) => {
+      state.part.sourceMap.products = 'raw-responses.json#/0/body/data';
+      await publishWindow(dir, state);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+    ['stale raw hash', async (_state, dir) => {
+      await writeFile(join(dir, 'm1/selected/raw-responses.json'), `${JSON.stringify([{ decoy: true }], null, 2)}\n`);
+    }, 'CAPTURE_HASH_MISMATCH'],
+    ['request scope change with consistent hashes', async (state, dir) => {
+      const raw = JSON.parse(await readFile(join(dir, 'm1/selected/raw-responses.json'), 'utf8'));
+      raw.find((response: any) => response.urlPath === '/v2/market/analytics/products/')
+        .requestBody.include_query.platforms = [1, 2];
+      await rewriteRaw(dir, state, raw);
+    }, 'CAPTURE_SPEC_MISMATCH'],
+  ];
+  for (const [name, mutate, code] of cases) {
+    const dir = await runDir();
+    try {
+      await writeJson(dir, 'request.json', selectedRequest());
+      const state = await writeSelectedCapture(dir);
+      await mutate(state, dir);
+      await assert.rejects(pickRaw(dir), (error: unknown) => error instanceof ModuleError && error.code === code, name);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }
+});
+
+test('readRequest keeps the frozen request keyword order', async () => {
+  const dir = await runDir();
+  try {
+    const value = selectedRequest();
+    (value.preset as any).keywords = [...(value.preset as any).keywords].reverse();
+    await writeJson(dir, 'request.json', value);
+    await assert.rejects(readRequest(dir), (error: unknown) =>
+      error instanceof ModuleError && error.code === 'CAPTURE_SPEC_MISMATCH');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

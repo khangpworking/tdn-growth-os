@@ -150,14 +150,15 @@ export async function pickRaw(run: string, request?: Awaited<ReturnType<typeof r
     if (sha256(manifestBytes) !== ref.sha256) throw new ModuleError('CAPTURE_HASH_MISMATCH');
     const part = object(JSON.parse(manifestBytes.toString('utf8')));
     if (!validateSelectedWindow(part) || part.specDigest !== specDigest ||
-        canonicalJson(part.window) !== canonicalJson(window) || canonicalJson(part.appliedState) !== canonicalJson(spec.preset))
+        canonicalJson(part.window) !== canonicalJson(window))
       throw new ModuleError('CAPTURE_SPEC_MISMATCH');
     const rawBytes = await readFile(await safePath(run, `${prefix}/${window.id}/raw-responses.json`));
     const file = (part.files as { path: string; sha256: string; byteSize: number }[])[0]!;
     if (file.path !== 'raw-responses.json' || file.sha256 !== sha256(rawBytes) || file.byteSize !== rawBytes.length)
       throw new ModuleError('CAPTURE_HASH_MISMATCH');
     const raw: unknown = JSON.parse(rawBytes.toString('utf8'));
-    // Replay the real capture publication boundary; a PASS-shaped manifest alone is insufficient.
+    // Replay the real capture publication boundary, including its unique-set applied-state
+    // comparison. DOM member order can differ from the frozen request; artifact hashes stay exact.
     const { buildV3WindowManifest } = await import(new URL('../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
     let replay;
     try {
