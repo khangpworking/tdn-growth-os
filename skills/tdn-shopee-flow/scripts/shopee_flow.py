@@ -1306,9 +1306,11 @@ def cmd_review_sampling(ns):
                 raise ModuleFailure('RUN_BUSY', 24)
             if module_readonly():
                 raise ModuleFailure('READONLY_ON')
-            error, exit_code = gate_prerequisite(run, 'm2', gate_hash(run, 'm2/selection.json'))
-            if error:
-                raise ModuleFailure(error, exit_code)
+            recovering = ns.cmd == 'reconcile-review-attempt' or worker and ns.reconcile
+            if not recovering:
+                error, exit_code = gate_prerequisite(run, 'm2', gate_hash(run, 'm2/selection.json'))
+                if error:
+                    raise ModuleFailure(error, exit_code)
             if worker:
                 value = review_sampling_script(repo, config, 'execute', run, ns.kind, ns.attempt,
                                                'reconcile' if ns.reconcile else 'initial')

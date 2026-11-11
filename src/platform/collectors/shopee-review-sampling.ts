@@ -150,7 +150,6 @@ export class ShopeeReviewSamplingCollector {
       if(signal?.aborted || left()<=0 || j.cancelIntent) {
         await cancel();
         const status=parseJob(await call('GET',`/jobs/${j.job!.id}`,undefined,true));j.job=status;
-        await retainResult(status,true);
         if(!pending(status.state)) {j.terminal=true;j.errorCode=signal?.aborted||j.cancelIntent?'OWNER_ABORTED':'DEADLINE';await save();return j;}
         throw new ReviewSamplingError('CANCELLATION_UNCONFIRMED');
       }

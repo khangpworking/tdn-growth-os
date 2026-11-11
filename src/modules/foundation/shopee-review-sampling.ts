@@ -68,7 +68,8 @@ export function validateSamplingResult(value: unknown, plan: ShopeeReviewPlan, p
   if (result.rows.length > policy.totalPerLink) throw new ReviewSamplingError('REVIEW_CAP_EXCEEDED');
   for (const row of result.rows) {
     const text = [row.comment ?? '', ...row.attributes].some(v => /[\p{L}\p{N}]/u.test(v));
-    if (!row.reviewId || ids.has(row.reviewId) || !text || row.admissionReasons.length || row.shopId !== link.shopId || row.itemId !== link.itemId || row.sourceUrl !== link.url ||
+    const invalidReasons=row.admissionReasons.some(reason=>reason!=='SOURCE_TIME_NOT_PARSED');
+    if (!row.reviewId || ids.has(row.reviewId) || !text || invalidReasons || row.shopId !== link.shopId || row.itemId !== link.itemId || row.sourceUrl !== link.url ||
         policy.mode === 'stars' && (row.ratingStar === null || !policy.stars.includes(row.ratingStar)) ||
         !result.pages.some(p => p.page === row.sourcePage && p.ids.includes(row.reviewId!) && p.filter === (policy.mode === 'stars' ? String(row.ratingStar) : policy.mode)))
       throw new ReviewSamplingError('REVIEW_RESULT_INVALID');

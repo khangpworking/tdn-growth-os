@@ -46,6 +46,23 @@ async function planFor(run:string,digest:string):Promise<ShopeeReviewPlan>{
   if(plan.runId!==basename(run)||plan.m2Digest!==context.m2Digest||plan.requestSha256!==context.requestSha256||canonicalJson(plan.links)!==canonicalJson(context.links))throw new ModuleError('REVIEW_PLAN_CHANGED',23);
   return plan;
 }
+async function frozenAttemptProof(run:string,kind:Kind,id:string){
+  const attempt=await metadata(run,kind,id);
+  const plan=attempt.planSha256?validateReviewPlan(await readJson(run,`m3-custom/plans/${attempt.planSha256}.json`),attempt.planSha256):null;
+  if(plan&&(plan.runId!==attempt.runId||plan.m2Digest!==attempt.m2Digest||plan.requestSha256!==attempt.requestSha256||canonicalJson(plan.links)!==canonicalJson(attempt.links)))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
+  if(new Set(attempt.links.map(link=>link.url)).size!==attempt.links.length||attempt.links.some(link=>link.url!==`https://shopee.vn/product/${link.shopId}/${link.itemId}`))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
+  const journals=await journalsFor(run,attempt);
+  for(let index=0;index<journals.length;index++){
+    const journal=journals[index],link=attempt.links[index]!;if(!journal)continue;
+    const expected:SamplingJobInput=plan?{url:link.url,max_comments:plan.policy.totalPerLink,sampling:{attemptId:attempt.attemptId,planSha256:attempt.planSha256!,policySha256:plan.policySha256,policy:plan.policy}}:{kind:'counts',url:link.url,request_key:attempt.attemptId};
+    if(canonicalJson(journal.request)!==canonicalJson(expected))throw new ModuleError('REVIEW_JOURNAL_CHANGED');
+    if(journal.result?.format==='shopee-sampled-result-v1')validateSamplingResult(journal.result,plan!,attempt.planSha256!,link,samplingDigest(expected));
+  }
+  return {attempt,plan};
+}
+async function currentInputsMatch(run:string,attempt:ReviewSamplingAttempt):Promise<boolean>{
+  try{const context=await samplingContext(run);return context.m2Digest===attempt.m2Digest&&context.requestSha256===attempt.requestSha256&&canonicalJson(context.links)===canonicalJson(attempt.links);}catch{return false;}
+}
 export async function saveReviewPlan(run:string,input:unknown){
   const context=await samplingContext(run),policy=reviewPolicy(input);
   const plan:ShopeeReviewPlan={format:'shopee-review-plan-v1',runId:basename(run),...context,policy,policySha256:samplingDigest(policy),targets:starTargets(policy)};
@@ -58,7 +75,10 @@ async function metadata(run:string,kind:Kind,id:string):Promise<ReviewSamplingAt
   if(attempt.attemptId!==id||attempt.kind!==kind||attempt.runId!==basename(run)||kind==='custom'&&!attempt.planSha256||kind==='counts'&&attempt.planSha256!==null)throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
   return attempt;
 }
-async function stateFor(run:string,kind:Kind,id:string):Promise<ReviewSamplingAttemptState>{return validateSampling('attemptState',await readJson(run,`${attemptPath(kind,id)}/state.json`));}
+async function stateFor(run:string,kind:Kind,id:string):Promise<ReviewSamplingAttemptState>{
+  const state=validateSampling<ReviewSamplingAttemptState>('attemptState',await readJson(run,`${attemptPath(kind,id)}/state.json`));
+  if(state.attemptSha256!==samplingDigest(await metadata(run,kind,id)))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');return state;
+}
 async function pidLive(pid:number|null):Promise<boolean>{
   if(pid===null)return false;
   try{process.kill(pid,0);try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');if(['Z','X'].includes(stat.slice(stat.lastIndexOf(')')+2).split(' ')[0]!))return false;}catch{/* Non-Linux: kill(0) remains conservative. */}return true;}catch{return false;}
@@ -89,7 +109,7 @@ export async function reserveAttempt(run:string,kind:Kind,planSha256?:string){
   const attemptId=randomUUID(),base=attemptPath(kind,attemptId);
   const attempt:ReviewSamplingAttempt={format:'shopee-review-attempt-v1',kind,attemptId,runId:basename(run),createdAt:new Date().toISOString(),...context,planSha256:kind==='custom'?planSha256!:null};
   await exclusive(run,`${base}/attempt.json`,attempt);
-  await atomicJson(run,`${base}/state.json`,{format:'shopee-review-attempt-state-v1',status:'RUNNING',pid:process.ppid,errorCode:null,outputSha256:null});
+  await atomicJson(run,`${base}/state.json`,{format:'shopee-review-attempt-state-v1',attemptSha256:samplingDigest(attempt),status:'RUNNING',pid:process.ppid,errorCode:null,outputSha256:null});
   return {format:kind==='counts'?'review-counts-start-v1':'review-attempt-start-v1',runId:basename(run),attemptId,...(kind==='custom'?{planSha256}:{}),status:'RUNNING',pid:process.ppid};
 }
 export async function stopReviewAttempt(run:string,kind:Kind,id:string){
@@ -151,14 +171,16 @@ export interface SamplingExecutionDependencies {
   collector?:Pick<ShopeeReviewSamplingCollector,'run'>;
 }
 export async function executeSamplingAttempt(deps:SamplingExecutionDependencies){
-  const run=resolve(deps.runDir),attempt=await metadata(run,deps.kind,deps.attemptId),base=attemptPath(deps.kind,deps.attemptId),prior=await stateFor(run,deps.kind,deps.attemptId);
+  const run=resolve(deps.runDir),{attempt,plan}=await frozenAttemptProof(run,deps.kind,deps.attemptId),base=attemptPath(deps.kind,deps.attemptId),prior=await stateFor(run,deps.kind,deps.attemptId);
   if(prior.status!=='RUNNING'&&prior.status!=='UNCERTAIN')return {format:'review-attempt-control-v1',runId:basename(run),kind:deps.kind,attemptId:deps.attemptId,status:prior.status,pid:null,errorCode:prior.errorCode};
-  await writable();const context=await samplingContext(run);
-  if(context.m2Digest!==attempt.m2Digest||context.requestSha256!==attempt.requestSha256||canonicalJson(context.links)!==canonicalJson(attempt.links))throw new ModuleError('REVIEW_PLAN_CHANGED',23);
+  await writable();let inputsChanged=!await currentInputsMatch(run,attempt);
+  if(inputsChanged&&!deps.reconcileOnly)throw new ModuleError('REVIEW_PLAN_CHANGED',23);
   await assertSamplingIdle(run,{kind:deps.kind,id:deps.attemptId});
-  const plan=attempt.planSha256?await planFor(run,attempt.planSha256):null;
   const controller=new AbortController(),onStop=()=>controller.abort();process.once('SIGTERM',onStop);process.once('SIGINT',onStop);
-  const stopped=async()=>{if(await optional(run,`${base}/stop.json`)!==null||await readonly())controller.abort();};
+  const stopped=async()=>{
+    try{if(await hashFile(run,'request.json')!==attempt.requestSha256||await hashFile(run,'m2/selection.json')!==attempt.m2Digest)inputsChanged=true;}catch{inputsChanged=true;}
+    if(inputsChanged||await optional(run,`${base}/stop.json`)!==null||await readonly())controller.abort();
+  };
   await stopped();const timer=setInterval(()=>{void stopped().catch(()=>controller.abort());},500);
   const journals:(SamplingJournal|null)[]=attempt.links.map(()=>null);
   let errorCode:string|null=null;
@@ -179,6 +201,9 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   for(let index=0;index<attempt.links.length;index++)journals[index]??=await readSamplingJournal(await safePath(run,`${base}/journal/${samplingDigest(attempt.links[index]!)}.json`));
   const unresolved=journals.some(j=>j!==null&&(!j.terminal||j.job&&['queued','running','needs_login','needs_verification'].includes(j.job.state)));
   const summaries=attempt.links.map((link,index)=>summarizeLink(link,plan,journals[index]??null));
+  // Cleanup remains possible after upstream drift, but changed inputs never publish.
+  inputsChanged ||= !await currentInputsMatch(run,attempt);
+  if(inputsChanged)errorCode='REVIEW_PLAN_CHANGED';
   let gate:Record<string,unknown>|null=null;
   if(plan){
     const results=journals.flatMap(j=>j?.result?.format==='shopee-sampled-result-v1'?[j.result]:[]);
@@ -197,7 +222,7 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   }else if(journals.some(j=>!j?.result||j.result.format!=='shopee-review-counts-v1'))errorCode??='REVIEW_COUNTS_INCOMPLETE';
   const status=unresolved?'UNCERTAIN':errorCode?'FAILED':'SUCCEEDED';
   const outputSha256=gate?.outputSha256??samplingDigest(journals.map(j=>j?.result??null));
-  await atomicJson(run,`${base}/state.json`,{format:'shopee-review-attempt-state-v1',status,pid:null,errorCode,outputSha256});
+  await atomicJson(run,`${base}/state.json`,{format:'shopee-review-attempt-state-v1',attemptSha256:prior.attemptSha256,status,pid:null,errorCode,outputSha256});
   return {format:'review-attempt-control-v1',runId:basename(run),kind:deps.kind,attemptId:deps.attemptId,status,pid:null,errorCode};
 }
 async function inputJson():Promise<unknown>{let value='';for await(const part of process.stdin){value+=String(part);if(Buffer.byteLength(value)>65536)throw new ModuleError('REVIEW_INPUT_INVALID',2);}return JSON.parse(value);}
@@ -211,7 +236,7 @@ export async function reviewSamplingCommand(args:string[]){
   if(action==='stop')return stopReviewAttempt(run,kind,rest[1]??'');
   if(action==='execute')return executeSamplingAttempt({runDir:run,kind,attemptId:rest[1]??'',reconcileOnly:rest[2]==='reconcile'});
   if(action==='reconcile-check'){
-    await writable();const attempt=await metadata(run,kind,rest[1]??'');await assertSamplingIdle(run,{kind,id:rest[1]??''});
+    await writable();const {attempt}=await frozenAttemptProof(run,kind,rest[1]??'');await assertSamplingIdle(run,{kind,id:rest[1]??''});
     const state=await stateFor(run,kind,rest[1]??'');if(state.status==='RUNNING'&&await pidLive(state.pid))throw new ModuleError('RUN_BUSY',24);
     if(!await attemptUnresolved(run,attempt,state))return {format:'review-attempt-control-v1',runId:basename(run),kind,attemptId:rest[1],status:state.status,pid:null,errorCode:state.errorCode};
     return {format:'review-attempt-control-v1',runId:basename(run),kind,attemptId:rest[1],status:'RUNNING',pid:null,errorCode:null};

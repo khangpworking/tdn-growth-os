@@ -308,4 +308,5 @@ export interface ReviewSamplingAttemptState {
   pid: number | null;
   errorCode: string | null;
   outputSha256: string | null;
+  attemptSha256: string;
 }
