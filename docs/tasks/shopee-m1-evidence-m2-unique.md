@@ -55,7 +55,7 @@ Hợp đồng r2.1 nêu các tên nhận diện hiện có: kẽm/zinc; vitamin 
 - `scripts/module-metric-output.ts` dựng đầu ra từ dữ liệu đã lưu và kiểm bằng chứng; `shopee_flow.py` dùng cùng logic để kiểm cổng M1/M2, cung cấp CLI `outputs`/`evidence`. Desktop bridge mở bytes đã kiểm hash từ ba loại tệp cho phép.
 - Khi native sort cần đổi, lưu toàn bộ traffic đã quan sát trong `observed-responses.json`. `raw-responses.json` giữ các endpoint khác và response sản phẩm cuối cùng, với đầy đủ ứng viên/thứ tự. Không tìm ngược một response tốt để che response cuối sai. Không thêm fetch/phân trang ngoài thao tác dropdown đã yêu cầu.
 - Kiểm sort của M1 tách khỏi kiểm vùng ảnh. Dữ liệu đúng có thể đạt M1 dù ảnh toàn khung bị cắt/không có; M2 vẫn bị chặn nếu ảnh không đáp ứng yêu cầu.
-- UI giữ hai trạng thái M1, hai trạng thái M2, sáu cột và trạng thái lượt cũ. HTML đã kiểm: `06baa28ffff7e09f1edc230746e2872f62c550dc4a759b489813810ba02c2de6`; bốn ảnh tổng hợp ở 900/1280 chỉ dùng kiểm bố cục.
+- UI giữ hai trạng thái M1, hai trạng thái M2, sáu cột và trạng thái lượt cũ. HTML đã kiểm: `6e4ca26cf35bf4ec2f53c3e13cea86dd46b7c7ea703f90963b2e64a7f3efa5a9`; bốn ảnh tổng hợp ở 900/1280 chỉ dùng kiểm bố cục (chụp trước hai bổ sung thông báo lỗi; layout/CSS giữ nguyên).
 
 Kiểm thử cục bộ trên Node24.15.0/Python3.14.3: unit TS51/51; integration21 PASS +1 skip đã có; UI JSDOM61/61; Python flow111 chạy, OK với3 skip đã có; bridge30/30; typecheck PASS. Suite capture17/17 nằm trong51 unit, không cộng lặp. Các kiểm thử dùng producer manifest/evidence thật với nguồn tổng hợp; integration bridge chạy API → CLI → reader, chỉ thay OS viewer. Hai sửa sort có kiểm thử hành vi sau sửa; không tuyên bố có baseline-red trên bản trước sửa vì không có snapshot phù hợp lúc harness hoàn tất.
 
