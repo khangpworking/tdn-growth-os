@@ -636,11 +636,18 @@ def gate_schema(value, schema):
     """
     supported = {'$schema', '$id', 'title', 'description', 'type', 'const', 'enum', 'anyOf',
                  'required', 'properties', 'additionalProperties', 'items', 'minItems', 'maxItems',
-                 'minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'format', 'uniqueItems'}
+                 'minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'format', 'uniqueItems',
+                 'allOf', 'if', 'then', 'else'}
     if set(schema) - supported:
         return False
     if 'anyOf' in schema and not any(gate_schema(value, part) for part in schema['anyOf']):
         return False
+    if 'allOf' in schema and not all(gate_schema(value, part) for part in schema['allOf']):
+        return False
+    if 'if' in schema:
+        branch = 'then' if gate_schema(value, schema['if']) else 'else'
+        if branch in schema and not gate_schema(value, schema[branch]):
+            return False
     types = {'null': value is None, 'boolean': type(value) is bool, 'integer': type(value) is int,
              'number': type(value) in (int, float), 'string': isinstance(value, str),
              'object': isinstance(value, dict), 'array': isinstance(value, list)}
@@ -679,6 +686,9 @@ def gate_schema(value, schema):
                 if parsed.tzinfo is None:
                     return False
             except ValueError:
+                return False
+        elif schema.get('format') == 'uuid':
+            if not re.fullmatch(r'[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}', value):
                 return False
         elif schema.get('format') not in (None, 'date'):
             return False
@@ -774,7 +784,7 @@ def evaluate_gate(run, gate, *, readonly_file=None):
     if not code and gate == 'entry':
         preset = request.get('preset')
         keywords = preset.get('keywords') if isinstance(preset, dict) else None
-        check('product_text', request.get('format') == 'request-v1' and isinstance(keywords, list) and bool(keywords) and
+        check('product_text', request.get('format') in ('request-v1', 'request-v2') and isinstance(keywords, list) and bool(keywords) and
               all(isinstance(k, str) and k.strip() for k in keywords), len(keywords) if isinstance(keywords, list) else 0)
         windows = request.get('windows')
         periods = [w.get('period') for w in windows if isinstance(w, dict)] if isinstance(windows, list) else []
@@ -783,7 +793,15 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         valid = bool(periods) and len(periods) == len(windows) and ids_valid and len(set(window_ids)) == len(window_ids) and all(isinstance(p, dict) and
                 gate_date(p.get('startDate')) and gate_date(p.get('endDate')) and p['startDate'] <= p['endDate'] for p in periods)
         check('period_dates', valid, {'windows': len(periods), 'valid': bool(valid)})
-        check('review_cap_1_300', type(cap) is int and params['reviewCapPerLink']['min'] <= cap <= params['reviewCapPerLink']['max'], cap if type(cap) is int else None)
+        if request.get('format') == 'request-v2':
+            try:
+                policy = flow_policy(request.get('collectionPolicy'), full=True)
+                valid_policy = 'reviewCapPerLink' not in request
+            except ModuleFailure:
+                policy, valid_policy = None, False
+            check('collection_policy', valid_policy, {'valid': valid_policy, 'totalPerLink': policy['totalPerLink'] if policy else None})
+        else:
+            check('review_cap_1_300', type(cap) is int and params['reviewCapPerLink']['min'] <= cap <= params['reviewCapPerLink']['max'], cap if type(cap) is int else None)
         off = os.environ.get('TDN_SHOPEE_FLOW_READONLY') != '1' and not (READONLY_FILE if readonly_file is None else pathlib.Path(readonly_file)).exists()
         check('readonly_off', off, off)
         spec = request.get('captureSpec')
@@ -950,7 +968,14 @@ def module_atomic_json(run, relative, value):
     temp = gate_path(run, str(path.relative_to(run)) + '.' + uuid.uuid4().hex + '.tmp')
     try:
         write_new(temp, json.dumps(value, ensure_ascii=True) + '\n')
+        with open(temp, 'rb') as written:
+            os.fsync(written.fileno())
         os.replace(temp, path)
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
     finally:
         temp.unlink(missing_ok=True)
 
@@ -999,13 +1024,16 @@ def module_blocking(run, module, manual=False, owner_pid=None):
                     fcntl.flock(lock.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
                 except BlockingIOError:
                     return {'code': 'RUN_BUSY', 'gate': None}, 24
-    if module == 'm3':
-        for folder in ('review-counts', 'm3-custom/attempts'):
-            root = gate_path(run, folder)
-            for child in root.iterdir() if root.is_dir() else []:
-                state = gate_read(gate_path(run, f'{folder}/{child.name}/state.json'))
-                if not isinstance(state, dict) or state.get('status') in ('RUNNING', 'UNCERTAIN'):
-                    return {'code': 'SUBMISSION_UNCERTAIN', 'gate': None}, 20
+    # All modules share admission with unresolved source work.
+    automatic = gate_read(gate_path(run, 'm3-custom/automatic.json'))
+    if isinstance(automatic, dict) and not gate_path(run, f'm3-custom/attempts/{automatic.get("attemptId")}/attempt.json').exists():
+        return {'code': 'REVIEW_RESERVATION_INCOMPLETE', 'gate': None}, 20
+    for folder in ('review-counts', 'm3-custom/attempts'):
+        root = gate_path(run, folder)
+        for child in root.iterdir() if root.is_dir() else []:
+            state = gate_read(gate_path(run, f'{folder}/{child.name}/state.json'))
+            if not isinstance(state, dict) or state.get('status') in ('RUNNING', 'UNCERTAIN'):
+                return {'code': 'SUBMISSION_UNCERTAIN', 'gate': None}, 20
     previous, relative = {'m1': ('entry', 'request.json'), 'm2': ('m1', 'm1/'),
                           'm3': ('m2', 'm2/selection.json')}[module]
     if not (module == 'm2' and manual):
@@ -1016,6 +1044,11 @@ def module_blocking(run, module, manual=False, owner_pid=None):
         return {'code': 'READONLY_ON', 'gate': None}, 20
     if module == 'm1' and gate_path(run, 'm1').exists():
         return {'code': 'M1_OUTPUT_EXISTS', 'gate': None}, 20
+    if module == 'm3' and isinstance(automatic, dict):
+        request = gate_read(gate_path(run, 'request.json'))
+        if isinstance(request, dict) and request.get('format') == 'request-v2':
+            changed = automatic.get('requestSha256') != gate_hash(run, 'request.json') or automatic.get('m2Digest') != gate_hash(run, 'm2/selection.json')
+            return {'code': 'REVIEW_PLAN_CHANGED' if changed else 'AUTOMATIC_COLLECTION_EXISTS', 'gate': None}, 23 if changed else 20
     return None, 0
 
 
@@ -1041,6 +1074,14 @@ def module_failure_slip(run, module, error, config, manual=False):
 
 def module_launch_admission(run, module, ns, repo, config):
     """Pure/offline launch validation, shared by detached acceptance and execution."""
+    record = flow_tracking_record(run)
+    if record and record['requestSha256'] != gate_hash(run, 'request.json'):
+        raise ModuleFailure('RUN_TRACKING_CHANGED', 23)
+    request = gate_read(gate_path(run, 'request.json'))
+    if isinstance(request, dict) and request.get('format') == 'request-v2':
+        flow_policy(request.get('collectionPolicy'), full=True)
+        if 'reviewCapPerLink' in request:
+            raise ModuleFailure('MODULE_INPUT_INVALID')
     import shlex
     command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
     command = shlex.split(command) if isinstance(command, str) else command
@@ -1071,8 +1112,8 @@ def module_launch_admission(run, module, ns, repo, config):
     return command, None, request
 
 
-def module_work(run, module, ns, repo, config):
-    command, selection, request = module_launch_admission(run, module, ns, repo, config)
+def module_work(run, module, ns, repo, config, admission=None):
+    command, selection, request = admission or module_launch_admission(run, module, ns, repo, config)
     if selection is not None:
         flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
         module_atomic_json(run, 'm2/selection.json', selection)
@@ -1138,6 +1179,8 @@ def flow_write_tracking(run, value):
 
 def flow_accept_launch(run, at):
     record = flow_tracking_record(run)
+    if record and record['requestSha256'] != gate_hash(run, 'request.json'):
+        raise ModuleFailure('RUN_TRACKING_CHANGED', 23)
     if record and (record['firstRunAt'] or record['firstObservedLaunchAt']):
         return
     request = gate_read(gate_path(run, 'request.json'))
@@ -1182,27 +1225,253 @@ def flow_failed(slip):
     return [c['id'] for c in slip['checks'] if not c['ok'] and c.get('level') != 'warn']
 
 
-def module_execute(run, module, ns, repo, config):
-    """One locked module; no printing, no nested lock and no retry."""
-    manual = bool(getattr(ns, 'manual', None))
-    work_started, start_refused = False, False
+def flow_execution_records(run):
+    root = gate_path(run, 'executions')
+    repo, _ = module_config()
+    schema = gate_read(repo / 'contracts/foundation/shopee-review-sampling.schema.json')
+    definition = flow_expand_schema(schema['$defs']['execution'], schema)
+    records, sequences = [], {}
+    for child in root.iterdir() if root.is_dir() else []:
+        if child.name in ('gates', 'previous') or child.name.endswith('.tmp'):
+            continue
+        if not re.fullmatch(r'[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}\.json', child.name):
+            raise ModuleFailure('EXECUTION_RECORD_INVALID')
+        value = gate_read(gate_path(run, f'executions/{child.name}'))
+        if (not gate_schema(value, definition) or value['runId'] != run.name or value['executionId'] + '.json' != child.name
+                or value['sequence'] in sequences):
+            raise ModuleFailure('EXECUTION_RECORD_INVALID')
+        sequences[value['sequence']] = child.name
+        records.append(value)
+    return sorted(records, key=lambda v: v['sequence'])
+
+
+def flow_execution_identity(run):
+    # Caller holds the shared run flock. Include reservations whose ledger publication crashed.
+    values = flow_execution_records(run)
+    for folder in ('m3-custom/attempts',):
+        root = gate_path(run, folder)
+        for child in root.iterdir() if root.is_dir() else []:
+            value = gate_read(gate_path(run, f'{folder}/{child.name}/attempt.json'))
+            if not isinstance(value, dict):
+                raise ModuleFailure('REVIEW_RESERVATION_INCOMPLETE')
+            if 'executionId' in value or 'sequence' in value:
+                values.append(value)
+    automatic = gate_read(gate_path(run, 'm3-custom/automatic.json'))
+    if automatic is not None:
+        values.append(automatic)
+    sequences = {}
+    for value in values:
+        identity, sequence = value.get('executionId'), value.get('sequence')
+        if (not isinstance(identity, str) or not re.fullmatch(r'[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}', identity)
+                or type(sequence) is not int or sequence < 1 or sequence in sequences and sequences[sequence] != identity):
+            raise ModuleFailure('EXECUTION_IDENTITY_INVALID')
+        sequences[sequence] = identity
+    return {'executionId': str(uuid.uuid4()), 'sequence': max(sequences, default=0) + 1}
+
+
+def flow_execution_begin(run, module, identity, started, attempt_id=None, kind='module', pid=None):
+    request_sha = gate_hash(run, 'request.json')
+    input_sha = gate_hash(run, {'m1': 'request.json', 'm2': 'm1/', 'm3': 'm2/selection.json'}[module])
+    previous = gate_path(run, f'gates/{module}.json')
+    previous_sha = None
+    if previous.is_file():
+        target = gate_path(run, f'executions/previous/{identity["executionId"]}.json')
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.link(previous, target, follow_symlinks=False)
+        parent = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+        previous_sha = gate_hash(run, target.relative_to(run).as_posix())
+    value = {'format': 'shopee-module-execution-v1', 'runId': run.name, **identity, 'module': module.upper(),
+             'kind': kind, 'attemptId': attempt_id, 'requestSha256': request_sha, 'inputSha256': input_sha,
+             'startedAt': started, 'endedAt': None, 'status': 'RUNNING', 'pid': pid or os.getpid(),
+             'gateSha256': None, 'previousGateSha256': previous_sha, 'errorCode': None}
+    module_atomic_json(run, f'executions/{identity["executionId"]}.json', value)
+    return value
+
+
+def flow_execution_finish(run, execution, slip=None, status=None, error=None):
+    relative = f'executions/gates/{execution["executionId"]}.json'
+    digest = None
+    if slip is not None:
+        module_atomic_json(run, relative, slip)
+        digest = gate_hash(run, relative)
+    status = status or ('SUCCEEDED' if slip and slip.get('verdict') == 'PASS' else
+                        'WAIT_OWNER' if slip and slip.get('verdict') == 'WAIT_OWNER' else 'FAILED')
+    value = {**execution, 'status': status, 'endedAt': None if status in ('RUNNING', 'UNCERTAIN') else flow_now(),
+             'pid': None, 'gateSha256': digest, 'errorCode': error or (slip.get('errorCode') if slip else None)}
+    module_atomic_json(run, f'executions/{execution["executionId"]}.json', value)
+    return value
+
+
+def flow_execution_from_attempt(run, attempt_id):
+    attempt = gate_read(gate_path(run, f'm3-custom/attempts/{attempt_id}/attempt.json'))
+    if not isinstance(attempt, dict):
+        raise ModuleFailure('REVIEW_RESERVATION_INCOMPLETE')
+    if 'executionId' not in attempt:
+        return None  # Honest legacy identity; reconciliation never invents a new admission.
+    identity = {key: attempt[key] for key in ('executionId', 'sequence')}
+    records = flow_execution_records(run)
+    existing = next((v for v in records if v['executionId'] == identity['executionId']), None)
+    if existing:
+        if existing['attemptId'] != attempt_id or existing['sequence'] != identity['sequence']:
+            raise ModuleFailure('EXECUTION_IDENTITY_INVALID')
+        return existing
+    # Reconstruct only the SAME accepted identity after a pre-dispatch ledger-publication crash.
+    automatic = gate_read(gate_path(run, 'm3-custom/automatic.json'))
+    automatic = automatic if isinstance(automatic, dict) and automatic.get('attemptId') == attempt_id else None
+    if automatic and any(automatic.get(key) != identity[key] for key in identity):
+        raise ModuleFailure('EXECUTION_IDENTITY_INVALID')
+    value = {'format': 'shopee-module-execution-v1', 'runId': run.name, **identity, 'module': 'M3', 'kind': 'automatic' if automatic else 'custom',
+             'attemptId': attempt_id, 'requestSha256': attempt['requestSha256'], 'inputSha256': attempt['m2Digest'],
+             'startedAt': attempt['createdAt'], 'endedAt': None, 'status': 'UNCERTAIN', 'pid': None,
+             'gateSha256': None, 'errorCode': 'RESERVATION_INCOMPLETE'}
+    module_atomic_json(run, f'executions/{identity["executionId"]}.json', value)
+    return value
+
+
+def flow_custom_finish(run, execution, value):
+    if execution is None:
+        return
+    slip = gate_read(gate_path(run, f'm3-custom/attempts/{execution["attemptId"]}/gate.json'))
+    flow_execution_finish(run, execution, slip, status=value['status'], error=value.get('errorCode'))
+
+
+def flow_gate_matches(run, module, slip, execution=None):
+    if not isinstance(slip, dict) or slip.get('runId') != run.name or slip.get('module') != module:
+        return False
+    repo, _ = module_config()
+    if not gate_schema(slip, gate_read(repo / 'skills/tdn-shopee-flow/chuan/handoff-v1.schema.json')):
+        return False
+    if execution and execution['requestSha256'] != gate_hash(run, 'request.json'):
+        return False
+    if execution and {'SUCCEEDED': 'PASS', 'FAILED': 'FAIL', 'WAIT_OWNER': 'WAIT_OWNER'}.get(execution['status']) != slip.get('verdict'):
+        return False
+    inputs, outputs = {'M1': ('request.json', 'm1/'), 'M2': ('m1/', 'm2/selection.json'), 'M3': ('m2/selection.json', 'm3/')}[module]
+    manual = module == 'M2' and (gate_read(gate_path(run, 'm2/selection.json')) or {}).get('source') == 'manual'
+    return ((manual and slip.get('inputSha256') is None or not manual and slip.get('inputSha256') == gate_hash(run, inputs))
+            and slip.get('outputSha256') is not None and slip['outputSha256'] == gate_hash(run, outputs))
+
+
+def flow_execution_view(run, config):
+    records = flow_execution_records(run)
+    sampling = None
+    if gate_path(run, 'm3-custom').exists():
+        repo, _ = module_config()
+        sampling = review_sampling_script(repo, config, 'view', run)
+    attempts = sampling.get('attempts', []) if sampling else []
+    state = gate_read(gate_path(run, 'state.json')) or {}
+    modules, revision = {}, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
+    for module in ('M1', 'M2', 'M3'):
+        candidates = []
+        previous = gate_read(gate_path(run, f'gates/{module.lower()}.json'))
+        history = [(None, previous)] if previous else []
+        for record in (r for r in records if r['module'] == module and r.get('previousGateSha256')):
+            path = f'executions/previous/{record["executionId"]}.json'
+            if gate_hash(run, path) != record['previousGateSha256']:
+                raise ModuleFailure('EXECUTION_RECEIPT_CHANGED')
+            history.append((None, gate_read(gate_path(run, path))))
+        for record in (r for r in records if r['module'] == module and r['attemptId'] is None):
+            slip = gate_read(gate_path(run, f'executions/gates/{record["executionId"]}.json'))
+            proof = record['gateSha256'] is not None and record['gateSha256'] == gate_hash(run, f'executions/gates/{record["executionId"]}.json')
+            status = record['status']
+            if status == 'RUNNING' and not module_pid_live(record['pid']):
+                status = 'FAILED'
+            matched = proof and status not in ('RUNNING', 'UNCERTAIN') and flow_gate_matches(run, module, slip, record)
+            candidates.append({**record, 'status': status, 'currentGate': slip if matched else None,
+                               'errorCode': record['errorCode'] or ('RUN_INTERRUPTED' if record['status'] == 'RUNNING' and status == 'FAILED' else None),
+                               'basis': 'execution-ledger'})
+            if proof and slip:
+                history.append((record['executionId'], slip))
+        if module == 'M3':
+            by_attempt = {r['attemptId']: r for r in records if r['attemptId']}
+            for attempt in attempts:
+                record = by_attempt.get(attempt['attemptId'])
+                if record and (record['executionId'] != attempt.get('executionId') or record['sequence'] != attempt.get('sequence')):
+                    raise ModuleFailure('EXECUTION_IDENTITY_INVALID')
+                status = attempt['status']
+                matched = status not in ('RUNNING', 'UNCERTAIN') and attempt.get('receiptMatchesCurrentInputs') and attempt.get('gate')
+                candidates.append({'executionId': attempt.get('executionId'), 'sequence': attempt.get('sequence'),
+                    'attemptId': attempt['attemptId'], 'startedAt': attempt.get('createdAt'),
+                    'endedAt': record.get('endedAt') if record else None, 'status': status,
+                    'currentGate': attempt['gate'] if matched else None, 'basis': 'custom-attempt',
+                    'errorCode': attempt.get('errorCode')})
+                if attempt.get('gate'):
+                    history.append((attempt.get('executionId') or attempt['attemptId'], attempt['gate']))
+            # A missing/deleted attempt must never revive an old successful receipt.
+            known = {v['attemptId'] for v in attempts}
+            for record in by_attempt.values():
+                if record['attemptId'] not in known:
+                    candidates.append({**record, 'status': 'UNCERTAIN', 'currentGate': None, 'basis': 'execution-ledger', 'errorCode': 'REVIEW_RESERVATION_INCOMPLETE'})
+        active = [c for c in candidates if c['status'] in ('RUNNING', 'UNCERTAIN')]
+        current = max(active or candidates, key=lambda c: (c.get('sequence') or 0, c.get('startedAt') or '', c.get('executionId') or c.get('attemptId') or '')) if candidates else None
+        if current is None:
+            live = state.get('module') == module and state.get('status') == 'RUNNING'
+            stopped = state.get('module') == module and state.get('status') == 'STOPPED'
+            matched = not live and not (stopped and isinstance(previous, dict) and previous.get('verdict') == 'PASS') and flow_gate_matches(run, module, previous)
+            current = {'status': ('RUNNING' if module_pid_live(state.get('pid')) else 'UNCERTAIN') if live else
+                       ('SUCCEEDED' if matched and previous.get('verdict') == 'PASS' else
+                        'WAIT_OWNER' if matched and previous.get('verdict') == 'WAIT_OWNER' else 'FAILED' if matched or stopped else 'UNKNOWN' if previous else 'IDLE'),
+                       'startedAt': state.get('startedAt') if live or stopped else None,
+                       'endedAt': state.get('endedAt') if stopped else None,
+                       'errorCode': state.get('errorCode') if live or stopped else None,
+                       'basis': 'legacy-gate' if previous else 'none', 'currentGate': previous if matched else None}
+        if current['status'] == 'SUCCEEDED' and not current.get('currentGate'):
+            current = {**current, 'status': 'UNKNOWN', 'errorCode': 'EXECUTION_RECEIPT_CHANGED'}
+        modules[module] = {key: current.get(key) for key in ('status', 'executionId', 'sequence', 'attemptId', 'startedAt', 'endedAt', 'basis', 'currentGate', 'errorCode')}
+        modules[module]['historicalGate'] = next((gate for identity, gate in reversed(history)
+            if identity != (current.get('executionId') or current.get('attemptId')) and gate != current.get('currentGate')), None)
+    active = [(m, v) for m, v in modules.items() if v['status'] in ('RUNNING', 'UNCERTAIN')]
+    candidates = [(m, v) for m, v in modules.items() if v['status'] != 'IDLE']
+    chosen = max(active or candidates, key=lambda pair: (pair[1].get('sequence') or 0, pair[0])) if candidates else (None, {'status': 'IDLE'})
+    return {'format': 'run-execution-view-v1', 'revision': revision, 'status': chosen[1]['status'],
+            'currentModule': chosen[0], 'currentExecutionId': chosen[1].get('executionId'), 'modules': modules}
+
+
+
+def module_admit(run, module, ns, repo, config, mode):
+    module_barrier(run, module, bool(getattr(ns, 'manual', None)), os.getpid())
+    admission = module_launch_admission(run, module, ns, repo, config)
+    identity = flow_execution_identity(run)
+    started, attempt_id, kind = flow_now(), None, 'module'
+    request = admission[2]
+    if module == 'm3' and isinstance(request, dict) and request.get('format') == 'request-v2':
+        value = review_sampling_script(repo, config, 'configured-reserve', run, identity['executionId'], str(identity['sequence']))
+        attempt_id, kind = value['attemptId'], 'automatic'
+    execution = flow_execution_begin(run, module, identity, started, attempt_id, kind)
+    flow_accept_launch(run, started)
+    module_atomic_json(run, 'state.json', {**flow_state(run, 'RUNNING', mode, module.upper(), os.getpid(), started), **identity})
+    return execution, admission
+
+
+def module_execute(run, module, ns, repo, config, execution, admission=None):
+    """One admitted execution under the inherited run flock, with no retry."""
+    manual, custom = bool(getattr(ns, 'manual', None)), execution['attemptId'] is not None
     try:
-        module_barrier(run, module, manual, os.getpid())
-        work_started = True
-        error = module_work(run, module, ns, repo, config)
+        if custom:
+            value = review_sampling_script(repo, config, 'execute', run, 'custom', execution['attemptId'], 'initial')
+            slip = gate_read(gate_path(run, f'm3-custom/attempts/{execution["attemptId"]}/gate.json'))
+            if not isinstance(slip, dict):
+                raise ModuleFailure('REVIEW_RESULT_MISSING')
+            code = 0 if value['status'] == 'SUCCEEDED' and slip['verdict'] == 'PASS' else 20
+            flow_custom_finish(run, execution, value)
+            return slip, code
+        error = module_work(run, module, ns, repo, config, admission)
         slip, code = evaluate_gate(run, module)
         if error:
             slip.update(verdict='WAIT_OWNER' if error in config['params']['handToOwnerCodes'] else 'FAIL', errorCode=error, next=None)
             code = {'GATE_NOT_PASSED': 22, 'GATE_INPUT_CHANGED': 23}.get(error, 21 if slip['verdict'] == 'WAIT_OWNER' else 20)
     except ModuleFailure as failure:
-        start_refused = not work_started
         slip, code = module_failure_slip(run, module, failure.code, config, manual), failure.exit_code
     except (OSError, ValueError, KeyError, TypeError):
         slip, code = module_failure_slip(run, module, 'MODULE_IO_FAILED', config, manual), 20
     except KeyboardInterrupt:
         slip, code = module_failure_slip(run, module, 'RUN_INTERRUPTED', config, manual), 20
-    if not start_refused or not gate_path(run, f'gates/{module}.json').exists():
+    if not custom:
         module_atomic_json(run, f'gates/{module}.json', slip)
+    flow_execution_finish(run, execution, slip, status='UNCERTAIN' if custom else None)
     return slip, code
 
 
@@ -1218,17 +1487,11 @@ def flow_result(run_id, command, slip, code, error=None):
             'failedChecks': failed, 'slip': f'gates/{command}.json'}
 
 
-def flow_detach(run, ns, lock, started):
-    """Pass the held flock to the worker; a pipe releases it only after PID publication.
-
-    If the parent dies before publication, EOF makes the worker exit without work.
-    The inherited lock covers both sides of the handoff, including the start race.
-    """
+def flow_detach(run, ns, lock, execution):
+    """Publish exact identity/PID before releasing the worker through the inherited flock."""
     read_fd, write_fd = os.pipe()
-    child = None
     try:
-        logs = gate_path(run, 'logs')
-        logs.mkdir(mode=0o700, exist_ok=True)
+        logs = gate_path(run, 'logs'); logs.mkdir(mode=0o700, exist_ok=True)
         log = gate_path(run, f'logs/{time.time_ns()}-{ns.cmd}.log')
         args = [sys.executable, str(pathlib.Path(__file__).resolve()), ns.cmd, '--run', run.name,
                 '--worker-lock-fd', str(lock.fileno()), '--worker-ready-fd', str(read_fd)]
@@ -1238,35 +1501,38 @@ def flow_detach(run, ns, lock, started):
             os.chmod(log, 0o600)
             child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=output, stderr=output,
                                      start_new_session=True, pass_fds=(lock.fileno(), read_fd))
-        module_atomic_json(run, 'state.json', flow_state(run, 'RUNNING', 'flow' if ns.cmd == 'run' else 'single',
-                           'ENTRY' if ns.cmd == 'run' else ns.cmd.upper(), child.pid, started))
-        flow_accept_launch(run, started)
+        execution = {**execution, 'pid': child.pid}
+        module_atomic_json(run, f'executions/{execution["executionId"]}.json', execution)
+        if execution['attemptId']:
+            relative = f'm3-custom/attempts/{execution["attemptId"]}/state.json'
+            attempt_state = gate_read(gate_path(run, relative))
+            module_atomic_json(run, relative, {**attempt_state, 'status': 'RUNNING', 'pid': child.pid})
+        identity = {key: execution[key] for key in ('executionId', 'sequence')}
+        module_atomic_json(run, 'state.json', {**flow_state(run, 'RUNNING', 'flow' if ns.cmd == 'run' else 'single',
+                           execution['module'], child.pid, execution['startedAt']), **identity})
         os.write(write_fd, b'1')
-        return {'format': 'detached-v1', 'runId': run.name, 'pid': child.pid}
+        return {'format': 'detached-v1', 'runId': run.name, 'pid': child.pid, **identity,
+                **({'attemptId': execution['attemptId']} if execution['attemptId'] else {})}
     finally:
-        os.close(read_fd)
-        os.close(write_fd)
+        os.close(read_fd); os.close(write_fd)
 
 
 def cmd_module(ns):
     if ns.cmd == 'm3' and getattr(ns, 'plan_sha256', None):
         return cmd_review_sampling(ns)
     import fcntl
-    run, lock, slip, code, started, error = None, None, None, 0, None, None
-    interrupted, work_started = False, False
-    mode = 'flow' if ns.cmd == 'run' else 'single'
-    module = 'entry' if ns.cmd == 'run' else ns.cmd
+    run, lock, slip, code, error, execution, last_execution = None, None, None, 0, None, None, None
+    owns_lock = False
+    mode, module = ('flow' if ns.cmd == 'run' else 'single'), ('m1' if ns.cmd == 'run' else ns.cmd)
     try:
         run = module_run_folder(ns.run_id)
         repo, config = module_config()
-        worker_fd = getattr(ns, 'worker_lock_fd', None)
-        ready_fd = getattr(ns, 'worker_ready_fd', None)
+        worker_fd, ready_fd = getattr(ns, 'worker_lock_fd', None), getattr(ns, 'worker_ready_fd', None)
         if worker_fd is not None:
             if ready_fd is None or worker_fd < 3 or ready_fd < 3 or ready_fd == worker_fd:
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
             lock = os.fdopen(worker_fd, 'a')
-            expected = gate_path(run, '.module.lock').stat()
-            actual = os.fstat(lock.fileno())
+            expected, actual = gate_path(run, '.module.lock').stat(), os.fstat(lock.fileno())
             if (expected.st_dev, expected.st_ino) != (actual.st_dev, actual.st_ino):
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
             try:
@@ -1277,7 +1543,9 @@ def cmd_module(ns):
             state = gate_read(gate_path(run, 'state.json'))
             if not isinstance(state, dict) or state.get('pid') != os.getpid() or state.get('status') != 'RUNNING':
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
-            started = state.get('startedAt')
+            execution = next((r for r in flow_execution_records(run) if r['executionId'] == state.get('executionId')), None)
+            if not execution or execution['module'] != module.upper() or execution['pid'] != os.getpid():
+                raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
         else:
             if ready_fd is not None:
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
@@ -1286,51 +1554,50 @@ def cmd_module(ns):
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise ModuleFailure('RUN_BUSY', 24)
+        owns_lock = True
         if worker_fd is None:
-            interrupted = module_busy_check(run)
-            started = flow_now()
-        if ns.cmd == 'run':
-            slip, code = evaluate_gate(run, 'entry')
-            module_atomic_json(run, 'gates/entry.json', slip)
-        if code == 0 and getattr(ns, 'detach', False):
-            module = 'm1' if ns.cmd == 'run' else module
-            module_barrier(run, module, bool(getattr(ns, 'manual', None)), os.getpid())
-            module_launch_admission(run, module, ns, repo, config)
-            result = flow_detach(run, ns, lock, started)
-            print(json.dumps(result))
-            return
+            module_busy_check(run)
+            if ns.cmd == 'run':
+                slip, code = evaluate_gate(run, 'entry')
+                if code == 0 or not gate_path(run, 'gates/entry.json').exists():
+                    module_atomic_json(run, 'gates/entry.json', slip)
+            if code == 0 and getattr(ns, 'detach', False):
+                execution, _ = module_admit(run, module, ns, repo, config, mode)
+                print(json.dumps(flow_detach(run, ns, lock, execution)))
+                return
         if code == 0:
             for module in (('m1', 'm2', 'm3') if ns.cmd == 'run' else (ns.cmd,)):
-                module_barrier(run, module, bool(getattr(ns, 'manual', None)), os.getpid())
-                work_started = True
-                module_atomic_json(run, 'state.json', flow_state(run, 'RUNNING', mode, module.upper(), os.getpid(), started))
-                slip, code = module_execute(run, module, ns, repo, config)
+                admission = None
+                if execution is None:
+                    execution, admission = module_admit(run, module, ns, repo, config, mode)
+                last_execution = execution
+                slip, code = module_execute(run, module, ns, repo, config, execution, admission)
+                failed = flow_failed(slip)
+                module_atomic_json(run, 'state.json', {**flow_state(run, ('DONE' if module == 'm3' else 'IDLE') if code == 0 else 'STOPPED',
+                    mode, module.upper(), os.getpid(), execution['startedAt'], slip['errorCode'], failed[0] if failed else None),
+                    'executionId': execution['executionId'], 'sequence': execution['sequence']})
                 if code:
                     break
-        failed = flow_failed(slip)
-        module_atomic_json(run, 'state.json', flow_state(run, ('DONE' if module == 'm3' else 'IDLE') if code == 0 else 'STOPPED',
-                           mode, module.upper(), os.getpid(), started, slip['errorCode'], failed[0] if failed else None))
+                execution = None
     except ModuleFailure as failure:
         error, code = failure.code, failure.exit_code
-        if run is not None and started and code not in (2, 24):
-            if module != 'entry':
-                slip = module_failure_slip(run, module, error, config, bool(getattr(ns, 'manual', None)))
-                start_refused = error in ('RUN_BUSY', 'GATE_NOT_PASSED', 'GATE_INPUT_CHANGED', 'READONLY_ON', 'M1_OUTPUT_EXISTS')
-                if not start_refused or not gate_path(run, f'gates/{module}.json').exists():
-                    module_atomic_json(run, f'gates/{module}.json', slip)
-            if not interrupted or work_started:
-                module_atomic_json(run, 'state.json', flow_state(run, 'STOPPED', mode, module.upper(), os.getpid(), started, error))
+        if owns_lock and code not in (2, 24):
+            slip = module_failure_slip(run, module, error, config, bool(getattr(ns, 'manual', None)))
+        if owns_lock and ns.cmd != 'run' and code not in (2, 24) and not gate_path(run, f'gates/{module}.json').exists():
+            # Compatibility refusal evidence is not an accepted execution; preserve any prior result.
+            module_atomic_json(run, f'gates/{module}.json', slip)
     except (OSError, ValueError, KeyError, TypeError):
         error, code = 'MODULE_IO_FAILED', 20
-        if run is not None and started:
-            module_atomic_json(run, 'state.json', flow_state(run, 'STOPPED', mode, module.upper(), os.getpid(), started, error))
     finally:
         if lock is not None:
             lock.close()
-    if code == 2:
-        print(json.dumps({'format': 'error-v1', 'code': error, 'message': error}))
-    else:
-        print(json.dumps(flow_result(ns.run_id, ns.cmd, slip, code, error)))
+    result = {'format': 'error-v1', 'code': error, 'message': error} if code == 2 else flow_result(ns.run_id, ns.cmd, slip, code, error)
+    execution = execution or last_execution
+    if execution and not error:
+        result.update({key: execution[key] for key in ('executionId', 'sequence', 'attemptId')})
+        if execution['attemptId']:
+            result['slip'] = f'm3-custom/attempts/{execution["attemptId"]}/gate.json'
+    print(json.dumps(result))
     sys.exit(code)
 
 
@@ -1358,7 +1625,7 @@ def review_sampling_script(repo, config, action, run, *args, input_text=None):
 def cmd_review_sampling(ns):
     """Stable exact-attempt control, sharing the legacy run lock but not its artifacts."""
     import fcntl
-    lock = None
+    lock, execution = None, None
     try:
         run = module_run_folder(ns.run_id)
         repo, config = module_config()
@@ -1398,21 +1665,29 @@ def cmd_review_sampling(ns):
                 if error:
                     raise ModuleFailure(error, exit_code)
             if worker:
+                execution = flow_execution_from_attempt(run, ns.attempt) if ns.kind == 'custom' else None
                 value = review_sampling_script(repo, config, 'execute', run, ns.kind, ns.attempt,
                                                'reconcile' if ns.reconcile else 'initial')
+                flow_custom_finish(run, execution, value)
             else:
                 reconcile = ns.cmd == 'reconcile-review-attempt'
                 kind = ns.kind if reconcile else 'counts' if ns.cmd == 'review-counts' else 'custom'
                 if reconcile:
                     value = review_sampling_script(repo, config, 'reconcile-check', run, kind, ns.attempt)
+                    execution = flow_execution_from_attempt(run, ns.attempt) if kind == 'custom' else None
                     if value.get('status') != 'RUNNING':
+                        flow_custom_finish(run, execution, value)
+                        if execution:
+                            value.update({key: execution[key] for key in ('executionId', 'sequence')})
                         print(json.dumps(value))
                         return
                 else:
+                    identity = flow_execution_identity(run) if kind == 'custom' else None
                     value = review_sampling_script(repo, config, 'reserve', run, kind,
-                                                   *([ns.plan_sha256] if kind == 'custom' else []))
-                    if kind == 'custom':
-                        flow_accept_launch(run, flow_now())
+                                                   *([ns.plan_sha256, identity['executionId'], str(identity['sequence'])] if identity else []))
+                    if identity:
+                        execution = flow_execution_begin(run, 'm3', identity, flow_now(), value['attemptId'], 'custom')
+                        flow_accept_launch(run, execution['startedAt'])
                 attempt_id = value['attemptId']
                 if getattr(ns, 'detach', False):
                     read_fd, write_fd = os.pipe()
@@ -1432,6 +1707,9 @@ def cmd_review_sampling(ns):
                         relative = f'{folder}/{attempt_id}/state.json'
                         state = gate_read(gate_path(run, relative))
                         module_atomic_json(run, relative, {**state, 'status': 'RUNNING', 'pid': child.pid})
+                        if execution:
+                            execution = {**execution, 'status': 'RUNNING', 'pid': child.pid}
+                            module_atomic_json(run, f'executions/{execution["executionId"]}.json', execution)
                         os.write(write_fd, b'1')
                         value.update(pid=child.pid, status='RUNNING')
                     finally:
@@ -1439,6 +1717,9 @@ def cmd_review_sampling(ns):
                 else:
                     value = review_sampling_script(repo, config, 'execute', run, kind, attempt_id,
                                                    'reconcile' if reconcile else 'initial')
+                    flow_custom_finish(run, execution, value)
+        if execution:
+            value.update({key: execution[key] for key in ('executionId', 'sequence')})
         print(json.dumps(value, ensure_ascii=True))
         if value.get('status') in ('FAILED', 'UNCERTAIN'):
             sys.exit(21 if value.get('errorCode') in ('HUMAN_LOGIN_REQUIRED', 'HUMAN_VERIFICATION_REQUIRED') else 20)
@@ -1625,10 +1906,25 @@ def flow_expand_schema(schema, root=None):
     return {k: flow_expand_schema(v, root) for k, v in schema.items() if k != '$defs'}
 
 
+def flow_policy(value, full=False):
+    repo, _ = module_config()
+    schema = gate_read(repo / 'contracts/foundation/shopee-review-sampling.schema.json')
+    definition = flow_expand_schema(schema['$defs']['policy' if full else 'input'], schema)
+    if not gate_schema(value, definition):
+        raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
+    policy = {**value, 'stars': sorted(value['stars'])}
+    if full:
+        if value['stars'] != policy['stars']:
+            raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
+        return policy
+    return {'format': 'shopee-review-policy-v1', **policy,
+            'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'}
+
+
 def flow_new_run():
     import fcntl
     value = json.load(sys.stdin)
-    if not isinstance(value, dict) or set(value) - {'presetId', 'endDate', 'reviewCapPerLink'}:
+    if not isinstance(value, dict) or set(value) - {'presetId', 'endDate', 'reviewCapPerLink', 'collectionPolicy'}:
         raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
     preset_id, end_date, cap = value.get('presetId'), value.get('endDate'), value.get('reviewCapPerLink')
     if not isinstance(preset_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', preset_id):
@@ -1639,8 +1935,12 @@ def flow_new_run():
     preset, spec = flow_preset(preset_path)
     repo, config = module_config()
     limits = config['params']['reviewCapPerLink']
-    if not gate_date(end_date) or type(cap) is not int or not limits['min'] <= cap <= limits['max']:
+    if not gate_date(end_date) or 'collectionPolicy' in value and 'reviewCapPerLink' in value:
         raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
+    if 'reviewCapPerLink' in value and (type(cap) is not int or not limits['min'] <= cap <= limits['max']):
+        raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
+    policy = flow_policy(value['collectionPolicy'] if 'collectionPolicy' in value else
+                         {'mode': 'with-comments', 'stars': [], 'totalPerLink': cap if cap is not None else 300, 'allocation': 'pooled'})
     end = dt.date.fromisoformat(end_date)
     windows = [{'id': w['id'], 'period': {'startDate': (end + dt.timedelta(days=w['startOffsetDays'])).isoformat(),
                 'endDate': end_date}, 'intervalDays': w['intervalDays']} for w in config['params']['windows']]
@@ -1651,8 +1951,8 @@ def flow_new_run():
     if (not gate_schema(spec, flow_expand_schema(schema)) or not isinstance(titles, list) or
             not all(isinstance(t, str) for t in titles)):
         raise ModuleFailure('PRESET_INVALID', 2)
-    request = {'format': 'request-v1', 'preset': {'keywords': spec['preset']['keywords']}, 'windows': windows,
-               'reviewCapPerLink': cap, 'principalTitles': titles, 'captureSpec': spec}
+    request = {'format': 'request-v2', 'preset': {'keywords': spec['preset']['keywords']}, 'windows': windows,
+               'collectionPolicy': policy, 'principalTitles': titles, 'captureSpec': spec}
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     while True:
@@ -1675,15 +1975,17 @@ def flow_new_run():
 
 def flow_run_info(run, config):
     request = gate_read(gate_path(run, 'request.json'))
+    execution = flow_execution_view(run, config)
     modules = []
     for m in config['modules']:
         module = m['id'].lower()
         blocked, _ = module_blocking(run, module)
         modules.append({'id': m['id'], 'title': m['title'], 'skill': m['skill'],
                         'inputGate': {'m1': 'entry', 'm2': 'm1', 'm3': 'm2'}[module],
-                        'outputGate': m['gate'], 'canRun': blocked is None, 'blockedBy': blocked})
+                        'outputGate': m['gate'], 'canRun': blocked is None, 'blockedBy': blocked,
+                        'execution': execution['modules'][m['id']]})
     return {'format': 'run-info-v1', 'runId': run.name, 'readonly': module_readonly(),
-            'tracking': flow_tracking(run),
+            'tracking': flow_tracking(run), 'execution': execution,
             'request': {k: v for k, v in request.items() if k != 'captureSpec'} if isinstance(request, dict) else None,
             'state': gate_read(gate_path(run, 'state.json')) or flow_state(run), 'modules': modules,
             'gates': {g: gate_read(gate_path(run, f'gates/{g}.json')) for g in ('entry', 'm1', 'm2', 'm3')},
@@ -1728,16 +2030,15 @@ def cmd_flow_query(ns):
                 request = gate_read(request_path)
                 if not isinstance(request, dict):
                     continue
-                state = gate_read(gate_path(path, 'state.json')) or flow_state(path)
-                slips = [(gate_path(path, f'gates/{g}.json'), g) for g in ('entry', 'm1', 'm2', 'm3')]
-                slips = [(p.stat().st_mtime_ns, g, gate_read(p)) for p, g in slips if p.is_file()]
-                latest = max(slips, key=lambda x: x[0]) if slips else None
-                last = latest[2] if latest and isinstance(latest[2], dict) else {}
+                execution = flow_execution_view(path, config)
+                current = execution['modules'].get(execution['currentModule'], {})
+                last = current.get('currentGate') or {}
                 created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
                 values.append({'runId': path.name, 'createdAt': created, 'product': ' / '.join(request.get('preset', {}).get('keywords', [])),
                                'tracking': flow_tracking(path),
-                               'status': state.get('status'), 'lastGate': latest[1] if latest else None,
-                               'lastVerdict': last.get('verdict'), 'errorCode': state.get('errorCode') or last.get('errorCode')})
+                               'execution': execution, 'status': execution['status'],
+                               'lastGate': execution['currentModule'].lower() if execution['currentModule'] else None,
+                               'lastVerdict': last.get('verdict'), 'errorCode': current.get('errorCode') or last.get('errorCode')})
             result = {'format': 'runs-v1', 'runs': sorted(values, key=lambda v: (v['createdAt'], v['runId']), reverse=True)}
         else:
             skills = []

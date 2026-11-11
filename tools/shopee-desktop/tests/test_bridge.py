@@ -64,6 +64,34 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(saved['principalTitles'], titles)
         self.assertEqual(list(self.runs.iterdir()), [], 'saving a product must not create a run')
 
+    def test_new_run_sends_the_collection_policy_and_saves_request_v2(self):
+        saved = self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                         keyword='kem chống nắng', categoryId=HEALTH)
+        self.assertTrue(saved['ok'], saved)
+        result = self.api.newRun({
+            'presetId': 'kem-chong-nang-abc', 'endDate': '2026-11-10',
+            'collectionPolicy': {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,
+                                 'allocation': 'pooled'}})
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['entry']['verdict'], 'PASS')
+        run = self.runs / result['data']['runId']
+        request = json.loads((run / 'request.json').read_text(encoding='utf-8'))
+        self.assertEqual(request['format'], 'request-v2')
+        self.assertNotIn('reviewCapPerLink', request)
+        self.assertEqual(request['collectionPolicy'], {
+            'format': 'shopee-review-policy-v1', 'mode': 'stars', 'stars': [2, 3],
+            'totalPerLink': 500, 'allocation': 'pooled',
+            'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'})
+
+    def test_new_run_rejects_legacy_cap_and_policy_together_before_the_remote(self):
+        before = list(self.runs.iterdir())
+        result = self.api.newRun({
+            'presetId': 'kem', 'endDate': '2026-11-10', 'reviewCapPerLink': 300,
+            'collectionPolicy': {'mode': 'with-comments', 'stars': [], 'totalPerLink': 300,
+                                 'allocation': 'pooled'}})
+        self.assertEqual(result, {'ok': False, 'error': {'code': 'ARG_INVALID', 'message': 'ARG_INVALID'}})
+        self.assertEqual(list(self.runs.iterdir()), before)
+
     def test_backend_rejections_map_to_codes(self):
         cases = (
             ({'presetId': 'kem-chong-nang', 'label': 'Kem', 'keyword': 'kem',

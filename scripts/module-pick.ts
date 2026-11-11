@@ -9,6 +9,9 @@ import { CAPTURE_ROW_PROFILE } from '../src/modules/analysis/research-automation
 import { validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
 import specSchema from '../contracts/analysis/metric-v3-capture-spec.schema.json' with { type: 'json' };
 import legacySpecSchema from '../contracts/analysis/metric-v3-capture-spec-v1.schema.json' with { type: 'json' };
+import requestV1Schema from '../skills/tdn-shopee-flow/chuan/request-v1.schema.json' with { type: 'json' };
+import samplingSchema from '../contracts/foundation/shopee-review-sampling.schema.json' with { type: 'json' };
+import { validateReviewPolicy } from '../src/modules/foundation/shopee-review-sampling.js';
 
 export const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 export const sha256 = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex');
@@ -76,26 +79,28 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
-ajv.addSchema(specSchema); ajv.addSchema(legacySpecSchema);
+ajv.addSchema(specSchema); ajv.addSchema(legacySpecSchema); ajv.addSchema(requestV1Schema); ajv.addSchema(samplingSchema);
 const validators = new Map<string, ReturnType<typeof ajv.compile>>();
 export async function validateModuleValue(name: string, value: unknown): Promise<void> {
   let validate = validators.get(name);
   if (!validate) {
-    validate = ajv.compile(JSON.parse(await readFile(join(repoRoot, 'skills/tdn-shopee-flow/chuan', `${name}.schema.json`), 'utf8')));
+    const schema = JSON.parse(await readFile(join(repoRoot, 'skills/tdn-shopee-flow/chuan', `${name}.schema.json`), 'utf8')) as { $id: string };
+    validate = ajv.getSchema(schema.$id) ?? ajv.compile(schema);
     validators.set(name, validate);
   }
   if (!validate(value)) throw new ModuleError('MODULE_INPUT_INVALID');
 }
 export async function readRequest(run: string) {
   const value = object(await readJson(run, 'request.json'));
-  await validateModuleValue('request-v1', value);
+  await validateModuleValue(value.format === 'request-v2' ? 'request-v2' : 'request-v1', value);
+  const collectionPolicy = value.format === 'request-v2' ? validateReviewPolicy(value.collectionPolicy) : null;
   const captureSpec = value.captureSpec === undefined ? undefined : validateMetricV3CaptureSpec(value.captureSpec);
   const keywords = object(value.preset).keywords as string[];
   const windows = value.windows as { id: string; period: { startDate: string; endDate: string } }[];
   if (captureSpec && (windows.length !== captureSpec.windows.length || JSON.stringify(keywords) !== JSON.stringify(captureSpec.preset.keywords) || windows.some((w, i) =>
       w.id !== captureSpec.windows[i]?.id || w.period.startDate !== captureSpec.windows[i]?.period.startDate ||
       w.period.endDate !== captureSpec.windows[i]?.period.endDate))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
-  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: value.reviewCapPerLink as number, captureSpec };
+  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec };
 }
 export async function pickRaw(run: string): Promise<unknown> {
   let scope: AutorunScopeRecord | null = null;

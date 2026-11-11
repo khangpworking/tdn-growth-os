@@ -46,7 +46,17 @@
         "startOffsetDays": -364,
         "intervalDays": 30
       }
-    ]
+    ],
+    "collectionPolicy": {
+      "default": {
+        "mode": "with-comments",
+        "stars": [],
+        "totalPerLink": 300,
+        "allocation": "pooled"
+      },
+      "schema": "contracts/foundation/shopee-review-sampling.schema.json#/$defs/policy",
+      "legacyReviewCapPerLinkOnly": true
+    }
   },
   "modules": [
     {
@@ -56,7 +66,7 @@
       "command": "shopee_flow.py m1 --run <id>",
       "input": "request.json",
       "output": "m1/",
-      "standard": "request-v1 with captureSpec; spec.json + generated run ID/run1/metric-v3-capture-v1",
+      "standard": "request-v1 legacy or request-v2 configured, with captureSpec; spec.json + generated run ID/run1/metric-v3-capture-v1",
       "gate": "m1",
       "ruleVersion": null,
       "code": [
@@ -86,14 +96,15 @@
       "skillVersion": "1.0.1",
       "command": "shopee_flow.py m3 --run <id>",
       "input": "m2/selection.json",
-      "output": "m3/",
-      "standard": "shopee-public-rows + m3-outcome-v1",
+      "output": "m3/ (legacy) or m3-custom/attempts/<attemptId>/ (configured)",
+      "standard": "request-v1: shopee-public-rows + m3-outcome-v1; request-v2: exact automatic shopee-review-plan-v1 + custom attempt gate",
       "gate": "m3",
       "ruleVersion": null,
       "code": [
         "scripts/module-collect-public.ts",
         "src/platform/collectors/shopee-public-reviews.ts",
-        "src/modules/foundation/shopee-collection-service.ts"
+        "src/modules/foundation/shopee-collection-service.ts",
+        "scripts/module-review-sampling.ts"
       ],
       "title": "Thu thập bình luận công khai"
     }
@@ -104,7 +115,8 @@
       "period_dates",
       "review_cap_1_300",
       "readonly_off",
-      "capture_spec_present"
+      "capture_spec_present",
+      "collection_policy"
     ],
     "m1": [
       "capture_success",

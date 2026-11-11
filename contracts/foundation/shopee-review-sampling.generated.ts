@@ -297,6 +297,8 @@ export interface ReviewSamplingAttempt {
    * @maxItems 5
    */
   links: ReviewLink[];
+  executionId?: string;
+  sequence?: number;
 }
 /**
  * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
@@ -309,4 +311,42 @@ export interface ReviewSamplingAttemptState {
   errorCode: string | null;
   outputSha256: string | null;
   attemptSha256: string;
+}
+/**
+ * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
+ * via the `definition` "automatic".
+ */
+export interface AutomaticReviewBinding {
+  format: 'shopee-automatic-review-binding-v1';
+  runId: string;
+  requestSha256: string;
+  m2Digest: string;
+  policySha256: string;
+  planSha256: string;
+  attemptId: string;
+  executionId: string;
+  sequence: number;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
+ * via the `definition` "execution".
+ */
+export interface ModuleExecution {
+  format: 'shopee-module-execution-v1';
+  runId: string;
+  executionId: string;
+  sequence: number;
+  module: 'M1' | 'M2' | 'M3';
+  kind: 'module' | 'automatic' | 'custom';
+  attemptId: string | null;
+  requestSha256: string | null;
+  inputSha256: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  status: 'RUNNING' | 'UNCERTAIN' | 'SUCCEEDED' | 'FAILED' | 'WAIT_OWNER';
+  pid: number | null;
+  gateSha256: string | null;
+  errorCode: string | null;
+  previousGateSha256?: string | null;
 }

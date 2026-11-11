@@ -25,24 +25,26 @@ Check the connection without opening a window:
 
 This prints one JSON line and exits 0 when connected, 1 otherwise. A connected result with `readonly: true` means the guard is active; it is a valid connection. The check reads only the remote guard and runs-root setting.
 
-## Add a product
+## Create a run and add a product
 
-The **Thêm sản phẩm** form on the **Lượt mới** screen saves a preset through `add-product --stdin`. Saving never creates a run and never starts a lookup or collection.
+The **Lượt mới** screen is one form: product, date period, collection policy, summary, then create. The primary button is **Tạo lượt** for an existing product and **Lưu sản phẩm và tạo lượt** when the inline new-product option is selected. Creating a run, including saving a new product first, never starts a lookup or review collection; only **Chạy cả luồng** does.
 
-- Required: display name (at most 120 characters), primary keyword (at most 200, no comma), category.
-- Optional: second keyword (at most 200, no comma). Commas are rejected because query chips split at commas.
+A new run is sent as `new-run-v1` input with `{presetId, endDate, collectionPolicy}`. On the wire, `collectionPolicy` has exactly four keys: `mode` (`all`, `with-comments`, `stars`), sorted unique `stars` (`1..5`, empty unless mode is `stars`), `totalPerLink` (`1..2000`), and `allocation` (`pooled`, or `equal-stars` only in `stars` mode). The remote stores the full canonical request-v2 policy (`format=shopee-review-policy-v1`, `textRule=comment-or-attributes-v1`, `order=native-filter-ascending-stars-v1`) internally. The bridge rejects a request containing both `collectionPolicy` and the legacy `reviewCapPerLink`, and still accepts the old cap-only shape (`1..300`) for compatibility.
+
+- Required product fields for an inline product: display name (at most 120 characters), primary keyword (at most 200, no comma), category. Optional second keyword (at most 200, no comma). Commas are rejected because query chips split at commas.
 - The preset ID is derived from the display name as a lowercase ASCII slug (at most 64 characters) and is not shown in the form. If the slug already exists, the page asks for a different display name or a suffix.
 - Supported category scope is only the verified **Sức Khoẻ** category (`c2035652732`) with its four child groups. Other categories are rejected; the form does not guess or silently default a category.
-- After a successful save the page reloads the preset list and selects the new product. Existing presets are unchanged.
+- The page saves the product first, selects it, then creates the run. If product save succeeds but run creation fails, the product stays saved and selected, the page says the product was saved, and a retry creates only the run. A successfully saved product is never duplicated by retry.
+- Changing any form field after a run is created invalidates that run's binding: the run button is disabled, the frozen summary stops claiming to match the draft, and a late create response is not attached to the changed draft. The run itself remains in history.
 - Failures stay visible inline and map `PRODUCT_INPUT_INVALID`, `PRODUCT_CATEGORY_UNSUPPORTED`, `PRESET_ID_EXISTS`, `PRESET_NAME_EXISTS`, `PRESET_BUSY`, and `PRESET_WRITE_FAILED`. A `PRESET_WRITE_FAILED` can also mean the remote Node/tsx builder is unavailable.
 
 The bridge validates the same request shape before sending it. Test the flow with fake bridge responses; do not point a test config at the real presets or runs folder.
 
 ## Review sampling
 
-The M3 panel of a run with a passed M2 saves an immutable custom plan, then launches that exact plan by digest. It never changes `request.json`, the M2 selection, or a legacy M3 result. Viewing and saving a plan are offline; source counts, launch, stop and reconcile call the remote CLI.
+A request-v2 run stores its collection policy when the run is created. After verified M2, the flow binds that policy to one automatic attempt and uses it for the whole run and direct M3. The M3 panel shows the frozen policy read-only; editing is available only under **Tạo lần thu mới**, which saves an immutable extra plan and launches that exact plan by digest. It never changes `request.json`, the M2 selection, or a stored result. Viewing and saving a plan are offline; source counts, launch, stop and reconcile call the remote CLI.
 
-- Modes: `with-comments` (legacy default), `all`, and `stars` (`1..5`, sorted unique). A custom plan accepts N from 1 to 2000 per link. Runs without a custom plan keep the legacy `reviewCapPerLink` cap of 300.
+- Modes: `with-comments`, `all`, and `stars` (`1..5`, sorted unique). The saved policy accepts N from 1 to 2000 per link. A repeated automatic M3 refuses with `AUTOMATIC_COLLECTION_EXISTS`; an explicit extra collection uses the saved-plan and plan-SHA route. Legacy request-v1 runs keep the old cap of 300 and are labelled **Cấu hình cũ · trần 1–300 mỗi link**, never silently rewritten.
 - Order is `native-filter-ascending-stars-v1`: selected star filters are traversed sequentially ascending. Pooled spends one shared remaining N low-star-first, so it may finish before a higher selected star. Equal-stars is optional, available only in `stars` mode, and stops each star at its own equal quota without filling from another star.
 - Source counts are native rating counts, including ratings without text; they are not the number of eligible written reviews. A missing or unknown count is shown as a dash, never `0`. An observed `0` on a loaded filter is a verified empty result.
 - Outcomes keep requested, written actual and shortfall separate. Zero-result, partial, exhaustion, timeout, cancel and control-changed are distinct. A running checkpoint is `checkpoint`, not a terminal outcome. Only text reviews are collected; there is no media field, count or claim.
