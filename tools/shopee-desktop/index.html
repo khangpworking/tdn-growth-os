@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Luồng review Shopee · app desktop</title>
+<title>Lấy bình luận Shopee · app desktop</title>
 <style>
 :root {
   --bg: #eef3f4; --panel: #ffffff; --fg: #14272e; --muted: #556970; --line: #c9d5d9; --band: #e6eef0;
@@ -32,7 +32,7 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 400 15px/1.55 v
 p { margin: 0; }
 code { font: 400 12.5px/1.5 var(--mono); overflow-wrap: anywhere; }
 button { font: inherit; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 h1, h2, h3 { text-wrap: balance; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 80px; display: grid; gap: 16px; }
 
@@ -177,6 +177,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .frozen h4 { margin: 0; font-size: 13px; }
 .frozen p { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .frozen .stale { color: var(--need); font-weight: 600; }
+.frozen > div { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 10px; align-items: baseline; }
+.frozen > div > span { overflow-wrap: anywhere; }
 .policy-frozen { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 5px; background: var(--band); }
 .policy-frozen h5 { margin: 0; font-size: 12.5px; color: var(--muted); }
 .policy-frozen p { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
@@ -213,12 +215,40 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .rs-counts-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
 .rs-counts-head h4 { font-size: 13px; }
 .rs-counts-meta { font-size: 12.5px; color: var(--muted); }
+.rs-counts-head .abtn { margin-left: auto; }
 .rs-url { display: block; max-width: 280px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .rs-why { color: var(--muted); font-weight: 400; }
 .rs-attempt { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
 .rs-attempt h4 { font-size: 13px; }
 .rs-stop { font-size: 12.5px; color: var(--muted); }
 .rs-stars-cell { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+/* Plain-language surfaces: local errors, technical disclosures, progress and confirmation. */
+.local-error { margin: 0; }
+.tech-details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.tech-details > summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--muted); width: fit-content; }
+.tech-details[open] > summary { padding-bottom: 4px; }
+.tech-body { display: grid; gap: 12px; padding: 4px 12px 14px; }
+.ck-tech { margin-top: 3px; }
+.ck-tech > summary { cursor: pointer; font-size: 11.5px; color: var(--muted); width: fit-content; }
+.ck-tech > div { padding-top: 3px; }
+.progress { font-size: 13.5px; font-weight: 600; color: var(--accent); background: var(--accent-tint); border-radius: 8px; padding: 8px 12px; }
+.result-first { display: grid; gap: 10px; }
+.run-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 16px; margin: 0; padding: 11px 13px; background: var(--band); border-radius: 8px; }
+.run-meta > div { display: grid; gap: 1px; min-width: 0; }
+.run-meta dt { font-size: 11.5px; color: var(--muted); }
+.run-meta dd { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.run-filter { margin-bottom: 2px; }
+.fixed-value { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--band); font-weight: 600; }
+dialog { border: 0; border-radius: 12px; padding: 0; max-width: min(560px, calc(100vw - 32px)); background: var(--panel); color: var(--fg); box-shadow: 0 18px 48px var(--shadow); }
+dialog::backdrop { background: rgba(15, 24, 28, .5); }
+.dialog-body { display: grid; gap: 13px; padding: 20px 22px; }
+.dialog-body h2 { margin: 0; font-size: 19px; }
+.dialog-facts { margin: 0; display: grid; gap: 7px; }
+.dialog-facts > div { display: grid; grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr); gap: 10px; }
+.dialog-facts dt { font-size: 12.5px; color: var(--muted); }
+.dialog-facts dd { margin: 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.dialog-note { font-size: 13px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -226,75 +256,73 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   <header class="top">
     <div>
       <p class="kicker">TDN Growth OS</p>
-      <h1>Luồng review Shopee</h1>
-      <p class="sub">App desktop · 3 module, 4 cổng chặn</p>
+      <h1>Lấy bình luận Shopee</h1>
+      <p class="sub">3 bước. Mỗi bước được kiểm tra xong mới sang bước sau.</p>
     </div>
     <div class="conn">
       <span class="dot" id="connDot"></span>
-      <span id="connText">Đang kiểm tra kết nối…</span>
-      <span class="ro" id="roText" hidden>Đang bật khóa chỉ-đọc: lượt mới dừng ở cổng vào (readonly_off); M1 và M3 bị khóa; M2 vẫn chạy được trên lượt đã qua cổng M1.</span>
+      <span id="connText">Đang kết nối máy chủ…</span>
+      <span class="ro" id="roText" hidden>Hệ thống đang tạm khóa để bảo trì. Bạn vẫn xem được lượt cũ, nhưng chưa lấy dữ liệu mới được.</span>
     </div>
   </header>
 
   <div class="errbar" id="errbar" role="alert" hidden></div>
 
   <nav class="tabs" role="tablist" aria-label="Màn hình">
-    <button type="button" role="tab" data-screen="new" aria-selected="true">Lượt mới</button>
+    <button type="button" role="tab" data-screen="new" aria-selected="true">Tạo lượt mới</button>
     <button type="button" role="tab" data-screen="track" aria-selected="false">Theo dõi lượt</button>
-    <button type="button" role="tab" data-screen="lib" aria-selected="false">Thư viện module</button>
+    <button type="button" role="tab" data-screen="lib" aria-selected="false">Tài liệu kỹ thuật</button>
   </nav>
 
   <main>
     <section id="scr-new" aria-label="Lượt mới">
       <form class="panel newrun" id="newRunForm" novalidate>
         <div>
-          <h2>Lượt mới</h2>
-          <p class="lead">Chọn sản phẩm, kỳ dữ liệu và cách thu bình luận. Tạo lượt chỉ kiểm cổng vào, chưa thu thập dữ liệu.</p>
+          <h2>Tạo lượt mới</h2>
+          <p class="lead">Chọn sản phẩm, khoảng thời gian và cách lấy bình luận. Bấm «Tạo lượt» mới chỉ lưu yêu cầu, chưa lấy dữ liệu.</p>
         </div>
 
         <section class="newstep first" aria-labelledby="stepProduct">
           <div>
             <h3 id="stepProduct">Sản phẩm</h3>
-            <p class="lead">Dùng sản phẩm đã có hoặc thêm sản phẩm mới ngay tại đây.</p>
+            <p class="lead">Chọn sản phẩm có sẵn, hoặc thêm sản phẩm mới.</p>
           </div>
           <label class="field"><span>Sản phẩm</span><select id="presetSel"></select></label>
           <div id="newProductFields" class="form" hidden>
-            <label class="field"><span>Tên hiển thị sản phẩm</span><input type="text" id="productLabel" maxlength="120" autocomplete="off" placeholder="Ví dụ: Viên uống vitamin C"></label>
-            <label class="field"><span>Từ khóa chính</span><input type="text" id="productKeyword" maxlength="200" autocomplete="off" placeholder="Ví dụ: vitamin C"></label>
-            <label class="field"><span>Từ khóa phụ (không bắt buộc)</span><input type="text" id="productKeyword2" maxlength="200" autocomplete="off" placeholder="Ví dụ: viên uống vitamin C"></label>
-            <label class="field"><span>Danh mục</span>
-              <select id="productCategory">
-                <option value="">Chọn danh mục</option>
-                <option value="c2035652732">Sức Khoẻ</option>
-              </select>
-            </label>
-            <p class="windowline" id="productNote">Hiện chỉ hỗ trợ danh mục <b>Sức Khoẻ</b>, gồm 4 nhóm con: Chăm sóc sức khỏe; Dinh dưỡng thể thao, protein; Sức khỏe khác; Thực phẩm chức năng. Danh mục khác chưa được hỗ trợ.</p>
+            <label class="field"><span>Tên sản phẩm</span><input type="text" id="productLabel" maxlength="120" autocomplete="off" placeholder="Ví dụ: Viên uống vitamin C"></label>
+            <label class="field"><span>Từ khóa tìm kiếm chính</span><input type="text" id="productKeyword" maxlength="200" autocomplete="off" placeholder="Ví dụ: vitamin C"></label>
+            <label class="field"><span>Từ khóa thứ hai (không bắt buộc)</span><input type="text" id="productKeyword2" maxlength="200" autocomplete="off" placeholder="Ví dụ: viên uống vitamin C"></label>
+            <div class="field"><span>Ngành hàng</span>
+              <p class="fixed-value">Sức khoẻ</p>
+              <input type="hidden" id="productCategory" value="c2035652732">
+            </div>
+            <p class="windowline" id="productNote">Hiện app chỉ làm được ngành <b>Sức khoẻ</b>, gồm 4 nhóm: Chăm sóc sức khỏe; Dinh dưỡng thể thao, protein; Sức khỏe khác; Thực phẩm chức năng.</p>
           </div>
         </section>
 
         <section class="newstep" aria-labelledby="stepPeriod">
           <div>
-            <h3 id="stepPeriod">Kỳ dữ liệu</h3>
-            <p class="lead">Hai cửa sổ được lấy trong cùng một lượt.</p>
+            <h3 id="stepPeriod">Khoảng thời gian</h3>
+            <p class="lead">Mỗi lượt lấy số liệu của 2 khoảng: 30 ngày và 12 tháng, tính ngược từ ngày bạn chọn.</p>
           </div>
-          <label class="field"><span>Ngày cuối kỳ</span><input type="date" id="endDate"></label>
+          <label class="field"><span>Tính đến ngày</span><input type="date" id="endDate"></label>
           <p class="windowline" id="windowText"></p>
         </section>
 
         <section class="newstep" aria-labelledby="stepPolicy">
           <div>
-            <h3 id="stepPolicy">Cách thu bình luận</h3>
-            <p class="lead">Cấu hình được lưu cùng lượt và dùng cho cả luồng chạy lẫn M3 trực tiếp.</p>
+            <h3 id="stepPolicy">Cách lấy bình luận</h3>
+            <p class="lead">Thiết lập này đi theo lượt và không sửa được sau khi tạo.</p>
           </div>
           <div class="policy-grid">
             <fieldset class="policy-group">
-              <legend>Nguồn bình luận</legend>
-              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="with-comments" checked> Có bình luận (mặc định)</label>
-              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="all"> Tất cả đánh giá</label>
-              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="stars"> Chọn sao</label>
+              <legend>Lấy những đánh giá nào</legend>
+              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="with-comments" checked> Chỉ đánh giá có viết bình luận (mặc định)</label>
+              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="all"> Mọi mức sao, chỉ lấy phần chữ</label>
+              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="stars"> Chọn theo số sao</label>
             </fieldset>
             <fieldset class="policy-group" id="newStarsGroup" hidden>
-              <legend>Mức sao được chọn</legend>
+              <legend>Lấy đánh giá mấy sao</legend>
               <div class="policy-stars" id="newStars">
                 <label><input type="checkbox" data-new-star="5"> 5★</label>
                 <label><input type="checkbox" data-new-star="4"> 4★</label>
@@ -302,22 +330,24 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
                 <label><input type="checkbox" data-new-star="2"> 2★</label>
                 <label><input type="checkbox" data-new-star="1"> 1★</label>
               </div>
-              <label class="rs-opt"><input type="checkbox" id="newBalanced"> Chia đều số lượng cho các sao đã chọn (tùy chọn)</label>
+              <label class="rs-opt"><input type="checkbox" id="newBalanced"> Chia đều số lượng cho từng mức sao</label>
             </fieldset>
-            <label class="field"><span>Tổng số bình luận mỗi link (1–2000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
+            <label class="field"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
           </div>
           <p class="policy-summary" id="newPolicySummary" aria-live="polite"></p>
-          <p class="policy-note">Số lượng là tổng chung cho mỗi link sau khi gộp các mức sao đã chọn. Chỉ thu bình luận có chữ; không thu media. Bình luận trùng chỉ tính một lần.</p>
+          <p class="policy-note">Số lượng tính chung cho mỗi link, không tính riêng từng mức sao. App chỉ lấy phần chữ, không tải ảnh và video. Bình luận trùng chỉ tính một lần.</p>
         </section>
 
         <div class="commit">
           <section class="review-summary" aria-labelledby="reviewSummaryTitle">
-            <h3 id="reviewSummaryTitle">Tóm tắt tạo lượt</h3>
+            <h3 id="reviewSummaryTitle">Xem lại trước khi tạo</h3>
             <dl id="reviewSummary"></dl>
           </section>
           <div class="commit-actions">
             <button class="abtn primary" id="btnNew" type="submit" disabled>Tạo lượt</button>
+            <button class="abtn" id="btnNewAnother" type="button" hidden>Tạo lượt khác</button>
             <span class="hint" id="newBusy" hidden>Đang tạo lượt…</span>
+            <span class="hint" id="newHint" hidden></span>
           </div>
         </div>
 
@@ -329,7 +359,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
           <div class="frozen" id="frozenSummary"></div>
           <div id="entrySlip"></div>
           <div class="btnrow" style="margin-top:10px">
-            <button class="abtn primary" id="btnFlow" type="button" disabled>Chạy cả luồng</button>
+            <button class="abtn primary" id="btnFlow" type="button" disabled>Bắt đầu lấy dữ liệu</button>
             <span class="hint" id="flowHint" hidden></span>
           </div>
         </div>
@@ -339,25 +369,50 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     <section id="scr-track" aria-label="Theo dõi lượt" hidden>
       <div class="track">
         <aside class="runs">
-          <h2>Lượt đã tạo</h2>
+          <h2>Các lượt đã tạo</h2>
+          <label class="field run-filter"><span>Lọc theo trạng thái</span>
+            <select id="runFilter">
+              <option value="all">Tất cả trạng thái</option>
+              <option value="running">Đang chạy</option>
+              <option value="done">Hoàn tất</option>
+              <option value="failed">Bị lỗi</option>
+              <option value="stopped">Đã dừng</option>
+              <option value="needs_owner">Cần bạn xử lý</option>
+              <option value="uncertain">Chưa xác định được</option>
+              <option value="idle">Chưa chạy</option>
+            </select>
+          </label>
           <ol id="runList"></ol>
           <p class="muted" id="runsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
         <section class="detail" id="runDetail" aria-live="polite">
-          <p class="muted">Chọn một lượt bên trái.</p>
+          <p class="muted">Chọn một lượt ở cột bên trái để xem.</p>
         </section>
       </div>
     </section>
 
-    <section id="scr-lib" aria-label="Thư viện module" hidden>
+    <section id="scr-lib" aria-label="Tài liệu kỹ thuật" hidden>
       <div class="panel">
-        <h2>Thư viện module</h2>
-        <p class="libnote">App chạy lệnh trực tiếp; skill là đường thứ hai, dành cho AI agent.</p>
+        <h2>Tài liệu kỹ thuật</h2>
+        <p class="libnote">Trang này dành cho người quản trị kỹ thuật.</p>
         <div id="libBody"></div>
       </div>
     </section>
   </main>
 </div>
+
+<dialog id="flowDialog" aria-labelledby="flowDialogTitle">
+  <div class="dialog-body">
+    <h2 id="flowDialogTitle">Bắt đầu lấy dữ liệu?</h2>
+    <p class="lead">App sẽ chạy lần lượt 3 bước cho đúng lượt dưới đây.</p>
+    <dl class="dialog-facts" id="flowDialogFacts"></dl>
+    <p class="dialog-note" id="flowDialogNote">Bắt đầu sẽ dùng một lượt tra số liệu bán hàng, sau đó chọn link bán chạy và bắt đầu lấy bình luận. Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.</p>
+    <div class="btnrow">
+      <button class="abtn primary" id="flowConfirmBtn" type="button">Bắt đầu lấy dữ liệu</button>
+      <button class="abtn" id="flowCancelBtn" type="button">Hủy</button>
+    </div>
+  </div>
+</dialog>
 
 <script>
 (function () {
@@ -376,89 +431,105 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   function pad(n) { return String(n).padStart(2, '0'); }
 
   var CHECK_LABELS = {
-    product_text: 'Có chữ sản phẩm',
-    period_dates: 'Kỳ có ngày hợp lệ',
-    review_cap_1_300: 'Trần bình luận từ 1 đến 300',
-    readonly_off: 'Không bật khóa chỉ-đọc',
-    capture_spec_present: 'Có captureSpec (cảnh báo khi thiếu)',
-    capture_success: 'Capture Metric báo thành công',
-    files_readable: 'File capture đọc được',
-    has_shopee_rows: 'Có ít nhất một dòng Shopee',
-    period_matches: 'Kỳ capture khớp kỳ yêu cầu',
-    masked_ids: 'Số dòng bị che ID',
-    links_1_to_5: 'Có 1 đến 5 link',
-    ids_numeric: 'ID shop và item toàn số',
-    no_duplicate_shop: 'Không trùng shop',
-    no_masked_above_lowest_pick: 'Không có dòng bị che trên link thấp nhất',
-    links_in_m1: 'Mọi link có trong đầu ra M1',
-    pick_rule_version: 'Phiên bản luật chọn khớp',
+    product_text: 'Đã có tên sản phẩm',
+    period_dates: 'Ngày tháng hợp lệ',
+    review_cap_1_300: 'Số bình luận mỗi link trong giới hạn cho phép',
+    collection_policy: 'Cách lấy bình luận hợp lệ',
+    readonly_off: 'Hệ thống không bị khóa bảo trì',
+    capture_spec_present: 'Có sẵn thông số lấy số liệu',
+    capture_success: 'Lấy số liệu bán hàng thành công',
+    files_readable: 'Đọc được file số liệu',
+    has_shopee_rows: 'Có ít nhất 1 sản phẩm Shopee',
+    period_matches: 'Số liệu đúng khoảng thời gian đã chọn',
+    masked_ids: 'Số sản phẩm bị ẩn mã',
+    links_1_to_5: 'Chọn được từ 1 đến 5 link sản phẩm',
+    ids_numeric: 'Mã shop và mã sản phẩm hợp lệ',
+    no_duplicate_shop: 'Mỗi shop chỉ có 1 link',
+    no_masked_above_lowest_pick: 'Không bỏ sót sản phẩm bán chạy hơn vì bị ẩn mã',
+    links_in_m1: 'Mọi link đều có trong số liệu bước 1',
+    pick_rule_version: 'Dùng đúng quy tắc chọn hiện hành',
     pick_reason_present: 'Mỗi link có lý do chọn',
-    verdict_ok: 'Kết luận thu được chấp nhận (OK hoặc PARTIAL_LISTINGS)',
-    min_reviews_per_link: 'Mỗi link đủ bình luận tối thiểu',
-    cap_not_exceeded: 'Không vượt trần bình luận',
-    no_duplicate_review_ids: 'Không trùng ID bình luận',
-    product_ids_match_m2: 'Mã sản phẩm khớp với M2',
-    shape_shopee_public_rows: 'Đúng dạng shopee-public-rows',
-    links_below_cap: 'Số link có ít bình luận hơn trần (cảnh báo)'
+    verdict_ok: 'Lấy bình luận thành công (đủ, hoặc thiếu một phần)',
+    min_reviews_per_link: 'Mỗi link có ít nhất 1 bình luận',
+    cap_not_exceeded: 'Không link nào vượt số lượng yêu cầu',
+    no_duplicate_review_ids: 'Không có bình luận trùng',
+    product_ids_match_m2: 'Bình luận thuộc đúng các link đã chọn',
+    shape_shopee_public_rows: 'Dữ liệu đúng định dạng',
+    links_below_cap: 'Số link lấy được ít hơn yêu cầu'
   };
 
-  var GATE_TITLES = { entry: 'Cổng vào', m1: 'Cổng M1', m2: 'Cổng M2', m3: 'Cổng M3' };
+  var GATE_TITLES = {
+    entry: 'Kiểm tra đầu vào',
+    m1: 'Kiểm tra sau bước 1',
+    m2: 'Kiểm tra sau bước 2',
+    m3: 'Kiểm tra sau bước 3'
+  };
+  var GATE_NAMES = { entry: 'đầu vào', m1: 'sau bước 1', m2: 'sau bước 2', m3: 'sau bước 3' };
+  var VERDICT_LABEL = { PASS: 'Đạt', FAIL: 'Không đạt', WAIT_OWNER: 'Cần bạn xử lý', UNCERTAIN: 'Chưa xác định được' };
+  var MODULE_TITLES = {
+    M1: 'Bước 1 Lấy số liệu bán hàng',
+    M2: 'Bước 2 Chọn link bán chạy',
+    M3: 'Bước 3 Lấy bình luận'
+  };
+  function moduleTitle(id, fallback) { return MODULE_TITLES[id] || fallback || id; }
 
   var STATUS = {
-    IDLE: { label: 'Chờ chạy', cls: 's-idle' },
+    IDLE: { label: 'Chưa chạy', cls: 's-idle' },
     RUNNING: { label: 'Đang chạy', cls: 's-run' },
     STOPPED: { label: 'Đã dừng', cls: 's-fail' },
-    DONE: { label: 'Xong', cls: 's-pass' },
-    SUCCEEDED: { label: 'Xong', cls: 's-pass' },
-    FAILED: { label: 'Lỗi', cls: 's-fail' },
-    UNCERTAIN: { label: 'Chưa rõ kết quả', cls: 's-warn' },
-    WAIT_OWNER: { label: 'Chờ người xử lý', cls: 's-warn' },
-    UNKNOWN: { label: 'Chưa rõ trạng thái', cls: 's-warn' }
+    DONE: { label: 'Hoàn tất', cls: 's-pass' },
+    SUCCEEDED: { label: 'Hoàn tất', cls: 's-pass' },
+    FAILED: { label: 'Bị lỗi', cls: 's-fail' },
+    UNCERTAIN: { label: 'Chưa xác định được kết quả', cls: 's-warn' },
+    WAIT_OWNER: { label: 'Cần bạn xử lý', cls: 's-warn' },
+    UNKNOWN: { label: 'Chưa xác định được trạng thái', cls: 's-warn' }
   };
   var MODULE_STATUS = {
     IDLE: 'Chưa chạy',
     RUNNING: 'Đang chạy',
-    SUCCEEDED: 'Đã xong',
-    FAILED: 'Lỗi',
-    UNCERTAIN: 'Chưa rõ kết quả',
-    WAIT_OWNER: 'Chờ người xử lý',
-    UNKNOWN: 'Chưa rõ trạng thái'
+    SUCCEEDED: 'Hoàn tất',
+    FAILED: 'Bị lỗi',
+    UNCERTAIN: 'Chưa xác định được kết quả',
+    WAIT_OWNER: 'Cần bạn xử lý',
+    UNKNOWN: 'Chưa xác định được trạng thái'
   };
 
   var BLOCK_TEXT = {
-    GATE_NOT_PASSED: 'Cổng trước chưa đạt',
-    GATE_INPUT_CHANGED: 'File đã đổi sau khi qua cổng',
-    RUN_BUSY: 'Lượt đang chạy',
-    READONLY_ON: 'Đang khóa chỉ-đọc',
-    M1_OUTPUT_EXISTS: 'M1 đã có đầu ra ở lượt này. Muốn lấy lại số Metric thì tạo lượt mới.',
-    AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã có lần thu tự động. Muốn thu thêm thì tạo lần thu mới.'
+    GATE_NOT_PASSED: 'Bước trước chưa đạt kiểm tra nên chưa chạy được bước này.',
+    GATE_INPUT_CHANGED: 'Dữ liệu đã bị thay đổi sau khi kiểm tra. Hãy tạo lượt mới.',
+    RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.',
+    READONLY_ON: 'Hệ thống đang tạm khóa để bảo trì.',
+    M1_OUTPUT_EXISTS: 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.',
+    AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».'
   };
 
   var ERROR_TEXT = {
-    SSH_FAILED: 'Không mở được kết nối tới máy chạy.',
-    SSH_TIMEOUT: 'Máy chạy không trả lời trong thời gian chờ.',
-    REMOTE_OUTPUT_INVALID: 'Máy chạy trả về dữ liệu không đúng dạng.',
-    CONFIG_MISSING: 'Chưa có file cấu hình trên máy này.',
-    CONFIG_INVALID: 'File cấu hình sai hoặc chứa đường dẫn không hợp lệ.',
-    ARG_INVALID: 'Tham số gửi đi không hợp lệ nên không gọi máy chạy.',
-    RUN_NOT_FOUND: 'Không thấy lượt này trên máy chạy.',
-    PRESET_NOT_FOUND: 'Không thấy preset đã chọn.',
-    NEW_RUN_INPUT_INVALID: 'Dữ liệu tạo lượt không hợp lệ: preset, ngày cuối kỳ hoặc cấu hình thu bình luận.',
-    GATE_NOT_PASSED: 'Cổng trước chưa đạt nên lệnh chạy bị từ chối.',
-    GATE_INPUT_CHANGED: 'File đầu vào đã đổi sau khi qua cổng nên lệnh chạy bị từ chối.',
-    RUN_BUSY: 'Lượt này đang chạy nên lệnh chạy bị từ chối.',
-    READONLY_ON: 'Đang bật khóa chỉ-đọc nên lệnh chạy bị từ chối.',
-    M1_OUTPUT_EXISTS: 'M1 đã có đầu ra ở lượt này. Muốn lấy lại số Metric thì tạo lượt mới.',
-    AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã có lần thu tự động nên lệnh thu tự động thứ hai bị từ chối.'
+    SSH_FAILED: 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
+    SSH_TIMEOUT: 'Máy chủ phản hồi quá chậm. Hãy thử lại sau ít phút.',
+    REMOTE_OUTPUT_INVALID: 'Máy chủ trả về dữ liệu lỗi. Hãy báo người quản trị.',
+    CONFIG_MISSING: 'Máy này chưa được cài đặt để dùng app. Hãy báo người quản trị.',
+    CONFIG_INVALID: 'Cài đặt của app trên máy này bị sai. Hãy báo người quản trị.',
+    ARG_INVALID: 'Thông tin gửi đi chưa hợp lệ nên app chưa gửi. Kiểm tra lại các ô vừa nhập.',
+    RUN_NOT_FOUND: 'Không tìm thấy lượt này trên máy chủ.',
+    PRESET_NOT_FOUND: 'Không tìm thấy sản phẩm đã chọn. Hãy chọn lại.',
+    NEW_RUN_INPUT_INVALID: 'Chưa tạo được lượt. Kiểm tra lại sản phẩm, ngày và cách lấy bình luận.',
+    END_DATE_NOT_COMPLETED: 'Chọn ngày hôm qua hoặc sớm hơn; hôm nay chưa kết thúc.',
+    GATE_NOT_PASSED: 'Bước trước chưa đạt kiểm tra nên chưa chạy được bước này.',
+    GATE_INPUT_CHANGED: 'Dữ liệu đã bị thay đổi sau khi kiểm tra. Hãy tạo lượt mới.',
+    RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.',
+    READONLY_ON: 'Hệ thống đang tạm khóa để bảo trì nên chưa chạy được.',
+    M1_OUTPUT_EXISTS: 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.',
+    AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».',
+    BRIDGE_MISSING: 'App chưa khởi động xong. Hãy đóng app rồi mở lại.',
+    BRIDGE_SHAPE: 'App gặp lỗi khi nhận dữ liệu. Hãy đóng app rồi mở lại.',
+    BRIDGE_ERROR: 'App gặp lỗi khi gọi máy chủ. Hãy thử lại; nếu vẫn lỗi, báo người quản trị.'
   };
-
-  var GATE_NAMES = { entry: 'vào', m1: 'M1', m2: 'M2', m3: 'M3' };
 
   function blockText(blockedBy) {
     var code = blockedBy && blockedBy.code ? blockedBy.code : '';
-    var text = BLOCK_TEXT[code] || code;
-    if (blockedBy && blockedBy.gate) text += ' (cổng ' + blockedBy.gate + ')';
-    return text + (code ? ' · ' + code : '');
+    var text = BLOCK_TEXT[code] || 'Chưa chạy được bước này.';
+    if (blockedBy && blockedBy.gate) text += ' (kiểm tra ' + (GATE_NAMES[blockedBy.gate] || blockedBy.gate) + ')';
+    return text;
   }
 
   function gateFailedText(error) {
@@ -468,25 +539,25 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var gate = GATE_NAMES[key] || String(where || 'không rõ');
     var checks = Array.isArray(detail.failedChecks) ? detail.failedChecks : [];
     var checkId = detail.failedCheck || checks[0] || '';
-    if (!checkId) return 'Cổng ' + gate + ' không đạt.';
-    var label = checkId === 'readonly_off' ? 'Đang bật khóa chỉ-đọc' : (CHECK_LABELS[checkId] || checkId);
-    return 'Cổng ' + gate + ' không đạt: ' + label + ' (`' + checkId + '`).';
+    if (!checkId) return 'Kiểm tra ' + gate + ' không đạt.';
+    var label = checkId === 'readonly_off' ? 'Hệ thống đang tạm khóa để bảo trì' : (CHECK_LABELS[checkId] || 'Chưa đạt điều kiện');
+    return 'Kiểm tra ' + gate + ' không đạt: ' + label + '.';
+  }
+
+  function errorCode(error) {
+    return error && error.code !== null && error.code !== undefined ? String(error.code) : '';
   }
 
   function plainError(error) {
-    var code = error && error.code !== null && error.code !== undefined ? String(error.code) : '';
-    if (code && ERROR_TEXT[code]) return ERROR_TEXT[code] + ' (' + code + ')';
+    var code = errorCode(error);
+    if (code && ERROR_TEXT[code]) return ERROR_TEXT[code];
     if (code === 'GATE_FAILED') return gateFailedText(error);
-    var message = error && error.message !== null && error.message !== undefined ? String(error.message) : '';
-    var rawFormat = error && error.detail && error.detail.format ? String(error.detail.format) : '';
-    if (code) {
-      if (message) return code + ': ' + message;
-      if (rawFormat) return code + ': ' + rawFormat;
-      return code;
+    if (!code) {
+      var message = error && error.message !== null && error.message !== undefined ? String(error.message) : '';
+      if (message) return message;
+      return 'Có lỗi chưa xác định. Hãy thử lại; nếu vẫn lỗi, báo người quản trị.';
     }
-    if (message) return message;
-    if (rawFormat) return 'Lỗi không rõ (định dạng ' + rawFormat + ').';
-    return 'Lỗi không rõ.';
+    return 'Có lỗi khi xử lý. Hãy thử lại; nếu vẫn lỗi, báo người quản trị.';
   }
 
   var SEQUENCE = [
@@ -513,6 +584,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
   }
   function todayIso() { return isoDate(new Date()); }
+  function yesterdayIso() { return isoDate(addDays(new Date(), -1)); }
+  function fmtInt(value) {
+    var n = Number(value);
+    return isFinite(n) ? n.toLocaleString('vi-VN') : String(value);
+  }
 
   function fakeSha(seed) {
     var h1 = 0x811c9dc5, h2 = 0x01000193, out = '';
@@ -534,10 +610,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   }
 
   var POLICY_MODES = ['with-comments', 'all', 'stars'];
-  var POLICY_MODE_LABEL = { 'with-comments': 'Có bình luận', all: 'Tất cả đánh giá', stars: 'Chọn sao' };
+  var POLICY_MODE_LABEL = {
+    'with-comments': 'Đánh giá có bình luận',
+    all: 'Mọi mức sao, chỉ phần chữ',
+    stars: 'Chọn theo số sao'
+  };
 
   function normalizePolicy(raw) {
-    if (!raw || typeof raw !== 'object') return { error: 'Thiếu cấu hình thu bình luận.' };
+    if (!raw || typeof raw !== 'object') return { error: 'Thiếu thiết lập lấy bình luận.' };
     var mode = raw.mode;
     var allocation = raw.allocation;
     var total = raw.totalPerLink;
@@ -560,14 +640,20 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   }
 
   function policyText(policy) {
-    if (!policy) return 'Chưa rõ cấu hình thu.';
-    if (policy.legacy) return 'Cấu hình cũ · trần 1–300 mỗi link';
-    var text = (POLICY_MODE_LABEL[policy.mode] || policy.mode) + ' · ' + policy.totalPerLink + ' bình luận mỗi link';
-    if (policy.mode === 'stars') {
-      text = 'Sao ' + (policy.stars || []).join(', ') + ' · ' + policy.totalPerLink + ' bình luận chung mỗi link';
-      if (policy.allocation === 'equal-stars') text += ' · chia đều';
+    if (!policy) return 'Chưa rõ cách lấy bình luận.';
+    if (policy.legacy) {
+      return policy.totalPerLink
+        ? 'Lượt tạo bằng bản cũ · tối đa ' + fmtInt(policy.totalPerLink) + ' mỗi link'
+        : 'Lượt tạo bằng bản cũ · số lượng không rõ';
     }
-    return text;
+    if (policy.mode === 'stars') {
+      var stars = (policy.stars || []).join(' và ');
+      var starsText = 'Đánh giá ' + (stars || 'chưa chọn') + ' sao · tối đa ' +
+        fmtInt(policy.totalPerLink) + ' mỗi link';
+      return policy.allocation === 'equal-stars' ? starsText + ' · chia đều' : starsText;
+    }
+    return (POLICY_MODE_LABEL[policy.mode] || 'Cách lấy khác') + ' · tối đa ' +
+      fmtInt(policy.totalPerLink) + ' mỗi link';
   }
 
   function requestPolicy(request) {
@@ -603,7 +689,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         { id: 'M3', skill: 'tdn-shopee-m3-binh-luan', skillVersion: '1.0.1', command: 'shopee_flow.py m3 --run <id>', input: 'm2/selection.json', output: 'm3/', standard: 'shopee-public-rows + m3-outcome-v1', gate: 'm3', ruleVersion: null, code: ['src/platform/collectors/shopee-public-reviews.ts', 'src/modules/foundation/shopee-collection-service.ts'] }
       ],
       gates: {
-        entry: ['product_text', 'period_dates', 'review_cap_1_300', 'readonly_off', 'capture_spec_present'],
+        entry: ['product_text', 'period_dates', 'collection_policy', 'readonly_off', 'capture_spec_present'],
         m1: ['capture_success', 'files_readable', 'has_shopee_rows', 'period_matches', 'masked_ids'],
         m2: ['links_1_to_5', 'ids_numeric', 'no_duplicate_shop', 'no_masked_above_lowest_pick', 'links_in_m1', 'pick_rule_version', 'pick_reason_present'],
         m3: ['verdict_ok', 'min_reviews_per_link', 'cap_not_exceeded', 'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_below_cap']
@@ -984,14 +1070,19 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       run.reviewCountRefresh = { attemptId: attemptId, status: 'SUCCEEDED', errorCode: null };
     }
 
-    function entrySlip(runId, cap) {
+    function entrySlip(runId, policyOrCap) {
+      var policy = policyOrCap && typeof policyOrCap === 'object'
+        ? policyOrCap : { legacy: true, totalPerLink: policyOrCap };
+      var policyCheck = policy.legacy
+        ? { id: 'review_cap_1_300', ok: true, got: policy.totalPerLink }
+        : { id: 'collection_policy', ok: true, got: { totalPerLink: policy.totalPerLink, mode: policy.mode } };
       return {
         format: 'handoff-v1', module: 'ENTRY', runId: runId, skillVersion: '1.0.0', verdict: 'PASS',
         inputSha256: null, outputSha256: shaFor(runId, 'request'),
         checks: [
           { id: 'product_text', ok: true, got: 1 },
           { id: 'period_dates', ok: true, got: { windows: 2, valid: true } },
-          { id: 'review_cap_1_300', ok: true, got: cap },
+          policyCheck,
           { id: 'readonly_off', ok: true, got: true },
           { id: 'capture_spec_present', ok: false, got: 'absent', level: 'warn' }
         ],
@@ -1285,6 +1376,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         lastVerdict: lastVerdict,
         errorCode: (current && current.errorCode) || gateError || run.state.errorCode || null,
         requestFormat: run.request.format,
+        request: clone(run.request),
         legacyPolicy: !!requestPolicy(run.request) && !!requestPolicy(run.request).legacy,
         execution: clone(exec)
       };
@@ -1430,7 +1522,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         var run = makeRun(runId, new Date().toISOString(), preset.keywords[0] || preset.label, {
           keywords: preset.keywords.slice(), endDate: endDate, policy: policy, timeBasis: 'not-started'
         });
-        run.gates.entry = entrySlip(runId, policy.totalPerLink);
+        run.gates.entry = entrySlip(runId, policy);
         return Promise.resolve(ok({ format: 'new-run-v1', runId: runId }));
       },
       status: function (runId) {
@@ -1727,6 +1819,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     presets: [],
     runs: [],
     selectedRunId: null,
+    selectionSeq: 0,
+    navSeq: 0,
+    screen: 'new',
     info: null,
     newRunId: null,
     newEntry: null,
@@ -1735,6 +1830,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     newFormSeq: 0,
     newBusy: false,
     newSilent: false,
+    newLocked: false,
+    preferredRunId: null,
+    flowDialogBinding: null,
+    runFilter: 'all',
     savedProduct: null,
     connected: false,
     readonly: false,
@@ -1747,6 +1846,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     reviewDrafts: {},
     sampling: {},
     samplingErrors: {},
+    samplingActionErrors: {},
+    samplingDraftSeq: {},
     samplingSeq: {},
     samplingTokens: {},
     samplingBusy: {},
@@ -1754,6 +1855,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     samplingPollRunId: null,
     reviewData: {},
     reviewDataErrors: {},
+    reviewDataActionErrors: {},
     reviewDataSeq: {},
     reviewSelection: {},
     reviewNeedsPick: {},
@@ -1764,11 +1866,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   function showError(error) {
     var bar = $('errbar');
     bar.textContent = plainError(error);
+    bar.title = errorCode(error);
     bar.hidden = false;
   }
   function clearError() {
     var bar = $('errbar');
     bar.textContent = '';
+    bar.title = '';
     bar.hidden = true;
   }
 
@@ -1776,10 +1880,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     if (status === 'IDLE' && tracking) {
       if (tracking.timeBasis === 'not-started') return h('span', 'chip s-idle', 'Chưa chạy');
       if (tracking.timeBasis === 'legacy-first-unproven') {
-        return h('span', 'chip s-warn', 'Chưa rõ giờ bắt đầu');
+        return h('span', 'chip s-warn', 'Không có giờ bắt đầu (lượt cũ)');
       }
     }
-    var s = STATUS[status] || { label: status || '—', cls: 's-idle' };
+    var s = STATUS[status] || { label: status || 'chưa rõ', cls: 's-idle' };
     return h('span', 'chip ' + s.cls, s.label);
   }
 
@@ -1811,17 +1915,17 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
     if (!slip) {
       card.dataset.tone = 'idle';
-      head.appendChild(h('span', 'chip s-idle', 'Chưa có phiếu'));
+      head.appendChild(h('span', 'chip s-idle', 'Chưa kiểm tra'));
       card.appendChild(head);
-      card.appendChild(h('p', 'muted', 'Cổng này chưa chạy nên chưa có phiếu.'));
+      card.appendChild(h('p', 'muted', 'Bước trước chưa chạy xong nên chưa kiểm tra.'));
       return card;
     }
 
     var verdict = slip.verdict || 'FAIL';
     var tone = verdict === 'PASS' ? 'pass' : verdict === 'WAIT_OWNER' ? 'warn' : 'fail';
     card.dataset.tone = tone;
-    head.appendChild(h('span', 'chip ' + (verdict === 'PASS' ? 's-pass' : verdict === 'WAIT_OWNER' ? 's-warn' : 's-fail'), verdict));
-    if (slip.errorCode) head.appendChild(h('span', 'codechip', slip.errorCode));
+    head.appendChild(h('span', 'chip ' + (verdict === 'PASS' ? 's-pass' : verdict === 'WAIT_OWNER' ? 's-warn' : 's-fail'),
+      VERDICT_LABEL[verdict] || VERDICT_LABEL.FAIL));
     card.appendChild(head);
 
     var list = h('ul', 'cks');
@@ -1830,23 +1934,29 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       var li = h('li', 'ck ' + (warn ? 'c-warn' : c.ok ? 'c-ok' : 'c-fail'));
       li.appendChild(h('span', 'ci', warn ? '!' : c.ok ? '✓' : '✕'));
       var body = h('div');
-      var line = h('div');
-      line.appendChild(h('code', 'cl', CHECK_LABELS[c.id] || c.id));
-      line.appendChild(h('span', 'cid', c.id));
-      body.appendChild(line);
-      body.appendChild(h('div', 'got', 'got: ' + formatGot(c.got)));
-      if (warn) body.appendChild(h('div', 'warnnote', 'cảnh báo — không đổi kết luận'));
+      body.appendChild(h('div', 'cl', CHECK_LABELS[c.id] || 'Điều kiện kiểm tra'));
+      if (warn) body.appendChild(h('div', 'warnnote', 'Lưu ý. Không ảnh hưởng kết quả kiểm tra.'));
+      var tech = h('details', 'ck-tech');
+      tech.appendChild(h('summary', null, 'Chi tiết kỹ thuật'));
+      var techBody = h('div');
+      techBody.appendChild(h('code', null, c.id));
+      techBody.appendChild(h('div', 'got', 'Kết quả: ' + formatGot(c.got)));
+      tech.appendChild(techBody);
+      body.appendChild(tech);
       li.appendChild(body);
       list.appendChild(li);
     });
     if ((slip.checks || []).length) card.appendChild(list);
-    else card.appendChild(h('p', 'muted', 'Phiếu không có phép kiểm.'));
+    else card.appendChild(h('p', 'muted', 'Chưa có nội dung kiểm tra.'));
 
+    var techWrap = h('details', 'tech-details');
+    techWrap.appendChild(h('summary', null, 'Chi tiết kỹ thuật'));
     var kv = h('dl', 'gkv');
-    kv.appendChild(kvRow('Mã lỗi', slip.errorCode || '—'));
-    kv.appendChild(kvRowEl('Hash đầu vào', h('code', null, hash12(slip.inputSha256))));
-    kv.appendChild(kvRowEl('Hash đầu ra', h('code', null, hash12(slip.outputSha256))));
-    card.appendChild(kv);
+    kv.appendChild(kvRow('Mã lỗi', slip.errorCode || 'Không có'));
+    kv.appendChild(kvRowEl('Mã kiểm đầu vào', h('code', null, hash12(slip.inputSha256))));
+    kv.appendChild(kvRowEl('Mã kiểm đầu ra', h('code', null, hash12(slip.outputSha256))));
+    techWrap.appendChild(kv);
+    card.appendChild(techWrap);
     return card;
   }
 
@@ -1863,15 +1973,15 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   function moduleStateText(info, mod) {
     var view = moduleExecution(info, mod.id);
     if (view && view.status) {
-      if (view.status === 'IDLE') return mod.canRun ? 'Sẵn sàng' : 'Chưa tới';
-      return MODULE_STATUS[view.status] || view.status;
+      if (view.status === 'IDLE') return mod.canRun ? 'Có thể chạy' : 'Chờ bước trước';
+      return MODULE_STATUS[view.status] || 'Chưa xác định được trạng thái';
     }
     var st = info.state || {};
     if (st.status === 'RUNNING' && st.module === mod.id) return 'Đang chạy';
     var slip = info.gates ? info.gates[mod.outputGate] : null;
-    if (slip) return slip.verdict === 'PASS' ? 'Đã xong' : 'Phiếu ' + slip.verdict;
-    if (mod.canRun) return 'Sẵn sàng';
-    return 'Chưa tới';
+    if (slip) return slip.verdict === 'PASS' ? 'Hoàn tất' : 'Không đạt kiểm tra';
+    if (mod.canRun) return 'Có thể chạy';
+    return 'Chờ bước trước';
   }
   function moduleStateCls(info, mod) {
     var view = moduleExecution(info, mod.id);
@@ -1890,7 +2000,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   }
 
   function money(v) {
-    if (v === null || v === undefined) return '—';
+    if (v === null || v === undefined) return 'Chưa có';
     if (typeof v !== 'number' || !isFinite(v)) return String(v);
     return v.toLocaleString('vi-VN') + ' đ';
   }
@@ -1900,16 +2010,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var table = h('table');
     var thead = h('thead');
     var tr = h('tr');
-    ['Hạng', 'Thương hiệu', 'Doanh thu kỳ', 'Lý do chọn'].forEach(function (t) { tr.appendChild(h('th', null, t)); });
+    ['Hạng', 'Thương hiệu', 'Doanh thu 30 ngày', 'Vì sao chọn'].forEach(function (t) { tr.appendChild(h('th', null, t)); });
     thead.appendChild(tr);
     table.appendChild(thead);
     var tbody = h('tbody');
     (sel.links || []).forEach(function (l) {
       var r = h('tr');
       r.appendChild(h('td', 'num', String(l.rank)));
-      r.appendChild(h('td', null, l.brand === null || l.brand === undefined ? '—' : l.brand));
+      r.appendChild(h('td', null, l.brand === null || l.brand === undefined ? 'Chưa có' : l.brand));
       r.appendChild(h('td', 'num', money(l.revenue)));
-      r.appendChild(h('td', null, l.reason || '—'));
+      r.appendChild(h('td', null, l.reason || 'Chưa có'));
       tbody.appendChild(r);
     });
     table.appendChild(tbody);
@@ -1928,31 +2038,39 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     await refreshRuns();
   }
 
-  var RS_MODE_LABEL = { 'with-comments': 'Có bình luận', all: 'Tất cả đánh giá', stars: 'Chọn sao' };
+  var RS_MODE_LABEL = {
+    'with-comments': 'Đánh giá có bình luận',
+    all: 'Mọi mức sao, chỉ phần chữ',
+    stars: 'Chọn theo số sao'
+  };
   var RS_BLOCK_TEXT = {
-    READONLY_ON: 'Đang khóa chỉ-đọc nên không chạy được thao tác nguồn.',
-    M2_INVALID: 'Cần M2 hợp lệ trước khi thu bình luận.',
-    M2_MISSING: 'Cần M2 hợp lệ trước khi thu bình luận.',
-    ATTEMPT_ACTIVE: 'Lần chạy trước đang chạy nên chưa chạy lần mới.',
-    ATTEMPT_UNCERTAIN: 'Lần chạy trước chưa rõ kết quả. Không tự chạy lại.',
-    RUN_BUSY: 'Lượt đang chạy.'
+    READONLY_ON: 'Hệ thống đang tạm khóa để bảo trì nên chưa lấy dữ liệu được.',
+    M2_INVALID: 'Bước 2 chưa có kết quả hợp lệ nên chưa lấy bình luận được.',
+    M2_MISSING: 'Bước 2 chưa có kết quả hợp lệ nên chưa lấy bình luận được.',
+    ATTEMPT_ACTIVE: 'Lần lấy trước chưa xong. Chờ xong rồi mới lấy tiếp được.',
+    ATTEMPT_UNCERTAIN: 'Lần lấy trước chưa xác định được kết quả. Hãy bấm «Kiểm tra lại kết quả lần này» trước.',
+    RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.'
   };
   var RS_REFRESH_TEXT = {
-    RUNNING: 'Đang đọc số đánh giá trên Shopee…',
-    SUCCEEDED: 'Đã đọc số đánh giá trên Shopee.',
-    FAILED: 'Đọc số đánh giá chưa xong.',
-    UNCERTAIN: 'Chưa rõ kết quả đọc số đánh giá. Không tự thử lại.'
+    RUNNING: 'Đang xem số đánh giá…',
+    SUCCEEDED: 'Đã xem xong số đánh giá.',
+    FAILED: 'Chưa xem xong số đánh giá.',
+    UNCERTAIN: 'Chưa xác định được kết quả. Hãy bấm «Kiểm tra lại».'
   };
-  var RS_ATTEMPT_TEXT = { RUNNING: 'Đang chạy', SUCCEEDED: 'Xong', FAILED: 'Lỗi', UNCERTAIN: 'Chưa rõ kết quả' };
+  var RS_ATTEMPT_TEXT = {
+    RUNNING: 'Đang chạy', SUCCEEDED: 'Hoàn tất', FAILED: 'Bị lỗi',
+    UNCERTAIN: 'Chưa xác định được kết quả'
+  };
   var RS_STOP_TEXT = {
-    record_limit: 'Đủ số lượng', expected_count_reached: 'Đủ số đánh giá nguồn',
-    exhausted: 'Đã hết đánh giá', page_limit: 'Chạm giới hạn trang',
-    not_started: 'Chưa bắt đầu', total_limit: 'Chạm tổng giới hạn',
-    cancelled: 'Đã dừng', timeout: 'Quá thời gian', control_changed: 'Bộ lọc nguồn thay đổi',
-    human_stop: 'Dừng theo người vận hành'
+    record_limit: 'đã đủ số lượng', expected_count_reached: 'đã lấy hết số Shopee hiển thị',
+    exhausted: 'Shopee không còn đánh giá nào', page_limit: 'đã xem hết số trang cho phép',
+    last_page: 'đã xem hết số trang có đánh giá', not_started: 'chưa bắt đầu',
+    total_limit: 'đã đạt giới hạn chung của lượt', cancelled: 'đã dừng',
+    timeout: 'quá thời gian cho phép', control_changed: 'bộ lọc trên Shopee thay đổi giữa chừng',
+    human_stop: 'bạn đã bấm dừng'
   };
-  var RS_STOP_UNKNOWN = 'Không rõ lý do dừng';
-  var RS_COUNT_WHY = { missing: 'không thấy', ambiguous: 'không rõ', unavailable: 'không đọc được' };
+  var RS_STOP_UNKNOWN = 'không rõ lý do';
+  var RS_COUNT_WHY = { missing: 'Không thấy', ambiguous: 'Không rõ', unavailable: 'Không đọc được' };
 
   function equalStarQuotas(n, stars) {
     var list = stars.slice().sort(function (a, b) { return a - b; });
@@ -1964,11 +2082,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     });
   }
 
-  function samplingDraft(runId, view) {
+  function samplingDraft(runId, view, savedPolicy) {
     var digest = view && view.m2Digest;
     var existing = state.reviewDrafts[runId];
     if (!existing || existing.m2 !== digest) {
-      var input = view && view.defaultInput ? view.defaultInput : {};
+      var input = savedPolicy || (view && view.defaultInput ? view.defaultInput : {});
       var mode = input.mode === 'all' || input.mode === 'stars' ? input.mode : 'with-comments';
       var stars = Array.isArray(input.stars) ? input.stars.filter(function (star) {
         return Number.isInteger(star) && star >= 1 && star <= 5;
@@ -2009,38 +2127,31 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       saved.allocation === policy.allocation && sameStars(saved.stars, policy.stars);
   }
 
-  function savedPlanFor(view, policy) {
-    var plans = (view && view.plans) || [];
-    for (var i = 0; i < plans.length; i++) {
-      if (plans[i] && plans[i].plan && policyMatches(policy, plans[i].plan.policy)) return plans[i];
-    }
-    return null;
-  }
-
   function draftIssue(draft) {
     if (!Number.isInteger(draft.n) || draft.n < 1 || draft.n > 2000) {
-      return 'Tổng số bình luận mỗi link phải là số nguyên từ 1 đến 2000.';
+      return 'Số bình luận mỗi link phải là số nguyên từ 1 đến 2.000.';
     }
     if (draft.mode === 'stars' && !draft.stars.length) return 'Chọn ít nhất một mức sao.';
     return '';
   }
 
   function samplingSummary(policy) {
-    var mode = RS_MODE_LABEL[policy.mode] || policy.mode;
-    if (policy.mode !== 'stars') return mode + ' · ' + policy.totalPerLink + ' bình luận mỗi link';
-    if (!policy.stars.length) return 'Chọn sao · chưa chọn mức sao';
-    var text = 'Sao ' + policy.stars.join(', ') + ' · ' + policy.totalPerLink + ' bình luận chung mỗi link';
-    return policy.allocation === 'equal-stars' ? text + ' · chia đều' : text;
+    if (policy.mode === 'stars') {
+      if (!policy.stars.length) return 'Chưa chọn mức sao nào';
+      var text = 'Đánh giá ' + policy.stars.join(' và ') + ' sao · tối đa ' +
+        fmtInt(policy.totalPerLink) + ' mỗi link';
+      return policy.allocation === 'equal-stars' ? text + ' · chia đều' : text;
+    }
+    return (RS_MODE_LABEL[policy.mode] || 'Cách lấy khác') + ' · tối đa ' +
+      fmtInt(policy.totalPerLink) + ' mỗi link';
   }
 
-  function rsBlockText(code) { return RS_BLOCK_TEXT[code] || ('Chưa chạy được: ' + code); }
-  function valOrDash(value) { return value === null || value === undefined ? '—' : String(value); }
+  function rsBlockText(code) { return RS_BLOCK_TEXT[code] || 'Chưa lấy được lúc này. Kiểm tra lại trạng thái lượt rồi thử lại.'; }
+  function valOrDash(value) { return value === null || value === undefined ? 'chưa có số liệu' : String(value); }
 
   function stampText(value) {
-    if (!value) return '—';
-    var date = new Date(value);
-    if (isNaN(date.getTime())) return String(value);
-    return date.toLocaleString('vi-VN');
+    if (!value) return 'chưa rõ';
+    return vnStamp(value) || String(value);
   }
 
   function vnStamp(value) {
@@ -2048,11 +2159,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var date = new Date(value);
     if (isNaN(date.getTime())) return '';
     var shifted = new Date(date.getTime() + 7 * 60 * 60 * 1000);
-    var hour = shifted.getUTCHours();
-    var suffix = hour < 12 ? 'am' : 'pm';
-    var hour12 = hour % 12 || 12;
     return pad(shifted.getUTCDate()) + '/' + pad(shifted.getUTCMonth() + 1) + '/' +
-      shifted.getUTCFullYear() + ' ' + hour12 + ':' + pad(shifted.getUTCMinutes()) + suffix;
+      shifted.getUTCFullYear() + ' ' + pad(shifted.getUTCHours()) + ':' + pad(shifted.getUTCMinutes());
   }
 
   function runTracking(value) { return value && value.tracking ? value.tracking : null; }
@@ -2064,7 +2172,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       return keyword + ': ' + vnStamp(tracking.firstRunAt);
     }
     if (tracking && tracking.timeBasis === 'legacy-first-unproven') {
-      return (keyword || 'Chưa rõ từ khóa') + ' · chưa rõ giờ bắt đầu';
+      return (keyword || 'Chưa rõ từ khóa') + ' · không có giờ bắt đầu (lượt cũ)';
     }
     return keyword || fallback || 'Lượt chưa đặt tên';
   }
@@ -2074,14 +2182,15 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     if (tracking.timeBasis === 'legacy-first-unproven') {
       return tracking.lastKnownStartedAt
         ? 'Lần chạy gần nhất: ' + vnStamp(tracking.lastKnownStartedAt) + '.'
-        : 'Chưa rõ giờ bắt đầu.';
+        : 'Không có giờ bắt đầu (lượt cũ).';
     }
     return '';
   }
 
   function countText(cv) {
-    if (cv && cv.status === 'observed' && Number.isInteger(cv.value) && cv.value >= 0) return String(cv.value);
-    return '— ' + (RS_COUNT_WHY[cv && cv.status] || 'chưa có');
+    if (cv && cv.status === 'observed' && Number.isInteger(cv.value) && cv.value >= 0) return fmtInt(cv.value);
+    var why = cv && cv.status ? RS_COUNT_WHY[cv.status] : '';
+    return why || 'Chưa xem';
   }
 
   function rsToken(runId) {
@@ -2148,7 +2257,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var thead = h('thead');
     var tr = h('tr');
     [['Link', ''], ['5★', 'num'], ['4★', 'num'], ['3★', 'num'], ['2★', 'num'], ['1★', 'num'],
-      ['Có bình luận', 'num'], ['Chụp lúc', '']].forEach(function (entry) {
+      ['Có viết bình luận', 'num'], ['Xem lúc', '']].forEach(function (entry) {
       tr.appendChild(h('th', entry[1], entry[0]));
     });
     thead.appendChild(tr);
@@ -2168,7 +2277,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         row.appendChild(h('td', 'num', countText(snapshot && snapshot.stars ? snapshot.stars[String(star)] : null)));
       });
       row.appendChild(h('td', 'num', countText(snapshot ? snapshot.withComments : null)));
-      row.appendChild(h('td', null, snapshot ? stampText(snapshot.observedAt) : '— chưa có'));
+      row.appendChild(h('td', null, snapshot ? stampText(snapshot.observedAt) : 'Chưa xem'));
       tbody.appendChild(row);
     });
     table.appendChild(tbody);
@@ -2187,7 +2296,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     target = target || latest;
     var block = h('section', 'rs-attempt');
     var head = h('div', 'rs-head');
-    head.appendChild(h('h4', null, 'Lần chạy gần nhất'));
+    head.appendChild(h('h4', null, 'Lần lấy gần nhất'));
     var status = latest.status || 'UNCERTAIN';
     head.appendChild(h('span', 'chip ' + (status === 'SUCCEEDED' ? 's-pass' : status === 'RUNNING' ? 's-run'
       : status === 'FAILED' ? 's-fail' : 's-warn'), RS_ATTEMPT_TEXT[status] || status));
@@ -2197,7 +2306,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var table = h('table');
     var thead = h('thead');
     var tr = h('tr');
-    [['Link', ''], ['Yêu cầu', 'num'], ['Thực tế', 'num'], ['Thiếu', 'num'], ['Ghi chú', '']]
+    [['Link', ''], ['Cần lấy', 'num'], ['Đã lấy', 'num'], ['Còn thiếu', 'num'], ['Ghi chú', '']]
       .forEach(function (entry) { tr.appendChild(h('th', entry[1], entry[0])); });
     thead.appendChild(tr);
     table.appendChild(thead);
@@ -2215,13 +2324,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       var stars = link.stars || [];
       if (stars.length) {
         var detail = stars.map(function (star) {
-          return 'Sao ' + star.star + ': ' + valOrDash(star.actual) + '/' + valOrDash(star.target) +
-            ' (thiếu ' + valOrDash(star.shortfall) + ')';
+          if (star.actual === null || star.actual === undefined) {
+            return star.star + ' sao: chưa có số liệu';
+          }
+          return star.star + ' sao: lấy ' + valOrDash(star.actual) + ' trên ' + valOrDash(star.target) +
+            ', thiếu ' + valOrDash(star.shortfall);
         }).join(' · ');
         note.appendChild(h('div', 'rs-stars-cell', detail));
       }
       if (link.stopReason) {
-        note.appendChild(h('div', 'rs-stop', 'Dừng: ' + (RS_STOP_TEXT[link.stopReason] || RS_STOP_UNKNOWN)));
+        note.appendChild(h('div', 'rs-stop', 'Dừng vì: ' + (RS_STOP_TEXT[link.stopReason] || RS_STOP_UNKNOWN)));
       }
       row.appendChild(note);
       tbody.appendChild(row);
@@ -2229,13 +2341,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     table.appendChild(tbody);
     wrap.appendChild(table);
     block.appendChild(wrap);
-    if (latest.stopRequested) block.appendChild(h('p', 'rs-hint', 'Đã yêu cầu dừng lần chạy này.'));
+    if (latest.stopRequested) block.appendChild(h('p', 'rs-hint', 'Đã gửi lệnh dừng. Chờ ít giây.'));
     if (target !== latest) {
-      block.appendChild(h('p', 'rs-hint', 'Còn một lần chạy chưa xong cần xử lý trước.'));
+      block.appendChild(h('p', 'rs-hint', 'Còn một lần lấy dở. Hãy xử lý lần đó trước.'));
     }
     var controls = h('div', 'rs-actions');
     if ((target.status === 'RUNNING' || target.status === 'UNCERTAIN') && !target.stopRequested) {
-      var stop = h('button', 'abtn', 'Dừng lần chạy này');
+      var stop = h('button', 'abtn', 'Dừng lần lấy này');
       stop.type = 'button';
       stop.addEventListener('click', function () {
         control('stop', 'custom', target.attemptId);
@@ -2243,7 +2355,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       controls.appendChild(stop);
     }
     if (target.reconcilable && !view.readonly) {
-      var reconcile = h('button', 'abtn', 'Đối soát lần chạy');
+      var reconcile = h('button', 'abtn', 'Kiểm tra lại kết quả lần này');
       reconcile.type = 'button';
       reconcile.addEventListener('click', function () {
         control('reconcile', 'custom', target.attemptId);
@@ -2256,9 +2368,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
   function frozenPolicyCard(policy) {
     var box = h('div', 'policy-frozen');
-    box.appendChild(h('b', null, policy && policy.legacy ? 'Cấu hình cũ' : 'Cấu hình đã lưu khi tạo lượt'));
+    box.appendChild(h('b', null, policy && policy.legacy ? 'Lượt tạo bằng bản cũ' : 'Cách lấy đã chọn lúc tạo lượt'));
     box.appendChild(h('span', null, policyText(policy)));
-    box.appendChild(h('p', 'muted', 'Cấu hình này không sửa tại đây. Muốn thu theo cách khác, mở “Tạo lần thu mới” bên dưới.'));
+    box.appendChild(h('p', 'muted', 'Thiết lập này không sửa được. Muốn lấy theo cách khác, mở «Lấy thêm theo cách khác» bên dưới.'));
     return box;
   }
 
@@ -2267,21 +2379,25 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var view = state.sampling[runId];
     var panel = h('section', 'rs');
     panel.id = 'rsPanel';
-    panel.setAttribute('aria-label', 'Tuỳ chọn thu bình luận');
+    panel.setAttribute('aria-label', 'Tuỳ chọn lấy bình luận');
 
     var head = h('div', 'rs-head');
-    var headTitle = h('h4', null, 'Thu theo lựa chọn');
+    var headTitle = h('h4', null, 'Lấy bình luận');
     head.appendChild(headTitle);
-    var statusChip = h('span', 'chip s-idle', 'Đang đọc lựa chọn…');
+    var statusChip = h('span', 'chip s-idle', 'Đang tải thiết lập…');
     head.appendChild(statusChip);
     panel.appendChild(head);
-    var lead = h('p', 'rs-lead', 'Áp dụng cho các link đã chọn ở M2. Không chạy lại Metric.');
+    var lead = h('p', 'rs-lead', 'Lấy bình luận của các link đã chọn ở bước 2. Không lấy lại số liệu bán hàng.');
     panel.appendChild(lead);
 
     if (state.samplingErrors[runId]) {
-      panel.appendChild(h('p', 'errbar', plainError(state.samplingErrors[runId])));
+      var loadErr = h('p', 'errbar local-error', plainError(state.samplingErrors[runId]));
+      loadErr.id = 'samplingErr';
+      loadErr.setAttribute('role', 'alert');
+      loadErr.title = errorCode(state.samplingErrors[runId]);
+      panel.appendChild(loadErr);
       var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Đọc lại lựa chọn');
+      var retry = h('button', 'abtn', 'Tải lại');
       retry.type = 'button';
       retry.addEventListener('click', function () { loadSampling(runId); });
       retryRow.appendChild(retry);
@@ -2289,74 +2405,89 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       return panel;
     }
     if (!view) {
-      panel.appendChild(h('p', 'muted', 'Đang đọc lựa chọn đã lưu…'));
+      panel.appendChild(h('p', 'muted', 'Đang tải thiết lập đã lưu…'));
       return panel;
     }
 
     var hasM2 = !!view.m2Digest;
     var blocked = view.blockedBy;
     if (!hasM2) {
-      headTitle.textContent = 'Khôi phục lần chạy';
-      statusChip.textContent = 'Không đọc được M2';
+      headTitle.textContent = 'Xử lý lần lấy dở';
+      statusChip.textContent = 'Không đọc được kết quả bước 2';
       statusChip.className = 'chip s-warn';
-      lead.textContent = 'M2 hiện không đọc được. Chỉ có thể dừng hoặc đối soát lần chạy đã ghi; ' +
-        'không thể lưu hoặc bắt đầu thu mới.';
+      lead.textContent = 'Lúc này chỉ dừng hoặc kiểm tra lại lần lấy đang dở được. Chưa lấy mới được.';
       if (countRecoveryPending(view.countRefresh)) panel.appendChild(countsSection(view, onControl, false));
       var recoveryAttempts = attemptBlock(view, onControl);
       if (recoveryAttempts) panel.appendChild(recoveryAttempts);
       return panel;
     }
 
-    var draft = samplingDraft(runId, view);
     var requested = requestPolicy(info.request);
     var legacyPolicy = !requested || requested.legacy;
+    var savedPolicy = legacyPolicy ? null : normalizePolicy(requested).value;
+    var draft = samplingDraft(runId, view, savedPolicy);
     var automatic = (view.attempts || []).find(function (attempt) { return attempt && attempt.automatic; });
     var m3Execution = info.execution && info.execution.modules ? info.execution.modules.M3 : null;
+    var m3Module = (info.modules || []).find(function (mod) { return mod.id === 'M3'; });
+    var m3ModuleBlocked = m3Module && !m3Module.canRun ? (m3Module.blockedBy || { code: '' }) : null;
+    var m3ModuleBlockText = m3ModuleBlocked ? blockText(m3ModuleBlocked) : '';
     var m3Running = !!(m3Execution && m3Execution.status === 'RUNNING');
     var editBody = panel;
+    var originalBtn = null;
+    var originalHint = null;
     if (!legacyPolicy) {
       panel.appendChild(frozenPolicyCard(requested));
-      var autoRow = h('div', 'rs-actions');
       if (automatic) {
-        autoRow.appendChild(h('span', 'hint', 'Lượt này đã có lần thu tự động theo cấu hình đã lưu.'));
+        panel.appendChild(h('p', 'hint', 'Lượt này đã lấy bình luận theo thiết lập trên.'));
+        var extra = h('details', 'extra-collection');
+        extra.appendChild(h('summary', null, 'Lấy thêm theo cách khác'));
+        panel.appendChild(extra);
+        editBody = extra;
       } else {
-        var autoBtn = h('button', 'abtn primary', 'Bắt đầu thu theo cấu hình');
-        autoBtn.type = 'button';
-        autoBtn.disabled = !state.connected || m3Running || !!blocked;
-        autoBtn.addEventListener('click', async function () {
-          if (!state.connected || m3Running || blocked) return;
-          autoBtn.disabled = true;
-          var res = await api.runModule(runId, 'm3');
-          if (state.selectedRunId !== runId) return;
-          if (!res.ok) {
-            showError(res.error);
-            autoBtn.disabled = false;
-            return;
-          }
-          await loadInfo(runId);
-          await loadSampling(runId);
-          await refreshRuns();
-        });
-        autoRow.appendChild(autoBtn);
-        autoRow.appendChild(h('span', 'hint', 'Dùng đúng cấu hình đã lưu khi tạo lượt; không sửa tại đây.'));
+        var originalActions = h('div', 'rs-actions');
+        originalBtn = h('button', 'abtn primary', 'Lấy bình luận theo thiết lập lúc tạo lượt');
+        originalBtn.type = 'button';
+        originalBtn.id = 'samplingRunBtn';
+        originalActions.appendChild(originalBtn);
+        originalHint = h('span', 'hint');
+        originalHint.id = 'rsOriginalHint';
+        originalHint.setAttribute('aria-live', 'polite');
+        originalHint.hidden = true;
+        originalActions.appendChild(originalHint);
+        panel.appendChild(originalActions);
+        panel.appendChild(h('p', 'rs-note',
+          'Thiết lập này đã lưu khi tạo lượt. Phần bên dưới chỉ dùng khi bạn muốn cách lấy khác.'));
+        var firstCustom = h('details', 'extra-collection');
+        firstCustom.appendChild(h('summary', null, 'Lấy thêm theo cách khác'));
+        firstCustom.appendChild(h('p', 'rs-note',
+          'Đây là một lần lấy thêm riêng. Nó không thay đổi thiết lập đã lưu và không thay cho lần lấy đầu tiên theo thiết lập lúc tạo lượt.'));
+        panel.appendChild(firstCustom);
+        editBody = firstCustom;
       }
-      panel.appendChild(autoRow);
-      var details = h('details', 'extra-collection');
-      details.appendChild(h('summary', null, 'Tạo lần thu mới'));
-      panel.appendChild(details);
-      editBody = details;
     } else {
       panel.appendChild(frozenPolicyCard({ legacy: true, totalPerLink: requested ? requested.totalPerLink : 300 }));
+      var legacyActions = h('div', 'rs-actions');
+      originalBtn = h('button', 'abtn primary', 'Lấy bình luận theo thiết lập lúc tạo lượt');
+      originalBtn.type = 'button';
+      originalBtn.id = 'samplingRunBtn';
+      legacyActions.appendChild(originalBtn);
+      originalHint = h('span', 'hint');
+      originalHint.id = 'rsOriginalHint';
+      originalHint.setAttribute('aria-live', 'polite');
+      originalHint.hidden = true;
+      legacyActions.appendChild(originalHint);
+      panel.appendChild(legacyActions);
       var legacyDetails = h('details', 'extra-collection');
-      legacyDetails.appendChild(h('summary', null, 'Tạo lần thu mới'));
+      legacyDetails.appendChild(h('summary', null, 'Lấy thêm theo cách khác'));
       panel.appendChild(legacyDetails);
       editBody = legacyDetails;
     }
     var cols = h('div', 'rs-cols');
 
     var modes = h('fieldset', 'rs-group');
-    modes.appendChild(h('legend', null, 'Nguồn bình luận'));
-    [['with-comments', 'Có bình luận (mặc định)'], ['all', 'Tất cả đánh giá'], ['stars', 'Chọn sao']].forEach(function (entry) {
+    modes.appendChild(h('legend', null, 'Lấy những đánh giá nào'));
+    [['with-comments', 'Chỉ đánh giá có viết bình luận (mặc định)'],
+      ['all', 'Mọi mức sao, chỉ lấy phần chữ'], ['stars', 'Chọn theo số sao']].forEach(function (entry) {
       var label = h('label', 'rs-opt');
       var input = document.createElement('input');
       input.type = 'radio';
@@ -2386,7 +2517,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
     var options = h('div', 'rs-group');
     var nField = h('label', 'field');
-    nField.appendChild(h('span', null, 'Tổng số bình luận mỗi link (1–2000)'));
+    nField.appendChild(h('span', null, 'Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)'));
     var nInput = document.createElement('input');
     nInput.type = 'number';
     nInput.id = 'rsN';
@@ -2403,10 +2534,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     balancedInput.id = 'rsBalanced';
     balancedInput.checked = draft.balanced;
     balancedLabel.appendChild(balancedInput);
-    balancedLabel.appendChild(document.createTextNode('Chia đều số lượng cho các sao đã chọn (tùy chọn)'));
+    balancedLabel.appendChild(document.createTextNode('Chia đều số lượng cho từng mức sao'));
     options.appendChild(balancedLabel);
     options.appendChild(h('p', 'rs-note',
-      'Dùng để so sánh nội dung giữa các mức sao; tỷ lệ sao trong mẫu không đại diện tỷ lệ đánh giá của sản phẩm.'));
+      'Dùng khi muốn so sánh khách nói gì ở từng mức sao. Lưu ý: tỷ lệ sao trong bộ này không phản ánh tỷ lệ sao thật của sản phẩm.'));
 
     var quota = h('dl', 'rs-quota');
     quota.id = 'rsQuota';
@@ -2431,28 +2562,41 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     editBody.appendChild(summary);
 
     editBody.appendChild(h('p', 'rs-note',
-      'Số lượng là tổng chung cho mỗi link sau khi gộp các sao đã chọn, không phải trần từng sao. ' +
-      'Bình luận trùng chỉ tính một lần. Chỉ thu bình luận có chữ.'));
+      'Số lượng tính chung cho mỗi link, không tính riêng từng mức sao. ' +
+      'Bình luận trùng chỉ tính một lần. Mọi cách lấy đều chỉ lấy phần chữ, không tải ảnh và video.'));
 
     if (blocked && blocked.code) editBody.appendChild(h('p', 'rs-block', rsBlockText(blocked.code)));
 
+    var actionErr = h('p', 'errbar local-error');
+    actionErr.id = 'samplingErr';
+    actionErr.setAttribute('role', 'alert');
+    var actionError = state.samplingActionErrors[runId];
+    if (actionError) {
+      actionErr.textContent = plainError(actionError);
+      actionErr.title = errorCode(actionError);
+    } else {
+      actionErr.hidden = true;
+    }
+    panel.appendChild(actionErr);
+
     var actions = h('div', 'rs-actions');
-    var saveBtn = h('button', 'abtn primary', 'Lưu lựa chọn');
-    saveBtn.type = 'button';
-    var launchBtn = h('button', 'abtn', 'Thu bình luận theo lựa chọn');
-    launchBtn.type = 'button';
-    var refreshBtn = h('button', 'abtn', 'Đọc số đánh giá trên Shopee');
-    refreshBtn.type = 'button';
-    actions.appendChild(saveBtn);
-    actions.appendChild(launchBtn);
-    actions.appendChild(refreshBtn);
+    var runBtn = h('button', originalBtn ? 'abtn' : 'abtn primary',
+      originalBtn ? 'Lấy khác theo thiết lập này'
+        : automatic ? 'Lấy thêm theo thiết lập này' : 'Lấy bình luận theo thiết lập này');
+    runBtn.type = 'button';
+    runBtn.id = originalBtn ? 'samplingCustomRunBtn' : 'samplingRunBtn';
+    actions.appendChild(runBtn);
     var actionHint = h('span', 'hint');
     actionHint.id = 'rsActionHint';
     actionHint.setAttribute('aria-live', 'polite');
     actions.appendChild(actionHint);
     editBody.appendChild(actions);
 
-    panel.appendChild(countsSection(view, onControl, true));
+    var refreshBtn = h('button', 'abtn', 'Xem số đánh giá hiện có trên Shopee');
+    refreshBtn.type = 'button';
+    refreshBtn.id = 'samplingCountsBtn';
+
+    panel.appendChild(countsSection(view, onControl, true, refreshBtn));
 
     var attempts = attemptBlock(view, onControl);
     if (attempts) panel.appendChild(attempts);
@@ -2485,37 +2629,85 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
     function updateActions() {
       if (!hasM2) return;
-      var policy = draftPolicy(draft);
-      var match = savedPlanFor(view, policy);
       var issue = draftIssue(draft);
       var work = busy();
       var anyBusy = !!(work.save || work.launch || work.refresh || work.control);
 
+      var attempts = view.attempts || [];
+      var lastSettledAttempt = null;
+      for (var ai = attempts.length - 1; ai >= 0; ai--) {
+        if (attempts[ai] && attempts[ai].status && attempts[ai].status !== 'RUNNING') {
+          lastSettledAttempt = attempts[ai];
+          break;
+        }
+      }
+      var extraResult = !!(lastSettledAttempt && lastSettledAttempt.status === 'SUCCEEDED');
+      var dataView = state.reviewData[runId];
+      var storedResult = !!(info.gates && info.gates.m3 && info.gates.m3.verdict === 'PASS') ||
+        !!(dataView && Array.isArray(dataView.sources) && dataView.sources.length);
+
       if (!legacyPolicy && automatic) {
-        statusChip.textContent = RS_ATTEMPT_TEXT[automatic.status] || automatic.status || 'Đã có lần thu tự động';
+        statusChip.textContent = RS_ATTEMPT_TEXT[automatic.status] || 'Đã có lần lấy bình luận';
         statusChip.className = 'chip ' + (automatic.status === 'SUCCEEDED' ? 's-pass'
           : automatic.status === 'RUNNING' ? 's-run' : automatic.status === 'FAILED' ? 's-fail' : 's-warn');
+      } else if (m3Running) {
+        statusChip.textContent = 'Đang lấy bình luận';
+        statusChip.className = 'chip s-run';
+      } else if (extraResult) {
+        statusChip.textContent = 'Đã có kết quả lấy thêm';
+        statusChip.className = 'chip s-idle';
+      } else if (storedResult) {
+        statusChip.textContent = legacyPolicy ? 'Đã có kết quả cũ' : 'Đã có kết quả';
+        statusChip.className = 'chip s-idle';
       } else {
-        statusChip.textContent = work.save ? 'Đang lưu…' : match ? 'Đã lưu lựa chọn'
-          : ((view.plans || []).length ? 'Có thay đổi chưa lưu' : 'Chưa lưu lựa chọn');
-        statusChip.className = 'chip ' + (match ? 's-pass' : 's-idle');
+        statusChip.textContent = 'Chưa lấy bình luận';
+        statusChip.className = 'chip s-idle';
       }
 
-      saveBtn.disabled = !!issue || anyBusy || !state.connected || !view.m2Digest;
-      launchBtn.disabled = !!issue || anyBusy || !match || !state.connected || m3Running || !!blocked;
+      var originalBusy = work.action === 'original' && (work.save || work.launch);
+      if (originalBtn) {
+        originalBtn.disabled = anyBusy || !state.connected || m3Running || !!blocked || !!m3ModuleBlocked ||
+          !!view.readonly || !view.m2Digest;
+        originalBtn.textContent = originalBusy
+          ? 'Đang bắt đầu lấy bình luận…'
+          : 'Lấy bình luận theo thiết lập lúc tạo lượt';
+      }
+      runBtn.disabled = !!issue || anyBusy || !state.connected || m3Running || !!blocked ||
+        !!view.readonly || !view.m2Digest;
+      var runBtnIdle = originalBtn ? 'Lấy khác theo thiết lập này'
+        : automatic ? 'Lấy thêm theo thiết lập này' : 'Lấy bình luận theo thiết lập này';
+      runBtn.textContent = !originalBusy && work.phase === 'dispatch' ? 'Đang bắt đầu lấy bình luận…'
+        : !originalBusy && work.phase === 'save' ? 'Đang lưu thiết lập…' : runBtnIdle;
       refreshBtn.disabled = anyBusy || !state.connected || !(view.links || []).length || !!blocked ||
         !!view.readonly || !!(view.countRefresh && view.countRefresh.status === 'RUNNING');
 
+      var busyMessage = '';
+      if (work.save) busyMessage = 'Đang lưu thiết lập…';
+      else if (work.launch) busyMessage = 'Đang bắt đầu lấy bình luận…';
+      else if (work.refresh) busyMessage = 'Đang xem số đánh giá hiện có trên Shopee…';
+      else if (work.control) busyMessage = 'Đang xử lý lần lấy…';
       var message = '';
-      if (work.save) message = 'Đang lưu lựa chọn…';
-      else if (work.launch) message = 'Đang bắt đầu thu bình luận…';
-      else if (work.refresh) message = 'Đang đọc số đánh giá trên Shopee…';
-      else if (work.control) message = 'Đang xử lý lần chạy…';
-      else if (m3Running) message = 'M3 đang chạy.';
-      else if (issue) message = issue;
-      else if (!match) message = 'Lưu lựa chọn trước khi chạy.';
+      if (work.action === 'original') {
+        message = busyMessage || (m3Running ? 'Đang lấy bình luận.' : blocked ? rsBlockText(blocked.code) : '');
+      } else if (busyMessage) {
+        message = busyMessage;
+      } else if (m3Running) {
+        message = 'Đang lấy bình luận.';
+      } else if (issue) {
+        message = issue;
+      } else if (blocked) {
+        message = rsBlockText(blocked.code);
+      }
       actionHint.textContent = message;
       actionHint.hidden = !message;
+      if (originalHint) {
+        var originalIdle = m3Running ? 'Đang lấy bình luận.'
+          : m3ModuleBlockText || (blocked ? rsBlockText(blocked.code) : '');
+        var originalMessage = work.action === 'original'
+          ? (busyMessage || originalIdle) : originalIdle;
+        originalHint.textContent = originalMessage;
+        originalHint.hidden = !originalMessage;
+      }
     }
 
     function sync() {
@@ -2548,47 +2740,140 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       summary.textContent = samplingSummary(draftPolicy(draft));
       orderNote.hidden = !starsMode;
       orderNote.textContent = !starsMode ? '' : (draft.balanced
-        ? 'Chia đều: thu lần lượt theo từng mức sao đã chọn, đủ chỉ tiêu mỗi sao thì sang mức kế tiếp; không bù giữa các mức.'
-        : 'Dùng chung số lượng: thu lần lượt từ sao thấp đến cao; có thể đủ số lượng trước khi tới mức sao cao hơn.');
+        ? 'Chia đều: lấy lần lượt theo từng mức sao đã chọn, đủ chỉ tiêu mỗi sao thì sang mức kế tiếp; không bù giữa các mức.'
+        : 'Dùng chung số lượng: lấy lần lượt từ sao thấp đến cao; có thể đủ số lượng trước khi tới mức sao cao hơn.');
       updateActions();
     }
 
-    saveBtn.addEventListener('click', async function () {
+    function failLaunch(error) {
+      state.samplingActionErrors[runId] = error || { message: 'Có lỗi khi lấy bình luận. Hãy thử lại.' };
+      renderDetail();
+    }
+
+    function samePlanContext(run, token, selectionSeq) {
+      return token === state.samplingTokens[run] &&
+        state.selectedRunId === run && state.selectionSeq === selectionSeq;
+    }
+
+    function releaseWork(work) {
+      work.save = false;
+      work.launch = false;
+      work.phase = '';
+      work.action = '';
+    }
+
+    function refreshPlanActions(run) {
+      if (state.selectedRunId === run && state.info && state.info.runId === run) renderDetail();
+    }
+
+    async function launchOriginal() {
+      var work = busy();
+      if (work.save || work.launch || work.refresh || work.control) return;
+      if (m3ModuleBlocked) {
+        originalHint.textContent = m3ModuleBlockText;
+        originalHint.hidden = false;
+        return;
+      }
+      if (blocked) {
+        originalHint.textContent = rsBlockText(blocked.code);
+        originalHint.hidden = false;
+        return;
+      }
+      if (!state.connected || m3Running || view.readonly || !view.m2Digest) return;
+
+      delete state.samplingActionErrors[runId];
+      var run = runId;
+      var token = rsToken(run);
+      var selectionSeq = state.selectionSeq;
+      work.launch = true;
+      work.phase = 'dispatch';
+      work.action = 'original';
+      updateActions();
+      var launched = await api.runModule(run, 'm3');
+      releaseWork(work);
+      if (!samePlanContext(run, token, selectionSeq)) { refreshPlanActions(run); return; }
+      if (!launched.ok) {
+        state.samplingActionErrors[run] = launched.error;
+      } else {
+        delete state.samplingActionErrors[run];
+      }
+      await loadInfo(run);
+      await loadSampling(run);
+      await refreshRuns();
+    }
+
+    async function launchPolicy(policy, action) {
       var work = busy();
       if (work.save || work.launch || work.refresh || work.control) return;
       var issue = draftIssue(draft);
       if (issue) { hintNode.textContent = issue; hintNode.hidden = false; return; }
-      var policy = draftPolicy(draft);
-      var run = runId;
-      var token = rsToken(run);
-      work.save = true;
-      updateActions();
-      var res = await api.saveReviewPlan(run, policy);
-      if (token !== state.samplingTokens[run]) { work.save = false; return; }
-      work.save = false;
-      if (state.selectedRunId !== run) return;
-      if (!res.ok) { showError(res.error); updateActions(); return; }
-      await loadSampling(run);
-    });
+      if (blocked) { hintNode.textContent = rsBlockText(blocked.code); hintNode.hidden = false; return; }
+      if (!state.connected || m3Running || view.readonly || !view.m2Digest || !policy) return;
 
-    launchBtn.addEventListener('click', async function () {
-      var work = busy();
-      if (work.save || work.launch || work.refresh || work.control) return;
-      var policy = draftPolicy(draft);
-      var match = savedPlanFor(view, policy);
-      if (!match) { actionHint.textContent = 'Lưu lựa chọn trước khi chạy.'; actionHint.hidden = false; return; }
-      if (blocked) { actionHint.textContent = rsBlockText(blocked.code); actionHint.hidden = false; return; }
+      delete state.samplingActionErrors[runId];
       var run = runId;
       var token = rsToken(run);
+      var generation = state.samplingDraftSeq[run] || 0;
+      var selectionSeq = state.selectionSeq;
+      var m2Digest = view.m2Digest;
+      var exactPolicy = {
+        mode: policy.mode,
+        stars: policy.mode === 'stars' ? policy.stars.slice().sort(function (a, b) { return a - b; }) : [],
+        totalPerLink: policy.totalPerLink,
+        allocation: policy.allocation
+      };
+
+      work.save = true;
       work.launch = true;
+      work.phase = 'save';
+      work.action = action;
       updateActions();
-      var res = await api.runModule(run, 'm3', match.planSha256);
-      if (token !== state.samplingTokens[run]) { work.launch = false; return; }
-      work.launch = false;
-      if (state.selectedRunId !== run) return;
-      if (!res.ok) { showError(res.error); updateActions(); return; }
+      var saved = await api.saveReviewPlan(run, exactPolicy);
+      if (!samePlanContext(run, token, selectionSeq)) { releaseWork(work); refreshPlanActions(run); return; }
+      if (!saved.ok) {
+        releaseWork(work);
+        failLaunch(saved.error);
+        return;
+      }
+
+      var data = saved.data || {};
+      var plan = data.plan || {};
+      var currentGeneration = state.samplingDraftSeq[run] || 0;
+      var validSha = typeof data.planSha256 === 'string' && /^[0-9a-f]{64}$/.test(data.planSha256);
+      var exact = data.runId === run && plan.runId === run && plan.m2Digest === m2Digest &&
+        policyMatches(exactPolicy, plan.policy || {});
+      if (!validSha || !exact || currentGeneration !== generation) {
+        releaseWork(work);
+        state.samplingActionErrors[run] = {
+          message: currentGeneration !== generation
+            ? 'Thiết lập đã thay đổi trong lúc lưu nên chưa bắt đầu lấy. Kiểm tra lại thiết lập rồi bấm lấy bình luận.'
+            : 'Bản lưu không khớp thiết lập đang xem nên chưa bắt đầu lấy. Bấm lấy bình luận để lưu lại.'
+        };
+        await loadSampling(run);
+        return;
+      }
+
+      work.save = false;
+      work.phase = 'dispatch';
+      updateActions();
+      var launched = await api.runModule(run, 'm3', data.planSha256);
+      releaseWork(work);
+      if (!samePlanContext(run, token, selectionSeq)) { refreshPlanActions(run); return; }
+      if (!launched.ok) {
+        state.samplingActionErrors[run] = launched.error;
+      } else {
+        delete state.samplingActionErrors[run];
+      }
       await loadInfo(run);
+      await loadSampling(run);
       await refreshRuns();
+    }
+
+    if (originalBtn) {
+      originalBtn.addEventListener('click', launchOriginal);
+    }
+    runBtn.addEventListener('click', function () {
+      launchPolicy(draftPolicy(draft), originalBtn ? 'custom' : 'primary');
     });
 
     refreshBtn.addEventListener('click', async function () {
@@ -2603,7 +2888,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       if (token !== state.samplingTokens[run]) { work.refresh = false; return; }
       work.refresh = false;
       if (state.selectedRunId !== run) return;
-      if (!res.ok) { showError(res.error); updateActions(); return; }
+      if (!res.ok) {
+        state.samplingActionErrors[run] = res.error;
+        renderDetail();
+        return;
+      }
+      delete state.samplingActionErrors[run];
       view.countRefresh = { attemptId: res.data.attemptId, status: 'RUNNING', errorCode: null,
         stopRequested: false, reconcilable: false };
       renderDetail();
@@ -2611,8 +2901,18 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       await loadSampling(run);
     });
 
-    panel.addEventListener('change', sync);
-    nInput.addEventListener('input', sync);
+    panel.addEventListener('change', function () {
+      state.samplingDraftSeq[runId] = (state.samplingDraftSeq[runId] || 0) + 1;
+      delete state.samplingActionErrors[runId];
+      actionErr.hidden = true;
+      sync();
+    });
+    nInput.addEventListener('input', function () {
+      state.samplingDraftSeq[runId] = (state.samplingDraftSeq[runId] || 0) + 1;
+      delete state.samplingActionErrors[runId];
+      actionErr.hidden = true;
+      sync();
+    });
     sync();
     return panel;
   }
@@ -2629,12 +2929,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     });
   }
 
-  function countsSection(view, control, showTable) {
+  function countsSection(view, control, showTable, refreshBtn) {
     var counts = h('section', 'rs-counts');
     var countsHead = h('div', 'rs-counts-head');
-    countsHead.appendChild(h('h4', null, 'Số đánh giá trên Shopee'));
+    countsHead.appendChild(h('h4', null, 'Số đánh giá đang có trên Shopee'));
     var countsMeta = h('span', 'rs-counts-meta', '');
     countsHead.appendChild(countsMeta);
+    if (refreshBtn) countsHead.appendChild(refreshBtn);
     counts.appendChild(countsHead);
     if (view.countRefresh) {
       var refreshStatus = view.countRefresh.status || 'UNCERTAIN';
@@ -2650,7 +2951,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         countControls.appendChild(stopCounts);
       }
       if (view.countRefresh.reconcilable && !view.readonly) {
-        var reconcileCounts = h('button', 'abtn', 'Đối soát lần đọc');
+        var reconcileCounts = h('button', 'abtn', 'Kiểm tra lại lần đọc');
         reconcileCounts.type = 'button';
         reconcileCounts.addEventListener('click', function () {
           control('reconcile', 'counts', view.countRefresh.attemptId);
@@ -2663,34 +2964,34 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     if ((view.links || []).length && (view.counts || []).length) {
       counts.appendChild(countsTable(view));
       counts.appendChild(h('p', 'rs-note',
-        'Số đánh giá trên trang nguồn; có thể gồm đánh giá không có chữ. Không phải số bình luận sẽ thu được.'));
+        'Số đánh giá Shopee đang hiển thị, có thể gồm đánh giá không có chữ. Đây không phải số bình luận sẽ lấy được.'));
     } else {
-      counts.appendChild(h('p', 'rs-note', 'Chưa có số đánh giá. Bấm “Đọc số đánh giá trên Shopee” để đọc.'));
+      counts.appendChild(h('p', 'rs-note', 'Chưa xem số đánh giá. Bấm “Xem số đánh giá hiện có trên Shopee” để xem.'));
     }
     return counts;
   }
 
   var RD_BLOCK_TEXT = {
-    READONLY_ON: 'Đang bật khóa chỉ-đọc.',
-    READONLY_NEW_EXPORT_BLOCKED: 'Đang bật khóa chỉ-đọc nên không tạo tệp mới; chỉ tải được bản đã tạo trước đó.',
-    DB_NOT_CONFIGURED: 'Chưa cấu hình cơ sở dữ liệu trên máy chạy.',
-    DB_SCHEMA_NOT_READY: 'Cơ sở dữ liệu chưa sẵn sàng để lưu.',
+    READONLY_ON: 'Hệ thống đang tạm khóa để bảo trì.',
+    READONLY_NEW_EXPORT_BLOCKED: 'Hệ thống đang tạm khóa để bảo trì nên không tạo file mới; chỉ tải được file đã tạo trước đó.',
+    DB_NOT_CONFIGURED: 'Chưa cấu hình hệ thống lưu trữ trên máy chủ.',
+    DB_SCHEMA_NOT_READY: 'Hệ thống lưu trữ chưa sẵn sàng để lưu.',
     PRODUCT_IDENTITY_MISSING: 'Thiếu thông tin nhận diện sản phẩm để lưu.',
     PRODUCT_NAME_PROVENANCE_MISSING: 'Thiếu thông tin tên sản phẩm để lưu.',
-    M3_NOT_PASS: 'Kết quả này chưa đạt M3 nên không lưu vào DB.',
-    SOURCE_NOT_SAVED: 'Chưa lưu được kết quả này vào DB.',
-    SOURCE_NOT_EXPORTABLE: 'Nguồn đã thu chưa đủ điều kiện để xuất.',
-    EXPORT_BLOCKED: 'Chưa xuất được kết quả này.',
-    EXPORT_PROOF_INVALID: 'Không xác minh được nguồn đã thu.',
+    M3_NOT_PASS: 'Kết quả này chưa đạt kiểm tra bước 3 nên không lưu vào hệ thống.',
+    SOURCE_NOT_SAVED: 'Chưa lưu được kết quả này vào hệ thống.',
+    SOURCE_NOT_EXPORTABLE: 'Kết quả đã lấy chưa đủ điều kiện để tải file.',
+    EXPORT_BLOCKED: 'Chưa tải được file cho kết quả này.',
+    EXPORT_PROOF_INVALID: 'Không xác minh được nguồn đã lấy.',
     EXPORT_SOURCE_CHANGED: 'Nguồn đã đổi so với kết quả đã chọn.',
-    EXPORT_CACHE_UNAVAILABLE: 'Chưa tạo được tệp xuất.',
-    EXPORT_TOO_LARGE: 'Tệp xuất vượt giới hạn 64 MiB.',
-    EXPORT_NOT_FOUND: 'Không thấy tệp xuất đã tạo.',
-    SAVE_DIALOG_UNAVAILABLE: 'Máy này không mở được hộp thoại lưu tệp.',
-    SAVE_DIALOG_FAILED: 'Không mở được hộp thoại lưu tệp.',
-    SAVE_FAILED: 'Không ghi được tệp đã chọn.',
-    EXPORT_SIZE_MISMATCH: 'Tệp nhận về không khớp kích thước đã ghi.',
-    EXPORT_DIGEST_MISMATCH: 'Tệp nhận về không khớp mã kiểm tra.'
+    EXPORT_CACHE_UNAVAILABLE: 'Chưa tạo được file để tải.',
+    EXPORT_TOO_LARGE: 'File vượt giới hạn 64 MiB.',
+    EXPORT_NOT_FOUND: 'Không thấy file đã tạo trước đó.',
+    SAVE_DIALOG_UNAVAILABLE: 'Máy này không mở được hộp thoại lưu file.',
+    SAVE_DIALOG_FAILED: 'Không mở được hộp thoại lưu file.',
+    SAVE_FAILED: 'Không ghi được file đã chọn.',
+    EXPORT_SIZE_MISMATCH: 'File nhận về không khớp kích thước đã ghi.',
+    EXPORT_DIGEST_MISMATCH: 'File nhận về không khớp mã kiểm tra.'
   };
 
   function rdBlockText(blockedBy) {
@@ -2735,10 +3036,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   }
 
   function rdSourceLabel(source) {
-    var kind = source.kind === 'custom' ? 'Lần thu' : 'Kết quả M3 gốc';
+    var kind = source.kind === 'custom' ? 'Lần lấy thêm' : 'Kết quả lấy ban đầu';
     var when = source.completedAt ? vnStamp(source.completedAt) : 'chưa rõ thời điểm';
     var outcome = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS'
-      ? 'đạt' : (source.rowBasis === 'terminal-retained' ? 'giữ lại sau lần chưa đạt' : 'chưa đạt');
+      ? 'đạt kiểm tra' : (source.rowBasis === 'terminal-retained' ? 'giữ lại sau lần chưa đạt' : 'chưa đạt kiểm tra');
     return kind + ' · ' + when + ' · ' + source.rowCount + ' bình luận · ' + outcome;
   }
 
@@ -2748,7 +3049,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var table = h('table');
     var thead = h('thead');
     var head = h('tr');
-    [['Link', ''], ['Yêu cầu', 'num'], ['Thực tế', 'num'], ['Thiếu', 'num'], ['Hoàn tất', '']]
+    [['Link', ''], ['Cần lấy', 'num'], ['Đã lấy', 'num'], ['Còn thiếu', 'num'], ['Đủ', '']]
       .forEach(function (entry) { head.appendChild(h('th', entry[1], entry[0])); });
     thead.appendChild(head);
     table.appendChild(thead);
@@ -2762,7 +3063,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       row.appendChild(h('td', 'num', valOrDash(link.requested)));
       row.appendChild(h('td', 'num', valOrDash(link.actual)));
       row.appendChild(h('td', 'num', valOrDash(link.shortfall)));
-      row.appendChild(h('td', null, link.complete === true ? 'Có' : link.complete === false ? 'Không' : '—'));
+      row.appendChild(h('td', null, link.complete === true ? 'Có' : link.complete === false ? 'Không' : 'chưa có số liệu'));
       body.appendChild(row);
     });
     table.appendChild(body);
@@ -2775,19 +3076,23 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var view = state.reviewData[runId];
     var panel = h('section', 'rs');
     panel.id = 'rdPanel';
-    panel.setAttribute('aria-label', 'Lưu và xuất bình luận');
+    panel.setAttribute('aria-label', 'Kết quả và tải file bình luận');
 
     var head = h('div', 'rs-head');
-    head.appendChild(h('h4', null, 'Lưu và xuất bình luận'));
-    var chip = h('span', 'chip s-idle', 'Đang đọc kết quả…');
+    head.appendChild(h('h4', null, 'Kết quả và tải file'));
+    var chip = h('span', 'chip s-idle', 'Đang tải kết quả…');
     head.appendChild(chip);
     panel.appendChild(head);
-    panel.appendChild(h('p', 'rs-lead', 'Dùng kết quả đã thu trong lượt này.'));
+    panel.appendChild(h('p', 'rs-lead', 'Dùng bình luận đã lấy trong lượt này để lưu vào hệ thống hoặc tải file.'));
 
     if (state.reviewDataErrors[runId]) {
-      panel.appendChild(h('p', 'errbar', plainError(state.reviewDataErrors[runId])));
+      var loadError = h('p', 'errbar local-error', plainError(state.reviewDataErrors[runId]));
+      loadError.id = 'reviewDataErr';
+      loadError.setAttribute('role', 'alert');
+      loadError.title = errorCode(state.reviewDataErrors[runId]);
+      panel.appendChild(loadError);
       var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Đọc lại kết quả đã thu');
+      var retry = h('button', 'abtn', 'Tải lại');
       retry.type = 'button';
       retry.addEventListener('click', function () { loadReviewData(runId); });
       retryRow.appendChild(retry);
@@ -2795,27 +3100,27 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       return panel;
     }
     if (!view) {
-      panel.appendChild(h('p', 'muted', 'Đang đọc kết quả đã thu…'));
+      panel.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
       return panel;
     }
 
-    if (view.readonly) panel.appendChild(h('p', 'rs-note', 'Đang bật khóa chỉ-đọc.'));
+    if (view.readonly) panel.appendChild(h('p', 'rs-note', 'Hệ thống đang tạm khóa để bảo trì.'));
 
     var sources = view.sources || [];
-    chip.textContent = sources.length ? 'Có kết quả đã thu' : 'Chưa có kết quả đã thu';
+    chip.textContent = sources.length ? 'Có kết quả' : 'Chưa có kết quả';
     chip.className = 'chip ' + (sources.length ? 's-pass' : 's-idle');
     if (!sources.length) {
-      panel.appendChild(h('p', 'muted', 'Chưa có kết quả đã thu đủ điều kiện để lưu hoặc xuất.'));
+      panel.appendChild(h('p', 'muted', 'Chưa có kết quả bình luận nào dùng được để lưu hoặc tải file.'));
       return panel;
     }
 
     var field = h('label', 'field');
-    field.appendChild(h('span', null, 'Kết quả đã thu'));
+    field.appendChild(h('span', null, 'Chọn kết quả để dùng'));
     var select = document.createElement('select');
     select.id = 'rdSource';
     var placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = 'Chọn kết quả đã thu';
+    placeholder.textContent = 'Chọn kết quả';
     select.appendChild(placeholder);
     sources.forEach(function (source) {
       var option = document.createElement('option');
@@ -2845,19 +3150,31 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     hint.hidden = true;
     panel.appendChild(hint);
 
+    var actionErr = h('p', 'errbar local-error');
+    actionErr.id = 'reviewDataErr';
+    actionErr.setAttribute('role', 'alert');
+    var actionError = state.reviewDataActionErrors[runId];
+    if (actionError) {
+      actionErr.textContent = plainError(actionError);
+      actionErr.title = errorCode(actionError);
+    } else {
+      actionErr.hidden = true;
+    }
+    panel.appendChild(actionErr);
+
     var actions = h('div', 'rs-actions');
-    var saveBtn = h('button', 'abtn primary', 'Lưu vào DB');
-    saveBtn.type = 'button';
-    saveBtn.id = 'rdSave';
-    var jsonBtn = h('button', 'abtn', 'Xuất JSON');
+    var jsonBtn = h('button', 'abtn primary', 'Tải file JSON');
     jsonBtn.type = 'button';
     jsonBtn.id = 'rdJson';
-    var txtBtn = h('button', 'abtn', 'Xuất TXT');
+    var txtBtn = h('button', 'abtn primary', 'Tải file TXT');
     txtBtn.type = 'button';
     txtBtn.id = 'rdTxt';
-    actions.appendChild(saveBtn);
+    var saveBtn = h('button', 'abtn', 'Lưu vào hệ thống');
+    saveBtn.type = 'button';
+    saveBtn.id = 'rdSave';
     actions.appendChild(jsonBtn);
     actions.appendChild(txtBtn);
+    actions.appendChild(saveBtn);
     panel.appendChild(actions);
 
     function work() { return state.reviewBusy[runId] || (state.reviewBusy[runId] = {}); }
@@ -2882,12 +3199,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         var completion = source.completedAt
           ? 'Hoàn tất ' + vnStamp(source.completedAt) : 'Chưa rõ thời điểm hoàn tất';
         var outcome = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS'
-          ? 'Kết quả đã đạt M3' : 'Dữ liệu giữ lại sau lần chạy chưa đạt';
+          ? 'Đã đạt kiểm tra bước 3' : 'Kết quả giữ lại sau lần lấy chưa đạt';
         summary.textContent = source.rowCount + ' bình luận · ' + outcome + ' · ' + completion;
       } else {
         summary.textContent = state.reviewNeedsPick[runId]
-          ? 'Kết quả đã chọn không còn trong danh sách; chọn lại một kết quả đã thu.'
-          : 'Chọn một kết quả đã thu để xem số lượng và thao tác.';
+          ? 'Kết quả đã chọn không còn trong danh sách; chọn lại một kết quả.'
+          : 'Chọn một kết quả để xem số lượng và thao tác.';
       }
 
       clear(links);
@@ -2898,36 +3215,36 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
       clear(blocks);
       var dbBlocked = view.db && view.db.blockedBy;
-      if (dbBlocked) blocks.appendChild(rdBlockNode('Lưu vào DB: ', dbBlocked));
-      if (view.db && !view.db.configured) blocks.appendChild(rdBlockNode('Lưu vào DB: ', { code: 'DB_NOT_CONFIGURED' }));
-      if (view.db && !view.db.schemaReady) blocks.appendChild(rdBlockNode('Lưu vào DB: ', { code: 'DB_SCHEMA_NOT_READY' }));
+      if (dbBlocked) blocks.appendChild(rdBlockNode('Lưu vào hệ thống: ', dbBlocked));
+      if (view.db && !view.db.configured) blocks.appendChild(rdBlockNode('Lưu vào hệ thống: ', { code: 'DB_NOT_CONFIGURED' }));
+      if (view.db && !view.db.schemaReady) blocks.appendChild(rdBlockNode('Lưu vào hệ thống: ', { code: 'DB_SCHEMA_NOT_READY' }));
       if (source) {
         if (!source.canSaveDb) {
-          blocks.appendChild(rdBlockNode('Lưu vào DB: ', source.dbBlockedBy || { code: 'SOURCE_NOT_SAVED' }));
+          blocks.appendChild(rdBlockNode('Lưu vào hệ thống: ', source.dbBlockedBy || { code: 'SOURCE_NOT_SAVED' }));
         }
         if (source.rowBasis === 'terminal-retained') {
           blocks.appendChild(h('p', 'rs-note',
-            'Kết quả này được giữ lại sau lần chạy chưa đạt; chỉ dùng để xuất, không lưu vào DB.'));
+            'Kết quả này được giữ lại sau lần lấy chưa đạt; chỉ dùng để tải file, không lưu vào hệ thống.'));
         }
         if (source.importReceipt) {
           var imported = source.importReceipt;
           blocks.appendChild(h('p', 'rs-note',
-            'Đã lưu vào DB lúc ' + (vnStamp(imported.importedAt) || '—') + ' · ' +
-            imported.rowCount + ' bình luận.'));
+            'Đã lưu vào hệ thống lúc ' + (vnStamp(imported.importedAt) || 'không rõ') + ' · ' +
+            fmtInt(imported.rowCount) + ' bình luận.'));
         }
         ['json', 'txt'].forEach(function (format) {
           var availability = source.exportFormats && source.exportFormats[format];
           if (availability && !availability.canExport) {
-            blocks.appendChild(rdBlockNode('Xuất ' + format.toUpperCase() + ': ',
+            blocks.appendChild(rdBlockNode('Tải file ' + format.toUpperCase() + ': ',
               availability.blockedBy || { code: 'EXPORT_BLOCKED' }));
           }
           if (availability && availability.receipt) {
             blocks.appendChild(h('p', 'rs-note',
-              'Đã tạo tệp ' + format.toUpperCase() + ' trước đó: ' + availability.receipt.fileName + '.'));
+              'Đã tạo file ' + format.toUpperCase() + ' trước đó: ' + availability.receipt.fileName + '.'));
           }
         });
         if (!source.canExport && !formatAvailable(source, 'json') && !formatAvailable(source, 'txt')) {
-          blocks.appendChild(rdBlockNode('Xuất tệp: ', source.exportBlockedBy || { code: 'SOURCE_NOT_EXPORTABLE' }));
+          blocks.appendChild(rdBlockNode('Tải file: ', source.exportBlockedBy || { code: 'SOURCE_NOT_EXPORTABLE' }));
         }
       }
 
@@ -2937,13 +3254,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       txtBtn.disabled = isBusy || !state.connected || !source || !formatAvailable(source, 'txt');
 
       var message = '';
-      if (w.save) message = 'Đang lưu vào DB…';
-      else if (w.exporting === 'json') message = 'Đang xuất JSON…';
-      else if (w.exporting === 'txt') message = 'Đang xuất TXT…';
+      if (w.save) message = 'Đang lưu vào hệ thống…';
+      else if (w.exporting === 'json') message = 'Đang tạo file JSON…';
+      else if (w.exporting === 'txt') message = 'Đang tạo file TXT…';
       else if (state.reviewNotice[runId]) message = state.reviewNotice[runId];
-      else if (!state.connected) message = 'Chưa kết nối máy chạy.';
+      else if (!state.connected) message = 'Chưa kết nối máy chủ.';
       else if (!source) message = state.reviewNeedsPick[runId]
-        ? 'Chọn lại kết quả đã thu.' : 'Chọn một kết quả đã thu.';
+        ? 'Chọn lại kết quả.' : 'Chọn một kết quả để dùng.';
       hint.textContent = message;
       hint.hidden = !message;
     }
@@ -2952,6 +3269,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       state.reviewSelection[runId] = select.value || null;
       state.reviewNeedsPick[runId] = !select.value;
       state.reviewNotice[runId] = '';
+      delete state.reviewDataActionErrors[runId];
+      actionErr.hidden = true;
       update();
     });
 
@@ -2961,11 +3280,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       var sha = state.reviewSelection[runId];
       var source = sourceFor(sha);
       if (!source) {
-        state.reviewNotice[runId] = 'Chọn một kết quả đã thu.';
+        state.reviewNotice[runId] = 'Chọn một kết quả để dùng.';
         update();
         return;
       }
-      clearError();
+      delete state.reviewDataActionErrors[runId];
+      actionErr.hidden = true;
       state.reviewNotice[runId] = '';
       if (kind === 'save') w.save = true; else w.exporting = kind;
       update();
@@ -2975,20 +3295,20 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       if (kind === 'save') w.save = false; else w.exporting = '';
       if (state.selectedRunId !== runId) return;
       if (!res.ok) {
-        showError(res.error);
+        state.reviewDataActionErrors[runId] = res.error;
         renderDetail();
         return;
       }
       if (kind === 'save') {
         state.reviewNotice[runId] = res.data.reused
-          ? 'Kết quả này đã có trong cơ sở dữ liệu.'
-          : 'Đã lưu ' + res.data.rowCount + ' bình luận vào DB (' +
-            res.data.reviewsInserted + ' mới, ' + res.data.reviewsAlreadyPresent + ' đã có).';
+          ? 'Kết quả này đã có trong hệ thống.'
+          : 'Đã lưu ' + fmtInt(res.data.rowCount) + ' bình luận vào hệ thống (' +
+            fmtInt(res.data.reviewsInserted) + ' mới, ' + fmtInt(res.data.reviewsAlreadyPresent) + ' đã có).';
       } else {
         var data = res.data || {};
-        state.reviewNotice[runId] = data.cancelled ? 'Đã hủy lưu tệp.'
-          : data.saved ? 'Đã lưu tệp “' + (data.fileName || (data.receipt && data.receipt.fileName) || '') + '”.'
-          : 'Chưa lưu tệp.';
+        state.reviewNotice[runId] = data.cancelled ? 'Đã hủy tải file.'
+          : data.saved ? 'Đã lưu file “' + (data.fileName || (data.receipt && data.receipt.fileName) || '') + '”.'
+          : 'Chưa lưu file.';
       }
       renderDetail();
       await loadReviewData(runId);
@@ -3001,50 +3321,48 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     return panel;
   }
 
-  function moduleCard(mod, info) {
+  function moduleCard(mod, info, runControlElsewhere) {
     var card = h('article', 'mod');
     var head = h('div', 'mh');
-    head.appendChild(h('h3', null, mod.id + ' · ' + (mod.title || mod.skill)));
+    head.appendChild(h('h3', null, moduleTitle(mod.id, mod.title)));
     head.appendChild(h('span', 'chip ' + moduleStateCls(info, mod), moduleStateText(info, mod)));
     card.appendChild(head);
 
-    var meta = h('p', 'mm');
-    meta.appendChild(document.createTextNode('Skill: '));
-    meta.appendChild(h('code', null, mod.skill));
-    meta.appendChild(document.createTextNode(' · Cổng vào: '));
-    meta.appendChild(h('code', null, mod.inputGate));
-    meta.appendChild(document.createTextNode(' · Cổng ra: '));
-    meta.appendChild(h('code', null, mod.outputGate));
-    card.appendChild(meta);
-
     var view = moduleExecution(info, mod.id);
-    if (view && (view.sequence || view.executionId || view.basis !== 'none')) {
+    if (view) {
       var line = h('p', 'execution-line');
-      line.appendChild(document.createTextNode(MODULE_STATUS[view.status] || view.status || '—'));
-      if (view.sequence) line.appendChild(document.createTextNode(' · lần chạy #' + view.sequence));
-      if (view.errorCode) line.appendChild(document.createTextNode(' · ' + view.errorCode));
+      line.appendChild(document.createTextNode(MODULE_STATUS[view.status] || 'Chưa chạy'));
+      if (view.sequence) line.appendChild(document.createTextNode(' · lần chạy ' + fmtInt(view.sequence)));
+      if (view.errorCode) line.title = view.errorCode;
       card.appendChild(line);
     }
 
-    var samplingView = state.sampling[info.runId];
-    if (mod.id === 'M3' && (info.selection || (samplingView && samplingView.m2Digest) ||
-        samplingRecoveryPending(samplingView))) {
-      card.appendChild(reviewSamplingPanel(info));
-    }
-    if (mod.id === 'M3') card.appendChild(reviewDataPanel(info));
+    var tech = h('details', 'tech-details');
+    tech.appendChild(h('summary', null, 'Thông tin kỹ thuật'));
+    var meta = h('p', 'mm');
+    meta.appendChild(document.createTextNode('Skill: '));
+    meta.appendChild(h('code', null, mod.skill));
+    meta.appendChild(document.createTextNode(' · Kiểm tra vào: '));
+    meta.appendChild(h('code', null, mod.inputGate));
+    meta.appendChild(document.createTextNode(' · Kiểm tra ra: '));
+    meta.appendChild(h('code', null, mod.outputGate));
+    tech.appendChild(meta);
+    card.appendChild(tech);
 
-    var row = h('div', 'btnrow');
-    var btn = h('button', 'abtn', 'Chạy module này');
-    btn.type = 'button';
-    btn.disabled = !state.connected || !mod.canRun;
-    btn.addEventListener('click', function () { onRunModule(mod.id, btn); });
-    row.appendChild(btn);
-    if (!state.connected) {
-      row.appendChild(h('span', 'hint', 'Chưa kết nối máy chạy.'));
-    } else if (!mod.canRun && mod.blockedBy) {
-      row.appendChild(h('span', 'hint', blockText(mod.blockedBy)));
+    if (!runControlElsewhere) {
+      var row = h('div', 'btnrow');
+      var btn = h('button', 'abtn', 'Chạy bước này');
+      btn.type = 'button';
+      btn.disabled = !state.connected || !mod.canRun;
+      btn.addEventListener('click', function () { onRunModule(mod.id, btn); });
+      row.appendChild(btn);
+      if (!state.connected) {
+        row.appendChild(h('span', 'hint', 'Chưa kết nối máy chủ.'));
+      } else if (!mod.canRun && mod.blockedBy) {
+        row.appendChild(h('span', 'hint', blockText(mod.blockedBy)));
+      }
+      card.appendChild(row);
     }
-    card.appendChild(row);
 
     if (mod.id === 'M2' && info.selection) card.appendChild(selectionTable(info.selection));
     return card;
@@ -3065,7 +3383,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     } else {
       var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
       c.appendChild(h('b', null, step.id));
-      c.appendChild(h('span', null, mod ? moduleStateText(info, mod) : '—'));
+      c.appendChild(h('span', null, mod ? moduleStateText(info, mod) : 'Chưa có'));
     }
     return c;
   }
@@ -3083,12 +3401,85 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     return gateCard(key, null);
   }
 
+  function requestMeta(request) {
+    var out = { product: 'Chưa có', period: 'Chưa có', policy: 'Chưa có', quantity: 'Chưa có' };
+    if (request && request.preset && Array.isArray(request.preset.keywords) && request.preset.keywords.length) {
+      out.product = String(request.preset.keywords[0]);
+    }
+    var window = request && Array.isArray(request.windows) && request.windows.length ? request.windows[0] : null;
+    if (window && window.period && window.period.startDate && window.period.endDate) {
+      out.period = 'từ ' + fmtDate(window.period.startDate) + ' đến ' + fmtDate(window.period.endDate);
+    }
+    var policy = requestPolicy(request);
+    if (policy) {
+      out.policy = policyText(policy);
+      if (policy.totalPerLink !== null && policy.totalPerLink !== undefined) {
+        out.quantity = 'Tối đa ' + fmtInt(policy.totalPerLink) + ' mỗi link';
+      }
+    }
+    return out;
+  }
+
+  function progressInfo(info) {
+    var exec = executionOf(info);
+    if (!exec) return null;
+    if (exec.status === 'UNCERTAIN') {
+      return 'Lần chạy chưa xác định được kết quả. Xem chi tiết kỹ thuật rồi kiểm tra lại.';
+    }
+    var current = exec.currentModule && exec.modules ? exec.modules[exec.currentModule] : null;
+    if (current && current.status === 'UNCERTAIN') {
+      return 'Lần chạy chưa xác định được kết quả. Xem chi tiết kỹ thuật rồi kiểm tra lại.';
+    }
+    if (exec.status !== 'RUNNING' && (!current || current.status !== 'RUNNING')) return null;
+    if (exec.currentModule !== 'M3') {
+      return exec.currentModule
+        ? 'Đang chạy ' + moduleTitle(exec.currentModule, exec.currentModule) + '.'
+        : 'Đang chạy. Đang chờ bước tiếp theo.';
+    }
+    var waiting = 'Bước 3 đang lấy bình luận. Đang chờ số liệu lấy được.';
+    var view = state.sampling[info.runId];
+    if (!view || (view.runId && view.runId !== info.runId)) return waiting;
+    var attempts = view.attempts || [];
+    function sameIdentity(attempt) {
+      var pairs = 0;
+      if (attempt.attemptId !== null && attempt.attemptId !== undefined &&
+          current.attemptId !== null && current.attemptId !== undefined) {
+        if (attempt.attemptId !== current.attemptId) return false;
+        pairs += 1;
+      }
+      if (attempt.executionId !== null && attempt.executionId !== undefined &&
+          current.executionId !== null && current.executionId !== undefined) {
+        if (attempt.executionId !== current.executionId) return false;
+        pairs += 1;
+      }
+      if (attempt.sequence !== null && attempt.sequence !== undefined &&
+          current.sequence !== null && current.sequence !== undefined) {
+        if (attempt.sequence !== current.sequence) return false;
+        pairs += 1;
+      }
+      return pairs > 0;
+    }
+    var matches = attempts.filter(function (attempt) {
+      return attempt && attempt.status === 'RUNNING' && sameIdentity(attempt);
+    });
+    if (matches.length !== 1) return waiting;
+    var attempt = matches[0];
+    var links = attempt.links || [];
+    var observed = links.filter(function (link) {
+      return link && link.actual !== null && link.actual !== undefined;
+    });
+    if (!observed.length) return 'Bước 3 đang lấy bình luận. Đang chờ số liệu lấy được.';
+    var total = observed.reduce(function (sum, link) { return sum + Number(link.actual); }, 0);
+    return 'Bước 3 đang lấy bình luận. Đã ghi nhận ' + fmtInt(total) + ' bình luận ở ' +
+      observed.length + '/' + links.length + ' link; các link còn lại chưa có số liệu.';
+  }
+
   function renderDetail() {
     var root = $('runDetail');
     clear(root);
     var info = state.info;
     if (!info) {
-      root.appendChild(h('p', 'muted', state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chạy.'));
+      root.appendChild(h('p', 'muted', state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chủ.'));
       return;
     }
     var item = state.runs.find(function (r) { return r.runId === info.runId; }) || {};
@@ -3096,58 +3487,132 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var exec = executionOf(info);
     var status = exec ? exec.status : (info.state && info.state.status);
     var currentView = exec && exec.currentModule && exec.modules ? exec.modules[exec.currentModule] : null;
+    var request = info.request || item.request || null;
+    var meta = requestMeta(request);
+
     var head = h('div', 'dhead');
-    head.appendChild(h('h2', null, runDisplayName(tracking, item.product || ('Lượt ' + info.runId))));
+    head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + info.runId))));
     head.appendChild(statusChip(status, tracking));
-    head.appendChild(h('span', 'muted', 'Lượt ' + info.runId));
-    if (item.product && item.product !== runDisplayName(tracking, item.product)) {
-      head.appendChild(h('span', 'muted', item.product));
-    }
     var note = trackingNote(tracking);
     if (note) head.appendChild(h('span', 'muted', note));
-    var errorCode = (currentView && currentView.errorCode) ||
-      (exec && exec.modules ? ['M3', 'M2', 'M1'].map(function (id) { return exec.modules[id]; })
-        .filter(function (v) { return v && v.errorCode; })
-        .map(function (v) { return v.errorCode; })[0] : null) ||
-      (info.state && info.state.errorCode);
-    if (errorCode) head.appendChild(h('span', 'codechip', errorCode));
     if (status === 'RUNNING') head.appendChild(h('span', 'muted', 'tự cập nhật mỗi 10 giây'));
     root.appendChild(head);
 
-    if (info.readonly) root.appendChild(h('p', 'roline', 'Đang bật khóa chỉ-đọc: lượt mới dừng ở cổng vào (readonly_off); M1 và M3 bị khóa; M2 vẫn chạy được trên lượt đã qua cổng M1.'));
+    if (info.readonly) root.appendChild(h('p', 'roline', 'Hệ thống đang tạm khóa để bảo trì: chưa tạo được lượt mới và chưa lấy thêm dữ liệu; lượt đã có vẫn xem được.'));
+
+    var dmeta = h('dl', 'run-meta');
+    function metaRow(label, value) {
+      var div = h('div');
+      div.appendChild(h('dt', null, label));
+      div.appendChild(h('dd', null, value));
+      dmeta.appendChild(div);
+    }
+    metaRow('Sản phẩm', item.product || meta.product);
+    metaRow('Khoảng thời gian', meta.period);
+    metaRow('Cách lấy bình luận', meta.policy);
+    metaRow('Số lượng mỗi link', meta.quantity);
+    root.appendChild(dmeta);
+
+    var progress = progressInfo(info);
+    if (progress) {
+      var progressLine = h('p', 'progress', progress);
+      progressLine.id = 'progressLine';
+      progressLine.setAttribute('role', 'status');
+      progressLine.setAttribute('aria-live', 'polite');
+      root.appendChild(progressLine);
+    }
+
+    var hasM3 = (info.modules || []).some(function (mod) { return mod.id === 'M3'; });
+    if (hasM3) root.appendChild(reviewDataPanel(info));
+    var samplingView = state.sampling[info.runId];
+    var samplingPanelShown = hasM3 && !!(
+      info.selection || (samplingView && samplingView.m2Digest) ||
+      state.samplingErrors[info.runId] || samplingRecoveryPending(samplingView));
+    if (samplingPanelShown) {
+      root.appendChild(reviewSamplingPanel(info));
+    }
+
+    var failure = (currentView && currentView.errorCode) ||
+      (exec && exec.modules ? ['M3', 'M2', 'M1'].map(function (id) { return exec.modules[id]; })
+        .filter(function (view) { return view && view.errorCode; })
+        .map(function (view) { return view.errorCode; })[0] : null) ||
+      (info.state && info.state.errorCode);
+    if (failure) {
+      var reasonText = failure === 'GATE_FAILED'
+        ? 'Một bước không đạt kiểm tra. Mở chi tiết kỹ thuật để xem bước nào.'
+        : plainError({ code: failure });
+      var reason = h('p', 'errbar local-error', reasonText);
+      reason.title = failure;
+      root.appendChild(reason);
+    }
+
+    var failedGate = !!(currentView && currentView.currentGate && currentView.currentGate.verdict &&
+      currentView.currentGate.verdict !== 'PASS');
+    if (!failedGate && info.gates) {
+      failedGate = Object.keys(info.gates).some(function (key) {
+        var slip = info.gates[key];
+        return !!(slip && slip.verdict && slip.verdict !== 'PASS');
+      });
+    }
+    var failed = status === 'FAILED' || status === 'UNCERTAIN' || failedGate ||
+      !!(currentView && currentView.status === 'FAILED');
+    var tech = h('details', 'tech-details');
+    tech.id = 'techDetails';
+    tech.open = failed;
+    tech.appendChild(h('summary', null, 'Các bước thực hiện'));
 
     var seq = h('div', 'seq');
     SEQUENCE.forEach(function (step) { seq.appendChild(seqChip(step, info)); });
-    root.appendChild(seq);
+    tech.appendChild(seq);
 
     SEQUENCE.forEach(function (step) {
       if (step.kind === 'gate') {
-        root.appendChild(gateStepNode(step.key, info));
+        tech.appendChild(gateStepNode(step.key, info));
       } else {
         var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
-        if (mod) root.appendChild(moduleCard(mod, info));
+        if (mod) tech.appendChild(moduleCard(mod, info, mod.id === 'M3' && samplingPanelShown));
       }
     });
+    root.appendChild(tech);
   }
+
+  var RUN_FILTERS = {
+    running: ['RUNNING'],
+    done: ['DONE', 'SUCCEEDED'],
+    failed: ['FAILED'],
+    stopped: ['STOPPED'],
+    needs_owner: ['WAIT_OWNER'],
+    uncertain: ['UNCERTAIN', 'UNKNOWN'],
+    idle: ['IDLE']
+  };
 
   function renderRunList() {
     var list = $('runList');
     clear(list);
-    state.runs.forEach(function (run) {
+    var allowed = RUN_FILTERS[state.runFilter] || null;
+    var shown = state.runs.filter(function (run) {
+      return !allowed || allowed.indexOf(run.status) !== -1;
+    });
+    shown.forEach(function (run) {
       var li = h('li');
       var btn = h('button', 'runbtn' + (run.runId === state.selectedRunId ? ' on' : ''));
       btn.type = 'button';
       var tracking = runTracking(run);
       btn.appendChild(h('span', 'rname', runDisplayName(tracking, run.product || run.runId)));
-      btn.appendChild(h('span', 'rid', run.runId));
+      var info = requestMeta(run.request);
       var meta = h('span', 'rmeta');
       meta.appendChild(statusChip(run.status, tracking));
-      if (run.errorCode) meta.appendChild(h('span', 'codechip', run.errorCode));
+      if (info.period !== 'Chưa có') meta.appendChild(h('span', 'muted', info.period));
+      if (info.quantity !== 'Chưa có') meta.appendChild(h('span', 'muted', info.quantity));
       btn.appendChild(meta);
+      btn.title = 'Mã lượt ' + run.runId;
       btn.addEventListener('click', function () { selectRun(run.runId); });
       li.appendChild(btn);
       list.appendChild(li);
     });
+    if (!shown.length && state.runs.length) {
+      list.appendChild(h('li', 'muted', 'Không có lượt phù hợp với bộ lọc.'));
+    }
     $('runsEmpty').hidden = state.runs.length > 0;
   }
 
@@ -3190,6 +3655,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
   async function selectRun(runId) {
     stopSamplingPoll();
+    state.selectionSeq += 1;
     state.selectedRunId = runId;
     renderRunList();
     await loadInfo(runId);
@@ -3251,12 +3717,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     if (res && !res.ok && !bridgeMissing) showError(res.error);
     dot.className = 'dot ' + (connected ? 'ok' : 'stop');
     if (connected) {
-      text.textContent = 'Đã kết nối máy chạy' + (state.runsRoot ? ' · ' + state.runsRoot : '');
+      text.textContent = 'Đã kết nối máy chủ';
+      text.title = state.runsRoot ? 'Thư mục dữ liệu: ' + state.runsRoot : '';
     } else if (bridgeMissing) {
       text.textContent = NO_BRIDGE_TEXT;
     } else {
-      var reason = (data && data.reason) || (res && res.error && res.error.code) || 'không rõ lý do';
-      text.textContent = 'Chưa kết nối máy chạy (' + reason + ')';
+      var reason = (data && data.reason) || (res && res.error && res.error.code) || '';
+      text.textContent = 'Chưa kết nối máy chủ.';
+      text.title = reason ? String(reason) : '';
     }
     ro.hidden = !state.readonly;
     updateNewButton();
@@ -3288,6 +3756,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       sel.value = NEW_PRODUCT;
     }
     syncProductMode();
+    renderNewSummary();
   }
 
   function syncProductMode() {
@@ -3298,6 +3767,23 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     return isNew;
   }
 
+  function setNewFormLocked(locked) {
+    state.newLocked = !!locked;
+    ['presetSel', 'productLabel', 'productKeyword', 'productKeyword2', 'endDate', 'newTotal', 'newBalanced']
+      .forEach(function (id) {
+        var el = $(id);
+        if (el) el.disabled = !!locked;
+      });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="newPolicyMode"]'), function (el) {
+      el.disabled = !!locked;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-new-star]'), function (el) {
+      el.disabled = !!locked;
+    });
+    if (!locked) syncNewPolicy();
+    updateNewButton();
+  }
+
   function windowLine() {
     var out = $('windowText');
     var v = $('endDate').value;
@@ -3306,14 +3792,26 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       return;
     }
     var end = parseIso(v);
-    out.textContent = 'Khung 30 ngày: ' + fmtDate(isoDate(addDays(end, -29))) + ' – ' + fmtDate(isoDate(end)) +
-      ' · Khung 12 tháng: ' + fmtDate(isoDate(addDays(end, -364))) + ' – ' + fmtDate(isoDate(end)) +
+    out.textContent = '30 ngày: từ ' + fmtDate(isoDate(addDays(end, -29))) + ' đến ' + fmtDate(isoDate(end)) +
+      '; 12 tháng: từ ' + fmtDate(isoDate(addDays(end, -364))) + ' đến ' + fmtDate(isoDate(end)) +
       ' (tính cả hai đầu).';
   }
 
   function updateNewButton() {
-    $('btnNew').disabled = !state.connected || state.newBusy;
+    var locked = !!state.newBinding;
+    var create = $('btnNew');
+    create.hidden = locked;
+    create.disabled = !state.connected || state.newBusy || state.readonly;
+    $('btnNewAnother').hidden = !locked;
+    $('btnNewAnother').disabled = state.newBusy;
     $('newBusy').hidden = !state.newBusy;
+    var hint = $('newHint');
+    var message = '';
+    if (locked) message = 'Biểu mẫu đã khóa theo lượt đã tạo. Bấm «Tạo lượt khác» để tạo lượt mới.';
+    else if (!state.connected) message = 'Chưa kết nối máy chủ nên chưa tạo được lượt.';
+    else if (state.readonly) message = 'Hệ thống đang tạm khóa để bảo trì nên chưa tạo được lượt.';
+    hint.textContent = message;
+    hint.hidden = !message;
   }
 
   function updateFlowButton() {
@@ -3322,20 +3820,20 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var binding = state.newBinding;
     var entryPass = !!(binding && state.newEntry && state.newEntry.verdict === 'PASS');
     btn.disabled = !state.connected || state.readonly || !binding || !entryPass;
-    if (!binding) {
-      hint.textContent = 'Tạo lượt trước khi chạy.';
+    if (binding && !state.connected) {
+      hint.textContent = 'Chưa kết nối máy chủ.';
       hint.hidden = false;
-    } else if (!state.connected) {
-      hint.textContent = 'Chưa kết nối máy chạy.';
+    } else if (binding && state.readonly) {
+      hint.textContent = 'Hệ thống đang tạm khóa để bảo trì nên chưa bắt đầu được.';
       hint.hidden = false;
-    } else if (state.readonly) {
-      hint.textContent = 'Đang bật khóa chỉ-đọc: lượt mới dừng ở cổng vào (readonly_off).';
+    } else if (!binding) {
+      hint.textContent = 'Tạo lượt trước khi bắt đầu lấy dữ liệu.';
       hint.hidden = false;
     } else if (!state.newEntry) {
-      hint.textContent = 'Chưa đọc được phiếu cổng vào. Mở “Theo dõi lượt” để xem lại.';
+      hint.textContent = 'Chưa đọc được kết quả kiểm tra đầu vào. Mở “Theo dõi lượt” để xem lại.';
       hint.hidden = false;
     } else if (!entryPass) {
-      hint.textContent = 'Cổng vào chưa đạt nên chưa chạy được.';
+      hint.textContent = 'Lượt này chưa đạt kiểm tra đầu vào nên chưa bắt đầu được. Xem lý do bên dưới.';
       hint.hidden = false;
     } else {
       hint.textContent = '';
@@ -3403,14 +3901,15 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var sel = $('presetSel');
     if (sel.value === NEW_PRODUCT) return $('productLabel').value.trim() || 'Sản phẩm mới';
     var opt = sel.options[sel.selectedIndex];
-    return opt ? String(opt.textContent).split(' · ')[0] : '—';
+    return opt ? String(opt.textContent).split(' · ')[0] : 'Chưa chọn sản phẩm';
   }
 
   function periodSummary(endDate) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) return 'Chưa chọn ngày cuối kỳ';
     var end = parseIso(endDate);
-    return '30 ngày ' + fmtDate(isoDate(addDays(end, -29))) + ' – ' + fmtDate(isoDate(end)) +
-      ' · 12 tháng ' + fmtDate(isoDate(addDays(end, -364))) + ' – ' + fmtDate(isoDate(end));
+    return '30 ngày: từ ' + fmtDate(isoDate(addDays(end, -29))) + ' đến ' + fmtDate(isoDate(end)) +
+      '; 12 tháng: từ ' + fmtDate(isoDate(addDays(end, -364))) + ' đến ' + fmtDate(isoDate(end)) +
+      ' (tính cả hai đầu).';
   }
 
   function renderNewSummary() {
@@ -3429,15 +3928,15 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       dl.appendChild(div);
     }
     row('Sản phẩm', selectedProductLabel());
-    row('Kỳ dữ liệu', periodSummary($('endDate').value));
-    row('Cách thu', checked.value ? policyText(checked.value) : (checked.error || 'Chưa đủ cấu hình'));
-    row('Phạm vi', 'Chỉ bình luận có chữ · không thu media · bình luận trùng tính một lần');
-    row('Sau khi tạo', 'Tạo lượt chỉ kiểm cổng vào. Chưa thu bình luận cho tới khi bấm “Chạy cả luồng”.');
+    row('Khoảng thời gian', periodSummary($('endDate').value));
+    row('Cách lấy bình luận', checked.value ? policyText(checked.value) : (checked.error || 'Chưa đủ thiết lập'));
+    row('Nội dung lấy', 'Chỉ lấy phần chữ · không tải ảnh và video · bình luận trùng tính một lần');
+    row('Bước tiếp', 'Tạo lượt chỉ kiểm tra đầu vào. Chưa lấy bình luận cho tới khi bấm «Bắt đầu lấy dữ liệu».');
   }
 
   function frozenRow(label, value) {
     var div = h('div');
-    div.appendChild(h('b', null, label));
+    div.appendChild(h('b', null, label + ':'));
     div.appendChild(h('span', null, value));
     return div;
   }
@@ -3452,21 +3951,23 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var binding = state.newBinding;
     if (!binding) {
       box.hidden = true;
+      setNewFormLocked(false);
       updateFlowButton();
       return;
     }
     box.hidden = false;
+    setNewFormLocked(true);
     line.appendChild(document.createTextNode('Lượt '));
     line.appendChild(h('code', null, binding.runId));
-    line.appendChild(document.createTextNode(' đã tạo. Tóm tắt dưới đây đã khóa theo đúng lượt này.'));
-    frozen.appendChild(frozenRow('Sản phẩm', binding.summary.product || '—'));
-    frozen.appendChild(frozenRow('Kỳ dữ liệu', binding.summary.period || '—'));
-    frozen.appendChild(frozenRow('Cách thu', binding.summary.policy || policyText(binding.policyView) || '—'));
-    frozen.appendChild(frozenRow('Phạm vi', 'Chỉ bình luận có chữ · không media'));
+    line.appendChild(document.createTextNode(' đã tạo. Biểu mẫu và tóm tắt dưới đây đã khóa theo đúng lượt này.'));
+    frozen.appendChild(frozenRow('Sản phẩm', binding.summary.product || 'Chưa có'));
+    frozen.appendChild(frozenRow('Khoảng thời gian', binding.summary.period || 'Chưa có'));
+    frozen.appendChild(frozenRow('Cách lấy bình luận', binding.summary.policy || policyText(binding.policyView) || 'Chưa có'));
+    frozen.appendChild(frozenRow('Nội dung lấy', 'Chỉ lấy phần chữ · không tải ảnh và video'));
     if (state.newEntry) {
       $('entrySlip').appendChild(gateCard('entry', state.newEntry));
     } else {
-      $('entrySlip').appendChild(h('p', 'muted', 'Chưa đọc được phiếu cổng vào. Mở “Theo dõi lượt” để tải lại.'));
+      $('entrySlip').appendChild(h('p', 'muted', 'Chưa đọc được kết quả kiểm tra đầu vào. Mở “Theo dõi lượt” để tải lại.'));
     }
     updateFlowButton();
   }
@@ -3477,12 +3978,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     state.newBinding = null;
     state.newRunId = null;
     state.newEntry = null;
+    state.flowDialogBinding = null;
+    setNewFormLocked(false);
     showNewNotice('Biểu mẫu đã thay đổi. Lượt ' + state.newStaleRunId +
-      ' đã tạo trước đó không còn gắn với biểu mẫu này; tạo lượt mới để chạy.');
+      ' đã tạo trước đó không còn gắn với biểu mẫu này; tạo lượt mới để bắt đầu.');
   }
 
   function markNewFormChanged() {
-    if (state.newSilent) return;
+    if (state.newSilent || state.newLocked) return;
     state.newFormSeq += 1;
     invalidateNewBinding();
     renderNewSummary();
@@ -3507,6 +4010,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var endDate = $('endDate').value;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       return { error: { code: 'END_DATE_REQUIRED', message: 'Chọn ngày cuối kỳ.', focus: 'endDate' } };
+    }
+    if (endDate > yesterdayIso()) {
+      return { error: { code: 'END_DATE_NOT_COMPLETED',
+        message: 'Chọn ngày hôm qua hoặc sớm hơn; hôm nay chưa kết thúc.', focus: 'endDate' } };
     }
     var newProduct = null;
     if (presetId === NEW_PRODUCT) {
@@ -3539,16 +4046,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
   var PRODUCT_ERROR_TEXT = {
     PRODUCT_INPUT_INVALID: 'Dữ liệu sản phẩm không hợp lệ. Kiểm tra tên, từ khóa (không dấu phẩy) và độ dài cho phép.',
-    PRODUCT_CATEGORY_UNSUPPORTED: 'Danh mục chưa được hỗ trợ. Hiện chỉ hỗ trợ Sức Khoẻ.',
+    PRODUCT_CATEGORY_UNSUPPORTED: 'Ngành hàng chưa được hỗ trợ. Hiện chỉ hỗ trợ Sức khoẻ.',
     PRESET_ID_EXISTS: 'Tên này tạo ra mã sản phẩm đã tồn tại. Đổi tên hiển thị hoặc thêm hậu tố phân biệt.',
     PRESET_NAME_EXISTS: 'Đã có sản phẩm cùng tên. Đổi tên hiển thị rồi lưu lại.',
     PRESET_BUSY: 'Danh sách sản phẩm đang được ghi bởi thao tác khác. Đợi vài giây rồi lưu lại.',
-    PRESET_WRITE_FAILED: 'Không ghi được sản phẩm lên máy chạy. Kiểm tra kết nối rồi thử lại.'
+    PRESET_WRITE_FAILED: 'Không ghi được sản phẩm lên máy chủ. Kiểm tra kết nối rồi thử lại.'
   };
 
   function productErrorText(error) {
-    var code = error && error.code !== null && error.code !== undefined ? String(error.code) : '';
-    if (code && PRODUCT_ERROR_TEXT[code]) return PRODUCT_ERROR_TEXT[code] + ' (' + code + ')';
+    var code = errorCode(error);
+    if (code && PRODUCT_ERROR_TEXT[code]) return PRODUCT_ERROR_TEXT[code];
     return plainError(error);
   }
 
@@ -3578,7 +4085,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     if (keyword2.length > 200) return bad('Từ khóa phụ tối đa 200 ký tự.', 'productKeyword2');
     if (keyword2.indexOf(',') !== -1) return bad('Từ khóa phụ không được chứa dấu phẩy vì sẽ tách thành nhiều truy vấn.', 'productKeyword2');
     if (control.test(keyword2)) return bad('Từ khóa phụ không được chứa ký tự điều khiển.', 'productKeyword2');
-    if (!categoryId) return bad('Chọn danh mục Sức Khoẻ.', 'productCategory');
+    if (!categoryId) return bad('Chưa xác định được ngành hàng. Hãy đóng app rồi mở lại.', 'productCategory');
     var presetId = safePresetId(label);
     if (!presetId) return bad('Tên hiển thị cần có chữ cái Latinh hoặc số để tạo mã sản phẩm ổn định.', 'productLabel');
     var value = { presetId: presetId, label: label, keyword: keyword, categoryId: categoryId };
@@ -3592,9 +4099,30 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     return pres;
   }
 
+  function onNewAnother() {
+    var previous = state.newBinding ? state.newBinding.runId : state.newStaleRunId;
+    state.newBinding = null;
+    state.newRunId = null;
+    state.newEntry = null;
+    state.flowDialogBinding = null;
+    state.newStaleRunId = previous || null;
+    state.newFormSeq += 1;
+    clearNewError();
+    clearNewNotice();
+    setNewFormLocked(false);
+    renderNewSummary();
+    renderNewResult();
+    if (previous) {
+      showNewNotice('Đã mở biểu mẫu mới. Lượt ' + previous + ' vẫn được giữ trong «Theo dõi lượt».');
+    }
+    var target = $('presetSel').value === NEW_PRODUCT ? $('productLabel') : $('presetSel');
+    if (target) target.focus();
+  }
+
   async function onCreate(ev) {
     if (ev) ev.preventDefault();
     if (state.newBusy) return;
+    if (state.newBinding) return;
     clearError();
     clearNewError();
     clearNewNotice();
@@ -3637,7 +4165,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
             renderNewSummary();
             updateNewButton();
             showNewNotice('Đã lưu sản phẩm “' + justSaved.label + '” và chọn sản phẩm đó. ' +
-              'Thay đổi ngày hoặc cấu hình vẫn được giữ; lượt chưa được tạo.');
+              'Thay đổi ngày hoặc thiết lập vẫn được giữ; lượt chưa được tạo.');
           } else {
             showNewNotice('Đã lưu sản phẩm “' + justSaved.label + '”. Biểu mẫu hiện tại được giữ nguyên; ' +
               'chọn sản phẩm đó trong danh sách để tạo lượt.');
@@ -3649,7 +4177,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         renderPresets(justSaved.presetId);
         state.newSilent = false;
         presetId = justSaved.presetId;
-        showNewNotice('Đã lưu sản phẩm “' + justSaved.label + '”. Chưa bắt đầu thu bình luận.');
+        showNewNotice('Đã lưu sản phẩm “' + justSaved.label + '”. Chưa lấy bình luận.');
         if (!pres.ok) showError(pres.error);
       }
       if (generation !== state.newFormSeq) {
@@ -3688,6 +4216,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       state.newRunId = runId;
       state.newEntry = status.ok && status.data ? status.data.gates.entry : null;
       state.newStaleRunId = null;
+      state.preferredRunId = runId;
       state.newBinding = {
         runId: runId,
         payload: clone(payload),
@@ -3696,9 +4225,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         generation: generation
       };
       showNewNotice(justSaved
-        ? 'Đã lưu sản phẩm và tạo lượt. Chưa bắt đầu thu bình luận.'
-        : 'Đã tạo lượt. Chưa bắt đầu thu bình luận.');
-      if (!status.ok) showNewError('Đã tạo lượt nhưng chưa đọc được phiếu cổng vào. ' + plainError(status.error));
+        ? 'Đã lưu sản phẩm và tạo lượt. Biểu mẫu đã khóa theo lượt này.'
+        : 'Đã tạo lượt. Biểu mẫu đã khóa theo lượt này.');
+      if (!status.ok) showNewError('Đã tạo lượt nhưng chưa đọc được kết quả kiểm tra đầu vào. ' + plainError(status.error));
       renderNewResult();
       await refreshRuns();
     } finally {
@@ -3706,26 +4235,116 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     }
   }
 
-  async function onRunFlow() {
+  function showDialog(dialog) {
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+  }
+
+  function closeDialog(dialog) {
+    if (typeof dialog.close === 'function') dialog.close();
+    else dialog.removeAttribute('open');
+  }
+
+  function onRunFlow() {
     var binding = state.newBinding;
-    if (!binding) return;
+    if (!binding || !state.connected || state.readonly) return;
+    if (!(state.newEntry && state.newEntry.verdict === 'PASS')) return;
+    clearNewError();
+    var facts = $('flowDialogFacts');
+    clear(facts);
+    function factRow(label, value) {
+      var div = h('div');
+      div.appendChild(h('dt', null, label));
+      div.appendChild(h('dd', null, value));
+      facts.appendChild(div);
+    }
+    factRow('Lượt', binding.runId);
+    factRow('Sản phẩm', binding.summary.product || 'Chưa có');
+    factRow('Khoảng thời gian', binding.summary.period || 'Chưa có');
+    factRow('Cách lấy bình luận', binding.summary.policy || policyText(binding.policyView) || 'Chưa có');
+    if (binding.policyView && binding.policyView.totalPerLink !== null &&
+        binding.policyView.totalPerLink !== undefined) {
+      factRow('Số lượng tối đa', fmtInt(binding.policyView.totalPerLink) + ' bình luận mỗi link');
+    }
+    $('flowDialogNote').textContent = 'Bắt đầu sẽ dùng một lượt tra số liệu bán hàng cho đúng lượt này, sau đó chọn link bán chạy và bắt đầu lấy bình luận. ' +
+      'Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.';
+    state.flowDialogBinding = {
+      runId: binding.runId,
+      generation: binding.generation,
+      formSeq: state.newFormSeq
+    };
+    showDialog($('flowDialog'));
+    $('flowCancelBtn').focus();
+  }
+
+  async function onFlowConfirm() {
+    var frozen = state.flowDialogBinding;
+    var binding = state.newBinding;
+    closeDialog($('flowDialog'));
+    state.flowDialogBinding = null;
+    var hint = $('flowHint');
+    if (!frozen || !binding || binding.runId !== frozen.runId ||
+        binding.generation !== frozen.generation || state.newFormSeq !== frozen.formSeq) {
+      hint.textContent = 'Lượt đã thay đổi nên chưa bắt đầu. Hãy kiểm tra lại rồi bấm lại.';
+      hint.hidden = false;
+      return;
+    }
     var runId = binding.runId;
+    var context = {
+      runId: runId,
+      generation: frozen.generation,
+      formSeq: frozen.formSeq,
+      selectionSeq: state.selectionSeq,
+      navSeq: state.navSeq,
+      screen: state.screen
+    };
+    function sameFlowContext() {
+      var current = state.newBinding;
+      return !!current && current.runId === context.runId &&
+        current.generation === context.generation && state.newFormSeq === context.formSeq &&
+        state.selectionSeq === context.selectionSeq && state.navSeq === context.navSeq &&
+        state.screen === context.screen;
+    }
     clearError();
     clearNewError();
+    hint.hidden = true;
     var btn = $('btnFlow');
     btn.disabled = true;
     var res = await api.runFlow(runId);
     if (!res.ok) {
-      showError(res.error);
+      if (sameFlowContext()) {
+        hint.textContent = plainError(res.error);
+        hint.title = errorCode(res.error);
+        hint.hidden = false;
+      }
       await refreshRuns();
-      await loadInfo(runId);
-      updateFlowButton();
+      if (sameFlowContext()) await loadInfo(runId);
       return;
     }
-    showScreen('track');
-    await refreshRuns();
-    await selectRun(runId);
-    updateFlowButton();
+    if (sameFlowContext()) {
+      hint.textContent = '';
+      hint.hidden = true;
+      showScreen('track');
+      var trackNavSeq = state.navSeq;
+      var trackSelectionSeq = state.selectionSeq;
+      await refreshRuns();
+      var current = state.newBinding;
+      var stillBound = !!current && current.runId === context.runId &&
+        current.generation === context.generation && state.newFormSeq === context.formSeq;
+      if (stillBound && state.selectionSeq === trackSelectionSeq &&
+          state.navSeq === trackNavSeq && state.screen === 'track') {
+        await selectRun(runId);
+      }
+      updateFlowButton();
+    } else {
+      await refreshRuns();
+    }
+  }
+
+  function onFlowCancel() {
+    state.flowDialogBinding = null;
+    closeDialog($('flowDialog'));
+    $('btnFlow').focus();
   }
 
   function renderLibrary() {
@@ -3740,14 +4359,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     var skills = lib.skills || [];
     lib.modules.modules.forEach(function (m) {
       var card = h('article', 'panel libcard');
-      card.appendChild(h('h2', null, m.id + ' · ' + m.skill));
+      card.appendChild(h('h2', null, moduleTitle(m.id, m.skill) + ' (' + m.skill + ')'));
 
       var kv = h('dl', 'kv');
       kv.appendChild(kvRowEl('Đầu vào', h('code', null, m.input)));
       kv.appendChild(kvRow('Skill', m.skill + ' · v' + m.skillVersion));
       kv.appendChild(kvRowEl('Đầu ra', h('code', null, m.output)));
-      kv.appendChild(kvRow('Chuẩn', m.standard || '—'));
-      kv.appendChild(kvRow('Phiên bản luật', m.ruleVersion || '—'));
+      kv.appendChild(kvRow('Chuẩn', m.standard || 'Chưa có'));
+      kv.appendChild(kvRow('Phiên bản luật', m.ruleVersion || 'Chưa có'));
       var params = lib.modules.params || {};
       if (m.id === 'M3' && Array.isArray(params.collectionSuccessVerdicts)) {
         kv.appendChild(kvRow('Kết luận thu được chấp nhận', params.collectionSuccessVerdicts.join(', ')));
@@ -3757,7 +4376,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
       (gatesMap[m.gate] || []).forEach(function (id) {
         var line = h('div');
         line.appendChild(h('code', null, id));
-        line.appendChild(document.createTextNode(' — ' + (CHECK_LABELS[id] || '')));
+        line.appendChild(document.createTextNode(': ' + (CHECK_LABELS[id] || '')));
         checks.appendChild(line);
       });
       kv.appendChild(kvRowEl('Phép kiểm cổng ' + m.gate, checks));
@@ -3787,7 +4406,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   async function openLibrary() {
     if (!state.connected) {
       clear($('libBody'));
-      $('libBody').appendChild(h('p', 'empty', 'Chưa kết nối máy chạy.'));
+      $('libBody').appendChild(h('p', 'empty', 'Chưa kết nối máy chủ.'));
       return;
     }
     if (state.lib) { renderLibrary(); return; }
@@ -3799,6 +4418,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   }
 
   function showScreen(name) {
+    state.navSeq += 1;
+    state.screen = name;
     var tabs = document.querySelectorAll('.tabs button');
     Array.prototype.forEach.call(tabs, function (b) {
       b.setAttribute('aria-selected', String(b.dataset.screen === name));
@@ -3809,9 +4430,17 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   async function openTrack() {
     clearError();
     await refreshRuns();
-    if (state.selectedRunId) await selectRun(state.selectedRunId);
-    else if (state.runs.length) await selectRun(state.runs[0].runId);
-    else renderDetail();
+    var preferred = state.preferredRunId;
+    state.preferredRunId = null;
+    if (preferred && state.runs.some(function (run) { return run.runId === preferred; })) {
+      await selectRun(preferred);
+    } else if (state.selectedRunId) {
+      await selectRun(state.selectedRunId);
+    } else if (state.runs.length) {
+      await selectRun(state.runs[0].runId);
+    } else {
+      renderDetail();
+    }
   }
 
   function bindEvents() {
@@ -3826,12 +4455,24 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
     $('newRunForm').addEventListener('submit', onCreate);
     $('newRunForm').addEventListener('input', onNewFormInput);
     $('newRunForm').addEventListener('change', onNewFormInput);
+    $('btnNewAnother').addEventListener('click', onNewAnother);
     $('btnFlow').addEventListener('click', onRunFlow);
+    $('flowConfirmBtn').addEventListener('click', onFlowConfirm);
+    $('flowCancelBtn').addEventListener('click', onFlowCancel);
+    $('flowDialog').addEventListener('cancel', function (ev) {
+      ev.preventDefault();
+      onFlowCancel();
+    });
+    $('runFilter').addEventListener('change', function () {
+      state.runFilter = $('runFilter').value || 'all';
+      renderRunList();
+    });
   }
 
   async function boot() {
     bindEvents();
-    $('endDate').value = todayIso();
+    $('endDate').max = yesterdayIso();
+    $('endDate').value = yesterdayIso();
     windowLine();
     syncNewPolicy();
     renderNewSummary();

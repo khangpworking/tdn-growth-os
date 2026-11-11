@@ -1,6 +1,7 @@
 """Desktop transport for the Shopee flow CLI; workflow decisions stay remote."""
 import argparse
 import base64
+import datetime as dt
 import hashlib
 import hmac
 import json
@@ -255,6 +256,16 @@ class Api:
         if not isinstance(value, dict) or not isinstance(value.get('presetId'), str) or \
                 not isinstance(value.get('endDate'), str):
             raise _BridgeFailure('ARG_INVALID')
+        if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', value['endDate']):
+            raise _BridgeFailure('ARG_INVALID')
+        try:
+            end_date = dt.date.fromisoformat(value['endDate'])
+        except ValueError:
+            raise _BridgeFailure('ARG_INVALID') from None
+        # The form and bridge share the desktop host's local calendar day.
+        # Historical requests and remote gate rules are not rewritten here.
+        if end_date >= dt.date.today():
+            raise _BridgeFailure('END_DATE_NOT_COMPLETED')
         has_policy = 'collectionPolicy' in value
         has_cap = 'reviewCapPerLink' in value
         allowed = {'presetId', 'endDate'}

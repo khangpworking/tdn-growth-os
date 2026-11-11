@@ -86,6 +86,22 @@ def request_payload(cap=300, keywords=None):
     }
 
 
+def configured_request_payload(total=500):
+    return {
+        'format': 'request-v2',
+        'preset': {'keywords': ['kem chống nắng']},
+        'principalTitles': ['Kem chống nắng mẫu A'],
+        'windows': [{'id': '30d', 'period': {'startDate': '2026-10-12', 'endDate': END}, 'intervalDays': 7},
+                    {'id': '12m', 'period': {'startDate': '2025-11-11', 'endDate': END}, 'intervalDays': 30}],
+        'collectionPolicy': {
+            'format': 'shopee-review-policy-v1', 'mode': 'stars', 'stars': [2, 3],
+            'totalPerLink': total, 'allocation': 'pooled',
+            'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1',
+        },
+        'captureSpec': CAPTURE_SPEC,
+    }
+
+
 class FlowTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -257,9 +273,11 @@ class ReadOnlyCommandTests(FlowTest):
         self.assertTrue(kem['categoryLabel'])
 
     def test_runs_lists_newest_first_and_changes_no_file(self):
-        older = self.make_run('aaaaaaaa', request=request_payload(),
+        legacy_request = request_payload()
+        configured_request = configured_request_payload()
+        older = self.make_run('aaaaaaaa', request=legacy_request,
                               state={'format': 'state-v1', 'runId': 'aaaaaaaa', 'status': 'IDLE', 'createdAt': '2026-11-08T01:00:00Z'})
-        newer = self.make_run('bbbbbbbb', request=request_payload(),
+        newer = self.make_run('bbbbbbbb', request=configured_request,
                               state={'format': 'state-v1', 'runId': 'bbbbbbbb', 'status': 'STOPPED', 'createdAt': '2026-11-09T01:00:00Z'})
         older, newer = str(older), str(newer)
         before = sha_folder(self.runs)
@@ -269,15 +287,26 @@ class ReadOnlyCommandTests(FlowTest):
         ids = [item['runId'] for item in payload['runs']]
         self.assertEqual(ids, ['bbbbbbbb', 'aaaaaaaa'])
         for item in payload['runs']:
-            self.assertEqual(set(item), {'runId', 'createdAt', 'product', 'status',
+            self.assertEqual(set(item), {'runId', 'createdAt', 'product', 'request', 'status',
                                          'lastGate', 'lastVerdict', 'errorCode', 'tracking', 'execution'})
             self.assertEqual(item['execution']['format'], 'run-execution-view-v1')
             self.assertEqual(item['tracking'], {
                 'primaryKeyword': 'kem chống nắng', 'firstRunAt': None,
                 'timeBasis': 'legacy-first-unproven', 'displayTimezone': 'Asia/Ho_Chi_Minh',
                 'lastKnownStartedAt': None})
+        by_id = {item['runId']: item for item in payload['runs']}
+        for run_id, source in (('aaaaaaaa', legacy_request), ('bbbbbbbb', configured_request)):
+            self.assertEqual(by_id[run_id]['request'],
+                             {k: v for k, v in source.items() if k != 'captureSpec'})
+            self.assertNotIn('captureSpec', by_id[run_id]['request'])
+        self.assertEqual(by_id['aaaaaaaa']['request']['reviewCapPerLink'], 300)
+        self.assertNotIn('collectionPolicy', by_id['aaaaaaaa']['request'])
+        self.assertEqual(by_id['bbbbbbbb']['request']['collectionPolicy']['totalPerLink'], 500)
+        self.assertEqual(by_id['bbbbbbbb']['request']['collectionPolicy']['stars'], [2, 3])
+        self.assertNotIn('reviewCapPerLink', by_id['bbbbbbbb']['request'])
         self.assertEqual(sha_folder(self.runs), before)
         self.assertTrue(older and newer)
+        self.assert_no_subprocess()
 
     def test_run_info_format_and_changes_no_file(self):
         run = self.make_run(gates=(('entry', {

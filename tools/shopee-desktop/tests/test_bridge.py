@@ -5,6 +5,7 @@ contract, so these cases call the real `Api` with a local sshCommand that runs
 the real CLI and Node builder. They cover the bridge-to-CLI UTF-8 handoff,
 backend error mapping and the rule that saving never creates a run.
 """
+import datetime as dt
 import json
 import os
 import pathlib
@@ -18,6 +19,10 @@ ROOT = HERE.parents[2]
 APP_DIR = HERE.parent
 SCRIPT = ROOT / 'skills' / 'tdn-shopee-flow' / 'scripts' / 'shopee_flow.py'
 HEALTH = 'c2035652732'
+
+
+def completed_date(days_ago=1):
+    return (dt.date.today() - dt.timedelta(days=days_ago)).isoformat()
 
 sys.path.insert(0, str(APP_DIR))
 import tdn_shopee_app  # noqa: E402
@@ -69,7 +74,7 @@ class BridgeTest(unittest.TestCase):
                          keyword='kem chống nắng', categoryId=HEALTH)
         self.assertTrue(saved['ok'], saved)
         result = self.api.newRun({
-            'presetId': 'kem-chong-nang-abc', 'endDate': '2026-11-10',
+            'presetId': 'kem-chong-nang-abc', 'endDate': completed_date(),
             'collectionPolicy': {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,
                                  'allocation': 'pooled'}})
         self.assertTrue(result['ok'], result)
@@ -86,11 +91,29 @@ class BridgeTest(unittest.TestCase):
     def test_new_run_rejects_legacy_cap_and_policy_together_before_the_remote(self):
         before = list(self.runs.iterdir())
         result = self.api.newRun({
-            'presetId': 'kem', 'endDate': '2026-11-10', 'reviewCapPerLink': 300,
+            'presetId': 'kem', 'endDate': completed_date(), 'reviewCapPerLink': 300,
             'collectionPolicy': {'mode': 'with-comments', 'stars': [], 'totalPerLink': 300,
                                  'allocation': 'pooled'}})
         self.assertEqual(result, {'ok': False, 'error': {'code': 'ARG_INVALID', 'message': 'ARG_INVALID'}})
         self.assertEqual(list(self.runs.iterdir()), before)
+
+    def test_new_run_rejects_an_unfinished_local_day_before_config_or_ssh(self):
+        policy = {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,
+                  'allocation': 'pooled'}
+        for label, end_date, code in (
+            ('today', dt.date.today().isoformat(), 'END_DATE_NOT_COMPLETED'),
+            ('tomorrow', (dt.date.today() + dt.timedelta(days=1)).isoformat(),
+             'END_DATE_NOT_COMPLETED'),
+            ('malformed calendar date', '2026-13-01', 'ARG_INVALID'),
+        ):
+            with self.subTest(label=label):
+                with mock.patch.object(tdn_shopee_app, '_load_config') as load:
+                    result = self.api.newRun({
+                        'presetId': 'kem', 'endDate': end_date, 'collectionPolicy': policy,
+                    })
+                self.assertEqual(result, {
+                    'ok': False, 'error': {'code': code, 'message': code}})
+                load.assert_not_called()
 
     def test_backend_rejections_map_to_codes(self):
         cases = (

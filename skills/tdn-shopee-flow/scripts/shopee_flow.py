@@ -2036,6 +2036,7 @@ def cmd_flow_query(ns):
                 created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
                 values.append({'runId': path.name, 'createdAt': created, 'product': ' / '.join(request.get('preset', {}).get('keywords', [])),
                                'tracking': flow_tracking(path),
+                               'request': {k: v for k, v in request.items() if k != 'captureSpec'},
                                'execution': execution, 'status': execution['status'],
                                'lastGate': execution['currentModule'].lower() if execution['currentModule'] else None,
                                'lastVerdict': last.get('verdict'), 'errorCode': current.get('errorCode') or last.get('errorCode')})
