@@ -193,18 +193,39 @@
   };
   const noPagination = () => [...root.querySelectorAll('.shopee-page-controller')].filter(visible).length === 0;
   const observedZero = key => { const count=sourceCount(key); return count.status === 'observed' && count.value === 0; };
-  const loadedList = () => { const lists=[...root.querySelectorAll('.product-ratings__list')].filter(visible); return lists.length === 1 && lists.every(list => getComputedStyle(list).opacity === '1'); };
+  const loadedList = () => { const lists=[...root.querySelectorAll('.product-ratings__list')].filter(visible); return lists.length === 1 && lists.every(list => getComputedStyle(list).opacity === '1' && list.getAttribute('aria-busy') !== 'true'); };
   const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 && loadedList() && (noPagination() || activePage() === 1);
   const singlePage = key => { const count=sourceCount(key); return noPagination() && count.status === 'observed' && count.value > 0 && count.value === cards().length; };
-  const settle = async (key, page, old, changed) => {
+  const observeFilterTransition = () => {
+    const initialCards = new Set(root.querySelectorAll('[data-cmtid]'));
+    const initiallyLoaded = loadedList();
+    let loadingSeen = false, freshCardsSeen = false;
+    const observe = mutations => {
+      const lists = [...root.querySelectorAll('.product-ratings__list')].filter(visible);
+      if (lists.length !== 1) return;
+      const list = lists[0];
+      // The active filter class alone is not evidence that its results loaded.
+      if (initiallyLoaded && (getComputedStyle(list).opacity !== '1' || list.getAttribute('aria-busy') === 'true')) loadingSeen = true;
+      const listChanged = mutations.some(mutation => mutation.type === 'childList' &&
+        (mutation.target === list || list.contains(mutation.target) ||
+         [...mutation.addedNodes].some(node => node === list || node.nodeType === 1 && node.contains(list))));
+      if (listChanged && [...list.querySelectorAll('[data-cmtid]')].some(card => visible(card) && !initialCards.has(card))) freshCardsSeen = true;
+    };
+    const observer = new MutationObserver(observe);
+    observer.observe(root, {subtree:true,childList:true,attributes:true,attributeFilter:['class','style','aria-busy']});
+    return {
+      completed: () => { observe(observer.takeRecords()); return loadedList() && (loadingSeen || freshCardsSeen); },
+      disconnect: () => observer.disconnect(),
+    };
+  };
+  const settle = async (key, page, old, changed, transition = null) => {
     const end = Math.min(deadline, Date.now() + 20_000);
     while (Date.now() < end) {
       check();
       if (page === 1 && verifiedEmpty(key)) return;
-      const lists = [...root.querySelectorAll('.product-ratings__list')].filter(visible);
-      const ready = lists.length === 1 && getComputedStyle(lists[0]).opacity === '1' && cards().length > 0;
+      const ready = loadedList() && cards().length > 0;
       const pageMatches = activePage() === page || page === 1 && singlePage(key);
-      if (isActive(key) && pageMatches && ready && (!changed || signature() !== old)) return;
+      if (isActive(key) && pageMatches && ready && (!changed || signature() !== old || transition?.completed())) return;
       await pause(300);
     }
     failure('CONTROL_CHANGED');
@@ -217,8 +238,11 @@
   const openFirst = async state => {
     check();
     if (!isActive(state.key)) {
-      const old=signature();nativeControl(state.key).click();await pause(3500);
-      await settle(state.key,1,old,true);
+      const old=signature(),transition=observeFilterTransition();
+      try {
+        nativeControl(state.key).click();await pause(3500);
+        await settle(state.key,1,old,true,transition);
+      } finally { transition.disconnect(); }
     }
     if (activePage() !== 1 && !noPagination()) await clickFirst(state.key);
     await settle(state.key,1,'',false);
