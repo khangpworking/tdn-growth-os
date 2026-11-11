@@ -1,0 +1,1146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/foundation/shopee-review-sampling.schema.json",
+  "title": "ShopeeReviewPlan",
+  "$defs": {
+    "input": {
+      "title": "ReviewSamplingInput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "stars",
+        "totalPerLink",
+        "allocation"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "all",
+            "with-comments",
+            "stars"
+          ]
+        },
+        "stars": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "uniqueItems": true
+        },
+        "totalPerLink": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000
+        },
+        "allocation": {
+          "enum": [
+            "pooled",
+            "equal-stars"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "stars"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "stars": {
+            "minItems": 1,
+            "type": "array"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "stars": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "allocation": {
+            "const": "pooled"
+          }
+        }
+      }
+    },
+    "policy": {
+      "title": "ReviewPolicy",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "mode",
+        "stars",
+        "totalPerLink",
+        "allocation",
+        "textRule",
+        "order"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-review-policy-v1"
+        },
+        "mode": {
+          "enum": [
+            "all",
+            "with-comments",
+            "stars"
+          ]
+        },
+        "stars": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "uniqueItems": true
+        },
+        "totalPerLink": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000
+        },
+        "allocation": {
+          "enum": [
+            "pooled",
+            "equal-stars"
+          ]
+        },
+        "textRule": {
+          "const": "comment-or-attributes-v1"
+        },
+        "order": {
+          "const": "native-filter-ascending-stars-v1"
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "stars"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "stars": {
+            "minItems": 1,
+            "type": "array"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "stars": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "allocation": {
+            "const": "pooled"
+          }
+        }
+      }
+    },
+    "link": {
+      "title": "ReviewLink",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shopId",
+        "itemId",
+        "url"
+      ],
+      "properties": {
+        "shopId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "itemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    },
+    "target": {
+      "title": "StarTarget",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "star",
+        "target"
+      ],
+      "properties": {
+        "star": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "target": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        }
+      }
+    },
+    "plan": {
+      "title": "ShopeeReviewPlan",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "requestSha256",
+        "m2Digest",
+        "policy",
+        "policySha256",
+        "targets",
+        "links"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-review-plan-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "requestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "m2Digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy": {
+          "$ref": "#/$defs/policy"
+        },
+        "policySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "targets": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/target"
+          }
+        },
+        "links": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/link"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "countValue": {
+      "title": "SourceCountValue",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "value"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "observed",
+            "missing",
+            "ambiguous",
+            "unavailable"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "observed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "value": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "counts": {
+      "title": "ReviewCounts",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "shopId",
+        "itemId",
+        "url",
+        "observedAt",
+        "snapshotDigest",
+        "stars",
+        "withComments"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-review-counts-v1"
+        },
+        "shopId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "itemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "stars": {
+          "title": "SourceStarCounts",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "properties": {
+            "1": {
+              "$ref": "#/$defs/countValue"
+            },
+            "2": {
+              "$ref": "#/$defs/countValue"
+            },
+            "3": {
+              "$ref": "#/$defs/countValue"
+            },
+            "4": {
+              "$ref": "#/$defs/countValue"
+            },
+            "5": {
+              "$ref": "#/$defs/countValue"
+            }
+          }
+        },
+        "withComments": {
+          "$ref": "#/$defs/countValue"
+        }
+      }
+    },
+    "samplingBinding": {
+      "title": "SamplingBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planSha256",
+        "policySha256",
+        "policy",
+        "attemptId"
+      ],
+      "properties": {
+        "planSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policy": {
+          "$ref": "#/$defs/policy"
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "jobInput": {
+      "title": "SamplingJobInput",
+      "oneOf": [
+        {
+          "title": "CollectionJobInput",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_comments",
+            "sampling"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "max_comments": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2000
+            },
+            "sampling": {
+              "$ref": "#/$defs/samplingBinding"
+            }
+          }
+        },
+        {
+          "title": "CountsJobInput",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "url",
+            "request_key"
+          ],
+          "properties": {
+            "kind": {
+              "const": "counts"
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "request_key": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      ]
+    },
+    "job": {
+      "title": "SamplingJob",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "request",
+        "state",
+        "created_at",
+        "updated_at",
+        "result_available"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "request": {
+          "$ref": "#/$defs/jobInput"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "succeeded",
+            "partial",
+            "failed",
+            "cancelled",
+            "interrupted",
+            "needs_login",
+            "needs_verification"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "result_available": {
+          "type": "boolean"
+        },
+        "collected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        }
+      }
+    },
+    "rows": {
+      "title": "SampledReviewRows",
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reviewId",
+          "shopId",
+          "itemId",
+          "postedAtLocal",
+          "createdAt",
+          "variation",
+          "ratingStar",
+          "ratingState",
+          "comment",
+          "attributes",
+          "contentType",
+          "sourcePage",
+          "sourceUrl",
+          "sourceRow",
+          "admissionReasons"
+        ],
+        "properties": {
+          "reviewId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shopId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "itemId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "postedAtLocal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:00\\+07:00$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "variation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratingStar": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratingState": {
+            "enum": [
+              "VALID",
+              "MISSING",
+              "INVALID"
+            ]
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 65536
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attributes": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "maxLength": 65536
+            }
+          },
+          "contentType": {
+            "enum": [
+              "COMMENT",
+              "ATTRIBUTES_ONLY",
+              "UNRESOLVED"
+            ]
+          },
+          "sourcePage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceUrl": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "sourceRow": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9999
+          },
+          "admissionReasons": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "enum": [
+                "INVALID_REVIEW_ID",
+                "UNREADABLE_COMMENT",
+                "INVALID_ATTRIBUTES",
+                "INCONSISTENT_CONTENT_TYPE",
+                "INVALID_SOURCE_PAGE",
+                "SOURCE_TIME_NOT_PARSED",
+                "INVALID_VARIATION",
+                "INVALID_SOURCE_TIME"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "page": {
+      "title": "SamplingPage",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filter",
+        "page",
+        "cards",
+        "collected",
+        "ids"
+      ],
+      "properties": {
+        "filter": {
+          "enum": [
+            "all",
+            "with-comments",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "cards": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "collected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "ids": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "group": {
+      "title": "SamplingGroupOutcome",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filter",
+        "stopReason"
+      ],
+      "properties": {
+        "filter": {
+          "enum": [
+            "all",
+            "with-comments",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "stopReason": {
+          "enum": [
+            "quota",
+            "exhausted",
+            "page_limit",
+            "timeout",
+            "cancelled",
+            "control_changed",
+            "not_started",
+            "total_limit"
+          ]
+        }
+      }
+    },
+    "result": {
+      "title": "SamplingResult",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "jobId",
+        "inputSha256",
+        "planSha256",
+        "policySha256",
+        "link",
+        "rows",
+        "pages",
+        "groups",
+        "sourceCounts",
+        "stopReason",
+        "complete",
+        "phase",
+        "sourceSha256"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-sampled-result-v1"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "planSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "link": {
+          "$ref": "#/$defs/link"
+        },
+        "rows": {
+          "$ref": "#/$defs/rows"
+        },
+        "pages": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/page"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/group"
+          }
+        },
+        "sourceCounts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/counts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stopReason": {
+          "enum": [
+            "record_limit",
+            "exhausted",
+            "page_limit",
+            "timeout",
+            "cancelled",
+            "control_changed",
+            "not_started",
+            "running"
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "phase": {
+          "enum": [
+            "checkpoint",
+            "terminal"
+          ]
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "journal": {
+      "title": "SamplingJournal",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "inputSha256",
+        "request",
+        "intentAt",
+        "deadline",
+        "baselineIds",
+        "job",
+        "result",
+        "terminal",
+        "errorCode",
+        "requestCount",
+        "requestCountUncertain",
+        "cancelIntent",
+        "resultSha256"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-sampling-journal-v1"
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "request": {
+          "$ref": "#/$defs/jobInput"
+        },
+        "intentAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "baselineIds": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "job": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/job"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/result"
+                },
+                {
+                  "$ref": "#/$defs/counts"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "requestCountUncertain": {
+          "type": "boolean"
+        },
+        "cancelIntent": {
+          "type": "boolean"
+        },
+        "resultSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "attempt": {
+      "title": "ReviewSamplingAttempt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "kind",
+        "attemptId",
+        "runId",
+        "createdAt",
+        "m2Digest",
+        "requestSha256",
+        "planSha256",
+        "links"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-review-attempt-v1"
+        },
+        "kind": {
+          "enum": [
+            "counts",
+            "custom"
+          ]
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "m2Digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "planSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "links": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        }
+      }
+    },
+    "attemptState": {
+      "title": "ReviewSamplingAttemptState",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "status",
+        "pid",
+        "errorCode",
+        "outputSha256"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-review-attempt-state-v1"
+        },
+        "status": {
+          "enum": [
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "UNCERTAIN"
+          ]
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outputSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "runId",
+    "requestSha256",
+    "m2Digest",
+    "policy",
+    "policySha256",
+    "targets",
+    "links"
+  ],
+  "properties": {
+    "format": {
+      "const": "shopee-review-plan-v1"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "requestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "m2Digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "policy": {
+      "$ref": "#/$defs/policy"
+    },
+    "policySha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "targets": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/target"
+      }
+    },
+    "links": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/link"
+      },
+      "minItems": 1
+    }
+  }
+}

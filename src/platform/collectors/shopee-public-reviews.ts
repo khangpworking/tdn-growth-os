@@ -305,10 +305,9 @@ function listRow(raw: unknown): { id: string | null; url: string | null; job: No
   return { id, url, job: validJob(job) ? job : null };
 }
 function bounded(v: string, max: number) { if (Buffer.byteLength(v) > max) fail('SHOPEE_REVIEW_LIMIT'); return v; }
-export function mapPublicReviewResult(raw: unknown, job: NonNullable<ShopeePublicJournal['job']>, listing: ShopeeTransportListing, cap: number, checkpoint = false): PublicReviewEnvelope {
-  const v = object(raw);
-  if (v.job_id !== job.id || normalizePublicReviewUrl(v.product_url) !== listing.productUrl || !Array.isArray(v.records) || v.records.length > cap) return fail();
-  const rows: ShopeePublicRows = v.records.map((input, sourceRow) => {
+/** Shared field mapping; each caller validates its versioned row schema. */
+export function mapPublicReviewRows(records: unknown[], listing: ShopeeTransportListing): ShopeePublicRows {
+  return records.map((input, sourceRow) => {
     const r = object(input); if (normalizePublicReviewUrl(r.source_url) !== listing.productUrl) return fail();
     const reasons: ShopeePublicRows[number]['admissionReasons'] = [];
     const reviewId = reviewIdentity(r.review_id);
@@ -335,6 +334,11 @@ export function mapPublicReviewResult(raw: unknown, job: NonNullable<ShopeePubli
       ratingStar: ratingState === 'VALID' ? r.stars as number : null, ratingState, comment, attributes, contentType,
       sourcePage, sourceUrl: listing.productUrl, sourceRow, admissionReasons: reasons };
   });
+}
+export function mapPublicReviewResult(raw: unknown, job: NonNullable<ShopeePublicJournal['job']>, listing: ShopeeTransportListing, cap: number, checkpoint = false): PublicReviewEnvelope {
+  const v = object(raw);
+  if (v.job_id !== job.id || normalizePublicReviewUrl(v.product_url) !== listing.productUrl || !Array.isArray(v.records) || v.records.length > cap) return fail();
+  const rows = mapPublicReviewRows(v.records, listing);
   if (!validRows(rows)) return fail();
   const excluded: PublicReviewEnvelope['excluded'] = [], diagnostics: PublicReviewEnvelope['diagnostics'] = [];
   if (v.excluded !== undefined && !Array.isArray(v.excluded)) return fail();

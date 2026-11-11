@@ -999,6 +999,13 @@ def module_blocking(run, module, manual=False, owner_pid=None):
                     fcntl.flock(lock.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
                 except BlockingIOError:
                     return {'code': 'RUN_BUSY', 'gate': None}, 24
+    if module == 'm3':
+        for folder in ('review-counts', 'm3-custom/attempts'):
+            root = gate_path(run, folder)
+            for child in root.iterdir() if root.is_dir() else []:
+                state = gate_read(gate_path(run, f'{folder}/{child.name}/state.json'))
+                if not isinstance(state, dict) or state.get('status') in ('RUNNING', 'UNCERTAIN'):
+                    return {'code': 'SUBMISSION_UNCERTAIN', 'gate': None}, 20
     previous, relative = {'m1': ('entry', 'request.json'), 'm2': ('m1', 'm1/'),
                           'm3': ('m2', 'm2/selection.json')}[module]
     if not (module == 'm2' and manual):
@@ -1038,6 +1045,8 @@ def module_work(run, module, ns, repo, config):
     command = shlex.split(command) if isinstance(command, str) else command
     if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
         raise ModuleFailure('NODE_COMMAND_INVALID')
+    if module == 'm3':
+        review_sampling_script(repo, config, 'idle', run)
     if module == 'm2' and getattr(ns, 'manual', None):
         selection = gate_read(pathlib.Path(ns.manual).expanduser())
         schema = gate_read(repo / 'skills/tdn-shopee-flow/chuan/selection-v1.schema.json')
@@ -1155,6 +1164,8 @@ def flow_detach(run, ns, lock, started):
 
 
 def cmd_module(ns):
+    if ns.cmd == 'm3' and getattr(ns, 'plan_sha256', None):
+        return cmd_review_sampling(ns)
     import fcntl
     run, lock, slip, code, started, error = None, None, None, 0, None, None
     interrupted, work_started = False, False
@@ -1235,6 +1246,121 @@ def cmd_module(ns):
     else:
         print(json.dumps(flow_result(ns.run_id, ns.cmd, slip, code, error)))
     sys.exit(code)
+
+
+def review_sampling_script(repo, config, action, run, *args, input_text=None):
+    """The canonical TS boundary owns validation; never relay subprocess diagnostics."""
+    import shlex
+    command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+    command = shlex.split(command) if isinstance(command, str) else command
+    if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+        raise ModuleFailure('NODE_COMMAND_INVALID')
+    result = subprocess.run([*command, str(repo / 'scripts/module-review-sampling.ts'), action, str(run), *args],
+                            cwd=repo, input=input_text, capture_output=True, text=True)
+    try:
+        value = json.loads(result.stdout)
+    except ValueError:
+        raise ModuleFailure('REVIEW_COMMAND_FAILED')
+    if result.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
+        code = value.get('code') if isinstance(value, dict) else None
+        if not isinstance(code, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code):
+            code = 'REVIEW_COMMAND_FAILED'
+        raise ModuleFailure(code, result.returncode if result.returncode in (2, 20, 21, 22, 23, 24) else 20)
+    return value
+
+
+def cmd_review_sampling(ns):
+    """Stable exact-attempt control, sharing the legacy run lock but not its artifacts."""
+    import fcntl
+    lock = None
+    try:
+        run = module_run_folder(ns.run_id)
+        repo, config = module_config()
+        if ns.cmd in ('review-sampling', 'save-review-plan'):
+            text = sys.stdin.buffer.read(65537).decode('utf8') if ns.cmd == 'save-review-plan' else None
+            if text is not None and len(text.encode('utf8')) > 65536:
+                raise ModuleFailure('REVIEW_INPUT_INVALID', 2)
+            value = review_sampling_script(repo, config, 'view' if ns.cmd == 'review-sampling' else 'save', run, input_text=text)
+        elif ns.cmd == 'stop-review-attempt':
+            value = review_sampling_script(repo, config, 'stop', run, ns.kind, ns.attempt)
+        else:
+            worker = ns.cmd == 'review-attempt-worker'
+            if worker:
+                fd, ready = ns.worker_lock_fd, ns.worker_ready_fd
+                if fd is None or ready is None or fd < 3 or ready < 3 or fd == ready:
+                    raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+                lock = os.fdopen(fd, 'a')
+                expected, actual = gate_path(run, '.module.lock').stat(), os.fstat(fd)
+                if (expected.st_dev, expected.st_ino) != (actual.st_dev, actual.st_ino):
+                    raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+                try:
+                    if os.read(ready, 1) != b'1':
+                        raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+                finally:
+                    os.close(ready)
+            else:
+                lock = open(gate_path(run, '.module.lock'), 'a')
+            try:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ModuleFailure('RUN_BUSY', 24)
+            if module_readonly():
+                raise ModuleFailure('READONLY_ON')
+            error, exit_code = gate_prerequisite(run, 'm2', gate_hash(run, 'm2/selection.json'))
+            if error:
+                raise ModuleFailure(error, exit_code)
+            if worker:
+                value = review_sampling_script(repo, config, 'execute', run, ns.kind, ns.attempt,
+                                               'reconcile' if ns.reconcile else 'initial')
+            else:
+                reconcile = ns.cmd == 'reconcile-review-attempt'
+                kind = ns.kind if reconcile else 'counts' if ns.cmd == 'review-counts' else 'custom'
+                if reconcile:
+                    value = review_sampling_script(repo, config, 'reconcile-check', run, kind, ns.attempt)
+                    if value.get('status') != 'RUNNING':
+                        print(json.dumps(value))
+                        return
+                else:
+                    value = review_sampling_script(repo, config, 'reserve', run, kind,
+                                                   *([ns.plan_sha256] if kind == 'custom' else []))
+                attempt_id = value['attemptId']
+                if getattr(ns, 'detach', False):
+                    read_fd, write_fd = os.pipe()
+                    try:
+                        logs = gate_path(run, 'logs'); logs.mkdir(mode=0o700, exist_ok=True)
+                        args = [sys.executable, str(pathlib.Path(__file__).resolve()), 'review-attempt-worker', '--run', run.name,
+                                '--kind', kind, '--attempt', attempt_id, '--worker-lock-fd', str(lock.fileno()),
+                                '--worker-ready-fd', str(read_fd)]
+                        if reconcile:
+                            args += ['--reconcile']
+                        log = gate_path(run, f'logs/{time.time_ns()}-{attempt_id}.log')
+                        with open(log, 'x', encoding='utf8') as output:
+                            os.chmod(log, 0o600)
+                            child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=output, stderr=output,
+                                                     start_new_session=True, pass_fds=(lock.fileno(), read_fd))
+                        folder = 'review-counts' if kind == 'counts' else 'm3-custom/attempts'
+                        relative = f'{folder}/{attempt_id}/state.json'
+                        state = gate_read(gate_path(run, relative))
+                        module_atomic_json(run, relative, {**state, 'status': 'RUNNING', 'pid': child.pid})
+                        os.write(write_fd, b'1')
+                        value.update(pid=child.pid, status='RUNNING')
+                    finally:
+                        os.close(read_fd); os.close(write_fd)
+                else:
+                    value = review_sampling_script(repo, config, 'execute', run, kind, attempt_id,
+                                                   'reconcile' if reconcile else 'initial')
+        print(json.dumps(value, ensure_ascii=True))
+        if value.get('status') in ('FAILED', 'UNCERTAIN'):
+            sys.exit(21 if value.get('errorCode') in ('HUMAN_LOGIN_REQUIRED', 'HUMAN_VERIFICATION_REQUIRED') else 20)
+    except ModuleFailure as error:
+        print(json.dumps({'format': 'error-v1', 'code': error.code, 'message': error.code}))
+        sys.exit(error.exit_code)
+    except (OSError, ValueError, TypeError, KeyError):
+        print(json.dumps({'format': 'error-v1', 'code': 'REVIEW_INPUT_INVALID', 'message': 'REVIEW_INPUT_INVALID'}))
+        sys.exit(2)
+    finally:
+        if lock is not None:
+            lock.close()
 
 
 def flow_presets_root():
@@ -1474,7 +1600,7 @@ def cmd_flow_query(ns):
 
 class FlowArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library', 'run', 'm1', 'm2', 'm3'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -1487,10 +1613,20 @@ def main():
     for module in ('m1', 'm2', 'm3', 'run'):
         x = sp.add_parser(module); x.add_argument('--run', dest='run_id', required=True)
         if module == 'm2': x.add_argument('--manual')
+        if module == 'm3': x.add_argument('--plan-sha256')
         x.add_argument('--detach', action='store_true')
         x.add_argument('--worker-lock-fd', type=int, help=argparse.SUPPRESS)
         x.add_argument('--worker-ready-fd', type=int, help=argparse.SUPPRESS)
         x.set_defaults(f=cmd_module)
+    for name in ('review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker'):
+        x = sp.add_parser(name); x.add_argument('--run', dest='run_id', required=True)
+        if name == 'save-review-plan': x.add_argument('--stdin', action='store_true', required=True)
+        if name in ('review-counts', 'reconcile-review-attempt'): x.add_argument('--detach', action='store_true')
+        if name in ('stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker'):
+            x.add_argument('--kind', choices=['counts', 'custom'], required=True); x.add_argument('--attempt', required=True)
+        if name == 'review-attempt-worker':
+            x.add_argument('--reconcile', action='store_true'); x.add_argument('--worker-lock-fd', type=int); x.add_argument('--worker-ready-fd', type=int)
+        x.set_defaults(f=cmd_review_sampling)
     for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library'):
         x = sp.add_parser(name)
         if name in ('new-run', 'add-product'): x.add_argument('--stdin', action='store_true', required=True)
