@@ -179,9 +179,15 @@ export function assertModuleImportable(db: Database.Database, source: VerifiedMo
   if (source.gateVerdict !== 'PASS' || source.status !== 'SUCCEEDED') throw new ModuleError('REVIEW_SOURCE_NOT_DB_ELIGIBLE');
   for (const link of source.links) {
     if (!source.collectedAt.has(link.url)) throw new ModuleError('COLLECTION_TIME_UNAVAILABLE');
-    const stored = db.prepare('SELECT item_id,shop_id,product_name FROM product WHERE product_key=?').get(`shopee:${link.itemId}`) as {item_id:string;shop_id:string|null;product_name:string}|undefined;
+    const stored = db.prepare(`SELECT p.item_id,p.shop_id,p.product_name,s.product_key name_source FROM product p
+      LEFT JOIN product_name_source s ON s.product_key=p.product_key WHERE p.product_key=?`).get(`shopee:${link.itemId}`) as
+      {item_id:string;shop_id:string|null;product_name:string;name_source:string|null}|undefined;
     if (stored && (stored.item_id !== link.itemId || stored.shop_id !== link.shopId)) throw new ModuleError('DB_IMPORT_CONFLICT');
-    if (!stored && !names.has(`1__${link.itemId}__${link.shopId}`)) throw new ModuleError('PRODUCT_NAME_PROVENANCE_MISSING');
+    if (!stored?.name_source) {
+      const name = names.get(`1__${link.itemId}__${link.shopId}`);
+      if (!name) throw new ModuleError('PRODUCT_NAME_PROVENANCE_MISSING');
+      if (stored && stored.product_name !== name.name) throw new ModuleError('DB_IMPORT_CONFLICT');
+    }
   }
   const seen = new Set<string>();
   for (const row of source.rows) {
@@ -218,9 +224,12 @@ export async function loadModuleShopeeReviewsToDbV1(db: Database.Database, artif
       const productKey = `shopee:${link.itemId}`, name = names.get(`1__${link.itemId}__${link.shopId}`);
       if (!db.prepare('SELECT 1 FROM product WHERE product_key=?').get(productKey)) {
         if (!name) throw new ModuleError('PRODUCT_NAME_PROVENANCE_MISSING');
-        const nameArtifact = nameArtifacts.get(`1__${link.itemId}__${link.shopId}`)!;
         db.prepare('INSERT INTO product(product_key,platform,item_id,shop_id,product_name,product_url,first_capture_id) VALUES (?,?,?,?,?,?,?)')
           .run(productKey,'shopee',link.itemId,link.shopId,name.name,link.url,captureId);
+      }
+      if (!db.prepare('SELECT 1 FROM product_name_source WHERE product_key=?').get(productKey)) {
+        if (!name) throw new ModuleError('PRODUCT_NAME_PROVENANCE_MISSING');
+        const nameArtifact = nameArtifacts.get(`1__${link.itemId}__${link.shopId}`)!;
         db.prepare('INSERT INTO product_name_source(product_key,source_kind,artifact_sha256,capture_id,json_path,recorded_at) VALUES (?,?,?,?,?,?)')
           .run(productKey,'APP_CAPTURE',nameArtifact.sha256,null,name.jsonPath,importedAt);
       }

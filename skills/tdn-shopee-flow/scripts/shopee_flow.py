@@ -1626,6 +1626,7 @@ def flow_expand_schema(schema, root=None):
 
 
 def flow_new_run():
+    import fcntl
     value = json.load(sys.stdin)
     if not isinstance(value, dict) or set(value) - {'presetId', 'endDate', 'reviewCapPerLink'}:
         raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
@@ -1661,11 +1662,14 @@ def flow_new_run():
             break
         except FileExistsError:
             continue
-    module_atomic_json(run, 'request.json', request)
-    module_atomic_json(run, 'state.json', flow_state(run))
-    flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
-                             'requestSha256': gate_hash(run, 'request.json'), 'primaryKeyword': spec['preset']['keywords'][0],
-                             'createdAt': flow_now(), 'firstRunAt': None, 'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
+    # Publish under the launch admission lock so initialization cannot erase an accepted launch.
+    with open(gate_path(run, '.module.lock'), 'a') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        module_atomic_json(run, 'request.json', request)
+        module_atomic_json(run, 'state.json', flow_state(run))
+        flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
+                                 'requestSha256': gate_hash(run, 'request.json'), 'primaryKeyword': spec['preset']['keywords'][0],
+                                 'createdAt': flow_now(), 'firstRunAt': None, 'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
     return {'format': 'new-run-v1', 'runId': run.name}
 
 
