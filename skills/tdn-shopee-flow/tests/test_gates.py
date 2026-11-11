@@ -22,7 +22,41 @@ PERIODS = {
     '30d': {'startDate': '2026-10-11', 'endDate': '2026-11-10'},
     '12m': {'startDate': '2025-11-11', 'endDate': '2026-11-10'},
 }
+V3_WINDOW = {'id': 'selected', 'period': {'startDate': '2026-10-12', 'endDate': '2026-11-10'}, 'intervalDays': 7}
+V3_PRESET = {
+    'keywords': ['kem chống nắng'], 'smartQuery': True,
+    'category': {'id': 'c2035652732', 'label': 'Sức Khoẻ', 'children': [
+        {'id': 'c407923064', 'label': 'Chăm sóc sức khỏe'},
+        {'id': 'c1221630203', 'label': 'Dinh dưỡng thể thao, protein'},
+        {'id': 'c1110582659', 'label': 'Sức khỏe khác'},
+        {'id': 'c2140822537', 'label': 'Thực phẩm chức năng'},
+    ]},
+    'usefulFilters': {'fake': True, 'gifts': True, 'deleted': True},
+    'advancedFilter': {'firstField': 'rating_count', 'operator': '>', 'firstRate': 1,
+                       'secondField': 'order_count', 'secondRate': 0.02},
+    'shopTypes': ['mall', 'regular'], 'platforms': ['shopee', 'lazada', 'tiki', 'tiktok'],
+    'aiNormalisation': False, 'customizeCategory': False, 'exclusions': [], 'smartExclusion': False,
+}
+V3_SPEC = {'contractVersion': 'metric-v3-capture-spec-v3', 'preset': V3_PRESET, 'windows': [V3_WINDOW]}
+V3_POLICY = {'format': 'shopee-review-policy-v1', 'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,
+             'allocation': 'pooled', 'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'}
+CAPTURE_CHECK_IDS = tuple('capture_spec_' + name for name in (
+    'present', 'schema', 'confirmed_input', 'keywords', 'platforms', 'category', 'filters', 'shops',
+    'smart_query', 'ai', 'custom_category', 'smart_exclusion', 'advanced_filter', 'exclusions', 'window'))
 OK_OUTCOME = {'format': 'm3-outcome-v1', 'verdict': 'OK', 'errorCode': None}
+
+
+def selected_request():
+    """Complete new wire: one selected window plus its independent confirmed snapshot."""
+    return {
+        'format': 'request-v2', 'preset': {'keywords': list(V3_PRESET['keywords'])},
+        'principalTitles': [], 'windows': [dict(V3_WINDOW)],
+        'collectionPolicy': dict(V3_POLICY),
+        'captureSpec': json.loads(json.dumps(V3_SPEC)),
+        'metricInput': {'format': 'shopee-metric-input-v1',
+                        'preset': json.loads(json.dumps(V3_PRESET)),
+                        'window': json.loads(json.dumps(V3_WINDOW))},
+    }
 
 
 def sha_file(path):
@@ -300,6 +334,39 @@ class EntryCheckTests(GateTest):
         self.assertEqual(slip['verdict'], 'FAIL')
         self.assertFalse(checks['capture_spec_present']['ok'])
         self.assertNotEqual(checks['capture_spec_present'].get('level'), 'warn')
+
+    def test_selected_window_request_passes_entry_with_every_capture_check(self):
+        write_json(self.run / 'request.json', selected_request())
+        code, slip = self.gate('entry')
+        self.assertEqual(code, 0, slip)
+        self.assertEqual(slip['verdict'], 'PASS', slip)
+        self.assertIsNone(slip['errorCode'])
+        checks = self.checks(slip)
+        self.assertEqual({c['id'] for c in slip['checks'] if c['id'].startswith('capture_spec_')}, set(CAPTURE_CHECK_IDS))
+        for identifier in CAPTURE_CHECK_IDS:
+            self.assertTrue(checks[identifier]['ok'], (identifier, checks[identifier]))
+            self.assertEqual(checks[identifier]['got'], True, identifier)
+            self.assertNotIn('level', checks[identifier], identifier)
+
+    def test_selected_window_missing_or_mismatched_capture_fails_entry(self):
+        cases = (
+            ('missing', lambda value: value.pop('captureSpec'), 'CAPTURE_SPEC_MISSING'),
+            ('preset mismatch', lambda value: value['metricInput']['preset'].__setitem__('smartQuery', False),
+             'CAPTURE_SMART_QUERY_MISMATCH'),
+            ('window mismatch', lambda value: value['windows'][0]['period'].__setitem__('endDate', '2026-11-09'),
+             'CAPTURE_WINDOW_MISMATCH'),
+        )
+        for name, mutate, expected in cases:
+            with self.subTest(name):
+                value = selected_request()
+                mutate(value)
+                write_json(self.run / 'request.json', value)
+                code, slip = self.gate('entry')
+                self.assertEqual(code, 20, (name, slip))
+                self.assertEqual(slip['verdict'], 'FAIL', name)
+                self.assertEqual(slip['errorCode'], expected, name)
+                self.assertTrue([c for c in slip['checks'] if not c['ok'] and c.get('level') != 'warn'], name)
+                self.assertFalse(any(c.get('level') == 'warn' for c in slip['checks']), name)
 
 
 class M2CheckTests(GateTest):

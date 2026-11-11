@@ -1,0 +1,325 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "preset",
+    "windows"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "metric-v3-capture-spec-v3"
+    },
+    "preset": {
+      "$ref": "#/$defs/preset"
+    },
+    "windows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "$ref": "#/$defs/window"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/metric-v3-capture-spec-v3.schema.json",
+  "title": "MetricV3CaptureSpecV3",
+  "description": "One immutable selected date window and effective owner-confirmed Metric options; retained v1/v2 are unchanged.",
+  "$defs": {
+    "preset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "keywords",
+        "smartQuery",
+        "category",
+        "usefulFilters",
+        "advancedFilter",
+        "shopTypes",
+        "platforms",
+        "aiNormalisation",
+        "customizeCategory",
+        "exclusions",
+        "smartExclusion"
+      ],
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "smartQuery": {
+          "type": "boolean"
+        },
+        "category": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "label",
+            "children"
+          ],
+          "properties": {
+            "id": {
+              "const": "c2035652732"
+            },
+            "label": {
+              "const": "Sức Khoẻ"
+            },
+            "children": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  {
+                    "id": "c407923064",
+                    "label": "Chăm sóc sức khỏe"
+                  },
+                  {
+                    "id": "c1221630203",
+                    "label": "Dinh dưỡng thể thao, protein"
+                  },
+                  {
+                    "id": "c1110582659",
+                    "label": "Sức khỏe khác"
+                  },
+                  {
+                    "id": "c2140822537",
+                    "label": "Thực phẩm chức năng"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "usefulFilters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fake",
+            "gifts",
+            "deleted"
+          ],
+          "properties": {
+            "fake": {
+              "type": "boolean"
+            },
+            "gifts": {
+              "type": "boolean"
+            },
+            "deleted": {
+              "type": "boolean"
+            }
+          }
+        },
+        "advancedFilter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "firstField",
+            "operator",
+            "firstRate",
+            "secondField",
+            "secondRate"
+          ],
+          "properties": {
+            "firstField": {
+              "const": "rating_count"
+            },
+            "operator": {
+              "const": ">"
+            },
+            "firstRate": {
+              "const": 1
+            },
+            "secondField": {
+              "const": "order_count"
+            },
+            "secondRate": {
+              "const": 0.02
+            }
+          }
+        },
+        "shopTypes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "mall",
+              "regular"
+            ]
+          }
+        },
+        "platforms": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "shopee",
+              "lazada",
+              "tiki",
+              "tiktok"
+            ]
+          }
+        },
+        "aiNormalisation": {
+          "type": "boolean"
+        },
+        "customizeCategory": {
+          "type": "boolean"
+        },
+        "exclusions": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "string"
+          }
+        },
+        "smartExclusion": {
+          "type": "boolean"
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "period",
+        "intervalDays"
+      ],
+      "properties": {
+        "id": {
+          "const": "selected"
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "intervalDays": {
+          "const": 7
+        }
+      }
+    },
+    "confirmedInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "preset",
+        "window"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-metric-input-v1"
+        },
+        "preset": {
+          "$ref": "#/$defs/preset"
+        },
+        "window": {
+          "$ref": "#/$defs/window"
+        }
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "smartQuery",
+        "usefulFilters",
+        "shopTypes",
+        "categoryIds",
+        "aiNormalisation",
+        "customizeCategory",
+        "smartExclusion"
+      ],
+      "properties": {
+        "smartQuery": {
+          "type": "boolean"
+        },
+        "usefulFilters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fake",
+            "gifts",
+            "deleted"
+          ],
+          "properties": {
+            "fake": {
+              "type": "boolean"
+            },
+            "gifts": {
+              "type": "boolean"
+            },
+            "deleted": {
+              "type": "boolean"
+            }
+          }
+        },
+        "shopTypes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "mall",
+              "regular"
+            ]
+          }
+        },
+        "aiNormalisation": {
+          "type": "boolean"
+        },
+        "customizeCategory": {
+          "type": "boolean"
+        },
+        "smartExclusion": {
+          "type": "boolean"
+        },
+        "categoryIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "c407923064",
+              "c1221630203",
+              "c1110582659",
+              "c2140822537"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

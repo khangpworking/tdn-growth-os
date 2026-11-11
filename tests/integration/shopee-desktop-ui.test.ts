@@ -45,6 +45,7 @@ function harness(options: {
   listRunsGate?: Deferred<any> | undefined;
   presets?: ReturnType<typeof preset>[];
   connectionResult?: any;
+  captureSpecsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -69,6 +70,9 @@ function harness(options: {
     controlCalls: any[];
     refreshCountResult: any;
     saveGate: Deferred<any> | undefined;
+    captureSpecsCalls: string[];
+    captureSpecsCallsByRun: Record<string, number>;
+    captureSpecsResult: ((runId: string, call: number) => any | Promise<any> | undefined) | undefined;
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
@@ -89,6 +93,9 @@ function harness(options: {
     saveCalls: [], launchCalls: [], controlCalls: [],
     refreshCountResult: options.refreshCountResult,
     saveGate: options.saveGate,
+    captureSpecsCalls: [],
+    captureSpecsCallsByRun: {},
+    captureSpecsResult: options.captureSpecsResult,
   };
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
@@ -138,6 +145,15 @@ function harness(options: {
         format: 'review-data-view-v1', runId, readonly: false, tracking: null,
         db: { configured: false, schemaReady: false, blockedBy: null }, sources: [],
       } };
+    },
+    captureSpecs: async (runId: string) => {
+      state.captureSpecsCalls.push(runId);
+      state.captureSpecsCallsByRun[runId] = (state.captureSpecsCallsByRun[runId] || 0) + 1;
+      const reply = state.captureSpecsResult
+        ? await state.captureSpecsResult(runId, state.captureSpecsCallsByRun[runId])
+        : undefined;
+      if (reply) return reply;
+      return { ok: false, error: { code: 'FLOW_INPUT_INVALID', message: 'FLOW_INPUT_INVALID' } };
     },
     saveReviewData: async (runId: string, input: any) => {
       state.saveReviewDataCalls.push({ runId, input: clone(input) });
@@ -381,7 +397,7 @@ function createdRunInfo(runId: string) {
       { id: 'M2', title: 'M2', skill: 'synthetic', inputGate: 'm1', outputGate: 'm2', canRun: false, blockedBy: null },
       { id: 'M3', title: 'M3', skill: 'synthetic', inputGate: 'm2', outputGate: 'm3', canRun: false, blockedBy: null },
     ],
-    gates: { entry: passSlip('ENTRY'), m1: null, m2: null, m3: null },
+    gates: { entry: entryPassSlip(), m1: null, m2: null, m3: null },
     selection: null,
   };
 }
@@ -398,7 +414,16 @@ test('creating a run with 500 stars 2,3 sends the frozen policy once and binds t
     await waitFor(() => state.newRunCalls === 1, 'new-run sent');
 
     assert.deepEqual(state.newRunInputs[0], {
-      presetId: 'kem', endDate: element<HTMLInputElement>(doc, 'endDate').value,
+      presetId: 'kem',
+      startDate: element<HTMLInputElement>(doc, 'startDate').value,
+      endDate: element<HTMLInputElement>(doc, 'endDate').value,
+      metricOptions: {
+        smartQuery: true,
+        usefulFilters: { fake: true, gifts: true, deleted: true },
+        shopTypes: ['mall', 'regular'],
+        categoryIds: ['c407923064', 'c1221630203', 'c1110582659', 'c2140822537'],
+        aiNormalisation: false, customizeCategory: false, smartExclusion: false,
+      },
       collectionPolicy: { mode: 'stars', stars: [2, 3], totalPerLink: 500, allocation: 'pooled' },
     });
     assert.equal('reviewCapPerLink' in state.newRunInputs[0]!, false, 'the UI never sends the legacy cap');
@@ -670,8 +695,9 @@ test('the whole-flow confirmation shows the frozen run; cancel makes no source c
     const dialog = await openFlowConfirmation(doc);
     const facts = dialog.querySelector('#flowDialogFacts')!.textContent || '';
     assert.match(facts, /Kem chống nắng/, 'the exact product is shown');
-    assert.match(facts, /30 ngày/, 'the 30-day window is shown');
-    assert.match(facts, /12 tháng/, 'the 12-month window is shown');
+    assert.match(facts, /Từ \d{2}\/\d{2}\/\d{4} đến \d{2}\/\d{2}\/\d{4} \(tính cả hai đầu\)/,
+      'the exact selected interval is shown');
+    assert.doesNotMatch(facts, /30 ngày|12 tháng/, 'the confirmation never claims two derived windows');
     assert.match(facts, /Đánh giá 2 và 3 sao/, 'the exact star policy is shown');
     assert.match(facts, /500/, 'the exact shared total is shown');
     assert.match(facts, /Khoảng thời gian/, 'the interval uses the approved plain label');
@@ -889,7 +915,7 @@ function syntheticRunInfo(runId = 'run-synthetic') {
     request: { format: 'request-v1', reviewCapPerLink: 300 } as SyntheticRunRequest,
     state: { status: 'IDLE', module: null, errorCode: null },
     modules: [module('M1', 'entry', false), module('M2', 'm1', false), module('M3', 'm2', true)],
-    gates: { entry: passSlip('ENTRY'), m1: passSlip('M1'), m2: passSlip('M2'), m3: null },
+    gates: { entry: entryPassSlip(), m1: passSlip('M1'), m2: passSlip('M2'), m3: null },
     selection: {
       format: 'selection-v1', runId,
       links: [{ rank: 1, brand: 'Nhãn tổng hợp', revenue: 123456, reason: 'Dòng tổng hợp' }],
@@ -945,6 +971,126 @@ function syntheticReviewData(overrides: any = {}) {
     },
     db: { configured: true, schemaReady: true, blockedBy: null },
     sources: [syntheticReviewSource()],
+    ...overrides,
+  };
+}
+
+const CAPTURE_SPEC_SUFFIXES = [
+  'present', 'schema', 'confirmed_input', 'keywords', 'platforms', 'category', 'filters', 'shops',
+  'smart_query', 'ai', 'custom_category', 'smart_exclusion', 'advanced_filter', 'exclusions', 'window',
+];
+const CAPTURE_CHECK_IDS = CAPTURE_SPEC_SUFFIXES.map((suffix) => 'capture_spec_' + suffix);
+
+/** Producer-shaped capture-spec-v3 preset: option flags live directly on the preset. */
+function canonicalCaptureSpec() {
+  return {
+    contractVersion: 'metric-v3-capture-spec-v3',
+    preset: {
+      keywords: ['kem chống nắng'],
+      platforms: ['shopee', 'lazada', 'tiki', 'tiktok'],
+      category: {
+        id: 'c2035652732', label: 'Sức Khoẻ',
+        children: [
+          { id: 'c2140822537', label: 'Thực phẩm chức năng' },
+          { id: 'c407923064', label: 'Chăm sóc sức khỏe' },
+        ],
+      },
+      advancedFilter: {
+        firstField: 'rating_count', operator: '>', firstRate: 1,
+        secondField: 'order_count', secondRate: 0.02,
+      },
+      exclusions: ['quà tặng kèm'],
+      smartQuery: true,
+      usefulFilters: { fake: false, gifts: true, deleted: true },
+      shopTypes: ['mall'],
+      aiNormalisation: false,
+      customizeCategory: false,
+      smartExclusion: true,
+    },
+    windows: [{
+      id: 'selected',
+      period: { startDate: '2026-10-12', endDate: '2026-10-28' },
+      intervalDays: 7,
+    }],
+  };
+}
+
+function captureChecks(overrides: Record<string, boolean> = {}) {
+  return [
+    ...CAPTURE_SPEC_SUFFIXES.map((suffix) => ({
+      id: 'capture_spec_' + suffix,
+      ok: overrides[suffix] !== false,
+      got: overrides[suffix] !== false,
+      errorCode: overrides[suffix] === false ? 'CAPTURE_' + suffix.toUpperCase() + '_MISMATCH' : null,
+    })),
+    { id: 'capture_spec_request_identity', ok: true, got: true, errorCode: null },
+  ];
+}
+
+/** Entry handoff whose capture checks satisfy the full r3 confirmation set. */
+function entryPassSlip() {
+  return {
+    ...passSlip('ENTRY'),
+    checks: [
+      { id: 'product_text', ok: true, got: true },
+      { id: 'period_dates', ok: true, got: true },
+      { id: 'readonly_off', ok: true, got: true },
+      { id: 'collection_policy', ok: true, got: true },
+      ...captureChecks(),
+    ],
+  };
+}
+
+/** Real CLI review envelope shape, retained JSON member included as text. */
+function captureEnvelope(runId: string, spec: any, overrides: any = {}) {
+  const specJson = JSON.stringify(spec, null, 2);
+  return {
+    ok: true,
+    data: {
+      format: 'capture-specs-view-v1', runId,
+      requestSha256: '1'.repeat(64), specSha256: '2'.repeat(64),
+      specDigestBasis: 'request-member-utf8',
+      captureSpec: clone(spec), captureSpecJson: specJson,
+      inputsMatch: true, checks: captureChecks(), errorCode: null,
+      ...overrides,
+    },
+  };
+}
+
+/** Reads one labeled row from the capture-spec reader, not from any form state. */
+function captureRow(doc: Document, label: string): string {
+  const body = element(doc, 'captureSpecBody');
+  const row = [...body.querySelectorAll('dl > div')]
+    .find((entry) => entry.querySelector('dt')?.textContent === label);
+  assert.ok(row, 'capture-spec row ' + label);
+  return row.querySelector('dd')!.textContent || '';
+}
+
+function captureReader(doc: Document, scope: ParentNode = doc): HTMLDetailsElement {
+  const details = [...scope.querySelectorAll<HTMLDetailsElement>('details')]
+    .find((entry) => entry.querySelector('summary')?.textContent === 'Xem thông tin đã ghi trong capture specs');
+  assert.ok(details, 'capture-spec reader offered by the page');
+  return details;
+}
+
+/** JSDOM queues the native toggle event when `open` flips; dispatch again would double-load. */
+function openReader(details: HTMLDetailsElement): void {
+  details.open = true;
+}
+
+/** An entry slip with the producer's r3 capture checks plus ordinary entry checks. */
+function entrySlipWith(checks: any[], overrides: any = {}, collectionPolicy: any = { ok: true, got: true }) {
+  return {
+    format: 'handoff-v1', module: 'ENTRY', verdict: 'PASS',
+    checks: [
+      { id: 'product_text', ok: true, got: true },
+      { id: 'period_dates', ok: true, got: true },
+      { id: 'readonly_off', ok: true, got: true },
+      { id: 'collection_policy', ...collectionPolicy },
+      ...checks,
+    ],
+    errorCode: null,
+    inputSha256: 'synthetic-in', outputSha256: 'synthetic-out', next: null,
     ...overrides,
   };
 }
@@ -1649,7 +1795,7 @@ test('supported stop reasons are translated and an unknown code never leaks raw'
   try {
     const panel = doc.getElementById('rsPanel')!.textContent!;
     assert.match(panel, /Dừng vì: Shopee không còn đánh giá nào/);
-    assert.match(panel, /Dừng vì: không rõ lý do/);
+    assert.match(panel, /Dừng vì: Chưa rõ lý do/);
     assert.doesNotMatch(panel, /vendor_limit_7/);
   } finally { dom.window.close(); }
 });
@@ -1864,9 +2010,9 @@ test('readonly blocks new DB save and new export while permitting an already cre
   try {
     await waitFor(() => result.doc.getElementById('rdSource') !== null, 'readonly review panel');
     const panel = result.doc.getElementById('rdPanel')!;
-    assert.match(panel.textContent!, /Hệ thống đang tạm khóa để bảo trì\./);
-    assert.match(panel.textContent!, /Lưu vào hệ thống: Hệ thống đang tạm khóa/);
-    assert.match(panel.textContent!, /Tải file TXT: Hệ thống đang tạm khóa/);
+    assert.match(panel.textContent!, /Hệ thống đang tạm dừng lấy dữ liệu\./);
+    assert.match(panel.textContent!, /Lưu vào hệ thống: Hệ thống đang tạm dừng lấy dữ liệu/);
+    assert.match(panel.textContent!, /Tải file TXT: Hệ thống đang tạm dừng lấy dữ liệu/);
     assert.equal(element<HTMLButtonElement>(result.doc, 'rdSave').disabled, true,
       'the guard blocks a new DB save');
     assert.equal(element<HTMLButtonElement>(result.doc, 'rdTxt').disabled, true,
@@ -1903,7 +2049,7 @@ test('readonly blocks launch and a new count read while offline stop and reconci
     assert.equal(buttonByText(doc, 'Kiểm tra lại lần đọc'), undefined);
     assert.ok(buttonByText(doc, 'Dừng lần lấy này'), 'a custom attempt stop remains reachable');
     assert.equal(buttonByText(doc, 'Kiểm tra lại kết quả lần này'), undefined);
-    assert.match(doc.getElementById('rsPanel')!.textContent!, /Hệ thống đang tạm khóa/);
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /Hệ thống đang tạm dừng lấy dữ liệu/);
     assert.equal(state.refreshCountCalls, 0);
   } finally { dom.window.close(); }
 });
@@ -1916,7 +2062,8 @@ test('the initial summary follows the loaded product and names the frozen period
     await booted(doc);
     assert.equal(summaryValue(doc, 'Sản phẩm'), 'Kem chống nắng');
     assert.match(summaryValue(doc, 'Khoảng thời gian'),
-      /^30 ngày: từ \d{2}\/\d{2}\/\d{4} đến \d{2}\/\d{2}\/\d{4}; 12 tháng: từ \d{2}\/\d{2}\/\d{4} đến \d{2}\/\d{2}\/\d{4} \(tính cả hai đầu\)\.$/);
+      /^Từ \d{2}\/\d{2}\/\d{4} đến \d{2}\/\d{2}\/\d{4} \(tính cả hai đầu\)$/,
+      'one selected window is named plainly instead of two legacy periods');
     assert.match(summaryValue(doc, 'Nội dung lấy'), /^Chỉ lấy phần chữ/);
     assert.match(summaryValue(doc, 'Bước tiếp'), /Tạo lượt chỉ kiểm tra đầu vào/);
     assert.doesNotMatch(element<HTMLElement>(doc, 'reviewSummary').textContent!,
@@ -2076,8 +2223,10 @@ test('results stay above one closed step section and a failed run opens it', asy
     assert.ok(review.compareDocumentPosition(tech) & 4, 'results come before the step section');
     assert.equal(tech.open, false, 'a completed run keeps the step section closed');
     assert.equal(tech.firstElementChild!.textContent, 'Các bước thực hiện');
-    const raw = [...tech.querySelectorAll('summary')].filter((node) => node.textContent === 'Chi tiết kỹ thuật');
+    const raw = [...tech.querySelectorAll('summary')].filter((node) => node.textContent === 'Thông tin kỹ thuật');
     assert.ok(raw.length > 0, 'raw diagnostics stay in their own closed details');
+    assert.equal((raw[0]!.parentElement as HTMLDetailsElement).open, false,
+      'raw diagnostics stay closed on a completed run');
   } finally { done.dom.window.close(); }
 
   const failedInfo: any = syntheticRunInfo();
@@ -2123,7 +2272,7 @@ test('progress uses only the current execution and same-attempt observed counts'
     reviewData: syntheticReviewData({ runId: 'run-progress' }),
   });
   try {
-    await waitFor(() => /Đã ghi nhận 7 bình luận ở 1\/2 link/
+    await waitFor(() => /Đang thu 7 bình luận ở 1\/2 link/
       .test(running.doc.getElementById('progressLine')?.textContent || ''), 'authoritative progress');
     const text = running.doc.getElementById('progressLine')!.textContent!;
     assert.doesNotMatch(text, /0 bình luận|%|ETA|phút|giây/,
@@ -2193,7 +2342,7 @@ test('progress ignores a cached running attempt that the authoritative execution
     attempt('attempt-current', 'exec-current', 3, 9),
   ]);
   try {
-    await waitFor(() => /Đã ghi nhận 9 bình luận ở 1\/2 link/
+    await waitFor(() => /Đang thu 9 bình luận ở 1\/2 link/
       .test(matched.doc.getElementById('progressLine')?.textContent || ''), 'matching attempt counts');
   } finally { matched.dom.window.close(); }
 
@@ -2270,6 +2419,297 @@ test('a legacy run with stored results is never labelled as never collected', as
       'stored legacy results are not described as no collection at all');
     await waitFor(() => /531 bình luận/.test(result.doc.getElementById('rdPanel')?.textContent || ''),
       'the stored review count stays visible');
+  } finally { result.dom.window.close(); }
+});
+
+test('the saved capture reader reads the producer v3 preset flags, categories and execution settings', async () => {
+  const runId = 'run-spec-v3';
+  const { dom, doc, window, state } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId } }),
+    runInfoByRun: { [runId]: createdRunInfo(runId) },
+    captureSpecsResult: (asked) => asked === runId ? captureEnvelope(runId, canonicalCaptureSpec()) : undefined,
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false, 'bound create result');
+    openReader(element<HTMLDetailsElement>(doc, 'captureSpecReview'));
+    await waitFor(() => state.captureSpecsCalls.length === 1, 'saved capture read');
+    await waitFor(() => element(doc, 'captureSpecBody').textContent!.includes('Từ khóa gửi Metric'),
+      'saved capture rendered');
+
+    assert.equal(captureRow(doc, 'Từ khóa gửi Metric'), 'kem chống nắng');
+    assert.equal(captureRow(doc, 'Sàn'), 'Shopee · Lazada · Tiki · TikTok');
+    assert.equal(captureRow(doc, 'Khoảng ngày đã chọn'),
+      'Từ 12/10/2026 đến 28/10/2026 · bước biểu đồ 7 ngày',
+      'the selected window is read from the saved spec, not the creation form');
+    assert.equal(captureRow(doc, 'Danh mục'), 'Sức Khoẻ',
+      'the readable parent category label comes from preset.category');
+    assert.equal(captureRow(doc, 'Nhóm ngành đã chọn'),
+      'Thực phẩm chức năng · Chăm sóc sức khỏe',
+      'the saved child labels come from preset.category.children, not form categoryIds');
+    assert.equal(captureRow(doc, 'Loại shop đã chọn'), 'Shop Chính hãng (Mall)',
+      'shop types come from preset.shopTypes');
+    assert.equal(captureRow(doc, 'Tìm kiếm thông minh'), 'Bật');
+    assert.equal(captureRow(doc, 'Lọc sản phẩm ảo/bất thường'), 'Tắt',
+      'a disabled saved usefulFilter is not shown as enabled or as missing');
+    assert.equal(captureRow(doc, 'Lọc sản phẩm quà tặng'), 'Bật');
+    assert.equal(captureRow(doc, 'Lọc bỏ sản phẩm đã bị xóa'), 'Bật');
+    assert.equal(captureRow(doc, 'AI chuẩn hóa dữ liệu'), 'Tắt');
+    assert.equal(captureRow(doc, 'Tùy chỉnh danh mục'), 'Tắt');
+    assert.equal(captureRow(doc, 'Loại trừ thông minh'), 'Bật');
+    assert.equal(captureRow(doc, 'Từ khóa loại trừ'), 'quà tặng kèm');
+    assert.equal(captureRow(doc, 'Thiết lập lọc nâng cao'),
+      '1 × Tổng đánh giá > 0,02 × Tổng đã bán',
+      'the saved advanced filter keeps the Metric weighted comparison, not two separate minimum counts');
+
+    const bodyNode = element(doc, 'captureSpecBody');
+    const body = bodyNode.textContent!;
+    assert.match(body, /khớp yêu cầu đã xác nhận/);
+    const metaLine = bodyNode.querySelector('p.muted')!.textContent!;
+    assert.doesNotMatch(metaLine, /requestSha256|specSha256|111111111111/,
+      'hex digests are not primary table metadata');
+    const rawDetails = bodyNode.querySelector('details')!;
+    assert.match(rawDetails.textContent!, /requestSha256 1111111111111111111111111111111111111111111111111111111111111111/);
+    assert.match(rawDetails.textContent!, /specSha256 2222222222222222222222222222222222222222222222222222222222222222/);
+    assert.match(rawDetails.textContent!, /c2035652732/,
+      'the readable category labels keep their internal IDs in the raw JSON');
+    assert.match(rawDetails.textContent!, /c2140822537/,
+      'selected child category IDs are retained even when the table shows labels only');
+    assert.deepEqual(state.flowCalls, [], 'viewing saved specs never starts collection');
+    assert.deepEqual(state.launchCalls, [], 'viewing saved specs never runs a module');
+  } finally { dom.window.close(); }
+});
+
+test('the saved capture reader keeps both legacy windows readable without inventing a selected one', async () => {
+  const runId = 'run-spec-legacy';
+  const legacy = {
+    contractVersion: 'metric-v3-capture-spec-v2',
+    preset: {
+      keywords: ['son môi'], platforms: ['shopee', 'lazada', 'tiki', 'tiktok'],
+      category: { id: 'c2035652732', label: 'Sức Khoẻ', children: [{ id: 'c1110582659', label: 'Sức khỏe khác' }] },
+      advancedFilter: { firstField: 'rating_count', operator: '>', firstRate: 1 },
+      exclusions: [], smartQuery: false,
+      usefulFilters: { fake: true, gifts: false, deleted: false },
+      shopTypes: ['regular'], aiNormalisation: true, customizeCategory: false, smartExclusion: false,
+    },
+    windows: [
+      { id: '30d', period: { startDate: '2026-10-12', endDate: '2026-11-10' }, intervalDays: 7 },
+      { id: '12m', period: { startDate: '2025-11-11', endDate: '2026-11-10' }, intervalDays: 30 },
+    ],
+  };
+  const { dom, doc, window, state } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId } }),
+    runInfoByRun: { [runId]: createdRunInfo(runId) },
+    captureSpecsResult: () => captureEnvelope(runId, legacy),
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false, 'bound create result');
+    const details = element<HTMLDetailsElement>(doc, 'captureSpecReview');
+    openReader(details);
+    await waitFor(() => state.captureSpecsCalls.length === 1, 'legacy saved capture read');
+    await waitFor(() => element(doc, 'captureSpecBody').textContent!.includes('Từ khóa gửi Metric'),
+      'legacy saved capture rendered');
+
+    assert.equal(captureRow(doc, 'Khoảng ngày 1 (30d)'),
+      'Từ 12/10/2026 đến 10/11/2026 · bước biểu đồ 7 ngày');
+    assert.equal(captureRow(doc, 'Khoảng ngày 2 (12m)'),
+      'Từ 11/11/2025 đến 10/11/2026 · bước biểu đồ 30 ngày',
+      'both legacy windows stay readable in order');
+    const labels = [...element(doc, 'captureSpecBody').querySelectorAll('dl dt')]
+      .map((node) => node.textContent);
+    assert.equal(labels.includes('Khoảng ngày đã chọn'), false,
+      'a two-window legacy spec never invents a single selected window');
+    const raw = element(doc, 'captureSpecBody').textContent!;
+    assert.match(raw, /"12m"/, 'the second legacy window remains readable in the retained JSON');
+    assert.match(raw, /2025-11-11/);
+  } finally { dom.window.close(); }
+});
+
+test('a history run opens its own saved capture view and stale or wrong-run replies never land', async () => {
+  const runA = 'run-history-a';
+  const runB = 'run-history-b';
+  const runC = 'run-history-c';
+  const gateA1 = deferred<any>();
+  const gateB1 = deferred<any>();
+  const specA: any = canonicalCaptureSpec();
+  specA.preset.keywords = ['kênh A'];
+  const specB: any = canonicalCaptureSpec();
+  specB.preset.keywords = ['kênh B'];
+  const queues: Record<string, Deferred<any>[]> = { [runA]: [gateA1], [runB]: [gateB1], [runC]: [] };
+  const result = harness({
+    runs: [
+      { runId: runA, product: 'Sản phẩm A', status: 'DONE' },
+      { runId: runB, product: 'Sản phẩm B', status: 'DONE' },
+      { runId: runC, product: 'Sản phẩm C', status: 'DONE' },
+    ],
+    runInfoByRun: {
+      [runA]: syntheticRunInfo(runA), [runB]: syntheticRunInfo(runB), [runC]: syntheticRunInfo(runC),
+    },
+    captureSpecsResult: (runId, call) => {
+      if (runId === runA && call === 2) {
+        return captureEnvelope(runB, specB);
+      }
+      if (runId === runC) {
+        return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
+      }
+      const queued = queues[runId] && queues[runId][call - 1];
+      return queued ? queued.promise : undefined;
+    },
+  });
+  const { doc } = result;
+  const entryWrap = () => {
+    const card = doc.querySelector('#runDetail .entry-summary');
+    assert.ok(card, 'the selected run shows its entry gate');
+    return card!.parentElement!;
+  };
+  // Loading a run re-renders the detail twice (status, then review data); open the reader after
+  // both renders so the toggle targets the node the user actually sees.
+  const selectRun = async (runId: string, expectedLoads: number) => {
+    runListButton(doc, runId).click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes(runId),
+      runId + ' selected');
+    await waitFor(() => (result.state.reviewDataCallsByRun[runId] || 0) >= expectedLoads &&
+      (result.state.reviewSamplingCallsByRun[runId] || 0) >= expectedLoads, runId + ' detail loads settle');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  };
+  try {
+    await waitFor(() => doc.querySelector('#runList button') !== null, 'history list');
+    await selectRun(runA, 1);
+    const readerA = captureReader(doc, entryWrap());
+    openReader(readerA);
+    await waitFor(() => result.state.captureSpecsCallsByRun[runA] === 1, 'run A saved capture requested');
+
+    await selectRun(runB, 1);
+    const readerB = captureReader(doc, entryWrap());
+    openReader(readerB);
+    await waitFor(() => result.state.captureSpecsCallsByRun[runB] === 1, 'run B saved capture requested');
+    gateB1.resolve(captureEnvelope(runB, specB));
+    await waitFor(() => readerB.textContent!.includes('kênh B'), 'run B capture rendered');
+
+    gateA1.resolve(captureEnvelope(runA, specA));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.match(readerB.textContent!, /kênh B/, 'the late run A reply never replaces run B');
+    assert.doesNotMatch(readerB.textContent!, /kênh A/);
+
+    await selectRun(runA, 2);
+    const readerA2 = captureReader(doc, entryWrap());
+    openReader(readerA2);
+    await waitFor(() => result.state.captureSpecsCallsByRun[runA] === 2, 'run A reader reloads');
+    await waitFor(() => /không có đúng mã lượt/.test(readerA2.textContent!), 'a wrong-run reply is refused');
+    assert.doesNotMatch(readerA2.textContent!, /Từ khóa gửi Metric/);
+
+    await selectRun(runC, 1);
+    const readerC = captureReader(doc, entryWrap());
+    openReader(readerC);
+    await waitFor(() => /Không tìm thấy lượt này trên máy chủ/.test(readerC.textContent!),
+      'a missing run is an explicit read error');
+
+    assert.deepEqual(result.state.flowCalls, [], 'reading saved specs never starts the flow');
+    assert.deepEqual(result.state.launchCalls, [], 'reading saved specs never runs a module');
+    assert.deepEqual(result.state.controlCalls, [], 'reading saved specs never mutates the run');
+  } finally { result.dom.window.close(); }
+});
+
+test('entry confirmation needs the full capture check set and keeps an M3 policy failure separate', async () => {
+  const runId = 'run-entry-spec';
+  async function boundEntry(entry: any) {
+    const info: any = createdRunInfo(runId);
+    info.gates.entry = entry;
+    const result = harness({
+      newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId } }),
+      runInfoByRun: { [runId]: info },
+    });
+    await booted(result.doc);
+    create(result.doc);
+    await waitFor(() => element<HTMLElement>(result.doc, 'newResult').hidden === false, 'entry binding');
+    await waitFor(() => documentEntry(result.doc).textContent!.length > 0, 'entry card');
+    return result;
+  }
+  function documentEntry(doc: Document): HTMLElement {
+    const card = doc.querySelector<HTMLElement>('#entrySlip .entry-summary');
+    assert.ok(card, 'the bound run shows its entry card');
+    return card!;
+  }
+  const fullChecks = CAPTURE_CHECK_IDS.map((id) => ({ id, ok: true, got: true, errorCode: null }));
+
+  const policyFail = await boundEntry(entrySlipWith(
+    fullChecks, { verdict: 'FAIL', errorCode: 'REVIEW_POLICY_INVALID' },
+    { ok: false, got: false, errorCode: 'REVIEW_POLICY_INVALID' }));
+  try {
+    const card = documentEntry(policyFail.doc).textContent!;
+    assert.match(card, /Thông tin bạn nhập đã được nạp chính xác vào capture specs\./,
+      'all capture checks pass even though the separate M3 policy check fails');
+    assert.doesNotMatch(card, /Thông tin bạn nhập chưa được nạp đúng/);
+    assert.match(card, /Cách lấy bình luận hợp lệ/, 'the M3 policy failure is shown separately');
+    assert.equal(element<HTMLButtonElement>(policyFail.doc, 'btnFlow').disabled, true,
+      'a failed M3 policy still blocks starting');
+  } finally { policyFail.dom.window.close(); }
+
+  const presenceOnly = await boundEntry(entrySlipWith(
+    [{ id: 'capture_spec_present', ok: true, got: true }], { verdict: 'PASS' }));
+  try {
+    const card = documentEntry(presenceOnly.doc).textContent!;
+    assert.doesNotMatch(card, /Thông tin bạn nhập đã được nạp chính xác vào capture specs\./,
+      'a presence-only check set never claims full confirmation');
+    assert.match(card, /Chưa kiểm tra đủ thông tin capture specs\./,
+      'missing capture checks are reported as unchecked, not as a mismatch');
+    assert.equal(element<HTMLButtonElement>(presenceOnly.doc, 'btnFlow').disabled, true,
+      'starting needs the full r3 capture check set');
+  } finally { presenceOnly.dom.window.close(); }
+
+  const readonly = entrySlipWith([], { verdict: 'WAIT_OWNER', errorCode: 'READONLY_ON' });
+  readonly.checks = readonly.checks.map((check: any) =>
+    check.id === 'readonly_off' ? { ...check, ok: false } : check);
+  const readonlyRun = await boundEntry(readonly);
+  try {
+    const card = documentEntry(readonlyRun.doc).textContent!;
+    assert.match(card, /Hệ thống đang tạm dừng lấy dữ liệu\./);
+    assert.doesNotMatch(card, /Đang có tiến trình khác chạy/,
+      'the maintenance lock is not described as a busy process');
+    assert.equal(element<HTMLButtonElement>(readonlyRun.doc, 'btnFlow').disabled, true);
+  } finally { readonlyRun.dom.window.close(); }
+
+  const busy = await boundEntry(entrySlipWith([], { verdict: 'FAIL', errorCode: 'RUN_BUSY' }));
+  try {
+    const card = documentEntry(busy.doc).textContent!;
+    assert.match(card, /Đang có tiến trình khác chạy cho lượt này/);
+    assert.doesNotMatch(card, /Hệ thống đang tạm dừng lấy dữ liệu/, 'busy is distinct from the readonly lock');
+    assert.equal(element<HTMLButtonElement>(busy.doc, 'btnFlow').disabled, true);
+  } finally { busy.dom.window.close(); }
+});
+
+test('a short link marked complete is reported by derived counts, not the source flag', async () => {
+  const source = syntheticReviewSource({
+    rowCount: 2,
+    links: [{
+      shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200',
+      requested: 300, actual: 2, shortfall: 298, complete: true, status: 'exhausted',
+    }],
+  });
+  const result = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(),
+    reviewData: syntheticReviewData({ sources: [source] }),
+  });
+  try {
+    await waitFor(() => result.doc.getElementById('rdLinks') !== null, 'review links');
+    await waitFor(() => result.doc.querySelector('#rdLinks table tbody tr') !== null, 'link table');
+    const table = result.doc.querySelector('#rdLinks table')!;
+    const headers = [...table.querySelectorAll('thead th')].map((cell) => cell.textContent!.trim());
+    assert.ok(headers.includes('Đạt số lượng đặt'), 'the column names reached quantity');
+    assert.equal(headers.includes('Đủ'), false, 'the old completeness column is gone');
+    const cells = [...table.querySelectorAll('tbody tr:first-child td')].map((cell) => cell.textContent!.trim());
+    assert.equal(cells[1], '300');
+    assert.equal(cells[2], '2');
+    assert.equal(cells[3], '298');
+    assert.equal(cells[4], 'Chưa đạt', '2 of 300 is a shortfall even when complete=true is sent');
+    assert.notEqual(cells[4], 'Đạt');
+    assert.notEqual(cells[4], 'Có');
+    assert.equal(cells[5], 'Shopee không còn đánh giá nào');
+    assert.match(element<HTMLElement>(result.doc, 'rdSummary').textContent!, /0\/1 link đạt số lượng đặt/);
   } finally { result.dom.window.close(); }
 });
 

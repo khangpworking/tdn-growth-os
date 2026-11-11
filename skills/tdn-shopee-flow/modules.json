@@ -33,7 +33,8 @@
     ],
     "pickWindow": {
       "legacy": "run2 when usedScope(scope).captureNumber is 2; otherwise run1",
-      "preset": "30d"
+      "preset": "30d",
+      "selected": "request.metricInput.window, exact v3 spec/manifest/raw replay; no legacy fallback"
     },
     "windows": [
       {
@@ -66,7 +67,7 @@
       "command": "shopee_flow.py m1 --run <id>",
       "input": "request.json",
       "output": "m1/",
-      "standard": "request-v1 legacy or request-v2 configured, with captureSpec; spec.json + generated run ID/run1/metric-v3-capture-v1",
+      "standard": "request-v1 legacy or request-v2 configured; selected-window capture-spec-v3 or retained two-window capture-spec-v1/v2; generated run ID/run1/metric-v3-capture-v1",
       "gate": "m1",
       "ruleVersion": null,
       "code": [
@@ -116,7 +117,21 @@
       "review_cap_1_300",
       "readonly_off",
       "capture_spec_present",
-      "collection_policy"
+      "collection_policy",
+      "capture_spec_schema",
+      "capture_spec_confirmed_input",
+      "capture_spec_keywords",
+      "capture_spec_platforms",
+      "capture_spec_category",
+      "capture_spec_filters",
+      "capture_spec_shops",
+      "capture_spec_smart_query",
+      "capture_spec_ai",
+      "capture_spec_custom_category",
+      "capture_spec_smart_exclusion",
+      "capture_spec_advanced_filter",
+      "capture_spec_exclusions",
+      "capture_spec_window"
     ],
     "m1": [
       "capture_success",

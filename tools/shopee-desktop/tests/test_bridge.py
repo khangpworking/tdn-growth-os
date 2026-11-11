@@ -6,6 +6,7 @@ the real CLI and Node builder. They cover the bridge-to-CLI UTF-8 handoff,
 backend error mapping and the rule that saving never creates a run.
 """
 import datetime as dt
+import hashlib
 import json
 import os
 import pathlib
@@ -19,10 +20,40 @@ ROOT = HERE.parents[2]
 APP_DIR = HERE.parent
 SCRIPT = ROOT / 'skills' / 'tdn-shopee-flow' / 'scripts' / 'shopee_flow.py'
 HEALTH = 'c2035652732'
+CATEGORY_CHILDREN = (
+    {'id': 'c407923064', 'label': 'Chăm sóc sức khỏe'},
+    {'id': 'c1221630203', 'label': 'Dinh dưỡng thể thao, protein'},
+    {'id': 'c1110582659', 'label': 'Sức khỏe khác'},
+    {'id': 'c2140822537', 'label': 'Thực phẩm chức năng'},
+)
+METRIC_OPTIONS = {
+    'smartQuery': True,
+    'usefulFilters': {'fake': True, 'gifts': True, 'deleted': True},
+    'shopTypes': ['mall', 'regular'],
+    'categoryIds': [child['id'] for child in CATEGORY_CHILDREN],
+    'aiNormalisation': False,
+    'customizeCategory': False,
+    'smartExclusion': False,
+}
 
 
 def completed_date(days_ago=1):
     return (dt.date.today() - dt.timedelta(days=days_ago)).isoformat()
+
+
+def selected_capture_spec(start, end, options):
+    fields = {
+        'keywords': ['kem chống nắng'],
+        'platforms': ['shopee', 'lazada', 'tiki', 'tiktok'],
+        'category': {'id': HEALTH, 'label': 'Sức Khoẻ',
+                     'children': [dict(child) for child in CATEGORY_CHILDREN if child['id'] in options['categoryIds']]},
+        'advancedFilter': {'firstField': 'rating_count', 'operator': '>', 'firstRate': 1,
+                           'secondField': 'order_count', 'secondRate': 0.02},
+        'exclusions': [],
+        **{key: value for key, value in options.items() if key != 'categoryIds'},
+    }
+    window = {'id': 'selected', 'period': {'startDate': start, 'endDate': end}, 'intervalDays': 7}
+    return {'contractVersion': 'metric-v3-capture-spec-v3', 'preset': fields, 'windows': [window]}
 
 sys.path.insert(0, str(APP_DIR))
 import tdn_shopee_app  # noqa: E402
@@ -87,6 +118,75 @@ class BridgeTest(unittest.TestCase):
             'format': 'shopee-review-policy-v1', 'mode': 'stars', 'stars': [2, 3],
             'totalPerLink': 500, 'allocation': 'pooled',
             'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'})
+
+    def test_new_run_roundtrips_selected_metric_options_and_reads_capture_specs(self):
+        saved = self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                         keyword='kem chống nắng', categoryId=HEALTH)
+        self.assertTrue(saved['ok'], saved)
+        start, end = completed_date(17), completed_date()
+        options = {
+            'smartQuery': False,
+            'usefulFilters': {'fake': False, 'gifts': True, 'deleted': False},
+            'shopTypes': ['regular'],
+            'categoryIds': ['c2140822537', 'c407923064'],
+            'aiNormalisation': True,
+            'customizeCategory': True,
+            'smartExclusion': True,
+        }
+        result = self.api.newRun({
+            'presetId': 'kem-chong-nang-abc', 'startDate': start, 'endDate': end,
+            'metricOptions': options,
+            'collectionPolicy': {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,
+                                 'allocation': 'pooled'}})
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['entry']['verdict'], 'PASS', result)
+        run_id = result['data']['runId']
+        run = self.runs / run_id
+        request = json.loads((run / 'request.json').read_text(encoding='utf-8'))
+        expected = selected_capture_spec(start, end, options)
+        self.assertEqual(request['format'], 'request-v2')
+        self.assertEqual(request['captureSpec'], expected)
+        self.assertEqual(request['windows'], expected['windows'])
+        self.assertEqual(request['metricInput'], {
+            'format': 'shopee-metric-input-v1', 'preset': expected['preset'], 'window': expected['windows'][0]})
+        review = self.api.captureSpecs(run_id)
+        self.assertTrue(review['ok'], review)
+        data = review['data']
+        self.assertEqual(data['format'], 'capture-specs-view-v1')
+        self.assertEqual(data['runId'], run_id)
+        self.assertEqual(data['specDigestBasis'], 'request-member-utf8')
+        self.assertTrue(data['inputsMatch'])
+        self.assertIsNone(data['errorCode'])
+        self.assertEqual(data['captureSpec'], expected)
+        self.assertEqual(json.loads(data['captureSpecJson']), expected)
+        raw = (run / 'request.json').read_bytes()
+        self.assertIn(data['captureSpecJson'], raw.decode('utf-8'))
+        self.assertEqual(data['specSha256'], hashlib.sha256(data['captureSpecJson'].encode('utf-8')).hexdigest())
+        self.assertEqual(data['requestSha256'], hashlib.sha256(raw).hexdigest())
+        checks = {check['id']: check for check in data['checks']}
+        self.assertTrue(checks['capture_spec_request_identity']['ok'])
+        self.assertTrue(all(check['ok'] for check in checks.values()))
+
+    def test_new_run_rejects_partial_or_invalid_metric_inputs_before_config_or_ssh(self):
+        policy = {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500, 'allocation': 'pooled'}
+        base = {'presetId': 'kem', 'startDate': completed_date(17), 'endDate': completed_date(),
+                'metricOptions': METRIC_OPTIONS, 'collectionPolicy': policy}
+        cases = (
+            ('start without options', {key: value for key, value in base.items() if key != 'metricOptions'}),
+            ('options without start', {key: value for key, value in base.items() if key != 'startDate'}),
+            ('selected input without a policy', {key: value for key, value in base.items() if key != 'collectionPolicy'}),
+            ('start after end', {**base, 'startDate': dt.date.today().isoformat()}),
+            ('empty shops', {**base, 'metricOptions': {**METRIC_OPTIONS, 'shopTypes': []}}),
+            ('unknown group', {**base, 'metricOptions': {**METRIC_OPTIONS, 'categoryIds': ['c999']}}),
+            ('extra option', {**base, 'metricOptions': {**METRIC_OPTIONS, 'keywords': ['kem chống nắng']}}),
+        )
+        for label, value in cases:
+            with self.subTest(label=label):
+                with mock.patch.object(tdn_shopee_app, '_load_config') as load:
+                    result = self.api.newRun(value)
+                self.assertEqual(result, {'ok': False, 'error': {'code': 'ARG_INVALID', 'message': 'ARG_INVALID'}})
+                load.assert_not_called()
+        self.assertEqual(list(self.runs.iterdir()), [])
 
     def test_new_run_rejects_legacy_cap_and_policy_together_before_the_remote(self):
         before = list(self.runs.iterdir())

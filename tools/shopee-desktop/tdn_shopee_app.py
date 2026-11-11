@@ -25,6 +25,7 @@ _COMMANDS = {
     'presets': ('presets',),
     'runs': ('runs',),
     'status': ('run-info', '--run'),
+    'captureSpecs': ('capture-specs', '--run'),
     'library': ('library',),
     'new': ('new-run', '--stdin'),
     'addProduct': ('add-product', '--stdin'),
@@ -159,7 +160,7 @@ class Api:
     def _remote_plan(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
                      kind=None, attempt_id=None, export_sha256=None):
         words = list(_COMMANDS[action])
-        if action in ('status', 'entry', 'flow', 'm1', 'm2', 'm3',
+        if action in ('status', 'captureSpecs', 'entry', 'flow', 'm1', 'm2', 'm3',
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData',
                       'saveReviewData', 'exportReviewData', 'readReviewExport'):
@@ -249,6 +250,9 @@ class Api:
     def listRuns(self):
         return self._safe(lambda: self._remote('runs'))
 
+    def captureSpecs(self, runId):
+        return self._safe(lambda: self._remote('captureSpecs', run_id=self._run_id(runId)))
+
     def newRun(self, input=None):
         return self._safe(lambda: self._new_run(input))
 
@@ -269,6 +273,17 @@ class Api:
         has_policy = 'collectionPolicy' in value
         has_cap = 'reviewCapPerLink' in value
         allowed = {'presetId', 'endDate'}
+        if 'startDate' in value or 'metricOptions' in value:
+            start = value.get('startDate')
+            if not isinstance(start, str) or not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', start):
+                raise _BridgeFailure('ARG_INVALID')
+            try:
+                if dt.date.fromisoformat(start) > end_date:
+                    raise _BridgeFailure('ARG_INVALID')
+            except ValueError:
+                raise _BridgeFailure('ARG_INVALID') from None
+            self._validate_metric_options(value.get('metricOptions'))
+            allowed.update(('startDate', 'metricOptions'))
         if has_policy and has_cap:
             raise _BridgeFailure('ARG_INVALID')
         if has_policy:
@@ -299,6 +314,25 @@ class Api:
         if entry['data'].get('format') != 'handoff-v1':
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return {'ok': True, 'data': {'runId': run_id, 'entry': entry['data']}}
+
+    @staticmethod
+    def _validate_metric_options(options):
+        # Early transport validation; the CLI validates the canonical saved-spec schema.
+        fields = {'smartQuery', 'usefulFilters', 'shopTypes', 'categoryIds',
+                  'aiNormalisation', 'customizeCategory', 'smartExclusion'}
+        if not isinstance(options, dict) or set(options) != fields:
+            raise _BridgeFailure('ARG_INVALID')
+        if any(type(options[k]) is not bool for k in ('smartQuery', 'aiNormalisation', 'customizeCategory', 'smartExclusion')):
+            raise _BridgeFailure('ARG_INVALID')
+        filters = options['usefulFilters']
+        if not isinstance(filters, dict) or set(filters) != {'fake', 'gifts', 'deleted'} or any(type(v) is not bool for v in filters.values()):
+            raise _BridgeFailure('ARG_INVALID')
+        for key, allowed in [('shopTypes', {'mall', 'regular'}),
+                             ('categoryIds', {'c407923064', 'c1221630203', 'c1110582659', 'c2140822537'})]:
+            values = options[key]
+            if (not isinstance(values, list) or not values or any(not isinstance(v, str) or v not in allowed for v in values) or
+                    len(set(values)) != len(values)):
+                raise _BridgeFailure('ARG_INVALID')
 
     @staticmethod
     def _validate_collection_policy(policy):

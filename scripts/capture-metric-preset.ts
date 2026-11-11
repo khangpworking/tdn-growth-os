@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { runMetricCapture } from '../src/modules/analysis/research-automation/metric-capture-runner.js';
 import { buildCaptureSpec } from '../src/modules/analysis/research-automation/autorun-derive.js';
-import { validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
+import { metricCapturePeriod, validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
 
 const exec = promisify(execFile);
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -51,7 +51,7 @@ async function main() {
   try {
     const result = await runMetricCapture({ enabledEnv: '1', captureRoot: actualOutput, opencliExecutable: executable }, {
       runId: randomUUID(), keyword: spec.preset.keywords[0],
-      requestedPeriod: spec.windows[1].period, metricV3Preset: spec, signal: controller.signal,
+      requestedPeriod: metricCapturePeriod(spec), metricV3Preset: spec, signal: controller.signal,
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     if (!result.ok) throw new Error(result.code);

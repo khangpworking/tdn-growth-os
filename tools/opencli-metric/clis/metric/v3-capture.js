@@ -1,4 +1,4 @@
-// Explicit two-window capture. Launched from the checkout; no installed adapter changes.
+// Explicit saved-window capture. Launched from the checkout; no installed adapter changes.
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -15,9 +15,16 @@ const schema = (name) =>
   JSON.parse(readFileSync(new URL(`../../../../contracts/analysis/${name}.schema.json`, import.meta.url), 'utf8'));
 const validatePresetV2 = ajv.compile(schema('metric-v3-capture-spec'));
 const validatePresetV1 = ajv.compile(schema('metric-v3-capture-spec-v1'));
-const validateSpec = (spec) =>
-  (spec?.contractVersion === 'metric-v3-capture-spec-v1' ? validatePresetV1 : validatePresetV2)(spec);
+const validatePresetV3 = ajv.compile(schema('metric-v3-capture-spec-v3'));
+const validateSpec = (spec) => {
+  const validate = spec?.contractVersion === 'metric-v3-capture-spec-v3' ? validatePresetV3 :
+    spec?.contractVersion === 'metric-v3-capture-spec-v1' ? validatePresetV1 : validatePresetV2;
+  return validate(spec) && spec.windows.every(w => w.period.startDate <= w.period.endDate) &&
+    new Set(spec.preset.keywords.map(k => k.normalize('NFC').trim().toLowerCase())).size === spec.preset.keywords.length &&
+    spec.preset.keywords.every(k => k && k === k.normalize('NFC').trim());
+};
 const validateManifest = ajv.compile(schema('metric-v3-window-capture'));
+const validateSelectedManifest = ajv.compile(schema('metric-v3-window-capture-v3'));
 
 const stop = (code, details) => {
   throw Object.assign(new Error(code), { code, details });
@@ -48,7 +55,7 @@ export function resolveV3Category(preset, taxonomy) {
 }
 
 /** Runs in the owned tab. Read only: never return account information or arbitrary app state. */
-export function readV3Page({ categoryId }) {
+export function readV3Page({ categoryId, selectedWindow = false }) {
   const root = document.querySelector('#QuerySearchBuilder');
   const visible = (e) =>
     Boolean(
@@ -172,7 +179,8 @@ export function readV3Page({ categoryId }) {
     /^(?:(?:Exclude|Loại trừ)(?:\s*\([^)]*\)| brand| thương hiệu| location| kho)?|Brand|Thương hiệu)$/i.test(labelText(e)),
   );
   const exclusions = exclusionControls.flatMap((e) => selected(e.parentElement?.querySelector('.ant-select')));
-  if (check(/^(Smart exclusion|Loại trừ thông minh)$/i) === true) exclusions.push('smart-exclusion');
+  const smartExclusion = check(/^(Smart exclusion|Loại trừ thông minh)$/i);
+  if (!selectedWindow && smartExclusion === true) exclusions.push('smart-exclusion');
   const keywordControl = select(/^(Keywords|Từ khóa|Từ khoá)(?:\s*\([^)]*\))?$/i);
   const keywords = [...(keywordControl?.querySelectorAll('.ks-chip') || [])].map((e) => {
     const n = e.cloneNode(true);
@@ -233,6 +241,7 @@ export function readV3Page({ categoryId }) {
       aiNormalisation: switchValue(/^(AI (?:data )?normali[sz]ation|AI chuẩn (?:hóa|hoá) dữ liệu)(?:\s+(NEW|MỚI))?$/i),
       customizeCategory: switchValue(/^(Customize category|Tùy chỉnh danh mục|Tuỳ chỉnh danh mục)\s*:?$/i),
       exclusions,
+      ...(selectedWindow ? { smartExclusion } : {}),
     },
   };
 }
@@ -529,6 +538,7 @@ function presetEqual(a, b) {
     a.smartQuery === b.smartQuery &&
     a.aiNormalisation === b.aiNormalisation &&
     a.customizeCategory === b.customizeCategory &&
+    a.smartExclusion === b.smartExclusion &&
     a.category?.id === b.category?.id &&
     a.category?.label === b.category?.label &&
     equalSet(
@@ -562,6 +572,7 @@ export function assertV3Applied(spec, window, observation) {
 }
 
 export function buildV3WindowManifest(spec, window, observation, rawResponses, capturedAt, captureMethod = 'ui', fallbackReason) {
+  if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
   assertV3Applied(spec, window, observation);
   if (!observation.comparisonDefault) stop('CAPTURE_COMPARISON_MISMATCH');
   const platformIds = { shopee: 1, lazada: 2, tiki: 3, tiktok: 8 };
@@ -579,11 +590,11 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
       const comparisons = inc?.composite_compare_lst;
       const comparison = comparisons?.[0]?.[0];
       const expectedComparison = {
-        first_field: 'rating_count',
-        second_field: 'order_count',
-        first_rate: 1,
-        second_rate: 0.02,
-        compare_condition: '>',
+        first_field: spec.preset.advancedFilter.firstField,
+        second_field: spec.preset.advancedFilter.secondField,
+        first_rate: spec.preset.advancedFilter.firstRate,
+        second_rate: spec.preset.advancedFilter.secondRate,
+        compare_condition: spec.preset.advancedFilter.operator,
       };
       const comparisonMatches =
         Array.isArray(comparisons) &&
@@ -604,13 +615,13 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
           inc.bee_categories,
           spec.preset.category.children.map((n) => n.id),
         ) ||
-        inc.is_smart_queries !== true ||
-        inc.is_remove_bad_product !== true ||
-        !equalSet(inc.official_types, [1, 0]) ||
+        inc.is_smart_queries !== spec.preset.smartQuery ||
+        inc.is_remove_bad_product !== spec.preset.usefulFilters.fake ||
+        !equalSet(inc.official_types, spec.preset.shopTypes.map(v => v === 'mall' ? 1 : 0)) ||
         !equalSet(inc.brands, []) ||
-        !equalSet(q.exclude_query?.queries, []) ||
-        q.exclude_query?.is_smart_queries !== false ||
-        q.use_ai_normalized !== false ||
+        !equalSet(q.exclude_query?.queries, spec.preset.exclusions) ||
+        q.exclude_query?.is_smart_queries !== (spec.preset.smartExclusion ?? false) ||
+        q.use_ai_normalized !== spec.preset.aiNormalisation ||
         q.start_date !== window.period.startDate.replaceAll('-', '') ||
         q.end_date !== window.period.endDate.replaceAll('-', '') ||
         !comparisonMatches
@@ -619,7 +630,7 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
       if (endpoint === 'insight') {
         if (q.interval_days !== window.intervalDays || !Array.isArray(found.r.body.data))
           stop('CAPTURE_TREND_INTERVAL_MISMATCH');
-      } else if (q.is_filter_gift !== true || q.notIncludeDeletedProduct !== true) stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
+      } else if (q.is_filter_gift !== spec.preset.usefulFilters.gifts || q.notIncludeDeletedProduct !== spec.preset.usefulFilters.deleted) stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
       if (
         ['products', 'shops', 'groups'].includes(endpoint) &&
         (!Array.isArray(found.r.body.data?.[endpoint]) ||
@@ -654,7 +665,7 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   if (captureMethod === 'ui' && (observation.resultsReady === false || observation.submitIdle === false))
     stop('CAPTURE_UI_CHANGED', { window: window.id, stage: 'results-readiness' });
   const manifest = {
-    contractVersion: 'metric-v3-window-capture-v2',
+    contractVersion: spec.contractVersion === 'metric-v3-capture-spec-v3' ? 'metric-v3-window-capture-v3' : 'metric-v3-window-capture-v2',
     captureId: randomUUID(),
     captureMethod,
     ...(fallbackReason ? { fallbackReason } : {}),
@@ -679,7 +690,7 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
       },
     ],
   };
-  if (!validateManifest(manifest)) stop('CAPTURE_MANIFEST_INVALID');
+  if (!(spec.contractVersion === 'metric-v3-capture-spec-v3' ? validateSelectedManifest : validateManifest)(manifest)) stop('CAPTURE_MANIFEST_INVALID');
   return manifest;
 }
 
@@ -758,14 +769,14 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
   // Nuxt may mount after document.readyState becomes complete. Authentication
   // and access stops still terminate immediately; only a missing form may wait.
   for (let i = 0; i < 60; i++) {
-    const initial = await page.evaluate(readV3Page, { categoryId: spec.preset.category.id });
+    const initial = await page.evaluate(readV3Page, { categoryId: spec.preset.category.id, selectedWindow: spec.contractVersion === 'metric-v3-capture-spec-v3' });
     if (!initial.stop && initial.formReady) break;
     if ((initial.stop && initial.stop !== 'CAPTURE_UI_CHANGED') || i === 59)
       stop(initial.stop || 'CAPTURE_UI_CHANGED', { stage: 'form-readiness' });
     await page.wait(500);
   }
   const read = async () => {
-    const state = await page.evaluate(readV3Page, { categoryId: spec.preset.category.id });
+    const state = await page.evaluate(readV3Page, { categoryId: spec.preset.category.id, selectedWindow: spec.contractVersion === 'metric-v3-capture-spec-v3' });
     if (state.stop) stop(state.stop);
     return state;
   };
@@ -817,18 +828,18 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     await act({ kind: 'categoryChild', labels: [node.label, node.displayLabel], checked: true });
   }
   for (const [label, checked] of [
-    ['^(Smart query|Tìm kiếm thông minh)$', true],
-    ['^(Filter fake/abnormal products|Lọc sản phẩm ảo(?:/bất thường)?)$', true],
-    ['^(Exclude gifts|Lọc sản phẩm quà tặng)(?:\\s*\\(\\s*(Detail|Chi tiết)\\s*\\))?$', true],
-    ['^(Exclude deleted products|Lọc bỏ sản phẩm đã bị xóa)$', true],
-    ['^(Mall shop|Shop Chính Hãng(?:\\s*\\(Mall\\))?)$', true],
-    ['^(Normal shop|Shop Thông thường)$', true],
-    ['^(Smart exclusion|Loại trừ thông minh)$', false],
+    ['^(Smart query|Tìm kiếm thông minh)$', spec.preset.smartQuery],
+    ['^(Filter fake/abnormal products|Lọc sản phẩm ảo(?:/bất thường)?)$', spec.preset.usefulFilters.fake],
+    ['^(Exclude gifts|Lọc sản phẩm quà tặng)(?:\\s*\\(\\s*(Detail|Chi tiết)\\s*\\))?$', spec.preset.usefulFilters.gifts],
+    ['^(Exclude deleted products|Lọc bỏ sản phẩm đã bị xóa)$', spec.preset.usefulFilters.deleted],
+    ['^(Mall shop|Shop Chính Hãng(?:\\s*\\(Mall\\))?)$', spec.preset.shopTypes.includes('mall')],
+    ['^(Normal shop|Shop Thông thường)$', spec.preset.shopTypes.includes('regular')],
+    ['^(Smart exclusion|Loại trừ thông minh)$', spec.preset.smartExclusion ?? false],
   ])
     await act({ kind: 'checkbox', label, checked });
-  for (const label of ['^(AI (?:data )?normali[sz]ation|AI chuẩn (?:hóa|hoá) dữ liệu)(?:\\s+(NEW|MỚI))?$',
-    '^(Customize category|Tùy chỉnh danh mục|Tuỳ chỉnh danh mục)\\s*:?$'])
-    await act({ kind: 'switch', label, checked: false });
+  for (const [label, checked] of [['^(AI (?:data )?normali[sz]ation|AI chuẩn (?:hóa|hoá) dữ liệu)(?:\\s+(NEW|MỚI))?$', spec.preset.aiNormalisation],
+    ['^(Customize category|Tùy chỉnh danh mục|Tuỳ chỉnh danh mục)\\s*:?$', spec.preset.customizeCategory]])
+    await act({ kind: 'switch', label, checked });
   state = await read();
   if (state.appliedState.keywords.length) stop('CAPTURE_INITIAL_STATE_UNEXPECTED');
   for (const value of spec.preset.keywords) {
@@ -860,10 +871,12 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
   const manifests = [];
   for (const window of spec.windows) {
     progress(`Applying ${window.id}`);
-    await act({ kind: 'openSelect', name: '^(Time period|Thời gian)$' });
-    const days = window.id === '30d' ? 30 : 365;
-    await act({ kind: 'option', name: '^(Time period|Thời gian)$', labels: [`${days} days`, `Trong ${days} ngày`] });
-    await act({ kind: 'closePopups' });
+    if (spec.contractVersion !== 'metric-v3-capture-spec-v3') {
+      await act({ kind: 'openSelect', name: '^(Time period|Thời gian)$' });
+      const days = window.id === '30d' ? 30 : 365;
+      await act({ kind: 'option', name: '^(Time period|Thời gian)$', labels: [`${days} days`, `Trong ${days} ngày`] });
+      await act({ kind: 'closePopups' });
+    }
     await selectV3Dates(page, window.period);
     await selectV3TrendInterval(page, window.intervalDays);
     await act({ kind: 'closePopups' });
@@ -918,6 +931,8 @@ const errorCode = (error) => /^CAPTURE_[A-Z_]+$/.test(error?.message) ? error.me
 /** Builds every request from the validated preset; never replays recorded request bodies. */
 export function buildV3PageRequests(spec, window) {
   if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
+  if (spec.preset.customizeCategory) stop('CAPTURE_CUSTOM_CATEGORY_FALLBACK_UNSUPPORTED');
+  if (!spec.windows.some(w => JSON.stringify(w) === JSON.stringify(window))) stop('CAPTURE_PRESET_INVALID');
   const p = spec.preset;
   const ids = { shopee: 1, lazada: 2, tiki: 3, tiktok: 8 };
   const base = {
@@ -935,7 +950,7 @@ export function buildV3PageRequests(spec, window) {
         compare_condition: p.advancedFilter.operator,
       }]],
     },
-    exclude_query: { queries: [...p.exclusions], is_smart_queries: false },
+    exclude_query: { queries: [...p.exclusions], is_smart_queries: p.smartExclusion ?? false },
     use_ai_normalized: p.aiNormalisation,
   };
   return endpoints.map((endpoint) => ({
@@ -1021,7 +1036,8 @@ export function readV3RequestContext({ categoryId }) {
 
 export async function captureV3PageRequests(page, spec, outputDir, fallbackReason, options = {}) {
   if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
-  const observed = await page.evaluate(readV3RequestContext, { categoryId: spec.preset.category.id });
+  if (spec.preset.customizeCategory) stop('CAPTURE_CUSTOM_CATEGORY_FALLBACK_UNSUPPORTED');
+  const observed = await page.evaluate(readV3RequestContext, { categoryId: spec.preset.category.id, selectedWindow: spec.contractVersion === 'metric-v3-capture-spec-v3' });
   if (observed.stop) stop(observed.stop);
   resolveV3Category(spec.preset, observed.taxonomy);
   const manifests = [];
@@ -1061,7 +1077,9 @@ export async function captureV3WithFallback(page, spec, outputDir, options = {})
   try { return await captureV3Preset(page, spec, outputDir, undefined, options); }
   catch (uiError) {
     const uiCode = errorCode(uiError);
-    if (!fallbackCodes.has(uiCode)) throw uiError;
+    if (!fallbackCodes.has(uiCode) ||
+        (spec.contractVersion === 'metric-v3-capture-spec-v3' && uiCode === 'CAPTURE_PERIOD_NOT_SELECTABLE')) throw uiError;
+    if (spec.preset.customizeCategory) stop('CAPTURE_CUSTOM_CATEGORY_FALLBACK_UNSUPPORTED');
     const diagnostics = join(outputDir, 'ui-failed');
     await mkdir(diagnostics, { mode: 0o700 });
     for (const name of [...spec.windows.map((w) => w.id), 'manifest.json']) {

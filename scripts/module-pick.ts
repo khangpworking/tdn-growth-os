@@ -6,8 +6,11 @@ import { createRequire } from 'node:module';
 import { deriveIncludeTerms, pickShopeeLinks } from '../src/modules/analysis/research-automation/autorun-derive.js';
 import { usedScope, type AutorunScopeRecord } from '../src/modules/analysis/research-automation/autorun-scope.js';
 import { CAPTURE_ROW_PROFILE } from '../src/modules/analysis/research-automation/capture-row-quality.js';
-import { validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
+import { assertMetricInputMatches, validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
 import specSchema from '../contracts/analysis/metric-v3-capture-spec.schema.json' with { type: 'json' };
+import selectedSpecSchema from '../contracts/analysis/metric-v3-capture-spec-v3.schema.json' with { type: 'json' };
+import selectedWindowSchema from '../contracts/analysis/metric-v3-window-capture-v3.schema.json' with { type: 'json' };
+import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import legacySpecSchema from '../contracts/analysis/metric-v3-capture-spec-v1.schema.json' with { type: 'json' };
 import requestV1Schema from '../skills/tdn-shopee-flow/chuan/request-v1.schema.json' with { type: 'json' };
 import samplingSchema from '../contracts/foundation/shopee-review-sampling.schema.json' with { type: 'json' };
@@ -79,7 +82,8 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
-ajv.addSchema(specSchema); ajv.addSchema(legacySpecSchema); ajv.addSchema(requestV1Schema); ajv.addSchema(samplingSchema);
+ajv.addSchema(selectedSpecSchema); ajv.addSchema(specSchema); ajv.addSchema(legacySpecSchema); ajv.addSchema(requestV1Schema); ajv.addSchema(samplingSchema);
+const validateSelectedWindow = ajv.compile(selectedWindowSchema);
 const validators = new Map<string, ReturnType<typeof ajv.compile>>();
 export async function validateModuleValue(name: string, value: unknown): Promise<void> {
   let validate = validators.get(name);
@@ -95,20 +99,34 @@ export async function readRequest(run: string) {
   await validateModuleValue(value.format === 'request-v2' ? 'request-v2' : 'request-v1', value);
   const collectionPolicy = value.format === 'request-v2' ? validateReviewPolicy(value.collectionPolicy) : null;
   const captureSpec = value.captureSpec === undefined ? undefined : validateMetricV3CaptureSpec(value.captureSpec);
+  try {
+    if (captureSpec) assertMetricInputMatches(value.metricInput, captureSpec);
+    else if (value.metricInput !== undefined) throw new Error('CAPTURE_INPUT_INVALID');
+  } catch (error) {
+    throw new ModuleError(error instanceof Error ? error.message : 'CAPTURE_INPUT_INVALID');
+  }
   const keywords = object(value.preset).keywords as string[];
   const windows = value.windows as { id: string; period: { startDate: string; endDate: string } }[];
   if (captureSpec && (windows.length !== captureSpec.windows.length || JSON.stringify(keywords) !== JSON.stringify(captureSpec.preset.keywords) || windows.some((w, i) =>
       w.id !== captureSpec.windows[i]?.id || w.period.startDate !== captureSpec.windows[i]?.period.startDate ||
-      w.period.endDate !== captureSpec.windows[i]?.period.endDate))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
+      w.period.endDate !== captureSpec.windows[i]?.period.endDate ||
+      (object(w).intervalDays !== undefined && object(w).intervalDays !== captureSpec.windows[i]?.intervalDays)))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
   return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec };
 }
-export async function pickRaw(run: string): Promise<unknown> {
+export async function pickRaw(run: string, request?: Awaited<ReturnType<typeof readRequest>>): Promise<unknown> {
+  if (!request) {
+    try { await lstat(await safePath(run, 'request.json')); request = await readRequest(run); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  }
+  const selected = request?.captureSpec?.contractVersion === 'metric-v3-capture-spec-v3';
   let scope: AutorunScopeRecord | null = null;
   try { scope = await readJson(run, 'm1/scope.json') as AutorunScopeRecord; }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   const legacy = usedScope(scope)?.captureNumber === 2 ? 'run2' : 'run1';
-  try { return await readJson(run, `m1/${legacy}/raw-responses.json`); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  if (!selected) {
+    try { return await readJson(run, `m1/${legacy}/raw-responses.json`); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  }
   let prefix = 'm1';
   try { await lstat(await safePath(run, 'm1/manifest.json')); }
   catch (error) {
@@ -120,6 +138,38 @@ export async function pickRaw(run: string): Promise<unknown> {
   const manifest = object(await readJson(run, `${prefix}/manifest.json`));
   const refs = manifest.windows;
   if (!Array.isArray(refs) || !refs.length) throw new ModuleError('CAPTURE_FILES_MISSING');
+  if (selected) {
+    const spec = request!.captureSpec!;
+    const window = spec.windows[0]!;
+    const specDigest = sha256(`${JSON.stringify(spec, null, 2)}\n`);
+    if (manifest.contractVersion !== 'metric-v3-capture-v1' || manifest.specDigest !== specDigest || refs.length !== 1)
+      throw new ModuleError('CAPTURE_SPEC_MISMATCH');
+    const ref = object(refs[0]);
+    if (ref.window !== window.id || ref.path !== `${window.id}/manifest.json`) throw new ModuleError('PICK_WINDOW_MISSING');
+    const manifestBytes = await readFile(await safePath(run, `${prefix}/${ref.path}`));
+    if (sha256(manifestBytes) !== ref.sha256) throw new ModuleError('CAPTURE_HASH_MISMATCH');
+    const part = object(JSON.parse(manifestBytes.toString('utf8')));
+    if (!validateSelectedWindow(part) || part.specDigest !== specDigest ||
+        canonicalJson(part.window) !== canonicalJson(window))
+      throw new ModuleError('CAPTURE_SPEC_MISMATCH');
+    const rawBytes = await readFile(await safePath(run, `${prefix}/${window.id}/raw-responses.json`));
+    const file = (part.files as { path: string; sha256: string; byteSize: number }[])[0]!;
+    if (file.path !== 'raw-responses.json' || file.sha256 !== sha256(rawBytes) || file.byteSize !== rawBytes.length)
+      throw new ModuleError('CAPTURE_HASH_MISMATCH');
+    const raw: unknown = JSON.parse(rawBytes.toString('utf8'));
+    // Replay the real capture publication boundary, including its unique-set applied-state
+    // comparison. DOM member order can differ from the frozen request; artifact hashes stay exact.
+    const { buildV3WindowManifest } = await import(new URL('../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
+    let replay;
+    try {
+      replay = buildV3WindowManifest(spec, window, { taxonomy: spec.preset.category, appliedState: part.appliedState,
+        keywordInput: '', selectedCategoryIds: part.selectedCategoryIds, period: window.period, categoryMode: 'Advanced',
+        multi: true, comparisonDefault: true, displayedKPIs: part.displayedKPIs }, raw, part.capturedAt,
+        part.captureMethod, part.fallbackReason);
+    } catch { throw new ModuleError('CAPTURE_SPEC_MISMATCH'); }
+    if (canonicalJson(replay.sourceMap) !== canonicalJson(part.sourceMap)) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
+    return raw;
+  }
   const config = object(await readJson(repoRoot, 'skills/tdn-shopee-flow/modules.json'));
   const rule = object(object(config.params).pickWindow);
   const ref = refs.map(object).find(r => r.window === rule.preset);
@@ -163,7 +213,7 @@ export async function main(runDir: string) {
   const run = resolve(runDir);
   const metricInputSha256 = await prerequisite(run, 'm1');
   const request = await readRequest(run);
-  const raw = await pickRaw(run);
+  const raw = await pickRaw(run, request);
   const picked = derivePickCandidate(raw, request.keywords, request.principalTitles);
   const counts = { ...picked.counts, ...auditMaskedRows(raw, picked.links) };
   const selection = { format: 'selection-v1', runId: basename(run), source: 'auto',

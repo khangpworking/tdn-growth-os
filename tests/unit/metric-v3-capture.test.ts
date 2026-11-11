@@ -490,6 +490,159 @@ test('overview readiness requires one visible exact heading in the scoped overvi
   }
 });
 
+const SELECTED_WINDOW = {
+  id: 'selected',
+  period: { startDate: '2026-09-16', endDate: '2026-10-02' },
+  intervalDays: 7,
+};
+
+function selectedV3Spec(overrides: { preset?: Record<string, unknown>; window?: Record<string, unknown> } = {}): any {
+  return {
+    contractVersion: 'metric-v3-capture-spec-v3',
+    preset: {
+      ...structuredClone(fixture.spec.preset),
+      smartExclusion: false,
+      ...(overrides.preset ?? {}),
+    },
+    windows: [structuredClone(overrides.window ?? SELECTED_WINDOW)],
+  };
+}
+
+function selectedObservation(spec: any): any {
+  const observation = structuredClone(fixture.windows[0].observation);
+  const display = new Map<string, string>(
+    observation.taxonomy.children.map((child: any) => [child.id, child.displayLabel]),
+  );
+  observation.taxonomy = {
+    ...spec.preset.category,
+    displayLabel: observation.taxonomy.displayLabel,
+    children: spec.preset.category.children.map((child: any) => ({
+      ...child,
+      displayLabel: display.get(child.id) ?? child.label,
+    })),
+  };
+  observation.period = structuredClone(spec.windows[0].period);
+  observation.appliedState = structuredClone(spec.preset);
+  observation.selectedCategoryIds = spec.preset.category.children.map((child: any) => child.id);
+  return observation;
+}
+
+function selectedResponses(spec: any): any[] {
+  const requests = adapter.buildV3PageRequests(spec, spec.windows[0]);
+  return fixture.windows[0].responses.map((response: any) => ({
+    ...structuredClone(response),
+    requestBody: structuredClone(requests.find((request: any) => request.urlPath === response.urlPath).requestBody),
+  }));
+}
+
+test('v3 selected window carries exact dates and every requested option into requests and the manifest gate', () => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec({
+    preset: {
+      smartQuery: false,
+      usefulFilters: { fake: false, gifts: false, deleted: false },
+      shopTypes: ['regular'],
+      aiNormalisation: true,
+      customizeCategory: false,
+      smartExclusion: true,
+      category: {
+        id: 'c2035652732', label: 'Sức Khoẻ', children: [
+          { id: 'c407923064', label: 'Chăm sóc sức khỏe' },
+          { id: 'c2140822537', label: 'Thực phẩm chức năng' },
+        ],
+      },
+    },
+  })) as any;
+  assert.deepEqual(spec.windows, [SELECTED_WINDOW], 'one selected window stays byte-exact');
+  const requests = adapter.buildV3PageRequests(spec, spec.windows[0]);
+  assert.equal(requests.length, 5);
+  for (const request of requests) {
+    const body = request.requestBody;
+    assert.equal(body.start_date, '20260916');
+    assert.equal(body.end_date, '20261002');
+    assert.equal(body.include_query.is_smart_queries, false);
+    assert.equal(body.include_query.is_remove_bad_product, false);
+    assert.deepEqual(body.include_query.official_types, [0]);
+    assert.deepEqual(body.include_query.bee_categories, ['c407923064', 'c2140822537']);
+    assert.equal(body.exclude_query.is_smart_queries, true);
+    assert.equal(body.use_ai_normalized, true);
+    if (request.urlPath.endsWith('/insight/')) assert.equal(body.interval_days, 7);
+    else {
+      assert.equal(body.is_filter_gift, false);
+      assert.equal(body.notIncludeDeletedProduct, false);
+    }
+  }
+  const manifest = adapter.buildV3WindowManifest(
+    spec, spec.windows[0], selectedObservation(spec), selectedResponses(spec), '2026-10-26T07:00:00.000Z',
+  );
+  assert.equal(manifest.contractVersion, 'metric-v3-window-capture-v3');
+  assert.deepEqual(manifest.window, SELECTED_WINDOW);
+  assert.deepEqual(manifest.appliedState, spec.preset);
+  assert.equal(manifest.captureGate, 'PASSED');
+});
+
+test('v3 rejects stale applied state or request scope for any saved option', () => {
+  const cases: [string, (observation: any, responses: any[]) => void, string][] = [
+    ['smart query', (observation) => { observation.appliedState.smartQuery = true; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
+    ['fake filter', (observation) => { observation.appliedState.usefulFilters.fake = true; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
+    ['shop type', (observation) => { observation.appliedState.shopTypes = ['mall', 'regular']; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
+    ['AI normalisation', (observation) => { observation.appliedState.aiNormalisation = false; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
+    ['smart exclusion', (observation) => { observation.appliedState.smartExclusion = false; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
+    ['gift filter request', (_observation, responses) => {
+      responses.find((response) => response.urlPath.endsWith('/search-basic/')).requestBody.is_filter_gift = true;
+    }, 'CAPTURE_REQUEST_SCOPE_MISMATCH'],
+    ['deleted filter request', (_observation, responses) => {
+      responses.find((response) => response.urlPath.endsWith('/products/')).requestBody.notIncludeDeletedProduct = true;
+    }, 'CAPTURE_REQUEST_SCOPE_MISMATCH'],
+    ['request dates', (_observation, responses) => {
+      responses.find((response) => response.urlPath.endsWith('/groups/')).requestBody.end_date = '20261003';
+    }, 'CAPTURE_REQUEST_SCOPE_MISMATCH'],
+    ['trend interval', (_observation, responses) => {
+      responses.find((response) => response.urlPath.endsWith('/insight/')).requestBody.interval_days = 30;
+    }, 'CAPTURE_TREND_INTERVAL_MISMATCH'],
+  ];
+  for (const [name, mutate, code] of cases) {
+    const spec = validateMetricV3CaptureSpec(selectedV3Spec({
+      preset: {
+        smartQuery: false,
+        usefulFilters: { fake: false, gifts: false, deleted: false },
+        shopTypes: ['regular'],
+        aiNormalisation: true,
+        smartExclusion: true,
+      },
+    })) as any;
+    const observation = selectedObservation(spec);
+    const responses = selectedResponses(spec);
+    mutate(observation, responses);
+    assert.throws(
+      () => adapter.buildV3WindowManifest(spec, spec.windows[0], observation, responses, '2026-10-26T07:00:00.000Z'),
+      { message: code },
+      name,
+    );
+  }
+});
+
+test('v3 refuses empty shop or group selections instead of restoring defaults', () => {
+  for (const preset of [
+    { shopTypes: [] },
+    { category: { id: 'c2035652732', label: 'Sức Khoẻ', children: [] } },
+  ]) {
+    assert.throws(() => validateMetricV3CaptureSpec(selectedV3Spec({ preset })), /CAPTURE_PRESET_INVALID/);
+  }
+});
+
+test('customize category refuses the page-request fallback before reading or submitting the page', async () => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec({ preset: { customizeCategory: true } }));
+  let evaluations = 0;
+  const page = {
+    evaluate: async () => { evaluations += 1; return {}; },
+  };
+  await assert.rejects(
+    adapter.captureV3PageRequests(page, spec, '/tmp/metric-v3-custom-category-unused', 'CAPTURE_UI_CHANGED'),
+    { message: 'CAPTURE_CUSTOM_CATEGORY_FALLBACK_UNSUPPORTED' },
+  );
+  assert.equal(evaluations, 0);
+});
+
 function observeSubmits(document: Document) {
   // The adapter clicks inside page.evaluate, so only real DOM events can catch it.
   const events: string[] = [];

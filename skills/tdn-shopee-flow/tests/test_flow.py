@@ -102,6 +102,81 @@ def configured_request_payload(total=500):
     }
 
 
+METRIC_START = '2026-10-12'
+METRIC_END = '2026-10-28'
+CATEGORY_CHILDREN = (
+    {'id': 'c407923064', 'label': 'Chăm sóc sức khỏe'},
+    {'id': 'c1221630203', 'label': 'Dinh dưỡng thể thao, protein'},
+    {'id': 'c1110582659', 'label': 'Sức khỏe khác'},
+    {'id': 'c2140822537', 'label': 'Thực phẩm chức năng'},
+)
+METRIC_OPTIONS = {
+    'smartQuery': True,
+    'usefulFilters': {'fake': True, 'gifts': True, 'deleted': True},
+    'shopTypes': ['mall', 'regular'],
+    'categoryIds': [child['id'] for child in CATEGORY_CHILDREN],
+    'aiNormalisation': False,
+    'customizeCategory': False,
+    'smartExclusion': False,
+}
+CAPTURE_CHECK_IDS = tuple('capture_spec_' + name for name in (
+    'present', 'schema', 'confirmed_input', 'keywords', 'platforms', 'category', 'filters', 'shops',
+    'smart_query', 'ai', 'custom_category', 'smart_exclusion', 'advanced_filter', 'exclusions', 'window'))
+
+
+def selected_spec(options=None, start=METRIC_START, end=METRIC_END):
+    """Expected capture spec for the desktop's selected-window creation input."""
+    options = json.loads(json.dumps(METRIC_OPTIONS if options is None else options))
+    fields = {
+        'keywords': ['kem chống nắng'],
+        'platforms': ['shopee', 'lazada', 'tiki', 'tiktok'],
+        'category': {'id': 'c2035652732', 'label': 'Sức Khoẻ',
+                     'children': [dict(child) for child in CATEGORY_CHILDREN if child['id'] in options['categoryIds']]},
+        'advancedFilter': {'firstField': 'rating_count', 'operator': '>', 'firstRate': 1,
+                           'secondField': 'order_count', 'secondRate': 0.02},
+        'exclusions': [],
+        **{key: value for key, value in options.items() if key != 'categoryIds'},
+    }
+    window = {'id': 'selected', 'period': {'startDate': start, 'endDate': end}, 'intervalDays': 7}
+    return {'contractVersion': 'metric-v3-capture-spec-v3', 'preset': fields, 'windows': [window]}
+
+
+def selected_request_payload():
+    spec = selected_spec()
+    return {
+        'format': 'request-v2', 'preset': {'keywords': ['kem chống nắng']},
+        'principalTitles': ['Kem chống nắng mẫu A'], 'windows': json.loads(json.dumps(spec['windows'])),
+        'collectionPolicy': configured_request_payload()['collectionPolicy'],
+        'captureSpec': spec,
+        'metricInput': {'format': 'shopee-metric-input-v1', 'preset': json.loads(json.dumps(spec['preset'])),
+                        'window': json.loads(json.dumps(spec['windows'][0]))},
+    }
+
+
+CLOCK_JAIL = '''"""Test harness: freezes one instant for a child CLI process, no production seam."""
+import datetime as _datetime
+import os
+
+_frozen = _datetime.datetime.fromisoformat(os.environ['TEST_FROZEN_UTC'])
+
+
+class _FrozenDate(_datetime.date):
+    @classmethod
+    def today(cls):
+        return cls.fromtimestamp(_frozen.timestamp())
+
+
+class _FrozenDatetime(_datetime.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return _frozen.astimezone(tz) if tz is not None else _frozen.replace(tzinfo=None)
+
+
+_datetime.date = _FrozenDate
+_datetime.datetime = _FrozenDatetime
+'''
+
+
 class FlowTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -122,11 +197,12 @@ class FlowTest(unittest.TestCase):
         finished.wait()
         self.dead_pid = finished.pid
 
-    def env(self):
+    def env(self, extra=None):
         env = {k: v for k, v in os.environ.items()
                if not k.startswith('TDN_') and k not in ('SHOPEE_FLOW_RUNS', 'SHOPEE_FLOW_STATE',
                                                          'SHOPEE_FLOW_PRESETS', 'NODE_MARKER',
-                                                         'LEGACY_MARKER', 'REAL_TS_SAMPLING')}
+                                                         'LEGACY_MARKER', 'REAL_TS_SAMPLING',
+                                                         'TEST_FROZEN_UTC', 'PYTHONPATH')}
         env['SHOPEE_FLOW_RUNS'] = str(self.runs)
         env['SHOPEE_FLOW_STATE'] = str(self.state)
         env['SHOPEE_FLOW_PRESETS'] = str(self.presets)
@@ -135,16 +211,22 @@ class FlowTest(unittest.TestCase):
         env['LEGACY_MARKER'] = str(self.legacy_marker)
         env['REAL_TS_SAMPLING'] = '0'
         env['PATH'] = f'{self.bin}{os.pathsep}{env.get("PATH", "")}'
+        if extra:
+            env.update(extra)
         return env
 
-    def command(self, *args, stdin=None):
+    def command(self, *args, stdin=None, extra_env=None):
         proc = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
-                              env=self.env(), input=stdin, timeout=90)
+                              env=self.env(extra_env), input=stdin, timeout=90)
         payload = json.loads(proc.stdout) if proc.stdout.strip() else None
         return proc.returncode, payload, proc.stderr
 
     def assert_no_subprocess(self):
         self.assertFalse(self.marker.exists(), 'a module subprocess was started')
+
+    def read_request(self, payload):
+        run = self.runs / payload['runId']
+        return run, json.loads((run / 'request.json').read_text())
 
     def write_preset(self, preset_id='kem', **over):
         value = json.loads(json.dumps(PRESET))
@@ -168,10 +250,6 @@ class FlowTest(unittest.TestCase):
 class NewRunTests(FlowTest):
     def create(self, payload):
         return self.command('new-run', '--stdin', stdin=json.dumps(payload))
-
-    def read_request(self, payload):
-        run = self.runs / payload['runId']
-        return run, json.loads((run / 'request.json').read_text())
 
     def test_legacy_cap_input_maps_to_request_v2_default_policy(self):
         preset = self.write_preset()
@@ -253,6 +331,147 @@ class NewRunTests(FlowTest):
                                            'message': 'NEW_RUN_INPUT_INVALID'})
         self.assertEqual(set(self.runs.iterdir()), before)
         self.assert_no_subprocess()
+
+    def test_selected_window_options_roundtrip_into_the_saved_request(self):
+        preset = self.write_preset()
+        options = {
+            'smartQuery': False,
+            'usefulFilters': {'fake': False, 'gifts': True, 'deleted': False},
+            'shopTypes': ['regular'],
+            'categoryIds': ['c2140822537', 'c407923064'],
+            'aiNormalisation': True,
+            'customizeCategory': True,
+            'smartExclusion': True,
+        }
+        rc, payload, stderr = self.create({
+            'presetId': 'kem', 'startDate': METRIC_START, 'endDate': METRIC_END, 'metricOptions': options,
+            'collectionPolicy': {'mode': 'stars', 'stars': [3, 2], 'totalPerLink': 500, 'allocation': 'pooled'}})
+        self.assertEqual(rc, 0, (payload, stderr))
+        run, request = self.read_request(payload)
+        expected = selected_spec(options)
+        self.assertEqual(request['format'], 'request-v2')
+        self.assertEqual(request['captureSpec'], expected)
+        self.assertEqual(request['windows'], expected['windows'])
+        self.assertEqual(request['metricInput'], {
+            'format': 'shopee-metric-input-v1',
+            'preset': expected['preset'],
+            'window': expected['windows'][0],
+        })
+        self.assertEqual(request['preset']['keywords'], preset['preset']['preset']['keywords'])
+        self.assertEqual(request['principalTitles'], preset['principalTitles'])
+        self.assertNotIn('reviewCapPerLink', request)
+        self.assertEqual(request['collectionPolicy']['stars'], [2, 3])
+        self.assertEqual(json.loads((run / 'request.json').read_text()), request)
+        self.assert_no_subprocess()
+
+    def test_partial_or_invalid_selected_inputs_create_no_run(self):
+        self.write_preset()
+        before = set(self.runs.iterdir())
+        # The completed-day cutoff follows the supported desktop calendar, not the host's.
+        today = dt.datetime.now(dt.timezone(dt.timedelta(hours=7))).date()
+
+        def value(start=METRIC_START, end=METRIC_END, options=None):
+            return {'presetId': 'kem', 'startDate': start, 'endDate': end,
+                    'metricOptions': {**json.loads(json.dumps(METRIC_OPTIONS)), **(options or {})}}
+
+        missing = json.loads(json.dumps(METRIC_OPTIONS))
+        missing.pop('smartExclusion')
+        cases = (
+            ('start only', {'presetId': 'kem', 'endDate': METRIC_END,
+                            'metricOptions': json.loads(json.dumps(METRIC_OPTIONS))}, 'NEW_RUN_INPUT_INVALID'),
+            ('options only', {'presetId': 'kem', 'startDate': METRIC_START, 'endDate': METRIC_END},
+             'NEW_RUN_INPUT_INVALID'),
+            ('reverse dates', value(start=METRIC_END, end=METRIC_START), 'NEW_RUN_INPUT_INVALID'),
+            ('end not completed today', value(start=(today - dt.timedelta(days=17)).isoformat(),
+                                             end=today.isoformat()), 'NEW_RUN_INPUT_INVALID'),
+            ('empty groups', value(options={'categoryIds': []}), 'METRIC_OPTIONS_INVALID'),
+            ('unknown group', value(options={'categoryIds': ['c999']}), 'METRIC_OPTIONS_INVALID'),
+            ('empty shops', value(options={'shopTypes': []}), 'METRIC_OPTIONS_INVALID'),
+            ('extra option', value(options={'keywords': ['kem chống nắng']}), 'METRIC_OPTIONS_INVALID'),
+            ('missing option', {'presetId': 'kem', 'startDate': METRIC_START, 'endDate': METRIC_END,
+                                'metricOptions': missing}, 'METRIC_OPTIONS_INVALID'),
+        )
+        for name, input_value, expected in cases:
+            with self.subTest(name):
+                rc, payload, _ = self.create(input_value)
+                self.assertEqual(rc, 2, (name, payload))
+                self.assertEqual(payload, {'format': 'error-v1', 'code': expected, 'message': expected}, name)
+        self.assertEqual(set(self.runs.iterdir()), before)
+        self.assert_no_subprocess()
+
+
+class SelectedDateBoundaryTests(FlowTest):
+    """The selected-window cutoff follows the supported desktop calendar (Asia/Bangkok, UTC+07)."""
+
+    def create_at(self, frozen_utc, tz, payload):
+        jail = pathlib.Path(self._tmp.name) / f'clock-{uuid.uuid4().hex[:8]}'
+        jail.mkdir()
+        (jail / 'sitecustomize.py').write_text(CLOCK_JAIL, encoding='utf8')
+        return self.command('new-run', '--stdin', stdin=json.dumps(payload),
+                            extra_env={'PYTHONPATH': str(jail), 'TEST_FROZEN_UTC': frozen_utc, 'TZ': tz})
+
+    def selected(self, start, end):
+        return {'presetId': 'kem', 'startDate': start, 'endDate': end,
+                'metricOptions': json.loads(json.dumps(METRIC_OPTIONS))}
+
+    def test_accepts_the_last_completed_desktop_day_across_the_midnight_gap(self):
+        self.write_preset()
+        for tz in ('UTC', '<+07>-7'):
+            with self.subTest(tz):
+                rc, payload, stderr = self.create_at(
+                    '2026-11-11T17:30:00+00:00', tz, self.selected('2026-11-10', '2026-11-11'))
+                self.assertEqual(rc, 0, (tz, payload, stderr))
+                _, request = self.read_request(payload)
+                window = {'startDate': '2026-11-10', 'endDate': '2026-11-11'}
+                self.assertEqual(request['windows'][0]['period'], window)
+                self.assertEqual(request['captureSpec']['windows'][0]['period'], window)
+                self.assertEqual(request['metricInput']['window']['period'], window)
+                self.assert_no_subprocess()
+
+    def test_refuses_the_same_end_before_the_desktop_day_completes(self):
+        self.write_preset()
+        before = set(self.runs.iterdir())
+        for tz in ('UTC', '<+07>-7'):
+            with self.subTest(tz):
+                rc, payload, _ = self.create_at(
+                    '2026-11-11T16:30:00+00:00', tz, self.selected('2026-11-10', '2026-11-11'))
+                self.assertEqual(rc, 2, (tz, payload))
+                self.assertEqual(payload, {'format': 'error-v1', 'code': 'NEW_RUN_INPUT_INVALID',
+                                           'message': 'NEW_RUN_INPUT_INVALID'})
+        self.assertEqual(set(self.runs.iterdir()), before)
+        self.assert_no_subprocess()
+
+    def test_refuses_unfinished_future_malformed_or_reversed_desktop_dates(self):
+        self.write_preset()
+        before = set(self.runs.iterdir())
+        cases = (
+            ('desktop day not completed', self.selected('2026-11-11', '2026-11-12')),
+            ('future end', self.selected('2026-11-11', '2026-11-13')),
+            ('malformed end', self.selected('2026-11-10', '2026-02-30')),
+            ('reversed range', self.selected('2026-11-11', '2026-11-10')),
+        )
+        for name, payload in cases:
+            with self.subTest(name):
+                rc, result, _ = self.create_at('2026-11-11T17:30:00+00:00', 'UTC', payload)
+                self.assertEqual(rc, 2, (name, result))
+                self.assertEqual(result, {'format': 'error-v1', 'code': 'NEW_RUN_INPUT_INVALID',
+                                          'message': 'NEW_RUN_INPUT_INVALID'})
+        self.assertEqual(set(self.runs.iterdir()), before)
+        self.assert_no_subprocess()
+
+    def test_legacy_creation_keeps_two_periods_without_the_completed_day_cutoff(self):
+        self.write_preset()
+        for tz in ('UTC', '<+07>-7'):
+            with self.subTest(tz):
+                rc, payload, stderr = self.create_at(
+                    '2026-11-11T16:30:00+00:00', tz, {'presetId': 'kem', 'endDate': '2026-11-11'})
+                self.assertEqual(rc, 0, (tz, payload, stderr))
+                _, request = self.read_request(payload)
+                self.assertEqual([window['id'] for window in request['windows']], ['30d', '12m'])
+                for window in request['windows']:
+                    self.assertEqual(window['period']['endDate'], '2026-11-11')
+                self.assertEqual(request['captureSpec']['windows'][1]['id'], '12m')
+                self.assert_no_subprocess()
 
 
 class ReadOnlyCommandTests(FlowTest):
@@ -349,6 +568,121 @@ class ReadOnlyCommandTests(FlowTest):
         flow = MODULES['flow']
         self.assertIn(flow['skill'], skills)
         self.assertEqual(skills[flow['skill']]['version'], flow['skillVersion'])
+
+
+class CaptureSpecReviewTests(FlowTest):
+    """Read-only review of the actual saved spec member and its independent digests."""
+
+    def test_capture_specs_returns_the_exact_saved_member_and_digests(self):
+        run = self.make_run(request=selected_request_payload())
+        before = sha_folder(run)
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload['format'], 'capture-specs-view-v1')
+        self.assertEqual(payload['runId'], RUN_ID)
+        self.assertEqual(payload['specDigestBasis'], 'request-member-utf8')
+        self.assertTrue(payload['inputsMatch'])
+        self.assertIsNone(payload['errorCode'])
+        raw = (run / 'request.json').read_bytes()
+        text = raw.decode('utf-8')
+        self.assertIn(payload['captureSpecJson'], text, 'the review returns the retained member text verbatim')
+        self.assertEqual(payload['requestSha256'], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(payload['specSha256'], hashlib.sha256(payload['captureSpecJson'].encode('utf-8')).hexdigest())
+        self.assertEqual(json.loads(payload['captureSpecJson']), payload['captureSpec'])
+        self.assertEqual(payload['captureSpec'], selected_request_payload()['captureSpec'])
+        checks = {check['id']: check for check in payload['checks']}
+        self.assertEqual(len(checks), len(CAPTURE_CHECK_IDS) + 1)
+        for identifier in (*CAPTURE_CHECK_IDS, 'capture_spec_request_identity'):
+            self.assertEqual(set(checks[identifier]), {'id', 'ok', 'got', 'errorCode'}, identifier)
+            self.assertTrue(checks[identifier]['ok'], (identifier, checks[identifier]))
+            self.assertIs(checks[identifier]['got'], True, identifier)
+        self.assertEqual(sha_folder(run), before, 'review performs no write')
+
+    def test_capture_specs_names_the_failing_check_without_rebuilding_the_spec(self):
+        request = selected_request_payload()
+        request['metricInput']['preset']['smartQuery'] = False
+        self.make_run(request=request)
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertFalse(payload['inputsMatch'])
+        self.assertEqual(payload['errorCode'], 'CAPTURE_SMART_QUERY_MISMATCH')
+        self.assertEqual([check['id'] for check in payload['checks'] if not check['ok']],
+                         ['capture_spec_smart_query'])
+        self.assertEqual(payload['captureSpec'], request['captureSpec'])
+
+    def test_capture_specs_request_identity_is_independent_of_the_spec_digest(self):
+        run = self.make_run(request=selected_request_payload())
+        write_json(run / 'run-tracking.json', {
+            'format': 'run-tracking-v1', 'runId': RUN_ID, 'requestSha256': '0' * 64,
+            'primaryKeyword': 'kem chống nắng', 'createdAt': None, 'firstRunAt': None,
+            'firstObservedLaunchAt': None, 'historyBasis': 'new-run',
+        })
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        checks = {check['id']: check for check in payload['checks']}
+        self.assertFalse(checks['capture_spec_request_identity']['ok'])
+        self.assertEqual(checks['capture_spec_request_identity']['errorCode'], 'RUN_TRACKING_CHANGED')
+        self.assertTrue(all(check['ok'] for identifier, check in checks.items()
+                            if identifier != 'capture_spec_request_identity'))
+        self.assertFalse(payload['inputsMatch'])
+        self.assertEqual(payload['errorCode'], 'RUN_TRACKING_CHANGED')
+        self.assertEqual(payload['requestSha256'],
+                         hashlib.sha256((run / 'request.json').read_bytes()).hexdigest())
+
+    def test_capture_specs_missing_request_is_an_error_not_a_reconstruction(self):
+        run = self.make_run()
+        (run / 'request.json').unlink()
+        rc, payload, stderr = self.command('capture-specs', '--run', RUN_ID)
+        self.assertEqual(rc, 2, (payload, stderr))
+        self.assertEqual(payload, {'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID',
+                                   'message': 'Invalid or unreadable flow input.'})
+
+
+class SelectedWindowFlowTests(FlowTest):
+    """Flow admission and dispatch for one saved selected Metric window."""
+
+    def setUp(self):
+        super().setUp()
+        node = self.bin / 'node'
+        node.write_text(FAKE_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+
+    def env(self, extra=None):
+        env = super().env(extra)
+        env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
+        return env
+
+    def test_m1_dispatches_only_the_saved_selected_window(self):
+        self.make_run(request=selected_request_payload())
+        rc, entry, stderr = self.command('gate', 'entry', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (entry, stderr))
+        self.assertEqual(entry['verdict'], 'PASS', entry)
+        rc, payload, stderr = self.command('m1', '--run', RUN_ID)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload['verdict'], 'PASS', payload)
+        run = self.runs / RUN_ID
+        self.assertEqual(json.loads((run / 'capture-spec.json').read_text()), selected_spec())
+        self.assertTrue((run / 'm1' / 'selected' / 'manifest.json').is_file())
+        for legacy in ('30d', '12m', 'run1'):
+            self.assertFalse((run / 'm1' / legacy).exists(), legacy)
+
+    def test_changed_confirmation_blocks_a_fresh_m1_despite_a_matching_entry_pass(self):
+        self.make_run(request=selected_request_payload())
+        request = json.loads((self.runs / RUN_ID / 'request.json').read_text())
+        request['metricInput']['preset']['smartQuery'] = False
+        write_json(self.runs / RUN_ID / 'request.json', request)
+        # A stored PASS whose hash matches the current request still cannot authorize
+        # drifted confirmed inputs; only a fresh capture check can.
+        digest = hashlib.sha256((self.runs / RUN_ID / 'request.json').read_bytes()).hexdigest()
+        write_json(self.runs / RUN_ID / 'gates' / 'entry.json', {
+            'format': 'handoff-v1', 'module': 'ENTRY', 'runId': RUN_ID, 'skillVersion': '1.0.0',
+            'verdict': 'PASS', 'inputSha256': None, 'outputSha256': digest, 'checks': [],
+            'errorCode': None, 'next': 'M1'})
+        rc, payload, stderr = self.command('m1', '--run', RUN_ID)
+        self.assertEqual(rc, 20, (payload, stderr))
+        self.assertEqual(payload['errorCode'], 'CAPTURE_SMART_QUERY_MISMATCH', payload)
+        self.assertFalse((self.runs / RUN_ID / 'm1').exists(), 'no capture executor may start for drifted inputs')
+        self.assertFalse((self.runs / RUN_ID / 'capture-spec.json').exists())
 
 
 class ConnectionTests(FlowTest):
@@ -515,8 +849,8 @@ class PartialOutcomeFlowTests(FlowTest):
         node.write_text(FAKE_NODE, encoding='utf8')
         node.chmod(node.stat().st_mode | stat.S_IXUSR)
 
-    def env(self):
-        env = super().env()
+    def env(self, extra=None):
+        env = super().env(extra)
         env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
         return env
 
@@ -662,8 +996,8 @@ class ConfiguredFlowTests(FlowTest):
             self.skipTest('127.0.0.1:8877 is unavailable for the local collector transport')
         self.addCleanup(self.transport.close)
 
-    def env(self):
-        env = super().env()
+    def env(self, extra=None):
+        env = super().env(extra)
         env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
         env['TDN_REAL_NODE'] = self.real_node
         env['REAL_TS_SAMPLING'] = '1'
