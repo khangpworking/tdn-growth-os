@@ -1,0 +1,74 @@
+[
+  {
+    "file": "tests/independent/e4-author-ids-valid.ttl",
+    "rule": "E4",
+    "expected": true,
+    "reason": "Ba thẻ có trích dẫn và vị trí, năm mã tác giả khác nhau trong một nền tảng và nhãn AI đúng nguyên văn."
+  },
+  {
+    "file": "tests/independent/e4-author-ids-invalid.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "Chỉ có bốn mã tác giả khác nhau, chưa đạt tối thiểu năm."
+  },
+  {
+    "file": "tests/independent/e4-unverified-valid.ttl",
+    "rule": "E4",
+    "expected": true,
+    "reason": "Năm nội dung khác nhau có cờ chưa xác minh đúng nguyên văn; ba thẻ và thuộc tính đều có trích dẫn kèm vị trí."
+  },
+  {
+    "file": "tests/independent/e4-unverified-invalid.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "Cờ chưa xác minh không đúng nguyên văn dù số nội dung và các trích dẫn đều đủ."
+  },
+  {
+    "file": "tests/independent/l10-valid.ttl",
+    "rule": "L10",
+    "expected": true,
+    "reason": "Bình luận thông thường được tính; bình luận của người tạo video được loại khỏi cả tiếng nói khách hàng và số đếm."
+  },
+  {
+    "file": "tests/independent/l10-invalid.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "Bình luận của người tạo video đã bị loại khỏi tiếng nói khách hàng nhưng vẫn bị tính vào số đếm."
+  },
+  {
+    "file": "tests/independent/e12-valid.ttl",
+    "rule": "E12",
+    "expected": true,
+    "reason": "Trong phạm vi siêu dữ liệu được biểu diễn, nguồn đúng nguyên văn, trạng thái hợp lệ và dấu vết tệp, trang tính, dòng đầy đủ."
+  },
+  {
+    "file": "tests/independent/e12-invalid.ttl",
+    "rule": "E12",
+    "expected": false,
+    "reason": "Tên nguồn thiếu phần tên miền bắt buộc nên không đúng nguyên văn."
+  },
+  {
+    "file": "tests/independent/e13-valid.ttl",
+    "rule": "E13",
+    "expected": true,
+    "reason": "Trong phạm vi siêu dữ liệu được biểu diễn, nguồn, trạng thái, dấu vết và thông tin chỉ tiêu đều đầy đủ, đúng định dạng."
+  },
+  {
+    "file": "tests/independent/e13-invalid.ttl",
+    "rule": "E13",
+    "expected": false,
+    "reason": "Thiếu ngày cập nhật bộ dữ liệu dù các trường siêu dữ liệu còn lại đầy đủ."
+  },
+  {
+    "file": "tests/independent/unknown-valid.ttl",
+    "rule": "UNKNOWN",
+    "expected": true,
+    "reason": "Với bản ghi giả định là UNKNOWN còn mới, bản ghi được giữ trong ALL và loại khỏi WIDE."
+  },
+  {
+    "file": "tests/independent/unknown-invalid.ttl",
+    "rule": "UNKNOWN",
+    "expected": false,
+    "reason": "Với bản ghi giả định là UNKNOWN còn mới, bản ghi bị đưa vào WIDE trái quyết định."
+  }
+]

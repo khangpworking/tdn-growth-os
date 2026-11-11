@@ -1,0 +1,2 @@
+@prefix o: <urn:onto:> .
+o:r a o:UnknownRecord; o:inAll true; o:inWide false .

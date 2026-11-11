@@ -1,9 +1,9 @@
 @prefix ex: <urn:onto:> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-ex:E12Shape a sh:NodeShape; ex:ruleId "E12"; ex:status "proposed"; ex:source <https://github.com/khangpworking/tdn-growth-os/blob/998549072ae62b9d619ffbf645ba59b22a920d4e/docs/research/ultimate-method/ultimate-method-30-sections.md#L225-L239>; sh:targetClass ex:E12Figure;
-sh:property [ sh:path ex:attribution; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:message "Thiếu văn bản ghi nguồn" ];
+ex:E12Shape a sh:NodeShape; ex:ruleId "E12"; ex:status "proposed"; ex:source <https://github.com/khangpworking/tdn-growth-os/blob/f084663a53342074577774e5e6b3a25de0fcf4c8/docs/research/ultimate-method/ultimate-method-30-sections.md#L225-L239>; sh:targetClass ex:E12Figure;
+sh:property [ sh:path ex:attribution; sh:maxCount 1; sh:in ( "Cục Thống kê (nso.gov.vn)" ); sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:pattern "[!-~¡-ᙿᚁ-῿​-‧‪-‮‰-⁞⁠-⿿、-퟿-􏿿]"; sh:message "Thiếu văn bản ghi nguồn" ];
 sh:property [ sh:path ex:valueStatus; sh:minCount 1; sh:maxCount 1; sh:in ( "ước tính" "sơ bộ" "chính thức" ); sh:message "Trạng thái phải là ước tính, sơ bộ hoặc chính thức" ];
-sh:property [ sh:path ex:file; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:message "Thiếu file truy nguồn" ];
-sh:property [ sh:path ex:sheet; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:message "Thiếu sheet truy nguồn" ];
-sh:property [ sh:path ex:row; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:message "Thiếu dòng truy nguồn" ] .
+sh:property [ sh:path ex:file; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:pattern "[!-~¡-ᙿᚁ-῿​-‧‪-‮‰-⁞⁠-⿿、-퟿-􏿿]"; sh:message "Thiếu file truy nguồn" ];
+sh:property [ sh:path ex:sheet; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:pattern "[!-~¡-ᙿᚁ-῿​-‧‪-‮‰-⁞⁠-⿿、-퟿-􏿿]"; sh:message "Thiếu sheet truy nguồn" ];
+sh:property [ sh:path ex:row; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:pattern "[!-~¡-ᙿᚁ-῿​-‧‪-‮‰-⁞⁠-⿿、-퟿-􏿿]"; sh:message "Thiếu dòng truy nguồn" ] .

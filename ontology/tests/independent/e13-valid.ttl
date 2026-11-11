@@ -1,0 +1,2 @@
+@prefix o: <urn:onto:> .
+o:f a o:E13Figure; o:attribution "Ngân hàng Thế giới (World Bank Open Data)"; o:valueStatus "ước tính"; o:file "chi-tieu-gia-lap.xlsx"; o:sheet "BangMau"; o:row "8"; o:indicatorName "Chỉ tiêu giả lập"; o:indicatorCode "SYNTHETIC.DEMO"; o:year "2024"; o:datasetUpdateDate "2026-09-30" .
