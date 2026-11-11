@@ -252,9 +252,25 @@ class Api:
         return self._safe(lambda: self._new_run(input))
 
     def _new_run(self, value):
-        if (not isinstance(value, dict) or set(value) != {'presetId', 'endDate', 'reviewCapPerLink'} or
-                not isinstance(value['presetId'], str) or not isinstance(value['endDate'], str) or
-                type(value['reviewCapPerLink']) is not int):
+        if not isinstance(value, dict) or not isinstance(value.get('presetId'), str) or \
+                not isinstance(value.get('endDate'), str):
+            raise _BridgeFailure('ARG_INVALID')
+        has_policy = 'collectionPolicy' in value
+        has_cap = 'reviewCapPerLink' in value
+        allowed = {'presetId', 'endDate'}
+        if has_policy and has_cap:
+            raise _BridgeFailure('ARG_INVALID')
+        if has_policy:
+            allowed.add('collectionPolicy')
+            self._validate_collection_policy(value['collectionPolicy'])
+        elif has_cap:
+            allowed.add('reviewCapPerLink')
+            cap = value['reviewCapPerLink']
+            if type(cap) is not int or cap < 1 or cap > 300:
+                raise _BridgeFailure('ARG_INVALID')
+        else:
+            raise _BridgeFailure('ARG_INVALID')
+        if set(value) != allowed:
             raise _BridgeFailure('ARG_INVALID')
         config = _load_config()
         created = self._remote('new', payload=value, config=config)
@@ -272,6 +288,30 @@ class Api:
         if entry['data'].get('format') != 'handoff-v1':
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return {'ok': True, 'data': {'runId': run_id, 'entry': entry['data']}}
+
+    @staticmethod
+    def _validate_collection_policy(policy):
+        fields = {'mode', 'stars', 'totalPerLink', 'allocation'}
+        if not isinstance(policy, dict) or set(policy) != fields:
+            raise _BridgeFailure('ARG_INVALID')
+        if (policy['mode'] not in ('all', 'with-comments', 'stars') or
+                policy['allocation'] not in ('pooled', 'equal-stars')):
+            raise _BridgeFailure('ARG_INVALID')
+        total = policy['totalPerLink']
+        if type(total) is not int or total < 1 or total > 2000:
+            raise _BridgeFailure('ARG_INVALID')
+        stars = policy['stars']
+        if not isinstance(stars, list) or any(type(star) is not int or star < 1 or star > 5 for star in stars):
+            raise _BridgeFailure('ARG_INVALID')
+        if stars != sorted(set(stars)):
+            raise _BridgeFailure('ARG_INVALID')
+        if policy['mode'] == 'stars':
+            if not stars:
+                raise _BridgeFailure('ARG_INVALID')
+        elif stars:
+            raise _BridgeFailure('ARG_INVALID')
+        if policy['allocation'] == 'equal-stars' and policy['mode'] != 'stars':
+            raise _BridgeFailure('ARG_INVALID')
 
     def addProduct(self, input=None):
         return self._safe(lambda: self._add_product(input))

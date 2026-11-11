@@ -88,7 +88,12 @@ class ProductSaveTests(ProductTest):
         request = json.loads((self.runs / created['runId'] / 'request.json').read_text())
         self.assertEqual(request['preset']['keywords'], ['kem chống nắng', 'kem chống nắng da dầu'])
         self.assertEqual(request['principalTitles'], ['Kem chống nắng ABC 50ml'])
-        self.assertEqual(request['reviewCapPerLink'], 25)
+        self.assertEqual(request['format'], 'request-v2')
+        self.assertNotIn('reviewCapPerLink', request)
+        self.assertEqual(request['collectionPolicy'], {
+            'format': 'shopee-review-policy-v1', 'mode': 'with-comments', 'stars': [],
+            'totalPerLink': 25, 'allocation': 'pooled',
+            'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'})
         self.assertEqual(request['captureSpec']['preset']['category']['id'], HEALTH)
         self.assertEqual([w['id'] for w in request['windows']], ['30d', '12m'])
         self.assertEqual([w['id'] for w in request['captureSpec']['windows']], ['30d', '12m'])

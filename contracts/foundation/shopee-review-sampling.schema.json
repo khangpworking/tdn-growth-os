@@ -1030,7 +1030,23 @@
           "items": {
             "$ref": "#/$defs/link"
           }
+        },
+        "executionId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
         }
+      },
+      "dependentRequired": {
+        "executionId": [
+          "sequence"
+        ],
+        "sequence": [
+          "executionId"
+        ]
       }
     },
     "attemptState": {
@@ -1093,6 +1109,217 @@
         "attemptSha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "automatic": {
+      "title": "AutomaticReviewBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "requestSha256",
+        "m2Digest",
+        "policySha256",
+        "planSha256",
+        "attemptId",
+        "executionId",
+        "sequence",
+        "createdAt"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-automatic-review-binding-v1"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "requestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "m2Digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "policySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "planSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "execution": {
+      "title": "ModuleExecution",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "executionId",
+        "sequence",
+        "module",
+        "kind",
+        "attemptId",
+        "requestSha256",
+        "inputSha256",
+        "startedAt",
+        "endedAt",
+        "status",
+        "pid",
+        "gateSha256",
+        "errorCode"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-module-execution-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "executionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "module": {
+          "enum": [
+            "M1",
+            "M2",
+            "M3"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "module",
+            "automatic",
+            "custom"
+          ]
+        },
+        "attemptId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "RUNNING",
+            "UNCERTAIN",
+            "SUCCEEDED",
+            "FAILED",
+            "WAIT_OWNER"
+          ]
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gateSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousGateSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

@@ -33,13 +33,17 @@ function harness(options: {
   saveGate?: Deferred<any> | undefined; refreshCountResult?: any;
   reviewData?: any; reviewDataByRun?: Record<string, any>;
   exportReviewResult?: (runId: string, input: any) => any;
+  newRunGate?: Deferred<any> | undefined;
+  newRunResult?: (input: any) => any | Promise<any>;
+  addProductGate?: Deferred<any> | undefined;
+  addProductResult?: (input: any) => any;
+  runFlowResult?: any;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
     refreshCountCalls: number;
+    newRunInputs: any[]; flowCalls: string[];
     presets: ReturnType<typeof preset>[];
-    refresh: Deferred<any> | undefined;
-    addResult: ((input: any) => any) | undefined;
     sampling: any;
     samplingByRun: Record<string, any> | undefined;
     reviewGates: Record<string, Deferred<void>> | undefined;
@@ -59,9 +63,8 @@ function harness(options: {
     saveGate: Deferred<any> | undefined;
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0,
+    newRunInputs: [], flowCalls: [],
     presets: [preset('kem', 'Kem chống nắng')],
-    refresh: undefined,
-    addResult: undefined,
     sampling: options.sampling ? clone(options.sampling) : undefined,
     samplingByRun: options.samplingByRun ? clone(options.samplingByRun) : undefined,
     reviewGates: options.reviewGates,
@@ -83,7 +86,6 @@ function harness(options: {
     connection: async () => ({ ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } }),
     presets: async () => {
       state.presetsCalls++;
-      if (state.refresh) return state.refresh.promise;
       return { ok: true, data: { format: 'presets-v1', presets: state.presets.slice() } };
     },
     listRuns: async () => {
@@ -91,8 +93,11 @@ function harness(options: {
       return { ok: true, data: { format: 'runs-v1', runs: options.runs || [] } };
     },
     library: async () => ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } }),
-    newRun: async () => {
+    newRun: async (input: any) => {
       state.newRunCalls++;
+      state.newRunInputs.push(clone(input));
+      if (options.newRunGate) await options.newRunGate.promise;
+      if (options.newRunResult) return options.newRunResult(clone(input));
       return { ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } };
     },
     status: async (runId: string) => {
@@ -100,7 +105,10 @@ function harness(options: {
       if (info) return { ok: true, data: clone(info) };
       return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
     },
-    runFlow: async () => ({ ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } }),
+    runFlow: async (runId: string) => {
+      state.flowCalls.push(runId);
+      return options.runFlowResult || { ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } };
+    },
     reviewData: async (runId: string) => {
       state.reviewDataCalls++;
       state.reviewDataCallsByRun[runId] = (state.reviewDataCallsByRun[runId] || 0) + 1;
@@ -204,9 +212,12 @@ function harness(options: {
     },
     addProduct: async (input: any) => {
       state.addCalls++;
-      if (state.addResult) return state.addResult(input);
-      state.presets.push(preset(input.presetId, input.label));
-      return { ok: true, data: { format: 'add-product-v1', presetId: input.presetId, label: input.label } };
+      if (options.addProductGate) await options.addProductGate.promise;
+      const res = options.addProductResult
+        ? options.addProductResult(clone(input))
+        : { ok: true, data: { format: 'add-product-v1', presetId: input.presetId, label: input.label } };
+      if (res.ok) state.presets.push(preset(res.data.presetId, res.data.label));
+      return res;
     },
   };
   const dom = new JSDOM(html, {
@@ -219,103 +230,304 @@ function harness(options: {
 
 const element = <T extends HTMLElement>(doc: Document, id: string): T => doc.getElementById(id) as T;
 
-function fill(doc: Document, label: string, keyword: string): void {
+function fillProduct(doc: Document, label: string, keyword: string): void {
+  element<HTMLSelectElement>(doc, 'presetSel').value = '__new__';
+  element<HTMLSelectElement>(doc, 'presetSel').dispatchEvent(new (doc.defaultView as any).Event('change', { bubbles: true }));
   element<HTMLInputElement>(doc, 'productLabel').value = label;
   element<HTMLInputElement>(doc, 'productKeyword').value = keyword;
   element<HTMLSelectElement>(doc, 'productCategory').value = 'c2035652732';
 }
 
-/** A user-like click on the submit button; the page owns the form submit handler. */
-const save = (doc: Document) => element<HTMLButtonElement>(doc, 'btnProductSave').click();
-
-async function booted(doc: Document): Promise<void> {
-  await waitFor(() => element<HTMLButtonElement>(doc, 'btnProductSave').disabled === false, 'connected product form');
+function chooseStars(doc: Document, stars: number[], total: number): void {
+  const window = doc.defaultView as any;
+  const mode = doc.querySelector('input[name="newPolicyMode"][value="stars"]') as HTMLInputElement;
+  mode.checked = true;
+  mode.dispatchEvent(new window.Event('change', { bubbles: true }));
+  for (const box of doc.querySelectorAll<HTMLInputElement>('[data-new-star]')) {
+    box.checked = stars.includes(Number(box.dataset.newStar));
+  }
+  element<HTMLInputElement>(doc, 'newTotal').value = String(total);
+  element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new window.Event('input', { bubbles: true }));
 }
 
-test('a slow preset refresh keeps the save pending, blocks edits and duplicate submits, then applies the saved product', async () => {
-  const { dom, doc, state, window } = harness();
+const create = (doc: Document) => element<HTMLButtonElement>(doc, 'btnNew').click();
+
+async function booted(doc: Document): Promise<void> {
+  await waitFor(() => element<HTMLButtonElement>(doc, 'btnNew').disabled === false, 'connected new-run form');
+  await waitFor(() => element<HTMLSelectElement>(doc, 'presetSel').options.length > 0, 'presets loaded');
+}
+
+/** A real status reply for a run the fake bridge just created. */
+function createdRunInfo(runId: string) {
+  return {
+    format: 'run-info-v1', runId, readonly: false,
+    request: {
+      format: 'request-v2', preset: { keywords: ['son'] },
+      windows: [{ id: '30d', period: { startDate: '2026-10-12', endDate: '2026-11-11' }, intervalDays: 7 }],
+      collectionPolicy: {
+        format: 'shopee-review-policy-v1', mode: 'stars', stars: [2, 3], totalPerLink: 500,
+        allocation: 'pooled', textRule: 'comment-or-attributes-v1', order: 'native-filter-ascending-stars-v1',
+      },
+    },
+    state: { status: 'IDLE', module: null, errorCode: null },
+    modules: [
+      { id: 'M1', title: 'M1', skill: 'synthetic', inputGate: 'entry', outputGate: 'm1', canRun: false, blockedBy: null },
+      { id: 'M2', title: 'M2', skill: 'synthetic', inputGate: 'm1', outputGate: 'm2', canRun: false, blockedBy: null },
+      { id: 'M3', title: 'M3', skill: 'synthetic', inputGate: 'm2', outputGate: 'm3', canRun: false, blockedBy: null },
+    ],
+    gates: { entry: passSlip('ENTRY'), m1: null, m2: null, m3: null },
+    selection: null,
+  };
+}
+
+test('creating a run with 500 stars 2,3 sends the frozen policy once and binds the entry PASS', async () => {
+  const { dom, doc, state } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-frozen' } }),
+    runInfoByRun: { 'run-frozen': createdRunInfo('run-frozen') },
+  });
   try {
     await booted(doc);
-    fill(doc, 'Viên uống vitamin C', 'vitamin C');
-    state.refresh = deferred();
-    save(doc);
-    await waitFor(() => state.addCalls === 1, 'add-product started');
-    await waitFor(() => element<HTMLElement>(doc, 'productPending').hidden === false, 'pending while the refresh is in flight');
+    chooseStars(doc, [3, 2], 500);
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'new-run sent');
 
-    const label = element<HTMLInputElement>(doc, 'productLabel');
-    const saveBtn = element<HTMLButtonElement>(doc, 'btnProductSave');
-    assert.equal(saveBtn.disabled, true, 'save stays disabled through the whole operation');
-    assert.equal(label.disabled, true, 'the form is protected while the save is in flight');
-    assert.equal(element<HTMLInputElement>(doc, 'productKeyword').disabled, true);
-    assert.equal(element<HTMLSelectElement>(doc, 'productCategory').disabled, true);
-    assert.equal(element<HTMLButtonElement>(doc, 'btnNew').disabled, false, 'the new-run control is untouched');
-
-    // A second user attempt and a direct submit event must not start another save.
-    label.value = 'Viên uống vitamin C mới';
-    save(doc);
-    element<HTMLFormElement>(doc, 'productForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.equal(state.addCalls, 1, 'a duplicate submission is refused while the operation is pending');
-    assert.equal(state.newRunCalls, 0, 'saving a product never creates a run');
-    assert.equal(state.listRunsCalls, 1, 'saving a product never refreshes runs');
-
-    const refreshed = [preset('kem', 'Kem chống nắng'), preset('vien-uong-vitamin-c', 'Viên uống vitamin C')];
-    state.refresh.resolve({ ok: true, data: { format: 'presets-v1', presets: refreshed } });
-    await waitFor(() => element<HTMLElement>(doc, 'productPending').hidden === true, 'pending cleared after refresh');
-
-    const select = element<HTMLSelectElement>(doc, 'presetSel');
-    assert.equal(select.value, 'vien-uong-vitamin-c');
-    assert.ok([...select.options].some((option) => option.value === 'kem'), 'the old preset is preserved');
-    assert.match(element<HTMLElement>(doc, 'productSaved').textContent!, /Viên uống vitamin C/);
-    assert.equal(label.value, '', 'the form resets only after the saved preset is selected');
-    assert.equal(label.disabled, false, 'the form is restored after success');
-    assert.equal(saveBtn.disabled, false, 'save is re-enabled after success');
+    assert.deepEqual(state.newRunInputs[0], {
+      presetId: 'kem', endDate: element<HTMLInputElement>(doc, 'endDate').value,
+      collectionPolicy: { mode: 'stars', stars: [2, 3], totalPerLink: 500, allocation: 'pooled' },
+    });
+    assert.equal('reviewCapPerLink' in state.newRunInputs[0]!, false, 'the UI never sends the legacy cap');
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false, 'bound create result');
+    assert.equal(element<HTMLButtonElement>(doc, 'btnFlow').disabled, false, 'entry PASS unlocks the flow');
+    assert.match(element<HTMLElement>(doc, 'frozenSummary').textContent!, /Sao 2, 3 · 500 bình luận chung mỗi link/);
+    assert.equal(state.flowCalls.length, 0, 'creating a run never launches collection');
+    assert.equal(state.addCalls, 0, 'an existing product is not saved again');
   } finally { dom.window.close(); }
 });
 
-test('a failed preset refresh restores the form, keeps the saved product message and allows a retry', async () => {
-  const { dom, doc, state } = harness();
+test('a saved product followed by a failed create is not saved a second time on retry', async () => {
+  let fail = true;
+  const { dom, doc, state } = harness({
+    newRunResult: () => fail
+      ? { ok: false, error: { code: 'REVIEW_POLICY_INVALID', message: 'REVIEW_POLICY_INVALID' } }
+      : { ok: true, data: { format: 'new-run-v1', runId: 'run-retry' } },
+    runInfoByRun: { 'run-retry': createdRunInfo('run-retry') },
+  });
   try {
     await booted(doc);
-    fill(doc, 'Viên uống vitamin C', 'vitamin C');
-    state.refresh = deferred();
-    save(doc);
-    await waitFor(() => state.addCalls === 1, 'add-product started');
-    await waitFor(() => element<HTMLElement>(doc, 'productPending').hidden === false, 'pending while the refresh is in flight');
+    fillProduct(doc, 'Viên uống vitamin C', 'vitamin C');
+    const endDate = element<HTMLInputElement>(doc, 'endDate').value;
+    element<HTMLInputElement>(doc, 'newTotal').value = '500';
+    create(doc);
+    await waitFor(() => element<HTMLElement>(doc, 'newErr').hidden === false, 'create failure shown');
 
-    state.refresh.resolve({ ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } });
-    await waitFor(() => element<HTMLElement>(doc, 'productPending').hidden === true, 'pending cleared after the refresh failure');
-    assert.match(element<HTMLElement>(doc, 'productSaved').textContent!, /Đã lưu “Viên uống vitamin C”/);
-    assert.match(element<HTMLElement>(doc, 'errbar').textContent!, /SSH_TIMEOUT/);
-    const label = element<HTMLInputElement>(doc, 'productLabel');
-    assert.equal(label.value, 'Viên uống vitamin C', 'the values stay so the user can retry');
-    assert.equal(label.disabled, false, 'the form is restored after the refresh failure');
-    assert.equal(element<HTMLButtonElement>(doc, 'btnProductSave').disabled, false, 'save is restored after the refresh failure');
+    assert.equal(state.newRunCalls, 1);
+    assert.equal(state.newRunInputs[0]!.presetId, 'vien-uong-vitamin-c', 'the saved product id is used');
+    assert.equal(state.newRunInputs[0]!.endDate, endDate);
+    assert.equal((state.newRunInputs[0]!.collectionPolicy as any).totalPerLink, 500);
+    assert.match(element<HTMLElement>(doc, 'newNotice').textContent!, /Đã lưu sản phẩm “Viên uống vitamin C”/);
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!, /nhưng chưa tạo được lượt/);
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!, /REVIEW_POLICY_INVALID/);
+    assert.equal(element<HTMLSelectElement>(doc, 'presetSel').value, 'vien-uong-vitamin-c');
+    assert.equal(element<HTMLElement>(doc, 'newResult').hidden, true);
 
-    state.refresh = undefined;
-    state.presets = [preset('kem', 'Kem chống nắng'), preset('vien-uong-vitamin-c', 'Viên uống vitamin C')];
-    save(doc);
-    await waitFor(() => state.addCalls === 2 && element<HTMLElement>(doc, 'productPending').hidden === true, 'retry completes');
+    fail = false;
+    create(doc);
+    await waitFor(() => state.newRunCalls === 2 && element<HTMLElement>(doc, 'newResult').hidden === false, 'retry created');
+    assert.equal(state.addCalls, 1, 'the retry does not save the product again');
   } finally { dom.window.close(); }
 });
 
-test('a rejected save restores the form, shows the product error and does not refresh presets', async () => {
+test('a product saved while N changes keeps the exact product and continues with the newer N once', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, window, state } = harness({
+    addProductGate: gate,
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-after-save' } }),
+    runInfoByRun: { 'run-after-save': createdRunInfo('run-after-save') },
+  });
+  try {
+    await booted(doc);
+    fillProduct(doc, 'Viên uống vitamin C', 'vitamin C');
+    element<HTMLInputElement>(doc, 'newTotal').value = '500';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new window.Event('input', { bubbles: true }));
+    create(doc);
+    await waitFor(() => state.addCalls === 1, 'save in flight');
+
+    element<HTMLInputElement>(doc, 'newTotal').value = '501';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new window.Event('input', { bubbles: true }));
+    gate.resolve(undefined);
+    await waitFor(() => /đã được lưu|Đã lưu sản phẩm/.test(element<HTMLElement>(doc, 'newNotice').textContent || ''), 'save notice');
+
+    assert.equal(element<HTMLSelectElement>(doc, 'presetSel').value, 'vien-uong-vitamin-c',
+      'the exact saved product stays selected');
+    assert.equal(element<HTMLInputElement>(doc, 'newTotal').value, '501', 'the newer N is not lost');
+    assert.equal(element<HTMLElement>(doc, 'newResult').hidden, true, 'the changed form is not bound in the same click');
+    assert.equal(state.newRunCalls, 0);
+
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'continuation creates the run');
+    assert.equal(state.newRunInputs[0]!.presetId, 'vien-uong-vitamin-c');
+    assert.equal((state.newRunInputs[0]!.collectionPolicy as any).totalPerLink, 501, 'the newer N continues');
+    assert.equal(state.addCalls, 1, 'the continuation never saves the product again');
+  } finally { dom.window.close(); }
+});
+
+test('a failed product save while the form changes never claims the product was saved', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, window, state } = harness({
+    addProductGate: gate,
+    addProductResult: () => ({ ok: false, error: { code: 'PRESET_BUSY', message: 'PRESET_BUSY' } }),
+  });
+  try {
+    await booted(doc);
+    fillProduct(doc, 'Viên uống vitamin C', 'vitamin C');
+    create(doc);
+    await waitFor(() => state.addCalls === 1, 'save in flight');
+
+    element<HTMLInputElement>(doc, 'newTotal').value = '501';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new window.Event('input', { bubbles: true }));
+    gate.resolve(undefined);
+    await waitFor(() => !element<HTMLElement>(doc, 'newErr').hidden || (element<HTMLElement>(doc, 'newNotice').textContent || '').length > 0, 'save outcome');
+
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!, /Chưa lưu được sản phẩm/);
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!, /PRESET_BUSY/);
+    assert.doesNotMatch(element<HTMLElement>(doc, 'newNotice').textContent || '', /đã được lưu|Đã lưu sản phẩm/i,
+      'a failed save is never claimed as saved');
+    assert.equal(element<HTMLSelectElement>(doc, 'presetSel').value, '__new__', 'no saved id is bound');
+    assert.equal(state.presets.some((p: any) => p.presetId === 'vien-uong-vitamin-c'), false);
+    assert.equal(element<HTMLElement>(doc, 'newResult').hidden, true);
+  } finally { dom.window.close(); }
+});
+
+test('a product draft edited while it is saving is never replaced by the older submitted product', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, window, state } = harness({ addProductGate: gate });
+  try {
+    await booted(doc);
+    fillProduct(doc, 'Viên uống vitamin C', 'vitamin C');
+    create(doc);
+    await waitFor(() => state.addCalls === 1, 'save in flight');
+
+    element<HTMLInputElement>(doc, 'productLabel').value = 'Viên uống vitamin C loại mới';
+    element<HTMLInputElement>(doc, 'productLabel').dispatchEvent(new window.Event('input', { bubbles: true }));
+    gate.resolve(undefined);
+    await waitFor(() => (element<HTMLElement>(doc, 'newNotice').textContent || '').length > 0 || !element<HTMLElement>(doc, 'newErr').hidden, 'save outcome');
+
+    assert.equal(element<HTMLSelectElement>(doc, 'presetSel').value, '__new__', 'the newer draft stays selected');
+    assert.equal(element<HTMLInputElement>(doc, 'productLabel').value, 'Viên uống vitamin C loại mới',
+      'the older submitted product never overwrites the newer draft');
+    create(doc);
+    await waitFor(() => state.addCalls === 2, 'the newer draft is saved on its own click');
+  } finally { dom.window.close(); }
+});
+
+test('a selection changed while a product saves is not replaced by the saved product', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, window, state } = harness({
+    addProductGate: gate,
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-selected' } }),
+    runInfoByRun: { 'run-selected': createdRunInfo('run-selected') },
+  });
+  try {
+    await booted(doc);
+    fillProduct(doc, 'Viên uống vitamin C', 'vitamin C');
+    create(doc);
+    await waitFor(() => state.addCalls === 1, 'save in flight');
+
+    element<HTMLSelectElement>(doc, 'presetSel').value = 'kem';
+    element<HTMLSelectElement>(doc, 'presetSel').dispatchEvent(new window.Event('change', { bubbles: true }));
+    gate.resolve(undefined);
+    await waitFor(() => (element<HTMLElement>(doc, 'newNotice').textContent || '').length > 0 || !element<HTMLElement>(doc, 'newErr').hidden, 'save outcome');
+
+    assert.equal(element<HTMLSelectElement>(doc, 'presetSel').value, 'kem', 'the newer selection is kept');
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'continuation creates with the newer selection');
+    assert.equal(state.newRunInputs[0]!.presetId, 'kem');
+    assert.equal(state.addCalls, 1, 'the saved product is not re-saved by the continuation');
+  } finally { dom.window.close(); }
+});
+
+test('a create reply that lands after a form change is never bound to the changed form', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, state } = harness({
+    newRunGate: gate,
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-late' } }),
+    runInfoByRun: { 'run-late': createdRunInfo('run-late') },
+  });
+  try {
+    await booted(doc);
+    element<HTMLInputElement>(doc, 'newTotal').value = '500';
+    const runsBefore = state.listRunsCalls;
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'new-run in flight');
+
+    element<HTMLInputElement>(doc, 'newTotal').value = '501';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new (doc.defaultView as any).Event('input', { bubbles: true }));
+    gate.resolve({ ok: true, data: { format: 'new-run-v1', runId: 'run-late' } });
+    await waitFor(() => /run-late/.test(element<HTMLElement>(doc, 'newNotice').textContent || ''), 'stale create notice');
+
+    assert.equal(element<HTMLElement>(doc, 'newResult').hidden, true, 'no binding is shown');
+    assert.equal(element<HTMLButtonElement>(doc, 'btnFlow').disabled, true, 'the changed form cannot launch it');
+    assert.match(element<HTMLElement>(doc, 'newNotice').textContent!, /biểu mẫu đã thay đổi/);
+    assert.ok(state.listRunsCalls > runsBefore, 'the created run is still listed for tracking');
+  } finally { dom.window.close(); }
+});
+
+test('changing the form after a successful create clears the binding and names the old run', async () => {
+  const { dom, doc } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-bound' } }),
+    runInfoByRun: { 'run-bound': createdRunInfo('run-bound') },
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false, 'binding shown');
+    assert.equal(element<HTMLButtonElement>(doc, 'btnFlow').disabled, false);
+
+    element<HTMLInputElement>(doc, 'newTotal').value = '600';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new (doc.defaultView as any).Event('input', { bubbles: true }));
+
+    assert.equal(element<HTMLElement>(doc, 'newResult').hidden, true);
+    assert.equal(element<HTMLButtonElement>(doc, 'btnFlow').disabled, true);
+    assert.match(element<HTMLElement>(doc, 'newNotice').textContent!, /Lượt run-bound đã tạo trước đó không còn gắn/);
+  } finally { dom.window.close(); }
+});
+
+test('launch keeps the run frozen at click time even when the draft changes during the call', async () => {
+  const { dom, doc, state } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-clicked' } }),
+    runInfoByRun: { 'run-clicked': createdRunInfo('run-clicked') },
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => element<HTMLButtonElement>(doc, 'btnFlow').disabled === false, 'launch enabled');
+
+    element<HTMLButtonElement>(doc, 'btnFlow').click();
+    element<HTMLInputElement>(doc, 'newTotal').value = '700';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new (doc.defaultView as any).Event('input', { bubbles: true }));
+    await waitFor(() => state.flowCalls.length === 1, 'flow launched');
+
+    assert.deepEqual(state.flowCalls, ['run-clicked']);
+    assert.equal(state.newRunCalls, 1, 'no second run is created by the draft change');
+  } finally { dom.window.close(); }
+});
+
+test('an invalid policy is refused inline before any bridge call', async () => {
   const { dom, doc, state } = harness();
   try {
     await booted(doc);
-    fill(doc, 'Viên uống vitamin C', 'vitamin C');
-    const presetsBefore = state.presetsCalls;
-    state.addResult = () => ({ ok: false, error: { code: 'PRESET_BUSY', message: 'PRESET_BUSY' } });
-    save(doc);
-    await waitFor(() => element<HTMLElement>(doc, 'productErr').hidden === false, 'product error');
+    const window = doc.defaultView as any;
+    const stars = doc.querySelector('input[name="newPolicyMode"][value="stars"]') as HTMLInputElement;
+    stars.checked = true;
+    stars.dispatchEvent(new window.Event('change', { bubbles: true }));
+    create(doc);
+    assert.equal(state.newRunCalls, 0, 'no star selected is refused');
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!, /ít nhất một mức sao/);
 
-    assert.match(element<HTMLElement>(doc, 'productErr').textContent!, /PRESET_BUSY/);
-    assert.equal(element<HTMLElement>(doc, 'productPending').hidden, true);
-    assert.equal(element<HTMLInputElement>(doc, 'productLabel').value, 'Viên uống vitamin C');
-    assert.equal(element<HTMLInputElement>(doc, 'productLabel').disabled, false);
-    assert.equal(element<HTMLElement>(doc, 'productSaved').hidden, true);
-    assert.equal(element<HTMLButtonElement>(doc, 'btnProductSave').disabled, false);
-    assert.equal(state.presetsCalls, presetsBefore, 'a rejected save does not refresh presets');
+    element<HTMLInputElement>(doc, 'newTotal').value = '2001';
+    create(doc);
+    assert.equal(state.newRunCalls, 0, 'out of range total is refused');
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!, /2000/);
   } finally { dom.window.close(); }
 });
 
@@ -325,13 +537,21 @@ const passSlip = (module: string) => ({
 });
 
 /** Synthetic run-info for the M3 panel; no live source or native DOM is involved. */
+type SyntheticRunRequest =
+  | { format: 'request-v1'; reviewCapPerLink: number }
+  | {
+      format: 'request-v2'; preset: { keywords: string[] };
+      windows: Array<{ id: string; period: { startDate: string; endDate: string }; intervalDays: number }>;
+      collectionPolicy: Record<string, unknown>;
+    };
+
 function syntheticRunInfo(runId = 'run-synthetic') {
   const module = (id: string, inputGate: string, canRun: boolean) => ({
     id, title: id, skill: 'synthetic-module', inputGate, outputGate: id.toLowerCase(), canRun, blockedBy: null,
   });
   return {
     format: 'run-info-v1', runId, readonly: false,
-    request: { format: 'request-v1', reviewCapPerLink: 300 },
+    request: { format: 'request-v1', reviewCapPerLink: 300 } as SyntheticRunRequest,
     state: { status: 'IDLE', module: null, errorCode: null },
     modules: [module('M1', 'entry', false), module('M2', 'm1', false), module('M3', 'm2', true)],
     gates: { entry: passSlip('ENTRY'), m1: passSlip('M1'), m2: passSlip('M2'), m3: null },
@@ -431,8 +651,81 @@ test('the M3 panel keeps legacy with-comments and one shared 300 input for a sel
     assert.doesNotMatch(doc.getElementById('rsPanel')!.textContent!, /ảnh|video|hình ảnh|media/i);
     assert.equal(state.refreshCountCalls, 0, 'opening the run must not refresh source counts');
 
-    assert.equal(element<HTMLInputElement>(doc, 'cap').max, '300');
-    assert.equal(element<HTMLInputElement>(doc, 'cap').value, '300');
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /Cấu hình cũ · trần 1–300 mỗi link/,
+      'a request-v1 run is labelled legacy, never rewritten');
+
+    assert.equal(element<HTMLInputElement>(doc, 'newTotal').min, '1');
+    assert.equal(element<HTMLInputElement>(doc, 'newTotal').max, '2000');
+    assert.equal(element<HTMLInputElement>(doc, 'newTotal').value, '300');
+    assert.equal((doc.querySelector('input[name="newPolicyMode"][value="with-comments"]') as HTMLInputElement).checked, true);
+  } finally { dom.window.close(); }
+});
+
+test('a request-v2 run shows its frozen policy and starts the automatic attempt without a saved plan', async () => {
+  const info = syntheticRunInfo();
+  info.request = {
+    format: 'request-v2', preset: { keywords: ['son'] },
+    windows: [{ id: '30d', period: { startDate: '2026-10-12', endDate: '2026-11-11' }, intervalDays: 7 }],
+    collectionPolicy: {
+      format: 'shopee-review-policy-v1', mode: 'stars', stars: [2, 3], totalPerLink: 500,
+      allocation: 'pooled', textRule: 'comment-or-attributes-v1', order: 'native-filter-ascending-stars-v1',
+    },
+  };
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE' }],
+    runInfo: info, sampling: syntheticSampling(),
+  });
+  try {
+    await waitFor(() => doc.getElementById('rsN') !== null, 'sampling defaults');
+    const panel = doc.getElementById('rsPanel')!;
+    assert.match(panel.querySelector('.policy-frozen')!.textContent!, /Cấu hình đã lưu khi tạo lượt/);
+    assert.match(panel.querySelector('.policy-frozen')!.textContent!, /Sao 2, 3 · 500 bình luận chung mỗi link/);
+    assert.equal((panel.querySelector('details.extra-collection') as HTMLDetailsElement).open, false,
+      'the editable extra collection starts closed');
+    assert.ok(panel.querySelector('details.extra-collection #rsN'), 'editable fields live in the extra collection');
+
+    const auto = buttonByText(doc, 'Bắt đầu thu theo cấu hình');
+    assert.ok(auto, 'the primary action starts the configured attempt');
+    auto!.click();
+    await waitFor(() => state.launchCalls.length === 1, 'automatic m3 launch');
+    assert.deepEqual(state.launchCalls[0], { runId: 'run-synthetic', module: 'm3', sha: undefined });
+    assert.equal(state.saveCalls.length, 0, 'the automatic path never saves a new plan');
+  } finally { dom.window.close(); }
+});
+
+test('a completed automatic attempt hides the configured-collection launch button', async () => {
+  const info = syntheticRunInfo();
+  info.request = {
+    format: 'request-v2', preset: { keywords: ['son'] },
+    windows: [{ id: '30d', period: { startDate: '2026-10-12', endDate: '2026-11-11' }, intervalDays: 7 }],
+    collectionPolicy: {
+      format: 'shopee-review-policy-v1', mode: 'stars', stars: [2, 3], totalPerLink: 500,
+      allocation: 'pooled', textRule: 'comment-or-attributes-v1', order: 'native-filter-ascending-stars-v1',
+    },
+  };
+  const automaticAttempt = {
+    attemptId: '00000000-0000-4000-8000-0000000000aa', automatic: true,
+    executionId: '00000000-0000-4000-8000-0000000000ab', sequence: 2,
+    createdAt: '2026-11-11T04:30:00.000Z', status: 'SUCCEEDED', errorCode: null,
+    planSha256: 'b'.repeat(64), requestSha256: 'c'.repeat(64), m2Digest: 'a'.repeat(64),
+    gate: passSlip('M3'), stopRequested: false, reconcilable: false,
+    links: [
+      { shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200', requested: 500, actual: 2, shortfall: 498, complete: true, status: 'exhausted' },
+      { shopId: '101', itemId: '201', url: 'https://shopee.vn/product/101/201', requested: 500, actual: 2, shortfall: 498, complete: true, status: 'exhausted' },
+    ],
+  };
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: info, sampling: syntheticSampling({ attempts: [automaticAttempt] }),
+  });
+  try {
+    await waitFor(() => doc.getElementById('rsPanel') !== null, 'sampling panel');
+    assert.equal(buttonByText(doc, 'Bắt đầu thu theo cấu hình'), undefined,
+      'a completed automatic attempt never offers a second configured launch');
+    assert.match(doc.getElementById('rsPanel')!.textContent!,
+      /Lượt này đã có lần thu tự động theo cấu hình đã lưu/);
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /Xong/, 'the automatic attempt status is shown');
+    assert.equal(state.launchCalls.length, 0, 'opening the completed attempt never dispatches it again');
   } finally { dom.window.close(); }
 });
 

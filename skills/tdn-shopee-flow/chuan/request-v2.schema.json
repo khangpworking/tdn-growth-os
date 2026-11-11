@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/request-v2.schema.json",
+  "title": "ConfiguredShopeeModuleRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "preset",
+    "windows",
+    "collectionPolicy"
+  ],
+  "properties": {
+    "format": {
+      "const": "request-v2"
+    },
+    "preset": {
+      "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/preset"
+    },
+    "windows": {
+      "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/windows"
+    },
+    "collectionPolicy": {
+      "$ref": "https://tdn.local/contracts/foundation/shopee-review-sampling.schema.json#/$defs/policy"
+    },
+    "captureSpec": {
+      "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/captureSpec"
+    },
+    "principalTitles": {
+      "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/principalTitles"
+    }
+  }
+}

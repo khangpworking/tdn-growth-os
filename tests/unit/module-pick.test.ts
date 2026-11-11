@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import test from 'node:test';
 import { auditMaskedRows, derivePickCandidate, main, ModuleError, readRequest } from '../../scripts/module-pick.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
 
 // Synthetic rows only: invented names, brands, shops and ids.
 let nextItem = 5000;
@@ -18,6 +19,19 @@ const request = (extra: Record<string, unknown> = {}) => ({
     { id: '12m', period: { startDate: '2025-11-11', endDate: '2026-11-10' }, intervalDays: 30 },
   ],
   reviewCapPerLink: 300, principalTitles: [], ...extra,
+});
+const configuredRequest = (policy: Record<string, unknown> = {}) => ({
+  format: 'request-v2', preset: { keywords: ['son'] },
+  windows: [
+    { id: '30d', period: { startDate: '2026-10-12', endDate: '2026-11-10' }, intervalDays: 7 },
+    { id: '12m', period: { startDate: '2025-11-11', endDate: '2026-11-10' }, intervalDays: 30 },
+  ],
+  principalTitles: [],
+  collectionPolicy: {
+    format: 'shopee-review-policy-v1', mode: 'stars', stars: [2, 3], totalPerLink: 500,
+    allocation: 'pooled', textRule: 'comment-or-attributes-v1',
+    order: 'native-filter-ascending-stars-v1', ...policy,
+  },
 });
 const runDir = () => mkdtemp(join(tmpdir(), 'shopee-pick-'));
 const writeJson = (dir: string, name: string, value: unknown) => writeFile(join(dir, name), `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8' });
@@ -79,6 +93,26 @@ test('readRequest accepts a request without captureSpec', async () => {
     assert.deepEqual(parsed.keywords, ['son']);
     assert.equal(parsed.reviewCapPerLink, 300);
     assert.equal(parsed.captureSpec, undefined);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('readRequest reads the canonical request-v2 policy as the execution cap', async () => {
+  const dir = await runDir();
+  try {
+    await writeJson(dir, 'request.json', configuredRequest());
+    const parsed = await readRequest(dir);
+    assert.deepEqual(parsed.keywords, ['son']);
+    assert.equal(parsed.reviewCapPerLink, 500);
+    assert.deepEqual(parsed.collectionPolicy, configuredRequest().collectionPolicy);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('readRequest fails closed on a non-canonical request-v2 policy', async () => {
+  const dir = await runDir();
+  try {
+    await writeJson(dir, 'request.json', configuredRequest({ stars: [3, 2] }));
+    await assert.rejects(readRequest(dir), (error: unknown) =>
+      error instanceof ReviewSamplingError && error.code === 'REVIEW_POLICY_INVALID');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

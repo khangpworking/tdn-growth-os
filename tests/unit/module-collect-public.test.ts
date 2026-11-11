@@ -31,6 +31,19 @@ const request = (cap: number) => ({
   ],
   reviewCapPerLink: cap, principalTitles: [],
 });
+const configuredRequest = (totalPerLink: number) => ({
+  format: 'request-v2', preset: { keywords: ['son'] },
+  windows: [
+    { id: '30d', period: { startDate: '2026-10-12', endDate: '2026-11-10' }, intervalDays: 7 },
+    { id: '12m', period: { startDate: '2025-11-11', endDate: '2026-11-10' }, intervalDays: 30 },
+  ],
+  principalTitles: [],
+  collectionPolicy: {
+    format: 'shopee-review-policy-v1', mode: 'stars', stars: [2, 3], totalPerLink,
+    allocation: 'pooled', textRule: 'comment-or-attributes-v1',
+    order: 'native-filter-ascending-stars-v1',
+  },
+});
 const selection = (runId: string, cap: number, links = [link(1)]) => ({
   format: 'selection-v1', runId, source: 'auto', pickRuleVersion: 'autorun-pick-v3', metricInputSha256: 'a'.repeat(64),
   links,
@@ -182,6 +195,21 @@ test('a missing M2 slip is refused before any collection', async () => {
       mode: 'fixture', providerId: 'shopee-public-review', mappingRevision: 'shopee-public-review-row-v1',
       maxReviewsPerProduct: 1, usageTotalUsd: 0, warnings: [], pages: [], envelopes: [], listings: [], attemptedAt: AT, reused: false,
     }, sha) }), (error: unknown) => error instanceof ModuleError && error.code === 'GATE_NOT_PASSED' && error.exitCode === 22);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a direct legacy collector entry refuses request-v2 before dispatch', async () => {
+  const { dir } = await runDir(500);
+  let calls = 0;
+  try {
+    await writeFile(join(dir, 'request.json'), `${JSON.stringify(configuredRequest(500), null, 2)}\n`, 'utf8');
+    await assert.rejects(main({ runDir: dir, collector: {
+      collect: async () => { calls++; throw new Error('collector must not run'); },
+    } }), (error: unknown) => error instanceof ModuleError &&
+      error.code === 'CONFIGURED_COLLECTION_REQUIRES_PLAN');
+    assert.equal(calls, 0);
+    await assert.rejects(readFile(join(dir, 'm3/reviews.json')));
+    await assert.rejects(readFile(join(dir, 'm3/outcome.json')));
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

@@ -49,6 +49,7 @@ export async function main(deps: CollectDependencies) {
   // An injected collector never constructs a live client or reads credentials.
   if (!deps.collector) await writable();
   const request = await readRequest(run);
+  if (request.collectionPolicy) throw new ModuleError('CONFIGURED_COLLECTION_REQUIRES_PLAN');
   const selection = object(await readJson(run, 'm2/selection.json'));
   await validateModuleValue('selection-v1', selection);
   if (selection.runId !== basename(run)) throw new ModuleError('MODULE_INPUT_INVALID');
