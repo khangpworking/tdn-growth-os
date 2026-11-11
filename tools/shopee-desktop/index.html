@@ -134,7 +134,7 @@ select, input { font: inherit; color: var(--fg); background: var(--panel); borde
 table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 13px; }
 th, td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); }
 th { font-size: 11.5px; font-weight: 600; color: var(--muted); }
-td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .libcard h2 { font-size: 17px; }
 .kv { display: grid; gap: 7px; margin: 0; }
@@ -1506,8 +1506,9 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     var table = h('table');
     var thead = h('thead');
     var tr = h('tr');
-    ['Link', '5★', '4★', '3★', '2★', '1★', 'Có bình luận', 'Chụp lúc'].forEach(function (title) {
-      tr.appendChild(h('th', null, title));
+    [['Link', ''], ['5★', 'num'], ['4★', 'num'], ['3★', 'num'], ['2★', 'num'], ['1★', 'num'],
+      ['Có bình luận', 'num'], ['Chụp lúc', '']].forEach(function (entry) {
+      tr.appendChild(h('th', entry[1], entry[0]));
     });
     thead.appendChild(tr);
     table.appendChild(thead);
@@ -1555,7 +1556,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     var table = h('table');
     var thead = h('thead');
     var tr = h('tr');
-    ['Link', 'Yêu cầu', 'Thực tế', 'Thiếu', 'Ghi chú'].forEach(function (title) { tr.appendChild(h('th', null, title)); });
+    [['Link', ''], ['Yêu cầu', 'num'], ['Thực tế', 'num'], ['Thiếu', 'num'], ['Ghi chú', '']]
+      .forEach(function (entry) { tr.appendChild(h('th', entry[1], entry[0])); });
     thead.appendChild(tr);
     table.appendChild(thead);
     var tbody = h('tbody');
@@ -1619,11 +1621,13 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     panel.setAttribute('aria-label', 'Tuỳ chọn thu bình luận');
 
     var head = h('div', 'rs-head');
-    head.appendChild(h('h4', null, 'Thu theo lựa chọn'));
+    var headTitle = h('h4', null, 'Thu theo lựa chọn');
+    head.appendChild(headTitle);
     var statusChip = h('span', 'chip s-idle', 'Đang đọc lựa chọn…');
     head.appendChild(statusChip);
     panel.appendChild(head);
-    panel.appendChild(h('p', 'rs-lead', 'Áp dụng cho các link đã chọn ở M2. Không chạy lại Metric.'));
+    var lead = h('p', 'rs-lead', 'Áp dụng cho các link đã chọn ở M2. Không chạy lại Metric.');
+    panel.appendChild(lead);
 
     if (state.samplingErrors[runId]) {
       panel.appendChild(h('p', 'errbar', plainError(state.samplingErrors[runId])));
@@ -1637,6 +1641,20 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     }
     if (!view) {
       panel.appendChild(h('p', 'muted', 'Đang đọc lựa chọn đã lưu…'));
+      return panel;
+    }
+
+    var hasM2 = !!view.m2Digest;
+    var blocked = view.blockedBy;
+    if (!hasM2) {
+      headTitle.textContent = 'Khôi phục lần chạy';
+      statusChip.textContent = 'Không đọc được M2';
+      statusChip.className = 'chip s-warn';
+      lead.textContent = 'M2 hiện không đọc được. Chỉ có thể dừng hoặc đối soát lần chạy đã ghi; ' +
+        'không thể lưu hoặc bắt đầu thu mới.';
+      if (countRecoveryPending(view.countRefresh)) panel.appendChild(countsSection(view, onControl, false));
+      var recoveryAttempts = attemptBlock(view, onControl);
+      if (recoveryAttempts) panel.appendChild(recoveryAttempts);
       return panel;
     }
 
@@ -1723,7 +1741,6 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       'Số lượng là tổng chung cho mỗi link sau khi gộp các sao đã chọn, không phải trần từng sao. ' +
       'Bình luận trùng chỉ tính một lần. Chỉ thu bình luận có chữ.'));
 
-    var blocked = view.blockedBy;
     if (blocked && blocked.code) panel.appendChild(h('p', 'rs-block', rsBlockText(blocked.code)));
 
     var actions = h('div', 'rs-actions');
@@ -1742,43 +1759,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     actions.appendChild(actionHint);
     panel.appendChild(actions);
 
-    var counts = h('section', 'rs-counts');
-    var countsHead = h('div', 'rs-counts-head');
-    countsHead.appendChild(h('h4', null, 'Số đánh giá trên Shopee'));
-    var countsMeta = h('span', 'rs-counts-meta', '');
-    countsHead.appendChild(countsMeta);
-    counts.appendChild(countsHead);
-    if (view.countRefresh) {
-      var refreshStatus = view.countRefresh.status || 'UNCERTAIN';
-      countsMeta.textContent = view.countRefresh.stopRequested && (refreshStatus === 'RUNNING' || refreshStatus === 'UNCERTAIN')
-        ? 'Đang dừng đọc số đánh giá…' : (RS_REFRESH_TEXT[refreshStatus] || '');
-      var countControls = h('div', 'rs-actions');
-      if ((refreshStatus === 'RUNNING' || refreshStatus === 'UNCERTAIN') && !view.countRefresh.stopRequested) {
-        var stopCounts = h('button', 'abtn', 'Dừng đọc số đánh giá');
-        stopCounts.type = 'button';
-        stopCounts.addEventListener('click', function () {
-          onControl('stop', 'counts', view.countRefresh.attemptId);
-        });
-        countControls.appendChild(stopCounts);
-      }
-      if (view.countRefresh.reconcilable && !view.readonly) {
-        var reconcileCounts = h('button', 'abtn', 'Đối soát lần đọc');
-        reconcileCounts.type = 'button';
-        reconcileCounts.addEventListener('click', function () {
-          onControl('reconcile', 'counts', view.countRefresh.attemptId);
-        });
-        countControls.appendChild(reconcileCounts);
-      }
-      if (countControls.childNodes.length) counts.appendChild(countControls);
-    }
-    if ((view.links || []).length && (view.counts || []).length) {
-      counts.appendChild(countsTable(view));
-      counts.appendChild(h('p', 'rs-note',
-        'Số đánh giá trên trang nguồn; có thể gồm đánh giá không có chữ. Không phải số bình luận sẽ thu được.'));
-    } else {
-      counts.appendChild(h('p', 'rs-note', 'Chưa có số đánh giá. Bấm “Đọc số đánh giá trên Shopee” để đọc.'));
-    }
-    panel.appendChild(counts);
+    panel.appendChild(countsSection(view, onControl, true));
 
     var attempts = attemptBlock(view, onControl);
     if (attempts) panel.appendChild(attempts);
@@ -1810,6 +1791,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     }
 
     function updateActions() {
+      if (!hasM2) return;
       var policy = draftPolicy(draft);
       var match = savedPlanFor(view, policy);
       var issue = draftIssue(draft);
@@ -1937,6 +1919,59 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     return panel;
   }
 
+  function countRecoveryPending(refresh) {
+    return !!(refresh && (refresh.status === 'RUNNING' || refresh.status === 'UNCERTAIN' || refresh.stopRequested));
+  }
+
+  function samplingRecoveryPending(view) {
+    if (!view) return false;
+    if (countRecoveryPending(view.countRefresh)) return true;
+    return (view.attempts || []).some(function (attempt) {
+      return attempt && (attempt.status === 'RUNNING' || attempt.status === 'UNCERTAIN' || attempt.stopRequested);
+    });
+  }
+
+  function countsSection(view, control, showTable) {
+    var counts = h('section', 'rs-counts');
+    var countsHead = h('div', 'rs-counts-head');
+    countsHead.appendChild(h('h4', null, 'Số đánh giá trên Shopee'));
+    var countsMeta = h('span', 'rs-counts-meta', '');
+    countsHead.appendChild(countsMeta);
+    counts.appendChild(countsHead);
+    if (view.countRefresh) {
+      var refreshStatus = view.countRefresh.status || 'UNCERTAIN';
+      countsMeta.textContent = view.countRefresh.stopRequested && (refreshStatus === 'RUNNING' || refreshStatus === 'UNCERTAIN')
+        ? 'Đang dừng đọc số đánh giá…' : (RS_REFRESH_TEXT[refreshStatus] || '');
+      var countControls = h('div', 'rs-actions');
+      if ((refreshStatus === 'RUNNING' || refreshStatus === 'UNCERTAIN') && !view.countRefresh.stopRequested) {
+        var stopCounts = h('button', 'abtn', 'Dừng đọc số đánh giá');
+        stopCounts.type = 'button';
+        stopCounts.addEventListener('click', function () {
+          control('stop', 'counts', view.countRefresh.attemptId);
+        });
+        countControls.appendChild(stopCounts);
+      }
+      if (view.countRefresh.reconcilable && !view.readonly) {
+        var reconcileCounts = h('button', 'abtn', 'Đối soát lần đọc');
+        reconcileCounts.type = 'button';
+        reconcileCounts.addEventListener('click', function () {
+          control('reconcile', 'counts', view.countRefresh.attemptId);
+        });
+        countControls.appendChild(reconcileCounts);
+      }
+      if (countControls.childNodes.length) counts.appendChild(countControls);
+    }
+    if (!showTable) return counts;
+    if ((view.links || []).length && (view.counts || []).length) {
+      counts.appendChild(countsTable(view));
+      counts.appendChild(h('p', 'rs-note',
+        'Số đánh giá trên trang nguồn; có thể gồm đánh giá không có chữ. Không phải số bình luận sẽ thu được.'));
+    } else {
+      counts.appendChild(h('p', 'rs-note', 'Chưa có số đánh giá. Bấm “Đọc số đánh giá trên Shopee” để đọc.'));
+    }
+    return counts;
+  }
+
   function moduleCard(mod, info) {
     var card = h('article', 'mod');
     var head = h('div', 'mh');
@@ -1953,7 +1988,11 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     meta.appendChild(h('code', null, mod.outputGate));
     card.appendChild(meta);
 
-    if (mod.id === 'M3' && info.selection) card.appendChild(reviewSamplingPanel(info));
+    var samplingView = state.sampling[info.runId];
+    if (mod.id === 'M3' && (info.selection || (samplingView && samplingView.m2Digest) ||
+        samplingRecoveryPending(samplingView))) {
+      card.appendChild(reviewSamplingPanel(info));
+    }
 
     var row = h('div', 'btnrow');
     var btn = h('button', 'abtn', 'Chạy module này');
@@ -2066,7 +2105,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     state.info = res.data;
     renderDetail();
     managePoll();
-    if (res.data && res.data.selection) loadSampling(runId);
+    if (res.data) loadSampling(runId);
   }
 
   async function selectRun(runId) {
@@ -2097,7 +2136,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       state.info = data;
       renderDetail();
     }
-    if (data.selection) loadSampling(runId);
+    loadSampling(runId);
     if (!running) {
       stopPoll();
       await refreshRuns();

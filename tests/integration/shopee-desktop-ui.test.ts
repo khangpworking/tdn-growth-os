@@ -670,6 +670,73 @@ test('an uncertain counts refresh can be stopped by its exact attempt', async ()
   } finally { dom.window.close(); }
 });
 
+test('a missing M2 still loads frozen recovery controls without showing the new-collection form', async () => {
+  const gate = deferred<void>();
+  const attempt = {
+    attemptId: 'attempt-frozen-custom', planSha256: 'f'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'UNCERTAIN', errorCode: null, gate: null, stopRequested: false, reconcilable: true,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  const info: any = syntheticRunInfo();
+  info.selection = null;
+  info.modules[2]!.canRun = false;
+  info.modules[2]!.blockedBy = 'GATE_NOT_PASSED';
+  info.gates.m2 = null;
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE' }],
+    runInfo: info,
+    sampling: syntheticSampling({
+      m2Digest: null, links: [], plans: [], blockedBy: { code: 'GATE_NOT_PASSED' },
+      countRefresh: { attemptId: 'counts-frozen', status: 'UNCERTAIN', errorCode: null, stopRequested: false, reconcilable: true },
+      attempts: [attempt],
+    }),
+    reviewGates: { 'run-synthetic': gate },
+  });
+  try {
+    await waitFor(() => state.reviewSamplingCalls >= 1, 'sampling requested without M2');
+    assert.equal(doc.getElementById('rsPanel'), null, 'the new-collection form waits for the recovery view');
+    gate.resolve();
+    await waitFor(() => doc.getElementById('rsPanel') !== null, 'recovery panel');
+    assert.match(doc.getElementById('rsPanel')!.textContent!, /M2 hiện không đọc được/);
+    assert.equal(doc.getElementById('rsN'), null, 'no total-per-link config without M2');
+    assert.equal(buttonByText(doc, 'Lưu lựa chọn'), undefined);
+    assert.equal(buttonByText(doc, 'Thu bình luận theo lựa chọn'), undefined);
+    assert.equal(buttonByText(doc, 'Đọc số đánh giá trên Shopee'), undefined);
+    assert.ok(buttonByText(doc, 'Dừng lần chạy này'), 'frozen custom attempt remains stoppable');
+    assert.ok(buttonByText(doc, 'Đối soát lần chạy'), 'frozen custom attempt remains reconcilable');
+    assert.ok(buttonByText(doc, 'Dừng đọc số đánh giá'), 'frozen counts attempt remains stoppable');
+    assert.ok(buttonByText(doc, 'Đối soát lần đọc'), 'frozen counts attempt remains reconcilable');
+
+    let calls = state.reviewSamplingCalls;
+    buttonByText(doc, 'Dừng lần chạy này')!.click();
+    await waitFor(() => state.controlCalls.length === 1 && state.reviewSamplingCalls > calls, 'custom stop');
+    assert.deepEqual(state.controlCalls[0], {
+      action: 'stop', runId: 'run-synthetic', kind: 'custom', attemptId: 'attempt-frozen-custom',
+    });
+    calls = state.reviewSamplingCalls;
+    buttonByText(doc, 'Đối soát lần chạy')!.click();
+    await waitFor(() => state.controlCalls.length === 2 && state.reviewSamplingCalls > calls, 'custom reconcile');
+    assert.deepEqual(state.controlCalls[1], {
+      action: 'reconcile', runId: 'run-synthetic', kind: 'custom', attemptId: 'attempt-frozen-custom',
+    });
+    calls = state.reviewSamplingCalls;
+    buttonByText(doc, 'Dừng đọc số đánh giá')!.click();
+    await waitFor(() => state.controlCalls.length === 3 && state.reviewSamplingCalls > calls, 'counts stop');
+    assert.deepEqual(state.controlCalls[2], {
+      action: 'stop', runId: 'run-synthetic', kind: 'counts', attemptId: 'counts-frozen',
+    });
+    calls = state.reviewSamplingCalls;
+    buttonByText(doc, 'Đối soát lần đọc')!.click();
+    await waitFor(() => state.controlCalls.length === 4 && state.reviewSamplingCalls > calls, 'counts reconcile');
+    assert.deepEqual(state.controlCalls[3], {
+      action: 'reconcile', runId: 'run-synthetic', kind: 'counts', attemptId: 'counts-frozen',
+    });
+    assert.equal(state.saveCalls.length, 0, 'no plan can be saved without M2');
+    assert.equal(state.launchCalls.length, 0, 'no collection can start without M2');
+    assert.equal(state.refreshCountCalls, 0, 'no source refresh can start without M2');
+  } finally { dom.window.close(); }
+});
+
 test('a late sampling response for an unselected run never stops the selected run poll', async () => {
   const gateA = deferred<void>();
   const running = (attemptId: string) => ({

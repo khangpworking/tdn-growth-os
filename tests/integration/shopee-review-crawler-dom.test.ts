@@ -205,6 +205,102 @@ test('an unobserved rating stays null and is never reported as zero stars', asyn
   } finally { dom.window.close(); }
 });
 
+async function identicalFilterCrawl(change: 'fresh' | 'loading' | 'stale' | 'busy' | 'wrong-filter'): Promise<any> {
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'Tất cả', 2, true)}
+      ${filter('with-comments', 'Có bình luận', 2)}
+      <div class="product-ratings__list" style="opacity:1">
+        ${card('a1', 5, 'Một')}${card('a2', 5, 'Hai')}
+      </div>
+    </div>`);
+  const window = dom.window as any;
+  const all = window.document.querySelector('[data-key="all"].product-rating-overview__filter');
+  const comments = window.document.querySelector('[data-key="with-comments"].product-rating-overview__filter');
+  const list = window.document.querySelector('.product-ratings__list');
+  comments.addEventListener('click', () => {
+    all.classList.remove('product-rating-overview__filter--active');
+    (change === 'wrong-filter' ? all : comments).classList.add('product-rating-overview__filter--active');
+    if (change === 'stale') return;
+    if (change === 'busy') {
+      list.innerHTML = card('a1', 5, 'Một') + card('a2', 5, 'Hai');
+      list.setAttribute('aria-busy', 'true');
+      return;
+    }
+    if (change === 'fresh') {
+      list.innerHTML = card('a1', 5, 'Một') + card('a2', 5, 'Hai');
+      return;
+    }
+    list.style.opacity = '0';
+    list.setAttribute('aria-busy', 'true');
+    window.setTimeout(() => {
+      list.style.opacity = '1';
+      list.removeAttribute('aria-busy');
+    }, 0);
+  });
+  try {
+    return await crawl(dom, reviewPolicy({
+      mode: 'with-comments', stars: [], totalPerLink: 20, allocation: 'pooled',
+    }));
+  } finally { dom.window.close(); }
+}
+
+test('identical All to WithComments results are accepted with native loading or fresh cards', async () => {
+  for (const evidence of ['loading', 'fresh'] as const) {
+    const result = await identicalFilterCrawl(evidence);
+    assert.deepEqual(json(result.records.map((row: any) => row.review_id)), ['a1', 'a2'], evidence);
+    assert.equal(result.stop_reason, 'exhausted', evidence);
+    assert.equal(result.error, null, evidence);
+    assert.deepEqual(json(result.pages.map((page: any) => [page.filter, page.ids])), [
+      ['with-comments', ['a1', 'a2']],
+    ], evidence);
+  }
+});
+
+test('an active class alone is never completion evidence for identical results', async () => {
+  const cases = [
+    ['stale', 'a list that never loaded'],
+    ['busy', 'a list that stays busy'],
+    ['wrong-filter', 'a different filter that activated'],
+  ] as const;
+  for (const [change, label] of cases) {
+    const result = await identicalFilterCrawl(change);
+    assert.equal(result.stop_reason, 'control_changed', label);
+    assert.equal(result.error, 'CONTROL_CHANGED', label);
+    assert.deepEqual(json(result.records ?? []), [], label);
+  }
+});
+
+test('a filter that returns cards of the wrong rating still fails closed', async () => {
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'Tất cả', 2)}
+      ${filter('1', '1 sao', 2, true)}
+      ${filter('2', '2 sao', 2)}
+      ${filter('3', '3 sao', 0)}${filter('4', '4 sao', 0)}${filter('5', '5 sao', 0)}
+      <div class="product-ratings__list" style="opacity:1">
+        ${card('a1', 1, 'Một')}${card('a2', 1, 'Hai')}
+      </div>
+    </div>`);
+  const window = dom.window as any;
+  const one = window.document.querySelector('[data-key="1"].product-rating-overview__filter');
+  const two = window.document.querySelector('[data-key="2"].product-rating-overview__filter');
+  const list = window.document.querySelector('.product-ratings__list');
+  two.addEventListener('click', () => {
+    one.classList.remove('product-rating-overview__filter--active');
+    two.classList.add('product-rating-overview__filter--active');
+    list.innerHTML = card('a1', 1, 'Một') + card('a2', 1, 'Hai');
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({
+      mode: 'stars', stars: [1, 2], totalPerLink: 20, allocation: 'pooled',
+    }));
+    assert.equal(result.stop_reason, 'control_changed');
+    assert.equal(result.error, 'CONTROL_CHANGED');
+    assert.ok(!json(result.records ?? []).some((row: any) => row.source_filter === '2'));
+  } finally { dom.window.close(); }
+});
+
 test('missing native filter controls fail closed', async () => {
   const dom = boot(`
     <div class="product-ratings">
