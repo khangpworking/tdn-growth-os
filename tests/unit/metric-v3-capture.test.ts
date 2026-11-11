@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { createRequire } from 'node:module';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { JSDOM, type DOMWindow } from 'jsdom';
 import { buildCaptureSpec } from '../../src/modules/analysis/research-automation/autorun-derive.js';
 import { validateMetricV3CaptureSpec } from '../../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
+import { main, hashFolder, sha256 } from '../../scripts/module-pick.js';
+import { moduleOutputs } from '../../scripts/module-metric-output.js';
+import { fakeEvidencePage, jsonBytes } from '../helpers/evr2-evidence-fixture.js';
+import { distinctRows, requestBytes } from '../helpers/module-run-fixture.js';
 
 const adapter = await import(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
 const fixture = JSON.parse(
@@ -580,6 +586,28 @@ test('v3 selected window carries exact dates and every requested option into req
   assert.equal(manifest.captureGate, 'PASSED');
 });
 
+test('v3 selected window keeps every native period-revenue product row in source order', () => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const observation = selectedObservation(spec);
+  const responses = selectedResponses(spec);
+  const index = responses.findIndex((response: any) => response.urlPath.endsWith('/products/'));
+  assert.notEqual(index, -1);
+  const rows = Array.from({ length: 20 }, (_, n) => ({
+    product_base_id: `1__${1000 + n}__200`, product_name: `Synthetic product ${n + 1}`,
+    revenue_custom: n === 6 ? 500 : 1000 - n * 10,
+  }));
+  responses[index].body.data.products = rows;
+  const manifest = adapter.buildV3WindowManifest(spec, spec.windows[0], observation, responses, '2026-10-26T07:00:00.000Z');
+  assert.equal(manifest.sourceMap.products, `raw-responses.json#/${index}/body/data`);
+  const data = manifest.sourceMap.products.split('#')[1].split('/').slice(1)
+    .reduce((value: any, key: string) => value[key], responses);
+  assert.deepEqual(data.products, rows, 'all captured candidates, including the tie, keep the source order');
+  const request = adapter.buildV3PageRequests(spec, spec.windows[0]).find((r: any) => r.urlPath.endsWith('/products/'));
+  assert.equal(request.requestBody.page, 0);
+  assert.equal(request.requestBody.limit, 20);
+  assert.equal(request.requestBody.sort_by, 'revenue_custom__desc');
+});
+
 test('v3 rejects stale applied state or request scope for any saved option', () => {
   const cases: [string, (observation: any, responses: any[]) => void, string][] = [
     ['smart query', (observation) => { observation.appliedState.smartQuery = true; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
@@ -715,4 +743,202 @@ test('wrong, incomplete, ambiguous or loading controls stop before any submit cl
       assert.deepEqual(submits, [], name + ': no Analytics submission was triggered');
     } finally { w.close(); }
   }
+});
+
+type SortFinal = 'valid' | 'invalid' | 'absent';
+type ProducerOptions = {
+  initialRows: Record<string, unknown>[]; finalRows: Record<string, unknown>[];
+  final: SortFinal; clipped?: boolean; initialSort?: [string, string];
+};
+
+/** Browser boundary for the real capture producer: real form observers, panel inspector and evidence code. */
+async function captureProducer(t: TestContext, spec: any, options: ProducerOptions) {
+  const browser = fakeEvidencePage(false);
+  t.after(browser.close);
+  const { document, window: pageWindow } = browser.dom.window;
+  const panel = document.createElement('div');
+  panel.className = 'statistic-item';
+  const heading = document.createElement('h2');
+  heading.className = 'statistic-item__title';
+  heading.textContent = 'Sản phẩm bán chạy';
+  panel.append(heading);
+  const items: HTMLElement[] = [];
+  const openMenu = (index: number) => {
+    document.querySelectorAll('.ant-select-dropdown').forEach(node => node.remove());
+    const menu = document.createElement('div');
+    menu.className = 'ant-select-dropdown';
+    for (const label of index === 0 ? ['Doanh số trong kỳ'] : ['Giảm dần']) {
+      const option = document.createElement('div');
+      option.className = 'ant-select-item-option';
+      option.textContent = label;
+      option.getBoundingClientRect = () => ({ x: 0, y: 60, left: 0, top: 60, right: 100, bottom: 70, width: 100, height: 10, toJSON() {} });
+      option.addEventListener('click', () => { items[index]!.textContent = label; menu.remove(); });
+      menu.append(option);
+    }
+    menu.getBoundingClientRect = () => ({ x: 0, y: 60, left: 0, top: 60, right: 100, bottom: 70, width: 100, height: 10, toJSON() {} });
+    document.body.append(menu);
+  };
+  for (const [index, label] of (options.initialSort ?? ['Doanh số', 'Tăng dần']).entries()) {
+    const select = document.createElement('div');
+    select.className = 'ant-select';
+    const selector = document.createElement('div');
+    selector.className = 'ant-select-selector';
+    const item = document.createElement('div');
+    item.className = 'ant-select-selection-item';
+    item.textContent = label;
+    select.append(selector, item);
+    selector.addEventListener('click', () => openMenu(index));
+    select.addEventListener('click', () => openMenu(index));
+    panel.append(select);
+    items.push(item);
+  }
+  const wrapper = document.createElement('div');
+  if (options.clipped) {
+    wrapper.style.overflowY = 'auto';
+    Object.defineProperty(wrapper, 'scrollHeight', { value: 200 });
+    Object.defineProperty(wrapper, 'clientHeight', { value: 100 });
+  }
+  const rows = options.finalRows.map((row: any) => {
+    const node = document.createElement('div');
+    node.className = 'ant-table-row';
+    node.setAttribute('data-row-key', row.product_base_id);
+    node.textContent = row.product_base_id;
+    wrapper.append(node);
+    return node;
+  });
+  panel.append(wrapper);
+  document.body.append(panel);
+  const bounds = (element: Element, top: number, height: number) => {
+    element.getBoundingClientRect = () => ({ x: 0, y: top, left: 0, top, right: 100, bottom: top + height, width: 100, height, toJSON() {} });
+  };
+  bounds(panel, 40, 150);
+  bounds(heading, 42, 8);
+  bounds(wrapper, 70, 100);
+  [...panel.querySelectorAll('.ant-select')].forEach((select, i) => bounds(select, 52 + i * 8, 6));
+  rows.forEach((row, i) => bounds(row, 72 + i * 5, 4));
+
+  const selectedWindow = spec.windows[0];
+  const base = selectedObservation(spec);
+  const initialResponses = selectedResponses(spec);
+  const initialProducts = initialResponses.find((response: any) => response.urlPath === '/v2/market/analytics/products/');
+  const initialSorted = /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test((options.initialSort ?? ['Doanh số', 'Tăng dần'])[0]) &&
+    /^(Descending|Giảm dần)$/i.test((options.initialSort ?? ['Doanh số', 'Tăng dần'])[1]);
+  if (!initialSorted) initialProducts.requestBody.sort_by = 'order_custom__desc';
+  initialProducts.body.data.products = options.initialRows;
+  const finalProducts = structuredClone(initialProducts);
+  finalProducts.requestBody.sort_by = options.final === 'invalid' ? 'order_custom__desc' : 'revenue_custom__desc';
+  finalProducts.body.data.products = options.finalRows;
+  let keywords: string[] = [];
+  let categoriesApplied = false;
+  let finalPushed = options.final === 'absent';
+  const read = () => ({
+    taxonomy: base.taxonomy, selectedCategoryIds: categoriesApplied ? spec.preset.category.children.map((child: any) => child.id) : [],
+    advancedVisible: true, categoryMode: 'Advanced', breadcrumb: [], formReady: true, multi: true, keywordInput: '',
+    period: structuredClone(selectedWindow.period), submitReady: true, submitIdle: true, resultsReady: true,
+    trendIntervalDays: selectedWindow.intervalDays, comparisonDefault: true, displayedKPIs: 'synthetic producer capture',
+    appliedState: { ...structuredClone(spec.preset), keywords: [...keywords] },
+  });
+  const pushFinal = () => {
+    if (finalPushed) return;
+    finalPushed = true;
+    (pageWindow as any).__tdnV3Capture.responses.push(structuredClone(finalProducts));
+  };
+  const page = {
+    evaluate: async (fn: Function, arg?: any) => {
+      if (fn.name === 'readV3Page') return read();
+      if (fn.name === 'installObserver') {
+        (pageWindow as any).__tdnV3Capture = { responses: [], pending: 0, last: 0, overflow: false };
+        return { ok: true };
+      }
+      if (fn.name === 'formAction') {
+        if (arg.kind === 'submit') (pageWindow as any).__tdnV3Capture.responses = structuredClone(initialResponses);
+        if (arg.kind === 'categoryRoot') categoriesApplied = false;
+        if (arg.kind === 'categoryChild') categoriesApplied = true;
+        if (arg.kind === 'keyword') keywords.push(arg.value);
+        return arg.kind === 'date' ? { done: true } : { ok: true };
+      }
+      const result = await browser.page.evaluate(fn, arg);
+      if (fn.name === 'inspectV3ProductsPanel' && arg?.action === 'option' &&
+          /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(items[0]!.textContent!) &&
+          /^(Descending|Giảm dần)$/i.test(items[1]!.textContent!)) pushFinal();
+      return result;
+    },
+    wait: async () => {},
+    screenshot: browser.page.screenshot,
+  };
+  return { page, panel, pushFinal };
+}
+
+test('capture keeps pre-sort traffic as diagnostics and publishes the final sorted products source', async (t) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const initialRows = Array.from({ length: 3 }, (_, i) => ({
+    product_base_id: `1__${7000 + i}__801`, product_name: `Initial product ${i + 1}`, revenue_custom: 5_000 - i,
+  }));
+  const finalRows = Array.from({ length: 20 }, (_, i) => ({
+    product_base_id: `1__${8000 + i}__801`, product_name: `Final product ${i + 1}`, revenue_custom: 10_000 - i,
+  }));
+  const { page } = await captureProducer(t, spec, { initialRows, finalRows, final: 'valid' });
+  const output = await mkdtemp(join(tmpdir(), 'metric-producer-sort-'));
+  t.after(() => rm(output, { recursive: true, force: true }));
+  await adapter.captureV3Preset(page, spec, output, () => {},
+    { moduleEvidence: { runId: 'synthetic-producer', requestSha256: 'a'.repeat(64) } });
+
+  const observed = JSON.parse(await readFile(join(output, 'selected/observed-responses.json'), 'utf8'));
+  const raw = JSON.parse(await readFile(join(output, 'selected/raw-responses.json'), 'utf8'));
+  const manifest = JSON.parse(await readFile(join(output, 'selected/manifest.json'), 'utf8'));
+  const observedProducts = observed.filter((response: any) => response.urlPath.endsWith('/products/'));
+  const rawProducts = raw.filter((response: any) => response.urlPath.endsWith('/products/'));
+  assert.deepEqual(observedProducts.map((response: any) => response.requestBody.sort_by),
+    ['order_custom__desc', 'revenue_custom__desc'], 'the pre-sort response stays in observed diagnostics');
+  assert.deepEqual(observedProducts[0].body.data.products, initialRows, 'diagnostics keep the initial candidates unchanged');
+  assert.equal(rawProducts.length, 1, 'authoritative raw carries only the final products response');
+  assert.deepEqual(rawProducts[0].body.data.products, finalRows, 'the full final candidate list is retained');
+  assert.equal(manifest.sourceMap.products, `raw-responses.json#/${raw.indexOf(rawProducts[0])}/body/data`,
+    'sourceMap addresses the final response inside authoritative bytes');
+  assert.equal(raw.length, 5, 'every other endpoint response remains authoritative');
+});
+
+test('capture refuses a native sort change without a subsequent valid final products response', async (t) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const rows = Array.from({ length: 5 }, (_, i) => ({
+    product_base_id: `1__${8100 + i}__801`, product_name: `Final product ${i + 1}`, revenue_custom: 10_000 - i,
+  }));
+  for (const final of ['absent', 'invalid'] as SortFinal[]) {
+    const { page } = await captureProducer(t, spec, { initialRows: rows, finalRows: rows, final });
+    const output = await mkdtemp(join(tmpdir(), `metric-producer-${final}-`));
+    t.after(() => rm(output, { recursive: true, force: true }));
+    await assert.rejects(adapter.captureV3Preset(page, spec, output, () => {},
+      { moduleEvidence: { runId: 'synthetic-producer', requestSha256: 'a'.repeat(64) } }),
+      { message: 'CAPTURE_PRODUCT_SORT_UNAVAILABLE' }, final);
+  }
+});
+
+test('capture accepts valid sorted data in a clipped panel while whole-panel evidence stays unavailable', async (t) => {
+  const req = requestBytes(true);
+  const request = JSON.parse(req.toString('utf8'));
+  const spec = validateMetricV3CaptureSpec(request.captureSpec) as any;
+  const rows = distinctRows(5);
+  const { page } = await captureProducer(t, spec, {
+    initialRows: rows, finalRows: rows, final: 'absent', clipped: true, initialSort: ['Doanh số', 'Giảm dần'],
+  });
+  const run = await mkdtemp(join(tmpdir(), 'metric-producer-clipped-'));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(join(run, 'm1'), { recursive: true });
+  await writeFile(join(run, 'request.json'), req);
+  await adapter.captureV3Preset(page, spec, join(run, 'm1'), () => {},
+    { evidence: true, moduleEvidence: { runId: basename(run), requestSha256: sha256(req) } });
+  await mkdir(join(run, 'gates'), { recursive: true });
+  await writeFile(join(run, 'gates/m1.json'), jsonBytes({ format: 'handoff-v1', module: 'M1', runId: basename(run),
+    skillVersion: '1.0.0', verdict: 'PASS', inputSha256: null, outputSha256: await hashFolder(run, 'm1'),
+    checks: [], errorCode: null, next: null }));
+  await main(run);
+
+  const evidence = JSON.parse(await readFile(join(run, 'm1/selected/evidence/manifest.json'), 'utf8'));
+  assert.deepEqual([evidence.topProductsProof.status, evidence.topProductsProof.code],
+    ['UNAVAILABLE', 'EVIDENCE_PRODUCTS_PANEL_CLIPPED'], 'clipping makes the whole-panel proof explicitly unavailable');
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual([output.m1.dataValid, output.m1.shopeeRowCount], [true, 5], 'valid sorted data still passes M1');
+  assert.equal(output.m2.fiveDistinct, true);
+  assert.equal(output.m2.errorCode, 'EVIDENCE_PRODUCTS_PANEL_CLIPPED', 'M2 cannot pass without retained panel coverage');
+  assert.equal(output.m2.evidence.topProducts.available, false);
 });

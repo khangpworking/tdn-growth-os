@@ -33,6 +33,7 @@ export interface MetricCaptureRunnerConfig {
   readonly opencliExecutable?: string | undefined;
   /** TDN_METRIC_EVIDENCE_ENABLED is exactly "1": preset captures also write a screenshot evidence package per window. */
   readonly evidence?: boolean;
+  readonly moduleEvidence?: { readonly runId: string; readonly requestSha256: string };
 }
 
 export interface MetricCaptureRequest {
@@ -223,6 +224,7 @@ async function runPresetCapture(config: MetricCaptureRunnerConfig, request: Metr
         createProcessRunner: dependencies.createProcessRunner ?? (s => createMetricOpenCliProcessRunner(s ? { signal: s } : {})),
         ...(signal ? { signal } : {}),
         ...(config.evidence ? { evidence: true } : {}),
+        ...(config.moduleEvidence ? { moduleEvidence: config.moduleEvidence } : {}),
       });
       return { ok: true, captureDir: outputDir, period: metricCapturePeriod(spec), executorCalls: 1 };
     } catch (error) {

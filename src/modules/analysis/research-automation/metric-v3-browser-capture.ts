@@ -10,7 +10,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
   await withMetricV3Page(executable, options, async (page) => {
     const moduleUrl = new URL('../../../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url);
     const { captureV3WithFallback } = await import(moduleUrl.href);
-    await captureV3WithFallback(page, spec, outputDir, { evidence: options.evidence === true });
+    await captureV3WithFallback(page, spec, outputDir, { evidence: options.evidence === true, ...(options.moduleEvidence ? { moduleEvidence: options.moduleEvidence } : {}) });
   }, outputDir);
 }
 
@@ -29,6 +29,7 @@ type BrowserOptions = {
   readonly signal?: AbortSignal;
   /** TDN_METRIC_EVIDENCE_ENABLED: screenshot evidence of each window; absent keeps the capture exactly as before. */
   readonly evidence?: boolean;
+  readonly moduleEvidence?: { readonly runId: string; readonly requestSha256: string };
 };
 interface MetricBrowserPage {
   evaluate(fn: (...args: never[]) => unknown, arg?: unknown): Promise<any>;

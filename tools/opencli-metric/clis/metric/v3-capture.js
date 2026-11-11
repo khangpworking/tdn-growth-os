@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { sanitizeNetworkResponses } from './capture.js';
 import { writeV3EvidencePackage } from './v3-evidence.js';
+import { selectV3ProductsOrder } from './v3-products-panel.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js');
@@ -901,10 +902,26 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
       await page.wait(1000);
     }
     await idle();
+    const productsBeforeSort = options.moduleEvidence ? await page.evaluate(() =>
+      window.__tdnV3Capture.responses.filter(r => r.urlPath === '/v2/market/analytics/products/').length) : 0;
+    const nativeSort = options.moduleEvidence ? await selectV3ProductsOrder(page, idle) : null;
+    if (options.moduleEvidence) await idle();
     state = await read();
-    const raw = sanitizeNetworkResponses(await page.evaluate(() => window.__tdnV3Capture.responses));
+    const observed = sanitizeNetworkResponses(await page.evaluate(() => window.__tdnV3Capture.responses));
     const dir = join(outputDir, window.id);
     await mkdir(dir, { mode: 0o700 });
+    let raw = observed;
+    if (options.moduleEvidence) {
+      // Keep pre-sort/intermediate traffic as diagnostics, separate from the authoritative
+      // final native products response. Never search backwards for a merely valid response.
+      await writeFile(join(dir, 'observed-responses.json'), bytes(observed), { flag: 'wx', mode: 0o600 });
+      const lastProduct = observed.findLastIndex(r => r.urlPath === '/v2/market/analytics/products/');
+      raw = observed.filter((r, i) => r.urlPath !== '/v2/market/analytics/products/' || i === lastProduct);
+      const productsAfterSort = observed.filter(r => r.urlPath === '/v2/market/analytics/products/').length;
+      if ((nativeSort.changed && productsAfterSort <= productsBeforeSort) ||
+          observed[lastProduct]?.requestBody?.sort_by !== 'revenue_custom__desc')
+        stop('CAPTURE_PRODUCT_SORT_UNAVAILABLE');
+    }
     // Retain diagnostics before the gate, but publish a manifest only on full success.
     await writeFile(join(dir, 'raw-responses.json'), bytes(raw), { flag: 'wx', mode: 0o600 });
     const manifest = buildV3WindowManifest(spec, window, state, raw, new Date().toISOString());
@@ -912,7 +929,7 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     await writeFile(join(dir, 'manifest.json'), manifestBytes, { flag: 'wx', mode: 0o600 });
     manifests.push({ window: window.id, path: `${window.id}/manifest.json`, sha256: digest(manifestBytes) });
     // Flag-gated number evidence: screenshots while this window's results are on screen.
-    if (options.evidence) await writeV3EvidencePackage(page, { windowDir: dir, manifest, rawBytes: Buffer.from(bytes(raw)) }).catch(evidenceFailure);
+    if (options.evidence) await writeV3EvidencePackage(page, { windowDir: dir, manifest, rawBytes: Buffer.from(bytes(raw)), moduleEvidence: options.moduleEvidence }).catch(evidenceFailure);
     progress(`Captured ${window.id}: ${state.displayedKPIs}`);
   }
   const manifest = { contractVersion: 'metric-v3-capture-v1', specDigest: digest(bytes(spec)), windows: manifests };
@@ -1065,7 +1082,7 @@ export async function captureV3PageRequests(page, spec, outputDir, fallbackReaso
     await writeFile(join(dir, 'manifest.json'), manifestBytes, { flag: 'wx', mode: 0o600 });
     manifests.push({ window: window.id, path: `${window.id}/manifest.json`, sha256: digest(manifestBytes) });
     // Request capture shows no result sections: settings and raw copy only, no screenshots.
-    if (options.evidence) await writeV3EvidencePackage(page, { windowDir: dir, manifest, rawBytes: Buffer.from(bytes(sanitized)), images: false }).catch(evidenceFailure);
+    if (options.evidence) await writeV3EvidencePackage(page, { windowDir: dir, manifest, rawBytes: Buffer.from(bytes(sanitized)), images: false, moduleEvidence: options.moduleEvidence }).catch(evidenceFailure);
   }
   const manifest = { contractVersion: 'metric-v3-capture-v1', specDigest: digest(bytes(spec)), windows: manifests };
   await writeFile(join(outputDir, 'manifest.json'), bytes(manifest), { flag: 'wx', mode: 0o600 });

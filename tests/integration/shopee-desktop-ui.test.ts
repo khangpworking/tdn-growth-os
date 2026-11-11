@@ -46,6 +46,8 @@ function harness(options: {
   presets?: ReturnType<typeof preset>[];
   connectionResult?: any;
   captureSpecsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
+  moduleOutputsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
+  openModuleEvidenceResult?: (runId: string, kind: string, sha256: string) => any;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -73,6 +75,8 @@ function harness(options: {
     captureSpecsCalls: string[];
     captureSpecsCallsByRun: Record<string, number>;
     captureSpecsResult: ((runId: string, call: number) => any | Promise<any> | undefined) | undefined;
+    moduleOutputsCalls: string[];
+    openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
@@ -96,6 +100,8 @@ function harness(options: {
     captureSpecsCalls: [],
     captureSpecsCallsByRun: {},
     captureSpecsResult: options.captureSpecsResult,
+    moduleOutputsCalls: [],
+    openEvidenceCalls: [],
   };
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
@@ -130,6 +136,18 @@ function harness(options: {
       const info = (options.runInfoByRun && options.runInfoByRun[runId]) || options.runInfo;
       if (info) return { ok: true, data: clone(info) };
       return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
+    },
+    moduleOutputs: async (runId: string) => {
+      state.moduleOutputsCalls.push(runId);
+      const call = state.moduleOutputsCalls.filter((entry) => entry === runId).length;
+      const reply = options.moduleOutputsResult ? await options.moduleOutputsResult(runId, call) : undefined;
+      if (reply) return reply;
+      return { ok: false, error: { code: 'MODULE_OUTPUT_INVALID', message: 'MODULE_OUTPUT_INVALID' } };
+    },
+    openModuleEvidence: async (runId: string, kind: string, sha256: string) => {
+      state.openEvidenceCalls.push({ runId, kind, sha256 });
+      if (options.openModuleEvidenceResult) return options.openModuleEvidenceResult(runId, kind, sha256);
+      return { ok: true, data: { format: 'module-evidence-open-v1', runId, kind, sha256, opened: true } };
     },
     runFlow: async (runId: string) => {
       state.flowCalls.push(runId);
@@ -2737,4 +2755,136 @@ test('connection and disabled create states explain themselves without the data 
     assert.match(element<HTMLElement>(on.doc, 'connText').title, /\/synthetic\/runs/,
       'the data path stays in the tooltip only');
   } finally { on.dom.window.close(); }
+});
+
+const evidenceDescriptor = (kind: string, fileName: string, mediaType: string) => ({
+  available: true, kind, sha256: 'a'.repeat(64), byteSize: 123, mediaType, fileName, errorCode: null,
+});
+function moduleOutputView(runId: string, m1: any = {}, m2: any = {}) {
+  const titles = ['DHC Kẽm 60 ngày', 'DHC Vitamin C 60 ngày', 'DHC Biotin 60 ngày',
+    'DHC Magiê 60 ngày', 'DHC Canxi 60 ngày'];
+  return {
+    format: 'module-outputs-v1', runId,
+    m1: {
+      captureSuccess: true, dataValid: true, errorCode: null, keywords: ['kẽm'],
+      period: { startDate: '2026-10-01', endDate: '2026-10-31' }, shopeeRowCount: 12,
+      evidence: {
+        fullPage: evidenceDescriptor('full-page', 'full-page.png', 'image/png'),
+        raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json'),
+      },
+      ...m1,
+    },
+    m2: {
+      policy: 'metric-products-unique-v1', legacyVerdict: null, linksMatchSourceOrder: true,
+      fiveDistinct: true, selectedCount: 5, shortageReason: null, errorCode: null,
+      links: titles.map((productName, i) => ({
+        rank: i + 1, sourceRank: i + 3, productBaseId: `1__10${i}__801`, shopId: '801', itemId: `10${i}`,
+        url: `https://shopee.vn/product/801/10${i}`, productName, shopName: 'Synthetic shop', brand: 'DHC',
+        revenue: 10_000 - i * 100, groupKey: '["dhc",[]]', groupingBasis: 'finite-title-components-v1',
+        reason: 'Hạng nguồn ' + (i + 3) + '.',
+      })),
+      skipped: [{ sourceRank: 2, productBaseId: '1__99__801', reason: 'SAME_TITLE_COMPONENT_GROUP', duplicateOfRank: 1 }],
+      evidence: { topProducts: evidenceDescriptor('top-products', 'top-products.png', 'image/png') },
+      ...m2,
+    },
+  };
+}
+
+test('a new-policy run shows both M1 results, the five picks and opens only the saved panel', async () => {
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(),
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+    runListButton(doc, 'run-synthetic').click();
+    await waitFor(() => doc.getElementById('moM1Capture') !== null, 'module outputs');
+    assert.match(element(doc, 'moM1Capture').className, /c-ok/);
+    assert.match(element(doc, 'moM1Data').className, /c-ok/);
+    const m1 = doc.getElementById('moduleOutputsPanel')!.querySelector('article.mod')!;
+    assert.match(m1.textContent!, /kẽm/);
+    assert.match(m1.textContent!, /01\/10\/2026/);
+    assert.match(m1.textContent!, /31\/10\/2026/);
+    assert.match(m1.textContent!, /12/);
+    for (const id of ['moM1FullPage', 'moM1Specs', 'moM1Raw']) assert.ok(element(doc, id), id);
+    assert.equal(element(doc, 'moM2Chip').textContent, 'Đạt kiểm tra');
+    assert.match(element(doc, 'moM2Order').className, /c-ok/);
+    assert.match(element(doc, 'moM2Distinct').className, /c-ok/);
+    const table = doc.querySelector('#moduleOutputsPanel table')!;
+    assert.deepEqual([...table.querySelectorAll('thead th')].map((th) => th.textContent),
+      ['Thứ tự được chọn', 'Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Doanh số trong kỳ', 'Link Shopee']);
+    const rows = [...table.querySelectorAll('tbody tr')];
+    assert.equal(rows.length, 5);
+    assert.deepEqual([...rows[0]!.querySelectorAll('td')].slice(0, 2).map((td) => td.textContent), ['1', '3']);
+    assert.match(rows[0]!.textContent!, /DHC Kẽm 60 ngày/);
+    const skipped = doc.querySelector('#moduleOutputsPanel details.tech-details')!;
+    assert.match(skipped.querySelector('summary')!.textContent!, /Mục bị bỏ qua và lý do/);
+    assert.match(skipped.textContent!, /Trùng với sản phẩm đã chọn ở thứ tự 1/);
+    element<HTMLButtonElement>(doc, 'moM2Evidence').click();
+    await waitFor(() => state.openEvidenceCalls.length === 1, 'evidence open');
+    assert.deepEqual(state.openEvidenceCalls[0],
+      { runId: 'run-synthetic', kind: 'top-products', sha256: 'a'.repeat(64) });
+    await waitFor(() => /Đã mở bằng chứng đã lưu/.test(doc.getElementById('moduleOutputsPanel')!.textContent || ''),
+      'saved evidence notice');
+  } finally { dom.window.close(); }
+});
+
+test('a legacy selection keeps its old-policy label and never shows new-policy outcomes', async () => {
+  const legacy = moduleOutputView('run-synthetic', {}, {
+    policy: 'legacy', legacyVerdict: 'PASS', linksMatchSourceOrder: null, fiveDistinct: null,
+    selectedCount: 1, shortageReason: null, errorCode: null,
+    links: [{ rank: 1, sourceRank: null, productBaseId: '1__1__2', shopId: '2', itemId: '1',
+      url: 'https://shopee.vn/product/2/1', productName: null, shopName: null, brand: 'Synthetic brand',
+      revenue: 100, groupKey: null, groupingBasis: null, reason: 'Hạng 1' }],
+    skipped: [],
+    evidence: { topProducts: { available: false, kind: 'top-products', sha256: null, byteSize: null,
+      mediaType: null, fileName: null, errorCode: 'LEGACY_EVIDENCE_UNBOUND' } },
+  });
+  const { dom, doc } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(),
+    moduleOutputsResult: (runId) => ({ ok: true, data: legacy }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+    runListButton(doc, 'run-synthetic').click();
+    await waitFor(() => doc.getElementById('moM2Chip') !== null, 'legacy module outputs');
+    assert.equal(element(doc, 'moM2Chip').textContent, 'Kiểm tra cũ: Đạt');
+    assert.match(doc.querySelector('#moduleOutputsPanel .legacy-label')!.textContent!, /quy tắc chọn cũ/);
+    assert.equal(doc.getElementById('moM2Order'), null);
+    assert.equal(doc.getElementById('moM2Distinct'), null);
+    assert.equal(doc.getElementById('moM2Evidence'), null);
+    const panel = doc.getElementById('moduleOutputsPanel')!;
+    assert.match(panel.textContent!, /không áp dụng cách chọn 5 sản phẩm khác nhau mới/);
+    assert.doesNotMatch(panel.textContent!, /5 sản phẩm khác nhau, không trùng lặp/);
+    const cells = [...panel.querySelectorAll('tbody tr td')].map((td) => td.textContent);
+    assert.ok(cells.includes('Chưa có'), 'legacy-only unknown fields stay visibly unknown');
+  } finally { dom.window.close(); }
+});
+
+test('a module-output reply for a run left meanwhile never repaints the selected run', async () => {
+  const gate = deferred<any>();
+  const view = (runId: string, keyword: string) => moduleOutputView(runId, { keywords: [keyword] });
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-a', product: 'Sản phẩm A', status: 'DONE' },
+      { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' }],
+    runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    moduleOutputsResult: (runId, call) => runId === 'run-a' && call === 1
+      ? gate.promise
+      : { ok: true, data: view(runId, runId === 'run-a' ? 'alpha' : 'beta') },
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 2, 'run list');
+    runListButton(doc, 'run-a').click();
+    await waitFor(() => /Đang tải kết quả/.test(doc.getElementById('moduleOutputsPanel')?.textContent || ''),
+      'run A outputs pending');
+    runListButton(doc, 'run-b').click();
+    await waitFor(() => /beta/.test(doc.getElementById('moduleOutputsPanel')?.textContent || ''), 'run B outputs');
+    gate.resolve({ ok: true, data: view('run-a', 'alpha') });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.match(doc.querySelector('#runList button.on')?.getAttribute('title') || '', /run-b/);
+    assert.match(doc.getElementById('moduleOutputsPanel')!.textContent!, /beta/);
+    assert.doesNotMatch(doc.getElementById('moduleOutputsPanel')!.textContent!, /alpha/);
+  } finally { dom.window.close(); }
 });
