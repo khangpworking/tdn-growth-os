@@ -2460,8 +2460,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
           var imported = source.importReceipt;
           blocks.appendChild(h('p', 'rs-note',
             'Đã lưu vào DB lúc ' + (vnStamp(imported.importedAt) || '—') + ' · ' +
-            imported.rowCount + ' dòng (' + imported.reviewsInserted + ' mới, ' +
-            imported.reviewsAlreadyPresent + ' đã có).'));
+            imported.rowCount + ' bình luận.'));
         }
         ['json', 'txt'].forEach(function (format) {
           var availability = source.exportFormats && source.exportFormats[format];
