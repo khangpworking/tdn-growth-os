@@ -380,6 +380,10 @@ elif script.endswith('module-collect-public.ts'):
     write(run / 'm3' / 'reviews.json', rows)
     write(run / 'm3' / 'outcome.json',
           {'format': 'm3-outcome-v1', 'verdict': 'PARTIAL_LISTINGS', 'errorCode': None})
+elif script.endswith('module-review-sampling.ts'):
+    if args[index + 1] != 'idle':
+        raise SystemExit('unexpected sampling action')
+    print(json.dumps({'format': 'review-idle-v1'}))
 else:
     raise SystemExit('unexpected module script')
 '''

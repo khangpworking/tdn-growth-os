@@ -10,6 +10,7 @@ import sys
 
 
 _RUN_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}')
+_PLAN_SHA = re.compile(r'[0-9a-f]{64}')
 _REMOTE_PATH = re.compile(r'(\$HOME/)?[A-Za-z0-9_./-]+')
 _COMMANDS = {
     'connection': ('connection',),
@@ -24,6 +25,11 @@ _COMMANDS = {
     'm1': ('m1', '--run'),
     'm2': ('m2', '--run'),
     'm3': ('m3', '--run'),
+    'reviewSampling': ('review-sampling', '--run'),
+    'refreshReviewCounts': ('review-counts', '--run'),
+    'saveReviewPlan': ('save-review-plan', '--run'),
+    'stopReviewAttempt': ('stop-review-attempt', '--run'),
+    'reconcileReviewAttempt': ('reconcile-review-attempt', '--run'),
 }
 
 
@@ -74,7 +80,7 @@ def _load_config():
 
 
 class Api:
-    """Only these nine public methods are exposed to the page."""
+    """Only these public methods are exposed to the page."""
 
     def _safe(self, operation):
         try:
@@ -90,11 +96,20 @@ class Api:
             raise _BridgeFailure('ARG_INVALID')
         return run_id
 
-    def _remote(self, action, run_id=None, payload=None, config=None):
+    def _remote(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
+                kind=None, attempt_id=None):
         words = list(_COMMANDS[action])
-        if action in ('status', 'entry', 'flow', 'm1', 'm2', 'm3'):
+        if action in ('status', 'entry', 'flow', 'm1', 'm2', 'm3',
+                      'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
+                      'stopReviewAttempt', 'reconcileReviewAttempt'):
             words.append(self._run_id(run_id))
-        if action in ('flow', 'm1', 'm2', 'm3'):
+        if action == 'saveReviewPlan':
+            words.append('--stdin')
+        if action in ('stopReviewAttempt', 'reconcileReviewAttempt'):
+            words.extend(['--kind', kind, '--attempt', attempt_id])
+        if action == 'm3' and plan_sha256 is not None:
+            words.extend(['--plan-sha256', plan_sha256])
+        if action in ('flow', 'm1', 'm2', 'm3', 'refreshReviewCounts', 'reconcileReviewAttempt'):
             words.append('--detach')
         config = _load_config() if config is None else config
         lines = ['export PYTHONDONTWRITEBYTECODE=1']
@@ -105,7 +120,7 @@ class Api:
         if env_file is not None:
             lines.append(f'if [ -f "{env_file}" ]; then set -a; . "{env_file}"; set +a; fi')
         command = f'python3 "{config["remoteScript"]}" ' + ' '.join(words)
-        if action in ('new', 'addProduct'):
+        if action in ('new', 'addProduct', 'saveReviewPlan'):
             encoded = base64.b64encode(json.dumps(payload, ensure_ascii=False, allow_nan=False,
                                                   separators=(',', ':')).encode('utf-8')).decode('ascii')
             command = f"printf '%s' '{encoded}' | base64 -d | " + command
@@ -222,13 +237,117 @@ class Api:
     def runFlow(self, runId=None):
         return self._safe(lambda: self._remote('flow', run_id=runId))
 
-    def runModule(self, runId=None, module=None):
-        return self._safe(lambda: self._run_module(runId, module))
+    def runModule(self, runId=None, module=None, planSha256=None):
+        return self._safe(lambda: self._run_module(runId, module, planSha256))
 
-    def _run_module(self, run_id, module):
+    def _run_module(self, run_id, module, plan_sha256):
         if not isinstance(module, str) or module not in ('m1', 'm2', 'm3'):
             raise _BridgeFailure('ARG_INVALID')
-        return self._remote(module, run_id=run_id)
+        if plan_sha256 is None:
+            return self._remote(module, run_id=run_id)
+        if module != 'm3':
+            raise _BridgeFailure('ARG_INVALID')
+        plan_sha256 = self._plan_sha(plan_sha256)
+        result = self._remote('m3', run_id=run_id, plan_sha256=plan_sha256)
+        if not result['ok']:
+            return result
+        data = result['data']
+        if (data.get('format') != 'review-attempt-start-v1' or data.get('runId') != run_id or
+                data.get('planSha256') != plan_sha256 or not isinstance(data.get('attemptId'), str) or
+                data.get('status') != 'RUNNING' or type(data.get('pid')) is not int):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def reviewSampling(self, runId=None):
+        return self._safe(lambda: self._review_sampling(runId))
+
+    def _review_sampling(self, run_id):
+        result = self._remote('reviewSampling', run_id=run_id)
+        if not result['ok']:
+            return result
+        if result['data'].get('format') != 'review-sampling-view-v1':
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def refreshReviewCounts(self, runId=None):
+        return self._safe(lambda: self._refresh_review_counts(runId))
+
+    def _refresh_review_counts(self, run_id):
+        result = self._remote('refreshReviewCounts', run_id=run_id)
+        if not result['ok']:
+            return result
+        data = result['data']
+        if (data.get('format') != 'review-counts-start-v1' or data.get('runId') != run_id or
+                not isinstance(data.get('attemptId'), str) or data.get('status') != 'RUNNING' or
+                type(data.get('pid')) is not int):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def saveReviewPlan(self, runId=None, input=None):
+        return self._safe(lambda: self._save_review_plan(runId, input))
+
+    def _save_review_plan(self, run_id, value):
+        payload = self._review_plan_input(value)
+        result = self._remote('saveReviewPlan', run_id=run_id, payload=payload)
+        if not result['ok']:
+            return result
+        data = result['data']
+        if (data.get('format') != 'review-plan-saved-v1' or data.get('runId') != run_id or
+                not isinstance(data.get('planSha256'), str) or not _PLAN_SHA.fullmatch(data['planSha256']) or
+                not isinstance(data.get('plan'), dict)):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def stopReviewAttempt(self, runId=None, kind=None, attemptId=None):
+        return self._safe(lambda: self._review_control('stopReviewAttempt', runId, kind, attemptId))
+
+    def reconcileReviewAttempt(self, runId=None, kind=None, attemptId=None):
+        return self._safe(lambda: self._review_control('reconcileReviewAttempt', runId, kind, attemptId))
+
+    def _review_control(self, action, run_id, kind, attempt_id):
+        if kind not in ('counts', 'custom'):
+            raise _BridgeFailure('ARG_INVALID')
+        if not isinstance(attempt_id, str) or not _RUN_ID.fullmatch(attempt_id):
+            raise _BridgeFailure('ARG_INVALID')
+        result = self._remote(action, run_id=run_id, kind=kind, attempt_id=attempt_id)
+        if not result['ok']:
+            return result
+        data = result['data']
+        if (data.get('format') != 'review-attempt-control-v1' or data.get('runId') != run_id or
+                data.get('kind') != kind or data.get('attemptId') != attempt_id or
+                data.get('status') not in ('STOP_REQUESTED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'UNCERTAIN') or
+                (data.get('pid') is not None and type(data.get('pid')) is not int) or
+                (data.get('errorCode') is not None and not isinstance(data.get('errorCode'), str))):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def _plan_sha(self, value):
+        if not isinstance(value, str) or not _PLAN_SHA.fullmatch(value):
+            raise _BridgeFailure('ARG_INVALID')
+        return value
+
+    def _review_plan_input(self, value):
+        keys = {'mode', 'stars', 'totalPerLink', 'allocation'}
+        if not isinstance(value, dict) or set(value) != keys:
+            raise _BridgeFailure('ARG_INVALID')
+        mode, stars, total, allocation = value['mode'], value['stars'], value['totalPerLink'], value['allocation']
+        if not isinstance(mode, str) or mode not in ('all', 'with-comments', 'stars'):
+            raise _BridgeFailure('ARG_INVALID')
+        if not isinstance(allocation, str) or allocation not in ('pooled', 'equal-stars'):
+            raise _BridgeFailure('ARG_INVALID')
+        if type(total) is not int or not 1 <= total <= 2000:
+            raise _BridgeFailure('ARG_INVALID')
+        if not isinstance(stars, list) or any(type(star) is not int or not 1 <= star <= 5 for star in stars):
+            raise _BridgeFailure('ARG_INVALID')
+        if len(set(stars)) != len(stars):
+            raise _BridgeFailure('ARG_INVALID')
+        if mode == 'stars' and not stars:
+            raise _BridgeFailure('ARG_INVALID')
+        if mode != 'stars' and stars:
+            raise _BridgeFailure('ARG_INVALID')
+        if allocation == 'equal-stars' and mode != 'stars':
+            raise _BridgeFailure('ARG_INVALID')
+        return {'mode': mode, 'stars': sorted(stars), 'totalPerLink': total, 'allocation': allocation}
 
     def library(self):
         return self._safe(lambda: self._remote('library'))
