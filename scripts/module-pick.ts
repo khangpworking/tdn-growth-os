@@ -97,7 +97,7 @@ export async function readRequest(run: string) {
       w.period.endDate !== captureSpec.windows[i]?.period.endDate))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
   return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: value.reviewCapPerLink as number, captureSpec };
 }
-async function pickRaw(run: string): Promise<unknown> {
+export async function pickRaw(run: string): Promise<unknown> {
   let scope: AutorunScopeRecord | null = null;
   try { scope = await readJson(run, 'm1/scope.json') as AutorunScopeRecord; }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }

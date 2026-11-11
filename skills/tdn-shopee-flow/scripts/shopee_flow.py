@@ -1039,7 +1039,8 @@ def module_failure_slip(run, module, error, config, manual=False):
             'checks': [], 'errorCode': error, 'next': None}
 
 
-def module_work(run, module, ns, repo, config):
+def module_launch_admission(run, module, ns, repo, config):
+    """Pure/offline launch validation, shared by detached acceptance and execution."""
     import shlex
     command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
     command = shlex.split(command) if isinstance(command, str) else command
@@ -1054,10 +1055,12 @@ def module_work(run, module, ns, repo, config):
                 selection.get('source') != 'manual' or selection.get('pickRuleVersion') != 'manual' or
                 selection.get('metricInputSha256') is not None or not gate_schema(selection, schema)):
             raise ModuleFailure('MANUAL_SELECTION_INVALID')
-        module_atomic_json(run, 'm2/selection.json', selection)
-        return None
+        return command, selection, None
+    entry, entry_code = evaluate_gate(run, 'entry')
+    if entry_code:
+        raise ModuleFailure(entry.get('errorCode') or 'MODULE_INPUT_INVALID', entry_code)
+    request = gate_read(gate_path(run, 'request.json'))
     if module == 'm1':
-        request = gate_read(gate_path(run, 'request.json'))
         if not isinstance(request, dict) or not isinstance(request.get('captureSpec'), dict):
             raise ModuleFailure('CAPTURE_SPEC_MISSING')
         if gate_path(run, 'm1').exists():
@@ -1065,10 +1068,22 @@ def module_work(run, module, ns, repo, config):
         db = os.environ.get('TDN_WORKSPACE_DB')
         if not db:
             raise ModuleFailure('APP_DB_NOT_CONFIGURED')
+    return command, None, request
+
+
+def module_work(run, module, ns, repo, config):
+    command, selection, request = module_launch_admission(run, module, ns, repo, config)
+    if selection is not None:
+        flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
+        module_atomic_json(run, 'm2/selection.json', selection)
+        return None
+    if module == 'm1':
+        flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
         module_atomic_json(run, 'capture-spec.json', request['captureSpec'])
-        args = [str(repo / 'scripts/capture-metric-preset.ts'), str(run / 'capture-spec.json'), str(run / 'm1'), db]
+        args = [str(repo / 'scripts/capture-metric-preset.ts'), str(run / 'capture-spec.json'), str(run / 'm1'), os.environ['TDN_WORKSPACE_DB']]
     else:
         args = [str(repo / ('scripts/module-pick.ts' if module == 'm2' else 'scripts/module-collect-public.ts')), str(run)]
+        flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
     # A single process, no shell, no automatic retry; captured diagnostics never reach the slip/stdout.
     result = subprocess.run([*command, *args], cwd=repo, capture_output=True, text=True)
     if result.returncode:
@@ -1085,6 +1100,75 @@ def module_work(run, module, ns, repo, config):
 
 def flow_now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
+def flow_tracking_record(run):
+    path = gate_path(run, 'run-tracking.json')
+    if not path.exists():
+        return None
+    value = gate_read(path)
+    repo, _ = module_config()
+    schema = gate_read(repo / 'contracts/foundation/shopee-module-review-data.schema.json')
+    definition = flow_expand_schema(schema['$defs']['trackingRecord'], schema)
+    if not gate_schema(value, definition) or value['runId'] != run.name:
+        raise ModuleFailure('RUN_TRACKING_INVALID', 2)
+    if value['historyBasis'] == 'legacy-first-unproven' and value['firstRunAt'] is not None:
+        raise ModuleFailure('RUN_TRACKING_INVALID', 2)
+    return value
+
+
+def flow_write_tracking(run, value):
+    # Caller owns the run flock. Keep this outside all acquisition hash scopes.
+    path = gate_path(run, 'run-tracking.json')
+    temp = gate_path(run, '.tracking-' + uuid.uuid4().hex + '.tmp')
+    try:
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf8') as output:
+            json.dump(value, output, ensure_ascii=False)
+            output.write('\n'); output.flush(); os.fsync(output.fileno())
+        os.replace(temp, path)
+        parent = os.open(run, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def flow_accept_launch(run, at):
+    record = flow_tracking_record(run)
+    if record and (record['firstRunAt'] or record['firstObservedLaunchAt']):
+        return
+    request = gate_read(gate_path(run, 'request.json'))
+    keywords = request.get('preset', {}).get('keywords', []) if isinstance(request, dict) else []
+    if not keywords or not isinstance(keywords[0], str) or not keywords[0].strip():
+        if record is None:
+            return  # Legacy manual M2 can exist without a request; first time stays unknown.
+        raise ModuleFailure('RUN_TRACKING_INVALID', 2)
+    digest = gate_hash(run, 'request.json')
+    if record is None:
+        record = {'format': 'run-tracking-v1', 'runId': run.name, 'requestSha256': digest,
+                  'primaryKeyword': keywords[0], 'createdAt': None, 'firstRunAt': None,
+                  'firstObservedLaunchAt': at, 'historyBasis': 'legacy-first-unproven'}
+    else:
+        if record['requestSha256'] != digest:
+            raise ModuleFailure('RUN_TRACKING_CHANGED', 23)
+        record = {**record, 'firstRunAt': at}
+    flow_write_tracking(run, record)
+
+
+def flow_tracking(run):
+    record = flow_tracking_record(run)
+    request = gate_read(gate_path(run, 'request.json'))
+    keywords = request.get('preset', {}).get('keywords', []) if isinstance(request, dict) else []
+    state = gate_read(gate_path(run, 'state.json'))
+    last = state.get('startedAt') if isinstance(state, dict) else None
+    return {'primaryKeyword': record['primaryKeyword'] if record else (keywords[0] if keywords else None),
+            'firstRunAt': record['firstRunAt'] if record else None,
+            'timeBasis': ('recorded-first-accepted' if record['firstRunAt'] else
+                          'not-started' if record['historyBasis'] == 'new-run' else 'legacy-first-unproven') if record else 'legacy-first-unproven',
+            'displayTimezone': 'Asia/Ho_Chi_Minh', 'lastKnownStartedAt': last}
 
 
 def flow_state(run, status='IDLE', mode=None, module=None, pid=None, started=None, error=None, failed=None):
@@ -1156,6 +1240,7 @@ def flow_detach(run, ns, lock, started):
                                      start_new_session=True, pass_fds=(lock.fileno(), read_fd))
         module_atomic_json(run, 'state.json', flow_state(run, 'RUNNING', 'flow' if ns.cmd == 'run' else 'single',
                            'ENTRY' if ns.cmd == 'run' else ns.cmd.upper(), child.pid, started))
+        flow_accept_launch(run, started)
         os.write(write_fd, b'1')
         return {'format': 'detached-v1', 'runId': run.name, 'pid': child.pid}
     finally:
@@ -1210,6 +1295,7 @@ def cmd_module(ns):
         if code == 0 and getattr(ns, 'detach', False):
             module = 'm1' if ns.cmd == 'run' else module
             module_barrier(run, module, bool(getattr(ns, 'manual', None)), os.getpid())
+            module_launch_admission(run, module, ns, repo, config)
             result = flow_detach(run, ns, lock, started)
             print(json.dumps(result))
             return
@@ -1325,6 +1411,8 @@ def cmd_review_sampling(ns):
                 else:
                     value = review_sampling_script(repo, config, 'reserve', run, kind,
                                                    *([ns.plan_sha256] if kind == 'custom' else []))
+                    if kind == 'custom':
+                        flow_accept_launch(run, flow_now())
                 attempt_id = value['attemptId']
                 if getattr(ns, 'detach', False):
                     read_fd, write_fd = os.pipe()
@@ -1360,6 +1448,63 @@ def cmd_review_sampling(ns):
     except (OSError, ValueError, TypeError, KeyError):
         print(json.dumps({'format': 'error-v1', 'code': 'REVIEW_INPUT_INVALID', 'message': 'REVIEW_INPUT_INVALID'}))
         sys.exit(2)
+    finally:
+        if lock is not None:
+            lock.close()
+
+
+def cmd_review_data(ns):
+    """Offline exact-source save/export; never loads defaults or acquires provider clients."""
+    import fcntl, shlex
+    lock = None
+    binary = ns.cmd == 'read-review-export'
+    try:
+        run = module_run_folder(ns.run_id)
+        repo, config = module_config()
+        if ns.cmd in ('save-review-data', 'export-review-data'):
+            lock = open(gate_path(run, '.module.lock'), 'a')
+            try:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ModuleFailure('RUN_BUSY', 24)
+        command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+        command = shlex.split(command) if isinstance(command, str) else command
+        if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+            raise ModuleFailure('NODE_COMMAND_INVALID', 2)
+        action = {'review-data': 'view', 'save-review-data': 'save', 'export-review-data': 'export', 'read-review-export': 'read'}[ns.cmd]
+        payload = None
+        if ns.cmd in ('save-review-data', 'export-review-data'):
+            payload = sys.stdin.buffer.read(65537)
+            if len(payload) > 65536:
+                raise ModuleFailure('REVIEW_DATA_INVALID', 2)
+        args = [*command, str(repo / 'scripts/module-review-data.ts'), action, str(run)]
+        if binary:
+            if not re.fullmatch(r'[a-f0-9]{64}', ns.export_sha256):
+                raise ModuleFailure('REVIEW_DATA_INVALID', 2)
+            args.append(ns.export_sha256)
+        result = subprocess.run(args, cwd=repo, input=payload,
+                                stdout=None if binary else subprocess.PIPE, stderr=subprocess.PIPE)
+        if binary:
+            if result.returncode:
+                code = result.stderr.decode('ascii', 'ignore').strip()
+                raise ModuleFailure(code if re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'REVIEW_DATA_FAILED', 20)
+            return
+        try:
+            value = json.loads(result.stdout)
+        except ValueError:
+            raise ModuleFailure('REVIEW_DATA_FAILED', 20)
+        if result.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
+            code = value.get('code') if isinstance(value, dict) else None
+            raise ModuleFailure(code if isinstance(code, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'REVIEW_DATA_FAILED',
+                                result.returncode if result.returncode in (2, 20, 23, 24) else 20)
+        print(json.dumps(value, ensure_ascii=True))
+    except (ModuleFailure, OSError, ValueError, TypeError, KeyError) as error:
+        code = error.code if isinstance(error, ModuleFailure) else 'REVIEW_DATA_FAILED'
+        if binary:
+            print(code, file=sys.stderr)
+        else:
+            print(json.dumps({'format': 'error-v1', 'code': code, 'message': code}))
+        sys.exit(error.exit_code if isinstance(error, ModuleFailure) else 20)
     finally:
         if lock is not None:
             lock.close()
@@ -1518,6 +1663,9 @@ def flow_new_run():
             continue
     module_atomic_json(run, 'request.json', request)
     module_atomic_json(run, 'state.json', flow_state(run))
+    flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
+                             'requestSha256': gate_hash(run, 'request.json'), 'primaryKeyword': spec['preset']['keywords'][0],
+                             'createdAt': flow_now(), 'firstRunAt': None, 'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
     return {'format': 'new-run-v1', 'runId': run.name}
 
 
@@ -1531,6 +1679,7 @@ def flow_run_info(run, config):
                         'inputGate': {'m1': 'entry', 'm2': 'm1', 'm3': 'm2'}[module],
                         'outputGate': m['gate'], 'canRun': blocked is None, 'blockedBy': blocked})
     return {'format': 'run-info-v1', 'runId': run.name, 'readonly': module_readonly(),
+            'tracking': flow_tracking(run),
             'request': {k: v for k, v in request.items() if k != 'captureSpec'} if isinstance(request, dict) else None,
             'state': gate_read(gate_path(run, 'state.json')) or flow_state(run), 'modules': modules,
             'gates': {g: gate_read(gate_path(run, f'gates/{g}.json')) for g in ('entry', 'm1', 'm2', 'm3')},
@@ -1582,6 +1731,7 @@ def cmd_flow_query(ns):
                 last = latest[2] if latest and isinstance(latest[2], dict) else {}
                 created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
                 values.append({'runId': path.name, 'createdAt': created, 'product': ' / '.join(request.get('preset', {}).get('keywords', [])),
+                               'tracking': flow_tracking(path),
                                'status': state.get('status'), 'lastGate': latest[1] if latest else None,
                                'lastVerdict': last.get('verdict'), 'errorCode': state.get('errorCode') or last.get('errorCode')})
             result = {'format': 'runs-v1', 'runs': sorted(values, key=lambda v: (v['createdAt'], v['runId']), reverse=True)}
@@ -1602,7 +1752,10 @@ def cmd_flow_query(ns):
 
 class FlowArgumentParser(argparse.ArgumentParser):
     def error(self, message):
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker'):
+        if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
+            print('USAGE', file=sys.stderr)
+            self.exit(2)
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'save-review-data', 'export-review-data'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -1612,6 +1765,13 @@ def main():
     p = FlowArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = p.add_subparsers(dest='cmd', required=True)
     x = sp.add_parser('gate'); x.add_argument('gate', choices=['entry', 'm1', 'm2', 'm3']); x.add_argument('--run', dest='run_id', required=True); x.set_defaults(f=cmd_gate)
+    for name in ('review-data', 'save-review-data', 'export-review-data', 'read-review-export'):
+        x = sp.add_parser(name); x.add_argument('--run', dest='run_id', required=True)
+        if name in ('save-review-data', 'export-review-data'):
+            x.add_argument('--stdin', action='store_true', required=True)
+        if name == 'read-review-export':
+            x.add_argument('--export-sha256', required=True)
+        x.set_defaults(f=cmd_review_data)
     for module in ('m1', 'm2', 'm3', 'run'):
         x = sp.add_parser(module); x.add_argument('--run', dest='run_id', required=True)
         if module == 'm2': x.add_argument('--manual')

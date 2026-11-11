@@ -4,6 +4,11 @@ import { ShopeeCollectionService } from '../foundation/shopee-collection-service
 import { SourcePackageService } from '../foundation/source-package-service.js';
 import { CONTEXT_PATH, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, captureContextRawRefs } from '../analysis/research-automation/metric-capture-intake.js';
 import { assertAttributesShape } from './attributes-shape.js';
+import { registerManifest } from '../../platform/artifacts/register-manifest.js';
+import { canonicalJson } from '../foundation/canonical-json.js';
+import { assertReviewDataWritable, reviewArchive, reviewDataHash, validateReviewData, type VerifiedModuleReviewCollection } from '../foundation/shopee-module-review-data.js';
+import type { ReviewDataSaved } from '../../../contracts/foundation/shopee-module-review-data.generated.js';
+import { ModuleError } from '../../../scripts/module-pick.js';
 
 /**
  * Rows inserted by one call. reviewsAlreadyPresent: stored reviews this call newly linked to the run (0 on a same-run reload).
@@ -156,4 +161,86 @@ export function vietnamTime(value: string | null): string | null {
   if (!Number.isFinite(ms)) return null;
   const local = new Date(ms + 7 * 3_600_000).toISOString();
   return `${local.slice(0, 19)}${local.slice(19, 23) === '.000' ? '' : local.slice(19, 23)}+07:00`;
+}
+
+export interface ModuleProductName { name: string; bytes: Buffer; jsonPath: string }
+export function moduleImportReceipt(db: Database.Database, source: VerifiedModuleReviewCollection): ReviewDataSaved | null {
+  const row = db.prepare('SELECT * FROM raw_db_module_review_import WHERE source_sha256=?').get(source.sourceSha256) as
+    { import_policy_version: string; module_run_id: string; source_kind: string; attempt_id: string|null; dataset_id: string; archive_sha256: string; row_count: number|bigint; receipt_json: string } | undefined;
+  if (!row) return null;
+  const receipt = validateReviewData<ReviewDataSaved>('saved',JSON.parse(row.receipt_json));
+  if (row.import_policy_version !== 'module-m3-s05-v1' || row.module_run_id !== source.runId || row.source_kind !== source.kind || row.attempt_id !== source.attemptId ||
+      row.archive_sha256 !== reviewDataHash(canonicalJson(reviewArchive(source))) ||
+      Number(row.row_count) !== source.rows.length || receipt.sourceSha256 !== source.sourceSha256 || receipt.datasetId !== row.dataset_id || receipt.rowCount !== source.rows.length)
+    throw new ModuleError('DB_IMPORT_CONFLICT');
+  return { ...receipt, reviewsInserted:0, reviewsAlreadyPresent:source.rows.length, runReviewsInserted:0, reused:true };
+}
+export function assertModuleImportable(db: Database.Database, source: VerifiedModuleReviewCollection, names: ReadonlyMap<string,ModuleProductName>): void {
+  if (source.gateVerdict !== 'PASS' || source.status !== 'SUCCEEDED') throw new ModuleError('REVIEW_SOURCE_NOT_DB_ELIGIBLE');
+  for (const link of source.links) {
+    if (!source.collectedAt.has(link.url)) throw new ModuleError('COLLECTION_TIME_UNAVAILABLE');
+    const stored = db.prepare('SELECT item_id,shop_id,product_name FROM product WHERE product_key=?').get(`shopee:${link.itemId}`) as {item_id:string;shop_id:string|null;product_name:string}|undefined;
+    if (stored && (stored.item_id !== link.itemId || stored.shop_id !== link.shopId)) throw new ModuleError('DB_IMPORT_CONFLICT');
+    if (!stored && !names.has(`1__${link.itemId}__${link.shopId}`)) throw new ModuleError('PRODUCT_NAME_PROVENANCE_MISSING');
+  }
+  const seen = new Set<string>();
+  for (const row of source.rows) {
+    if (!row.reviewId || seen.has(row.reviewId) || !source.links.some(link=>link.itemId===row.itemId&&link.shopId===row.shopId&&link.url===row.sourceUrl)) throw new ModuleError('DB_IMPORT_CONFLICT'); seen.add(row.reviewId);
+    const stored = db.prepare('SELECT product_key FROM review WHERE review_key=?').get(`S05:${row.reviewId}`) as {product_key:string}|undefined;
+    if (stored && stored.product_key !== `shopee:${row.itemId}`) throw new ModuleError('DB_IMPORT_CONFLICT');
+  }
+}
+/** Owning S05 persistence-only entry point. No collection, labelling, filtering or snapshot side effect. */
+export async function loadModuleShopeeReviewsToDbV1(db: Database.Database, artifacts: ContentAddressedArtifactStore,
+  source: VerifiedModuleReviewCollection, names: ReadonlyMap<string,ModuleProductName>): Promise<ReviewDataSaved> {
+  assertModuleImportable(db,source,names);
+  const prior = moduleImportReceipt(db,source); if (prior) return prior;
+  const archive = await artifacts.put(Buffer.from(canonicalJson(reviewArchive(source))));
+  const nameArtifacts = new Map<string,Awaited<ReturnType<ContentAddressedArtifactStore['put']>>>();
+  for (const [id,name] of names) nameArtifacts.set(id,await artifacts.put(name.bytes));
+  await assertReviewDataWritable();
+  const importedAt = new Date().toISOString(), datasetId = `module-m3:${source.runId}:${source.sourceSha256}`;
+  return db.transaction((): ReviewDataSaved => {
+    const repeated = moduleImportReceipt(db,source); if (repeated) return repeated;
+    assertModuleImportable(db,source,names);
+    registerManifest(db,archive,importedAt);
+    for (const artifact of nameArtifacts.values()) registerManifest(db,artifact,importedAt);
+    const result: ReviewDataSaved = {format:'review-data-saved-v1',runId:source.runId,sourceSha256:source.sourceSha256,datasetId,importPolicyVersion:'module-m3-s05-v1',
+      importedAt,rowCount:source.rows.length,reviewsInserted:0,reviewsAlreadyPresent:0,runReviewsInserted:0,firstVersionDiffers:0,reused:false};
+    for (const [index,link] of source.links.entries()) {
+      const captureId = `S05:module:${source.sourceSha256}:${index}`;
+      const collectedAt = source.collectedAt.get(link.url)!;
+      db.prepare(`INSERT INTO raw_capture(capture_id,run_id,source_code,provider,operation,request_params_json,requested_at,completed_at,outcome,response_sha256,raw_path,response_sha256_basis)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(captureId,datasetId,'S05','shopee-public-review','shopee.module_reviews.import',
+        canonicalJson({moduleRunId:source.runId,sourceSha256:source.sourceSha256,attemptId:source.attemptId,planSha256:source.planSha256,
+          requestSha256:source.requestSha256,m2Digest:source.m2Digest,link,collectionTimeBasis:source.kind==='legacy'?'retained-observed-at':'provider-terminal-updated-at',importedAt}),
+        collectedAt,collectedAt,link.actual===0?'EMPTY':'OK',archive.sha256,`artifact:${archive.sha256}`,'RETAINED_ENVELOPE');
+      const productKey = `shopee:${link.itemId}`, name = names.get(`1__${link.itemId}__${link.shopId}`);
+      if (!db.prepare('SELECT 1 FROM product WHERE product_key=?').get(productKey)) {
+        if (!name) throw new ModuleError('PRODUCT_NAME_PROVENANCE_MISSING');
+        const nameArtifact = nameArtifacts.get(`1__${link.itemId}__${link.shopId}`)!;
+        db.prepare('INSERT INTO product(product_key,platform,item_id,shop_id,product_name,product_url,first_capture_id) VALUES (?,?,?,?,?,?,?)')
+          .run(productKey,'shopee',link.itemId,link.shopId,name.name,link.url,captureId);
+        db.prepare('INSERT INTO product_name_source(product_key,source_kind,artifact_sha256,capture_id,json_path,recorded_at) VALUES (?,?,?,?,?,?)')
+          .run(productKey,'APP_CAPTURE',nameArtifact.sha256,null,name.jsonPath,importedAt);
+      }
+      for (const row of source.rows.filter(row => row.shopId === link.shopId && row.itemId === link.itemId)) {
+        const reviewKey = `S05:${row.reviewId}`, attributesJson = row.attributes.length ? JSON.stringify(row.attributes) : null;
+        assertAttributesShape('S05',attributesJson,captureId);
+        const old = db.prepare('SELECT text,attributes_json,rating_star,posted_at,variation FROM review WHERE review_key=?').get(reviewKey) as
+          {text:string|null;attributes_json:string|null;rating_star:number|bigint|null;posted_at:string|null;variation:string|null}|undefined;
+        if (old && (old.text !== row.comment || old.attributes_json !== attributesJson || (old.rating_star===null?null:Number(old.rating_star)) !== row.ratingStar ||
+            old.posted_at !== vietnamTime(row.createdAt) || old.variation !== row.variation)) result.firstVersionDiffers++;
+        const inserted = db.prepare(`INSERT INTO review(review_key,source_code,platform,kind,external_id,product_key,reviewer_name_state,rating_star,text,variation,attributes_json,posted_at,state,collected_at,capture_id,source_position)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(review_key) DO NOTHING`).run(reviewKey,'S05','shopee','product_review',row.reviewId,productKey,'not_provided',
+          row.ratingState==='VALID'?row.ratingStar:null,row.comment,row.variation,attributesJson,vietnamTime(row.createdAt),'VALID',collectedAt,captureId,`page=${row.sourcePage??''},row=${row.sourceRow}`).changes;
+        result.reviewsInserted += inserted; if (!inserted) result.reviewsAlreadyPresent++;
+        result.runReviewsInserted += db.prepare('INSERT INTO run_review(run_id,review_key,capture_id,source_position) VALUES (?,?,?,?)').run(datasetId,reviewKey,captureId,`page=${row.sourcePage??''},row=${row.sourceRow}`).changes;
+      }
+    }
+    validateReviewData('saved',result);
+    db.prepare(`INSERT INTO raw_db_module_review_import(source_sha256,import_policy_version,module_run_id,source_kind,attempt_id,dataset_id,archive_sha256,row_count,imported_at,receipt_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).run(source.sourceSha256,'module-m3-s05-v1',source.runId,source.kind,source.attemptId,datasetId,archive.sha256,source.rows.length,importedAt,canonicalJson(result));
+    return result;
+  }).immediate();
 }
