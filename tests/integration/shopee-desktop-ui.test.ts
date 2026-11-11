@@ -970,16 +970,16 @@ test('the save and export panel stays available without M2, keeps the chosen sou
     });
     await waitFor(() => /Đã lưu tệp/.test(result.doc.getElementById('rdHint')!.textContent!), 'export notice');
 
-    const calls = result.state.reviewDataCallsByRun['run-synthetic'];
+    const calls = result.state.reviewDataCallsByRun['run-synthetic'] ?? 0;
     result.doc.querySelector<HTMLButtonElement>('.runbtn')!.click();
-    await waitFor(() => result.state.reviewDataCallsByRun['run-synthetic'] > calls, 'refresh after reselect');
+    await waitFor(() => (result.state.reviewDataCallsByRun['run-synthetic'] ?? 0) > calls, 'refresh after reselect');
     assert.equal(element<HTMLSelectElement>(result.doc, 'rdSource').value, latest.sourceSha256,
       'a refresh keeps the exact chosen source');
 
     result.state.reviewDataView.sources = [older];
-    const beforeLoss = result.state.reviewDataCallsByRun['run-synthetic'];
+    const beforeLoss = result.state.reviewDataCallsByRun['run-synthetic'] ?? 0;
     result.doc.querySelector<HTMLButtonElement>('.runbtn')!.click();
-    await waitFor(() => result.state.reviewDataCallsByRun['run-synthetic'] > beforeLoss, 'refresh after source loss');
+    await waitFor(() => (result.state.reviewDataCallsByRun['run-synthetic'] ?? 0) > beforeLoss, 'refresh after source loss');
     const sourceSelect = element<HTMLSelectElement>(result.doc, 'rdSource');
     assert.equal(sourceSelect.value, '', 'a vanished source requires a new selection');
     assert.match(element<HTMLElement>(result.doc, 'rdSummary').textContent!, /không còn trong danh sách/);

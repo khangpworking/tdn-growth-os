@@ -70,7 +70,7 @@ Offline bridge coverage, including fake native dialogs, cancellation, digest and
 python3 -m unittest discover -s tools/shopee-desktop/tests -p 'test_review_data_bridge.py' -v
 ```
 
-For packaged Windows QA, use a synthetic config and a fake remote that emits the same canonical fixtures. Never point test QA at the real runs folder, production database, or a real source. The fake remote in `tools/shopee-desktop/tests/test_review_data_bridge.py` is the reference shape; it records argv/stdin and emits only synthetic export bytes. Windows packaging, the native dialog, and WebView2 rendering still require verification on Windows.
+The Linux fixture suites require a POSIX host and repository checkout: their `sshCommand`, `remoteScript`, `runsRoot` and fake remote use local POSIX paths, so the same suites are not Windows-native tests. A Windows `C:\...` path correctly fails remote path validation; do not weaken that validator to run them. The fake remote in `tools/shopee-desktop/tests/test_review_data_bridge.py` is a reference only for the bridge contract and emits synthetic export bytes. For packaged Windows QA, use a real SSH connection to the isolated Fedora fixture described in the handoff, never the real runs folder, production database, or a real source. Windows packaging, the native Save dialog, and WebView2 rendering remain pending real Windows QA.
 
 Build one windowed executable with the HTML bundled:
 

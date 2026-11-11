@@ -8,7 +8,7 @@ Base: `6075386fbfc5d5e65c94013b20aeaf51c2051927`
 
 ## Status
 
-Desktop UI and Python bridge work is complete and locally checked. Sol still owns the backend production code, canonical contracts, migrations and backend integration tests. Root owns integration, commit/merge, Windows packaged QA and Astra review. Nothing was committed, merged, deployed, imported, or pointed at a production database or live source.
+Desktop UI and Python bridge work is complete and locally checked in scoped commits on this branch. Sol still owns the backend production code, canonical contracts, migrations and backend integration tests. Root owns integration, merge, Windows packaged QA and Astra review. Nothing was pushed, merged, deployed, imported, or pointed at a production database or live source.
 
 ## Approved operator behavior
 
@@ -66,11 +66,11 @@ The new desktop tests cover:
 
 ## Synthetic packaged QA guidance
 
-Use the fake remote in `tools/shopee-desktop/tests/test_review_data_bridge.py` as the reference shape. It records argv/stdin and emits only synthetic canonical bytes; it does not call Shopee, Metric, a database, or a real source.
+The desktop fixture suites are Linux/POSIX tests. Their `sshCommand`, `remoteScript`, `runsRoot` and fake remote use local POSIX paths; running the same suites on Windows turns those into `C:\...` paths and correctly fails remote path validation. Do not weaken the production validator to make them pass, and do not claim they passed on Windows. The fake remote in `tools/shopee-desktop/tests/test_review_data_bridge.py` is a reference only for the bridge contract; it records argv/stdin and emits synthetic canonical bytes.
 
-- Point a test config at a synthetic remote and isolated `runsRoot`, `presetsRoot` and `SHOPEE_FLOW_STATE`.
-- Never point packaged QA at the real runs folder, presets folder, production database, or shared guard.
-- On Windows, verify the native Save dialog, packaged PyInstaller window/WebView2 rendering, cancel, overwrite confirmation, and a known digest/size failure manually.
+- Packaged Windows QA uses a real SSH connection to an isolated Fedora fixture with fixed synthetic runs, presets, state, temporary migrated database and artifact root. It must never use the real runs folder, presets folder, production database, or shared guard.
+- On Windows, verify the packaged PyInstaller window/WebView2 rendering, native Save dialog, cancel, overwrite confirmation, and a known digest/size failure manually.
+- Windows packaging and native-dialog QA remain pending until that real Windows run completes.
 
 ## Remaining integration
 
