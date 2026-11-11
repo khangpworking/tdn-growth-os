@@ -1356,10 +1356,13 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
   };
   var RS_ATTEMPT_TEXT = { RUNNING: 'Đang chạy', SUCCEEDED: 'Xong', FAILED: 'Lỗi', UNCERTAIN: 'Chưa rõ kết quả' };
   var RS_STOP_TEXT = {
-    record_limit: 'Đủ số lượng', expected_count_reached: 'Đủ số đánh giá nguồn', last_page: 'Hết trang',
+    record_limit: 'Đủ số lượng', expected_count_reached: 'Đủ số đánh giá nguồn',
+    exhausted: 'Đã hết đánh giá', page_limit: 'Chạm giới hạn trang',
+    not_started: 'Chưa bắt đầu', total_limit: 'Chạm tổng giới hạn',
     cancelled: 'Đã dừng', timeout: 'Quá thời gian', control_changed: 'Bộ lọc nguồn thay đổi',
     human_stop: 'Dừng theo người vận hành'
   };
+  var RS_STOP_UNKNOWN = 'Không rõ lý do dừng';
   var RS_COUNT_WHY = { missing: 'không thấy', ambiguous: 'không rõ', unavailable: 'không đọc được' };
 
   function equalStarQuotas(n, stars) {
@@ -1490,7 +1493,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       (view.countRefresh && view.countRefresh.status === 'RUNNING') ||
       (view.attempts || []).some(function (attempt) { return attempt && attempt.status === 'RUNNING'; })
     ));
-    if (!running || state.selectedRunId !== runId) { stopSamplingPoll(); return; }
+    if (state.selectedRunId !== runId) return;
+    if (!running) { stopSamplingPoll(); return; }
     if (state.samplingPoll && state.samplingPollRunId === runId) return;
     stopSamplingPoll();
     state.samplingPollRunId = runId;
@@ -1574,7 +1578,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
         note.appendChild(h('div', 'rs-stars-cell', detail));
       }
       if (link.stopReason) {
-        note.appendChild(h('div', 'rs-stop', 'Dừng: ' + (RS_STOP_TEXT[link.stopReason] || link.stopReason)));
+        note.appendChild(h('div', 'rs-stop', 'Dừng: ' + (RS_STOP_TEXT[link.stopReason] || RS_STOP_UNKNOWN)));
       }
       row.appendChild(note);
       tbody.appendChild(row);
@@ -1587,7 +1591,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
       block.appendChild(h('p', 'rs-hint', 'Còn một lần chạy chưa xong cần xử lý trước.'));
     }
     var controls = h('div', 'rs-actions');
-    if (target.status === 'RUNNING' && !target.stopRequested) {
+    if ((target.status === 'RUNNING' || target.status === 'UNCERTAIN') && !target.stopRequested) {
       var stop = h('button', 'abtn', 'Dừng lần chạy này');
       stop.type = 'button';
       stop.addEventListener('click', function () {
@@ -1746,10 +1750,10 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
     counts.appendChild(countsHead);
     if (view.countRefresh) {
       var refreshStatus = view.countRefresh.status || 'UNCERTAIN';
-      countsMeta.textContent = view.countRefresh.stopRequested && refreshStatus === 'RUNNING'
+      countsMeta.textContent = view.countRefresh.stopRequested && (refreshStatus === 'RUNNING' || refreshStatus === 'UNCERTAIN')
         ? 'Đang dừng đọc số đánh giá…' : (RS_REFRESH_TEXT[refreshStatus] || '');
       var countControls = h('div', 'rs-actions');
-      if (refreshStatus === 'RUNNING' && !view.countRefresh.stopRequested) {
+      if ((refreshStatus === 'RUNNING' || refreshStatus === 'UNCERTAIN') && !view.countRefresh.stopRequested) {
         var stopCounts = h('button', 'abtn', 'Dừng đọc số đánh giá');
         stopCounts.type = 'button';
         stopCounts.addEventListener('click', function () {

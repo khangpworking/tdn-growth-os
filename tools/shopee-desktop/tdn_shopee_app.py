@@ -27,7 +27,7 @@ _COMMANDS = {
     'm3': ('m3', '--run'),
     'reviewSampling': ('review-sampling', '--run'),
     'refreshReviewCounts': ('review-counts', '--run'),
-    'saveReviewPlan': ('save-review-plan', '--run', '--stdin'),
+    'saveReviewPlan': ('save-review-plan', '--run'),
     'stopReviewAttempt': ('stop-review-attempt', '--run'),
     'reconcileReviewAttempt': ('reconcile-review-attempt', '--run'),
 }
@@ -103,6 +103,8 @@ class Api:
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt'):
             words.append(self._run_id(run_id))
+        if action == 'saveReviewPlan':
+            words.append('--stdin')
         if action in ('stopReviewAttempt', 'reconcileReviewAttempt'):
             words.extend(['--kind', kind, '--attempt', attempt_id])
         if action == 'm3' and plan_sha256 is not None:

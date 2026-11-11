@@ -38,6 +38,18 @@ The **Thêm sản phẩm** form on the **Lượt mới** screen saves a preset t
 
 The bridge validates the same request shape before sending it. Test the flow with fake bridge responses; do not point a test config at the real presets or runs folder.
 
+## Review sampling
+
+The M3 panel of a run with a passed M2 saves an immutable custom plan, then launches that exact plan by digest. It never changes `request.json`, the M2 selection, or a legacy M3 result. Viewing and saving a plan are offline; source counts, launch, stop and reconcile call the remote CLI.
+
+- Modes: `with-comments` (legacy default), `all`, and `stars` (`1..5`, sorted unique). A custom plan accepts N from 1 to 2000 per link. Runs without a custom plan keep the legacy `reviewCapPerLink` cap of 300.
+- Order is `native-filter-ascending-stars-v1`: selected star filters are traversed sequentially ascending. Pooled spends one shared remaining N low-star-first, so it may finish before a higher selected star. Equal-stars is optional, available only in `stars` mode, and stops each star at its own equal quota without filling from another star.
+- Source counts are native rating counts, including ratings without text; they are not the number of eligible written reviews. A missing or unknown count is shown as a dash, never `0`. An observed `0` on a loaded filter is a verified empty result.
+- Outcomes keep requested, written actual and shortfall separate. Zero-result, partial, exhaustion, timeout, cancel and control-changed are distinct. A running checkpoint is `checkpoint`, not a terminal outcome. Only text reviews are collected; there is no media field, count or claim.
+- A changed M2 digest invalidates the old plan: the panel drops it and launching it fails with `REVIEW_PLAN_CHANGED` before any worker starts.
+- The read-only guard is the remote marker `${SHOPEE_FLOW_STATE}/shopee-flow/READONLY` (or `TDN_SHOPEE_FLOW_READONLY=1`). With `SHOPEE_FLOW_STATE` isolated, the marker blocks counts, launch and reconcile while offline view/save and exact-attempt stop remain usable. Do not change a shared or production guard for a test.
+- Offline coverage: `skills/tdn-shopee-flow/tests/test_sampling.py` runs the real CLI against a synthetic M2-pass run with isolated `SHOPEE_FLOW_RUNS` and `SHOPEE_FLOW_STATE`, Node 24 and the repository `tsx`. Launch without a collector configuration fails closed with `COLLECTOR_NOT_CONFIGURED`; no journal is written and no network is used.
+
 Build one windowed executable with the HTML bundled:
 
 ```powershell

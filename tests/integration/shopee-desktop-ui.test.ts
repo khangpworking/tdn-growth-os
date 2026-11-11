@@ -28,7 +28,8 @@ async function waitFor(check: () => boolean, label: string, ms = 3000): Promise<
 
 /** The real page, with a fake pywebview bridge whose preset refresh can be held open. */
 function harness(options: {
-  runInfo?: any; runs?: any[]; sampling?: any;
+  runInfo?: any; runInfoByRun?: Record<string, any>; runs?: any[]; sampling?: any;
+  samplingByRun?: Record<string, any>; reviewGates?: Record<string, Deferred<void>>;
   saveGate?: Deferred<any> | undefined; refreshCountResult?: any;
 } = {}) {
   const state: {
@@ -38,7 +39,10 @@ function harness(options: {
     refresh: Deferred<any> | undefined;
     addResult: ((input: any) => any) | undefined;
     sampling: any;
+    samplingByRun: Record<string, any> | undefined;
+    reviewGates: Record<string, Deferred<void>> | undefined;
     reviewSamplingCalls: number;
+    reviewSamplingCallsByRun: Record<string, number>;
     saveCalls: any[];
     launchCalls: any[];
     controlCalls: any[];
@@ -50,7 +54,10 @@ function harness(options: {
     refresh: undefined,
     addResult: undefined,
     sampling: options.sampling ? clone(options.sampling) : undefined,
+    samplingByRun: options.samplingByRun ? clone(options.samplingByRun) : undefined,
+    reviewGates: options.reviewGates,
     reviewSamplingCalls: 0,
+    reviewSamplingCallsByRun: {},
     saveCalls: [], launchCalls: [], controlCalls: [],
     refreshCountResult: options.refreshCountResult,
     saveGate: options.saveGate,
@@ -72,17 +79,22 @@ function harness(options: {
       state.newRunCalls++;
       return { ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } };
     },
-    status: async () => {
-      if (options.runInfo) return { ok: true, data: options.runInfo };
+    status: async (runId: string) => {
+      const info = (options.runInfoByRun && options.runInfoByRun[runId]) || options.runInfo;
+      if (info) return { ok: true, data: clone(info) };
       return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
     },
     runFlow: async () => ({ ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } }),
     reviewSampling: async (runId: string) => {
       state.reviewSamplingCalls++;
-      if (!state.sampling || state.sampling.runId !== runId) {
+      state.reviewSamplingCallsByRun[runId] = (state.reviewSamplingCallsByRun[runId] || 0) + 1;
+      const gate = state.reviewGates && state.reviewGates[runId];
+      if (gate) await gate.promise;
+      const view = state.samplingByRun && state.samplingByRun[runId] || state.sampling;
+      if (!view || view.runId !== runId) {
         return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
       }
-      return { ok: true, data: clone(state.sampling) };
+      return { ok: true, data: clone(view) };
     },
     saveReviewPlan: async (runId: string, input: any) => {
       state.saveCalls.push({ runId, input: clone(input) });
@@ -265,18 +277,18 @@ const passSlip = (module: string) => ({
 });
 
 /** Synthetic run-info for the M3 panel; no live source or native DOM is involved. */
-function syntheticRunInfo() {
+function syntheticRunInfo(runId = 'run-synthetic') {
   const module = (id: string, inputGate: string, canRun: boolean) => ({
     id, title: id, skill: 'synthetic-module', inputGate, outputGate: id.toLowerCase(), canRun, blockedBy: null,
   });
   return {
-    format: 'run-info-v1', runId: 'run-synthetic', readonly: false,
+    format: 'run-info-v1', runId, readonly: false,
     request: { format: 'request-v1', reviewCapPerLink: 300 },
     state: { status: 'IDLE', module: null, errorCode: null },
     modules: [module('M1', 'entry', false), module('M2', 'm1', false), module('M3', 'm2', true)],
     gates: { entry: passSlip('ENTRY'), m1: passSlip('M1'), m2: passSlip('M2'), m3: null },
     selection: {
-      format: 'selection-v1', runId: 'run-synthetic',
+      format: 'selection-v1', runId,
       links: [{ rank: 1, brand: 'Nhãn tổng hợp', revenue: 123456, reason: 'Dòng tổng hợp' }],
     },
   };
@@ -616,7 +628,7 @@ test('an unfinished attempt shows dash for unobserved star values and stops by e
   } finally { dom.window.close(); }
 });
 
-test('an uncertain attempt reconciles the same attempt and never offers a new run', async () => {
+test('an uncertain attempt stops the exact attempt before reconciling it', async () => {
   const attempt = {
     attemptId: 'attempt-uncertain-1', planSha256: 'f'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
     status: 'UNCERTAIN', errorCode: null, gate: null, stopRequested: false, reconcilable: true,
@@ -624,14 +636,84 @@ test('an uncertain attempt reconciles the same attempt and never offers a new ru
   };
   const { dom, doc, state } = await samplingHarness({ attempts: [attempt], blockedBy: { code: 'ATTEMPT_UNCERTAIN' } });
   try {
-    assert.equal(buttonByText(doc, 'Dừng lần chạy này'), undefined);
     assert.equal(buttonByText(doc, 'Thu bình luận theo lựa chọn')!.disabled, true);
-    buttonByText(doc, 'Đối soát lần chạy')!.click();
-    await waitFor(() => state.controlCalls.length === 1, 'reconcile');
+    buttonByText(doc, 'Dừng lần chạy này')!.click();
+    await waitFor(() => state.controlCalls.length === 1, 'uncertain stop');
     assert.deepEqual(state.controlCalls[0], {
+      action: 'stop', runId: 'run-synthetic', kind: 'custom', attemptId: 'attempt-uncertain-1',
+    });
+    await waitFor(() => /Đã yêu cầu dừng lần chạy này/.test(doc.getElementById('rsPanel')!.textContent!), 'stop requested');
+    assert.equal(buttonByText(doc, 'Dừng lần chạy này'), undefined);
+    buttonByText(doc, 'Đối soát lần chạy')!.click();
+    await waitFor(() => state.controlCalls.length === 2, 'reconcile');
+    assert.deepEqual(state.controlCalls[1], {
       action: 'reconcile', runId: 'run-synthetic', kind: 'custom', attemptId: 'attempt-uncertain-1',
     });
     assert.equal(state.launchCalls.length, 0, 'reconcile never submits a new attempt');
+  } finally { dom.window.close(); }
+});
+
+test('an uncertain counts refresh can be stopped by its exact attempt', async () => {
+  const { dom, doc, state } = await samplingHarness({
+    countRefresh: { attemptId: 'counts-uncertain', status: 'UNCERTAIN', errorCode: null, stopRequested: false, reconcilable: true },
+  });
+  try {
+    assert.ok(buttonByText(doc, 'Dừng đọc số đánh giá'), 'an uncertain counts attempt remains stoppable');
+    assert.ok(buttonByText(doc, 'Đối soát lần đọc'));
+    buttonByText(doc, 'Dừng đọc số đánh giá')!.click();
+    await waitFor(() => state.controlCalls.length === 1, 'counts stop');
+    assert.deepEqual(state.controlCalls[0], {
+      action: 'stop', runId: 'run-synthetic', kind: 'counts', attemptId: 'counts-uncertain',
+    });
+    await waitFor(() => /Đang dừng đọc số đánh giá/.test(doc.getElementById('rsPanel')!.textContent!), 'stop requested');
+    assert.equal(buttonByText(doc, 'Dừng đọc số đánh giá'), undefined);
+  } finally { dom.window.close(); }
+});
+
+test('a late sampling response for an unselected run never stops the selected run poll', async () => {
+  const gateA = deferred<void>();
+  const running = (attemptId: string) => ({
+    attemptId, planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  });
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-a', product: 'A', status: 'IDLE' }, { runId: 'run-b', product: 'B', status: 'IDLE' }],
+    runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    samplingByRun: {
+      'run-a': syntheticSampling({ runId: 'run-a', attempts: [running('attempt-a')] }),
+      'run-b': syntheticSampling({ runId: 'run-b', attempts: [running('attempt-b')] }),
+    },
+    reviewGates: { 'run-a': gateA },
+  });
+  try {
+    await waitFor(() => state.reviewSamplingCallsByRun['run-a'] === 1, 'A sampling in flight');
+    const bButton = [...doc.querySelectorAll('#runList button')]
+      .find((button) => button.textContent!.includes('run-b')) as HTMLButtonElement;
+    bButton.click();
+    await waitFor(() => state.reviewSamplingCallsByRun['run-b'] === 1, 'B sampling loaded');
+    gateA.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const bBefore = state.reviewSamplingCallsByRun['run-b'] ?? 0;
+    await waitFor(() => (state.reviewSamplingCallsByRun['run-b'] ?? 0) > bBefore, 'B poll survives the late A response', 4500);
+  } finally { dom.window.close(); }
+});
+
+test('supported stop reasons are translated and an unknown code never leaks raw', async () => {
+  const attempt = {
+    attemptId: 'attempt-stops', planSha256: 'd'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'SUCCEEDED', errorCode: null, gate: passSlip('M3'), stopRequested: false, reconcilable: false,
+    links: [
+      { shopId: '100', itemId: '200', requested: 300, actual: 0, shortfall: 300, stopReason: 'exhausted', stars: [] },
+      { shopId: '101', itemId: '201', requested: 300, actual: 0, shortfall: 300, stopReason: 'vendor_limit_7', stars: [] },
+    ],
+  };
+  const { dom, doc } = await samplingHarness({ attempts: [attempt] });
+  try {
+    const panel = doc.getElementById('rsPanel')!.textContent!;
+    assert.match(panel, /Dừng: Đã hết đánh giá/);
+    assert.match(panel, /Dừng: Không rõ lý do dừng/);
+    assert.doesNotMatch(panel, /vendor_limit_7/);
   } finally { dom.window.close(); }
 });
 

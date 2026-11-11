@@ -127,6 +127,46 @@ test('a running checkpoint without terminal stop_reason is retained and later be
   assert.ok(!calls.includes(`/jobs/${baseJob.id}/cancel`), 'a healthy attempt is never cancelled');
 });
 
+test('a written record with an unparsed raw date stays admissible instead of failing the job', async () => {
+  const { plan, planSha256 } = planFixture();
+  const request = requestFixture(planSha256);
+  const created = AT.toISOString();
+  const job = {
+    id: '00000000-0000-4000-8000-000000000004', request, created_at: created, updated_at: created,
+    result_available: true, collected: 1, state: 'succeeded',
+  };
+  const record = { ...RECORD, review_id: 'r-unknown-date', posted_at_local: 'không rõ ngày' };
+  const pages = [{ filter: 'with-comments', page: 1, cards: 1, collected: 1, ids: ['r-unknown-date'] }];
+  const result = {
+    job_id: job.id, product_url: LINK.url, complete: true, stop_reason: 'exhausted',
+    sampling: request.sampling, observed_at: created, records: [record], pages,
+    groups: GROUPS, source_counts: sourceCounts(),
+  };
+  let submitted = false;
+
+  const fakeFetch = (async (input: string | URL | Request) => {
+    const route = new URL(String(input)).pathname + new URL(String(input)).search;
+    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: created });
+    if (route === '/jobs?limit=100') return response(submitted ? [job] : []);
+    if (route === '/jobs') { submitted = true; return response(job, 202); }
+    if (route === `/jobs/${job.id}`) return response(job);
+    if (route === `/jobs/${job.id}/result`) return response(result);
+    throw new Error('unexpected synthetic route ' + route);
+  }) as typeof fetch;
+
+  await withDir(async (dir) => {
+    const journal = await collector(fakeFetch).run(path.join(dir, 'journal.json'), request, LINK, plan);
+    assert.equal(journal.errorCode, null);
+    assert.equal(journal.terminal, true);
+    const result = journal.result;
+    assert.equal(result?.format, 'shopee-sampled-result-v1');
+    const row = result?.format === 'shopee-sampled-result-v1' ? result.rows[0] : undefined;
+    assert.equal(row?.createdAt, null);
+    assert.deepEqual(row?.admissionReasons, ['SOURCE_TIME_NOT_PARSED']);
+    assert.equal(row?.comment, 'Sản phẩm tốt');
+  });
+});
+
 test('reconcile after a lost submit response and expired deadline reads, cancels and binds only the exact job', async () => {
   const { plan, planSha256 } = planFixture();
   const request = requestFixture(planSha256);
