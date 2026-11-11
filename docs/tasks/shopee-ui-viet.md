@@ -56,3 +56,25 @@ tracking, form locking, cancel-before-start and the new-draft focus/reset.
 Final headless layout inspection, CI and independent exact-head review are
 release checks. Native Windows/WebView2 behavior is not inferred from DOM or
 headless results. No production deployment or live collection was performed.
+
+## Final review corrections and validation
+
+Initial M3 runs use the frozen original route without saving an extra plan.
+Configured and legacy runs have one original execution control; explicit extra
+collection remains separate and launches only its saved digest. Selection
+sessions invalidate deferred saves even after A-to-B-to-A navigation. Late
+whole-flow replies do not replace a newer draft or navigation choice. Current
+progress requires matching execution identity, and stale completions release
+the visible busy state without dispatching. Locked summaries separate labels
+from values.
+
+The final HTML (68139cad) and DOM tests (f62df536) passed 52 integration tests
+and repository typecheck with unchanged hashes before/after. Intended failures
+were reproduced on preserved prior source; structural control-ID differences
+are recorded separately from behavioral regressions. Python source and tests
+are unchanged from the earlier 28-pass bridge and 97-run/3-skip flow results.
+The final synthetic headless render covers locked summary and original/extra
+M3 at 900 and 1280 CSS pixels, with no horizontal overflow or console errors.
+Root inspected the resulting images. No native Windows PASS is inferred.
+A new isolated read-only fixture supports bounded Windows view checks; its
+creation action remains disabled by the UI guard. Production stays unchanged.

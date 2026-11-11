@@ -177,6 +177,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .frozen h4 { margin: 0; font-size: 13px; }
 .frozen p { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .frozen .stale { color: var(--need); font-weight: 600; }
+.frozen > div { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 10px; align-items: baseline; }
+.frozen > div > span { overflow-wrap: anywhere; }
 .policy-frozen { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 5px; background: var(--band); }
 .policy-frozen h5 { margin: 0; font-size: 12.5px; color: var(--muted); }
 .policy-frozen p { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
@@ -465,9 +467,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   var GATE_NAMES = { entry: 'đầu vào', m1: 'sau bước 1', m2: 'sau bước 2', m3: 'sau bước 3' };
   var VERDICT_LABEL = { PASS: 'Đạt', FAIL: 'Không đạt', WAIT_OWNER: 'Cần bạn xử lý', UNCERTAIN: 'Chưa xác định được' };
   var MODULE_TITLES = {
-    M1: 'Bước1 Lấy số liệu bán hàng',
-    M2: 'Bước2 Chọn link bán chạy',
-    M3: 'Bước3 Lấy bình luận'
+    M1: 'Bước 1 Lấy số liệu bán hàng',
+    M2: 'Bước 2 Chọn link bán chạy',
+    M3: 'Bước 3 Lấy bình luận'
   };
   function moduleTitle(id, fallback) { return MODULE_TITLES[id] || fallback || id; }
 
@@ -1817,6 +1819,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     presets: [],
     runs: [],
     selectedRunId: null,
+    selectionSeq: 0,
+    navSeq: 0,
+    screen: 'new',
     info: null,
     newRunId: null,
     newEntry: null,
@@ -2077,11 +2082,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
   }
 
-  function samplingDraft(runId, view) {
+  function samplingDraft(runId, view, savedPolicy) {
     var digest = view && view.m2Digest;
     var existing = state.reviewDrafts[runId];
     if (!existing || existing.m2 !== digest) {
-      var input = view && view.defaultInput ? view.defaultInput : {};
+      var input = savedPolicy || (view && view.defaultInput ? view.defaultInput : {});
       var mode = input.mode === 'all' || input.mode === 'stars' ? input.mode : 'with-comments';
       var stars = Array.isArray(input.stars) ? input.stars.filter(function (star) {
         return Number.isInteger(star) && star >= 1 && star <= 5;
@@ -2417,13 +2422,19 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return panel;
     }
 
-    var draft = samplingDraft(runId, view);
     var requested = requestPolicy(info.request);
     var legacyPolicy = !requested || requested.legacy;
+    var savedPolicy = legacyPolicy ? null : normalizePolicy(requested).value;
+    var draft = samplingDraft(runId, view, savedPolicy);
     var automatic = (view.attempts || []).find(function (attempt) { return attempt && attempt.automatic; });
     var m3Execution = info.execution && info.execution.modules ? info.execution.modules.M3 : null;
+    var m3Module = (info.modules || []).find(function (mod) { return mod.id === 'M3'; });
+    var m3ModuleBlocked = m3Module && !m3Module.canRun ? (m3Module.blockedBy || { code: '' }) : null;
+    var m3ModuleBlockText = m3ModuleBlocked ? blockText(m3ModuleBlocked) : '';
     var m3Running = !!(m3Execution && m3Execution.status === 'RUNNING');
     var editBody = panel;
+    var originalBtn = null;
+    var originalHint = null;
     if (!legacyPolicy) {
       panel.appendChild(frozenPolicyCard(requested));
       if (automatic) {
@@ -2432,9 +2443,40 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         extra.appendChild(h('summary', null, 'Lấy thêm theo cách khác'));
         panel.appendChild(extra);
         editBody = extra;
+      } else {
+        var originalActions = h('div', 'rs-actions');
+        originalBtn = h('button', 'abtn primary', 'Lấy bình luận theo thiết lập lúc tạo lượt');
+        originalBtn.type = 'button';
+        originalBtn.id = 'samplingRunBtn';
+        originalActions.appendChild(originalBtn);
+        originalHint = h('span', 'hint');
+        originalHint.id = 'rsOriginalHint';
+        originalHint.setAttribute('aria-live', 'polite');
+        originalHint.hidden = true;
+        originalActions.appendChild(originalHint);
+        panel.appendChild(originalActions);
+        panel.appendChild(h('p', 'rs-note',
+          'Thiết lập này đã lưu khi tạo lượt. Phần bên dưới chỉ dùng khi bạn muốn cách lấy khác.'));
+        var firstCustom = h('details', 'extra-collection');
+        firstCustom.appendChild(h('summary', null, 'Lấy thêm theo cách khác'));
+        firstCustom.appendChild(h('p', 'rs-note',
+          'Đây là một lần lấy thêm riêng. Nó không thay đổi thiết lập đã lưu và không thay cho lần lấy đầu tiên theo thiết lập lúc tạo lượt.'));
+        panel.appendChild(firstCustom);
+        editBody = firstCustom;
       }
     } else {
       panel.appendChild(frozenPolicyCard({ legacy: true, totalPerLink: requested ? requested.totalPerLink : 300 }));
+      var legacyActions = h('div', 'rs-actions');
+      originalBtn = h('button', 'abtn primary', 'Lấy bình luận theo thiết lập lúc tạo lượt');
+      originalBtn.type = 'button';
+      originalBtn.id = 'samplingRunBtn';
+      legacyActions.appendChild(originalBtn);
+      originalHint = h('span', 'hint');
+      originalHint.id = 'rsOriginalHint';
+      originalHint.setAttribute('aria-live', 'polite');
+      originalHint.hidden = true;
+      legacyActions.appendChild(originalHint);
+      panel.appendChild(legacyActions);
       var legacyDetails = h('details', 'extra-collection');
       legacyDetails.appendChild(h('summary', null, 'Lấy thêm theo cách khác'));
       panel.appendChild(legacyDetails);
@@ -2538,9 +2580,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     panel.appendChild(actionErr);
 
     var actions = h('div', 'rs-actions');
-    var runBtn = h('button', 'abtn primary', 'Lấy bình luận theo thiết lập này');
+    var runBtn = h('button', originalBtn ? 'abtn' : 'abtn primary',
+      originalBtn ? 'Lấy khác theo thiết lập này'
+        : automatic ? 'Lấy thêm theo thiết lập này' : 'Lấy bình luận theo thiết lập này');
     runBtn.type = 'button';
-    runBtn.id = 'samplingRunBtn';
+    runBtn.id = originalBtn ? 'samplingCustomRunBtn' : 'samplingRunBtn';
     actions.appendChild(runBtn);
     var actionHint = h('span', 'hint');
     actionHint.id = 'rsActionHint';
@@ -2620,23 +2664,50 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         statusChip.className = 'chip s-idle';
       }
 
+      var originalBusy = work.action === 'original' && (work.save || work.launch);
+      if (originalBtn) {
+        originalBtn.disabled = anyBusy || !state.connected || m3Running || !!blocked || !!m3ModuleBlocked ||
+          !!view.readonly || !view.m2Digest;
+        originalBtn.textContent = originalBusy
+          ? 'Đang bắt đầu lấy bình luận…'
+          : 'Lấy bình luận theo thiết lập lúc tạo lượt';
+      }
       runBtn.disabled = !!issue || anyBusy || !state.connected || m3Running || !!blocked ||
         !!view.readonly || !view.m2Digest;
-      runBtn.textContent = work.phase === 'dispatch' ? 'Đang bắt đầu lấy bình luận…'
-        : work.phase === 'save' ? 'Đang lưu thiết lập…' : 'Lấy bình luận theo thiết lập này';
+      var runBtnIdle = originalBtn ? 'Lấy khác theo thiết lập này'
+        : automatic ? 'Lấy thêm theo thiết lập này' : 'Lấy bình luận theo thiết lập này';
+      runBtn.textContent = !originalBusy && work.phase === 'dispatch' ? 'Đang bắt đầu lấy bình luận…'
+        : !originalBusy && work.phase === 'save' ? 'Đang lưu thiết lập…' : runBtnIdle;
       refreshBtn.disabled = anyBusy || !state.connected || !(view.links || []).length || !!blocked ||
         !!view.readonly || !!(view.countRefresh && view.countRefresh.status === 'RUNNING');
 
+      var busyMessage = '';
+      if (work.save) busyMessage = 'Đang lưu thiết lập…';
+      else if (work.launch) busyMessage = 'Đang bắt đầu lấy bình luận…';
+      else if (work.refresh) busyMessage = 'Đang xem số đánh giá hiện có trên Shopee…';
+      else if (work.control) busyMessage = 'Đang xử lý lần lấy…';
       var message = '';
-      if (work.save) message = 'Đang lưu thiết lập…';
-      else if (work.launch) message = 'Đang bắt đầu lấy bình luận…';
-      else if (work.refresh) message = 'Đang xem số đánh giá hiện có trên Shopee…';
-      else if (work.control) message = 'Đang xử lý lần lấy…';
-      else if (m3Running) message = 'Đang lấy bình luận.';
-      else if (issue) message = issue;
-      else if (blocked) message = rsBlockText(blocked.code);
+      if (work.action === 'original') {
+        message = busyMessage || (m3Running ? 'Đang lấy bình luận.' : blocked ? rsBlockText(blocked.code) : '');
+      } else if (busyMessage) {
+        message = busyMessage;
+      } else if (m3Running) {
+        message = 'Đang lấy bình luận.';
+      } else if (issue) {
+        message = issue;
+      } else if (blocked) {
+        message = rsBlockText(blocked.code);
+      }
       actionHint.textContent = message;
       actionHint.hidden = !message;
+      if (originalHint) {
+        var originalIdle = m3Running ? 'Đang lấy bình luận.'
+          : m3ModuleBlockText || (blocked ? rsBlockText(blocked.code) : '');
+        var originalMessage = work.action === 'original'
+          ? (busyMessage || originalIdle) : originalIdle;
+        originalHint.textContent = originalMessage;
+        originalHint.hidden = !originalMessage;
+      }
     }
 
     function sync() {
@@ -2679,32 +2750,88 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       renderDetail();
     }
 
-    runBtn.addEventListener('click', async function () {
+    function samePlanContext(run, token, selectionSeq) {
+      return token === state.samplingTokens[run] &&
+        state.selectedRunId === run && state.selectionSeq === selectionSeq;
+    }
+
+    function releaseWork(work) {
+      work.save = false;
+      work.launch = false;
+      work.phase = '';
+      work.action = '';
+    }
+
+    function refreshPlanActions(run) {
+      if (state.selectedRunId === run && state.info && state.info.runId === run) renderDetail();
+    }
+
+    async function launchOriginal() {
       var work = busy();
       if (work.save || work.launch || work.refresh || work.control) return;
-      var issue = draftIssue(draft);
-      if (issue) { hintNode.textContent = issue; hintNode.hidden = false; return; }
-      if (blocked) { hintNode.textContent = rsBlockText(blocked.code); hintNode.hidden = false; return; }
+      if (m3ModuleBlocked) {
+        originalHint.textContent = m3ModuleBlockText;
+        originalHint.hidden = false;
+        return;
+      }
+      if (blocked) {
+        originalHint.textContent = rsBlockText(blocked.code);
+        originalHint.hidden = false;
+        return;
+      }
       if (!state.connected || m3Running || view.readonly || !view.m2Digest) return;
 
       delete state.samplingActionErrors[runId];
       var run = runId;
       var token = rsToken(run);
+      var selectionSeq = state.selectionSeq;
+      work.launch = true;
+      work.phase = 'dispatch';
+      work.action = 'original';
+      updateActions();
+      var launched = await api.runModule(run, 'm3');
+      releaseWork(work);
+      if (!samePlanContext(run, token, selectionSeq)) { refreshPlanActions(run); return; }
+      if (!launched.ok) {
+        state.samplingActionErrors[run] = launched.error;
+      } else {
+        delete state.samplingActionErrors[run];
+      }
+      await loadInfo(run);
+      await loadSampling(run);
+      await refreshRuns();
+    }
+
+    async function launchPolicy(policy, action) {
+      var work = busy();
+      if (work.save || work.launch || work.refresh || work.control) return;
+      var issue = draftIssue(draft);
+      if (issue) { hintNode.textContent = issue; hintNode.hidden = false; return; }
+      if (blocked) { hintNode.textContent = rsBlockText(blocked.code); hintNode.hidden = false; return; }
+      if (!state.connected || m3Running || view.readonly || !view.m2Digest || !policy) return;
+
+      delete state.samplingActionErrors[runId];
+      var run = runId;
+      var token = rsToken(run);
       var generation = state.samplingDraftSeq[run] || 0;
-      var policy = draftPolicy(draft);
+      var selectionSeq = state.selectionSeq;
       var m2Digest = view.m2Digest;
+      var exactPolicy = {
+        mode: policy.mode,
+        stars: policy.mode === 'stars' ? policy.stars.slice().sort(function (a, b) { return a - b; }) : [],
+        totalPerLink: policy.totalPerLink,
+        allocation: policy.allocation
+      };
 
       work.save = true;
       work.launch = true;
       work.phase = 'save';
+      work.action = action;
       updateActions();
-      var saved = await api.saveReviewPlan(run, policy);
-      if (token !== state.samplingTokens[run]) { work.save = false; work.launch = false; work.phase = ''; return; }
-      if (state.selectedRunId !== run) { work.save = false; work.launch = false; work.phase = ''; return; }
+      var saved = await api.saveReviewPlan(run, exactPolicy);
+      if (!samePlanContext(run, token, selectionSeq)) { releaseWork(work); refreshPlanActions(run); return; }
       if (!saved.ok) {
-        work.save = false;
-        work.launch = false;
-        work.phase = '';
+        releaseWork(work);
         failLaunch(saved.error);
         return;
       }
@@ -2714,11 +2841,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var currentGeneration = state.samplingDraftSeq[run] || 0;
       var validSha = typeof data.planSha256 === 'string' && /^[0-9a-f]{64}$/.test(data.planSha256);
       var exact = data.runId === run && plan.runId === run && plan.m2Digest === m2Digest &&
-        policyMatches(policy, plan.policy || {});
+        policyMatches(exactPolicy, plan.policy || {});
       if (!validSha || !exact || currentGeneration !== generation) {
-        work.save = false;
-        work.launch = false;
-        work.phase = '';
+        releaseWork(work);
         state.samplingActionErrors[run] = {
           message: currentGeneration !== generation
             ? 'Thiết lập đã thay đổi trong lúc lưu nên chưa bắt đầu lấy. Kiểm tra lại thiết lập rồi bấm lấy bình luận.'
@@ -2732,10 +2857,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       work.phase = 'dispatch';
       updateActions();
       var launched = await api.runModule(run, 'm3', data.planSha256);
-      work.launch = false;
-      work.phase = '';
-      if (token !== state.samplingTokens[run]) return;
-      if (state.selectedRunId !== run) return;
+      releaseWork(work);
+      if (!samePlanContext(run, token, selectionSeq)) { refreshPlanActions(run); return; }
       if (!launched.ok) {
         state.samplingActionErrors[run] = launched.error;
       } else {
@@ -2744,6 +2867,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       await loadInfo(run);
       await loadSampling(run);
       await refreshRuns();
+    }
+
+    if (originalBtn) {
+      originalBtn.addEventListener('click', launchOriginal);
+    }
+    runBtn.addEventListener('click', function () {
+      launchPolicy(draftPolicy(draft), originalBtn ? 'custom' : 'primary');
     });
 
     refreshBtn.addEventListener('click', async function () {
@@ -3191,7 +3321,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return panel;
   }
 
-  function moduleCard(mod, info) {
+  function moduleCard(mod, info, runControlElsewhere) {
     var card = h('article', 'mod');
     var head = h('div', 'mh');
     head.appendChild(h('h3', null, moduleTitle(mod.id, mod.title)));
@@ -3219,18 +3349,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     tech.appendChild(meta);
     card.appendChild(tech);
 
-    var row = h('div', 'btnrow');
-    var btn = h('button', 'abtn', 'Chạy bước này');
-    btn.type = 'button';
-    btn.disabled = !state.connected || !mod.canRun;
-    btn.addEventListener('click', function () { onRunModule(mod.id, btn); });
-    row.appendChild(btn);
-    if (!state.connected) {
-      row.appendChild(h('span', 'hint', 'Chưa kết nối máy chủ.'));
-    } else if (!mod.canRun && mod.blockedBy) {
-      row.appendChild(h('span', 'hint', blockText(mod.blockedBy)));
+    if (!runControlElsewhere) {
+      var row = h('div', 'btnrow');
+      var btn = h('button', 'abtn', 'Chạy bước này');
+      btn.type = 'button';
+      btn.disabled = !state.connected || !mod.canRun;
+      btn.addEventListener('click', function () { onRunModule(mod.id, btn); });
+      row.appendChild(btn);
+      if (!state.connected) {
+        row.appendChild(h('span', 'hint', 'Chưa kết nối máy chủ.'));
+      } else if (!mod.canRun && mod.blockedBy) {
+        row.appendChild(h('span', 'hint', blockText(mod.blockedBy)));
+      }
+      card.appendChild(row);
     }
-    card.appendChild(row);
 
     if (mod.id === 'M2' && info.selection) card.appendChild(selectionTable(info.selection));
     return card;
@@ -3304,20 +3436,41 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         ? 'Đang chạy ' + moduleTitle(exec.currentModule, exec.currentModule) + '.'
         : 'Đang chạy. Đang chờ bước tiếp theo.';
     }
+    var waiting = 'Bước 3 đang lấy bình luận. Đang chờ số liệu lấy được.';
     var view = state.sampling[info.runId];
-    var attempts = (view && view.attempts) || [];
-    var attempt = null;
-    for (var i = attempts.length - 1; i >= 0; i--) {
-      if (attempts[i] && attempts[i].status === 'RUNNING') { attempt = attempts[i]; break; }
+    if (!view || (view.runId && view.runId !== info.runId)) return waiting;
+    var attempts = view.attempts || [];
+    function sameIdentity(attempt) {
+      var pairs = 0;
+      if (attempt.attemptId !== null && attempt.attemptId !== undefined &&
+          current.attemptId !== null && current.attemptId !== undefined) {
+        if (attempt.attemptId !== current.attemptId) return false;
+        pairs += 1;
+      }
+      if (attempt.executionId !== null && attempt.executionId !== undefined &&
+          current.executionId !== null && current.executionId !== undefined) {
+        if (attempt.executionId !== current.executionId) return false;
+        pairs += 1;
+      }
+      if (attempt.sequence !== null && attempt.sequence !== undefined &&
+          current.sequence !== null && current.sequence !== undefined) {
+        if (attempt.sequence !== current.sequence) return false;
+        pairs += 1;
+      }
+      return pairs > 0;
     }
-    if (!attempt) return 'Bước3 đang lấy bình luận. Đang chờ số liệu lấy được.';
+    var matches = attempts.filter(function (attempt) {
+      return attempt && attempt.status === 'RUNNING' && sameIdentity(attempt);
+    });
+    if (matches.length !== 1) return waiting;
+    var attempt = matches[0];
     var links = attempt.links || [];
     var observed = links.filter(function (link) {
       return link && link.actual !== null && link.actual !== undefined;
     });
-    if (!observed.length) return 'Bước3 đang lấy bình luận. Đang chờ số liệu lấy được.';
+    if (!observed.length) return 'Bước 3 đang lấy bình luận. Đang chờ số liệu lấy được.';
     var total = observed.reduce(function (sum, link) { return sum + Number(link.actual); }, 0);
-    return 'Bước3 đang lấy bình luận. Đã ghi nhận ' + fmtInt(total) + ' bình luận ở ' +
+    return 'Bước 3 đang lấy bình luận. Đã ghi nhận ' + fmtInt(total) + ' bình luận ở ' +
       observed.length + '/' + links.length + ' link; các link còn lại chưa có số liệu.';
   }
 
@@ -3372,8 +3525,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var hasM3 = (info.modules || []).some(function (mod) { return mod.id === 'M3'; });
     if (hasM3) root.appendChild(reviewDataPanel(info));
     var samplingView = state.sampling[info.runId];
-    if (hasM3 && (info.selection || (samplingView && samplingView.m2Digest) ||
-        state.samplingErrors[info.runId] || samplingRecoveryPending(samplingView))) {
+    var samplingPanelShown = hasM3 && !!(
+      info.selection || (samplingView && samplingView.m2Digest) ||
+      state.samplingErrors[info.runId] || samplingRecoveryPending(samplingView));
+    if (samplingPanelShown) {
       root.appendChild(reviewSamplingPanel(info));
     }
 
@@ -3415,7 +3570,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         tech.appendChild(gateStepNode(step.key, info));
       } else {
         var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
-        if (mod) tech.appendChild(moduleCard(mod, info));
+        if (mod) tech.appendChild(moduleCard(mod, info, mod.id === 'M3' && samplingPanelShown));
       }
     });
     root.appendChild(tech);
@@ -3500,6 +3655,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function selectRun(runId) {
     stopSamplingPoll();
+    state.selectionSeq += 1;
     state.selectedRunId = runId;
     renderRunList();
     await loadInfo(runId);
@@ -3780,7 +3936,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   function frozenRow(label, value) {
     var div = h('div');
-    div.appendChild(h('b', null, label));
+    div.appendChild(h('b', null, label + ':'));
     div.appendChild(h('span', null, value));
     return div;
   }
@@ -4134,6 +4290,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return;
     }
     var runId = binding.runId;
+    var context = {
+      runId: runId,
+      generation: frozen.generation,
+      formSeq: frozen.formSeq,
+      selectionSeq: state.selectionSeq,
+      navSeq: state.navSeq,
+      screen: state.screen
+    };
+    function sameFlowContext() {
+      var current = state.newBinding;
+      return !!current && current.runId === context.runId &&
+        current.generation === context.generation && state.newFormSeq === context.formSeq &&
+        state.selectionSeq === context.selectionSeq && state.navSeq === context.navSeq &&
+        state.screen === context.screen;
+    }
     clearError();
     clearNewError();
     hint.hidden = true;
@@ -4141,19 +4312,25 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     btn.disabled = true;
     var res = await api.runFlow(runId);
     if (!res.ok) {
-      hint.textContent = plainError(res.error);
-      hint.title = errorCode(res.error);
-      hint.hidden = false;
+      if (sameFlowContext()) {
+        hint.textContent = plainError(res.error);
+        hint.title = errorCode(res.error);
+        hint.hidden = false;
+      }
       await refreshRuns();
-      await loadInfo(runId);
+      if (sameFlowContext()) await loadInfo(runId);
       return;
     }
-    hint.textContent = '';
-    hint.hidden = true;
-    showScreen('track');
-    await refreshRuns();
-    await selectRun(runId);
-    updateFlowButton();
+    if (sameFlowContext()) {
+      hint.textContent = '';
+      hint.hidden = true;
+      showScreen('track');
+      await refreshRuns();
+      await selectRun(runId);
+      updateFlowButton();
+    } else {
+      await refreshRuns();
+    }
   }
 
   function onFlowCancel() {
@@ -4233,6 +4410,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   function showScreen(name) {
+    state.navSeq += 1;
+    state.screen = name;
     var tabs = document.querySelectorAll('.tabs button');
     Array.prototype.forEach.call(tabs, function (b) {
       b.setAttribute('aria-selected', String(b.dataset.screen === name));

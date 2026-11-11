@@ -41,6 +41,7 @@ function harness(options: {
   addProductGate?: Deferred<any> | undefined;
   addProductResult?: (input: any) => any;
   runFlowResult?: any;
+  runFlowGate?: Deferred<any> | undefined;
   presets?: ReturnType<typeof preset>[];
   connectionResult?: any;
 } = {}) {
@@ -123,6 +124,7 @@ function harness(options: {
     },
     runFlow: async (runId: string) => {
       state.flowCalls.push(runId);
+      if (options.runFlowGate) await options.runFlowGate.promise;
       return options.runFlowResult || { ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } };
     },
     reviewData: async (runId: string) => {
@@ -192,8 +194,15 @@ function harness(options: {
     runModule: async (runId: string, module: string, sha?: string) => {
       state.launchCalls.push({ runId, module, sha });
       if (options.runModuleResult) return options.runModuleResult(runId, module, sha);
+      if (module !== 'm3') return { ok: false, error: { code: 'MODULE_INVALID', message: 'MODULE_INVALID' } };
+      if (sha === undefined) {
+        return { ok: true, data: {
+          format: 'review-attempt-start-v1', runId, attemptId: 'attempt-automatic',
+          planSha256: null, status: 'RUNNING', pid: 1234,
+        } };
+      }
       const saved = (state.sampling?.plans || []).find((entry: any) => entry.planSha256 === sha);
-      if (module !== 'm3' || !saved) return { ok: false, error: { code: 'PLAN_NOT_SAVED', message: 'PLAN_NOT_SAVED' } };
+      if (!saved) return { ok: false, error: { code: 'PLAN_NOT_SAVED', message: 'PLAN_NOT_SAVED' } };
       return { ok: true, data: {
         format: 'review-attempt-start-v1', runId, attemptId: 'attempt-synthetic',
         planSha256: sha, status: 'RUNNING', pid: 1234,
@@ -723,6 +732,80 @@ test('starting another draft invalidates an open confirmation and only the new b
   } finally { dom.window.close(); }
 });
 
+test('a pending whole-flow launch never yanks back a new draft when it answers', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, state } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-flow' } }),
+    runInfoByRun: { 'run-flow': createdRunInfo('run-flow') },
+    runFlowGate: gate,
+    runFlowResult: { ok: true, data: { format: 'flow-start-v1', runId: 'run-flow' } },
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => element<HTMLButtonElement>(doc, 'btnFlow').disabled === false, 'binding');
+    await openFlowConfirmation(doc);
+    element<HTMLButtonElement>(doc, 'flowConfirmBtn').click();
+    await waitFor(() => state.flowCalls.length === 1, 'flow pending');
+    element<HTMLButtonElement>(doc, 'btnNewAnother').click();
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === true, 'new editable draft');
+
+    gate.resolve({ ok: true, data: { format: 'flow-start-v1', runId: 'run-flow' } });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assert.deepEqual(state.flowCalls, ['run-flow'], 'the dispatched flow is neither retried nor cancelled');
+    assert.equal(element<HTMLElement>(doc, 'scr-new').hidden, false, 'the new draft stays in front');
+    assert.equal(element<HTMLElement>(doc, 'scr-track').hidden, true, 'a late reply never navigates to tracking');
+    assert.equal(doc.querySelector('#runList button.on'), null, 'a late reply selects no run');
+    assertDraftEditable(doc);
+    assert.deepEqual(state.controlCalls, [], 'the already-started run is not stopped or reconciled');
+  } finally { dom.window.close(); }
+});
+
+test('a pending whole-flow launch leaves the run the user is tracking selected', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-older', product: 'Lượt cũ', status: 'DONE', request: { format: 'request-v1', reviewCapPerLink: 300 } }],
+    runInfoByRun: {
+      'run-older': syntheticRunInfo('run-older'), 'run-flow': createdRunInfo('run-flow'),
+    },
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-flow' } }),
+    runFlowGate: gate,
+    runFlowResult: { ok: true, data: { format: 'flow-start-v1', runId: 'run-flow' } },
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => element<HTMLButtonElement>(doc, 'btnFlow').disabled === false, 'binding');
+    await openFlowConfirmation(doc);
+    element<HTMLButtonElement>(doc, 'flowConfirmBtn').click();
+    await waitFor(() => state.flowCalls.length === 1, 'flow pending');
+
+    (doc.querySelector('button[data-screen="track"]') as HTMLButtonElement).click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-flow'),
+      'the bound run is preferred on arrival');
+    runListButton(doc, 'run-older').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-older'),
+      'the user selected another run');
+    const readsBefore = state.statusCalls.filter((runId) => runId === 'run-flow').length;
+
+    gate.resolve({ ok: true, data: { format: 'flow-start-v1', runId: 'run-flow' } });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    assert.equal((doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-older'), true,
+      'the late reply does not switch the tracked run');
+    assert.equal(state.statusCalls.filter((runId) => runId === 'run-flow').length, readsBefore,
+      'the late reply does not re-read or re-select the launched run');
+    assert.equal(state.newRunCalls, 1, 'no competing create is made');
+    assert.deepEqual(state.controlCalls, [], 'the already-started run is not stopped or reconciled');
+
+    (doc.querySelector('button[data-screen="new"]') as HTMLButtonElement).click();
+    await waitFor(() => element<HTMLElement>(doc, 'scr-new').hidden === false, 'back on the form');
+    assert.match(element<HTMLElement>(doc, 'newRunLine').textContent || '', /run-flow/,
+      'the original binding is preserved when the user returns');
+  } finally { dom.window.close(); }
+});
+
 test('an invalid policy is refused inline before any bridge call', async () => {
   const { dom, doc, state } = harness();
   try {
@@ -879,7 +962,34 @@ test('the M3 panel keeps legacy with-comments and one shared 300 input for a sel
   } finally { dom.window.close(); }
 });
 
-test('a request-v2 run shows its frozen policy and editable fields before any collection', async () => {
+test('a legacy run keeps one visible direct M3 route beside its closed extra route', async () => {
+  const { dom, doc, state } = await samplingHarness();
+  try {
+    const panel = doc.getElementById('rsPanel')!;
+    const m3Card = [...doc.querySelectorAll('#techDetails article.mod')]
+      .find((card) => /Lấy bình luận/.test(card.querySelector('h3')?.textContent || ''));
+    assert.ok(m3Card, 'the M3 step card is still present');
+    assert.equal([...m3Card!.querySelectorAll('button')]
+      .filter((button) => button.textContent === 'Chạy bước này').length, 0,
+    'the legacy card does not duplicate the original route');
+    const original = element<HTMLButtonElement>(doc, 'samplingRunBtn');
+    assert.equal(original.textContent, 'Lấy bình luận theo thiết lập lúc tạo lượt');
+    assert.equal(original.closest('details'), null, 'the legacy original route stays visible, not tucked in extras');
+    const extras = panel.querySelectorAll('details.extra-collection');
+    assert.equal(extras.length, 1, 'legacy keeps exactly one explicit extra section');
+    assert.equal((extras[0] as HTMLDetailsElement).open, false);
+    assert.ok(extras[0]!.querySelector('#samplingCustomRunBtn'), 'the closed extra section owns the save route');
+
+    original.click();
+    await waitFor(() => state.launchCalls.length === 1, 'legacy original dispatches once');
+    assert.equal(state.saveCalls.length, 0,
+      'the legacy original route never writes a replacement plan');
+    assert.deepEqual(state.launchCalls[0], { runId: 'run-synthetic', module: 'm3', sha: undefined },
+      'the legacy original route dispatches the original module binding');
+  } finally { dom.window.close(); }
+});
+
+test('a request-v2 run opens the first collection with its frozen policy and launches the original route', async () => {
   const info = syntheticRunInfo();
   info.request = {
     format: 'request-v2', preset: { keywords: ['son'] },
@@ -889,6 +999,7 @@ test('a request-v2 run shows its frozen policy and editable fields before any co
       allocation: 'pooled', textRule: 'comment-or-attributes-v1', order: 'native-filter-ascending-stars-v1',
     },
   };
+  // The sampler's defaultInput is the real legacy default even for a configured run.
   const { dom, doc, state } = harness({
     runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE' }],
     runInfo: info, sampling: syntheticSampling(),
@@ -898,8 +1009,41 @@ test('a request-v2 run shows its frozen policy and editable fields before any co
     const panel = doc.getElementById('rsPanel')!;
     assert.match(panel.querySelector('.policy-frozen')!.textContent!, /Cách lấy đã chọn lúc tạo lượt/);
     assert.match(panel.querySelector('.policy-frozen')!.textContent!, /Đánh giá 2 và 3 sao · tối đa 500 mỗi link/);
-    assert.ok(panel.querySelector('#rsN'), 'the editable fields are available for the first collection');
+
+    assert.equal(element<HTMLInputElement>(doc, 'rsMode-stars').checked, true,
+      'the first collection starts from the saved star policy, not the legacy sampler default');
+    const checkedStars = [...doc.querySelectorAll<HTMLInputElement>('#rsStars input:checked')]
+      .map((box) => Number(box.dataset.star)).sort();
+    assert.deepEqual(checkedStars, [2, 3], 'the saved star levels are preselected');
+    assert.equal(element<HTMLInputElement>(doc, 'rsN').value, '500', 'the saved per-link total is used');
+    assert.equal(element<HTMLInputElement>(doc, 'rsBalanced').checked, false);
+    assert.match(element<HTMLElement>(doc, 'rsSummary').textContent!,
+      /Đánh giá 2 và 3 sao · tối đa 500 mỗi link/);
+    const extra = panel.querySelector('details.extra-collection') as HTMLDetailsElement;
+    assert.ok(extra, 'a custom collection stays an explicit opt-in');
+    assert.equal(extra.open, false, 'the custom route is closed until the user opts in');
+    const m3Card = [...doc.querySelectorAll('#techDetails article.mod')]
+      .find((card) => /Lấy bình luận/.test(card.querySelector('h3')?.textContent || ''));
+    assert.ok(m3Card, 'the M3 step card is still present');
+    assert.equal([...m3Card!.querySelectorAll('button')]
+      .filter((button) => button.textContent === 'Chạy bước này').length, 0,
+    'the configured run has no second generic M3 execution control');
+    assert.match(extra.querySelector('summary')!.textContent || '', /^Lấy thêm theo cách khác$/,
+      'the extra attempt uses the same wording before and after the original attempt');
+    assert.match(extra.textContent || '', /không thay đổi thiết lập đã lưu/,
+      'the extra attempt never rewrites the stored original policy');
+    assert.ok(extra.querySelector('#samplingCustomRunBtn'), 'the custom route owns its own action');
+    assert.ok(panel.querySelector('.rs-actions #samplingRunBtn'), 'the primary first-collection action is visible');
+    assert.equal(doc.querySelectorAll('#rsPanel > .rs-actions #samplingRunBtn').length, 1,
+      'exactly one visible original M3 control');
     assert.equal(state.saveCalls.length + state.launchCalls.length, 0, 'opening the run starts no collection');
+
+    element<HTMLButtonElement>(doc, 'samplingRunBtn').click();
+    await waitFor(() => state.launchCalls.length === 1, 'the frozen automatic route launches once');
+    assert.equal(state.saveCalls.length, 0,
+      'the initial action never writes a replacement plan for the frozen request policy');
+    assert.deepEqual(state.launchCalls[0], { runId: 'run-synthetic', module: 'm3', sha: undefined },
+      'the bridge receives the original run and module with no plan SHA');
   } finally { dom.window.close(); }
 });
 
@@ -935,6 +1079,10 @@ test('a completed automatic attempt is retained without starting another source 
     assert.match(doc.getElementById('rsPanel')!.textContent!, /Hoàn tất/, 'the automatic attempt status is shown');
     assert.equal((doc.querySelector('details.extra-collection') as HTMLDetailsElement).open, false,
       'a second collection starts as an explicit extra choice');
+    assert.equal(doc.querySelector('#rsPanel > .rs-actions'), null,
+      'the completed automatic attempt exposes no repeated original launch');
+    assert.equal([...doc.querySelectorAll('#rsPanel button')]
+      .filter((button) => button.textContent === 'Lấy bình luận theo thiết lập lúc tạo lượt').length, 0);
     assert.equal(state.saveCalls.length + state.launchCalls.length, 0,
       'opening the completed attempt never dispatches it again');
   } finally { dom.window.close(); }
@@ -1042,7 +1190,7 @@ test('switching source modes keeps stars exclusive and both plain modes text-onl
   } finally { dom.window.close(); }
 });
 
-test('one action saves exactly the four contract keys and launches that returned plan', async () => {
+test('one extra action saves exactly the four contract keys and launches that returned plan', async () => {
   const { dom, doc, window, state } = await samplingHarness();
   try {
     const starsMode = element<HTMLInputElement>(doc, 'rsMode-stars');
@@ -1060,7 +1208,8 @@ test('one action saves exactly the four contract keys and launches that returned
     n.value = '302';
     fire(window, n, 'input');
 
-    const runBtn = element<HTMLButtonElement>(doc, 'samplingRunBtn');
+    (doc.querySelector('details.extra-collection') as HTMLDetailsElement).open = true;
+    const runBtn = element<HTMLButtonElement>(doc, 'samplingCustomRunBtn');
     assert.equal(runBtn.disabled, false);
     runBtn.click();
     await waitFor(() => state.saveCalls.length === 1 && state.launchCalls.length === 1,
@@ -1079,7 +1228,8 @@ test('double click saves once and launches the one returned plan once', async ()
   const gate = deferred<any>();
   const { dom, doc, state } = await samplingHarness({}, { saveGate: gate });
   try {
-    const runBtn = element<HTMLButtonElement>(doc, 'samplingRunBtn');
+    (doc.querySelector('details.extra-collection') as HTMLDetailsElement).open = true;
+    const runBtn = element<HTMLButtonElement>(doc, 'samplingCustomRunBtn');
     runBtn.click();
     runBtn.click();
     await waitFor(() => state.saveCalls.length === 1, 'single in-flight save');
@@ -1097,7 +1247,8 @@ test('editing while the plan saves blocks launch until a fresh save', async () =
   const gate = deferred<any>();
   const { dom, doc, window, state } = await samplingHarness({}, { saveGate: gate });
   try {
-    element<HTMLButtonElement>(doc, 'samplingRunBtn').click();
+    (doc.querySelector('details.extra-collection') as HTMLDetailsElement).open = true;
+    element<HTMLButtonElement>(doc, 'samplingCustomRunBtn').click();
     await waitFor(() => state.saveCalls.length === 1, 'save started');
     const n = element<HTMLInputElement>(doc, 'rsN');
     n.value = '301';
@@ -1109,7 +1260,7 @@ test('editing while the plan saves blocks launch until a fresh save', async () =
     assert.equal(state.launchCalls.length, 0, 'the older saved policy never launches the edited draft');
     assert.equal(element<HTMLInputElement>(doc, 'rsN').value, '301', 'the newer edit survives');
 
-    element<HTMLButtonElement>(doc, 'samplingRunBtn').click();
+    element<HTMLButtonElement>(doc, 'samplingCustomRunBtn').click();
     await waitFor(() => state.saveCalls.length === 2 && state.launchCalls.length === 1, 'fresh save launches');
     assert.equal((state.saveCalls[1].input as any).totalPerLink, 301);
     const fresh = state.sampling.plans.find((entry: any) => entry.plan.policy.totalPerLink === 301)!;
@@ -1127,13 +1278,75 @@ test('a saved response that does not match the captured draft never launches', a
     }),
   });
   try {
-    element<HTMLButtonElement>(doc, 'samplingRunBtn').click();
+    (doc.querySelector('details.extra-collection') as HTMLDetailsElement).open = true;
+    element<HTMLButtonElement>(doc, 'samplingCustomRunBtn').click();
     await waitFor(() => state.saveCalls.length === 1, 'save returned');
     await waitFor(() => !element<HTMLElement>(doc, 'samplingErr').hidden &&
       /không khớp/i.test(element<HTMLElement>(doc, 'samplingErr').textContent || ''), 'mismatch refusal');
     assert.equal(state.launchCalls.length, 0, 'a mismatched saved plan never launches');
-    assert.equal(element<HTMLButtonElement>(doc, 'samplingRunBtn').disabled, false,
+    assert.equal(element<HTMLButtonElement>(doc, 'samplingCustomRunBtn').disabled, false,
       'the user can save the current draft again');
+  } finally { dom.window.close(); }
+});
+
+test('a pending extra save that resolves after leaving and returning never launches it', async () => {
+  const saveGate = deferred<any>();
+  const automaticAttempt = (runId: string) => ({
+    attemptId: 'attempt-auto-' + runId, automatic: true,
+    executionId: 'exec-auto-' + runId, sequence: 1,
+    createdAt: '2026-11-11T04:30:00.000Z', status: 'SUCCEEDED', errorCode: null,
+    planSha256: 'b'.repeat(64), requestSha256: 'c'.repeat(64), m2Digest: 'a'.repeat(64),
+    gate: passSlip('M3'), stopRequested: false, reconcilable: false,
+    links: [
+      { shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200', requested: 500, actual: 2, shortfall: 498, complete: true, status: 'exhausted' },
+      { shopId: '101', itemId: '201', url: 'https://shopee.vn/product/101/201', requested: 500, actual: 2, shortfall: 498, complete: true, status: 'exhausted' },
+    ],
+  });
+  const viewA = syntheticSampling({ runId: 'run-a', m2Digest: 'a'.repeat(64), attempts: [automaticAttempt('run-a')] });
+  const viewB = syntheticSampling({ runId: 'run-b', m2Digest: 'b'.repeat(64) });
+  const { dom, doc, state } = harness({
+    runs: [
+      { runId: 'run-a', product: 'Sản phẩm A', status: 'DONE' },
+      { runId: 'run-b', product: 'Sản phẩm B', status: 'IDLE' },
+    ],
+    runInfoByRun: { 'run-a': createdRunInfo('run-a'), 'run-b': createdRunInfo('run-b') },
+    sampling: viewA,
+    samplingByRun: { 'run-a': viewA, 'run-b': viewB },
+    saveGate,
+  });
+  try {
+    await waitFor(() => doc.getElementById('rsN') !== null, 'run A sampling');
+    const extraA = doc.querySelector('details.extra-collection') as HTMLDetailsElement;
+    assert.ok(extraA, 'run A offers the explicit extra route');
+    extraA.open = true;
+    element<HTMLButtonElement>(doc, 'samplingRunBtn').click();
+    await waitFor(() => state.saveCalls.length === 1, 'extra save pending');
+
+    runListButton(doc, 'run-b').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-b'),
+      'run B selected');
+    runListButton(doc, 'run-a').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-a'),
+      'run A selected again');
+
+    const stalePlans = state.sampling.plans.map((entry: any) => entry.planSha256);
+    saveGate.resolve(undefined);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(state.launchCalls.length, 0,
+      'an extra save that resolves after the selection session changed must not dispatch');
+    assert.equal(state.saveCalls.length, 1, 'the stale extra save is not repeated');
+
+    (doc.querySelector('details.extra-collection') as HTMLDetailsElement).open = true;
+    element<HTMLButtonElement>(doc, 'samplingRunBtn').click();
+    await waitFor(() => state.saveCalls.length === 2 && state.launchCalls.length === 1,
+      'a fresh extra save in the current session launches once');
+    assert.equal(state.launchCalls.length, 1, 'neither save launches twice');
+    assert.ok(!stalePlans.includes(state.launchCalls[0].sha),
+      'the launch uses the SHA returned by the current save, not the stale result');
+    assert.ok(state.sampling.plans.some((entry: any) => entry.planSha256 === state.launchCalls[0].sha));
+    assert.deepEqual(state.saveCalls[1].input,
+      { mode: 'stars', stars: [2, 3], totalPerLink: 500, allocation: 'pooled' },
+      'the extra route still saves exactly the four contract keys');
   } finally { dom.window.close(); }
 });
 
@@ -1761,7 +1974,8 @@ test('M3 save and launch failures stay in the local plain alert', async () => {
   });
   try {
     assert.equal(element<HTMLElement>(saveFail.doc, 'samplingErr').getAttribute('role'), 'alert');
-    element<HTMLButtonElement>(saveFail.doc, 'samplingRunBtn').click();
+    (saveFail.doc.querySelector('details.extra-collection') as HTMLDetailsElement).open = true;
+    element<HTMLButtonElement>(saveFail.doc, 'samplingCustomRunBtn').click();
     await waitFor(() => {
       const node = saveFail.doc.getElementById('samplingErr');
       return !!node && node.hidden === false && (node.textContent || '').length > 0;
@@ -1776,7 +1990,8 @@ test('M3 save and launch failures stay in the local plain alert', async () => {
     runModuleResult: () => ({ ok: false, error: { code: 'BRIDGE_ERROR', message: 'BRIDGE_ERROR' } }),
   });
   try {
-    element<HTMLButtonElement>(launchFail.doc, 'samplingRunBtn').click();
+    (launchFail.doc.querySelector('details.extra-collection') as HTMLDetailsElement).open = true;
+    element<HTMLButtonElement>(launchFail.doc, 'samplingCustomRunBtn').click();
     await waitFor(() => {
       const node = launchFail.doc.getElementById('samplingErr');
       return !!node && node.hidden === false && (node.textContent || '').length > 0;
@@ -1888,6 +2103,69 @@ test('progress uses only the current execution and same-attempt observed counts'
     await waitFor(() => completed.doc.getElementById('techDetails') !== null, 'completed detail');
     assert.equal(completed.doc.getElementById('progressLine'), null, 'a settled run never shows progress');
   } finally { completed.dom.window.close(); }
+});
+
+test('progress ignores a cached running attempt that the authoritative execution does not name', async () => {
+  const attempt = (attemptId: string | null, executionId: string | null, sequence: number | null, value: number) => ({
+    attemptId, executionId, sequence, status: 'RUNNING', errorCode: null, gate: null,
+    stopRequested: false, reconcilable: false,
+    links: [
+      { shopId: '100', itemId: '200', requested: 500, actual: value, shortfall: null, stopReason: '', stars: [] },
+      { shopId: '101', itemId: '201', requested: 500, actual: null, shortfall: null, stopReason: '', stars: [] },
+    ],
+  });
+  const started = (runId: string, currentAttemptId: string | null, attempts: any[]) => {
+    const settled = (status: string) => ({
+      status, executionId: null, sequence: 1, attemptId: null, startedAt: null, endedAt: null,
+      basis: 'none', currentGate: null, historicalGate: null, errorCode: null,
+    });
+    const info: any = syntheticRunInfo(runId);
+    info.state = { status: 'RUNNING', module: 'M3', errorCode: null };
+    info.execution = {
+      format: 'run-execution-view-v1', runId, revision: 3, status: 'RUNNING',
+      currentModule: 'M3', currentExecutionId: 'exec-current',
+      modules: {
+        M1: settled('SUCCEEDED'), M2: settled('SUCCEEDED'),
+        M3: { ...settled('RUNNING'), executionId: 'exec-current', sequence: 3, attemptId: currentAttemptId },
+      },
+    };
+    return harness({
+      runs: [{ runId, product: 'Sản phẩm', status: 'RUNNING' }],
+      runInfo: info,
+      sampling: syntheticSampling({ runId, attempts }),
+      reviewData: syntheticReviewData({ runId }),
+    });
+  };
+
+  const stale = started('run-stale', 'attempt-current', [
+    attempt('attempt-old', 'exec-old', 2, 9),
+  ]);
+  try {
+    await waitFor(() => stale.state.reviewSamplingCallsByRun['run-stale'] === 1, 'stale sampling loaded');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const line = stale.doc.getElementById('progressLine')?.textContent || '';
+    assert.match(line, /Đang chờ số liệu/, 'an attempt from an older execution is not current evidence');
+    assert.doesNotMatch(line, /9 bình luận/, 'a stale RUNNING attempt never supplies current counts');
+  } finally { stale.dom.window.close(); }
+
+  const matched = started('run-matched', 'attempt-current', [
+    attempt('attempt-current', 'exec-current', 3, 9),
+  ]);
+  try {
+    await waitFor(() => /Đã ghi nhận 9 bình luận ở 1\/2 link/
+      .test(matched.doc.getElementById('progressLine')?.textContent || ''), 'matching attempt counts');
+  } finally { matched.dom.window.close(); }
+
+  const unknown = started('run-unknown', 'attempt-current', [
+    attempt(null, null, null, 9),
+  ]);
+  try {
+    await waitFor(() => unknown.state.reviewSamplingCallsByRun['run-unknown'] === 1, 'anonymous sampling loaded');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const line = unknown.doc.getElementById('progressLine')?.textContent || '';
+    assert.match(line, /Đang chờ số liệu/, 'missing attempt identity stays unknown');
+    assert.doesNotMatch(line, /9 bình luận/, 'an unidentifiable attempt supplies no current counts');
+  } finally { unknown.dom.window.close(); }
 });
 
 test('the run list shows the saved quantity and filters real failure states', async () => {
