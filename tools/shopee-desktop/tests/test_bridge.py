@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -84,6 +85,11 @@ class BridgeTest(unittest.TestCase):
         })
         patch.start()
         self.addCleanup(patch.stop)
+        self.opencli_bin, self.opencli_log = self.install_opencli()
+        path = mock.patch.dict(os.environ, {
+            'PATH': f'{self.opencli_bin}{os.pathsep}{os.environ.get("PATH", "")}'})
+        path.start()
+        self.addCleanup(path.stop)
         self.api = tdn_shopee_app.Api()
 
     def add(self, **value):
@@ -196,6 +202,120 @@ class BridgeTest(unittest.TestCase):
                                  'allocation': 'pooled'}})
         self.assertEqual(result, {'ok': False, 'error': {'code': 'ARG_INVALID', 'message': 'ARG_INVALID'}})
         self.assertEqual(list(self.runs.iterdir()), before)
+
+    def selected_payload(self, end_date, start_date):
+        return {
+            'presetId': 'kem-chong-nang-abc', 'startDate': start_date, 'endDate': end_date,
+            'metricOptions': METRIC_OPTIONS,
+            'collectionPolicy': {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,
+                                 'allocation': 'pooled'},
+        }
+
+    def install_opencli(self, *, available_date=None, read_state='{}'):
+        fakebin = self.base / 'opencli-bin'
+        fakebin.mkdir(exist_ok=True)
+        log = self.base / 'opencli.log'
+        if available_date is None:
+            available = "print(json.dumps({'availableDate': call['date']}))"
+        else:
+            available = f"print({json.dumps({'availableDate': available_date})!r})"
+        script = f'''#!/usr/bin/env python3
+import json
+import sys
+
+args = sys.argv[1:]
+with open({str(log)!r}, 'a', encoding='utf-8') as record:
+    record.write(' '.join(args) + '\\n')
+if 'tab' in args and 'new' in args:
+    print(json.dumps({{'page': 'abc123'}}))
+elif 'eval' in args:
+    expression = args[-1]
+    call = json.loads(expression[expression.rfind(')(') + 2:-1])
+    kind = call.get('kind')
+    if kind == 'availableDate':
+        {available}
+    elif kind:
+        print('{{}}')
+    else:
+        print({read_state!r})
+else:
+    print('{{}}')
+'''
+        opencli = fakebin / 'opencli'
+        opencli.write_text(script, encoding='utf-8')
+        os.chmod(opencli, 0o700)
+        return fakebin, log
+
+    def test_selected_create_probes_once_then_sends_the_unchanged_exact_period(self):
+        self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                 keyword='kem chống nắng', categoryId=HEALTH)
+        start, end = completed_date(29), completed_date()
+        self.install_opencli(available_date=end)
+        result = self.api.newRun(self.selected_payload(end, start))
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['entry']['verdict'], 'PASS', result)
+        run = self.runs / result['data']['runId']
+        request = json.loads((run / 'request.json').read_text(encoding='utf-8'))
+        self.assertEqual(request['captureSpec'], selected_capture_spec(start, end, METRIC_OPTIONS))
+        self.assertEqual(request['windows'], [{
+            'id': 'selected', 'period': {'startDate': start, 'endDate': end}, 'intervalDays': 7}])
+        self.assertEqual(self.opencli_log.read_text(encoding='utf-8').count('tab new'), 1,
+                         'Create probes the calendar once before creating the run')
+
+    def test_unavailable_latest_date_returns_the_exact_detail_and_creates_no_run(self):
+        self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                 keyword='kem chống nắng', categoryId=HEALTH)
+        start, end, last = completed_date(29), completed_date(), completed_date(3)
+        self.install_opencli(available_date=last)
+        result = self.api.newRun(self.selected_payload(end, start))
+        self.assertEqual(result, {'ok': False, 'error': {
+            'code': 'CAPTURE_PERIOD_NOT_SELECTABLE', 'message': 'CAPTURE_PERIOD_NOT_SELECTABLE',
+            'detail': {'format': 'metric-date-availability-v1', 'requestedEndDate': end,
+                       'lastSelectableDate': last, 'available': False,
+                       'errorCode': 'CAPTURE_PERIOD_NOT_SELECTABLE'}}})
+        self.assertEqual(list(self.runs.iterdir()), [], 'an unavailable end date creates no run')
+        self.assertEqual(self.opencli_log.read_text(encoding='utf-8').count('tab new'), 1)
+
+    def test_calendar_failure_stops_before_creation_without_inventing_dates(self):
+        self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                 keyword='kem chống nắng', categoryId=HEALTH)
+        self.install_opencli(read_state=json.dumps({'stop': 'CAPTURE_LOGIN_REQUIRED'}))
+        result = self.api.newRun(self.selected_payload(completed_date(), completed_date(29)))
+        self.assertEqual(result, {'ok': False, 'error': {
+            'code': 'CAPTURE_LOGIN_REQUIRED', 'message': 'CAPTURE_LOGIN_REQUIRED'}})
+        self.assertEqual(list(self.runs.iterdir()), [], 'a calendar failure creates no run')
+
+    def test_legacy_create_skips_the_calendar_probe(self):
+        self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                 keyword='kem chống nắng', categoryId=HEALTH)
+        result = self.api.newRun({
+            'presetId': 'kem-chong-nang-abc', 'endDate': completed_date(),
+            'collectionPolicy': {'mode': 'with-comments', 'stars': [], 'totalPerLink': 300,
+                                 'allocation': 'pooled'}})
+        self.assertTrue(result['ok'], result)
+        self.assertFalse(self.opencli_log.exists(), 'legacy create never probes the calendar')
+
+    def test_calendar_transport_uses_150_seconds_while_config_stays_30(self):
+        (self.base / 'config.json').write_text(json.dumps({
+            'sshCommand': ['bash', '-s'], 'remoteScript': str(SCRIPT),
+            'runsRoot': str(self.runs), 'presetsRoot': str(self.presets),
+            'timeoutSeconds': 30,
+        }), encoding='utf-8')
+        seen = []
+
+        def timeout(command, **options):
+            seen.append(options['timeout'])
+            raise subprocess.TimeoutExpired(command, options['timeout'])
+
+        with mock.patch.object(tdn_shopee_app.subprocess, 'run', side_effect=timeout):
+            result = self.api.newRun(self.selected_payload(completed_date(), completed_date(29)))
+            other = self.api.listRuns()
+        self.assertEqual(result, {'ok': False, 'error': {
+            'code': 'SSH_TIMEOUT', 'message': 'SSH_TIMEOUT'}})
+        self.assertEqual(other, {'ok': False, 'error': {
+            'code': 'SSH_TIMEOUT', 'message': 'SSH_TIMEOUT'}})
+        self.assertEqual(seen, [150, 30], 'only the calendar action gets the 150 s transport')
+        self.assertEqual(list(self.runs.iterdir()), [])
 
     def test_new_run_rejects_an_unfinished_local_day_before_config_or_ssh(self):
         policy = {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,

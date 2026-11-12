@@ -247,6 +247,91 @@ class FlowTest(unittest.TestCase):
         return run
 
 
+class MetricDateAvailabilityTests(FlowTest):
+    """Explicit calendar observation through the real CLI and synthetic opencli."""
+
+    def setUp(self):
+        super().setUp()
+        self.opencli_bin = self.runs.parent / 'opencli-bin'
+        self.opencli_bin.mkdir()
+        self.opencli_log = self.runs.parent / 'opencli.log'
+
+    def install_opencli(self, *, available_date=None, read_state='{}'):
+        result = json.dumps({'availableDate': available_date}) if available_date else '{}'
+        script = f'''#!/usr/bin/env python3
+import json
+import sys
+
+args = sys.argv[1:]
+with open({str(self.opencli_log)!r}, 'a', encoding='utf-8') as log:
+    log.write(' '.join(args) + '\\n')
+if 'tab' in args and 'new' in args:
+    print(json.dumps({{'page': 'abc123'}}))
+elif 'eval' in args:
+    expression = args[-1]
+    call = json.loads(expression[expression.rfind(')(') + 2:-1])
+    kind = call.get('kind')
+    if kind == 'availableDate':
+        print({result!r})
+    elif kind:
+        print('{{}}')
+    else:
+        print({read_state!r})
+else:
+    print('{{}}')
+'''
+        opencli = self.opencli_bin / 'opencli'
+        opencli.write_text(script, encoding='utf-8')
+        opencli.chmod(opencli.stat().st_mode | stat.S_IXUSR)
+
+    def availability(self, end_date, **extra_env):
+        env = {'PATH': f'{self.opencli_bin}{os.pathsep}{os.environ.get("PATH", "")}'}
+        env.update(extra_env)
+        return self.command('metric-date-availability', '--end-date', end_date, extra_env=env)
+
+    def test_reports_the_exact_available_and_unavailable_calendar_wire_without_a_run(self):
+        self.install_opencli(available_date='2026-11-09')
+        rc, payload, stderr = self.availability('2026-11-09')
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload, {
+            'format': 'metric-date-availability-v1', 'requestedEndDate': '2026-11-09',
+            'lastSelectableDate': '2026-11-09', 'available': True, 'errorCode': None})
+
+        rc, payload, stderr = self.availability('2026-11-11')
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload, {
+            'format': 'metric-date-availability-v1', 'requestedEndDate': '2026-11-11',
+            'lastSelectableDate': '2026-11-09', 'available': False,
+            'errorCode': 'CAPTURE_PERIOD_NOT_SELECTABLE'})
+        self.assertEqual(list(self.runs.iterdir()), [], 'the calendar observation creates no run')
+        log = self.opencli_log.read_text(encoding='utf-8')
+        self.assertEqual(log.count('tab new'), 2, 'one owned calendar tab per observation')
+        self.assertIn('availableDate', log)
+
+    def test_refuses_invalid_input_and_readonly_before_any_calendar_process(self):
+        self.install_opencli(available_date='2026-11-09')
+        rc, payload, _ = self.availability('2026-13-01')
+        self.assertEqual((rc, payload), (2, {
+            'format': 'error-v1', 'code': 'ARG_INVALID', 'message': 'ARG_INVALID'}))
+        self.assertFalse(self.opencli_log.exists(), 'invalid input never spawns the calendar check')
+
+        rc, payload, _ = self.availability('2026-11-09', TDN_SHOPEE_FLOW_READONLY='1')
+        self.assertEqual((rc, payload), (20, {
+            'format': 'error-v1', 'code': 'READONLY_ON', 'message': 'READONLY_ON'}))
+        self.assertFalse(self.opencli_log.exists(), 'READONLY refuses before the calendar check')
+        self.assertEqual(list(self.runs.iterdir()), [])
+
+    def test_calendar_failure_is_static_and_never_invents_a_last_date_or_run(self):
+        self.install_opencli(read_state=json.dumps({'stop': 'CAPTURE_LOGIN_REQUIRED'}))
+        rc, payload, stderr = self.availability('2026-11-11')
+        self.assertEqual(rc, 20, (payload, stderr))
+        self.assertEqual(payload, {
+            'format': 'error-v1', 'code': 'CAPTURE_LOGIN_REQUIRED',
+            'message': 'CAPTURE_LOGIN_REQUIRED'})
+        self.assertNotIn('lastSelectableDate', payload)
+        self.assertEqual(list(self.runs.iterdir()), [])
+
+
 class NewRunTests(FlowTest):
     def create(self, payload):
         return self.command('new-run', '--stdin', stdin=json.dumps(payload))

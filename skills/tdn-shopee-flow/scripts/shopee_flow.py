@@ -2057,6 +2057,41 @@ def flow_policy(value, full=False):
             'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'}
 
 
+def flow_metric_date_availability(end_date):
+    """Explicit calendar-only observation; never creates a run or capture."""
+    import shlex
+    if not gate_date(end_date):
+        raise ModuleFailure('ARG_INVALID', 2)
+    if module_readonly():
+        raise ModuleFailure('READONLY_ON')
+    repo, config = module_config()
+    command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+    command = shlex.split(command) if isinstance(command, str) else command
+    if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+        raise ModuleFailure('NODE_COMMAND_INVALID')
+    try:
+        # Existing resolver abort90s plus owned-tab cleanup10s; leave transport margin.
+        result = subprocess.run([*command, str(repo / 'scripts/metric-date-availability.ts'), end_date],
+                                cwd=repo, capture_output=True, timeout=120)
+        value = json.loads(result.stdout)
+    except subprocess.TimeoutExpired:
+        raise ModuleFailure('METRIC_DATE_CHECK_TIMEOUT') from None
+    except (OSError, ValueError):
+        raise ModuleFailure('METRIC_DATE_CHECK_FAILED') from None
+    if isinstance(value, dict) and value.get('format') == 'error-v1':
+        code = value.get('code')
+        raise ModuleFailure(code if isinstance(code, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code)
+                            else 'METRIC_DATE_CHECK_FAILED')
+    if (result.returncode or not isinstance(value, dict) or
+            set(value) != {'format', 'requestedEndDate', 'lastSelectableDate', 'available', 'errorCode'} or
+            value['format'] != 'metric-date-availability-v1' or value['requestedEndDate'] != end_date or
+            not gate_date(value['lastSelectableDate']) or value['lastSelectableDate'] > end_date or
+            type(value['available']) is not bool or value['available'] != (value['lastSelectableDate'] == end_date) or
+            value['errorCode'] != (None if value['available'] else 'CAPTURE_PERIOD_NOT_SELECTABLE')):
+        raise ModuleFailure('METRIC_DATE_CHECK_FAILED')
+    return value
+
+
 def flow_new_run():
     import fcntl
     value = json.load(sys.stdin)
@@ -2214,6 +2249,8 @@ def cmd_flow_query(ns):
         repo, config = module_config()
         if ns.cmd == 'add-product':
             result = flow_add_product()
+        elif ns.cmd == 'metric-date-availability':
+            result = flow_metric_date_availability(ns.end_date)
         elif ns.cmd == 'new-run':
             result = flow_new_run()
         elif ns.cmd == 'presets':
@@ -2273,7 +2310,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'save-review-data', 'export-review-data'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'save-review-data', 'export-review-data'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -2312,6 +2349,8 @@ def main():
         if name in ('new-run', 'add-product'): x.add_argument('--stdin', action='store_true', required=True)
         if name in ('run-info', 'capture-specs', 'outputs'): x.add_argument('--run', dest='run_id', required=True)
         x.set_defaults(f=cmd_flow_query)
+    x = sp.add_parser('metric-date-availability'); x.add_argument('--end-date', required=True)
+    x.set_defaults(f=cmd_flow_query)
     x = sp.add_parser('evidence'); x.add_argument('--run', dest='run_id', required=True)
     x.add_argument('--kind', choices=['full-page', 'top-products', 'raw'], required=True); x.add_argument('--output-sha256', required=True)
     x.set_defaults(f=cmd_metric_evidence)
