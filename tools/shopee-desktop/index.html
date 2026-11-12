@@ -185,6 +185,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .policy-frozen { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 5px; background: var(--band); }
 .policy-frozen h5 { margin: 0; font-size: 12.5px; color: var(--muted); }
 .policy-frozen p { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.ck .cs { font-size: 12.5px; color: var(--muted); }
+.tipw { position: relative; display: inline-flex; margin-left: 6px; vertical-align: middle; }
+.tip-i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--muted); background: transparent; color: var(--muted); font: italic 600 11px/16px Georgia, serif; padding: 0; cursor: help; }
+.tip-i:hover, .tip-i:focus { border-color: var(--accent); color: var(--accent); outline: none; }
+.tip { display: none; position: absolute; left: -10px; top: 26px; z-index: 30; width: 400px; max-width: 80vw; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px var(--shadow); font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--fg); }
+.tipw:hover .tip, .tipw:focus-within .tip { display: block; }
+.tip-rules, .tip-ex { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+.tip-ex { grid-template-columns: 1fr auto; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.tip .th { color: var(--muted); white-space: nowrap; }
+.tip-ex b { font-weight: 600; }
 .legacy-label { font-size: 11.5px; font-weight: 600; color: var(--need); background: var(--need-tint); border-radius: 4px; padding: 1px 6px; }
 .previous-gate { display: grid; gap: 6px; }
 .previous-gate > h4 { margin: 0; font-size: 13px; color: var(--muted); }
@@ -283,7 +293,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   <nav class="tabs" role="tablist" aria-label="Màn hình">
     <button type="button" role="tab" data-screen="new" aria-selected="true">Tạo lượt mới</button>
-    <button type="button" role="tab" data-screen="track" aria-selected="false">Theo dõi lượt</button>
+    <button type="button" role="tab" data-screen="track" aria-selected="false">Chi tiết lịch sử lượt chạy</button>
     <button type="button" role="tab" data-screen="lib" aria-selected="false">Tài liệu kỹ thuật</button>
   </nav>
 
@@ -447,7 +457,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       </form>
     </section>
 
-    <section id="scr-track" aria-label="Theo dõi lượt" hidden>
+    <section id="scr-track" aria-label="Chi tiết lịch sử lượt chạy" hidden>
       <div class="track">
         <aside class="runs">
           <h2>Các lượt đã tạo</h2>
@@ -626,7 +636,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   var OUTPUT_ERROR_TEXT = {
     MODULE_OUTPUT_INVALID: 'Kết quả các bước trả về không đúng dạng.',
     MODULE_EVIDENCE_INVALID: 'Kết quả mở bằng chứng trả về không đúng dạng.',
-    CAPTURE_SPECS_UNAVAILABLE: 'Chưa có capture specs cho lượt này.',
     CAPTURE_FILES_MISSING: 'Chưa có dữ liệu M1 đã lưu cho lượt này.',
     CAPTURE_SHOPEE_ROWS_MISSING: 'Dữ liệu M1 đã lưu không có dòng sản phẩm Shopee.',
     CAPTURE_HASH_MISMATCH: 'Dữ liệu M1 đã lưu không khớp mã kiểm tra.',
@@ -646,7 +655,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     PICK_PROOF_MISMATCH: 'Kết quả chọn sản phẩm không khớp dữ liệu M1 đã lưu.',
     PICK_POLICY_MISMATCH: 'Cách chọn sản phẩm không khớp với lượt này.',
     PICK_TITLE_GROUP_UNRESOLVED: 'Tên sản phẩm mơ hồ nên chưa xác định đủ sản phẩm khác nhau.',
-    FEWER_THAN_FIVE_DISTINCT_PRODUCTS: 'Dữ liệu đã thu không đủ 5 sản phẩm khác nhau.'
+    FEWER_THAN_FIVE_DISTINCT_PRODUCTS: 'Dữ liệu đã thu không đủ 5 sản phẩm khác nhau.',
+    LINK_NOT_ALLOWED: 'Chỉ mở được link sản phẩm Shopee.',
+    LINK_OPEN_FAILED: 'Chưa mở được link trong trình duyệt của máy.'
   };
 
   function outputErrorText(error) {
@@ -1928,6 +1939,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       openModuleEvidence: function () {
         return Promise.resolve(err('EVIDENCE_FILES_MISSING', 'EVIDENCE_FILES_MISSING'));
       },
+      openShopeeLink: function (url) {
+        if (typeof url !== 'string' || !/^https:\/\/shopee\.vn\//.test(url)) {
+          return Promise.resolve(err('LINK_NOT_ALLOWED', 'LINK_NOT_ALLOWED'));
+        }
+        window.open(url, '_blank', 'noopener');
+        return Promise.resolve(ok({ opened: true }));
+      },
       status: function (runId) {
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
@@ -2010,10 +2028,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         return Promise.resolve(saveMockReviewData(run, input));
       },
-      exportReviewData: function (runId, input) {
+      exportReviewFiles: function (runId, input) {
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
-        return Promise.resolve(exportMockReviewData(run, input));
+        if (!input || typeof input !== 'object' || Object.keys(input).sort().join(',') !== 'formats,sourceSha256' ||
+            !Array.isArray(input.formats) || !input.formats.length) {
+          return Promise.resolve(err('ARG_INVALID', 'ARG_INVALID'));
+        }
+        return Promise.all(input.formats.map(function (format) {
+          return Promise.resolve(exportMockReviewData(run, { sourceSha256: input.sourceSha256, format: format }))
+            .then(function (res) {
+              return res.ok ? { format: format, saved: true, fileName: res.data.fileName, errorCode: null }
+                : { format: format, saved: false, fileName: null, errorCode: res.error.code };
+            });
+        })).then(function (files) { return ok({ cancelled: false, files: files }); });
       },
       saveReviewPlan: function (runId, input) {
         var run = store.get(runId);
@@ -2199,6 +2227,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       openModuleEvidence: function (runId, kind, sha256) {
         return call('openModuleEvidence', [runId, kind, sha256]);
       },
+      openShopeeLink: function (url) { return call('openShopeeLink', [url]); },
       newRun: function (input) { return call('newRun', [input]); },
       addProduct: function (input) { return call('addProduct', [input]); },
       status: function (runId) { return call('status', [runId]); },
@@ -2218,7 +2247,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       },
       reviewData: function (runId) { return call('reviewData', [runId]); },
       saveReviewData: function (runId, input) { return call('saveReviewData', [runId, input]); },
-      exportReviewData: function (runId, input) { return call('exportReviewData', [runId, input]); },
+      exportReviewFiles: function (runId, input) { return call('exportReviewFiles', [runId, input]); },
       library: function () { return call('library', []); }
     };
   })();
@@ -2615,19 +2644,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       : 'Chưa có bằng chứng đã lưu cho lượt này.');
   }
 
-  function revealRunCaptureSpecs() {
-    var tech = $('techDetails');
-    if (!tech) return false;
-    var details = tech.querySelector('details.capture-spec-review');
-    if (!details) return false;
-    tech.open = true;
-    details.open = true;
-    if (details.scrollIntoView) details.scrollIntoView({ block: 'center' });
-    var summary = details.querySelector('summary');
-    if (summary && summary.focus) summary.focus();
-    return true;
-  }
-
   function moduleM1Output(m1, runId) {
     m1 = m1 || {};
     var card = h('article', 'mod');
@@ -2642,9 +2658,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     card.appendChild(head);
 
     var rows = h('ul', 'cks');
-    var captureRow = outputResultRow(capture, 'Capture Metric báo thành công');
+    var captureRow = outputResultRow(capture, 'Đã thu thập dữ liệu Metric thành công');
     captureRow.id = 'moM1Capture';
-    var dataRow = outputResultRow(valid, 'Dữ liệu đạt kiểm tra để chuyển sang M2');
+    var dataRow = outputResultRow(valid, 'Dữ liệu thu thập được đúng yêu cầu đầu vào');
     dataRow.id = 'moM1Data';
     rows.appendChild(captureRow);
     rows.appendChild(dataRow);
@@ -2660,19 +2676,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (m1.errorCode) card.appendChild(outputErrorBar(m1.errorCode));
 
     var actions = h('div', 'rs-actions');
-    actions.appendChild(outputEvidenceAction('moM1FullPage', 'Xem ảnh/PDF toàn trang Metric',
+    actions.appendChild(outputEvidenceAction('moM1FullPage', 'Xem ảnh toàn trang Metric',
       runId, m1.evidence && m1.evidence.fullPage));
-    var specs = h('button', 'abtn', 'Xem capture specs');
-    specs.type = 'button';
-    specs.id = 'moM1Specs';
-    specs.addEventListener('click', function () {
-      if (revealRunCaptureSpecs()) return;
-      state.moduleEvidenceErrors[runId] = { code: 'CAPTURE_SPECS_UNAVAILABLE', message: 'CAPTURE_SPECS_UNAVAILABLE' };
-      renderDetail();
-    });
-    actions.appendChild(specs);
-    actions.appendChild(outputEvidenceAction('moM1Raw', 'Xem dữ liệu gốc',
-      runId, m1.evidence && m1.evidence.raw));
     card.appendChild(actions);
 
     if (capture === true && valid === true) {
@@ -2682,26 +2687,47 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return card;
   }
 
-  function moduleSelectionTable(links) {
+  var SHOPEE_LINK = /^https:\/\/shopee\.vn\/[A-Za-z0-9._~:\/?#\[\]@!$&'()*+,;=%-]{0,2000}$/;
+
+  function shopeeLinkNode(url, runId) {
+    if (!SHOPEE_LINK.test(url)) return h('code', 'rs-url', url);
+    var link = h('a', 'rs-url', url);
+    link.href = url;
+    link.rel = 'noopener noreferrer';
+    link.addEventListener('click', async function (event) {
+      event.preventDefault();
+      var res = await api.openShopeeLink(url);
+      if (state.selectedRunId !== runId) return;
+      if (res.ok) {
+        if (!state.moduleEvidenceErrors[runId]) return;
+        delete state.moduleEvidenceErrors[runId];
+      } else {
+        state.moduleEvidenceErrors[runId] = res.error;
+      }
+      renderDetail();
+    });
+    return link;
+  }
+
+  function moduleSelectionTable(links, runId) {
     var wrap = h('div', 'tw');
     var table = h('table');
     var thead = h('thead');
     var head = h('tr');
-    ['Thứ tự được chọn', 'Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Doanh số trong kỳ', 'Link Shopee']
+    ['Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Doanh số trong kỳ', 'Link Shopee']
       .forEach(function (label) { head.appendChild(h('th', null, label)); });
     thead.appendChild(head);
     table.appendChild(thead);
     var body = h('tbody');
     links.forEach(function (link) {
       var row = h('tr');
-      row.appendChild(h('td', 'num', link.rank === null || link.rank === undefined ? 'Chưa có' : String(link.rank)));
       row.appendChild(h('td', 'num', link.sourceRank === null || link.sourceRank === undefined
         ? 'Chưa có' : String(link.sourceRank)));
       row.appendChild(h('td', null, link.productName ? String(link.productName) : 'Chưa có'));
       row.appendChild(h('td', null, link.shopName ? String(link.shopName) : 'Chưa có'));
       row.appendChild(h('td', 'num', money(link.revenue)));
       var url = h('td');
-      if (link.url) url.appendChild(h('code', 'rs-url', String(link.url)));
+      if (link.url) url.appendChild(shopeeLinkNode(String(link.url), runId));
       else url.textContent = 'Chưa có';
       row.appendChild(url);
       body.appendChild(row);
@@ -2746,6 +2772,42 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return wrap;
   }
 
+  var M2_SHORTAGE_TEXT = {
+    PICK_TITLE_GROUP_UNRESOLVED: 'có sản phẩm chưa xác định được từ tên',
+    FEWER_THAN_FIVE_DISTINCT_PRODUCTS: 'nguồn không đủ 5 sản phẩm khác nhau'
+  };
+
+  function sameProductTip() {
+    var wrap = h('span', 'tipw');
+    var button = h('button', 'tip-i', 'i');
+    button.type = 'button';
+    button.setAttribute('aria-label', 'Xem cách tính sản phẩm giống nhau');
+    button.setAttribute('aria-describedby', 'moM2SameTip');
+    var tip = h('span', 'tip');
+    tip.id = 'moM2SameTip';
+    tip.setAttribute('role', 'tooltip');
+    var rules = h('span', 'tip-rules');
+    [['Vẫn tính là một', 'Khác shop, số hộp, số viên, số ngày dùng'],
+      ['Tính là khác', 'Khác thương hiệu, thành phần hoặc hàm lượng'],
+      ['Khi trùng', 'Giữ link có doanh số cao hơn']].forEach(function (pair) {
+      rules.appendChild(h('span', 'th', pair[0]));
+      rules.appendChild(h('span', null, pair[1]));
+    });
+    tip.appendChild(rules);
+    var examples = h('span', 'tip-ex');
+    [['Ví dụ', 'Kết quả', 'th'],
+      ['DHC Kẽm 30 ngày · DHC Kẽm 60 ngày', 'Giống nhau'],
+      ['DHC Kẽm · DHC Kẽm + Vitamin C', 'Khác nhau']].forEach(function (entry) {
+      examples.appendChild(h('span', entry[2] || null, entry[0]));
+      examples.appendChild(h(entry[2] ? 'span' : 'b', entry[2] || null, entry[1]));
+    });
+    tip.appendChild(examples);
+    wrap.appendChild(button);
+    wrap.appendChild(tip);
+    wrap.addEventListener('mouseleave', function () { button.blur(); });
+    return wrap;
+  }
+
   function moduleM2Output(m2, runId) {
     m2 = m2 || {};
     var card = h('article', 'mod');
@@ -2780,27 +2842,30 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     if (!legacy && !unknownPolicy) {
       var rows = h('ul', 'cks');
-      var orderRow = outputResultRow(m2.linksMatchSourceOrder,
-        'Link đã chọn đúng sản phẩm và đúng thứ tự doanh số giảm dần trong kỳ');
-      orderRow.id = 'moM2Order';
-      var distinctRow = outputResultRow(m2.fiveDistinct,
-        'Danh sách gồm 5 sản phẩm khác nhau, không trùng lặp');
-      distinctRow.id = 'moM2Distinct';
-      rows.appendChild(orderRow);
-      rows.appendChild(distinctRow);
-      card.appendChild(rows);
-      card.appendChild(h('p', 'rs-note',
-        'Cách xác định dựa trên tên sản phẩm trong dữ liệu nguồn. Tên mơ hồ được báo chưa xác định, không tính là đủ 5.'));
-
-      if (m2.fiveDistinct === false) {
-        var count = m2.selectedCount;
-        var shortage = count === null || count === undefined
-          ? 'Chưa xác nhận đủ 5 sản phẩm khác nhau.'
-          : count < 5 ? 'Chỉ chọn được ' + fmtInt(count) + '/5 sản phẩm khác nhau.'
-            : 'Đã chọn ' + fmtInt(count) + ' dòng nhưng chưa xác nhận đủ 5 sản phẩm khác nhau.';
-        if (m2.shortageReason) shortage += ' ' + outputErrorText({ code: m2.shortageReason });
-        card.appendChild(h('p', 'rs-note', shortage));
+      var sourceRow = outputResultRow(m2.linksMatchSourceOrder,
+        'Lấy từ bảng «Top Products» của Metric, đúng khoảng thời gian đã chọn');
+      sourceRow.id = 'moM2Source';
+      var shopeeRow = outputResultRow(m2.linksMatchSourceOrder, 'Chỉ lấy sản phẩm bán trên Shopee');
+      shopeeRow.id = 'moM2Shopee';
+      var sameRow = outputResultRow(m2.linksMatchSourceOrder, 'Không lấy các sản phẩm giống nhau');
+      sameRow.id = 'moM2Same';
+      var sameLabel = sameRow.querySelector('.cl');
+      sameLabel.appendChild(sameProductTip());
+      sameLabel.parentNode.insertBefore(
+        h('div', 'cs', 'Cùng thương hiệu, thành phần và hàm lượng thì tính là một sản phẩm.'), sameLabel.nextSibling);
+      var count = m2.selectedCount;
+      var distinctRow;
+      if (typeof count === 'number' && count < 5) {
+        distinctRow = h('li', 'ck c-warn');
+        distinctRow.appendChild(h('span', 'ci', '!'));
+        distinctRow.appendChild(h('div', 'cl', 'Chỉ chọn được ' + fmtInt(count) + '/5 sản phẩm: ' +
+          (M2_SHORTAGE_TEXT[m2.shortageReason] || 'chưa rõ lý do')));
+      } else {
+        distinctRow = outputResultRow(m2.fiveDistinct, 'Đã chọn đủ 5 sản phẩm khác nhau');
       }
+      distinctRow.id = 'moM2Distinct';
+      [sourceRow, shopeeRow, sameRow, distinctRow].forEach(function (row) { rows.appendChild(row); });
+      card.appendChild(rows);
     } else if (legacy) {
       card.appendChild(h('p', 'rs-note',
         'Lượt này dùng quy tắc chọn cũ; không áp dụng cách chọn 5 sản phẩm khác nhau mới.'));
@@ -2809,7 +2874,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (m2.errorCode && m2.errorCode !== m2.shortageReason) card.appendChild(outputErrorBar(m2.errorCode));
 
     var links = Array.isArray(m2.links) ? m2.links : [];
-    if (links.length) card.appendChild(moduleSelectionTable(links));
+    if (links.length) card.appendChild(moduleSelectionTable(links, runId));
     else if (!legacy && m2.errorCode !== 'SELECTION_MISSING') {
       card.appendChild(h('p', 'muted', 'Chưa có link nào đã chọn.'));
     }
@@ -2821,11 +2886,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       details.appendChild(moduleSkippedTable(skipped));
       card.appendChild(details);
     }
-
-    var actions = h('div', 'rs-actions');
-    actions.appendChild(outputEvidenceAction('moM2Evidence', 'Xem ảnh sản phẩm trên Metric',
-      runId, m2.evidence && m2.evidence.topProducts));
-    card.appendChild(actions);
     return card;
   }
 
@@ -2839,7 +2899,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     var panel = h('section', 'rs');
     panel.id = 'moduleOutputsPanel';
-    panel.setAttribute('aria-label', 'Kết quả bước 1 và bước 2');
+    panel.setAttribute('aria-label', 'Kết quả các bước');
     var head = h('div', 'rs-head');
     head.appendChild(h('h4', null, 'Kết quả các bước'));
     panel.appendChild(head);
@@ -2921,6 +2981,19 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     human_stop: 'bạn đã bấm dừng'
   };
   var RS_STOP_UNKNOWN = 'Chưa rõ lý do';
+  var RD_STOP_TEXT = {
+    record_limit: 'Đã lấy đủ số lượng đặt cho link này',
+    expected_count_reached: 'Đã lấy hết số đánh giá Shopee đang hiển thị',
+    exhausted: 'Shopee không còn đánh giá nào để lấy',
+    page_limit: 'Đã xem hết số trang được phép xem',
+    last_page: 'Đã xem tới trang đánh giá cuối cùng trên Shopee',
+    not_started: 'Chưa bắt đầu lấy bình luận cho link này',
+    total_limit: 'Đã đạt giới hạn tổng số bình luận của cả lượt',
+    cancelled: 'Việc lấy bình luận đã dừng giữa chừng',
+    timeout: 'Lấy quá thời gian cho phép nên đã dừng',
+    control_changed: 'Bộ lọc trên Shopee thay đổi giữa chừng nên đã dừng',
+    human_stop: 'Bạn đã bấm dừng'
+  };
   var RS_COUNT_WHY = { missing: 'Không thấy', ambiguous: 'Không rõ', unavailable: 'Không đọc được' };
 
   function equalStarQuotas(n, stars) {
@@ -3002,7 +3075,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function actualText(value) { return value === null || value === undefined ? 'Chưa có số liệu' : String(value); }
   function stopReasonText(value) {
     if (value === null || value === undefined || value === '') return RS_STOP_UNKNOWN;
-    return RS_STOP_TEXT[value] || RS_STOP_UNKNOWN;
+    return RD_STOP_TEXT[value] || RS_STOP_UNKNOWN;
   }
 
   function stampText(value) {
@@ -3978,24 +4051,36 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return Number(link.actual) >= Number(link.requested);
   }
 
-  function rdCollectedText(source) {
-    var links = source && Array.isArray(source.links) ? source.links : [];
-    var hasTotal = source && source.rowCount !== null && source.rowCount !== undefined;
-    var text = hasTotal ? 'Đã thu ' + fmtInt(source.rowCount) + ' bình luận' : 'Chưa có số liệu tổng bình luận đã thu';
-    if (!links.length) return text;
-    var known = links.filter(function (link) {
-      return link && link.actual !== null && link.actual !== undefined;
-    });
-    if (!known.length) return text + ' · chưa có số liệu từng link';
-    if (known.length < links.length) {
-      text += ' ở ' + known.length + '/' + links.length + ' link đã có số liệu';
+  function rdCheckRow(ok, text) {
+    var row = h('li', 'ck ' + (ok === true ? 'c-ok' : 'c-warn'));
+    row.appendChild(h('span', 'ci', ok === true ? '✓' : ok === false ? '!' : '?'));
+    row.appendChild(h('div', 'cl', text));
+    return row;
+  }
+
+  function rdChecks(source) {
+    var links = Array.isArray(source.links) ? source.links : [];
+    var list = h('ul', 'cks');
+    var hasTotal = source.rowCount !== null && source.rowCount !== undefined;
+    list.appendChild(rdCheckRow(hasTotal ? Number(source.rowCount) > 0 : null, hasTotal
+      ? 'Đã lấy được ' + fmtInt(source.rowCount) + ' bình luận từ ' + links.length + ' link'
+      : 'Chưa có số liệu tổng bình luận đã lấy'));
+    if (links.length) {
+      var reached = links.filter(function (link) { return rdLinkReached(link) === true; }).length;
+      var unknown = links.filter(function (link) { return rdLinkReached(link) === null; }).length;
+      var text = reached + '/' + links.length + ' link đạt số lượng đặt';
+      if (unknown) text += ' · ' + unknown + ' link chưa có số liệu';
+      list.appendChild(rdCheckRow(unknown ? null : reached === links.length, text));
     }
-    var reached = links.filter(function (link) { return rdLinkReached(link) === true; }).length;
-    text += ' · ' + reached + '/' + links.length + ' link đạt số lượng đặt';
-    if (known.length < links.length) {
-      text += ' · ' + (links.length - known.length) + ' link chưa có số liệu';
-    }
-    return text;
+    return list;
+  }
+
+  function rdResultChip(link) {
+    var reached = rdLinkReached(link);
+    if (reached === true) return h('span', 'chip s-pass', 'Đủ');
+    if (reached === null) return h('span', 'chip s-idle', 'Chưa có số liệu');
+    var missing = typeof link.shortfall === 'number' ? link.shortfall : Number(link.requested) - Number(link.actual);
+    return h('span', 'chip s-warn', 'Thiếu ' + fmtInt(missing));
   }
 
   function rdLinksTable(links) {
@@ -4004,7 +4089,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var table = h('table');
     var thead = h('thead');
     var head = h('tr');
-    [['Link', ''], ['Cần lấy', 'num'], ['Đã lấy', 'num'], ['Còn thiếu', 'num'], ['Đạt số lượng đặt', ''], ['Lý do dừng', '']]
+    [['Link', ''], ['Cần lấy', 'num'], ['Đã lấy', 'num'], ['Kết quả', ''], ['Lý do dừng', '']]
       .forEach(function (entry) { head.appendChild(h('th', entry[1], entry[0])); });
     thead.appendChild(head);
     table.appendChild(thead);
@@ -4017,9 +4102,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       row.appendChild(name);
       row.appendChild(h('td', 'num', valOrDash(link.requested)));
       row.appendChild(h('td', 'num', actualText(link.actual)));
-      row.appendChild(h('td', 'num', valOrDash(link.shortfall)));
-      var reached = rdLinkReached(link);
-      row.appendChild(h('td', null, reached === true ? 'Đạt' : reached === false ? 'Chưa đạt' : 'Chưa có số liệu'));
+      var result = h('td');
+      result.appendChild(rdResultChip(link));
+      row.appendChild(result);
       row.appendChild(h('td', null, stopReasonText(link.stopReason || link.status)));
       body.appendChild(row);
     });
@@ -4028,19 +4113,34 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return wrap;
   }
 
+  function rdDownloadNotice(data) {
+    var files = Array.isArray(data.files) ? data.files : [];
+    var saved = files.filter(function (file) { return file && file.saved; })
+      .map(function (file) { return '“' + file.fileName + '”'; });
+    var failed = files.filter(function (file) { return file && !file.saved; })
+      .map(function (file) {
+        return 'file ' + String(file.format).toUpperCase() + ' (' + plainError({ code: file.errorCode }) + ')';
+      });
+    var parts = [];
+    if (data.cancelled) parts.push('Đã hủy tải file.');
+    if (saved.length) parts.push('Đã lưu ' + saved.join(', ') + '.');
+    if (failed.length) parts.push('Chưa tải được ' + failed.join(', ') + '.');
+    return parts.length ? parts.join(' ') : 'Chưa lưu file.';
+  }
+
   function reviewDataPanel(info) {
     var runId = info.runId;
     var view = state.reviewData[runId];
-    var panel = h('section', 'rs');
+    var panel = h('article', 'mod');
     panel.id = 'rdPanel';
     panel.setAttribute('aria-label', 'Kết quả và tải file bình luận');
 
-    var head = h('div', 'rs-head');
-    head.appendChild(h('h4', null, 'Kết quả và tải file'));
+    var head = h('div', 'mh');
+    head.appendChild(h('h3', null, moduleTitle('M3')));
     var chip = h('span', 'chip s-idle', 'Đang tải kết quả…');
+    chip.id = 'rdChip';
     head.appendChild(chip);
     panel.appendChild(head);
-    panel.appendChild(h('p', 'rs-lead', 'Dùng bình luận đã lấy trong lượt này để lưu vào hệ thống hoặc tải file.'));
 
     if (state.reviewDataErrors[runId]) {
       var loadError = h('p', 'errbar local-error', plainError(state.reviewDataErrors[runId]));
@@ -4064,12 +4164,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (view.readonly) panel.appendChild(h('p', 'rs-note', 'Hệ thống đang tạm dừng lấy dữ liệu.'));
 
     var sources = view.sources || [];
-    chip.textContent = sources.length ? 'Có kết quả' : 'Chưa có kết quả';
-    chip.className = 'chip ' + (sources.length ? 's-pass' : 's-idle');
+    chip.textContent = 'Chưa có kết quả';
     if (!sources.length) {
       panel.appendChild(h('p', 'muted', 'Chưa có kết quả bình luận nào dùng được để lưu hoặc tải file.'));
       return panel;
     }
+
+    var summary = h('div');
+    summary.id = 'rdSummary';
+    summary.setAttribute('aria-live', 'polite');
+    panel.appendChild(summary);
 
     var field = h('label', 'field');
     field.appendChild(h('span', null, 'Chọn kết quả để dùng'));
@@ -4087,11 +4191,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
     field.appendChild(select);
     panel.appendChild(field);
-
-    var summary = h('p', 'rs-summary');
-    summary.id = 'rdSummary';
-    summary.setAttribute('aria-live', 'polite');
-    panel.appendChild(summary);
 
     var links = h('div');
     links.id = 'rdLinks';
@@ -4120,17 +4219,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     panel.appendChild(actionErr);
 
     var actions = h('div', 'rs-actions');
-    var jsonBtn = h('button', 'abtn primary', 'Tải file JSON');
-    jsonBtn.type = 'button';
-    jsonBtn.id = 'rdJson';
-    var txtBtn = h('button', 'abtn primary', 'Tải file TXT');
-    txtBtn.type = 'button';
-    txtBtn.id = 'rdTxt';
+    var downloadBtn = h('button', 'abtn primary', 'Tải file về máy');
+    downloadBtn.type = 'button';
+    downloadBtn.id = 'rdDownload';
+    var downloadNote = h('span', 'rs-hint');
+    downloadNote.id = 'rdDownloadNote';
     var saveBtn = h('button', 'abtn', 'Lưu vào hệ thống');
     saveBtn.type = 'button';
     saveBtn.id = 'rdSave';
-    actions.appendChild(jsonBtn);
-    actions.appendChild(txtBtn);
+    actions.appendChild(downloadBtn);
+    actions.appendChild(downloadNote);
     actions.appendChild(saveBtn);
     panel.appendChild(actions);
 
@@ -4143,6 +4241,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return !!(source && source.exportFormats && source.exportFormats[format] &&
         source.exportFormats[format].canExport);
     }
+    function exportFormats(source) {
+      return ['json', 'txt'].filter(function (format) { return formatAvailable(source, format); });
+    }
 
     function update() {
       var sha = rdSelectedSha(view, runId);
@@ -4152,17 +4253,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var isBusy = busy(w);
       select.disabled = isBusy;
 
+      clear(summary);
       if (source) {
-        var completion = source.completedAt
-          ? 'Hoàn tất ' + vnStamp(source.completedAt) : 'Chưa rõ thời điểm hoàn tất';
         var validated = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS';
-        summary.textContent = validated
-          ? rdCollectedText(source) + ' · ' + completion
-          : source.rowCount + ' bình luận · Kết quả giữ lại sau lần lấy chưa đạt · ' + completion;
+        chip.textContent = validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
+        chip.className = 'chip ' + (validated ? 's-pass' : 's-fail');
+        summary.appendChild(rdChecks(source));
       } else {
-        summary.textContent = state.reviewNeedsPick[runId]
+        chip.textContent = 'Chưa chọn kết quả';
+        chip.className = 'chip s-idle';
+        summary.appendChild(h('p', 'rs-note', state.reviewNeedsPick[runId]
           ? 'Kết quả đã chọn không còn trong danh sách; chọn lại một kết quả.'
-          : 'Chọn một kết quả để xem số lượng và thao tác.';
+          : 'Chọn một kết quả để xem số lượng và thao tác.'));
       }
 
       clear(links);
@@ -4192,29 +4294,40 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         }
         ['json', 'txt'].forEach(function (format) {
           var availability = source.exportFormats && source.exportFormats[format];
-          if (availability && !availability.canExport) {
-            blocks.appendChild(rdBlockNode('Tải file ' + format.toUpperCase() + ': ',
-              availability.blockedBy || { code: 'EXPORT_BLOCKED' }));
-          }
           if (availability && availability.receipt) {
             blocks.appendChild(h('p', 'rs-note',
               'Đã tạo file ' + format.toUpperCase() + ' trước đó: ' + availability.receipt.fileName + '.'));
           }
         });
-        if (!source.canExport && !formatAvailable(source, 'json') && !formatAvailable(source, 'txt')) {
-          blocks.appendChild(rdBlockNode('Tải file: ', source.exportBlockedBy || { code: 'SOURCE_NOT_EXPORTABLE' }));
-        }
       }
+
+      var notes = [];
+      var noteCodes = [];
+      function addNote(prefix, blockedBy) {
+        notes.push(prefix + rdBlockText(blockedBy));
+        if (blockedBy && blockedBy.code) noteCodes.push(String(blockedBy.code));
+      }
+      if (source) {
+        var noneAvailable = !exportFormats(source).length;
+        ['json', 'txt'].forEach(function (format) {
+          var availability = source.exportFormats && source.exportFormats[format];
+          if (availability ? availability.canExport : !noneAvailable) return;
+          addNote('File ' + format.toUpperCase() + ': ', (availability && availability.blockedBy) ||
+            (noneAvailable && source.exportBlockedBy) ||
+            { code: noneAvailable ? 'SOURCE_NOT_EXPORTABLE' : 'EXPORT_BLOCKED' });
+        });
+      }
+      downloadNote.textContent = notes.join(' · ');
+      downloadNote.title = noteCodes.join(', ');
+      downloadNote.hidden = !notes.length;
 
       var dbReady = !!(view.db && view.db.configured && view.db.schemaReady && !view.db.blockedBy);
       saveBtn.disabled = isBusy || !state.connected || !source || !source.canSaveDb || !dbReady;
-      jsonBtn.disabled = isBusy || !state.connected || !source || !formatAvailable(source, 'json');
-      txtBtn.disabled = isBusy || !state.connected || !source || !formatAvailable(source, 'txt');
+      downloadBtn.disabled = isBusy || !state.connected || !source || !exportFormats(source).length;
 
       var message = '';
       if (w.save) message = 'Đang lưu vào hệ thống…';
-      else if (w.exporting === 'json') message = 'Đang tạo file JSON…';
-      else if (w.exporting === 'txt') message = 'Đang tạo file TXT…';
+      else if (w.exporting) message = 'Đang tạo file…';
       else if (state.reviewNotice[runId]) message = state.reviewNotice[runId];
       else if (!state.connected) message = 'Chưa kết nối máy chủ.';
       else if (!source) message = state.reviewNeedsPick[runId]
@@ -4245,12 +4358,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       delete state.reviewDataActionErrors[runId];
       actionErr.hidden = true;
       state.reviewNotice[runId] = '';
-      if (kind === 'save') w.save = true; else w.exporting = kind;
+      if (kind === 'save') w.save = true; else w.exporting = true;
       update();
       var res = kind === 'save'
         ? await api.saveReviewData(runId, { sourceSha256: source.sourceSha256 })
-        : await api.exportReviewData(runId, { sourceSha256: source.sourceSha256, format: kind });
-      if (kind === 'save') w.save = false; else w.exporting = '';
+        : await api.exportReviewFiles(runId, { sourceSha256: source.sourceSha256, formats: exportFormats(source) });
+      if (kind === 'save') w.save = false; else w.exporting = false;
       if (state.selectedRunId !== runId) return;
       if (!res.ok) {
         state.reviewDataActionErrors[runId] = res.error;
@@ -4263,18 +4376,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           : 'Đã lưu ' + fmtInt(res.data.rowCount) + ' bình luận vào hệ thống (' +
             fmtInt(res.data.reviewsInserted) + ' mới, ' + fmtInt(res.data.reviewsAlreadyPresent) + ' đã có).';
       } else {
-        var data = res.data || {};
-        state.reviewNotice[runId] = data.cancelled ? 'Đã hủy tải file.'
-          : data.saved ? 'Đã lưu file “' + (data.fileName || (data.receipt && data.receipt.fileName) || '') + '”.'
-          : 'Chưa lưu file.';
+        state.reviewNotice[runId] = rdDownloadNotice(res.data || {});
       }
       renderDetail();
       await loadReviewData(runId);
     }
 
     saveBtn.addEventListener('click', function () { onAction('save'); });
-    jsonBtn.addEventListener('click', function () { onAction('json'); });
-    txtBtn.addEventListener('click', function () { onAction('txt'); });
+    downloadBtn.addEventListener('click', function () { onAction('files'); });
     update();
     return panel;
   }
@@ -4495,7 +4604,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (moduleOutput) root.appendChild(moduleOutput);
 
     var hasM3 = (info.modules || []).some(function (mod) { return mod.id === 'M3'; });
-    if (hasM3) root.appendChild(reviewDataPanel(info));
+    if (hasM3) (moduleOutput || root).appendChild(reviewDataPanel(info));
     var samplingView = state.sampling[info.runId];
     var samplingPanelShown = hasM3 && !!(
       info.selection || (samplingView && samplingView.m2Digest) ||
@@ -4531,7 +4640,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var tech = h('details', 'tech-details');
     tech.id = 'techDetails';
     tech.open = failed;
-    tech.appendChild(h('summary', null, 'Các bước thực hiện'));
+    tech.appendChild(h('summary', null, 'Log kĩ thuật lịch sử chạy'));
 
     var seq = h('div', 'seq');
     SEQUENCE.forEach(function (step) { seq.appendChild(seqChip(step, info)); });
@@ -4847,7 +4956,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       hint.textContent = 'Tạo lượt trước khi bắt đầu lấy dữ liệu.';
       hint.hidden = false;
     } else if (!state.newEntry) {
-      hint.textContent = 'Chưa đọc được kết quả kiểm tra đầu vào. Mở “Theo dõi lượt” để xem lại.';
+      hint.textContent = 'Chưa đọc được kết quả kiểm tra đầu vào. Mở “Chi tiết lịch sử lượt chạy” để xem lại.';
       hint.hidden = false;
     } else if (!entryPass) {
       hint.textContent = 'Lượt này chưa đạt kiểm tra đầu vào nên chưa bắt đầu được. Xem lý do bên dưới.';
@@ -5055,7 +5164,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.newEntry) {
       $('entrySlip').appendChild(gateCard('entry', state.newEntry));
     } else {
-      $('entrySlip').appendChild(h('p', 'muted', 'Chưa đọc được kết quả kiểm tra đầu vào. Mở “Theo dõi lượt” để tải lại.'));
+      $('entrySlip').appendChild(h('p', 'muted', 'Chưa đọc được kết quả kiểm tra đầu vào. Mở “Chi tiết lịch sử lượt chạy” để tải lại.'));
     }
     renderCaptureSpecReview();
     updateFlowButton();
@@ -5514,7 +5623,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     renderNewSummary();
     renderNewResult();
     if (previous) {
-      showNewNotice('Đã mở biểu mẫu mới. Lượt ' + previous + ' vẫn được giữ trong «Theo dõi lượt».');
+      showNewNotice('Đã mở biểu mẫu mới. Lượt ' + previous + ' vẫn được giữ trong «Chi tiết lịch sử lượt chạy».');
     }
     var target = $('presetSel').value === NEW_PRODUCT ? $('productLabel') : $('presetSel');
     if (target) target.focus();
