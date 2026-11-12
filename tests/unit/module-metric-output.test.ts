@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { sha256 } from '../../scripts/module-pick.js';
+import { hashFolder, main, sha256 } from '../../scripts/module-pick.js';
 import { moduleOutputs, readModuleEvidence } from '../../scripts/module-metric-output.js';
 import { buildModuleRun as buildRun, distinctRows as distinct, preset, product, requestBytes, window } from '../helpers/module-run-fixture.js';
 
@@ -121,4 +121,88 @@ test('retained evidence opens only with the exact saved digest', async t => {
   assert.equal(Buffer.from(panel).length, output.m2.evidence.topProducts.byteSize);
   await assert.rejects(readModuleEvidence(run, 'top-products', 'b'.repeat(64)),
     (error: any) => error?.code === 'EVIDENCE_HASH_MISMATCH');
+});
+
+type Row = Record<string, unknown>;
+const fullRow = (i: number, revenue: number): Row => ({
+  product_base_id: `1__${9300 + i}__${821 + i}`, product_name: `Synthetic term one pickable ${i + 1}`,
+  shop_base_id: String(821 + i), platform_id: 1, revenue_custom: revenue, brand: 'Synthetic Brand', final_brand: 'Synthetic Brand',
+  shop_name: `Synthetic Shop ${i + 1}`, official_type: i % 2, final_categories: [{ name: 'Group A', level: 0 }, { name: 'Group B', level: 1 }],
+  price: 100_000 + i, price_min: 90_000, price_max: 120_000, previous_revenue_custom: 500, order_custom: 10 + i,
+  previous_order_custom: 4, revenue: 7_000, order_count: 70, rating_avg: 4.5, rating_count: 12, platform_created_at: '2026-01-20 10:00:00',
+});
+const jsonText = (value: unknown) => JSON.stringify(value, null, 2) + '\n';
+
+/** The stored legacy layout: request-v1, one raw file under m1/run1, no capture manifest or source map. */
+async function legacyRun(t: any, rows: Row[], keep: (row: Row) => boolean = () => true) {
+  const run = await mkdtemp(join(tmpdir(), 'shopee-module-output-'));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await writeFile(join(run, 'request.json'), jsonText({ format: 'request-v1', preset: { keywords: ['synthetic term one'] }, principalTitles: [],
+    windows: [{ id: '30d', period: { startDate: '2026-10-01', endDate: '2026-10-30' }, intervalDays: 7 }], reviewCapPerLink: 300 }));
+  await mkdir(join(run, 'm1/run1'), { recursive: true });
+  const responses = [{ urlPath: '/v2/market/analytics/search-basic/', status: 200, body: { status: 'success', data: {} } },
+    { urlPath: '/v2/market/analytics/products/', status: 200, requestBody: { sort_by: 'revenue_custom__desc', page: 0 },
+      body: { status: 'success', data: { products: rows } } }];
+  await writeFile(join(run, 'm1/run1/raw-responses.json'), jsonText(responses));
+  await mkdir(join(run, 'gates'), { recursive: true });
+  await writeFile(join(run, 'gates/m1.json'), jsonText({ format: 'handoff-v1', module: 'M1', runId: basename(run), skillVersion: '1.0.0',
+    verdict: 'PASS', inputSha256: null, outputSha256: await hashFolder(run, 'm1'), checks: [], errorCode: null, next: null }));
+  await main(run);
+  if (!rows.every(keep)) {
+    responses[1]!.body.data = { products: rows.filter(keep) };
+    await writeFile(join(run, 'm1/run1/raw-responses.json'), jsonText(responses));
+  }
+  return run;
+}
+
+test('B1: step 1 reports the saved products order as true, false or unknown with the existing order check', async t => {
+  const { run } = await buildRun(t);
+  assert.equal(((await moduleOutputs(run)) as any).m1.revenueOrderDescending, true);
+  const rising = await legacyRun(t, [fullRow(0, 100), fullRow(1, 300), fullRow(2, 200)]);
+  assert.equal(((await moduleOutputs(rising)) as any).m1.revenueOrderDescending, false, 'a higher revenue after a lower one');
+  const unreadable = await legacyRun(t, [fullRow(0, 300), { ...fullRow(1, 0), revenue_custom: '' }, fullRow(2, 100)]);
+  assert.equal(((await moduleOutputs(unreadable)) as any).m1.revenueOrderDescending, null, 'an empty revenue cannot be ordered');
+  const uncaptured = await mkdtemp(join(tmpdir(), 'shopee-module-output-'));
+  t.after(() => rm(uncaptured, { recursive: true, force: true }));
+  await writeFile(join(uncaptured, 'request.json'), requestBytes(true));
+  assert.equal(((await moduleOutputs(uncaptured)) as any).m1.revenueOrderDescending, null);
+});
+
+test('B2: each picked link carries its saved Metric products row and 1-based rank', async t => {
+  const rows = distinct(5, i => ({ shop_name: `Shop ${i}`, official_type: 1, final_categories: [{ name: 'Root', level: 0 }],
+    price: 1_000 + i, price_min: 900, price_max: '1200', previous_revenue_custom: 77, order_custom: 5, previous_order_custom: 3,
+    revenue: 9_999, order_count: 99, rating_avg: 4.8, rating_count: 6, platform_created_at: '2026-02-01 08:00:00' }));
+  const { run } = await buildRun(t, { rows });
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual(output.m2.links.map((l: any) => [l.sourceRank, l.metricProduct.rank]), [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]);
+  assert.deepEqual(output.m2.links[2].metricProduct, { rank: 3, productName: rows[2]!.product_name, shopName: 'Shop 2', officialType: 1,
+    brand: 'DHC', categories: ['Root'], price: 1_002, priceMin: 900, priceMax: 1200, periodRevenue: rows[2]!.revenue_custom,
+    previousRevenue: 77, periodSold: 5, previousSold: 3, totalRevenue: 9_999, totalSold: 99, ratingAvg: 4.8, ratingCount: 6,
+    listedAt: '2026-02-01 08:00:00' });
+  assert.deepEqual([output.m2.linksMatchSourceOrder, output.m2.fiveDistinct, output.m2.errorCode], [true, true, null], 'selection result unchanged');
+});
+
+test('B2: legacy links are looked up at read time without changing the legacy verdict or fields', async t => {
+  const rows = [fullRow(0, 900), { product_base_id: '8__1__2', product_name: 'Other platform', revenue_custom: 800 }, fullRow(1, 700), fullRow(2, 600)];
+  const run = await legacyRun(t, rows);
+  await writeFile(join(run, 'gates/m2.json'), jsonText({ format: 'handoff-v1', module: 'M2', runId: basename(run), skillVersion: '1.0.0',
+    verdict: 'PASS', inputSha256: await hashFolder(run, 'm1'), outputSha256: sha256(await readFile(join(run, 'm2/selection.json'))),
+    checks: [], errorCode: null, next: null }));
+  const output = await moduleOutputs(run) as any;
+  assert.equal(output.m2.policy, 'legacy');
+  assert.equal(output.m2.legacyVerdict, 'PASS');
+  assert.deepEqual([output.m2.linksMatchSourceOrder, output.m2.fiveDistinct, output.m2.shortageReason], [null, null, null]);
+  const second = output.m2.links.find((l: any) => l.productBaseId === rows[2]!.product_base_id);
+  assert.deepEqual([second.sourceRank, second.productName, second.shopName], [null, null, null], 'existing legacy fields keep their meaning');
+  assert.equal(second.metricProduct.rank, 3, 'rank counts every row of the saved response, other platforms included');
+  assert.deepEqual([second.metricProduct.productName, second.metricProduct.shopName, second.metricProduct.officialType,
+    second.metricProduct.categories, second.metricProduct.priceMax], [rows[2]!.product_name, 'Synthetic Shop 2', 1, ['Group A', 'Group B'], 120_000]);
+});
+
+test('B2: a link whose row is missing from the saved response has no product fields', async t => {
+  const rows = [fullRow(0, 900), fullRow(1, 700)];
+  const run = await legacyRun(t, rows, row => row.product_base_id !== rows[1]!.product_base_id);
+  const output = await moduleOutputs(run) as any;
+  assert.equal(output.m2.links.find((l: any) => l.productBaseId === rows[1]!.product_base_id).metricProduct, null);
+  assert.equal(output.m2.links.find((l: any) => l.productBaseId === rows[0]!.product_base_id).metricProduct.rank, 1);
 });

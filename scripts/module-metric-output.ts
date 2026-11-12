@@ -140,6 +140,45 @@ export async function verifyModuleSelection(run: string) {
     links: expected.links, skipped: expected.selectionProof.skipped, panelCovered };
 }
 
+type Row = Record<string, unknown>;
+// Legacy captures have no source map; their products are read only when exactly one products response was saved.
+function productsPart(raw: unknown, part: Row | null): Row | null {
+  if (part) return part;
+  const found = Array.isArray(raw) ? raw.flatMap((r, i) => r && typeof r === 'object' && (r as Row).urlPath === '/v2/market/analytics/products/' ? [i] : []) : [];
+  return found.length === 1 ? { sourceMap: { products: `raw-responses.json#/${found[0]}/body/data` } } : null;
+}
+function revenueOrderDescending(raw: unknown, part: Row | null): boolean | null {
+  const ref = productsPart(raw, part);
+  if (!ref) return null;
+  try { rankedMetricProducts(raw, ref); return true; }
+  catch (error) { return error instanceof ProductPickError && error.orderBroken ? false : null; }
+}
+function savedProductRows(raw: unknown, part: Row | null): Row[] | null {
+  const map = productsPart(raw, part)?.sourceMap as Row | undefined;
+  const pointer = /^raw-responses\.json#\/(\d+)\/body\/data$/.exec(String(map?.products));
+  const response = pointer && Array.isArray(raw) ? raw[Number(pointer[1])] as Row | undefined : undefined;
+  const products = ((response?.body as Row | undefined)?.data as Row | undefined)?.products;
+  return Array.isArray(products) ? products.filter((r): r is Row => !!r && typeof r === 'object' && !Array.isArray(r)) : null;
+}
+const text = (value: unknown) => typeof value === 'string' && value.trim() ? value : null;
+const amount = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value
+  : typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : null;
+/** The link's row in the saved products response, copied as stored; null when the row is not there. */
+function metricProduct(rows: Row[] | null, id: unknown) {
+  const index = rows && typeof id === 'string' ? rows.findIndex(r => r.product_base_id === id) : -1;
+  if (index < 0) return null;
+  const row = rows![index]!;
+  const categories = Array.isArray(row.final_categories) ? row.final_categories.flatMap(c =>
+    c && typeof c === 'object' && text((c as Row).name) ? [(c as Row).name as string] : []) : [];
+  return { rank: index + 1, productName: text(row.product_name), shopName: text(row.shop_name),
+    officialType: Number.isInteger(row.official_type) ? row.official_type as number : null, brand: text(row.final_brand),
+    categories: categories.length ? categories : null, price: amount(row.price), priceMin: amount(row.price_min),
+    priceMax: amount(row.price_max), periodRevenue: amount(row.revenue_custom), previousRevenue: amount(row.previous_revenue_custom),
+    periodSold: amount(row.order_custom), previousSold: amount(row.previous_order_custom), totalRevenue: amount(row.revenue),
+    totalSold: amount(row.order_count), ratingAvg: amount(row.rating_avg), ratingCount: amount(row.rating_count),
+    listedAt: text(row.platform_created_at) };
+}
+
 function countShopeeRows(raw: unknown): number {
   const ids = new Set<string>(), stack = [raw];
   while (stack.length) {
@@ -158,11 +197,15 @@ export async function moduleOutputs(runArg: string) {
   const request = await frozenRequest(run);
   const m1 = { captureSuccess: null as boolean | null, dataValid: null as boolean | null, errorCode: null as string | null,
     keywords: request.keywords, period: request.captureSpec?.windows[0]?.period ?? null, shopeeRowCount: null as number | null,
+    revenueOrderDescending: null as boolean | null,
     evidence: { fullPage: unavailable('full-page', 'CAPTURE_FILES_MISSING'), raw: unavailable('raw', 'CAPTURE_FILES_MISSING') } };
   let files = absentFiles('CAPTURE_FILES_MISSING');
+  let productRows: Row[] | null = null;
   try {
     const source = await readPickSource(run, request);
     m1.captureSuccess = source.part ? source.part.captureGate === 'PASSED' : null;
+    m1.revenueOrderDescending = revenueOrderDescending(source.raw, source.part);
+    productRows = savedProductRows(source.raw, source.part);
     files = await evidenceFiles(run, source, request);
     m1.evidence = { fullPage: files.fullPage.descriptor, raw: files.raw.descriptor };
     try {
@@ -216,6 +259,7 @@ export async function moduleOutputs(runArg: string) {
       }
     } catch (error) { m2.errorCode = code(error); }
   }
+  m2.links = m2.links.map(link => ({ ...link, metricProduct: metricProduct(productRows, link.productBaseId) }));
   // panelCovered is a gate-only result, not an undocumented desktop field.
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
   const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2 };

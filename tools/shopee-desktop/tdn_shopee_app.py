@@ -45,6 +45,7 @@ _COMMANDS = {
     'stopReviewAttempt': ('stop-review-attempt', '--run'),
     'reconcileReviewAttempt': ('reconcile-review-attempt', '--run'),
     'reviewData': ('review-data', '--run'),
+    'reviewStats': ('review-stats', '--run'),
     'saveReviewData': ('save-review-data', '--run'),
     'exportReviewData': ('export-review-data', '--run'),
     'readReviewExport': ('read-review-export', '--run'),
@@ -223,7 +224,7 @@ class Api:
             words.append(self._metric_end_date(payload))
         if action in ('status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence', 'entry', 'flow', 'm1', 'm2', 'm3',
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
-                      'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData',
+                      'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats',
                       'saveReviewData', 'exportReviewData', 'readReviewExport'):
             words.append(self._run_id(run_id))
         if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
@@ -659,6 +660,19 @@ class Api:
         if (data.get('format') != 'review-data-view-v1' or data.get('runId') != run_id or
                 type(data.get('readonly')) is not bool or not isinstance(data.get('tracking'), dict) or
                 not isinstance(data.get('db'), dict) or not isinstance(data.get('sources'), list)):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def reviewStats(self, runId=None):
+        return self._safe(lambda: self._review_stats(runId))
+
+    def _review_stats(self, run_id):
+        result = self._remote('reviewStats', run_id=run_id)
+        if not result['ok']:
+            return result
+        data = result['data']
+        if (data.get('format') != 'review-stats-v1' or data.get('runId') != run_id or
+                not isinstance(data.get('sources'), list)):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return result
 

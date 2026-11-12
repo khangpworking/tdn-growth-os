@@ -49,6 +49,8 @@ elif script.endswith('module-review-data.ts'):
         sys.stdout.buffer.write(b'synthetic-export-bytes')
     elif action == 'view':
         print(json.dumps({'format': 'review-data-view-v1'}))
+    elif action == 'stats':
+        print(json.dumps({'format': 'review-stats-v1'}))
     elif action == 'save':
         print(json.dumps({'format': 'review-data-saved-v1'}))
     elif action == 'export':
@@ -267,6 +269,7 @@ class RefusedLaunchTests(TrackingTest):
         offline = self.make_run('offline1')
         for args, input_text, expected in (
                 (('review-data', '--run', 'offline1'), None, 'review-data-view-v1'),
+                (('review-stats', '--run', 'offline1'), None, 'review-stats-v1'),
                 (('review-sampling', '--run', 'offline1'), None, 'review-sampling-view-v1'),
                 (('save-review-data', '--run', 'offline1', '--stdin'), '{"synthetic":true}', 'review-data-saved-v1'),
                 (('export-review-data', '--run', 'offline1', '--stdin'), '{"format":"json"}', 'review-data-export-v1')):

@@ -53,6 +53,9 @@ if action == 'review-data':
     }
     print(json.dumps(out))
     raise SystemExit(0)
+if action == 'review-stats':
+    print(json.dumps({'format': 'review-stats-v1', 'runId': run, 'sources': []}))
+    raise SystemExit(0)
 if action == 'save-review-data':
     out = {
         'format': 'review-data-saved-v1', 'runId': run, 'sourceSha256': payload['sourceSha256'],
@@ -153,6 +156,12 @@ class ReviewDataBridgeTest(unittest.TestCase):
         self.assertTrue(result['ok'])
         self.assertEqual(result['data']['tracking']['timeBasis'], 'recorded-first-accepted')
         self.assertEqual(self.calls()[-1], {'args': ['review-data', '--run', 'run-1'], 'payload': None})
+
+    def test_review_stats_route_reaches_the_remote_read_only_command(self):
+        result = self.api.reviewStats('run-1')
+        self.assertEqual(result, {'ok': True, 'data': {'format': 'review-stats-v1', 'runId': 'run-1', 'sources': []}})
+        self.assertEqual(self.calls()[-1], {'args': ['review-stats', '--run', 'run-1'], 'payload': None})
+        self.assertEqual(self.api.reviewStats('../x')['error']['code'], 'ARG_INVALID')
 
     def test_save_sends_only_the_source_digest_and_accepts_the_receipt(self):
         result = self.api.saveReviewData('run-1', {'sourceSha256': SOURCE})
