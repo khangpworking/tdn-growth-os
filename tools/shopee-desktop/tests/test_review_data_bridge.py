@@ -315,6 +315,25 @@ class ReviewDataBridgeTest(unittest.TestCase):
         self.assertEqual(sorted(path.name for path in self.exports.iterdir()),
                          ['shopee-run-1 (1).json', 'shopee-run-1 (2).json', 'shopee-run-1.json'])
 
+    def test_one_download_never_replaces_a_file_that_appears_while_saving(self):
+        self.choose_folder(str(self.exports))
+        raced = self.exports / 'shopee-run-1.json'
+        real_open = open
+
+        def open_after_another_writer(path, mode='r', *args, **kwargs):
+            if mode == 'xb' and pathlib.Path(path) == raced and not raced.exists():
+                raced.write_bytes(b'other')
+            return real_open(path, mode, *args, **kwargs)
+
+        with mock.patch.object(tdn_shopee_app, 'open', side_effect=open_after_another_writer, create=True):
+            result = self.api.exportReviewFiles('run-1', {'sourceSha256': SOURCE, 'formats': ['json']})
+        self.assertEqual(result['data']['files'], [
+            {'format': 'json', 'saved': True, 'fileName': 'shopee-run-1 (1).json', 'errorCode': None}])
+        self.assertEqual(raced.read_bytes(), b'other')
+        self.assertEqual((self.exports / 'shopee-run-1 (1).json').read_bytes(), BODY)
+        self.assertEqual(sorted(path.name for path in self.exports.iterdir()),
+                         ['shopee-run-1 (1).json', 'shopee-run-1.json'])
+
     def test_one_download_saves_json_and_reports_txt_when_only_txt_fails(self):
         self.choose_folder(str(self.exports))
         os.environ['BRIDGE_FAIL_FORMAT'] = 'txt'

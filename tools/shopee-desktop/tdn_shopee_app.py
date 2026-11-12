@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -83,23 +84,25 @@ def _safe_filename(name, export_format):
 
 
 def _publish_without_replacing(temp_path, destination):
-    """Move a finished file to `destination`, or to `name (N).ext` when that name is taken."""
+    """Copy a verified file to `destination`, or to `name (N).ext` when that name is taken."""
     stem, extension = os.path.splitext(destination.name)
     for number in range(1000):
         candidate = destination if number == 0 else destination.with_name(f'{stem} ({number}){extension}')
         try:
-            os.link(temp_path, candidate)
+            target = open(candidate, 'xb')
         except FileExistsError:
             continue
+        try:
+            with target, open(temp_path, 'rb') as source:
+                shutil.copyfileobj(source, target)
+                target.flush()
+                os.fsync(target.fileno())
         except OSError:
-            # No hard links on this drive: Windows rename never replaces; elsewhere check first.
-            if sys.platform != 'win32' and os.path.lexists(candidate):
-                continue
             try:
-                os.rename(temp_path, candidate)
-            except FileExistsError:
-                continue
-            return candidate
+                candidate.unlink()
+            except OSError:
+                pass
+            raise _BridgeFailure('SAVE_FAILED') from None
         try:
             temp_path.unlink()
         except OSError:
