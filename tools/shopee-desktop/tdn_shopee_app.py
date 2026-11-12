@@ -30,6 +30,7 @@ _COMMANDS = {
     'readModuleEvidence': ('evidence', '--run'),
     'library': ('library',),
     'new': ('new-run', '--stdin'),
+    'metricDateAvailability': ('metric-date-availability', '--end-date'),
     'addProduct': ('add-product', '--stdin'),
     'entry': ('gate', 'entry', '--run'),
     'flow': ('run', '--run'),
@@ -162,6 +163,8 @@ class Api:
     def _remote_plan(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
                      kind=None, attempt_id=None, export_sha256=None):
         words = list(_COMMANDS[action])
+        if action == 'metricDateAvailability':
+            words.append(self._metric_end_date(payload))
         if action in ('status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence', 'entry', 'flow', 'm1', 'm2', 'm3',
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData',
@@ -203,7 +206,7 @@ class Api:
                                           plan_sha256=plan_sha256, kind=kind, attempt_id=attempt_id,
                                           export_sha256=export_sha256)
         options = {'input': ('\n'.join(lines) + '\n').encode('utf-8'), 'capture_output': True,
-                   'timeout': config['timeoutSeconds']}
+                   'timeout': 150 if action == 'metricDateAvailability' else config['timeoutSeconds']}
         if sys.platform == 'win32':
             options['creationflags'] = subprocess.CREATE_NO_WINDOW
         try:
@@ -306,6 +309,35 @@ class Api:
     def newRun(self, input=None):
         return self._safe(lambda: self._new_run(input))
 
+    @staticmethod
+    def _metric_end_date(value):
+        if not isinstance(value, str) or not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', value):
+            raise _BridgeFailure('ARG_INVALID')
+        try:
+            dt.date.fromisoformat(value)
+        except ValueError:
+            raise _BridgeFailure('ARG_INVALID') from None
+        return value
+
+    def _metric_date_availability(self, end_date, config=None):
+        end_date = self._metric_end_date(end_date)
+        result = self._remote('metricDateAvailability', payload=end_date, config=config)
+        if not result['ok']:
+            return result
+        data = result['data']
+        if (set(data) != {'format', 'requestedEndDate', 'lastSelectableDate', 'available', 'errorCode'} or
+                data['format'] != 'metric-date-availability-v1' or data['requestedEndDate'] != end_date or
+                type(data['available']) is not bool):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        try:
+            last = self._metric_end_date(data['lastSelectableDate'])
+        except _BridgeFailure:
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID') from None
+        if (last > end_date or data['available'] != (last == end_date) or
+                data['errorCode'] != (None if data['available'] else 'CAPTURE_PERIOD_NOT_SELECTABLE')):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
     def _new_run(self, value):
         if not isinstance(value, dict) or not isinstance(value.get('presetId'), str) or \
                 not isinstance(value.get('endDate'), str):
@@ -349,6 +381,13 @@ class Api:
         if set(value) != allowed:
             raise _BridgeFailure('ARG_INVALID')
         config = _load_config()
+        if 'startDate' in value:
+            availability = self._metric_date_availability(value['endDate'], config=config)
+            if not availability['ok']:
+                return availability
+            if not availability['data']['available']:
+                return {'ok': False, 'error': {'code': 'CAPTURE_PERIOD_NOT_SELECTABLE',
+                        'message': 'CAPTURE_PERIOD_NOT_SELECTABLE', 'detail': availability['data']}}
         created = self._remote('new', payload=value, config=config)
         if not created['ok']:
             return created

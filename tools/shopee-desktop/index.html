@@ -417,12 +417,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           <div class="commit-actions">
             <button class="abtn primary" id="btnNew" type="submit" disabled>Tạo lượt</button>
             <button class="abtn" id="btnNewAnother" type="button" hidden>Tạo lượt khác</button>
-            <span class="hint" id="newBusy" hidden>Đang tạo lượt…</span>
+            <span class="hint" id="newBusy" hidden>Đang kiểm tra ngày dữ liệu và tạo lượt…</span>
             <span class="hint" id="newHint" hidden></span>
           </div>
         </div>
 
         <p class="errbar" id="newErr" role="alert" hidden></p>
+        <div id="newDateSuggestion" role="status" hidden>
+          <p class="windowline" id="newDateSuggestionText"></p>
+          <div class="btnrow" style="margin-top:8px">
+            <button class="abtn" id="btnApplyDateSuggestion" type="button">Dùng gợi ý này</button>
+          </div>
+        </div>
         <p class="rs-block" id="newNotice" role="status" hidden></p>
 
         <div id="newResult" hidden>
@@ -605,6 +611,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     PRESET_NOT_FOUND: 'Không tìm thấy sản phẩm đã chọn. Hãy chọn lại.',
     NEW_RUN_INPUT_INVALID: 'Chưa tạo được lượt. Kiểm tra lại sản phẩm, ngày và cách lấy bình luận.',
     END_DATE_NOT_COMPLETED: 'Chọn ngày hôm qua hoặc sớm hơn; hôm nay chưa kết thúc.',
+    CAPTURE_PERIOD_NOT_SELECTABLE: 'Ngày kết thúc đã chọn vượt quá ngày Metric còn cho chọn.',
     GATE_NOT_PASSED: 'Bước trước chưa đạt kiểm tra nên chưa chạy được bước này.',
     GATE_INPUT_CHANGED: 'Dữ liệu đã bị thay đổi sau khi kiểm tra. Hãy tạo lượt mới.',
     RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.',
@@ -623,6 +630,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     CAPTURE_FILES_MISSING: 'Chưa có dữ liệu M1 đã lưu cho lượt này.',
     CAPTURE_SHOPEE_ROWS_MISSING: 'Dữ liệu M1 đã lưu không có dòng sản phẩm Shopee.',
     CAPTURE_HASH_MISMATCH: 'Dữ liệu M1 đã lưu không khớp mã kiểm tra.',
+    CAPTURE_PERIOD_NOT_SELECTABLE: 'Ngày kết thúc đã chọn vượt quá ngày Metric còn cho chọn.',
     RUN_TRACKING_CHANGED: 'Thông tin lượt đã thay đổi so với lúc lưu nên không đọc lại được.',
     EVIDENCE_FILE_INVALID: 'Tệp bằng chứng đã lưu không đọc được.',
     EVIDENCE_HASH_MISMATCH: 'Tệp bằng chứng đã lưu không khớp mã kiểm tra.',
@@ -2231,6 +2239,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     newBusy: false,
     newSilent: false,
     newLocked: false,
+    newDateSuggestion: null,
     preferredRunId: null,
     flowDialogBinding: null,
     runFilter: 'all',
@@ -4849,13 +4858,44 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
   }
 
+  function dateSuggestion(detail, startDate, endDate) {
+    if (!detail || detail.format !== 'metric-date-availability-v1' || detail.available !== false) return null;
+    var lastSelectableDate = String(detail.lastSelectableDate || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(lastSelectableDate)) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) return null;
+    var days = Math.round((parseIso(endDate) - parseIso(startDate)) / 86400000) + 1;
+    if (!(days >= 1)) return null;
+    var suggestedStart = isoDate(addDays(parseIso(lastSelectableDate), -(days - 1)));
+    return {
+      startDate: suggestedStart,
+      endDate: lastSelectableDate,
+      text: 'Ngày kết thúc ' + fmtDate(endDate) + ' chưa chọn được trên Metric. ' +
+        'Ngày còn chọn được: ' + fmtDate(lastSelectableDate) + '. ' +
+        'Gợi ý kỳ ' + days + ' ngày: từ ' + fmtDate(suggestedStart) + ' đến ' + fmtDate(lastSelectableDate) + '.'
+    };
+  }
+
+  function showNewDateSuggestion(suggestion) {
+    state.newDateSuggestion = { startDate: suggestion.startDate, endDate: suggestion.endDate };
+    $('newDateSuggestionText').textContent = suggestion.text;
+    $('newDateSuggestion').hidden = false;
+  }
+
+  function clearNewDateSuggestion() {
+    state.newDateSuggestion = null;
+    $('newDateSuggestionText').textContent = '';
+    $('newDateSuggestion').hidden = true;
+  }
+
   function showNewError(message) {
     var box = $('newErr');
+    clearNewDateSuggestion();
     box.textContent = message;
     box.hidden = false;
   }
   function clearNewError() {
     var box = $('newErr');
+    clearNewDateSuggestion();
     box.textContent = '';
     box.hidden = true;
   }
@@ -5323,6 +5363,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function markNewFormChanged() {
     if (state.newSilent || state.newLocked) return;
     state.newFormSeq += 1;
+    clearNewDateSuggestion();
     invalidateNewBinding();
     renderNewSummary();
     renderNewResult();
@@ -5479,6 +5520,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (target) target.focus();
   }
 
+  function onApplyDateSuggestion() {
+    var suggestion = state.newDateSuggestion;
+    if (!suggestion || state.newBusy) return;
+    $('startDate').value = suggestion.startDate;
+    $('endDate').value = suggestion.endDate;
+    syncPeriodPreset();
+    windowLine();
+    clearNewError();
+    clearNewNotice();
+    markNewFormChanged();
+    showNewNotice('Đã điền gợi ý ngày. Kiểm tra lại rồi bấm «Tạo lượt».');
+    if (!$('btnNew').disabled) $('btnNew').focus();
+  }
+
   async function onCreate(ev) {
     if (ev) ev.preventDefault();
     if (state.newBusy) return;
@@ -5566,6 +5621,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         var prefix = justSaved
           ? 'Đã lưu sản phẩm “' + justSaved.label + '” nhưng chưa tạo được lượt.'
           : 'Chưa tạo được lượt.';
+        if (errorCode(res.error) === 'CAPTURE_PERIOD_NOT_SELECTABLE') {
+          var suggestion = dateSuggestion(res.error.detail, form.value.startDate, form.value.endDate);
+          if (suggestion) {
+            showNewError(prefix + ' Ngày kết thúc vượt quá ngày Metric còn cho chọn. ' +
+              'Chọn «Dùng gợi ý này» hoặc sửa ngày rồi bấm «Tạo lượt».');
+            showNewDateSuggestion(suggestion);
+          } else {
+            showNewError(prefix + ' Ngày kết thúc đã chọn vượt quá ngày Metric còn cho chọn. ' +
+              'Chọn ngày kết thúc sớm hơn rồi bấm «Tạo lượt».');
+          }
+          return;
+        }
         showNewError(prefix + ' ' + plainError(res.error));
         return;
       }
@@ -5825,6 +5892,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('newRunForm').addEventListener('input', onNewFormInput);
     $('newRunForm').addEventListener('change', onNewFormInput);
     $('btnNewAnother').addEventListener('click', onNewAnother);
+    $('btnApplyDateSuggestion').addEventListener('click', onApplyDateSuggestion);
     bindCaptureSpecToggle($('captureSpecReview'), $('captureSpecBody'), getNewCaptureSpecCtx());
     $('btnFlow').addEventListener('click', onRunFlow);
     $('flowConfirmBtn').addEventListener('click', onFlowConfirm);

@@ -2122,6 +2122,69 @@ test('the end date defaults to local yesterday and later dates are refused local
   } finally { dom.window.close(); }
 });
 
+test('an unavailable Metric latest date keeps the draft and only an explicit suggestion changes the next request', async () => {
+  const requestedStart = localDay(-30);
+  const requestedEnd = localDay(-1);
+  const lastSelectable = localDay(-3);
+  const suggestedStart = localDay(-32);
+  let creates = 0;
+  const { dom, doc, state } = harness({
+    newRunResult: () => {
+      creates += 1;
+      if (creates === 1) {
+        return { ok: false, error: {
+          code: 'CAPTURE_PERIOD_NOT_SELECTABLE', message: 'CAPTURE_PERIOD_NOT_SELECTABLE',
+          detail: { format: 'metric-date-availability-v1', requestedEndDate: requestedEnd,
+            lastSelectableDate: lastSelectable, available: false,
+            errorCode: 'CAPTURE_PERIOD_NOT_SELECTABLE' },
+        } };
+      }
+      return { ok: true, data: { format: 'new-run-v1', runId: 'run-corrected' } };
+    },
+    runInfoByRun: { 'run-corrected': createdRunInfo('run-corrected') },
+  });
+  try {
+    await booted(doc);
+    const start = element<HTMLInputElement>(doc, 'startDate');
+    const end = element<HTMLInputElement>(doc, 'endDate');
+    start.value = requestedStart;
+    end.value = requestedEnd;
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'unavailable create reaches the bridge once');
+
+    assert.equal(state.newRunInputs[0]!.presetId, 'kem');
+    assert.equal(state.newRunInputs[0]!.startDate, requestedStart, 'the rejected create sends the requested start date');
+    assert.equal(state.newRunInputs[0]!.endDate, requestedEnd, 'the rejected create sends the requested end date');
+    assert.equal(start.value, requestedStart, 'the requested start date is not shifted');
+    assert.equal(end.value, requestedEnd, 'the requested end date is not shifted');
+    assertDraftEditable(doc);
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!,
+      /Ngày kết thúc vượt quá ngày Metric còn cho chọn/);
+    const suggestion = element<HTMLElement>(doc, 'newDateSuggestion');
+    assert.equal(suggestion.hidden, false, 'the actual Metric maximum and suggestion are shown');
+    const lastText = lastSelectable.split('-').reverse().join('/');
+    const suggestedStartText = suggestedStart.split('-').reverse().join('/');
+    assert.match(element<HTMLElement>(doc, 'newDateSuggestionText').textContent!,
+      new RegExp('Ngày còn chọn được: ' + lastText + '\\. Gợi ý kỳ 30 ngày: từ ' +
+        suggestedStartText + ' đến ' + lastText));
+
+    element<HTMLButtonElement>(doc, 'btnApplyDateSuggestion').click();
+    assert.equal(start.value, suggestedStart, 'only the explicit suggestion fills the start date');
+    assert.equal(end.value, lastSelectable, 'only the explicit suggestion fills the end date');
+    assert.equal(state.newRunCalls, 1, 'applying the suggestion does not create a run');
+    assert.equal(element<HTMLElement>(doc, 'newErr').hidden, true);
+    assert.equal(suggestion.hidden, true);
+    assert.match(element<HTMLElement>(doc, 'newNotice').textContent!, /Đã điền gợi ý ngày/);
+
+    create(doc);
+    await waitFor(() => state.newRunCalls === 2, 'the corrected explicit create is sent');
+    assert.equal(state.newRunInputs[1]!.startDate, suggestedStart);
+    assert.equal(state.newRunInputs[1]!.endDate, lastSelectable);
+    assert.equal(state.newRunInputs[1]!.metricOptions.smartQuery, true);
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false, 'corrected run is bound');
+  } finally { dom.window.close(); }
+});
+
 test('a created run is selected for tracking and older runs stay listed', async () => {
   const { dom, doc, state } = harness({
     runs: [{ runId: 'run-older', product: 'Lượt cũ', status: 'DONE', request: { format: 'request-v1', reviewCapPerLink: 300 } }],
