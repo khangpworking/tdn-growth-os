@@ -82,6 +82,32 @@ def _safe_filename(name, export_format):
     return stem + extension
 
 
+def _publish_without_replacing(temp_path, destination):
+    """Move a finished file to `destination`, or to `name (N).ext` when that name is taken."""
+    stem, extension = os.path.splitext(destination.name)
+    for number in range(1000):
+        candidate = destination if number == 0 else destination.with_name(f'{stem} ({number}){extension}')
+        try:
+            os.link(temp_path, candidate)
+        except FileExistsError:
+            continue
+        except OSError:
+            # No hard links on this drive: Windows rename never replaces; elsewhere check first.
+            if sys.platform != 'win32' and os.path.lexists(candidate):
+                continue
+            try:
+                os.rename(temp_path, candidate)
+            except FileExistsError:
+                continue
+            return candidate
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass
+        return candidate
+    raise _BridgeFailure('SAVE_FAILED')
+
+
 def _choose_save_path(file_name):
     try:
         import webview
@@ -705,7 +731,8 @@ class Api:
             for export_format, receipt in prepared:
                 destination = Path(folder) / _safe_filename(receipt['fileName'], export_format)
                 try:
-                    self._stream_export(run_id, receipt['exportSha256'], receipt['byteSize'], destination)
+                    destination = self._stream_export(run_id, receipt['exportSha256'], receipt['byteSize'],
+                                                      destination, keep_existing=True)
                 except _BridgeFailure as error:
                     files[export_format] = {'format': export_format, 'saved': False, 'fileName': None,
                                             'errorCode': error.code}
@@ -765,7 +792,7 @@ class Api:
                 type(receipt.get('reused')) is not bool):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
 
-    def _stream_export(self, run_id, digest, byte_size, destination, evidence_kind=None):
+    def _stream_export(self, run_id, digest, byte_size, destination, evidence_kind=None, keep_existing=False):
         folder = destination.parent
         if not folder.is_dir():
             raise _BridgeFailure('SAVE_FAILED')
@@ -857,7 +884,10 @@ class Api:
             if not hmac.compare_digest(hasher.hexdigest(), digest):
                 raise _BridgeFailure('EXPORT_DIGEST_MISMATCH')
             try:
-                os.replace(temp_path, destination)
+                if keep_existing:
+                    destination = _publish_without_replacing(temp_path, destination)
+                else:
+                    os.replace(temp_path, destination)
             except OSError:
                 raise _BridgeFailure('SAVE_FAILED') from None
             succeeded = True
@@ -892,6 +922,7 @@ class Api:
                     temp_path.unlink()
                 except OSError:
                     pass
+        return destination
 
     def library(self):
         return self._safe(lambda: self._remote('library'))

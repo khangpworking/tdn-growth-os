@@ -4307,14 +4307,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         notes.push(prefix + rdBlockText(blockedBy));
         if (blockedBy && blockedBy.code) noteCodes.push(String(blockedBy.code));
       }
-      if (source && !exportFormats(source).length) {
-        addNote('Tải file: ', source.exportBlockedBy || { code: 'SOURCE_NOT_EXPORTABLE' });
-      } else if (source) {
+      if (source) {
+        var noneAvailable = !exportFormats(source).length;
         ['json', 'txt'].forEach(function (format) {
           var availability = source.exportFormats && source.exportFormats[format];
-          if (availability && !availability.canExport) {
-            addNote('File ' + format.toUpperCase() + ': ', availability.blockedBy || { code: 'EXPORT_BLOCKED' });
-          }
+          if (availability ? availability.canExport : !noneAvailable) return;
+          addNote('File ' + format.toUpperCase() + ': ', (availability && availability.blockedBy) ||
+            (noneAvailable && source.exportBlockedBy) ||
+            { code: noneAvailable ? 'SOURCE_NOT_EXPORTABLE' : 'EXPORT_BLOCKED' });
         });
       }
       downloadNote.textContent = notes.join(' · ');

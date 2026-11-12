@@ -62,6 +62,9 @@ if action == 'save-review-data':
     }
     print(json.dumps(out))
     raise SystemExit(0)
+if action == 'export-review-data' and payload['format'] == os.environ.get('BRIDGE_FAIL_FORMAT'):
+    print(json.dumps({'format': 'error-v1', 'code': 'EXPORT_BLOCKED', 'message': 'EXPORT_BLOCKED'}))
+    raise SystemExit(2)
 if action == 'export-review-data':
     out = {
         'format': 'review-data-export-v1', 'runId': run, 'sourceSha256': payload['sourceSha256'],
@@ -127,7 +130,7 @@ class ReviewDataBridgeTest(unittest.TestCase):
         })
         patch.start()
         self.addCleanup(patch.stop)
-        for name in ('BRIDGE_RAW_MODE',):
+        for name in ('BRIDGE_RAW_MODE', 'BRIDGE_FAIL_FORMAT'):
             self.addCleanup(os.environ.pop, name, None)
             os.environ.pop(name, None)
         self.api = tdn_shopee_app.Api()
@@ -298,6 +301,30 @@ class ReviewDataBridgeTest(unittest.TestCase):
         self.assertEqual(result['data']['files'], [
             {'format': 'txt', 'saved': False, 'fileName': None, 'errorCode': 'EXPORT_SOURCE_CHANGED'}])
         self.assertEqual(sorted(self.exports.iterdir()), [])
+
+    def test_one_download_keeps_existing_files_and_saves_under_a_numbered_name(self):
+        self.choose_folder(str(self.exports))
+        (self.exports / 'shopee-run-1.json').write_bytes(b'old')
+        (self.exports / 'shopee-run-1 (1).json').write_bytes(b'older')
+        result = self.api.exportReviewFiles('run-1', {'sourceSha256': SOURCE, 'formats': ['json']})
+        self.assertEqual(result, {'ok': True, 'data': {'cancelled': False, 'files': [
+            {'format': 'json', 'saved': True, 'fileName': 'shopee-run-1 (2).json', 'errorCode': None}]}})
+        self.assertEqual((self.exports / 'shopee-run-1.json').read_bytes(), b'old')
+        self.assertEqual((self.exports / 'shopee-run-1 (1).json').read_bytes(), b'older')
+        self.assertEqual((self.exports / 'shopee-run-1 (2).json').read_bytes(), BODY)
+        self.assertEqual(sorted(path.name for path in self.exports.iterdir()),
+                         ['shopee-run-1 (1).json', 'shopee-run-1 (2).json', 'shopee-run-1.json'])
+
+    def test_one_download_saves_json_and_reports_txt_when_only_txt_fails(self):
+        self.choose_folder(str(self.exports))
+        os.environ['BRIDGE_FAIL_FORMAT'] = 'txt'
+        result = self.api.exportReviewFiles('run-1', {'sourceSha256': SOURCE, 'formats': ['json', 'txt']})
+        self.assertEqual(result, {'ok': True, 'data': {'cancelled': False, 'files': [
+            {'format': 'json', 'saved': True, 'fileName': 'shopee-run-1.json', 'errorCode': None},
+            {'format': 'txt', 'saved': False, 'fileName': None, 'errorCode': 'EXPORT_BLOCKED'},
+        ]}})
+        self.assertEqual(sorted(path.name for path in self.exports.iterdir()), ['shopee-run-1.json'])
+        self.assertEqual((self.exports / 'shopee-run-1.json').read_bytes(), BODY)
 
     def test_one_download_cancel_writes_nothing(self):
         dialog = self.choose_folder(None)
