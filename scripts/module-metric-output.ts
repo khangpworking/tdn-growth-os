@@ -153,21 +153,25 @@ function revenueOrderDescending(raw: unknown, part: Row | null): boolean | null 
   try { rankedMetricProducts(raw, ref); return true; }
   catch (error) { return error instanceof ProductPickError && error.orderBroken ? false : null; }
 }
-function savedProductRows(raw: unknown, part: Row | null): Row[] | null {
+function savedProductRows(raw: unknown, part: Row | null): unknown[] | null {
   const map = productsPart(raw, part)?.sourceMap as Row | undefined;
   const pointer = /^raw-responses\.json#\/(\d+)\/body\/data$/.exec(String(map?.products));
   const response = pointer && Array.isArray(raw) ? raw[Number(pointer[1])] as Row | undefined : undefined;
   const products = ((response?.body as Row | undefined)?.data as Row | undefined)?.products;
-  return Array.isArray(products) ? products.filter((r): r is Row => !!r && typeof r === 'object' && !Array.isArray(r)) : null;
+  return Array.isArray(products) ? products : null;
 }
 const text = (value: unknown) => typeof value === 'string' && value.trim() ? value : null;
-const amount = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value
-  : typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : null;
-/** The link's row in the saved products response, copied as stored; null when the row is not there. */
-function metricProduct(rows: Row[] | null, id: unknown) {
-  const index = rows && typeof id === 'string' ? rows.findIndex(r => r.product_base_id === id) : -1;
+const amount = (value: unknown) => {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+const isRow = (value: unknown): value is Row => !!value && typeof value === 'object' && !Array.isArray(value);
+/** The link's row in the saved products response, copied as stored; null when the row is not there.
+ *  The rank is the row's 1-based position in the saved response, malformed entries included. */
+function metricProduct(rows: unknown[] | null, id: unknown) {
+  const index = rows && typeof id === 'string' ? rows.findIndex(r => isRow(r) && r.product_base_id === id) : -1;
   if (index < 0) return null;
-  const row = rows![index]!;
+  const row = rows![index] as Row;
   const categories = Array.isArray(row.final_categories) ? row.final_categories.flatMap(c =>
     c && typeof c === 'object' && text((c as Row).name) ? [(c as Row).name as string] : []) : [];
   return { rank: index + 1, productName: text(row.product_name), shopName: text(row.shop_name),
@@ -200,7 +204,7 @@ export async function moduleOutputs(runArg: string) {
     revenueOrderDescending: null as boolean | null,
     evidence: { fullPage: unavailable('full-page', 'CAPTURE_FILES_MISSING'), raw: unavailable('raw', 'CAPTURE_FILES_MISSING') } };
   let files = absentFiles('CAPTURE_FILES_MISSING');
-  let productRows: Row[] | null = null;
+  let productRows: unknown[] | null = null;
   try {
     const source = await readPickSource(run, request);
     m1.captureSuccess = source.part ? source.part.captureGate === 'PASSED' : null;

@@ -3049,6 +3049,30 @@ test('B2: a legacy run shows the looked-up Metric row without new-policy check l
   } finally { dom.window.close(); }
 });
 
+test('B3: each sentiment bar segment is as wide as its own percentage of starred comments', async () => {
+  const all = { commentCount: 10, averageStar: 3.2, starCounts: { 1: 0, 2: 0, 3: 9, 4: 1, 5: 0 },
+    firstCommentAt: '2026-11-01T09:00:00+07:00', lastCommentAt: '2026-11-05T09:00:00+07:00' };
+  const stats = { format: 'review-stats-v1', runId: 'run-synthetic', sources: [{
+    sourceSha256: 'c'.repeat(64), kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z', all,
+    links: [{ shopId: '801', itemId: '100', url: 'https://shopee.vn/product/801/100', ...all }],
+  }] };
+  const { doc } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfoByRun: { 'run-synthetic': syntheticRunInfo('run-synthetic') },
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
+    reviewStatsResult: () => ({ ok: true, data: stats }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+    await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 1, 'result run list');
+    doc.querySelector<HTMLButtonElement>('#resultRunList button')!.click();
+    await waitFor(() => doc.getElementById('resultSentiment') !== null, 'overview');
+    assert.equal(element(doc, 'resultSentiment').textContent, 'Đánh giá tích cực 10%Đánh giá tiêu cực 0%');
+    assert.deepEqual([...doc.querySelectorAll<HTMLElement>('#resultOverview .kd-bar i')].map((segment) => segment.style.width), ['10%', '0%']);
+  } finally { doc.defaultView!.close(); }
+});
+
 test('B3: the results tab shows numbers for the run and changes them per product link', async () => {
   const numbers = (count: number, stars: number[], first: string, last: string) => ({
     commentCount: count, averageStar: stars.reduce((sum, n, i) => sum + n * (i + 1), 0) / stars.reduce((a, b) => a + b, 0),
@@ -3098,6 +3122,7 @@ test('B3: the results tab shows numbers for the run and changes them per product
     select.dispatchEvent(new dom.window.Event('change'));
     assert.equal(element(doc, 'resultCount').textContent, '3 bình luận từ 1 link sản phẩm · từ 14/02/2026 đến 01/06/2026');
     assert.equal(element(doc, 'resultSentiment').textContent, 'Đánh giá tích cực 100%Đánh giá tiêu cực 0%');
+    assert.deepEqual([...detail.querySelectorAll<HTMLElement>('.kd-bar i')].map((segment) => segment.style.width), ['100%', '0%']);
     assert.equal(detail.querySelector('.kd-score b')!.textContent, '5,0');
     assert.doesNotMatch(detail.textContent!, /Tóm tắt|Điểm nổi bật/, 'the AI parts wait for an owner decision');
 

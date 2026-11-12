@@ -134,7 +134,7 @@ const fullRow = (i: number, revenue: number): Row => ({
 const jsonText = (value: unknown) => JSON.stringify(value, null, 2) + '\n';
 
 /** The stored legacy layout: request-v1, one raw file under m1/run1, no capture manifest or source map. */
-async function legacyRun(t: any, rows: Row[], keep: (row: Row) => boolean = () => true) {
+async function legacyRun(t: any, rows: Row[], saved: (rows: Row[]) => unknown[] = r => r) {
   const run = await mkdtemp(join(tmpdir(), 'shopee-module-output-'));
   t.after(() => rm(run, { recursive: true, force: true }));
   await writeFile(join(run, 'request.json'), jsonText({ format: 'request-v1', preset: { keywords: ['synthetic term one'] }, principalTitles: [],
@@ -148,8 +148,9 @@ async function legacyRun(t: any, rows: Row[], keep: (row: Row) => boolean = () =
   await writeFile(join(run, 'gates/m1.json'), jsonText({ format: 'handoff-v1', module: 'M1', runId: basename(run), skillVersion: '1.0.0',
     verdict: 'PASS', inputSha256: null, outputSha256: await hashFolder(run, 'm1'), checks: [], errorCode: null, next: null }));
   await main(run);
-  if (!rows.every(keep)) {
-    responses[1]!.body.data = { products: rows.filter(keep) };
+  const products = saved(rows);
+  if (products !== rows) {
+    responses[1]!.body.data = { products } as never;
     await writeFile(join(run, 'm1/run1/raw-responses.json'), jsonText(responses));
   }
   return run;
@@ -201,8 +202,22 @@ test('B2: legacy links are looked up at read time without changing the legacy ve
 
 test('B2: a link whose row is missing from the saved response has no product fields', async t => {
   const rows = [fullRow(0, 900), fullRow(1, 700)];
-  const run = await legacyRun(t, rows, row => row.product_base_id !== rows[1]!.product_base_id);
+  const run = await legacyRun(t, rows, saved => saved.filter(row => row.product_base_id !== rows[1]!.product_base_id));
   const output = await moduleOutputs(run) as any;
   assert.equal(output.m2.links.find((l: any) => l.productBaseId === rows[1]!.product_base_id).metricProduct, null);
   assert.equal(output.m2.links.find((l: any) => l.productBaseId === rows[0]!.product_base_id).metricProduct.rank, 1);
+});
+
+test('B2: the rank is the row position in the saved response, malformed entries included', async t => {
+  const rows = [fullRow(0, 900), fullRow(1, 700)];
+  const run = await legacyRun(t, rows, saved => [null, ...saved]);
+  const output = await moduleOutputs(run) as any;
+  assert.equal(output.m2.links.find((l: any) => l.productBaseId === rows[0]!.product_base_id).metricProduct.rank, 2);
+});
+
+test('B2: a saved number too large to be finite reads as null and the response stays valid', async t => {
+  const rows = [fullRow(0, 900), fullRow(1, 700)];
+  const run = await legacyRun(t, rows, saved => [{ ...saved[0], price: '9'.repeat(400) }, saved[1]]);
+  const product = (await moduleOutputs(run) as any).m2.links.find((l: any) => l.productBaseId === rows[0]!.product_base_id).metricProduct;
+  assert.deepEqual([product.price, product.priceMax], [null, 120_000]);
 });

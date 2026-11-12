@@ -146,8 +146,8 @@ table.wide-products td.pname, table.wide-products td.pcat { white-space: normal;
 .kd-score > .kd-stars { font-size: 20px; letter-spacing: 2px; -webkit-background-clip: text; background-clip: text; color: transparent; }
 .kd-count { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .kd-sent { width: 400px; max-width: 100%; }
-.kd-bar { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 6px; }
-.kd-bar i { height: 14px; border-radius: 3px; }
+.kd-bar { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 6px; }
+.kd-bar i { flex: none; height: 14px; border-radius: 3px; }
 .kd-legend { display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; }
 .kd-legend em { font-style: normal; display: inline-flex; align-items: center; gap: 6px; }
 .kd-legend em::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
@@ -4786,9 +4786,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var negative = (starCounts[1] || 0) + (starCounts[2] || 0);
       var sentiment = h('div', 'kd-sent');
       var bar = h('div', 'kd-bar');
+      // Each width is its own share of all starred comments; the 3-star share stays as empty track.
       [[positive, 'var(--ok)'], [negative, 'var(--stop)']].forEach(function (part) {
         var segment = h('i');
-        segment.style.flex = String(part[0]);
+        segment.style.width = (part[0] / rated * 100) + '%';
         segment.style.background = part[1];
         bar.appendChild(segment);
       });
