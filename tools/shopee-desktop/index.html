@@ -86,7 +86,7 @@ select, input { font: inherit; color: var(--fg); background: var(--panel); borde
 @media (max-width: 880px) { .track { grid-template-columns: minmax(0, 1fr); } }
 .runs { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; align-content: start; }
 .runs h2 { margin: 0; font-size: 15px; }
-#runList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.run-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .runbtn { width: 100%; text-align: left; display: grid; gap: 3px; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; cursor: pointer; }
 .runbtn:hover { border-color: var(--accent); }
 .runbtn.on { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); background: var(--accent-tint); }
@@ -491,7 +491,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
               <option value="idle">Chưa chạy</option>
             </select>
           </label>
-          <ol id="runList"></ol>
+          <ol id="runList" class="run-list"></ol>
           <p class="muted" id="runsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
         <section class="detail" id="runDetail" aria-live="polite">
@@ -504,7 +504,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       <div class="track">
         <aside class="runs">
           <h2>Các lượt đã tạo</h2>
-          <ol id="resultRunList"></ol>
+          <ol id="resultRunList" class="run-list"></ol>
           <p class="muted" id="resultRunsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
         <section class="detail" id="resultDetail" aria-live="polite">
