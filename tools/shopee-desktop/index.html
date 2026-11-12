@@ -134,6 +134,23 @@ select, input { font: inherit; color: var(--fg); background: var(--panel); borde
 .mm code { font-size: 12px; }
 
 .tw { overflow-x: auto; }
+table.wide-products { min-width: 2150px; }
+table.wide-products td, table.wide-products th { white-space: nowrap; }
+table.wide-products .pname { min-width: 300px; }
+table.wide-products .pcat { min-width: 220px; }
+table.wide-products td.pname, table.wide-products td.pcat { white-space: normal; }
+.kd-head { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; }
+.kd-score { display: flex; align-items: baseline; gap: 8px; }
+.kd-score b { font-size: 34px; font-weight: 700; line-height: 1.1; }
+.kd-score > span { font-size: 26px; color: var(--muted); }
+.kd-score > .kd-stars { font-size: 20px; letter-spacing: 2px; -webkit-background-clip: text; background-clip: text; color: transparent; }
+.kd-count { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.kd-sent { width: 400px; max-width: 100%; }
+.kd-bar { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 6px; }
+.kd-bar i { height: 14px; border-radius: 3px; }
+.kd-legend { display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; }
+.kd-legend em { font-style: normal; display: inline-flex; align-items: center; gap: 6px; }
+.kd-legend em::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
 table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 13px; }
 th, td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); }
 th { font-size: 11.5px; font-weight: 600; color: var(--muted); }
@@ -294,6 +311,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   <nav class="tabs" role="tablist" aria-label="Màn hình">
     <button type="button" role="tab" data-screen="new" aria-selected="true">Tạo lượt mới</button>
     <button type="button" role="tab" data-screen="track" aria-selected="false">Chi tiết lịch sử lượt chạy</button>
+    <button type="button" role="tab" data-screen="result" aria-selected="false">Kết quả chạy</button>
     <button type="button" role="tab" data-screen="lib" aria-selected="false">Tài liệu kỹ thuật</button>
   </nav>
 
@@ -477,6 +495,19 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           <p class="muted" id="runsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
         <section class="detail" id="runDetail" aria-live="polite">
+          <p class="muted">Chọn một lượt ở cột bên trái để xem.</p>
+        </section>
+      </div>
+    </section>
+
+    <section id="scr-result" aria-label="Kết quả chạy" hidden>
+      <div class="track">
+        <aside class="runs">
+          <h2>Các lượt đã tạo</h2>
+          <ol id="resultRunList"></ol>
+          <p class="muted" id="resultRunsEmpty" hidden>Chưa có lượt nào.</p>
+        </aside>
+        <section class="detail" id="resultDetail" aria-live="polite">
           <p class="muted">Chọn một lượt ở cột bên trái để xem.</p>
         </section>
       </div>
@@ -1649,6 +1680,68 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         errorCode: errorCode };
     }
 
+    // Synthetic numbers only, shaped like review-stats-v1.
+    function mockReviewNumbers(count, seed) {
+      var stars = [0, Math.min(count, seed % 2), 0, Math.round(count * 0.1), 0];
+      stars[4] = Math.max(0, count - stars[1] - stars[3]);
+      var rated = stars.reduce(function (sum, n) { return sum + n; }, 0);
+      return {
+        commentCount: count,
+        averageStar: rated ? stars.reduce(function (sum, n, i) { return sum + n * (i + 1); }, 0) / rated : null,
+        starCounts: { 1: stars[0], 2: stars[1], 3: stars[2], 4: stars[3], 5: stars[4] },
+        firstCommentAt: count ? '2026-02-14T09:30:00+07:00' : null,
+        lastCommentAt: count ? '2026-11-05T20:15:00+07:00' : null
+      };
+    }
+
+    function mockReviewStats(run) {
+      return {
+        format: 'review-stats-v1',
+        runId: run.runId,
+        sources: reviewSources(run).map(function (source) {
+          var links = source.links.map(function (link, index) {
+            var numbers = mockReviewNumbers(link.actual || 0, index + 1);
+            return Object.assign({ shopId: link.shopId, itemId: link.itemId, url: link.url }, numbers);
+          });
+          var all = mockReviewNumbers(0, 0);
+          links.forEach(function (link) {
+            all.commentCount += link.commentCount;
+            [1, 2, 3, 4, 5].forEach(function (star) { all.starCounts[star] += link.starCounts[star]; });
+          });
+          var rated = [1, 2, 3, 4, 5].reduce(function (sum, star) { return sum + all.starCounts[star]; }, 0);
+          all.averageStar = rated ? [1, 2, 3, 4, 5].reduce(function (sum, star) {
+            return sum + star * all.starCounts[star];
+          }, 0) / rated : null;
+          all.firstCommentAt = all.commentCount ? '2026-02-14T09:30:00+07:00' : null;
+          all.lastCommentAt = all.commentCount ? '2026-11-05T20:15:00+07:00' : null;
+          return {
+            sourceSha256: source.sourceSha256, kind: source.kind, status: source.status,
+            completedAt: source.completedAt, all: all, links: links
+          };
+        })
+      };
+    }
+
+    var MOCK_METRIC_PRODUCTS = [
+      ['Sản phẩm mẫu A – Viên uống bổ sung 30 viên', 'Shop mẫu Một', 1, 'Nhãn mẫu A', 350000, 266600, 419000, 21, 9],
+      ['Sản phẩm mẫu B – Viên uống bổ sung 60 viên', 'Shop mẫu Hai', 0, 'Nhãn mẫu B', 289000, 249000, 289000, 17, 12],
+      ['Sản phẩm mẫu C – Hộp 2 lọ', 'Shop mẫu Ba', 1, 'Nhãn mẫu C', 699000, 515000, 699000, 11, 8],
+      ['Sản phẩm mẫu D – Lọ 90 viên', 'Shop mẫu Bốn', 0, 'Nhãn mẫu D', 199000, 179000, 219000, 9, 4],
+      ['Sản phẩm mẫu E – Combo 3 lọ', 'Shop mẫu Năm', 1, 'Nhãn mẫu E', 1250000, 1100000, 1250000, 5, 6]
+    ];
+
+    function mockMetricProduct(link, index) {
+      var row = MOCK_METRIC_PRODUCTS[index % MOCK_METRIC_PRODUCTS.length];
+      return {
+        rank: [5, 7, 12, 19, 23][index % 5], productName: row[0], shopName: row[1], officialType: row[2], brand: row[3],
+        categories: ['Sức Khỏe', 'Thực phẩm chức năng', 'Hỗ trợ sức khỏe'],
+        price: row[4], priceMin: row[5], priceMax: row[6],
+        periodRevenue: link.revenue, previousRevenue: Math.round(link.revenue * 0.6),
+        periodSold: row[7] * 10, previousSold: row[8] * 10, totalRevenue: link.revenue * 3, totalSold: row[7] * 30,
+        ratingAvg: 4.9 - index * 0.1, ratingCount: 30 + index * 4, listedAt: '2026-01-' + pad(13 + index) + ' 09:00:00'
+      };
+    }
+
     function mockModuleOutputs(run) {
       var request = run.request || {};
       var selection = run.selection || null;
@@ -1664,6 +1757,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           keywords: request.preset && Array.isArray(request.preset.keywords) ? request.preset.keywords.slice() : [],
           period: window && window.period ? clone(window.period) : null,
           shopeeRowCount: selection ? selection.counts.walked : null,
+          revenueOrderDescending: m1Pass ? true : null,
           evidence: {
             fullPage: mockDescriptor('full-page', 'LEGACY_EVIDENCE_UNBOUND'),
             raw: mockDescriptor('raw', 'LEGACY_EVIDENCE_UNBOUND')
@@ -1677,13 +1771,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           selectedCount: selection ? selection.links.length : null,
           shortageReason: null,
           errorCode: selection ? null : 'SELECTION_MISSING',
-          links: selection ? selection.links.map(function (link) {
+          links: selection ? selection.links.map(function (link, index) {
             var row = clone(link);
             row.sourceRank = null;
             row.productName = null;
             row.shopName = null;
             row.groupKey = null;
             row.groupingBasis = null;
+            row.metricProduct = mockMetricProduct(link, index);
             return row;
           }) : [],
           skipped: [],
@@ -2023,6 +2118,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         return Promise.resolve(ok(reviewDataView(run)));
       },
+      reviewStats: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(ok(mockReviewStats(run)));
+      },
       saveReviewData: function (runId, input) {
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
@@ -2246,6 +2346,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         return call('reconcileReviewAttempt', [runId, kind, attemptId]);
       },
       reviewData: function (runId) { return call('reviewData', [runId]); },
+      reviewStats: function (runId) { return call('reviewStats', [runId]); },
       saveReviewData: function (runId, input) { return call('saveReviewData', [runId, input]); },
       exportReviewFiles: function (runId, input) { return call('exportReviewFiles', [runId, input]); },
       library: function () { return call('library', []); }
@@ -2294,6 +2395,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     moduleOutputs: {},
     moduleOutputsErrors: {},
     moduleOutputsSeq: {},
+    reviewStats: {},
+    reviewStatsErrors: {},
+    reviewStatsSeq: {},
+    resultLink: {},
     moduleEvidenceBusy: {},
     moduleEvidenceErrors: {},
     moduleEvidenceNotice: {},
@@ -2662,8 +2767,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     captureRow.id = 'moM1Capture';
     var dataRow = outputResultRow(valid, 'Dữ liệu thu thập được đúng yêu cầu đầu vào');
     dataRow.id = 'moM1Data';
+    var orderRow = outputResultRow(m1.revenueOrderDescending,
+      'Xếp doanh số top sản phẩm bán chạy theo thứ tự giảm dần');
+    orderRow.id = 'moM1Order';
     rows.appendChild(captureRow);
     rows.appendChild(dataRow);
+    rows.appendChild(orderRow);
     card.appendChild(rows);
 
     var facts = h('dl', 'gkv');
@@ -2709,23 +2818,63 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return link;
   }
 
+  var SHOP_TYPE_TEXT = { 0: 'Thông thường', 1: 'Mall' };
+
+  function present(value) { return value !== null && value !== undefined; }
+
+  function decimalText(value) {
+    return typeof value === 'number' && isFinite(value)
+      ? value.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : 'Chưa có';
+  }
+
+  function metricCountText(value) { return present(value) ? fmtInt(value) : 'Chưa có'; }
+
+  function priceRangeText(product) {
+    if (!present(product.priceMin) || !present(product.priceMax)) return 'Chưa có';
+    return fmtInt(product.priceMin) + ' – ' + fmtInt(product.priceMax) + ' đ';
+  }
+
+  function listedText(value) {
+    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value) ? fmtDate(value.slice(0, 10)) : 'Chưa có';
+  }
+
+  // Columns follow Metric «Top Products». Values come from the saved Metric row (metricProduct);
+  // rank, name, shop, brand and revenue fall back to the link itself when that row is not sent.
+  var M2_COLUMNS = [
+    ['Hạng trên nguồn Metric', 'num', function (p, l) { var v = present(p.rank) ? p.rank : l.sourceRank; return present(v) ? String(v) : 'Chưa có'; }],
+    ['Tên sản phẩm', 'pname', function (p, l) { return p.productName || l.productName || 'Chưa có'; }],
+    ['Shop', null, function (p, l) { return p.shopName || l.shopName || 'Chưa có'; }],
+    ['Loại shop', null, function (p) { return SHOP_TYPE_TEXT[p.officialType] || 'Chưa có'; }],
+    ['Thương hiệu', null, function (p, l) { return p.brand || l.brand || 'Chưa có'; }],
+    ['Ngành hàng', 'pcat', function (p) { return Array.isArray(p.categories) && p.categories.length ? p.categories.join(' › ') : 'Chưa có'; }],
+    ['Giá', 'num', function (p) { return money(p.price); }],
+    ['Khoảng giá', 'num', priceRangeText],
+    ['Doanh số trong kỳ', 'num', function (p, l) { return money(present(p.periodRevenue) ? p.periodRevenue : l.revenue); }],
+    ['Doanh số kỳ trước', 'num', function (p) { return money(p.previousRevenue); }],
+    ['Đã bán trong kỳ', 'num', function (p) { return metricCountText(p.periodSold); }],
+    ['Đã bán kỳ trước', 'num', function (p) { return metricCountText(p.previousSold); }],
+    ['Tổng doanh số', 'num', function (p) { return money(p.totalRevenue); }],
+    ['Tổng đã bán', 'num', function (p) { return metricCountText(p.totalSold); }],
+    ['Điểm đánh giá', 'num', function (p) { return decimalText(p.ratingAvg); }],
+    ['Số đánh giá', 'num', function (p) { return metricCountText(p.ratingCount); }],
+    ['Ngày đăng bán', null, function (p) { return listedText(p.listedAt); }]
+  ];
+
   function moduleSelectionTable(links, runId) {
     var wrap = h('div', 'tw');
-    var table = h('table');
+    wrap.id = 'moM2Scroll';
+    var table = h('table', 'wide-products');
     var thead = h('thead');
     var head = h('tr');
-    ['Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Doanh số trong kỳ', 'Link Shopee']
-      .forEach(function (label) { head.appendChild(h('th', null, label)); });
+    M2_COLUMNS.forEach(function (column) { head.appendChild(h('th', column[1], column[0])); });
+    head.appendChild(h('th', null, 'Link Shopee'));
     thead.appendChild(head);
     table.appendChild(thead);
     var body = h('tbody');
     links.forEach(function (link) {
       var row = h('tr');
-      row.appendChild(h('td', 'num', link.sourceRank === null || link.sourceRank === undefined
-        ? 'Chưa có' : String(link.sourceRank)));
-      row.appendChild(h('td', null, link.productName ? String(link.productName) : 'Chưa có'));
-      row.appendChild(h('td', null, link.shopName ? String(link.shopName) : 'Chưa có'));
-      row.appendChild(h('td', 'num', money(link.revenue)));
+      var product = link.metricProduct || {};
+      M2_COLUMNS.forEach(function (column) { row.appendChild(h('td', column[1], column[2](product, link))); });
       var url = h('td');
       if (link.url) url.appendChild(shopeeLinkNode(String(link.url), runId));
       else url.textContent = 'Chưa có';
@@ -2874,8 +3023,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (m2.errorCode && m2.errorCode !== m2.shortageReason) card.appendChild(outputErrorBar(m2.errorCode));
 
     var links = Array.isArray(m2.links) ? m2.links : [];
-    if (links.length) card.appendChild(moduleSelectionTable(links, runId));
-    else if (!legacy && m2.errorCode !== 'SELECTION_MISSING') {
+    if (links.length) {
+      card.appendChild(moduleSelectionTable(links, runId));
+      card.appendChild(h('p', 'rs-note', 'Kéo ngang để xem đủ các cột.'));
+    } else if (!legacy && m2.errorCode !== 'SELECTION_MISSING') {
       card.appendChild(h('p', 'muted', 'Chưa có link nào đã chọn.'));
     }
 
@@ -3173,6 +3324,23 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       delete state.moduleOutputsErrors[runId];
     }
     if (state.selectedRunId === runId) renderDetail();
+  }
+
+  async function loadReviewStats(runId) {
+    var seq = (state.reviewStatsSeq[runId] || 0) + 1;
+    state.reviewStatsSeq[runId] = seq;
+    var res = await api.reviewStats(runId);
+    if (seq !== state.reviewStatsSeq[runId] || state.selectedRunId !== runId) return;
+    if (!res.ok) {
+      state.reviewStatsErrors[runId] = res.error;
+    } else if (!res.data || res.data.format !== 'review-stats-v1' || res.data.runId !== runId ||
+        !Array.isArray(res.data.sources)) {
+      state.reviewStatsErrors[runId] = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
+    } else {
+      state.reviewStats[runId] = res.data;
+      delete state.reviewStatsErrors[runId];
+    }
+    renderResult();
   }
 
   async function openPanelEvidence(runId, descriptor) {
@@ -4552,7 +4720,158 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       observed.length + '/' + links.length + ' link; các link còn lại chưa có số liệu.';
   }
 
+  // The result step 3 has selected, else the newest finished one, else the newest.
+  function resultSource(view, runId) {
+    var sources = (view && view.sources) || [];
+    var chosen = state.reviewSelection[runId];
+    var match = sources.find(function (source) { return source.sourceSha256 === chosen; });
+    if (match) return match;
+    function stamp(source) {
+      var parsed = Date.parse(source.completedAt || '');
+      return isNaN(parsed) ? -1 : parsed;
+    }
+    var done = sources.filter(function (source) { return source.status === 'SUCCEEDED'; });
+    var pool = done.length ? done : sources;
+    return pool.slice().sort(function (left, right) { return stamp(right) - stamp(left); })[0] || null;
+  }
+
+  function percentText(part, whole) {
+    return (whole ? part / whole * 100 : 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + '%';
+  }
+
+  function resultLinkName(runId, link) {
+    var outputs = state.moduleOutputs[runId];
+    var links = outputs && outputs.m2 && Array.isArray(outputs.m2.links) ? outputs.m2.links : [];
+    var match = links.find(function (item) { return item.url === link.url; });
+    var product = match && match.metricProduct;
+    return (product && product.productName) || (match && match.productName) || link.url;
+  }
+
+  function reviewOverviewCard(source, runId) {
+    var links = Array.isArray(source.links) ? source.links : [];
+    var picked = links.find(function (link) { return link.url === state.resultLink[runId]; }) || null;
+    var numbers = picked || source.all;
+    var card = h('article', 'mod');
+    card.id = 'resultOverview';
+    var head = h('div', 'mh');
+    head.appendChild(h('h3', null, 'Tổng quan bình luận Shopee'));
+    card.appendChild(head);
+
+    var top = h('div', 'kd-head');
+    var left = h('div');
+    var score = h('div', 'kd-score');
+    var average = typeof numbers.averageStar === 'number' ? numbers.averageStar : null;
+    score.appendChild(h('b', null, average === null ? 'Chưa có'
+      : average.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })));
+    score.appendChild(h('span', null, '/ 5'));
+    var stars = h('span', 'kd-stars', '★★★★★');
+    var fill = average === null ? 0 : Math.round(average / 5 * 1000) / 10;
+    stars.style.backgroundImage = 'linear-gradient(90deg,#f5a524 ' + fill + '%,var(--line) ' + fill + '%)';
+    stars.setAttribute('aria-hidden', 'true');
+    score.appendChild(stars);
+    left.appendChild(score);
+    var countLine = fmtInt(numbers.commentCount) + ' bình luận từ ' + fmtInt(picked ? 1 : links.length) + ' link sản phẩm';
+    if (numbers.firstCommentAt && numbers.lastCommentAt) {
+      countLine += ' · từ ' + vnStamp(numbers.firstCommentAt).slice(0, 10) + ' đến ' + vnStamp(numbers.lastCommentAt).slice(0, 10);
+    }
+    var count = h('div', 'kd-count', countLine);
+    count.id = 'resultCount';
+    left.appendChild(count);
+    top.appendChild(left);
+
+    var starCounts = numbers.starCounts || {};
+    var rated = [1, 2, 3, 4, 5].reduce(function (sum, star) { return sum + (starCounts[star] || 0); }, 0);
+    if (rated) {
+      var positive = (starCounts[4] || 0) + (starCounts[5] || 0);
+      var negative = (starCounts[1] || 0) + (starCounts[2] || 0);
+      var sentiment = h('div', 'kd-sent');
+      var bar = h('div', 'kd-bar');
+      [[positive, 'var(--ok)'], [negative, 'var(--stop)']].forEach(function (part) {
+        var segment = h('i');
+        segment.style.flex = String(part[0]);
+        segment.style.background = part[1];
+        bar.appendChild(segment);
+      });
+      sentiment.appendChild(bar);
+      var legend = h('div', 'kd-legend');
+      legend.id = 'resultSentiment';
+      [['Đánh giá tích cực', positive, 'var(--ok)'], ['Đánh giá tiêu cực', negative, 'var(--stop)']].forEach(function (part) {
+        var item = h('em', null, part[0] + ' ');
+        item.style.setProperty('--c', part[2]);
+        item.appendChild(h('b', null, percentText(part[1], rated)));
+        legend.appendChild(item);
+      });
+      sentiment.appendChild(legend);
+      top.appendChild(sentiment);
+    }
+    card.appendChild(top);
+
+    var field = h('label', 'field');
+    field.appendChild(h('span', null, 'Link sản phẩm'));
+    var select = h('select');
+    select.id = 'resultLinkSelect';
+    var all = h('option', null, 'Tất cả ' + fmtInt(links.length) + ' link sản phẩm');
+    all.value = '';
+    select.appendChild(all);
+    links.forEach(function (link) {
+      var option = h('option', null, resultLinkName(runId, link) + ' (' + fmtInt(link.commentCount) + ' bình luận)');
+      option.value = link.url;
+      select.appendChild(option);
+    });
+    select.value = picked ? picked.url : '';
+    select.addEventListener('change', function () {
+      state.resultLink[runId] = select.value || null;
+      renderResult();
+      var again = $('resultLinkSelect');
+      if (again) again.focus();
+    });
+    field.appendChild(select);
+    card.appendChild(field);
+    return card;
+  }
+
+  function renderResult() {
+    var root = $('resultDetail');
+    clear(root);
+    var info = state.info;
+    if (!info) {
+      root.appendChild(h('p', 'muted', state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chủ.'));
+      return;
+    }
+    var runId = info.runId;
+    var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
+    var tracking = info.tracking || item.tracking || null;
+    var exec = executionOf(info);
+    var meta = requestMeta(info.request || item.request || null);
+    var head = h('div', 'dhead');
+    head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + runId))));
+    head.appendChild(statusChip(exec ? exec.status : (info.state && info.state.status), tracking));
+    root.appendChild(head);
+
+    var failure = state.reviewStatsErrors[runId];
+    if (failure) {
+      var bar = h('p', 'errbar local-error', plainError(failure));
+      bar.title = failure.code || '';
+      root.appendChild(bar);
+      return;
+    }
+    var view = state.reviewStats[runId];
+    if (!view) {
+      root.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
+      return;
+    }
+    var source = resultSource(view, runId);
+    if (!source || !source.all || !source.all.commentCount) {
+      var none = h('p', 'muted', 'Lượt này chưa có bình luận.');
+      none.id = 'resultEmpty';
+      root.appendChild(none);
+      return;
+    }
+    root.appendChild(reviewOverviewCard(source, runId));
+  }
+
   function renderDetail() {
+    renderResult();
     var root = $('runDetail');
     clear(root);
     var info = state.info;
@@ -4668,33 +4987,38 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   };
 
   function renderRunList() {
-    var list = $('runList');
-    clear(list);
-    var allowed = RUN_FILTERS[state.runFilter] || null;
+    // The filter control lives on the history tab only, so the results tab lists every run.
+    var allowed = state.screen === 'result' ? null : RUN_FILTERS[state.runFilter] || null;
     var shown = state.runs.filter(function (run) {
       return !allowed || allowed.indexOf(run.status) !== -1;
     });
-    shown.forEach(function (run) {
-      var li = h('li');
-      var btn = h('button', 'runbtn' + (run.runId === state.selectedRunId ? ' on' : ''));
-      btn.type = 'button';
-      var tracking = runTracking(run);
-      btn.appendChild(h('span', 'rname', runDisplayName(tracking, run.product || run.runId)));
-      var info = requestMeta(run.request);
-      var meta = h('span', 'rmeta');
-      meta.appendChild(statusChip(run.status, tracking));
-      if (info.period !== 'Chưa có') meta.appendChild(h('span', 'muted', info.period));
-      if (info.quantity !== 'Chưa có') meta.appendChild(h('span', 'muted', info.quantity));
-      btn.appendChild(meta);
-      btn.title = 'Mã lượt ' + run.runId;
-      btn.addEventListener('click', function () { selectRun(run.runId); });
-      li.appendChild(btn);
-      list.appendChild(li);
+    // «Kết quả chạy» shows the same run list as «Chi tiết lịch sử lượt chạy»; only the visible tab holds it.
+    clear($(state.screen === 'result' ? 'runList' : 'resultRunList'));
+    [state.screen === 'result' ? ['resultRunList', 'resultRunsEmpty'] : ['runList', 'runsEmpty']].forEach(function (ids) {
+      var list = $(ids[0]);
+      clear(list);
+      shown.forEach(function (run) {
+        var li = h('li');
+        var btn = h('button', 'runbtn' + (run.runId === state.selectedRunId ? ' on' : ''));
+        btn.type = 'button';
+        var tracking = runTracking(run);
+        btn.appendChild(h('span', 'rname', runDisplayName(tracking, run.product || run.runId)));
+        var info = requestMeta(run.request);
+        var meta = h('span', 'rmeta');
+        meta.appendChild(statusChip(run.status, tracking));
+        if (info.period !== 'Chưa có') meta.appendChild(h('span', 'muted', info.period));
+        if (info.quantity !== 'Chưa có') meta.appendChild(h('span', 'muted', info.quantity));
+        btn.appendChild(meta);
+        btn.title = 'Mã lượt ' + run.runId;
+        btn.addEventListener('click', function () { selectRun(run.runId); });
+        li.appendChild(btn);
+        list.appendChild(li);
+      });
+      if (!shown.length && state.runs.length) {
+        list.appendChild(h('li', 'muted', 'Không có lượt phù hợp với bộ lọc.'));
+      }
+      $(ids[1]).hidden = state.runs.length > 0;
     });
-    if (!shown.length && state.runs.length) {
-      list.appendChild(h('li', 'muted', 'Không có lượt phù hợp với bộ lọc.'));
-    }
-    $('runsEmpty').hidden = state.runs.length > 0;
   }
 
   async function refreshRuns() {
@@ -4732,6 +5056,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       loadSampling(runId);
       loadReviewData(runId);
       loadModuleOutputs(runId);
+      if (state.screen === 'result') loadReviewStats(runId);
     }
   }
 
@@ -5970,7 +6295,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     Array.prototype.forEach.call(tabs, function (b) {
       b.setAttribute('aria-selected', String(b.dataset.screen === name));
     });
-    ['new', 'track', 'lib'].forEach(function (n) { $('scr-' + n).hidden = n !== name; });
+    ['new', 'track', 'result', 'lib'].forEach(function (n) { $('scr-' + n).hidden = n !== name; });
   }
 
   async function openTrack() {
@@ -5993,7 +6318,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (b) {
       b.addEventListener('click', function () {
         showScreen(b.dataset.screen);
-        if (b.dataset.screen === 'track') openTrack();
+        if (b.dataset.screen === 'track' || b.dataset.screen === 'result') openTrack();
         if (b.dataset.screen === 'lib') openLibrary();
       });
     });
