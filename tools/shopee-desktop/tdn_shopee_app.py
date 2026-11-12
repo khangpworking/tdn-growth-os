@@ -18,6 +18,7 @@ _RUN_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}')
 _PLAN_SHA = re.compile(r'[0-9a-f]{64}')
 _REMOTE_PATH = re.compile(r'(\$HOME/)?[A-Za-z0-9_./-]+')
 _STATIC_ERROR = re.compile(r'[A-Z][A-Z0-9_]{0,63}')
+_SHOPEE_LINK = re.compile(r"https://shopee\.vn/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{0,2000}")
 EXPORT_MAX_BYTES = 64 * 1024 * 1024
 EXPORT_ERROR_MAX_BYTES = 64 * 1024
 _COMMANDS = {
@@ -96,6 +97,32 @@ def _choose_save_path(file_name):
             selected = window.create_file_dialog(dialog_type, save_filename=file_name)
         else:
             selected = webview.create_file_dialog(dialog_type, save_filename=file_name)
+    except Exception:
+        raise _BridgeFailure('SAVE_DIALOG_FAILED') from None
+    if isinstance(selected, (list, tuple)):
+        selected = selected[0] if selected else None
+    if selected is None or selected == '':
+        return None
+    if not isinstance(selected, (str, os.PathLike)):
+        raise _BridgeFailure('SAVE_DIALOG_FAILED')
+    return os.fspath(selected)
+
+
+def _choose_save_folder():
+    try:
+        import webview
+    except ImportError:
+        raise _BridgeFailure('SAVE_DIALOG_UNAVAILABLE') from None
+    try:
+        dialog_type = getattr(webview, 'FOLDER_DIALOG', None)
+        if dialog_type is None:
+            dialog_type = getattr(getattr(webview, 'FileDialog', None), 'FOLDER')
+        windows = getattr(webview, 'windows', None)
+        window = windows[0] if windows else None
+        if window is not None and hasattr(window, 'create_file_dialog'):
+            selected = window.create_file_dialog(dialog_type)
+        else:
+            selected = webview.create_file_dialog(dialog_type)
     except Exception:
         raise _BridgeFailure('SAVE_DIALOG_FAILED') from None
     if isinstance(selected, (list, tuple)):
@@ -646,6 +673,62 @@ class Api:
         self._stream_export(run_id, receipt['exportSha256'], receipt['byteSize'], destination)
         return {'ok': True, 'data': {'receipt': receipt, 'fileName': destination.name,
                                      'saved': True, 'cancelled': False}}
+
+    def exportReviewFiles(self, runId=None, input=None):
+        return self._safe(lambda: self._export_review_files(runId, input))
+
+    def _export_review_files(self, run_id, value):
+        if (not isinstance(value, dict) or set(value) != {'sourceSha256', 'formats'} or
+                not isinstance(value['formats'], list) or not value['formats'] or
+                len(set(value['formats'])) != len(value['formats']) or
+                any(item not in ('json', 'txt') for item in value['formats'])):
+            raise _BridgeFailure('ARG_INVALID')
+        source = self._sha256(value['sourceSha256'])
+        files, prepared = {}, []
+        for export_format in value['formats']:
+            payload = {'sourceSha256': source, 'format': export_format}
+            try:
+                result = self._remote('exportReviewData', run_id=run_id, payload=payload)
+                if not result['ok']:
+                    raise _BridgeFailure(result['error']['code'])
+                self._check_export_receipt(result['data'], run_id, payload)
+            except _BridgeFailure as error:
+                files[export_format] = {'format': export_format, 'saved': False, 'fileName': None,
+                                        'errorCode': error.code}
+                continue
+            prepared.append((export_format, result['data']))
+        if prepared:
+            folder = _choose_save_folder()
+            if folder is None:
+                return {'ok': True, 'data': {'cancelled': True,
+                                             'files': [files[item] for item in value['formats'] if item in files]}}
+            for export_format, receipt in prepared:
+                destination = Path(folder) / _safe_filename(receipt['fileName'], export_format)
+                try:
+                    self._stream_export(run_id, receipt['exportSha256'], receipt['byteSize'], destination)
+                except _BridgeFailure as error:
+                    files[export_format] = {'format': export_format, 'saved': False, 'fileName': None,
+                                            'errorCode': error.code}
+                    continue
+                files[export_format] = {'format': export_format, 'saved': True,
+                                        'fileName': destination.name, 'errorCode': None}
+        return {'ok': True, 'data': {'cancelled': False,
+                                     'files': [files[item] for item in value['formats']]}}
+
+    def openShopeeLink(self, url=None):
+        return self._safe(lambda: self._open_shopee_link(url))
+
+    def _open_shopee_link(self, url):
+        if not isinstance(url, str) or not _SHOPEE_LINK.fullmatch(url):
+            raise _BridgeFailure('LINK_NOT_ALLOWED')
+        import webbrowser
+        try:
+            opened = webbrowser.open(url, new=2)
+        except Exception:
+            opened = False
+        if not opened:
+            raise _BridgeFailure('LINK_OPEN_FAILED')
+        return {'ok': True, 'data': {'opened': True}}
 
     def _review_source_input(self, value):
         if not isinstance(value, dict) or set(value) != {'sourceSha256'}:

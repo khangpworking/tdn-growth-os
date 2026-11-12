@@ -65,7 +65,7 @@ function harness(options: {
     reviewDataView: any;
     reviewDataByRun: Record<string, any>;
     saveReviewDataCalls: any[];
-    exportReviewDataCalls: any[];
+    exportReviewFilesCalls: any[];
     exportReviewResult: ((runId: string, input: any) => any) | undefined;
     saveCalls: any[];
     launchCalls: any[];
@@ -77,6 +77,7 @@ function harness(options: {
     captureSpecsResult: ((runId: string, call: number) => any | Promise<any> | undefined) | undefined;
     moduleOutputsCalls: string[];
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
+    openLinkCalls: string[];
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
@@ -92,7 +93,7 @@ function harness(options: {
     reviewDataView: options.reviewData ? clone(options.reviewData) : undefined,
     reviewDataByRun: options.reviewDataByRun ? clone(options.reviewDataByRun) : {},
     saveReviewDataCalls: [],
-    exportReviewDataCalls: [],
+    exportReviewFilesCalls: [],
     exportReviewResult: options.exportReviewResult,
     saveCalls: [], launchCalls: [], controlCalls: [],
     refreshCountResult: options.refreshCountResult,
@@ -102,6 +103,7 @@ function harness(options: {
     captureSpecsResult: options.captureSpecsResult,
     moduleOutputsCalls: [],
     openEvidenceCalls: [],
+    openLinkCalls: [],
   };
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
@@ -149,6 +151,10 @@ function harness(options: {
       if (options.openModuleEvidenceResult) return options.openModuleEvidenceResult(runId, kind, sha256);
       return { ok: true, data: { format: 'module-evidence-open-v1', runId, kind, sha256, opened: true } };
     },
+    openShopeeLink: async (url: string) => {
+      state.openLinkCalls.push(url);
+      return { ok: true, data: { opened: true } };
+    },
     runFlow: async (runId: string) => {
       state.flowCalls.push(runId);
       if (options.runFlowGate) await options.runFlowGate.promise;
@@ -183,18 +189,12 @@ function harness(options: {
         reviewsAlreadyPresent: 2, runReviewsInserted: 12, firstVersionDiffers: 0, reused: false,
       } };
     },
-    exportReviewData: async (runId: string, input: any) => {
-      state.exportReviewDataCalls.push({ runId, input: clone(input) });
+    exportReviewFiles: async (runId: string, input: any) => {
+      state.exportReviewFilesCalls.push({ runId, input: clone(input) });
       if (state.exportReviewResult) return state.exportReviewResult(runId, clone(input));
-      return { ok: true, data: {
-        receipt: {
-          format: 'review-data-export-v1', runId, sourceSha256: input.sourceSha256,
-          exportFormat: input.format, exportVersion: 'module-review-export-v1',
-          exportSha256: 'd'.repeat(64), byteSize: 100,
-          fileName: 'shopee-' + runId + '.' + input.format, rowCount: 12, reused: false,
-        },
-        fileName: 'shopee-' + runId + '.' + input.format, saved: true, cancelled: false,
-      } };
+      return { ok: true, data: { cancelled: false, files: input.formats.map((format: string) => ({
+        format, saved: true, fileName: 'shopee-' + runId + '.' + format, errorCode: null,
+      })) } };
     },
     reviewSampling: async (runId: string) => {
       state.reviewSamplingCalls++;
@@ -1897,18 +1897,17 @@ test('the save and export panel stays available without M2, keeps the chosen sou
     await waitFor(() => result.doc.getElementById('rdSource') !== null, 'review panel loaded without M2');
     assert.equal(result.doc.getElementById('rdPanel')!.getAttribute('aria-label'), 'Kết quả và tải file bình luận',
       'the results region has a plain accessible name');
-    assert.equal(result.doc.getElementById('rdPanel')!.textContent!.includes('Kết quả và tải file'), true);
+    assert.equal(result.doc.getElementById('rdPanel')!.querySelector('h3')!.textContent, 'Bước 3 Lấy bình luận');
     assert.equal(element<HTMLSelectElement>(result.doc, 'rdSource').value, latest.sourceSha256,
       'the latest completed usable source is selected by default');
     assert.match(element<HTMLElement>(result.doc, 'rdSummary').textContent!, /12 bình luận/);
     assert.match(result.doc.getElementById('rdPanel')!.textContent!, /Đã tạo file JSON trước đó: shopee-cached\.json/);
-    assert.match(result.doc.getElementById('rdPanel')!.textContent!, /Tải file TXT: Chưa tải được file cho kết quả này/);
+    assert.match(element<HTMLElement>(result.doc, 'rdDownloadNote').textContent!,
+      /File TXT: Chưa tải được file cho kết quả này/, 'the unavailable format is named next to the button');
     assert.equal(element<HTMLButtonElement>(result.doc, 'rdSave').textContent, 'Lưu vào hệ thống');
-    assert.equal(element<HTMLButtonElement>(result.doc, 'rdJson').textContent, 'Tải file JSON');
-    assert.equal(element<HTMLButtonElement>(result.doc, 'rdTxt').textContent, 'Tải file TXT');
-    assert.equal(element<HTMLButtonElement>(result.doc, 'rdTxt').disabled, true,
-      'the unavailable format is disabled');
-    assert.equal(result.state.saveReviewDataCalls.length + result.state.exportReviewDataCalls.length, 0,
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdDownload').textContent, 'Tải file về máy');
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdDownload').disabled, false);
+    assert.equal(result.state.saveReviewDataCalls.length + result.state.exportReviewFilesCalls.length, 0,
       'opening the panel never saves or downloads');
 
     element<HTMLButtonElement>(result.doc, 'rdSave').click();
@@ -1918,12 +1917,13 @@ test('the save and export panel stays available without M2, keeps the chosen sou
     });
     await waitFor(() => /Đã lưu 12 bình luận/.test(result.doc.getElementById('rdHint')!.textContent!), 'save notice');
 
-    element<HTMLButtonElement>(result.doc, 'rdJson').click();
-    await waitFor(() => result.state.exportReviewDataCalls.length === 1, 'JSON export action');
-    assert.deepEqual(result.state.exportReviewDataCalls[0], {
-      runId: 'run-synthetic', input: { sourceSha256: latest.sourceSha256, format: 'json' },
-    });
-    await waitFor(() => /Đã lưu file /.test(result.doc.getElementById('rdHint')!.textContent!), 'export notice');
+    element<HTMLButtonElement>(result.doc, 'rdDownload').click();
+    await waitFor(() => result.state.exportReviewFilesCalls.length === 1, 'download action');
+    assert.deepEqual(result.state.exportReviewFilesCalls[0], {
+      runId: 'run-synthetic', input: { sourceSha256: latest.sourceSha256, formats: ['json'] },
+    }, 'one click asks only for the formats that can be downloaded');
+    await waitFor(() => /Đã lưu “shopee-run-synthetic\.json”/.test(result.doc.getElementById('rdHint')!.textContent!),
+      'export notice');
 
     const calls = result.state.reviewDataCallsByRun['run-synthetic'] ?? 0;
     result.doc.querySelector<HTMLButtonElement>('.runbtn')!.click();
@@ -1943,10 +1943,8 @@ test('the save and export panel stays available without M2, keeps the chosen sou
     assert.equal(sourceSelect.value, older.sourceSha256, 'the operator can select another stored source');
     assert.equal(element<HTMLButtonElement>(result.doc, 'rdSave').disabled, false);
 
-    result.state.exportReviewResult = () => ({ ok: true, data: {
-      receipt: null, fileName: 'shopee-run-synthetic.json', saved: false, cancelled: true,
-    } });
-    element<HTMLButtonElement>(result.doc, 'rdJson').click();
+    result.state.exportReviewResult = () => ({ ok: true, data: { cancelled: true, files: [] } });
+    element<HTMLButtonElement>(result.doc, 'rdDownload').click();
     await waitFor(() => /Đã hủy tải file\./.test(result.doc.getElementById('rdHint')!.textContent!), 'cancel notice');
   } finally { result.dom.window.close(); }
 });
@@ -1975,15 +1973,15 @@ test('a pending action refreshes the panel that replaced its original run select
     await waitFor(() => doc.querySelectorAll('.runbtn').length === 2, 'run list');
     runButton(runA).click();
     await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel');
-    element<HTMLButtonElement>(doc, 'rdJson').click();
-    await waitFor(() => result.state.exportReviewDataCalls.length === 1, 'pending JSON export');
-    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the original panel is busy');
+    element<HTMLButtonElement>(doc, 'rdDownload').click();
+    await waitFor(() => result.state.exportReviewFilesCalls.length === 1, 'pending download');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdDownload').disabled, true, 'the original panel is busy');
 
     runButton(runB).click();
     await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel');
     runButton(runA).click();
     await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'replacement run A panel');
-    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the replacement panel is busy');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdDownload').disabled, true, 'the replacement panel is busy');
 
     failure.resolve({ ok: false, error: { code: 'EXPORT_FAILED', message: 'EXPORT_FAILED' } });
     await waitFor(() => !element<HTMLElement>(doc, 'reviewDataErr').hidden, 'failure re-enables the visible panel');
@@ -1991,24 +1989,25 @@ test('a pending action refreshes the panel that replaced its original run select
       'the failure remains visible with a plain message');
     assert.doesNotMatch(element<HTMLElement>(doc, 'reviewDataErr').textContent!, /EXPORT_FAILED/,
       'the raw failure code stays out of the primary alert');
-    assert.equal(result.state.exportReviewDataCalls.length, 1, 'the failure is not retried');
+    assert.equal(result.state.exportReviewFilesCalls.length, 1, 'the failure is not retried');
 
     const success = deferred<any>();
     result.state.exportReviewResult = () => success.promise;
-    element<HTMLButtonElement>(doc, 'rdJson').click();
-    await waitFor(() => result.state.exportReviewDataCalls.length === 2, 'second pending JSON export');
+    element<HTMLButtonElement>(doc, 'rdDownload').click();
+    await waitFor(() => result.state.exportReviewFilesCalls.length === 2, 'second pending download');
     runButton(runB).click();
     await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel again');
     runButton(runA).click();
     await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel again');
-    assert.equal(element<HTMLButtonElement>(doc, 'rdJson').disabled, true, 'the visible panel is busy again');
+    assert.equal(element<HTMLButtonElement>(doc, 'rdDownload').disabled, true, 'the visible panel is busy again');
 
     success.resolve({ ok: true, data: {
-      receipt: null, fileName: 'shopee-run-a.json', saved: true, cancelled: false,
+      cancelled: false, files: [{ format: 'json', saved: true, fileName: 'shopee-run-a.json', errorCode: null }],
     } });
-    await waitFor(() => !element<HTMLButtonElement>(doc, 'rdJson').disabled &&
-      /Đã lưu file /.test(doc.getElementById('rdHint')!.textContent!), 'success re-enables and reports the visible panel');
-    assert.equal(result.state.exportReviewDataCalls.length, 2, 'success does not retry the action');
+    await waitFor(() => !element<HTMLButtonElement>(doc, 'rdDownload').disabled &&
+      /Đã lưu “shopee-run-a\.json”/.test(doc.getElementById('rdHint')!.textContent!),
+      'success re-enables and reports the visible panel');
+    assert.equal(result.state.exportReviewFilesCalls.length, 2, 'success does not retry the action');
   } finally { result.dom.window.close(); }
 });
 
@@ -2030,21 +2029,20 @@ test('readonly blocks new DB save and new export while permitting an already cre
     const panel = result.doc.getElementById('rdPanel')!;
     assert.match(panel.textContent!, /Hệ thống đang tạm dừng lấy dữ liệu\./);
     assert.match(panel.textContent!, /Lưu vào hệ thống: Hệ thống đang tạm dừng lấy dữ liệu/);
-    assert.match(panel.textContent!, /Tải file TXT: Hệ thống đang tạm dừng lấy dữ liệu/);
+    assert.match(element<HTMLElement>(result.doc, 'rdDownloadNote').textContent!,
+      /File TXT: Hệ thống đang tạm dừng lấy dữ liệu/);
     assert.equal(element<HTMLButtonElement>(result.doc, 'rdSave').disabled, true,
       'the guard blocks a new DB save');
-    assert.equal(element<HTMLButtonElement>(result.doc, 'rdTxt').disabled, true,
-      'the guard blocks a new TXT generation');
-    assert.equal(element<HTMLButtonElement>(result.doc, 'rdJson').disabled, false,
+    assert.equal(element<HTMLButtonElement>(result.doc, 'rdDownload').disabled, false,
       'a previously created JSON file remains downloadable');
 
     element<HTMLButtonElement>(result.doc, 'rdSave').click();
     assert.equal(result.state.saveReviewDataCalls.length, 0, 'a disabled save sends nothing');
-    element<HTMLButtonElement>(result.doc, 'rdJson').click();
-    await waitFor(() => result.state.exportReviewDataCalls.length === 1, 'cached JSON download');
-    assert.deepEqual(result.state.exportReviewDataCalls[0], {
-      runId: 'run-synthetic', input: { sourceSha256: cached.sourceSha256, format: 'json' },
-    });
+    element<HTMLButtonElement>(result.doc, 'rdDownload').click();
+    await waitFor(() => result.state.exportReviewFilesCalls.length === 1, 'cached JSON download');
+    assert.deepEqual(result.state.exportReviewFilesCalls[0], {
+      runId: 'run-synthetic', input: { sourceSha256: cached.sourceSha256, formats: ['json'] },
+    }, 'the guard keeps a new TXT generation out of the request');
   } finally { result.dom.window.close(); }
 });
 
@@ -2282,12 +2280,12 @@ test('review-data failures stay in the local plain alert without raw codes', asy
   try {
     await waitFor(() => result.doc.getElementById('rdSource') !== null, 'review panel');
     assert.equal(element<HTMLElement>(result.doc, 'reviewDataErr').getAttribute('role'), 'alert');
-    element<HTMLButtonElement>(result.doc, 'rdJson').click();
+    element<HTMLButtonElement>(result.doc, 'rdDownload').click();
     await waitFor(() => !element<HTMLElement>(result.doc, 'reviewDataErr').hidden, 'export failure alert');
     const text = element<HTMLElement>(result.doc, 'reviewDataErr').textContent!;
     assert.doesNotMatch(text, /EXPORT_FAILED/, 'the raw export code stays out of the primary alert');
     assert.match(text, /thử lại|Chưa/);
-    assert.equal(result.state.exportReviewDataCalls.length, 1, 'the failed export is not retried');
+    assert.equal(result.state.exportReviewFilesCalls.length, 1, 'the failed export is not retried');
   } finally { result.dom.window.close(); }
 });
 
@@ -2303,7 +2301,7 @@ test('results stay above one closed step section and a failed run opens it', asy
     const tech = done.doc.getElementById('techDetails') as HTMLDetailsElement;
     assert.ok(review.compareDocumentPosition(tech) & 4, 'results come before the step section');
     assert.equal(tech.open, false, 'a completed run keeps the step section closed');
-    assert.equal(tech.firstElementChild!.textContent, 'Các bước thực hiện');
+    assert.equal(tech.firstElementChild!.textContent, 'Log kĩ thuật lịch sử chạy');
     const raw = [...tech.querySelectorAll('summary')].filter((node) => node.textContent === 'Thông tin kỹ thuật');
     assert.ok(raw.length > 0, 'raw diagnostics stay in their own closed details');
     assert.equal((raw[0]!.parentElement as HTMLDetailsElement).open, false,
@@ -2780,16 +2778,12 @@ test('a short link marked complete is reported by derived counts, not the source
     await waitFor(() => result.doc.querySelector('#rdLinks table tbody tr') !== null, 'link table');
     const table = result.doc.querySelector('#rdLinks table')!;
     const headers = [...table.querySelectorAll('thead th')].map((cell) => cell.textContent!.trim());
-    assert.ok(headers.includes('Đạt số lượng đặt'), 'the column names reached quantity');
-    assert.equal(headers.includes('Đủ'), false, 'the old completeness column is gone');
+    assert.deepEqual(headers, ['Link', 'Cần lấy', 'Đã lấy', 'Kết quả', 'Lý do dừng']);
     const cells = [...table.querySelectorAll('tbody tr:first-child td')].map((cell) => cell.textContent!.trim());
     assert.equal(cells[1], '300');
     assert.equal(cells[2], '2');
-    assert.equal(cells[3], '298');
-    assert.equal(cells[4], 'Chưa đạt', '2 of 300 is a shortfall even when complete=true is sent');
-    assert.notEqual(cells[4], 'Đạt');
-    assert.notEqual(cells[4], 'Có');
-    assert.equal(cells[5], 'Shopee không còn đánh giá nào');
+    assert.equal(cells[3], 'Thiếu 298', '2 of 300 is a shortfall even when complete=true is sent');
+    assert.equal(cells[4], 'Shopee không còn đánh giá nào để lấy');
     assert.match(element<HTMLElement>(result.doc, 'rdSummary').textContent!, /0\/1 link đạt số lượng đặt/);
   } finally { result.dom.window.close(); }
 });
@@ -2870,24 +2864,31 @@ test('a new-policy run shows both M1 results, the five picks and opens only the 
     assert.match(m1.textContent!, /01\/10\/2026/);
     assert.match(m1.textContent!, /31\/10\/2026/);
     assert.match(m1.textContent!, /12/);
-    for (const id of ['moM1FullPage', 'moM1Specs', 'moM1Raw']) assert.ok(element(doc, id), id);
+    assert.equal(element(doc, 'moM1FullPage').textContent, 'Xem ảnh toàn trang Metric');
+    for (const id of ['moM1Specs', 'moM1Raw']) assert.equal(doc.getElementById(id), null, id);
     assert.equal(element(doc, 'moM2Chip').textContent, 'Đạt kiểm tra');
-    assert.match(element(doc, 'moM2Order').className, /c-ok/);
-    assert.match(element(doc, 'moM2Distinct').className, /c-ok/);
+    for (const id of ['moM2Source', 'moM2Shopee', 'moM2Same', 'moM2Distinct']) {
+      assert.match(element(doc, id).className, /c-ok/, id);
+    }
+    assert.match(element(doc, 'moM2Distinct').textContent!, /Đã chọn đủ 5 sản phẩm khác nhau/);
     const table = doc.querySelector('#moduleOutputsPanel table')!;
     assert.deepEqual([...table.querySelectorAll('thead th')].map((th) => th.textContent),
-      ['Thứ tự được chọn', 'Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Doanh số trong kỳ', 'Link Shopee']);
+      ['Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Doanh số trong kỳ', 'Link Shopee']);
     const rows = [...table.querySelectorAll('tbody tr')];
     assert.equal(rows.length, 5);
-    assert.deepEqual([...rows[0]!.querySelectorAll('td')].slice(0, 2).map((td) => td.textContent), ['1', '3']);
+    assert.equal(rows[0]!.querySelector('td')!.textContent, '3');
     assert.match(rows[0]!.textContent!, /DHC Kẽm 60 ngày/);
+    rows[0]!.querySelector<HTMLAnchorElement>('a.rs-url')!.click();
+    await waitFor(() => state.openLinkCalls.length === 1, 'link opened outside the app');
+    assert.deepEqual(state.openLinkCalls, ['https://shopee.vn/product/801/100']);
     const skipped = doc.querySelector('#moduleOutputsPanel details.tech-details')!;
     assert.match(skipped.querySelector('summary')!.textContent!, /Mục bị bỏ qua và lý do/);
     assert.match(skipped.textContent!, /Trùng với sản phẩm đã chọn ở thứ tự 1/);
-    element<HTMLButtonElement>(doc, 'moM2Evidence').click();
+    assert.equal(doc.getElementById('moM2Evidence'), null, 'the step-2 image button is gone');
+    element<HTMLButtonElement>(doc, 'moM1FullPage').click();
     await waitFor(() => state.openEvidenceCalls.length === 1, 'evidence open');
     assert.deepEqual(state.openEvidenceCalls[0],
-      { runId: 'run-synthetic', kind: 'top-products', sha256: 'a'.repeat(64) });
+      { runId: 'run-synthetic', kind: 'full-page', sha256: 'a'.repeat(64) });
     await waitFor(() => /Đã mở bằng chứng đã lưu/.test(doc.getElementById('moduleOutputsPanel')!.textContent || ''),
       'saved evidence notice');
   } finally { dom.window.close(); }
@@ -2915,7 +2916,7 @@ test('a legacy selection keeps its old-policy label and never shows new-policy o
     await waitFor(() => doc.getElementById('moM2Chip') !== null, 'legacy module outputs');
     assert.equal(element(doc, 'moM2Chip').textContent, 'Kiểm tra cũ: Đạt');
     assert.match(doc.querySelector('#moduleOutputsPanel .legacy-label')!.textContent!, /quy tắc chọn cũ/);
-    assert.equal(doc.getElementById('moM2Order'), null);
+    assert.equal(doc.getElementById('moM2Source'), null);
     assert.equal(doc.getElementById('moM2Distinct'), null);
     assert.equal(doc.getElementById('moM2Evidence'), null);
     const panel = doc.getElementById('moduleOutputsPanel')!;

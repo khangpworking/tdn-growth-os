@@ -270,6 +270,68 @@ class ReviewDataBridgeTest(unittest.TestCase):
         self.assertEqual(self.destination.read_bytes(), b'old')
         self.assert_no_temp()
 
+    def choose_folder(self, value):
+        patch = mock.patch.object(tdn_shopee_app, '_choose_save_folder', return_value=value)
+        dialog = patch.start()
+        self.addCleanup(patch.stop)
+        return dialog
+
+    def test_one_download_writes_every_format_after_a_single_folder_dialog(self):
+        dialog = self.choose_folder(str(self.exports))
+        result = self.api.exportReviewFiles('run-1', {'sourceSha256': SOURCE, 'formats': ['json', 'txt']})
+        self.assertEqual(result, {'ok': True, 'data': {'cancelled': False, 'files': [
+            {'format': 'json', 'saved': True, 'fileName': 'shopee-run-1.json', 'errorCode': None},
+            {'format': 'txt', 'saved': True, 'fileName': 'shopee-run-1.txt', 'errorCode': None},
+        ]}})
+        dialog.assert_called_once_with()
+        self.assertEqual((self.exports / 'shopee-run-1.json').read_bytes(), BODY)
+        self.assertEqual((self.exports / 'shopee-run-1.txt').read_bytes(), BODY)
+        self.assertEqual([call['args'][0] for call in self.calls()],
+                         ['export-review-data', 'export-review-data', 'read-review-export', 'read-review-export'])
+        self.assertEqual([call['payload'] for call in self.calls()[:2]], [
+            {'sourceSha256': SOURCE, 'format': 'json'}, {'sourceSha256': SOURCE, 'format': 'txt'}])
+
+    def test_one_download_reports_a_failed_format_without_writing_it(self):
+        self.choose_folder(str(self.exports))
+        os.environ['BRIDGE_RAW_MODE'] = 'error'
+        result = self.api.exportReviewFiles('run-1', {'sourceSha256': SOURCE, 'formats': ['txt']})
+        self.assertEqual(result['data']['files'], [
+            {'format': 'txt', 'saved': False, 'fileName': None, 'errorCode': 'EXPORT_SOURCE_CHANGED'}])
+        self.assertEqual(sorted(self.exports.iterdir()), [])
+
+    def test_one_download_cancel_writes_nothing(self):
+        dialog = self.choose_folder(None)
+        result = self.api.exportReviewFiles('run-1', {'sourceSha256': SOURCE, 'formats': ['json', 'txt']})
+        self.assertEqual(result, {'ok': True, 'data': {'cancelled': True, 'files': []}})
+        dialog.assert_called_once_with()
+        self.assertEqual(sorted(self.exports.iterdir()), [])
+        self.assertNotIn('read-review-export', [call['args'][0] for call in self.calls()])
+
+    def test_one_download_rejects_bad_format_lists_before_the_remote(self):
+        dialog = self.choose_folder(str(self.exports))
+        for value in (None, {'sourceSha256': SOURCE}, {'sourceSha256': SOURCE, 'formats': []},
+                      {'sourceSha256': SOURCE, 'formats': 'json'}, {'sourceSha256': SOURCE, 'formats': ['csv']},
+                      {'sourceSha256': SOURCE, 'formats': ['json', 'json']},
+                      {'sourceSha256': SOURCE[:-1], 'formats': ['json']},
+                      {'sourceSha256': SOURCE, 'formats': ['json'], 'extra': 1}):
+            with self.subTest(value=value):
+                self.assertEqual(self.api.exportReviewFiles('run-1', value), {
+                    'ok': False, 'error': {'code': 'ARG_INVALID', 'message': 'ARG_INVALID'}})
+        self.assertEqual(self.calls(), [])
+        dialog.assert_not_called()
+
+    def test_native_folder_dialog_is_used_once_and_cancel_returns_no_path(self):
+        for chosen, expected in (((r'C:\Users\Test\Downloads',), r'C:\Users\Test\Downloads'), (None, None)):
+            with self.subTest(chosen=chosen):
+                window = mock.Mock()
+                window.create_file_dialog.return_value = chosen
+                webview = types.ModuleType('webview')
+                webview.FOLDER_DIALOG = 'folder'
+                webview.windows = [window]
+                with mock.patch.dict(sys.modules, {'webview': webview}):
+                    self.assertEqual(tdn_shopee_app._choose_save_folder(), expected)
+                window.create_file_dialog.assert_called_once_with('folder')
+
     def test_safe_filename_removes_paths_reserved_names_and_excess_length(self):
         self.assertEqual(tdn_shopee_app._safe_filename('../../evil.json', 'json'), 'evil.json')
         self.assertEqual(tdn_shopee_app._safe_filename(r'..\..\CON.JSON', 'json'), '_CON.JSON')
