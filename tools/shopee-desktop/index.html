@@ -1723,21 +1723,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
 
     var MOCK_METRIC_PRODUCTS = [
-      ['Sản phẩm mẫu A – Viên uống bổ sung 30 viên', 'Shop mẫu Một', 1, 'Nhãn mẫu A', 350000, 266600, 419000, 21, 9],
-      ['Sản phẩm mẫu B – Viên uống bổ sung 60 viên', 'Shop mẫu Hai', 0, 'Nhãn mẫu B', 289000, 249000, 289000, 17, 12],
-      ['Sản phẩm mẫu C – Hộp 2 lọ', 'Shop mẫu Ba', 1, 'Nhãn mẫu C', 699000, 515000, 699000, 11, 8],
-      ['Sản phẩm mẫu D – Lọ 90 viên', 'Shop mẫu Bốn', 0, 'Nhãn mẫu D', 199000, 179000, 219000, 9, 4],
-      ['Sản phẩm mẫu E – Combo 3 lọ', 'Shop mẫu Năm', 1, 'Nhãn mẫu E', 1250000, 1100000, 1250000, 5, 6]
+      ['Sản phẩm mẫu A – Viên uống bổ sung 30 viên', 'Shop mẫu Một', 'Nhãn mẫu A', 350000, 266600, 419000, 21, 9],
+      ['Sản phẩm mẫu B – Viên uống bổ sung 60 viên', 'Shop mẫu Hai', 'Nhãn mẫu B', 289000, 249000, 289000, 17, 12],
+      ['Sản phẩm mẫu C – Hộp 2 lọ', 'Shop mẫu Ba', 'Nhãn mẫu C', 699000, 515000, 699000, 11, 8],
+      ['Sản phẩm mẫu D – Lọ 90 viên', 'Shop mẫu Bốn', 'Nhãn mẫu D', 199000, 179000, 219000, 9, 4],
+      ['Sản phẩm mẫu E – Combo 3 lọ', 'Shop mẫu Năm', 'Nhãn mẫu E', 1250000, 1100000, 1250000, 5, 6]
     ];
 
     function mockMetricProduct(link, index) {
       var row = MOCK_METRIC_PRODUCTS[index % MOCK_METRIC_PRODUCTS.length];
       return {
-        rank: [5, 7, 12, 19, 23][index % 5], productName: row[0], shopName: row[1], officialType: row[2], brand: row[3],
+        rank: [5, 7, 12, 19, 23][index % 5], productName: row[0], shopName: row[1], brand: row[2],
         categories: ['Sức Khỏe', 'Thực phẩm chức năng', 'Hỗ trợ sức khỏe'],
-        price: row[4], priceMin: row[5], priceMax: row[6],
+        price: row[3], priceMin: row[4], priceMax: row[5],
         periodRevenue: link.revenue, previousRevenue: Math.round(link.revenue * 0.6),
-        periodSold: row[7] * 10, previousSold: row[8] * 10, totalRevenue: link.revenue * 3, totalSold: row[7] * 30,
+        periodSold: row[6] * 10, previousSold: row[7] * 10, totalRevenue: link.revenue * 3, totalSold: row[6] * 30,
         ratingAvg: 4.9 - index * 0.1, ratingCount: 30 + index * 4, listedAt: '2026-01-' + pad(13 + index) + ' 09:00:00'
       };
     }
@@ -2818,8 +2818,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return link;
   }
 
-  var SHOP_TYPE_TEXT = { 0: 'Thông thường', 1: 'Mall' };
-
   function present(value) { return value !== null && value !== undefined; }
 
   function decimalText(value) {
@@ -2844,7 +2842,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     ['Hạng trên nguồn Metric', 'num', function (p, l) { var v = present(p.rank) ? p.rank : l.sourceRank; return present(v) ? String(v) : 'Chưa có'; }],
     ['Tên sản phẩm', 'pname', function (p, l) { return p.productName || l.productName || 'Chưa có'; }],
     ['Shop', null, function (p, l) { return p.shopName || l.shopName || 'Chưa có'; }],
-    ['Loại shop', null, function (p) { return SHOP_TYPE_TEXT[p.officialType] || 'Chưa có'; }],
     ['Thương hiệu', null, function (p, l) { return p.brand || l.brand || 'Chưa có'; }],
     ['Ngành hàng', 'pcat', function (p) { return Array.isArray(p.categories) && p.categories.length ? p.categories.join(' › ') : 'Chưa có'; }],
     ['Giá', 'num', function (p) { return money(p.price); }],

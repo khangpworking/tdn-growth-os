@@ -2821,7 +2821,7 @@ test('connection and disabled create states explain themselves without the data 
 const evidenceDescriptor = (kind: string, fileName: string, mediaType: string) => ({
   available: true, kind, sha256: 'a'.repeat(64), byteSize: 123, mediaType, fileName, errorCode: null,
 });
-const M2_HEADERS = ['Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Loại shop', 'Thương hiệu', 'Ngành hàng', 'Giá',
+const M2_HEADERS = ['Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Thương hiệu', 'Ngành hàng', 'Giá',
   'Khoảng giá', 'Doanh số trong kỳ', 'Doanh số kỳ trước', 'Đã bán trong kỳ', 'Đã bán kỳ trước', 'Tổng doanh số',
   'Tổng đã bán', 'Điểm đánh giá', 'Số đánh giá', 'Ngày đăng bán', 'Link Shopee'];
 
@@ -2985,7 +2985,7 @@ test('B1: step 1 shows the revenue order line as passed, failed or unknown', asy
   } finally { dom.window.close(); }
 });
 
-test('B2: step 2 shows the 18 Metric columns, scrolls sideways and keeps the clickable link', async () => {
+test('B2: step 2 shows the 17 Metric columns, scrolls sideways and keeps the clickable link', async () => {
   const product = {
     rank: 7, productName: 'Tên từ Metric', shopName: 'Shop từ Metric', officialType: 1, brand: 'Nhãn từ Metric',
     categories: ['Nhóm A', 'Nhóm B'], price: 350000, priceMin: 266600, priceMax: 419000, periodRevenue: 55650000,
@@ -2994,7 +2994,7 @@ test('B2: step 2 shows the 18 Metric columns, scrolls sideways and keeps the cli
   };
   const base = moduleOutputView('run-synthetic');
   const links = base.m2.links.map((link: any, i: number) => ({ ...link,
-    metricProduct: i === 0 ? product : i === 1 ? { ...product, officialType: 0, categories: null } : null }));
+    metricProduct: i === 0 ? product : i === 1 ? { ...product, categories: null } : null }));
   const { dom, doc, state } = harness({
     runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
     runInfo: syntheticRunInfo(),
@@ -3007,13 +3007,13 @@ test('B2: step 2 shows the 18 Metric columns, scrolls sideways and keeps the cli
     const table = doc.querySelector('#moM2Scroll table')!;
     assert.deepEqual([...table.querySelectorAll('thead th')].map((th) => th.textContent), M2_HEADERS);
     const cells = (row: number) => [...table.querySelectorAll('tbody tr')[row]!.querySelectorAll('td')].map((td) => td.textContent);
-    assert.deepEqual(cells(0), ['7', 'Tên từ Metric', 'Shop từ Metric', 'Mall', 'Nhãn từ Metric', 'Nhóm A › Nhóm B',
+    assert.deepEqual(cells(0), ['7', 'Tên từ Metric', 'Shop từ Metric', 'Nhãn từ Metric', 'Nhóm A › Nhóm B',
       '350.000 đ', '266.600 – 419.000 đ', '55.650.000 đ', '26.445.000 đ', '159', '78', '158.090.400 đ', '448', '4,9', '46',
       '20/01/2026', 'https://shopee.vn/product/801/100']);
-    assert.deepEqual([cells(1)[3], cells(1)[5]], ['Thông thường', 'Chưa có']);
+    assert.equal(cells(1)[4], 'Chưa có');
     const fallback = cells(2);
     assert.deepEqual(fallback.slice(0, 3), ['5', 'DHC Biotin 60 ngày', 'Synthetic shop'], 'without a Metric row the link fields stay');
-    assert.deepEqual(fallback.slice(3, 4).concat(fallback.slice(9, 17)), Array(9).fill('Chưa có'));
+    assert.deepEqual(fallback.slice(8, 16), Array(8).fill('Chưa có'));
     assert.equal(element(doc, 'moM2Scroll').nextElementSibling!.textContent, 'Kéo ngang để xem đủ các cột.');
     table.querySelectorAll<HTMLAnchorElement>('tbody tr a.rs-url')[0]!.click();
     await waitFor(() => state.openLinkCalls.length === 1, 'link opened outside the app');
@@ -3044,8 +3044,8 @@ test('B2: a legacy run shows the looked-up Metric row without new-policy check l
     assert.equal(element(doc, 'moM2Chip').textContent, 'Kiểm tra cũ: Đạt');
     for (const id of ['moM2Source', 'moM2Shopee', 'moM2Same', 'moM2Distinct']) assert.equal(doc.getElementById(id), null, id);
     const cells = [...doc.querySelectorAll('#moM2Scroll tbody tr td')].map((td) => td.textContent);
-    assert.deepEqual(cells.slice(0, 5), ['19', 'Tên cũ tra lại', 'Shop cũ', 'Chưa có', 'Synthetic brand']);
-    assert.equal(cells[8], '100 đ', 'period revenue falls back to the saved link revenue');
+    assert.deepEqual(cells.slice(0, 4), ['19', 'Tên cũ tra lại', 'Shop cũ', 'Synthetic brand']);
+    assert.equal(cells[7], '100 đ', 'period revenue falls back to the saved link revenue');
   } finally { dom.window.close(); }
 });
 
