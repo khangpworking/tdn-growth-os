@@ -219,7 +219,8 @@
           "enum": [
             null,
             "PICK_TITLE_GROUP_UNRESOLVED",
-            "FEWER_THAN_FIVE_DISTINCT_PRODUCTS"
+            "FEWER_THAN_FIVE_DISTINCT_PRODUCTS",
+            "PICK_PRODUCT_UNRESOLVED"
           ]
         },
         "skipped": {
@@ -260,6 +261,85 @@
               }
             }
           }
+        },
+        "matcher": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "model",
+            "questionVersion",
+            "threshold"
+          ],
+          "properties": {
+            "provider": {
+              "const": "typesafe-jev"
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "questionVersion": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sourceRank",
+              "productBaseId",
+              "choice",
+              "probabilities",
+              "outcome"
+            ],
+            "properties": {
+              "sourceRank": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              },
+              "productBaseId": {
+                "type": "string",
+                "pattern": "^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$"
+              },
+              "choice": {
+                "type": "string",
+                "pattern": "^(SP[1-4]|MOI)$"
+              },
+              "probabilities": {
+                "type": "object",
+                "minProperties": 2,
+                "maxProperties": 5,
+                "propertyNames": {
+                  "pattern": "^(SP[1-4]|MOI)$"
+                },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "outcome": {
+                "enum": [
+                  "PICKED",
+                  "DUPLICATE",
+                  "UNSURE"
+                ]
+              }
+            }
+          }
         }
       }
     }
@@ -296,7 +376,10 @@
       "if": {
         "properties": {
           "pickRuleVersion": {
-            "const": "metric-products-unique-v1"
+            "enum": [
+              "metric-products-unique-v1",
+              "metric-products-unique-v2"
+            ]
           }
         }
       },
@@ -313,16 +396,12 @@
               "required": [
                 "sourceRank",
                 "productName",
-                "shopName",
-                "groupKey",
-                "groupingBasis"
+                "shopName"
               ],
               "properties": {
                 "sourceRank": {},
                 "productName": {},
-                "shopName": {},
-                "groupKey": {},
-                "groupingBasis": {}
+                "shopName": {}
               },
               "type": "object"
             },
@@ -338,6 +417,57 @@
             "type": "array"
           },
           "selectionProof": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "pickRuleVersion": {
+            "const": "metric-products-unique-v1"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "groupKey",
+                "groupingBasis"
+              ],
+              "properties": {
+                "groupKey": {},
+                "groupingBasis": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "pickRuleVersion": {
+            "const": "metric-products-unique-v2"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "selectionProof": {
+            "type": "object",
+            "required": [
+              "matcher",
+              "decisions"
+            ],
+            "properties": {
+              "matcher": {},
+              "decisions": {}
+            }
+          }
         }
       }
     }

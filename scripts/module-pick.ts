@@ -1,4 +1,5 @@
-import { derivePeriodProductPick, ProductPickError } from './module-product-pick.js';
+import { derivePeriodProductPick, MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, pickProductsWithJev, ProductPickError } from './module-product-pick.js';
+import { pickJevFromEnvironment, type PickJev } from './module-product-pick-jev.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -112,7 +113,7 @@ export async function readRequest(run: string) {
       w.id !== captureSpec.windows[i]?.id || w.period.startDate !== captureSpec.windows[i]?.period.startDate ||
       w.period.endDate !== captureSpec.windows[i]?.period.endDate ||
       (object(w).intervalDays !== undefined && object(w).intervalDays !== captureSpec.windows[i]?.intervalDays)))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
-  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: value.selectionPolicy === 'metric-products-unique-v1' ? value.selectionPolicy : null };
+  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: value.selectionPolicy === MODULE_PICK_POLICY || value.selectionPolicy === MODULE_PICK_POLICY_V2 ? value.selectionPolicy as string : null };
 }
 export async function readPickSource(run: string, request?: Awaited<ReturnType<typeof readRequest>>) {
   if (!request) {
@@ -213,7 +214,8 @@ export function auditMaskedRows(raw: unknown, links: readonly { revenue: number 
   }
   return { maskedRows, maskedAboveLowestPick };
 }
-export async function main(runDir: string) {
+/** `jev` gives the Jev client for a v2 run; only the command line below builds the real one. */
+export async function main(runDir: string, options: { jev?: () => PickJev; sleep?: (ms: number) => Promise<void> } = {}) {
   const run = resolve(runDir);
   const metricInputSha256 = await prerequisite(run, 'm1');
   const request = await readRequest(run);
@@ -221,8 +223,16 @@ export async function main(runDir: string) {
   let picked, selection;
   if (request.selectionPolicy) {
     if (!source.part || !source.rawBytes) throw new ModuleError('PICK_WINDOW_MISSING');
-    try { picked = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes)); }
-    catch (error) { throw new ModuleError(error instanceof ProductPickError ? error.message : 'PICK_CANDIDATE_INVALID'); }
+    try {
+      if (request.selectionPolicy === MODULE_PICK_POLICY_V2) {
+        let jev: PickJev;
+        try { jev = options.jev!(); } catch { throw new ModuleError('PICK_JEV_UNAVAILABLE'); }
+        picked = await pickProductsWithJev(source.raw, source.part, sha256(source.rawBytes), jev, options.sleep);
+      } else picked = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
+    } catch (error) {
+      if (error instanceof ModuleError) throw error;
+      throw new ModuleError(error instanceof ProductPickError ? error.message : 'PICK_CANDIDATE_INVALID');
+    }
     selection = { format: 'selection-v1', runId: basename(run), source: 'auto',
       pickRuleVersion: picked.pickRuleVersion, metricInputSha256, links: picked.links, counts: picked.counts,
       selectionProof: picked.selectionProof };
@@ -246,6 +256,6 @@ export function failureResult(error: unknown) {
     exitCode: error instanceof ModuleError ? error.exitCode : 20 };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const task = process.argv.length === 3 ? main(process.argv[2]!) : Promise.reject(new ModuleError('USAGE', 2));
+  const task = process.argv.length === 3 ? main(process.argv[2]!, { jev: pickJevFromEnvironment }) : Promise.reject(new ModuleError('USAGE', 2));
   void task.catch(failureResult).then(result => { process.stdout.write(`${JSON.stringify(result)}\n`); process.exitCode = result.exitCode; });
 }

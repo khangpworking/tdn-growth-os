@@ -638,6 +638,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.',
     READONLY_ON: 'Hệ thống đang tạm dừng lấy dữ liệu.',
     M1_OUTPUT_EXISTS: 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.',
+    M2_ALREADY_PASSED: 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.',
     AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».'
   };
 
@@ -658,7 +659,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.',
     READONLY_ON: 'Hệ thống đang tạm dừng lấy dữ liệu.',
     M1_OUTPUT_EXISTS: 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.',
+    M2_ALREADY_PASSED: 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.',
     AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».',
+    PICK_PRODUCT_UNRESOLVED: 'Có sản phẩm chưa xác định được là trùng hay khác nên chưa chọn đủ 5 sản phẩm.',
+    PICK_JEV_UNAVAILABLE: 'Chưa kiểm tra được sản phẩm trùng vì dịch vụ kiểm tra chưa phản hồi. Hãy chạy lại bước 2.',
     BRIDGE_MISSING: 'App chưa khởi động xong. Hãy đóng app rồi mở lại.',
     BRIDGE_SHAPE: 'App gặp lỗi khi nhận dữ liệu. Hãy đóng app rồi mở lại.',
     BRIDGE_ERROR: 'App gặp lỗi khi gọi máy chủ. Hãy thử lại; nếu vẫn lỗi, báo người quản trị.'
@@ -1516,7 +1520,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     rf.gates.m3 = blockingSlip('M3', rf.runId, 'READONLY_ON');
     rf.state = finishState(rf.runId, 'STOPPED', 'M3', 'READONLY_ON', null);
 
-    [ra, rb, rc, rd, re, rf].forEach(seedLegacyExecution);
+    var rg = makeRun('a7b8c9d0', '2026-11-12T02:00:00Z', 'Sản phẩm mẫu G', { keywords: ['áo thun mẫu'], endDate: '2026-11-12', cap: 300 });
+    rg.request.selectionPolicy = 'metric-products-unique-v2';
+    rg.gates.entry = entrySlip(rg.runId, 300);
+    rg.gates.m1 = m1Slip(rg.runId);
+    rg.selection = selectionFor(rg.runId);
+    rg.gates.m2 = m2Slip(rg.runId);
+    rg.state = finishState(rg.runId, 'IDLE', 'M2', null, null);
+
+    [ra, rb, rc, rd, re, rf, rg].forEach(seedLegacyExecution);
 
     function beginExecution(run, module, attemptId) {
       var key = module.toUpperCase();
@@ -1563,6 +1575,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         else if (m.id === 'M3' && run.automaticM3Attempt) blockedBy = { code: 'AUTOMATIC_COLLECTION_EXISTS' };
         else if (own && (own.errorCode === 'GATE_INPUT_CHANGED' || own.errorCode === 'READONLY_ON')) blockedBy = { code: own.errorCode };
         else if (m.outputGate === 'm1' && run.gates.m1) blockedBy = { code: 'M1_OUTPUT_EXISTS', gate: null };
+        else if (m.outputGate === 'm2' && run.request.selectionPolicy === 'metric-products-unique-v2' && isPass(run.gates.m2)) blockedBy = { code: 'M2_ALREADY_PASSED', gate: null };
         else if (!isPass(run.gates[m.inputGate])) blockedBy = { code: 'GATE_NOT_PASSED', gate: m.inputGate };
         return {
           id: m.id, title: m.title, skill: m.skill, inputGate: m.inputGate, outputGate: m.outputGate,
@@ -1785,6 +1798,36 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           evidence: { topProducts: mockDescriptor('top-products', 'LEGACY_EVIDENCE_UNBOUND') }
         }
       };
+    }
+
+    // A rule-v2 run: one skipped duplicate and one skipped "unsure" row between the five picks.
+    function mockV2ModuleOutputs(run) {
+      var view = mockModuleOutputs(run);
+      var ranks = [1, 2, 5, 6, 7];
+      view.m2 = {
+        policy: 'metric-products-unique-v2',
+        legacyVerdict: null,
+        linksMatchSourceOrder: true,
+        fiveDistinct: true,
+        selectedCount: 5,
+        shortageReason: null,
+        errorCode: null,
+        links: view.m2.links.map(function (link, index) {
+          var row = MOCK_METRIC_PRODUCTS[index];
+          link.sourceRank = ranks[index];
+          link.productName = row[0];
+          link.shopName = row[1];
+          link.reason = 'Hạng nguồn ' + ranks[index] + (index ? '; khác các sản phẩm đã chọn.' : '; sản phẩm đầu tiên bán trên Shopee.');
+          link.metricProduct.rank = ranks[index];
+          return link;
+        }),
+        skipped: [
+          { sourceRank: 3, productBaseId: '1__1212__1313', reason: 'SAME_PRODUCT', duplicateOfRank: 1 },
+          { sourceRank: 4, productBaseId: '1__1414__1515', reason: 'PRODUCT_MATCH_UNSURE', duplicateOfRank: null }
+        ],
+        evidence: { topProducts: mockDescriptor('top-products', 'EVIDENCE_FILES_MISSING') }
+      };
+      return view;
     }
 
     return {
@@ -2029,7 +2072,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       moduleOutputs: function (runId) {
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
-        return Promise.resolve(ok(mockModuleOutputs(run)));
+        return Promise.resolve(ok(run.request.selectionPolicy === 'metric-products-unique-v2'
+          ? mockV2ModuleOutputs(run) : mockModuleOutputs(run)));
       },
       openModuleEvidence: function () {
         return Promise.resolve(err('EVIDENCE_FILES_MISSING', 'EVIDENCE_FILES_MISSING'));
@@ -2890,6 +2934,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (skipped.reason === 'PICK_TITLE_GROUP_UNRESOLVED') {
       return OUTPUT_ERROR_TEXT.PICK_TITLE_GROUP_UNRESOLVED;
     }
+    if (skipped.reason === 'PRODUCT_MATCH_UNSURE') {
+      return 'Chưa chắc là trùng hay khác với sản phẩm đã chọn nên không lấy.';
+    }
+    if (skipped.reason === 'PICK_LISTING_ID_UNRESOLVED') {
+      return 'Không đọc được mã sản phẩm của dòng này nên không lấy.';
+    }
     return 'Chưa rõ lý do';
   }
 
@@ -2920,6 +2970,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   var M2_SHORTAGE_TEXT = {
     PICK_TITLE_GROUP_UNRESOLVED: 'có sản phẩm chưa xác định được từ tên',
+    PICK_PRODUCT_UNRESOLVED: 'có sản phẩm chưa xác định được là trùng hay khác',
     FEWER_THAN_FIVE_DISTINCT_PRODUCTS: 'nguồn không đủ 5 sản phẩm khác nhau'
   };
 
@@ -2960,7 +3011,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var head = h('div', 'mh');
     head.appendChild(h('h3', null, moduleTitle('M2')));
     var legacy = m2.policy === 'legacy';
-    var unknownPolicy = !legacy && m2.policy !== 'metric-products-unique-v1';
+    var unknownPolicy = !legacy && m2.policy !== 'metric-products-unique-v1' && m2.policy !== 'metric-products-unique-v2';
     var legacyLabels = { PASS: 'Đạt', FAIL: 'Không đạt', WAIT_OWNER: 'Cần bạn xử lý' };
     var chipText, chipCls;
     if (legacy) {

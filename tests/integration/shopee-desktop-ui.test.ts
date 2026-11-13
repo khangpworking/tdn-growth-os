@@ -921,7 +921,7 @@ const passSlip = (module: string) => ({
 
 /** Synthetic run-info for the M3 panel; no live source or native DOM is involved. */
 type SyntheticRunRequest =
-  | { format: 'request-v1'; reviewCapPerLink: number }
+  | { format: 'request-v1'; reviewCapPerLink: number; selectionPolicy?: string }
   | {
       format: 'request-v2'; preset: { keywords: string[] };
       windows: Array<{ id: string; period: { startDate: string; endDate: string }; intervalDays: number }>;
@@ -2931,6 +2931,79 @@ test('a legacy selection keeps its old-policy label and never shows new-policy o
     assert.doesNotMatch(panel.textContent!, /5 sản phẩm khác nhau, không trùng lặp/);
     const cells = [...panel.querySelectorAll('tbody tr td')].map((td) => td.textContent);
     assert.ok(cells.includes('Chưa có'), 'legacy-only unknown fields stay visibly unknown');
+  } finally { dom.window.close(); }
+});
+
+test('K2: a passed v2 step 2 keeps «Chạy bước này» disabled with the approved reason, as step 1 does', async () => {
+  const info = syntheticRunInfo();
+  info.request = { format: 'request-v1', reviewCapPerLink: 300, selectionPolicy: 'metric-products-unique-v2' };
+  info.modules = info.modules.map((m: any) => m.id === 'M1' ? { ...m, blockedBy: { code: 'M1_OUTPUT_EXISTS', gate: null } }
+    : m.id === 'M2' ? { ...m, canRun: false, blockedBy: { code: 'M2_ALREADY_PASSED', gate: null } } : m);
+  const { dom, doc } = harness({ runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE' }], runInfo: info });
+  try {
+    await waitFor(() => doc.querySelectorAll('#techDetails article.mod').length === 3, 'step cards');
+    const card = (title: string) => [...doc.querySelectorAll('#techDetails article.mod')]
+      .find((node) => node.querySelector('h3')?.textContent === title)!;
+    const control = (title: string) => {
+      const row = card(title).querySelector('.btnrow')!;
+      return { button: row.querySelector('button') as HTMLButtonElement, hint: row.querySelector('.hint')?.textContent };
+    };
+    const step1 = control('Bước 1 Lấy số liệu bán hàng'), step2 = control('Bước 2 Chọn link bán chạy');
+    assert.equal(step1.button.disabled, true);
+    assert.equal(step1.hint, 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.');
+    assert.equal(step2.button.textContent, 'Chạy bước này');
+    assert.equal(step2.button.disabled, true, 'the same disabled button as step 1');
+    assert.equal(step2.hint, 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.');
+  } finally { dom.window.close(); }
+});
+
+test('C1: a v2 run is a known rule and shows the approved skip, shortage and step-2 texts', async () => {
+  const v2Link = (link: any) => ({ ...link, groupKey: null, groupingBasis: null });
+  const passed = moduleOutputView('run-a', {}, {
+    policy: 'metric-products-unique-v2',
+    links: moduleOutputView('run-a').m2.links.map(v2Link),
+    skipped: [
+      { sourceRank: 2, productBaseId: '1__98__801', reason: 'SAME_PRODUCT', duplicateOfRank: 1 },
+      { sourceRank: 4, productBaseId: '1__99__801', reason: 'PRODUCT_MATCH_UNSURE', duplicateOfRank: null },
+      { sourceRank: 6, productBaseId: null, reason: 'PICK_LISTING_ID_UNRESOLVED', duplicateOfRank: null },
+    ],
+  });
+  const short = moduleOutputView('run-b', {}, {
+    policy: 'metric-products-unique-v2', fiveDistinct: false, selectedCount: 3, shortageReason: 'PICK_PRODUCT_UNRESOLVED',
+    errorCode: 'PICK_PRODUCT_UNRESOLVED', links: moduleOutputView('run-b').m2.links.slice(0, 3).map(v2Link),
+  });
+  const stopped = (runId: string, errorCode: string) => ({ ...syntheticRunInfo(runId),
+    state: { status: 'STOPPED', module: 'M2', errorCode } });
+  const runs = ['run-a', 'run-b', 'run-c'].map((runId) => ({ runId, product: 'Sản phẩm ' + runId, status: 'DONE' }));
+  const { dom, doc } = harness({
+    runs,
+    runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': stopped('run-b', 'PICK_PRODUCT_UNRESOLVED'),
+      'run-c': stopped('run-c', 'PICK_JEV_UNAVAILABLE') },
+    moduleOutputsResult: (runId) => ({ ok: true, data: runId === 'run-a' ? passed : runId === 'run-b' ? short : moduleOutputView(runId) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 3, 'run list');
+    runListButton(doc, 'run-a').click();
+    await waitFor(() => doc.getElementById('moM2Chip') !== null, 'v2 outputs');
+    assert.equal(element(doc, 'moM2Chip').textContent, 'Đạt kiểm tra');
+    const reasons = [...doc.querySelectorAll('#moduleOutputsPanel details.tech-details tbody tr')]
+      .map((row) => row.querySelectorAll('td')[2]!.textContent);
+    assert.deepEqual(reasons, ['Trùng với sản phẩm đã chọn ở thứ tự 1.',
+      'Chưa chắc là trùng hay khác với sản phẩm đã chọn nên không lấy.',
+      'Không đọc được mã sản phẩm của dòng này nên không lấy.']);
+    assert.doesNotMatch(doc.getElementById('moduleOutputsPanel')!.textContent!, /Jev/);
+
+    runListButton(doc, 'run-b').click();
+    await waitFor(() => doc.querySelector('#moduleOutputsPanel')?.textContent?.includes('3/5') === true, 'v2 shortage');
+    assert.equal(element(doc, 'moM2Distinct').textContent,
+      '!Chỉ chọn được 3/5 sản phẩm: có sản phẩm chưa xác định được là trùng hay khác');
+    assert.equal(doc.querySelector('.errbar.local-error[title="PICK_PRODUCT_UNRESOLVED"]')!.textContent,
+      'Có sản phẩm chưa xác định được là trùng hay khác nên chưa chọn đủ 5 sản phẩm.');
+
+    runListButton(doc, 'run-c').click();
+    await waitFor(() => doc.querySelector('.errbar.local-error[title="PICK_JEV_UNAVAILABLE"]') !== null, 'Jev failure');
+    assert.equal(doc.querySelector('.errbar.local-error[title="PICK_JEV_UNAVAILABLE"]')!.textContent,
+      'Chưa kiểm tra được sản phẩm trùng vì dịch vụ kiểm tra chưa phản hồi. Hãy chạy lại bước 2.');
   } finally { dom.window.close(); }
 });
 

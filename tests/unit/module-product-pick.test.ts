@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MODULE_PICK_POLICY, ProductPickError, derivePeriodProductPick, rankedMetricProducts } from '../../scripts/module-product-pick.js';
+import { MODULE_PICK_POLICY, ProductPickError, derivePeriodProductPick, pickProductsWithJev, rankedMetricProducts, replayJevProductPick } from '../../scripts/module-product-pick.js';
+import { PICK_JEV_QUESTION_VERSION, PICK_JEV_TEXTS, pickQuestion, pickQuestionVersion } from '../../scripts/module-product-pick-jev.js';
+import { answer, fakeJev, noWait, type Scripted } from '../helpers/fake-pick-jev.js';
 
 // Synthetic rows only. Titles exercise the accepted finite title convention; the
 // rows never claim chemical identity beyond the retained name and brand fields.
@@ -101,4 +103,146 @@ test('the picker refuses products that are not in native period-revenue order', 
     'PICK_NATIVE_PERIOD_ORDER_UNVERIFIED');
   refused([{ ...capture(rows)[0], body: { status: 'success', data: { products: [product('DHC Kẽm', null as any)] } } }],
     'PICK_NATIVE_PERIOD_ORDER_UNVERIFIED');
+});
+
+// Rule v2: a scripted fake Jev; nothing reaches the network.
+const pickV2 = (rows: Row[], script: Scripted[]) => {
+  const fake = fakeJev(script);
+  return { fake, result: pickProductsWithJev(capture(rows), part, 'a'.repeat(64), fake.jev, noWait) };
+};
+const otherPlatform = (prefix: string, revenue: number): Row =>
+  ({ product_base_id: prefix + '__1__2', product_name: 'Synthetic other', revenue_custom: revenue });
+// v2 rows carry the shop id the way real Metric rows do: `1__<shopId>`.
+const shopeeRow = (title: string, revenue: number, extra: Row = {}): Row => product(title, revenue, { shop_base_id: '1__301', ...extra });
+const descendingV2 = (titles: readonly string[]) => titles.map((title, i) => shopeeRow(title, 1000 - i * 10));
+
+test('v2 picks the first Shopee row without a question and skips other platforms silently', async () => {
+  const rows = [otherPlatform('2', 1000), otherPlatform('3', 990), shopeeRow('Synthetic first', 980), otherPlatform('8', 970),
+    shopeeRow('Synthetic second', 960)];
+  const { fake, result } = pickV2(rows, [answer(1, 'MOI', 0.9)]);
+  const picked = await result;
+  assert.deepEqual(picked.links.map(l => l.sourceRank), [3, 5]);
+  assert.equal(picked.links[0]!.reason, 'Hạng nguồn 3; sản phẩm đầu tiên bán trên Shopee.');
+  assert.equal(picked.links[1]!.reason, 'Hạng nguồn 5; khác các sản phẩm đã chọn.');
+  assert.equal(fake.asked.length, 1, 'only the second Shopee row is asked about');
+  assert.deepEqual(picked.selectionProof.skipped, [], 'other platforms leave no skip record');
+  assert.deepEqual(picked.selectionProof.decisions.map(d => d.sourceRank), [5]);
+});
+
+test('v2 walks rows whose shop is `1__<shopId>` or bare, and skips a row that names another shop', async () => {
+  const rows = [shopeeRow('Synthetic first', 1000), shopeeRow('Synthetic other shop', 990, { shop_base_id: '1__302' }),
+    shopeeRow('Synthetic bare shop', 980, { shop_base_id: '301' }), shopeeRow('Synthetic third', 970)];
+  const { fake, result } = pickV2(rows, [answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9)]);
+  const picked = await result;
+  assert.deepEqual(picked.links.map(l => [l.sourceRank, l.shopId]), [[1, '301'], [3, '301'], [4, '301']]);
+  assert.deepEqual(picked.selectionProof.skipped,
+    [{ sourceRank: 2, productBaseId: rows[1]!.product_base_id, reason: 'PICK_LISTING_ID_UNRESOLVED', duplicateOfRank: null }]);
+  assert.equal(fake.asked.length, 2, 'the skipped row is not asked about');
+  assert.deepEqual(await replayJevProductPick(capture(rows), part, 'a'.repeat(64), 'jev-1.13.0', picked.selectionProof.decisions), picked);
+});
+
+test('v2 decides by the chosen option and the 0.70 threshold, at and just below the mark', async () => {
+  const rows = descendingV2(['Synthetic A', 'Synthetic B', 'Synthetic A again', 'Synthetic C', 'Synthetic D']);
+  const { result } = pickV2(rows, [answer(1, 'MOI', 0.7), answer(2, 'SP1', 0.7), answer(2, 'MOI', 0.6999), answer(2, 'SP2', 0.69)]);
+  const picked = await result;
+  assert.deepEqual(picked.links.map(l => l.sourceRank), [1, 2]);
+  assert.deepEqual(picked.selectionProof.decisions.map(d => [d.sourceRank, d.choice, d.outcome]),
+    [[2, 'MOI', 'PICKED'], [3, 'SP1', 'DUPLICATE'], [4, 'MOI', 'UNSURE'], [5, 'SP2', 'UNSURE']]);
+  assert.deepEqual(picked.selectionProof.skipped, [
+    { sourceRank: 3, productBaseId: rows[2]!.product_base_id, reason: 'SAME_PRODUCT', duplicateOfRank: 1 },
+    { sourceRank: 4, productBaseId: rows[3]!.product_base_id, reason: 'PRODUCT_MATCH_UNSURE', duplicateOfRank: null },
+    { sourceRank: 5, productBaseId: rows[4]!.product_base_id, reason: 'PRODUCT_MATCH_UNSURE', duplicateOfRank: null }]);
+});
+
+test('v2 stops asking after the fifth pick', async () => {
+  const { fake, result } = pickV2(descendingV2(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7']), [1, 2, 3, 4].map(n => answer(n, 'MOI', 0.9)));
+  assert.equal((await result).links.length, 5);
+  assert.equal(fake.asked.length, 4);
+});
+
+test('v2 ends with five picks despite skips, or a shortage named by its cause', async () => {
+  const outcome = async (titles: string[], script: Scripted[]) => {
+    const proof = (await pickV2(descendingV2(titles), script).result).selectionProof;
+    return [proof.distinctCount, proof.unresolvedCount, proof.shortageReason];
+  };
+  assert.deepEqual(await outcome(['S1', 'S2', 'S3', 'S4', 'S5', 'S6'],
+    [answer(1, 'MOI', 0.5), answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9), answer(4, 'MOI', 0.9)]), [5, 1, null]);
+  assert.deepEqual(await outcome(['S1', 'S2', 'S3'], [answer(1, 'MOI', 0.9), answer(2, 'SP1', 0.6)]), [2, 1, 'PICK_PRODUCT_UNRESOLVED']);
+  assert.deepEqual(await outcome(['S1', 'S2', 'S3'], [answer(1, 'MOI', 0.9), answer(2, 'SP2', 0.9)]), [2, 0, 'FEWER_THAN_FIVE_DISTINCT_PRODUCTS']);
+});
+
+test('v2 sends the approved question word for word, options in pick order, and versions its texts', async () => {
+  const rows = [
+    shopeeRow('  Synthetic   Alpha\n60  caps ', 1000, { final_brand: 'Brand A', shop_name: 'Shop A' }),
+    shopeeRow('Synthetic Beta', 990, { final_brand: '', brand: 'Brand B', shop_name: '' }),
+    shopeeRow('Synthetic Gamma', 980, { final_brand: null, brand: null, shop_name: 'Shop C' }),
+  ];
+  const { fake, result } = pickV2(rows, [answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9)]);
+  await result;
+  assert.deepEqual(fake.asked[1], [{
+    id: 'PICK',
+    state: 'Tin đăng cần xét: Synthetic Gamma (thương hiệu: không rõ; shop: Shop C)',
+    instructions: 'The state is one Shopee listing. Options SP1, SP2... are products already on the list. Choose an existing product if the listing sells that same product (same brand, same product line, same main ingredients), even when the seller, pack size, days of supply, gift or title wording differ. Choose MOI if the listing sells a product that is not on the list.',
+    criteria: {
+      SP1: 'The listing sells this same product: Synthetic Alpha 60 caps (thương hiệu: Brand A; shop: Shop A)',
+      SP2: 'The listing sells this same product: Synthetic Beta (thương hiệu: Brand B; shop: không rõ)',
+      MOI: 'A new product: not the same as any product already on the list',
+    },
+  }]);
+  assert.deepEqual(Object.keys(fake.asked[1]![0]!.criteria), ['SP1', 'SP2', 'MOI']);
+  assert.ok(fake.asked.every(request => request.length === 1), 'one question per request');
+  assert.equal(PICK_JEV_QUESTION_VERSION, pickQuestionVersion(PICK_JEV_TEXTS));
+  // Every text the builder sends is a hashed text: with each text replaced by a marker, the request holds only
+  // markers and row data, and changing any one text changes both the request and the version.
+  const keys = Object.keys(PICK_JEV_TEXTS) as (keyof typeof PICK_JEV_TEXTS)[];
+  const markers = Object.fromEntries(keys.map(key => [key, `⟦${key}⟧`])) as unknown as typeof PICK_JEV_TEXTS;
+  const marked = pickQuestion(rows[2]!, rows.slice(0, 2), markers);
+  const data = ['Synthetic Alpha 60 caps', 'Brand A', 'Shop A', 'Synthetic Beta', 'Brand B', 'Synthetic Gamma', 'Shop C'];
+  for (const text of [marked.id, String(marked.state), marked.instructions, ...Object.values(marked.criteria)])
+    assert.equal([...keys.map(key => markers[key]), ...data].reduce((rest, part) => rest.replaceAll(part, ''), text), '', text);
+  const before = JSON.stringify(pickQuestion(rows[2]!, rows.slice(0, 2)));
+  for (const key of keys) {
+    const changed = { ...PICK_JEV_TEXTS, [key]: PICK_JEV_TEXTS[key] + '.' };
+    assert.notEqual(JSON.stringify(pickQuestion(rows[2]!, rows.slice(0, 2), changed)), before, `${key} reaches Jev`);
+    assert.notEqual(pickQuestionVersion(changed), PICK_JEV_QUESTION_VERSION, `${key} is versioned`);
+  }
+});
+
+test('v2 replay applies the checks of a live answer to every saved decision', async () => {
+  const rows = descendingV2(['S1', 'S2', 'S3']);
+  const picked = await pickV2(rows, [answer(1, 'MOI', 0.9), answer(2, 'SP1', 0.9)]).result;
+  const replay = (change: (decisions: any[]) => void) => {
+    const decisions = structuredClone(picked.selectionProof.decisions) as any[];
+    change(decisions);
+    return replayJevProductPick(capture(rows), part, 'a'.repeat(64), 'jev-1.13.0', decisions);
+  };
+  assert.deepEqual(await replay(() => {}), picked);
+  const cases: [string, (decisions: any[]) => void][] = [
+    ['option outside SP1..SPn + MOI', d => { d[0].probabilities = { SP1: 0.1, SP2: 0, MOI: 0.9 }; }],
+    ['option missing', d => { d[1].probabilities = { SP1: 0.9, MOI: 0.1 }; }],
+    ['probability outside 0..1', d => { d[0].probabilities = { SP1: -0.1, MOI: 1.1 }; }],
+    ['probability not a number', d => { d[0].probabilities = { SP1: '0.1', MOI: 0.9 }; }],
+    ['probabilities sum beyond 1 ± 0.02', d => { d[0].probabilities = { SP1: 0.1, MOI: 0.93 }; }],
+    ['choice outside the options', d => { d[0].choice = 'SP2'; }],
+  ];
+  for (const [name, change] of cases)
+    await assert.rejects(replay(change), (error: unknown) => error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH', name);
+  const withinTolerance = await replay(d => { d[0].probabilities = { SP1: 0.1, MOI: 0.92 }; });
+  assert.equal(withinTolerance.selectionProof.decisions[0]!.outcome, 'PICKED', 'a sum of 1.02 is a valid answer, as live');
+  const recomputed = await replay(d => { d[1].outcome = 'PICKED'; });
+  assert.equal(recomputed.selectionProof.decisions[1]!.outcome, 'DUPLICATE', 'the saved outcome is never taken over');
+});
+
+test('v2 retries a failed question and gives up after three attempts; a malformed answer is a failure', async () => {
+  const rows = descendingV2(['S1', 'S2']);
+  const waits: number[] = [];
+  const sleep = async (ms: number) => { waits.push(ms); };
+  const recovered = fakeJev(['http-error', answer(1, 'MOI', 0.9)]);
+  assert.equal((await pickProductsWithJev(capture(rows), part, 'a'.repeat(64), recovered.jev, sleep)).links.length, 2);
+  assert.deepEqual(waits, [1000]);
+  const failed = fakeJev(['throws', 'malformed', 'http-error']);
+  await assert.rejects(pickProductsWithJev(capture(rows), part, 'a'.repeat(64), failed.jev, sleep),
+    (error: unknown) => error instanceof ProductPickError && error.message === 'PICK_JEV_UNAVAILABLE');
+  assert.equal(failed.asked.length, 3);
+  assert.deepEqual(waits, [1000, 1000, 3000]);
 });

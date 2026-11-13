@@ -38,6 +38,7 @@ HOME = pathlib.Path.home()
 STATE = pathlib.Path(os.environ.get('SHOPEE_FLOW_STATE', str(HOME / '.local/state/tdn-growth-os'))).expanduser()
 TOOL = STATE / 'shopee-flow'
 MODULE_DATA = HOME / '.local/state/tdn-shopee-modules'
+MODULE_PICK_POLICIES = ('metric-products-unique-v1', 'metric-products-unique-v2')   # M2 rules with a saved-source proof; new runs use v2
 RECOVERY = TOOL / 'recovery.json'
 CAP_ENV = 'TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT'
 TEST_ENV = 'TDN_RESEARCH_AUTORUN_TEST_REVIEWS'
@@ -839,7 +840,7 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         check('masked_ids', masked == 0, masked, True)
         error = manifest.get('errorCode') or manifest.get('code')
         code = error if isinstance(error, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', error) else None
-        if request.get('selectionPolicy') == 'metric-products-unique-v1':
+        if request.get('selectionPolicy') in MODULE_PICK_POLICIES:
             try:
                 metric_output_script(run, 'verify-capture')
                 check('saved_capture_source_verified', True, True)
@@ -847,7 +848,7 @@ def evaluate_gate(run, gate, *, readonly_file=None):
                 check('saved_capture_source_verified', False, failure.code)
                 code = failure.code
     elif not code and gate == 'm2':
-        if request.get('selectionPolicy') == 'metric-products-unique-v1':
+        if request.get('selectionPolicy') in MODULE_PICK_POLICIES:
             try:
                 proof = metric_output_script(run, 'verify-selection')
                 check('links_match_source_order', proof.get('linksMatchSourceOrder') is True, proof.get('selectedCount'))
@@ -1065,6 +1066,8 @@ def module_blocking(run, module, manual=False, owner_pid=None):
         return {'code': 'READONLY_ON', 'gate': None}, 20
     if module == 'm1' and gate_path(run, 'm1').exists():
         return {'code': 'M1_OUTPUT_EXISTS', 'gate': None}, 20
+    if module == 'm2' and module_m2_passed(run):
+        return {'code': 'M2_ALREADY_PASSED', 'gate': None}, 20
     if module == 'm3' and isinstance(automatic, dict):
         request = gate_read(gate_path(run, 'request.json'))
         if isinstance(request, dict) and request.get('format') == 'request-v2':
@@ -1075,6 +1078,16 @@ def module_blocking(run, module, manual=False, owner_pid=None):
 
 def module_readonly():
     return os.environ.get('TDN_SHOPEE_FLOW_READONLY') == '1' or READONLY_FILE.exists()
+
+
+def module_m2_passed(run):
+    """Owner decision 13/11/2026 (K2): a v2 run keeps its passed step 2; a second run would ask Jev again."""
+    request = gate_read(gate_path(run, 'request.json'))
+    if not isinstance(request, dict) or request.get('selectionPolicy') != 'metric-products-unique-v2':
+        return False
+    slip = gate_read(gate_path(run, 'gates/m2.json'))
+    return (isinstance(slip, dict) and slip.get('format') == 'handoff-v1' and slip.get('runId') == run.name
+            and slip.get('module') == 'M2' and slip.get('verdict') == 'PASS')
 
 
 def module_barrier(run, module, manual=False, owner_pid=None):
@@ -1124,6 +1137,8 @@ def module_launch_admission(run, module, ns, repo, config):
     if entry_code:
         raise ModuleFailure(entry.get('errorCode') or 'MODULE_INPUT_INVALID', entry_code)
     request = gate_read(gate_path(run, 'request.json'))
+    if module == 'm2' and module_m2_passed(run):
+        raise ModuleFailure('M2_ALREADY_PASSED')
     if module == 'm1':
         if gate_path(run, 'm1').exists():
             raise ModuleFailure('M1_OUTPUT_EXISTS')
@@ -1146,7 +1161,7 @@ def module_work(run, module, ns, repo, config, admission=None):
         flow_accept_launch(run, (gate_read(gate_path(run, 'state.json')) or {}).get('startedAt') or flow_now())
         module_atomic_json(run, 'capture-spec.json', request['captureSpec'])
         args = [str(repo / 'scripts/capture-metric-preset.ts'), str(run / 'capture-spec.json'), str(run / 'm1'), os.environ['TDN_WORKSPACE_DB']]
-        if request.get('selectionPolicy') == 'metric-products-unique-v1':
+        if request.get('selectionPolicy') in MODULE_PICK_POLICIES:
             args.extend(['--module-run', str(run)])
     else:
         args = [str(repo / ('scripts/module-pick.ts' if module == 'm2' else 'scripts/module-collect-public.ts')), str(run)]
@@ -2151,7 +2166,7 @@ def flow_new_run():
                'collectionPolicy': policy, 'principalTitles': titles, 'captureSpec': spec}
     if metric_input is not None:
         request['metricInput'] = metric_input
-        request['selectionPolicy'] = 'metric-products-unique-v1'
+        request['selectionPolicy'] = 'metric-products-unique-v2'
     flow_assert_capture(request)
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)

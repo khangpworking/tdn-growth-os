@@ -30,7 +30,7 @@ async function main() {
   let moduleEvidence: { runId: string; requestSha256: string } | undefined;
   if (moduleRun) {
     const run = resolve(moduleRun), request = await readRequest(run);
-    if (request.selectionPolicy !== 'metric-products-unique-v1' || spec.contractVersion !== 'metric-v3-capture-spec-v3' ||
+    if (!request.selectionPolicy || spec.contractVersion !== 'metric-v3-capture-spec-v3' ||
         JSON.stringify(spec) !== JSON.stringify(request.captureSpec) || outputDir !== join(run, 'm1') ||
         resolve(specPath) !== join(run, 'capture-spec.json')) throw new Error('CAPTURE_MODULE_BINDING_INVALID');
     moduleEvidence = { runId: basename(run), requestSha256: sha256(await readFile(join(run, 'request.json'))) };

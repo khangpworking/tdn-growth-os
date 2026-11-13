@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
-import { MODULE_PICK_POLICY, ProductPickError, derivePeriodProductPick, rankedMetricProducts } from './module-product-pick.js';
+import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick } from './module-product-pick.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -122,16 +122,23 @@ export async function verifyModuleCapture(run: string) {
 
 export async function verifyModuleSelection(run: string) {
   const { request, source } = await verifyModuleCapture(run);
-  if (request.selectionPolicy !== MODULE_PICK_POLICY || !source.part || !source.rawBytes) throw new ModuleError('PICK_POLICY_MISMATCH');
+  const v2 = request.selectionPolicy === MODULE_PICK_POLICY_V2;
+  if ((request.selectionPolicy !== MODULE_PICK_POLICY && !v2) || !source.part || !source.rawBytes) throw new ModuleError('PICK_POLICY_MISMATCH');
   const metricInputSha256 = await prerequisite(run, 'm1');
   const selection = object(await readJson(run, 'm2/selection.json'));
   await validateModuleValue('selection-v1', selection);
-  const expected = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
-  const exact = { format: 'selection-v1', runId: basename(run), source: 'auto', pickRuleVersion: MODULE_PICK_POLICY,
+  let expected;
+  if (v2) {
+    // Replay with the saved answers only; Jev is never asked here (work package C1, section 3.5).
+    const proof = object(selection.selectionProof), matcher = object(proof.matcher);
+    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), String(matcher.model), proof.decisions); }
+    catch (error) { throw error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH' ? new ModuleError('PICK_PROOF_MISMATCH') : error; }
+  } else expected = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
+  const exact = { format: 'selection-v1', runId: basename(run), source: 'auto', pickRuleVersion: request.selectionPolicy,
     metricInputSha256, links: expected.links, counts: expected.counts, selectionProof: expected.selectionProof };
   if (canonicalJson(selection) !== canonicalJson(exact)) throw new ModuleError('PICK_PROOF_MISMATCH');
   const files = await evidenceFiles(run, source, request);
-  const fiveDistinct = expected.links.length === 5 && expected.selectionProof.unresolvedCount === 0;
+  const fiveDistinct = v2 ? expected.links.length === 5 : expected.links.length === 5 && expected.selectionProof.unresolvedCount === 0;
   const panelCovered = files.topProducts.descriptor.available && expected.links.every(l =>
     files.topProducts.coverage.some(c => c.sourceRank === l.sourceRank && c.productBaseId === l.productBaseId));
   return { linksMatchSourceOrder: true, fiveDistinct, selectedCount: expected.links.length,
@@ -247,7 +254,8 @@ export async function moduleOutputs(runArg: string) {
       await validateModuleValue('selection-v1', selection);
       if (request.selectionPolicy) {
         const proof = await verifyModuleSelection(run);
-        Object.assign(m2, proof);
+        // v2 links have no title group; the wire shape keeps both fields as null.
+        Object.assign(m2, proof, { links: proof.links.map(link => ({ groupKey: null, groupingBasis: null, ...link })) });
         if (!proof.panelCovered && m2.evidence.topProducts.available)
           m2.evidence.topProducts = unavailable('top-products', 'EVIDENCE_RANK_NOT_COVERED');
       }

@@ -52,7 +52,10 @@
       "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json#/$defs/confirmedInput"
     },
     "selectionPolicy": {
-      "const": "metric-products-unique-v1"
+      "enum": [
+        "metric-products-unique-v1",
+        "metric-products-unique-v2"
+      ]
     }
   },
   "allOf": [
