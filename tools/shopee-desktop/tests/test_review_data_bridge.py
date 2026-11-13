@@ -53,6 +53,23 @@ if action == 'review-data':
     }
     print(json.dumps(out))
     raise SystemExit(0)
+if action == 'review-stats':
+    mode = os.environ.get('BRIDGE_STATS_MODE', '')
+    if mode == 'error':
+        print(json.dumps({'format': 'error-v1', 'code': 'STATS_UNREADABLE', 'message': 'private server text'}))
+        raise SystemExit(2)
+    if mode == 'error_text':
+        print(json.dumps({'format': 'error-v1', 'code': 'failed for user Lan', 'message': 'private server text'}))
+        raise SystemExit(2)
+    numbers = {'commentCount': 2, 'averageStar': 4.5, 'starCounts': {'1': 0, '2': 0, '3': 0, '4': 1, '5': 1},
+               'firstCommentAt': '2026-11-01T00:00:00.000Z', 'lastCommentAt': '2026-11-02T00:00:00.000Z'}
+    link = dict(numbers, shopId='12', itemId='34', url='https://shopee.vn/product/12/34')
+    if mode == 'extra':
+        link['comment'] = 'synthetic comment text'
+    source = {'sourceSha256': 'a' * 64, 'kind': 'custom', 'status': 'SUCCEEDED',
+              'completedAt': '2026-11-02T00:00:00.000Z', 'all': numbers, 'links': [link]}
+    print(json.dumps({'format': 'review-stats-v1', 'runId': run, 'sources': [source] if mode else []}))
+    raise SystemExit(0)
 if action == 'save-review-data':
     out = {
         'format': 'review-data-saved-v1', 'runId': run, 'sourceSha256': payload['sourceSha256'],
@@ -130,7 +147,7 @@ class ReviewDataBridgeTest(unittest.TestCase):
         })
         patch.start()
         self.addCleanup(patch.stop)
-        for name in ('BRIDGE_RAW_MODE', 'BRIDGE_FAIL_FORMAT'):
+        for name in ('BRIDGE_RAW_MODE', 'BRIDGE_FAIL_FORMAT', 'BRIDGE_STATS_MODE'):
             self.addCleanup(os.environ.pop, name, None)
             os.environ.pop(name, None)
         self.api = tdn_shopee_app.Api()
@@ -153,6 +170,30 @@ class ReviewDataBridgeTest(unittest.TestCase):
         self.assertTrue(result['ok'])
         self.assertEqual(result['data']['tracking']['timeBasis'], 'recorded-first-accepted')
         self.assertEqual(self.calls()[-1], {'args': ['review-data', '--run', 'run-1'], 'payload': None})
+
+    def test_review_stats_route_reaches_the_remote_read_only_command(self):
+        result = self.api.reviewStats('run-1')
+        self.assertEqual(result, {'ok': True, 'data': {'format': 'review-stats-v1', 'runId': 'run-1', 'sources': []}})
+        self.assertEqual(self.calls()[-1], {'args': ['review-stats', '--run', 'run-1'], 'payload': None})
+        self.assertEqual(self.api.reviewStats('../x')['error']['code'], 'ARG_INVALID')
+
+    def test_review_stats_passes_only_the_closed_numbers_shape(self):
+        os.environ['BRIDGE_STATS_MODE'] = 'full'
+        result = self.api.reviewStats('run-1')
+        self.assertTrue(result['ok'])
+        self.assertEqual(result['data']['sources'][0]['links'][0]['commentCount'], 2)
+        os.environ['BRIDGE_STATS_MODE'] = 'extra'
+        result = self.api.reviewStats('run-1')
+        self.assertEqual(result, {'ok': False, 'error': {'code': 'REMOTE_OUTPUT_INVALID', 'message': 'REMOTE_OUTPUT_INVALID'}})
+        self.assertNotIn('synthetic comment text', json.dumps(result))
+
+    def test_review_stats_errors_carry_only_a_static_code(self):
+        os.environ['BRIDGE_STATS_MODE'] = 'error'
+        self.assertEqual(self.api.reviewStats('run-1'),
+                         {'ok': False, 'error': {'code': 'STATS_UNREADABLE', 'message': 'STATS_UNREADABLE'}})
+        os.environ['BRIDGE_STATS_MODE'] = 'error_text'
+        self.assertEqual(self.api.reviewStats('run-1'),
+                         {'ok': False, 'error': {'code': 'REMOTE_OUTPUT_INVALID', 'message': 'REMOTE_OUTPUT_INVALID'}})
 
     def test_save_sends_only_the_source_digest_and_accepts_the_receipt(self):
         result = self.api.saveReviewData('run-1', {'sourceSha256': SOURCE})

@@ -1,7 +1,10 @@
 import { metricTitleGroup } from '../src/modules/foundation/metric-product-groups.js';
 
 export const MODULE_PICK_POLICY = 'metric-products-unique-v1';
-export class ProductPickError extends Error {}
+export class ProductPickError extends Error {
+  /** True only when a readable row has higher period revenue than the row before it. */
+  constructor(message: string, readonly orderBroken = false) { super(message); }
+}
 type Row = Record<string, unknown>;
 export function rankedMetricProducts(raw: unknown, part: Row) {
   const map = part.sourceMap as Row | undefined;
@@ -20,8 +23,9 @@ export function rankedMetricProducts(raw: unknown, part: Row) {
     // No lifetime revenue fallback or numeric conversion that turns missing/empty data into zero.
     if ((typeof revenue !== 'number' && typeof revenue !== 'string') || revenue === '' ||
         (typeof revenue === 'string' && !/^\d+(?:\.\d+)?$/.test(revenue)) ||
-        !Number.isFinite(Number(revenue)) || Number(revenue) < 0 || (previous !== null && Number(revenue) > previous))
+        !Number.isFinite(Number(revenue)) || Number(revenue) < 0)
       throw new ProductPickError('PICK_NATIVE_PERIOD_ORDER_UNVERIFIED');
+    if (previous !== null && Number(revenue) > previous) throw new ProductPickError('PICK_NATIVE_PERIOD_ORDER_UNVERIFIED', true);
     previous = Number(revenue); rows.push(row);
   }
   return { rows, sourceMap: map!.products as string };

@@ -48,6 +48,7 @@ function harness(options: {
   captureSpecsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
   moduleOutputsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
   openModuleEvidenceResult?: (runId: string, kind: string, sha256: string) => any;
+  reviewStatsResult?: (runId: string) => any;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -155,6 +156,9 @@ function harness(options: {
       state.openLinkCalls.push(url);
       return { ok: true, data: { opened: true } };
     },
+    reviewStats: async (runId: string) => options.reviewStatsResult
+      ? options.reviewStatsResult(runId)
+      : { ok: true, data: { format: 'review-stats-v1', runId, sources: [] } },
     runFlow: async (runId: string) => {
       state.flowCalls.push(runId);
       if (options.runFlowGate) await options.runFlowGate.promise;
@@ -2817,6 +2821,10 @@ test('connection and disabled create states explain themselves without the data 
 const evidenceDescriptor = (kind: string, fileName: string, mediaType: string) => ({
   available: true, kind, sha256: 'a'.repeat(64), byteSize: 123, mediaType, fileName, errorCode: null,
 });
+const M2_HEADERS = ['Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Thương hiệu', 'Ngành hàng', 'Giá',
+  'Khoảng giá', 'Doanh số trong kỳ', 'Doanh số kỳ trước', 'Đã bán trong kỳ', 'Đã bán kỳ trước', 'Tổng doanh số',
+  'Tổng đã bán', 'Điểm đánh giá', 'Số đánh giá', 'Ngày đăng bán', 'Link Shopee'];
+
 function moduleOutputView(runId: string, m1: any = {}, m2: any = {}) {
   const titles = ['DHC Kẽm 60 ngày', 'DHC Vitamin C 60 ngày', 'DHC Biotin 60 ngày',
     'DHC Magiê 60 ngày', 'DHC Canxi 60 ngày'];
@@ -2872,8 +2880,7 @@ test('a new-policy run shows both M1 results, the five picks and opens only the 
     }
     assert.match(element(doc, 'moM2Distinct').textContent!, /Đã chọn đủ 5 sản phẩm khác nhau/);
     const table = doc.querySelector('#moduleOutputsPanel table')!;
-    assert.deepEqual([...table.querySelectorAll('thead th')].map((th) => th.textContent),
-      ['Hạng trên nguồn Metric', 'Tên sản phẩm', 'Shop', 'Doanh số trong kỳ', 'Link Shopee']);
+    assert.deepEqual([...table.querySelectorAll('thead th')].map((th) => th.textContent), M2_HEADERS);
     const rows = [...table.querySelectorAll('tbody tr')];
     assert.equal(rows.length, 5);
     assert.equal(rows[0]!.querySelector('td')!.textContent, '3');
@@ -2950,5 +2957,177 @@ test('a module-output reply for a run left meanwhile never repaints the selected
     assert.match(doc.querySelector('#runList button.on')?.getAttribute('title') || '', /run-b/);
     assert.match(doc.getElementById('moduleOutputsPanel')!.textContent!, /beta/);
     assert.doesNotMatch(doc.getElementById('moduleOutputsPanel')!.textContent!, /alpha/);
+  } finally { dom.window.close(); }
+});
+
+test('B1: step 1 shows the revenue order line as passed, failed or unknown', async () => {
+  const order: Record<string, boolean | null | undefined> = { 'run-a': true, 'run-b': false, 'run-c': null, 'run-d': undefined };
+  const runs = Object.keys(order).map((runId) => ({ runId, product: 'Sản phẩm ' + runId, status: 'DONE' }));
+  const { dom, doc } = harness({
+    runs, runInfoByRun: Object.fromEntries(runs.map((run) => [run.runId, syntheticRunInfo(run.runId)])),
+    moduleOutputsResult: (runId) => ({ ok: true, data: order[runId] === undefined
+      ? moduleOutputView(runId, { keywords: [runId] })
+      : moduleOutputView(runId, { keywords: [runId], revenueOrderDescending: order[runId] }) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 4, 'run list');
+    for (const [runId, icon, cls] of [['run-a', '✓', /c-ok/], ['run-b', '✕', /c-fail/], ['run-c', '?', /c-warn/],
+      ['run-d', '?', /c-warn/]] as const) {
+      runListButton(doc, runId).click();
+      await waitFor(() => doc.querySelector('#moduleOutputsPanel')?.textContent?.includes(runId) === true &&
+        doc.getElementById('moM1Order') !== null, 'order line ' + runId);
+      const line = element(doc, 'moM1Order');
+      assert.match(line.className, cls, runId);
+      assert.equal(line.querySelector('.ci')!.textContent, icon, runId);
+      assert.equal(line.querySelector('.cl')!.textContent, 'Xếp doanh số top sản phẩm bán chạy theo thứ tự giảm dần');
+      assert.equal(line.previousElementSibling!.id, 'moM1Data', 'third line, after the two existing lines');
+    }
+  } finally { dom.window.close(); }
+});
+
+test('B2: step 2 shows the 17 Metric columns, scrolls sideways and keeps the clickable link', async () => {
+  const product = {
+    rank: 7, productName: 'Tên từ Metric', shopName: 'Shop từ Metric', officialType: 1, brand: 'Nhãn từ Metric',
+    categories: ['Nhóm A', 'Nhóm B'], price: 350000, priceMin: 266600, priceMax: 419000, periodRevenue: 55650000,
+    previousRevenue: 26445000, periodSold: 159, previousSold: 78, totalRevenue: 158090400, totalSold: 448,
+    ratingAvg: 4.93, ratingCount: 46, listedAt: '2026-01-20 10:00:00',
+  };
+  const base = moduleOutputView('run-synthetic');
+  const links = base.m2.links.map((link: any, i: number) => ({ ...link,
+    metricProduct: i === 0 ? product : i === 1 ? { ...product, categories: null } : null }));
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(),
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId, {}, { links }) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+    runListButton(doc, 'run-synthetic').click();
+    await waitFor(() => doc.getElementById('moM2Scroll') !== null, 'wide table');
+    const table = doc.querySelector('#moM2Scroll table')!;
+    assert.deepEqual([...table.querySelectorAll('thead th')].map((th) => th.textContent), M2_HEADERS);
+    const cells = (row: number) => [...table.querySelectorAll('tbody tr')[row]!.querySelectorAll('td')].map((td) => td.textContent);
+    assert.deepEqual(cells(0), ['7', 'Tên từ Metric', 'Shop từ Metric', 'Nhãn từ Metric', 'Nhóm A › Nhóm B',
+      '350.000 đ', '266.600 – 419.000 đ', '55.650.000 đ', '26.445.000 đ', '159', '78', '158.090.400 đ', '448', '4,9', '46',
+      '20/01/2026', 'https://shopee.vn/product/801/100']);
+    assert.equal(cells(1)[4], 'Chưa có');
+    const fallback = cells(2);
+    assert.deepEqual(fallback.slice(0, 3), ['5', 'DHC Biotin 60 ngày', 'Synthetic shop'], 'without a Metric row the link fields stay');
+    assert.deepEqual(fallback.slice(8, 16), Array(8).fill('Chưa có'));
+    assert.equal(element(doc, 'moM2Scroll').nextElementSibling!.textContent, 'Kéo ngang để xem đủ các cột.');
+    table.querySelectorAll<HTMLAnchorElement>('tbody tr a.rs-url')[0]!.click();
+    await waitFor(() => state.openLinkCalls.length === 1, 'link opened outside the app');
+  } finally { dom.window.close(); }
+});
+
+test('B2: a legacy run shows the looked-up Metric row without new-policy check lines', async () => {
+  const legacy = moduleOutputView('run-synthetic', {}, {
+    policy: 'legacy', legacyVerdict: 'PASS', linksMatchSourceOrder: null, fiveDistinct: null,
+    selectedCount: 1, shortageReason: null, errorCode: null, skipped: [],
+    links: [{ rank: 1, sourceRank: null, productBaseId: '1__1__2', shopId: '2', itemId: '1',
+      url: 'https://shopee.vn/product/2/1', productName: null, shopName: null, brand: 'Synthetic brand',
+      revenue: 100, groupKey: null, groupingBasis: null, reason: 'Hạng 1',
+      metricProduct: { rank: 19, productName: 'Tên cũ tra lại', shopName: 'Shop cũ', officialType: null, brand: null,
+        categories: null, price: null, priceMin: null, priceMax: null, periodRevenue: null, previousRevenue: null,
+        periodSold: null, previousSold: null, totalRevenue: null, totalSold: null, ratingAvg: null, ratingCount: null,
+        listedAt: null } }],
+  });
+  const { dom, doc } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(),
+    moduleOutputsResult: () => ({ ok: true, data: legacy }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+    runListButton(doc, 'run-synthetic').click();
+    await waitFor(() => doc.getElementById('moM2Scroll') !== null, 'legacy wide table');
+    assert.equal(element(doc, 'moM2Chip').textContent, 'Kiểm tra cũ: Đạt');
+    for (const id of ['moM2Source', 'moM2Shopee', 'moM2Same', 'moM2Distinct']) assert.equal(doc.getElementById(id), null, id);
+    const cells = [...doc.querySelectorAll('#moM2Scroll tbody tr td')].map((td) => td.textContent);
+    assert.deepEqual(cells.slice(0, 4), ['19', 'Tên cũ tra lại', 'Shop cũ', 'Synthetic brand']);
+    assert.equal(cells[7], '100 đ', 'period revenue falls back to the saved link revenue');
+  } finally { dom.window.close(); }
+});
+
+test('B3: each sentiment bar segment is as wide as its own percentage of starred comments', async () => {
+  const all = { commentCount: 10, averageStar: 3.2, starCounts: { 1: 0, 2: 0, 3: 9, 4: 1, 5: 0 },
+    firstCommentAt: '2026-11-01T09:00:00+07:00', lastCommentAt: '2026-11-05T09:00:00+07:00' };
+  const stats = { format: 'review-stats-v1', runId: 'run-synthetic', sources: [{
+    sourceSha256: 'c'.repeat(64), kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z', all,
+    links: [{ shopId: '801', itemId: '100', url: 'https://shopee.vn/product/801/100', ...all }],
+  }] };
+  const { doc } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfoByRun: { 'run-synthetic': syntheticRunInfo('run-synthetic') },
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
+    reviewStatsResult: () => ({ ok: true, data: stats }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+    await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 1, 'result run list');
+    doc.querySelector<HTMLButtonElement>('#resultRunList button')!.click();
+    await waitFor(() => doc.getElementById('resultSentiment') !== null, 'overview');
+    assert.equal(element(doc, 'resultSentiment').textContent, 'Đánh giá tích cực 10%Đánh giá tiêu cực 0%');
+    assert.deepEqual([...doc.querySelectorAll<HTMLElement>('#resultOverview .kd-bar i')].map((segment) => segment.style.width), ['10%', '0%']);
+  } finally { doc.defaultView!.close(); }
+});
+
+test('B3: the results tab shows numbers for the run and changes them per product link', async () => {
+  const numbers = (count: number, stars: number[], first: string, last: string) => ({
+    commentCount: count, averageStar: stars.reduce((sum, n, i) => sum + n * (i + 1), 0) / stars.reduce((a, b) => a + b, 0),
+    starCounts: { 1: stars[0], 2: stars[1], 3: stars[2], 4: stars[3], 5: stars[4] }, firstCommentAt: first, lastCommentAt: last,
+  });
+  const linkA = 'https://shopee.vn/product/801/100';
+  const linkB = 'https://shopee.vn/product/801/101';
+  const stats = { format: 'review-stats-v1', runId: 'run-synthetic', sources: [{
+    sourceSha256: 'c'.repeat(64), kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z',
+    all: numbers(24, [0, 1, 0, 0, 23], '2026-02-14T09:00:00+07:00', '2026-11-05T09:00:00+07:00'),
+    links: [{ shopId: '801', itemId: '100', url: linkA, ...numbers(21, [0, 1, 0, 0, 20], '2026-03-01T09:00:00+07:00', '2026-11-05T09:00:00+07:00') },
+      { shopId: '801', itemId: '101', url: linkB, ...numbers(3, [0, 0, 0, 0, 3], '2026-02-14T09:00:00+07:00', '2026-06-01T09:00:00+07:00') }],
+  }] };
+  const { dom, doc } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' },
+      { runId: 'run-empty', product: 'Sản phẩm trống', status: 'DONE' }],
+    runInfoByRun: { 'run-synthetic': syntheticRunInfo('run-synthetic'), 'run-empty': syntheticRunInfo('run-empty') },
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
+    reviewStatsResult: (runId) => ({ ok: true, data: runId === 'run-synthetic' ? stats
+      : { format: 'review-stats-v1', runId, sources: [] } }),
+  });
+  try {
+    const tabs = [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')];
+    assert.deepEqual(tabs.map((tab) => tab.textContent),
+      ['Tạo lượt mới', 'Chi tiết lịch sử lượt chạy', 'Kết quả chạy', 'Tài liệu kỹ thuật']);
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 2, 'run list');
+    tabs[2]!.click();
+    await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 2, 'result run list');
+    assert.equal(element(doc, 'scr-result').hidden, false);
+    assert.equal(element(doc, 'scr-track').hidden, true);
+    const resultButton = (runId: string) => [...doc.querySelectorAll<HTMLButtonElement>('#resultRunList button')]
+      .find((button) => button.title.includes(runId))!;
+    resultButton('run-synthetic').click();
+    await waitFor(() => doc.getElementById('resultOverview') !== null &&
+      /Tên|DHC/.test(element(doc, 'resultLinkSelect').textContent || ''), 'overview');
+    const detail = element(doc, 'resultDetail');
+    assert.equal(detail.querySelector('.dhead h2')!.textContent, 'Sản phẩm tổng hợp');
+    assert.ok(detail.querySelector('.dhead .chip'), 'status chip');
+    assert.equal(detail.querySelector('#resultOverview h3')!.textContent, 'Tổng quan bình luận Shopee');
+    assert.equal(detail.querySelector('.kd-score b')!.textContent, '4,9');
+    assert.equal(element(doc, 'resultCount').textContent, '24 bình luận từ 2 link sản phẩm · từ 14/02/2026 đến 05/11/2026');
+    assert.equal(element(doc, 'resultSentiment').textContent, 'Đánh giá tích cực 95,8%Đánh giá tiêu cực 4,2%');
+    const select = element<HTMLSelectElement>(doc, 'resultLinkSelect');
+    assert.deepEqual([...select.options].map((option) => option.textContent),
+      ['Tất cả 2 link sản phẩm', 'DHC Kẽm 60 ngày (21 bình luận)', 'DHC Vitamin C 60 ngày (3 bình luận)']);
+    select.value = linkB;
+    select.dispatchEvent(new dom.window.Event('change'));
+    assert.equal(element(doc, 'resultCount').textContent, '3 bình luận từ 1 link sản phẩm · từ 14/02/2026 đến 01/06/2026');
+    assert.equal(element(doc, 'resultSentiment').textContent, 'Đánh giá tích cực 100%Đánh giá tiêu cực 0%');
+    assert.deepEqual([...detail.querySelectorAll<HTMLElement>('.kd-bar i')].map((segment) => segment.style.width), ['100%', '0%']);
+    assert.equal(detail.querySelector('.kd-score b')!.textContent, '5,0');
+    assert.doesNotMatch(detail.textContent!, /Tóm tắt|Điểm nổi bật/, 'the AI parts wait for an owner decision');
+
+    resultButton('run-empty').click();
+    await waitFor(() => doc.getElementById('resultEmpty') !== null, 'empty run');
+    assert.equal(element(doc, 'resultEmpty').textContent, 'Lượt này chưa có bình luận.');
   } finally { dom.window.close(); }
 });

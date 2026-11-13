@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/review-stats-v1.schema.json",
+  "title": "Step-3 comment numbers per verified result",
+  "description": "Read-only numbers from the comments step 3 saved. Closed shape: no comment text, user name or user id.",
+  "$defs": {
+    "numbers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commentCount",
+        "averageStar",
+        "starCounts",
+        "firstCommentAt",
+        "lastCommentAt"
+      ],
+      "properties": {
+        "commentCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "averageStar": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5
+        },
+        "starCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "properties": {
+            "1": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "2": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "3": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "4": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "5": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "firstCommentAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lastCommentAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shopId",
+        "itemId",
+        "url",
+        "commentCount",
+        "averageStar",
+        "starCounts",
+        "firstCommentAt",
+        "lastCommentAt"
+      ],
+      "properties": {
+        "shopId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "itemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://shopee\\.vn/",
+          "maxLength": 2000
+        },
+        "commentCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "averageStar": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5
+        },
+        "starCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "properties": {
+            "1": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "2": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "3": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "4": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "5": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "firstCommentAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lastCommentAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "runId",
+    "sources"
+  ],
+  "properties": {
+    "format": {
+      "const": "review-stats-v1"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceSha256",
+          "kind",
+          "status",
+          "completedAt",
+          "all",
+          "links"
+        ],
+        "properties": {
+          "sourceSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "kind": {
+            "enum": [
+              "legacy",
+              "custom"
+            ]
+          },
+          "status": {
+            "enum": [
+              "SUCCEEDED",
+              "FAILED"
+            ]
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "all": {
+            "$ref": "#/$defs/numbers"
+          },
+          "links": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/$defs/link"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -114,6 +114,153 @@
           }
         }
       ]
+    },
+    "metricProduct": {
+      "description": "Read-only copy of the link's row in the saved Metric products response; rank is its 1-based position there.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "productName",
+        "shopName",
+        "officialType",
+        "brand",
+        "categories",
+        "price",
+        "priceMin",
+        "priceMax",
+        "periodRevenue",
+        "previousRevenue",
+        "periodSold",
+        "previousSold",
+        "totalRevenue",
+        "totalSold",
+        "ratingAvg",
+        "ratingCount",
+        "listedAt"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "productName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shopName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "officialType": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "categories": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "price": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "priceMin": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "priceMax": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "periodRevenue": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "previousRevenue": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "periodSold": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "previousSold": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "totalRevenue": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "totalSold": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "ratingAvg": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "ratingCount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "listedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     }
   },
   "type": "object",
@@ -201,6 +348,13 @@
             "null"
           ],
           "minimum": 0
+        },
+        "revenueOrderDescending": {
+          "description": "Optional. Whether the saved Metric products response lists period revenue in non-increasing order; null when it cannot be read.",
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "evidence": {
           "type": "object",
@@ -377,6 +531,17 @@
                 "enum": [
                   null,
                   "finite-title-components-v1"
+                ]
+              },
+              "metricProduct": {
+                "description": "Optional. Null when the saved products response has no row with this productBaseId.",
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/metricProduct"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               }
             }

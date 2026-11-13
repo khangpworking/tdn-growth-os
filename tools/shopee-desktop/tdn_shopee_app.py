@@ -19,6 +19,7 @@ _RUN_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}')
 _PLAN_SHA = re.compile(r'[0-9a-f]{64}')
 _REMOTE_PATH = re.compile(r'(\$HOME/)?[A-Za-z0-9_./-]+')
 _STATIC_ERROR = re.compile(r'[A-Z][A-Z0-9_]{0,63}')
+_SHOP_ITEM_ID = re.compile(r'[1-9][0-9]{0,19}')
 _SHOPEE_LINK = re.compile(r"https://shopee\.vn/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{0,2000}")
 EXPORT_MAX_BYTES = 64 * 1024 * 1024
 EXPORT_ERROR_MAX_BYTES = 64 * 1024
@@ -45,6 +46,7 @@ _COMMANDS = {
     'stopReviewAttempt': ('stop-review-attempt', '--run'),
     'reconcileReviewAttempt': ('reconcile-review-attempt', '--run'),
     'reviewData': ('review-data', '--run'),
+    'reviewStats': ('review-stats', '--run'),
     'saveReviewData': ('save-review-data', '--run'),
     'exportReviewData': ('export-review-data', '--run'),
     'readReviewExport': ('read-review-export', '--run'),
@@ -223,7 +225,7 @@ class Api:
             words.append(self._metric_end_date(payload))
         if action in ('status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence', 'entry', 'flow', 'm1', 'm2', 'm3',
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
-                      'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData',
+                      'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats',
                       'saveReviewData', 'exportReviewData', 'readReviewExport'):
             words.append(self._run_id(run_id))
         if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
@@ -661,6 +663,49 @@ class Api:
                 not isinstance(data.get('db'), dict) or not isinstance(data.get('sources'), list)):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return result
+
+    def reviewStats(self, runId=None):
+        return self._safe(lambda: self._review_stats(runId))
+
+    def _review_stats(self, run_id):
+        result = self._remote('reviewStats', run_id=run_id)
+        if not result['ok']:
+            # Numbers only: never forward server error text or detail, just a static code.
+            code = result.get('error', {}).get('code')
+            raise _BridgeFailure(code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID')
+        data = result['data']
+        if (set(data) != {'format', 'runId', 'sources'} or data['format'] != 'review-stats-v1' or
+                data['runId'] != run_id or not isinstance(data['sources'], list) or
+                not all(self._review_stats_source(source) for source in data['sources'])):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    @staticmethod
+    def _review_stats_numbers(value, extra=()):
+        """Closed review-stats-v1 numbers: any key outside the contract (comment text, user) fails."""
+        keys = {'commentCount', 'averageStar', 'starCounts', 'firstCommentAt', 'lastCommentAt'}
+        if not isinstance(value, dict) or set(value) != keys | set(extra):
+            return False
+        average, stars = value['averageStar'], value['starCounts']
+        return (type(value['commentCount']) is int and value['commentCount'] >= 0 and
+                (average is None or (type(average) in (int, float) and 1 <= average <= 5)) and
+                isinstance(stars, dict) and set(stars) == {'1', '2', '3', '4', '5'} and
+                all(type(count) is int and count >= 0 for count in stars.values()) and
+                all(value[key] is None or isinstance(value[key], str) for key in ('firstCommentAt', 'lastCommentAt')))
+
+    def _review_stats_source(self, source):
+        if not isinstance(source, dict) or set(source) != {'sourceSha256', 'kind', 'status', 'completedAt', 'all', 'links'}:
+            return False
+        links = source['links']
+        return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
+                source['kind'] in ('legacy', 'custom') and source['status'] in ('SUCCEEDED', 'FAILED') and
+                (source['completedAt'] is None or isinstance(source['completedAt'], str)) and
+                self._review_stats_numbers(source['all']) and isinstance(links, list) and len(links) <= 5 and
+                all(self._review_stats_numbers(link, ('shopId', 'itemId', 'url')) and
+                    all(isinstance(link[key], str) and _SHOP_ITEM_ID.fullmatch(link[key]) for key in ('shopId', 'itemId')) and
+                    isinstance(link['url'], str) and len(link['url']) <= 2000 and
+                    _SHOPEE_LINK.fullmatch(link['url']) is not None
+                    for link in links))
 
     def saveReviewData(self, runId=None, input=None):
         return self._safe(lambda: self._save_review_data(runId, input))

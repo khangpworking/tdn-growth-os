@@ -1778,7 +1778,8 @@ def cmd_review_data(ns):
         command = shlex.split(command) if isinstance(command, str) else command
         if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
             raise ModuleFailure('NODE_COMMAND_INVALID', 2)
-        action = {'review-data': 'view', 'save-review-data': 'save', 'export-review-data': 'export', 'read-review-export': 'read'}[ns.cmd]
+        action = {'review-data': 'view', 'review-stats': 'stats', 'save-review-data': 'save', 'export-review-data': 'export',
+                  'read-review-export': 'read'}[ns.cmd]
         payload = None
         if ns.cmd in ('save-review-data', 'export-review-data'):
             payload = sys.stdin.buffer.read(65537)
@@ -2310,7 +2311,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'save-review-data', 'export-review-data'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'save-review-data', 'export-review-data'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -2320,7 +2321,7 @@ def main():
     p = FlowArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = p.add_subparsers(dest='cmd', required=True)
     x = sp.add_parser('gate'); x.add_argument('gate', choices=['entry', 'm1', 'm2', 'm3']); x.add_argument('--run', dest='run_id', required=True); x.set_defaults(f=cmd_gate)
-    for name in ('review-data', 'save-review-data', 'export-review-data', 'read-review-export'):
+    for name in ('review-data', 'review-stats', 'save-review-data', 'export-review-data', 'read-review-export'):
         x = sp.add_parser(name); x.add_argument('--run', dest='run_id', required=True)
         if name in ('save-review-data', 'export-review-data'):
             x.add_argument('--stdin', action='store_true', required=True)
