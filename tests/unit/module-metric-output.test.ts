@@ -3,8 +3,9 @@ import test from 'node:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { hashFolder, main, sha256 } from '../../scripts/module-pick.js';
-import { moduleOutputs, readModuleEvidence } from '../../scripts/module-metric-output.js';
+import { hashFolder, main, ModuleError, sha256 } from '../../scripts/module-pick.js';
+import { moduleOutputs, readModuleEvidence, verifyModuleSelection } from '../../scripts/module-metric-output.js';
+import { answer, fakeJev } from '../helpers/fake-pick-jev.js';
 import { buildModuleRun as buildRun, distinctRows as distinct, preset, product, requestBytes, window } from '../helpers/module-run-fixture.js';
 
 test('module outputs project a real retained capture and selection without recomputing identity', async t => {
@@ -220,4 +221,49 @@ test('B2: a saved number too large to be finite reads as null and the response s
   const run = await legacyRun(t, rows, saved => [{ ...saved[0], price: '9'.repeat(400) }, saved[1]]);
   const product = (await moduleOutputs(run) as any).m2.links.find((l: any) => l.productBaseId === rows[0]!.product_base_id).metricProduct;
   assert.deepEqual([product.price, product.priceMax], [null, 120_000]);
+});
+
+/** A v2 run: rank 3 is a duplicate of pick 1, rank 4 is unsure, five products are picked. */
+async function v2Run(t: any) {
+  const rows = Array.from({ length: 7 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const fake = fakeJev([answer(1, 'MOI', 0.9), answer(2, 'SP1', 0.9), answer(2, 'MOI', 0.6),
+    answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9), answer(4, 'MOI', 0.9)]);
+  const built = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fake.jev });
+  return { ...built, saved: JSON.parse(await readFile(join(built.run, 'm2/selection.json'), 'utf8')) };
+}
+
+test('v2: the gate replays the saved answers to the saved selection without asking Jev', async t => {
+  const { run, saved } = await v2Run(t);
+  assert.deepEqual(saved.links.map((l: any) => l.sourceRank), [1, 2, 5, 6, 7]);
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; throw new Error('no network in the replay'); }) as typeof fetch;
+  try {
+    const proof = await verifyModuleSelection(run);
+    assert.deepEqual([proof.fiveDistinct, proof.shortageReason, proof.errorCode], [true, null, null]);
+    const output = await moduleOutputs(run) as any;
+    assert.equal(output.m2.policy, 'metric-products-unique-v2');
+    assert.deepEqual(output.m2.skipped.map((s: any) => [s.sourceRank, s.reason, s.duplicateOfRank]),
+      [[3, 'SAME_PRODUCT', 1], [4, 'PRODUCT_MATCH_UNSURE', null]]);
+  } finally { globalThis.fetch = realFetch; }
+  assert.equal(calls, 0);
+});
+
+test('v2: an edited, removed, reordered or added decision, a changed link or threshold is PICK_PROOF_MISMATCH', async t => {
+  const { run, saved } = await v2Run(t);
+  const tamper = (change: (s: any) => void) => { const copy = structuredClone(saved); change(copy); return copy; };
+  const cases: [string, any][] = [
+    ['edited outcome', tamper(s => { s.selectionProof.decisions[1].outcome = 'PICKED'; })],
+    ['edited answer', tamper(s => { s.selectionProof.decisions[2].probabilities = { SP1: 0.05, SP2: 0.05, MOI: 0.9 }; })],
+    ['removed decision', tamper(s => { s.selectionProof.decisions.splice(2, 1); })],
+    ['reordered decisions', tamper(s => { s.selectionProof.decisions.reverse(); })],
+    ['added decision', tamper(s => { s.selectionProof.decisions.push(structuredClone(s.selectionProof.decisions[0])); })],
+    ['changed link', tamper(s => { s.links[4].productBaseId = s.links[3].productBaseId; })],
+    ['changed threshold', tamper(s => { s.selectionProof.matcher.threshold = 0.6; })],
+    ['changed question version', tamper(s => { s.selectionProof.matcher.questionVersion = 'b'.repeat(64); })],
+  ];
+  for (const [name, selection] of cases) {
+    await writeFile(join(run, 'm2/selection.json'), `${JSON.stringify(selection, null, 2)}\n`);
+    await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'PICK_PROOF_MISMATCH', name);
+  }
 });

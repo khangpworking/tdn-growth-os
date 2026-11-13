@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { TestContext } from 'node:test';
 import { main, hashFolder, sha256 } from '../../scripts/module-pick.js';
+import type { PickJev } from '../../scripts/module-product-pick-jev.js';
 import { capturedAt, evidenceAdapter, fakeEvidencePage, jsonBytes } from './evr2-evidence-fixture.js';
 
 const { buildV3WindowManifest } = await import(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
@@ -25,12 +26,13 @@ export const distinctRows = (count: number, extra: (i: number) => Row = () => ({
   return Array.from({ length: count }, (_, i) => ({ ...product(titles[i % titles.length]!, 801, 10_000 - i * 100), ...extra(i) }));
 };
 
-export function requestBytes(withPolicy: boolean) {
+/** `withPolicy`: true for the v1 rule, a rule name for another, false for none. */
+export function requestBytes(withPolicy: boolean | string) {
   const value = {
     format: 'request-v2', preset: { keywords: [...preset.keywords] }, windows: [structuredClone(window)],
     collectionPolicy: policy, captureSpec: structuredClone(spec),
     metricInput: { format: 'shopee-metric-input-v1', preset: structuredClone(preset), window: structuredClone(window) },
-    principalTitles: [], ...(withPolicy ? { selectionPolicy: 'metric-products-unique-v1' } : {}),
+    principalTitles: [], ...(withPolicy ? { selectionPolicy: withPolicy === true ? 'metric-products-unique-v1' : withPolicy } : {}),
   };
   return jsonBytes(value);
 }
@@ -44,8 +46,8 @@ function captureResponses(rows: Row[]) {
 }
 
 /** Builds a real retained run: capture manifest, raw bytes, evidence v2 and the flow's own gate/selection. */
-export async function buildModuleRun(t: TestContext, options: { rows?: Row[]; pictured?: number[]; controls?: boolean; policy?: boolean;
-  evidence?: boolean; legacyGate?: boolean } = {}) {
+export async function buildModuleRun(t: TestContext, options: { rows?: Row[]; pictured?: number[]; controls?: boolean; policy?: boolean | string;
+  evidence?: boolean; legacyGate?: boolean; jev?: PickJev } = {}) {
   const run = await mkdtemp(join(tmpdir(), 'shopee-module-output-'));
   t.after(() => rm(run, { recursive: true, force: true }));
   const rows = options.rows ?? distinctRows(5);
@@ -79,7 +81,7 @@ export async function buildModuleRun(t: TestContext, options: { rows?: Row[]; pi
   await writeFile(join(run, 'gates/m1.json'), jsonBytes({ format: 'handoff-v1', module: 'M1', runId: basename(run),
     skillVersion: '1.0.0', verdict: 'PASS', inputSha256: null, outputSha256: await hashFolder(run, 'm1'),
     checks: [], errorCode: null, next: null }));
-  await main(run);
+  await main(run, options.jev ? { jev: () => options.jev!, sleep: async () => {} } : {});
   if (options.legacyGate) {
     await writeFile(join(run, 'gates/m2.json'), jsonBytes({ format: 'handoff-v1', module: 'M2', runId: basename(run),
       skillVersion: '1.0.0', verdict: 'PASS', inputSha256: await hashFolder(run, 'm1'),

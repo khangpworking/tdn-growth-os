@@ -446,6 +446,7 @@ class NewRunTests(FlowTest):
         self.assertEqual(request['principalTitles'], preset['principalTitles'])
         self.assertNotIn('reviewCapPerLink', request)
         self.assertEqual(request['collectionPolicy']['stars'], [2, 3])
+        self.assertEqual(request['selectionPolicy'], 'metric-products-unique-v2')
         self.assertEqual(json.loads((run / 'request.json').read_text()), request)
         self.assert_no_subprocess()
 

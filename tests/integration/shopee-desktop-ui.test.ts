@@ -2934,6 +2934,56 @@ test('a legacy selection keeps its old-policy label and never shows new-policy o
   } finally { dom.window.close(); }
 });
 
+test('C1: a v2 run is a known rule and shows the approved skip, shortage and step-2 texts', async () => {
+  const v2Link = (link: any) => ({ ...link, groupKey: null, groupingBasis: null });
+  const passed = moduleOutputView('run-a', {}, {
+    policy: 'metric-products-unique-v2',
+    links: moduleOutputView('run-a').m2.links.map(v2Link),
+    skipped: [
+      { sourceRank: 2, productBaseId: '1__98__801', reason: 'SAME_PRODUCT', duplicateOfRank: 1 },
+      { sourceRank: 4, productBaseId: '1__99__801', reason: 'PRODUCT_MATCH_UNSURE', duplicateOfRank: null },
+      { sourceRank: 6, productBaseId: null, reason: 'PICK_LISTING_ID_UNRESOLVED', duplicateOfRank: null },
+    ],
+  });
+  const short = moduleOutputView('run-b', {}, {
+    policy: 'metric-products-unique-v2', fiveDistinct: false, selectedCount: 3, shortageReason: 'PICK_PRODUCT_UNRESOLVED',
+    errorCode: 'PICK_PRODUCT_UNRESOLVED', links: moduleOutputView('run-b').m2.links.slice(0, 3).map(v2Link),
+  });
+  const stopped = (runId: string, errorCode: string) => ({ ...syntheticRunInfo(runId),
+    state: { status: 'STOPPED', module: 'M2', errorCode } });
+  const runs = ['run-a', 'run-b', 'run-c'].map((runId) => ({ runId, product: 'Sản phẩm ' + runId, status: 'DONE' }));
+  const { dom, doc } = harness({
+    runs,
+    runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': stopped('run-b', 'PICK_PRODUCT_UNRESOLVED'),
+      'run-c': stopped('run-c', 'PICK_JEV_UNAVAILABLE') },
+    moduleOutputsResult: (runId) => ({ ok: true, data: runId === 'run-a' ? passed : runId === 'run-b' ? short : moduleOutputView(runId) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 3, 'run list');
+    runListButton(doc, 'run-a').click();
+    await waitFor(() => doc.getElementById('moM2Chip') !== null, 'v2 outputs');
+    assert.equal(element(doc, 'moM2Chip').textContent, 'Đạt kiểm tra');
+    const reasons = [...doc.querySelectorAll('#moduleOutputsPanel details.tech-details tbody tr')]
+      .map((row) => row.querySelectorAll('td')[2]!.textContent);
+    assert.deepEqual(reasons, ['Trùng với sản phẩm đã chọn ở thứ tự 1.',
+      'Chưa chắc là trùng hay khác với sản phẩm đã chọn nên không lấy.',
+      'Không đọc được mã sản phẩm của dòng này nên không lấy.']);
+    assert.doesNotMatch(doc.getElementById('moduleOutputsPanel')!.textContent!, /Jev/);
+
+    runListButton(doc, 'run-b').click();
+    await waitFor(() => doc.querySelector('#moduleOutputsPanel')?.textContent?.includes('3/5') === true, 'v2 shortage');
+    assert.equal(element(doc, 'moM2Distinct').textContent,
+      '!Chỉ chọn được 3/5 sản phẩm: có sản phẩm chưa xác định được là trùng hay khác');
+    assert.equal(doc.querySelector('.errbar.local-error[title="PICK_PRODUCT_UNRESOLVED"]')!.textContent,
+      'Có sản phẩm chưa xác định được là trùng hay khác nên chưa chọn đủ 5 sản phẩm.');
+
+    runListButton(doc, 'run-c').click();
+    await waitFor(() => doc.querySelector('.errbar.local-error[title="PICK_JEV_UNAVAILABLE"]') !== null, 'Jev failure');
+    assert.equal(doc.querySelector('.errbar.local-error[title="PICK_JEV_UNAVAILABLE"]')!.textContent,
+      'Chưa kiểm tra được sản phẩm trùng vì dịch vụ kiểm tra chưa phản hồi. Hãy chạy lại bước 2.');
+  } finally { dom.window.close(); }
+});
+
 test('a module-output reply for a run left meanwhile never repaints the selected run', async () => {
   const gate = deferred<any>();
   const view = (runId: string, keyword: string) => moduleOutputView(runId, { keywords: [keyword] });

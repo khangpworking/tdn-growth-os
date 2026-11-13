@@ -6,6 +6,8 @@ import test from 'node:test';
 import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pickRaw, readRequest, sha256 } from '../../scripts/module-pick.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
+import { pickJevFromEnvironment } from '../../scripts/module-product-pick-jev.js';
+import { fakeJev, noWait } from '../helpers/fake-pick-jev.js';
 
 const { buildV3WindowManifest } = await import(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
 
@@ -319,6 +321,32 @@ test('main reports a captured-product shortage without padding the list', async 
     assert.equal(result.errorCode, 'FEWER_THAN_FIVE_DISTINCT_PRODUCTS');
     const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
     assert.equal(saved.links.length, 3);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+const v2Request = () => ({ ...selectedRequest(), selectionPolicy: 'metric-products-unique-v2' });
+
+test('a new v2 request is read with its rule, like v1', async () => {
+  const dir = await runDir();
+  try {
+    await writeJson(dir, 'request.json', v2Request());
+    assert.equal((await readRequest(dir)).selectionPolicy, 'metric-products-unique-v2');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('main stops a v2 run with PICK_JEV_UNAVAILABLE and writes no selection when Jev cannot answer', async () => {
+  const dir = await runDir();
+  try {
+    await writeJson(dir, 'request.json', v2Request());
+    await writeSelectedCapture(dir, { responses: uniqueCapture(uniqueRows([['Synthetic one', '8401'], ['Synthetic two', '8402']])) });
+    await writePassingM1Gate(dir);
+    const unavailable = (error: unknown) => error instanceof ModuleError && error.code === 'PICK_JEV_UNAVAILABLE';
+    const failing = fakeJev(['http-error', 'malformed', 'throws']);
+    await assert.rejects(main(dir, { jev: () => failing.jev, sleep: noWait }), unavailable);
+    assert.equal(failing.asked.length, 3);
+    for (const environment of [{}, { TDN_RESEARCH_JEV_ENABLED: 'true' }])
+      await assert.rejects(main(dir, { jev: () => pickJevFromEnvironment(environment) }), unavailable, 'disabled or no key');
+    await assert.rejects(readFile(join(dir, 'm2/selection.json')), { code: 'ENOENT' });
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
