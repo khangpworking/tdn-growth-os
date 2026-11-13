@@ -174,7 +174,7 @@ test('v2 sends the approved question word for word, options in pick order, and v
       MOI: 'A new product: not the same as any product already on the list',
     },
   }]);
-  assert.deepEqual(Object.keys(fake.asked[1]![0].criteria), ['SP1', 'SP2', 'MOI']);
+  assert.deepEqual(Object.keys(fake.asked[1]![0]!.criteria), ['SP1', 'SP2', 'MOI']);
   assert.ok(fake.asked.every(request => request.length === 1), 'one question per request');
   assert.equal(PICK_JEV_QUESTION_VERSION, pickQuestionVersion(PICK_JEV_TEXTS));
   assert.notEqual(pickQuestionVersion({ ...PICK_JEV_TEXTS, newOption: PICK_JEV_TEXTS.newOption.replace('new', 'different') }),
