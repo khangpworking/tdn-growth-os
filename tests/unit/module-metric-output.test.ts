@@ -261,9 +261,18 @@ test('v2: an edited, removed, reordered or added decision, a changed link or thr
     ['changed link', tamper(s => { s.links[4].productBaseId = s.links[3].productBaseId; })],
     ['changed threshold', tamper(s => { s.selectionProof.matcher.threshold = 0.6; })],
     ['changed question version', tamper(s => { s.selectionProof.matcher.questionVersion = 'b'.repeat(64); })],
+    // The checks of a live answer, each on a decision that is otherwise consistent with the file.
+    ['option outside SP1..SPn + MOI', tamper(s => { s.selectionProof.decisions[0].probabilities = { SP1: 0.1, SP2: 0, MOI: 0.9 }; })],
+    ['option missing', tamper(s => { s.selectionProof.decisions[1].probabilities = { SP1: 0.9, MOI: 0.1 }; })],
+    ['probabilities sum beyond 1 ± 0.02', tamper(s => { s.selectionProof.decisions[0].probabilities = { SP1: 0.1, MOI: 0.95 }; })],
+    ['choice outside the options', tamper(s => { s.selectionProof.decisions[0].choice = 'SP2'; })],
   ];
   for (const [name, selection] of cases) {
     await writeFile(join(run, 'm2/selection.json'), `${JSON.stringify(selection, null, 2)}\n`);
     await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'PICK_PROOF_MISMATCH', name);
   }
+  // A probability outside 0..1 is already refused by the selection schema, before the replay.
+  await writeFile(join(run, 'm2/selection.json'),
+    `${JSON.stringify(tamper(s => { s.selectionProof.decisions[0].probabilities = { SP1: -0.1, MOI: 1.1 }; }), null, 2)}\n`);
+  await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'MODULE_INPUT_INVALID');
 });

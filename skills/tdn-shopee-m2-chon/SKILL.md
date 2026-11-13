@@ -26,7 +26,7 @@ python3 shopee_flow.py m2 --run <runId>
 
 - `--detach` chạy lệnh ở nền, in `{ "format": "detached-v1", "runId", "pid" }` rồi thoát 0. Luật chặn chạy trước khi tách.
 - `--manual <file>` nạp file `manual` đã soạn vào `m2/selection.json`; sai chuẩn hoặc sai `runId`/`source`/`pickRuleVersion`/`metricInputSha256` → `MANUAL_SELECTION_INVALID`.
-- Hàm chọn của app là hàm thuần, không gọi mạng, không đọc file. Chỉ lệnh M2 đọc file, gọi hàm, ghi file. M2 chạy offline và không bị khóa chỉ-đọc chặn.
+- Hàm chọn của app là hàm thuần, không gọi mạng, không đọc file. Chỉ lệnh M2 đọc file, gọi hàm, ghi file. Với luật `metric-products-unique-v2`, lệnh M2 hỏi Jev nên cần mạng và các biến Jev (`TDN_RESEARCH_JEV_ENABLED`, `TYPESAFE_API_KEY`); với luật v1, M2 chạy offline. Cổng M2 và mọi lần đọc luôn chạy offline. M2 không bị khóa chỉ-đọc chặn.
 - AI không tự sửa `selection.json` để cổng qua. File sai thì chạy lại cổng, hoặc báo người phụ trách.
 - Không thử lại ở mức module (0 lần).
 
@@ -87,7 +87,7 @@ Mã chặn của luồng (hợp đồng mục 7, không phải mã app):
 - `GATE_NOT_PASSED`: phiếu M1 thiếu hoặc không `PASS`. Dừng.
 - `GATE_INPUT_CHANGED`: `m1/` đã đổi sau cổng M1. Dừng, báo qua cổng M1 lại.
 - `RUN_BUSY`: lượt đang chạy với pid còn sống. Dừng. Pid đã chết thì lệnh đánh dấu `STOPPED` + `RUN_INTERRUPTED` rồi đi tiếp.
-- M2 chạy offline nên không bị khóa chỉ-đọc chặn: khóa `<state>/shopee-flow/READONLY` chỉ chặn M1 và M3.
+- M2 không bị khóa chỉ-đọc chặn: khóa `<state>/shopee-flow/READONLY` chỉ chặn M1 và M3.
 
 Bảng mã lỗi app: M2 không có mã lỗi app riêng. Hàm chọn là hàm thuần, không gọi mạng (`autorun-derive.ts` → `pickShopeeLinks`). Khi một phép kiểm không đạt, phiếu ghi `ok: false`, `errorCode` là `null`; AI đọc tên phép kiểm và làm theo bảng sau.
 

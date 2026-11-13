@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MODULE_PICK_POLICY, ProductPickError, derivePeriodProductPick, pickProductsWithJev, rankedMetricProducts } from '../../scripts/module-product-pick.js';
-import { PICK_JEV_QUESTION_VERSION, PICK_JEV_TEXTS, pickQuestionVersion } from '../../scripts/module-product-pick-jev.js';
+import { MODULE_PICK_POLICY, ProductPickError, derivePeriodProductPick, pickProductsWithJev, rankedMetricProducts, replayJevProductPick } from '../../scripts/module-product-pick.js';
+import { PICK_JEV_QUESTION_VERSION, PICK_JEV_TEXTS, pickQuestion, pickQuestionVersion } from '../../scripts/module-product-pick-jev.js';
 import { answer, fakeJev, noWait, type Scripted } from '../helpers/fake-pick-jev.js';
 
 // Synthetic rows only. Titles exercise the accepted finite title convention; the
@@ -177,8 +177,45 @@ test('v2 sends the approved question word for word, options in pick order, and v
   assert.deepEqual(Object.keys(fake.asked[1]![0]!.criteria), ['SP1', 'SP2', 'MOI']);
   assert.ok(fake.asked.every(request => request.length === 1), 'one question per request');
   assert.equal(PICK_JEV_QUESTION_VERSION, pickQuestionVersion(PICK_JEV_TEXTS));
-  assert.notEqual(pickQuestionVersion({ ...PICK_JEV_TEXTS, newOption: PICK_JEV_TEXTS.newOption.replace('new', 'different') }),
-    PICK_JEV_QUESTION_VERSION);
+  // Every text the builder sends is a hashed text: with each text replaced by a marker, the request holds only
+  // markers and row data, and changing any one text changes both the request and the version.
+  const keys = Object.keys(PICK_JEV_TEXTS) as (keyof typeof PICK_JEV_TEXTS)[];
+  const markers = Object.fromEntries(keys.map(key => [key, `⟦${key}⟧`])) as unknown as typeof PICK_JEV_TEXTS;
+  const marked = pickQuestion(rows[2]!, rows.slice(0, 2), markers);
+  const data = ['Synthetic Alpha 60 caps', 'Brand A', 'Shop A', 'Synthetic Beta', 'Brand B', 'Synthetic Gamma', 'Shop C'];
+  for (const text of [marked.id, String(marked.state), marked.instructions, ...Object.values(marked.criteria)])
+    assert.equal([...keys.map(key => markers[key]), ...data].reduce((rest, part) => rest.replaceAll(part, ''), text), '', text);
+  const before = JSON.stringify(pickQuestion(rows[2]!, rows.slice(0, 2)));
+  for (const key of keys) {
+    const changed = { ...PICK_JEV_TEXTS, [key]: PICK_JEV_TEXTS[key] + '.' };
+    assert.notEqual(JSON.stringify(pickQuestion(rows[2]!, rows.slice(0, 2), changed)), before, `${key} reaches Jev`);
+    assert.notEqual(pickQuestionVersion(changed), PICK_JEV_QUESTION_VERSION, `${key} is versioned`);
+  }
+});
+
+test('v2 replay applies the checks of a live answer to every saved decision', async () => {
+  const rows = descending(['S1', 'S2', 'S3']);
+  const picked = await pickV2(rows, [answer(1, 'MOI', 0.9), answer(2, 'SP1', 0.9)]).result;
+  const replay = (change: (decisions: any[]) => void) => {
+    const decisions = structuredClone(picked.selectionProof.decisions) as any[];
+    change(decisions);
+    return replayJevProductPick(capture(rows), part, 'a'.repeat(64), 'jev-1.13.0', decisions);
+  };
+  assert.deepEqual(await replay(() => {}), picked);
+  const cases: [string, (decisions: any[]) => void][] = [
+    ['option outside SP1..SPn + MOI', d => { d[0].probabilities = { SP1: 0.1, SP2: 0, MOI: 0.9 }; }],
+    ['option missing', d => { d[1].probabilities = { SP1: 0.9, MOI: 0.1 }; }],
+    ['probability outside 0..1', d => { d[0].probabilities = { SP1: -0.1, MOI: 1.1 }; }],
+    ['probability not a number', d => { d[0].probabilities = { SP1: '0.1', MOI: 0.9 }; }],
+    ['probabilities sum beyond 1 ± 0.02', d => { d[0].probabilities = { SP1: 0.1, MOI: 0.93 }; }],
+    ['choice outside the options', d => { d[0].choice = 'SP2'; }],
+  ];
+  for (const [name, change] of cases)
+    await assert.rejects(replay(change), (error: unknown) => error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH', name);
+  const withinTolerance = await replay(d => { d[0].probabilities = { SP1: 0.1, MOI: 0.92 }; });
+  assert.equal(withinTolerance.selectionProof.decisions[0]!.outcome, 'PICKED', 'a sum of 1.02 is a valid answer, as live');
+  const recomputed = await replay(d => { d[1].outcome = 'PICKED'; });
+  assert.equal(recomputed.selectionProof.decisions[1]!.outcome, 'DUPLICATE', 'the saved outcome is never taken over');
 });
 
 test('v2 retries a failed question and gives up after three attempts; a malformed answer is a failure', async () => {

@@ -3,42 +3,49 @@ import { TypesafeJevClient, typesafeJevConfigurationFromEnvironment, type Typesa
 
 /**
  * The one Jev question of rule metric-products-unique-v2 (work package C1, section 3.2): is this listing one of the
- * products already picked, or a new product? Changing any text below or the threshold is a new rule name.
+ * products already picked, or a new product? Every text of the request comes from this object and nowhere else, so
+ * questionVersion changes with any character of it. Changing any text below or the threshold is a new rule name.
  */
 export const PICK_JEV_TEXTS = Object.freeze({
-  listing: '<tên> (thương hiệu: <thương hiệu>; shop: <tên shop>)',
+  questionId: 'PICK',
   statePrefix: 'Tin đăng cần xét: ',
   instructions: 'The state is one Shopee listing. Options SP1, SP2... are products already on the list. Choose an existing product if the listing sells that same product (same brand, same product line, same main ingredients), even when the seller, pack size, days of supply, gift or title wording differ. Choose MOI if the listing sells a product that is not on the list.',
   samePrefix: 'The listing sells this same product: ',
   newOption: 'A new product: not the same as any product already on the list',
+  // A listing reads `<tên> (thương hiệu: <thương hiệu>; shop: <tên shop>)`.
+  listingBrand: ' (thương hiệu: ',
+  listingShop: '; shop: ',
+  listingEnd: ')',
+  unknownBrand: 'không rõ',
+  unknownShop: 'không rõ',
 });
+export type PickJevTexts = typeof PICK_JEV_TEXTS;
 export const PICK_JEV_THRESHOLD = 0.7;
 export const PICK_JEV_PROVIDER = 'typesafe-jev';
-const QUESTION_ID = 'PICK';
 const PROBABILITY_SUM_TOLERANCE = 0.02;
 const RETRY_WAITS_MS = [1000, 3000];
 
 /** Like the review filter's policy hash: sha256 of the question texts and templates. */
-export function pickQuestionVersion(texts: Readonly<Record<string, string>> = PICK_JEV_TEXTS): string {
+export function pickQuestionVersion(texts: PickJevTexts = PICK_JEV_TEXTS): string {
   return createHash('sha256').update(JSON.stringify(texts), 'utf8').digest('hex');
 }
 export const PICK_JEV_QUESTION_VERSION = pickQuestionVersion();
 
 type Row = Record<string, unknown>;
 const filled = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
-/** `<tên> (thương hiệu: <thương hiệu>; shop: <tên shop>)`; the name with every run of white space as one space. */
-export function describeListing(row: Row): string {
-  const brand = filled(row.final_brand) ? row.final_brand : filled(row.brand) ? row.brand : 'không rõ';
-  const shop = filled(row.shop_name) ? row.shop_name : 'không rõ';
-  return `${String(row.product_name).replace(/\s+/g, ' ').trim()} (thương hiệu: ${brand}; shop: ${shop})`;
+/** The listing in the words of `texts`; the name with every run of white space as one space. */
+export function describeListing(row: Row, texts: PickJevTexts = PICK_JEV_TEXTS): string {
+  const brand = filled(row.final_brand) ? row.final_brand : filled(row.brand) ? row.brand : texts.unknownBrand;
+  const shop = filled(row.shop_name) ? row.shop_name : texts.unknownShop;
+  return `${String(row.product_name).replace(/\s+/g, ' ').trim()}${texts.listingBrand}${brand}${texts.listingShop}${shop}${texts.listingEnd}`;
 }
 
-/** The question for one listing; options SP1..SPn follow the pick order, then MOI. */
-export function pickQuestion(row: Row, picked: readonly Row[]): TypesafeJevQuestion {
+/** The question for one listing; options SP1..SPn follow the pick order, then MOI. Only `texts` supplies wording. */
+export function pickQuestion(row: Row, picked: readonly Row[], texts: PickJevTexts = PICK_JEV_TEXTS): TypesafeJevQuestion {
   const criteria: Record<string, string> = {};
-  picked.forEach((product, i) => { criteria[`SP${i + 1}`] = `${PICK_JEV_TEXTS.samePrefix}${describeListing(product)}`; });
-  criteria.MOI = PICK_JEV_TEXTS.newOption;
-  return { id: QUESTION_ID, state: `${PICK_JEV_TEXTS.statePrefix}${describeListing(row)}`, instructions: PICK_JEV_TEXTS.instructions, criteria };
+  picked.forEach((product, i) => { criteria[`SP${i + 1}`] = `${texts.samePrefix}${describeListing(product, texts)}`; });
+  criteria.MOI = texts.newOption;
+  return { id: texts.questionId, state: `${texts.statePrefix}${describeListing(row, texts)}`, instructions: texts.instructions, criteria };
 }
 
 export interface PickAnswer { readonly choice: string; readonly probabilities: Readonly<Record<string, number>> }
