@@ -771,6 +771,56 @@ class SelectedWindowFlowTests(FlowTest):
         self.assertFalse((self.runs / RUN_ID / 'capture-spec.json').exists())
 
 
+class SecondStepTwoTests(FlowTest):
+    """K2 (owner decision 13/11/2026): only a passed v2 step 2 refuses a new start; the fake pick script shows a start."""
+
+    def setUp(self):
+        super().setUp()
+        node = self.bin / 'node'
+        node.write_text(FAKE_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+
+    def m1_passed(self, policy):
+        request = selected_request_payload()
+        if policy:
+            request['selectionPolicy'] = policy
+        run = self.make_run(request=request)
+        write_json(run / 'm1' / 'selected' / 'raw-responses.json', {'rows': []})
+        write_json(run / 'gates' / 'm1.json', {
+            'format': 'handoff-v1', 'module': 'M1', 'runId': RUN_ID, 'skillVersion': '1.0.0', 'verdict': 'PASS',
+            'inputSha256': None, 'outputSha256': sha_folder(run / 'm1'), 'checks': [], 'errorCode': None, 'next': 'M2'})
+        return run
+
+    def m2_slip(self, run, verdict):
+        write_json(run / 'm2' / 'selection.json', {'synthetic': 'earlier result'})
+        write_json(run / 'gates' / 'm2.json', {
+            'format': 'handoff-v1', 'module': 'M2', 'runId': RUN_ID, 'skillVersion': '1.0.0', 'verdict': verdict,
+            'inputSha256': sha_folder(run / 'm1'), 'outputSha256': hashlib.sha256((run / 'm2' / 'selection.json').read_bytes()).hexdigest(),
+            'checks': [], 'errorCode': None if verdict == 'PASS' else 'PICK_JEV_UNAVAILABLE',
+            'next': 'M3' if verdict == 'PASS' else None})
+
+    def assert_started(self, run):
+        rc, payload, stderr = self.command('m2', '--run', RUN_ID)
+        self.assertNotEqual(payload.get('errorCode'), 'M2_ALREADY_PASSED', (payload, stderr))
+        self.assertIn('executionId', payload, payload)
+        selection = json.loads((run / 'm2' / 'selection.json').read_text())
+        self.assertEqual(selection.get('format'), 'selection-v1', 'the step-2 script ran and wrote its result')
+
+    def test_v2_step_two_runs_again_when_it_failed_or_has_no_result(self):
+        run = self.m1_passed('metric-products-unique-v2')
+        self.assert_started(run)
+        self.m2_slip(run, 'FAIL')
+        self.assert_started(run)
+
+    def test_v1_and_legacy_runs_still_run_step_two_after_it_passed(self):
+        for policy in ('metric-products-unique-v1', None):
+            with self.subTest(policy=policy):
+                run = self.m1_passed(policy)
+                self.m2_slip(run, 'PASS')
+                self.assert_started(run)
+                shutil.rmtree(run)
+
+
 class ConnectionTests(FlowTest):
     def test_connection_reports_guard_state_and_changes_no_file(self):
         guard = self.state / 'shopee-flow' / 'READONLY'

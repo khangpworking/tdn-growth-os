@@ -638,6 +638,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.',
     READONLY_ON: 'Hệ thống đang tạm dừng lấy dữ liệu.',
     M1_OUTPUT_EXISTS: 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.',
+    M2_ALREADY_PASSED: 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.',
     AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».'
   };
 
@@ -658,6 +659,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     RUN_BUSY: 'Lượt này đang chạy. Chờ chạy xong rồi thử lại.',
     READONLY_ON: 'Hệ thống đang tạm dừng lấy dữ liệu.',
     M1_OUTPUT_EXISTS: 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.',
+    M2_ALREADY_PASSED: 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.',
     AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».',
     PICK_PRODUCT_UNRESOLVED: 'Có sản phẩm chưa xác định được là trùng hay khác nên chưa chọn đủ 5 sản phẩm.',
     PICK_JEV_UNAVAILABLE: 'Chưa kiểm tra được sản phẩm trùng vì dịch vụ kiểm tra chưa phản hồi. Hãy chạy lại bước 2.',
@@ -1573,6 +1575,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         else if (m.id === 'M3' && run.automaticM3Attempt) blockedBy = { code: 'AUTOMATIC_COLLECTION_EXISTS' };
         else if (own && (own.errorCode === 'GATE_INPUT_CHANGED' || own.errorCode === 'READONLY_ON')) blockedBy = { code: own.errorCode };
         else if (m.outputGate === 'm1' && run.gates.m1) blockedBy = { code: 'M1_OUTPUT_EXISTS', gate: null };
+        else if (m.outputGate === 'm2' && run.request.selectionPolicy === 'metric-products-unique-v2' && isPass(run.gates.m2)) blockedBy = { code: 'M2_ALREADY_PASSED', gate: null };
         else if (!isPass(run.gates[m.inputGate])) blockedBy = { code: 'GATE_NOT_PASSED', gate: m.inputGate };
         return {
           id: m.id, title: m.title, skill: m.skill, inputGate: m.inputGate, outputGate: m.outputGate,

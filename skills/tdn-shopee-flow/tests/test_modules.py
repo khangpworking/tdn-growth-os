@@ -323,6 +323,25 @@ class StartRefusalTests(ModuleTest):
         self.assertFalse(m1['canRun'], m1)
         self.assertEqual(m1['blockedBy'], {'code': 'M1_OUTPUT_EXISTS', 'gate': None})
 
+    def test_k2_v2_run_refuses_a_second_m2_after_its_gate_passed(self):
+        # Owner decision 13/11/2026: a passed v2 step 2 is never redone, so Jev is never asked again.
+        self.m2_pass(source='auto')
+        value = request_payload()
+        value['selectionPolicy'] = 'metric-products-unique-v2'
+        write_json(self.run / 'request.json', value)
+        selection = (self.run / 'm2' / 'selection.json').read_bytes()
+        manual = self.run.parent / 'manual.json'
+        write_json(manual, selection_payload())
+        for extra in ((), ('--manual', str(manual))):
+            payload = self.assert_slip_unchanged('m2', 20, lambda: self.module('m2', *extra))
+            self.assertEqual(payload.get('format'), 'module-result-v1', payload)
+            self.assertEqual(payload.get('errorCode'), 'M2_ALREADY_PASSED', payload)
+            self.assertEqual((self.run / 'm2' / 'selection.json').read_bytes(), selection, extra)
+        self.assertFalse((self.run / 'executions').exists(), 'a refused start is not an execution')
+        m2 = next(m for m in self.run_info()['modules'] if m['id'] == 'M2')
+        self.assertFalse(m2['canRun'], m2)
+        self.assertEqual(m2['blockedBy'], {'code': 'M2_ALREADY_PASSED', 'gate': None})
+
 
 class CaptureSpecTests(ModuleTest):
     """D15 + R2: entry warns, m1 stops hard without a capture spec."""

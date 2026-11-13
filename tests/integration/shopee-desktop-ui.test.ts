@@ -921,7 +921,7 @@ const passSlip = (module: string) => ({
 
 /** Synthetic run-info for the M3 panel; no live source or native DOM is involved. */
 type SyntheticRunRequest =
-  | { format: 'request-v1'; reviewCapPerLink: number }
+  | { format: 'request-v1'; reviewCapPerLink: number; selectionPolicy?: string }
   | {
       format: 'request-v2'; preset: { keywords: string[] };
       windows: Array<{ id: string; period: { startDate: string; endDate: string }; intervalDays: number }>;
@@ -2931,6 +2931,29 @@ test('a legacy selection keeps its old-policy label and never shows new-policy o
     assert.doesNotMatch(panel.textContent!, /5 sản phẩm khác nhau, không trùng lặp/);
     const cells = [...panel.querySelectorAll('tbody tr td')].map((td) => td.textContent);
     assert.ok(cells.includes('Chưa có'), 'legacy-only unknown fields stay visibly unknown');
+  } finally { dom.window.close(); }
+});
+
+test('K2: a passed v2 step 2 keeps «Chạy bước này» disabled with the approved reason, as step 1 does', async () => {
+  const info = syntheticRunInfo();
+  info.request = { format: 'request-v1', reviewCapPerLink: 300, selectionPolicy: 'metric-products-unique-v2' };
+  info.modules = info.modules.map((m: any) => m.id === 'M1' ? { ...m, blockedBy: { code: 'M1_OUTPUT_EXISTS', gate: null } }
+    : m.id === 'M2' ? { ...m, canRun: false, blockedBy: { code: 'M2_ALREADY_PASSED', gate: null } } : m);
+  const { dom, doc } = harness({ runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE' }], runInfo: info });
+  try {
+    await waitFor(() => doc.querySelectorAll('#techDetails article.mod').length === 3, 'step cards');
+    const card = (title: string) => [...doc.querySelectorAll('#techDetails article.mod')]
+      .find((node) => node.querySelector('h3')?.textContent === title)!;
+    const control = (title: string) => {
+      const row = card(title).querySelector('.btnrow')!;
+      return { button: row.querySelector('button') as HTMLButtonElement, hint: row.querySelector('.hint')?.textContent };
+    };
+    const step1 = control('Bước 1 Lấy số liệu bán hàng'), step2 = control('Bước 2 Chọn link bán chạy');
+    assert.equal(step1.button.disabled, true);
+    assert.equal(step1.hint, 'Lượt này đã lấy số liệu bán hàng rồi. Muốn lấy lại, hãy tạo lượt mới.');
+    assert.equal(step2.button.textContent, 'Chạy bước này');
+    assert.equal(step2.button.disabled, true, 'the same disabled button as step 1');
+    assert.equal(step2.hint, 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.');
   } finally { dom.window.close(); }
 });
 

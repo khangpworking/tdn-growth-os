@@ -88,6 +88,7 @@ Mã chặn của luồng (hợp đồng mục 7, không phải mã app):
 - `GATE_INPUT_CHANGED`: `m1/` đã đổi sau cổng M1. Dừng, báo qua cổng M1 lại.
 - `RUN_BUSY`: lượt đang chạy với pid còn sống. Dừng. Pid đã chết thì lệnh đánh dấu `STOPPED` + `RUN_INTERRUPTED` rồi đi tiếp.
 - M2 không bị khóa chỉ-đọc chặn: khóa `<state>/shopee-flow/READONLY` chỉ chặn M1 và M3.
+- `M2_ALREADY_PASSED`: lượt luật `metric-products-unique-v2` đã qua cổng M2. Dừng, không chạy lại bước 2 (chủ quyết 13/11/2026). Muốn chọn lại sản phẩm thì tạo lượt mới. Lượt v1, lượt cũ và lượt có bước 2 lỗi hoặc chưa chạy vẫn chạy lại được.
 
 Bảng mã lỗi app: M2 không có mã lỗi app riêng. Hàm chọn là hàm thuần, không gọi mạng (`autorun-derive.ts` → `pickShopeeLinks`). Khi một phép kiểm không đạt, phiếu ghi `ok: false`, `errorCode` là `null`; AI đọc tên phép kiểm và làm theo bảng sau.
 

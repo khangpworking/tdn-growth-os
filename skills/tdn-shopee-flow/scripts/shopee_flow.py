@@ -1066,6 +1066,8 @@ def module_blocking(run, module, manual=False, owner_pid=None):
         return {'code': 'READONLY_ON', 'gate': None}, 20
     if module == 'm1' and gate_path(run, 'm1').exists():
         return {'code': 'M1_OUTPUT_EXISTS', 'gate': None}, 20
+    if module == 'm2' and module_m2_passed(run):
+        return {'code': 'M2_ALREADY_PASSED', 'gate': None}, 20
     if module == 'm3' and isinstance(automatic, dict):
         request = gate_read(gate_path(run, 'request.json'))
         if isinstance(request, dict) and request.get('format') == 'request-v2':
@@ -1076,6 +1078,16 @@ def module_blocking(run, module, manual=False, owner_pid=None):
 
 def module_readonly():
     return os.environ.get('TDN_SHOPEE_FLOW_READONLY') == '1' or READONLY_FILE.exists()
+
+
+def module_m2_passed(run):
+    """Owner decision 13/11/2026 (K2): a v2 run keeps its passed step 2; a second run would ask Jev again."""
+    request = gate_read(gate_path(run, 'request.json'))
+    if not isinstance(request, dict) or request.get('selectionPolicy') != 'metric-products-unique-v2':
+        return False
+    slip = gate_read(gate_path(run, 'gates/m2.json'))
+    return (isinstance(slip, dict) and slip.get('format') == 'handoff-v1' and slip.get('runId') == run.name
+            and slip.get('module') == 'M2' and slip.get('verdict') == 'PASS')
 
 
 def module_barrier(run, module, manual=False, owner_pid=None):
@@ -1125,6 +1137,8 @@ def module_launch_admission(run, module, ns, repo, config):
     if entry_code:
         raise ModuleFailure(entry.get('errorCode') or 'MODULE_INPUT_INVALID', entry_code)
     request = gate_read(gate_path(run, 'request.json'))
+    if module == 'm2' and module_m2_passed(run):
+        raise ModuleFailure('M2_ALREADY_PASSED')
     if module == 'm1':
         if gate_path(run, 'm1').exists():
             raise ModuleFailure('M1_OUTPUT_EXISTS')
