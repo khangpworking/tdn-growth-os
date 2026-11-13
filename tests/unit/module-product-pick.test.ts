@@ -112,10 +112,13 @@ const pickV2 = (rows: Row[], script: Scripted[]) => {
 };
 const otherPlatform = (prefix: string, revenue: number): Row =>
   ({ product_base_id: prefix + '__1__2', product_name: 'Synthetic other', revenue_custom: revenue });
+// v2 rows carry the shop id the way real Metric rows do: `1__<shopId>`.
+const shopeeRow = (title: string, revenue: number, extra: Row = {}): Row => product(title, revenue, { shop_base_id: '1__301', ...extra });
+const descendingV2 = (titles: readonly string[]) => titles.map((title, i) => shopeeRow(title, 1000 - i * 10));
 
 test('v2 picks the first Shopee row without a question and skips other platforms silently', async () => {
-  const rows = [otherPlatform('2', 1000), otherPlatform('3', 990), product('Synthetic first', 980), otherPlatform('8', 970),
-    product('Synthetic second', 960)];
+  const rows = [otherPlatform('2', 1000), otherPlatform('3', 990), shopeeRow('Synthetic first', 980), otherPlatform('8', 970),
+    shopeeRow('Synthetic second', 960)];
   const { fake, result } = pickV2(rows, [answer(1, 'MOI', 0.9)]);
   const picked = await result;
   assert.deepEqual(picked.links.map(l => l.sourceRank), [3, 5]);
@@ -126,8 +129,20 @@ test('v2 picks the first Shopee row without a question and skips other platforms
   assert.deepEqual(picked.selectionProof.decisions.map(d => d.sourceRank), [5]);
 });
 
+test('v2 walks rows whose shop is `1__<shopId>` or bare, and skips a row that names another shop', async () => {
+  const rows = [shopeeRow('Synthetic first', 1000), shopeeRow('Synthetic other shop', 990, { shop_base_id: '1__302' }),
+    shopeeRow('Synthetic bare shop', 980, { shop_base_id: '301' }), shopeeRow('Synthetic third', 970)];
+  const { fake, result } = pickV2(rows, [answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9)]);
+  const picked = await result;
+  assert.deepEqual(picked.links.map(l => [l.sourceRank, l.shopId]), [[1, '301'], [3, '301'], [4, '301']]);
+  assert.deepEqual(picked.selectionProof.skipped,
+    [{ sourceRank: 2, productBaseId: rows[1]!.product_base_id, reason: 'PICK_LISTING_ID_UNRESOLVED', duplicateOfRank: null }]);
+  assert.equal(fake.asked.length, 2, 'the skipped row is not asked about');
+  assert.deepEqual(await replayJevProductPick(capture(rows), part, 'a'.repeat(64), 'jev-1.13.0', picked.selectionProof.decisions), picked);
+});
+
 test('v2 decides by the chosen option and the 0.70 threshold, at and just below the mark', async () => {
-  const rows = descending(['Synthetic A', 'Synthetic B', 'Synthetic A again', 'Synthetic C', 'Synthetic D']);
+  const rows = descendingV2(['Synthetic A', 'Synthetic B', 'Synthetic A again', 'Synthetic C', 'Synthetic D']);
   const { result } = pickV2(rows, [answer(1, 'MOI', 0.7), answer(2, 'SP1', 0.7), answer(2, 'MOI', 0.6999), answer(2, 'SP2', 0.69)]);
   const picked = await result;
   assert.deepEqual(picked.links.map(l => l.sourceRank), [1, 2]);
@@ -140,14 +155,14 @@ test('v2 decides by the chosen option and the 0.70 threshold, at and just below 
 });
 
 test('v2 stops asking after the fifth pick', async () => {
-  const { fake, result } = pickV2(descending(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7']), [1, 2, 3, 4].map(n => answer(n, 'MOI', 0.9)));
+  const { fake, result } = pickV2(descendingV2(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7']), [1, 2, 3, 4].map(n => answer(n, 'MOI', 0.9)));
   assert.equal((await result).links.length, 5);
   assert.equal(fake.asked.length, 4);
 });
 
 test('v2 ends with five picks despite skips, or a shortage named by its cause', async () => {
   const outcome = async (titles: string[], script: Scripted[]) => {
-    const proof = (await pickV2(descending(titles), script).result).selectionProof;
+    const proof = (await pickV2(descendingV2(titles), script).result).selectionProof;
     return [proof.distinctCount, proof.unresolvedCount, proof.shortageReason];
   };
   assert.deepEqual(await outcome(['S1', 'S2', 'S3', 'S4', 'S5', 'S6'],
@@ -158,9 +173,9 @@ test('v2 ends with five picks despite skips, or a shortage named by its cause', 
 
 test('v2 sends the approved question word for word, options in pick order, and versions its texts', async () => {
   const rows = [
-    product('  Synthetic   Alpha\n60  caps ', 1000, { final_brand: 'Brand A', shop_name: 'Shop A' }),
-    product('Synthetic Beta', 990, { final_brand: '', brand: 'Brand B', shop_name: '' }),
-    product('Synthetic Gamma', 980, { final_brand: null, brand: null, shop_name: 'Shop C' }),
+    shopeeRow('  Synthetic   Alpha\n60  caps ', 1000, { final_brand: 'Brand A', shop_name: 'Shop A' }),
+    shopeeRow('Synthetic Beta', 990, { final_brand: '', brand: 'Brand B', shop_name: '' }),
+    shopeeRow('Synthetic Gamma', 980, { final_brand: null, brand: null, shop_name: 'Shop C' }),
   ];
   const { fake, result } = pickV2(rows, [answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9)]);
   await result;
@@ -194,7 +209,7 @@ test('v2 sends the approved question word for word, options in pick order, and v
 });
 
 test('v2 replay applies the checks of a live answer to every saved decision', async () => {
-  const rows = descending(['S1', 'S2', 'S3']);
+  const rows = descendingV2(['S1', 'S2', 'S3']);
   const picked = await pickV2(rows, [answer(1, 'MOI', 0.9), answer(2, 'SP1', 0.9)]).result;
   const replay = (change: (decisions: any[]) => void) => {
     const decisions = structuredClone(picked.selectionProof.decisions) as any[];
@@ -219,7 +234,7 @@ test('v2 replay applies the checks of a live answer to every saved decision', as
 });
 
 test('v2 retries a failed question and gives up after three attempts; a malformed answer is a failure', async () => {
-  const rows = descending(['S1', 'S2']);
+  const rows = descendingV2(['S1', 'S2']);
   const waits: number[] = [];
   const sleep = async (ms: number) => { waits.push(ms); };
   const recovered = fakeJev(['http-error', answer(1, 'MOI', 0.9)]);

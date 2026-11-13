@@ -100,8 +100,9 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
     if (id && /^[238]__/.test(id)) continue;
     const match = id && /^1__([1-9][0-9]{0,19})__([1-9][0-9]{0,19})$/.exec(id);
     const skip = (reason: string, duplicateOfRank: number | null = null) => skipped.push({ sourceRank, productBaseId: id, reason, duplicateOfRank });
+    // Real Metric rows carry the platform prefix (`1__<shopId>`); the bare shop id is also accepted.
     if (!match || (row.platform_id != null && row.platform_id !== 1) ||
-        (row.shop_base_id != null && String(row.shop_base_id) !== match[2])) {
+        (row.shop_base_id != null && String(row.shop_base_id) !== `1__${match[2]}` && String(row.shop_base_id) !== match[2])) {
       unresolvedCount++; skip('PICK_LISTING_ID_UNRESOLVED'); continue;
     }
     if (listingIds.has(id!)) throw new ProductPickError('PICK_DUPLICATE_SOURCE_ID');

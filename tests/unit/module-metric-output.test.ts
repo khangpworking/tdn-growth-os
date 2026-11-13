@@ -225,7 +225,7 @@ test('B2: a saved number too large to be finite reads as null and the response s
 
 /** A v2 run: rank 3 is a duplicate of pick 1, rank 4 is unsure, five products are picked. */
 async function v2Run(t: any) {
-  const rows = Array.from({ length: 7 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const rows = Array.from({ length: 7 }, (_, i) => ({ ...product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100), shop_base_id: '1__801' }));
   const fake = fakeJev([answer(1, 'MOI', 0.9), answer(2, 'SP1', 0.9), answer(2, 'MOI', 0.6),
     answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9), answer(4, 'MOI', 0.9)]);
   const built = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fake.jev });

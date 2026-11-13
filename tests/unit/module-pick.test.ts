@@ -338,7 +338,7 @@ test('main stops a v2 run with PICK_JEV_UNAVAILABLE and writes no selection when
   const dir = await runDir();
   try {
     await writeJson(dir, 'request.json', v2Request());
-    await writeSelectedCapture(dir, { responses: uniqueCapture(uniqueRows([['Synthetic one', '8401'], ['Synthetic two', '8402']])) });
+    await writeSelectedCapture(dir, { responses: uniqueCapture(uniqueRows([['Synthetic one', '8401'], ['Synthetic two', '8402']]).map(row => ({ ...row, shop_base_id: '1__801' }))) });
     await writePassingM1Gate(dir);
     const unavailable = (error: unknown) => error instanceof ModuleError && error.code === 'PICK_JEV_UNAVAILABLE';
     const failing = fakeJev(['http-error', 'malformed', 'throws']);
