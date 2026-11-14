@@ -63,7 +63,7 @@ npm run frontend:dev
 When accessing Fedora from another computer, keep all services loopback-only and use an SSH tunnel, for example:
 
 ```bash
-ssh -L 5173:127.0.0.1:5173 pkhang@fedora
+ssh -L 5173:127.0.0.1:5173 <fedora-user>@<fedora-host>
 ```
 
 Then open `http://127.0.0.1:5173` locally. Do not expose the Vite/read/owner ports on the LAN or Internet.

@@ -4,7 +4,7 @@ Updated: 2026-10-09
 Worktree/branch: `ultimate-impl-sync6-opencode`, `khangpworking/ultimate-source-privacy-consumer`, base `a8e9b8439797bef3f3077399e0f34ac306cc236d`.
 Draft PR: [#184](https://github.com/khangpworking/tdn-growth-os/pull/184). Preserved private checkpoint `a4d7d841fb426af57bd452f0f405ba64748c51b5`; normally merged reviewed main `b6b6911fd9cec16cc41cf24e7d8ae4abd8f6233b` after explicit sole central/GLOBAL grant `msg_8da7a2d670b7`. Final composed SHA is reported through the fresh lifecycle and PR.
 
-Lifecycle: sole run `run_adc3551f8ed8`, fresh task `task_a6c3d448c7f5`, dispatch `ctx_4de259d35233`; exact Orca executable `/home/pkhang/.local/bin/orca-ide`, observed GPT-6.1-Sol high unchanged. Previous abandoned dispatch fenced; ten preserved WIP paths inspected without reset/switch/discard.
+Lifecycle: sole run `run_adc3551f8ed8`, fresh task `task_a6c3d448c7f5`, dispatch `ctx_4de259d35233`; exact Orca executable `<orca-ide-bin>`, observed GPT-6.1-Sol high unchanged. Previous abandoned dispatch fenced; ten preserved WIP paths inspected without reset/switch/discard.
 
 Completed:
 

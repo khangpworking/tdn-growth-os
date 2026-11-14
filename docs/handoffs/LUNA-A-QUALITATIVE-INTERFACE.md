@@ -23,7 +23,7 @@ Changed paths:
 Evidence (commands, results, relevant revision):
 
 - `db2686b` is the authoritative six-path backend commit; no report, renderer, UI, PDF, collector, or shared-policy path was changed.
-- Pinned `/home/pkhang/.cache/tdn-toolchains/node-v24.15.0-linux-x64/bin/node scripts/typecheck.mjs`: `TYPECHECK_EXIT_CODE=0`. The focused synthetic qualitative contract check had already passed with 2 subtests before this follow-up; it was not rerun.
+- Pinned `<node24-toolchain>/bin/node scripts/typecheck.mjs`: `TYPECHECK_EXIT_CODE=0`. The focused synthetic qualitative contract check had already passed with 2 subtests before this follow-up; it was not rerun.
 - `git diff --check`: exit 0 before commit. Static JSON parse succeeded for schema ID `https://tdn.local/contracts/analysis/automation-qualitative-draft-v1.schema.json` with defs `binding`, `sourceIdentity`, `record`, `classification`, `card`, and `draft`.
 - Existing TikTok integration evidence remains bounded and unchanged: no TAP/Vitest completion output during repeated 30-second polls, and the known foreground run ended by SIGINT with exit 130. Retained evidence remains in `/tmp/tdn-tiktok-coding-FOeRVG`, `/tmp/tdn-tiktok-coding-D6wvjv`, and `/tmp/tdn-tiktok-coding-xqSyHn` (SQLite/WAL/SHM files preserved). Coordinator-host PGIDs were not visible in this worker namespace; explicit SIGINT attempts to only PGIDs `1847251` and `1848260` returned `No such process` exit 1 without signaling another PID.
 
@@ -67,7 +67,7 @@ same output with a persona field fails. No service, renderer, report/UI/PDF,
 collector, provider, TikTok, schema-policy or deployment path was changed; the
 report consumer dependency remains report commit `90419ea`.
 
-The exact `/home/pkhang/.local/bin/orca-ide orchestration check` was attempted
+The exact `<orca-ide-bin> orchestration check` was attempted
 once for lifecycle evidence and failed before dispatch inspection with exit 127
 from the known DRM/sandbox-host runtime error (`drmGetDevices2` / `shutdown:
 Operation not permitted`); no restart/open/retry was performed.
