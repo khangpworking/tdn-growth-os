@@ -49,6 +49,8 @@ function harness(options: {
   moduleOutputsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
   openModuleEvidenceResult?: (runId: string, kind: string, sha256: string) => any;
   reviewStatsResult?: (runId: string) => any;
+  statusGate?: (runId: string) => Deferred<void> | undefined;
+  fastPoll?: boolean;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -136,6 +138,8 @@ function harness(options: {
     },
     status: async (runId: string) => {
       state.statusCalls.push(runId);
+      const gate = options.statusGate && options.statusGate(runId);
+      if (gate) await gate.promise;
       const info = (options.runInfoByRun && options.runInfoByRun[runId]) || options.runInfo;
       if (info) return { ok: true, data: clone(info) };
       return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
@@ -295,6 +299,11 @@ function harness(options: {
     runScripts: 'dangerously',
     beforeParse(window) {
       (window as any).pywebview = { api };
+      if (options.fastPoll) {
+        const nativeSetInterval = window.setInterval.bind(window);
+        (window as any).setInterval = (handler: any, delay?: number, ...args: any[]) =>
+          nativeSetInterval(handler, delay === 10000 || delay === 3000 ? 25 : delay, ...args);
+      }
       const dialog = window.HTMLDialogElement && window.HTMLDialogElement.prototype;
       if (dialog && !dialog.showModal) {
         dialog.showModal = function (this: HTMLDialogElement) { this.open = true; };
@@ -703,6 +712,49 @@ test('a created run with a failed entry gate stays bound and retained until anot
   } finally { dom.window.close(); }
 });
 
+test('a created run with unverified entry stays bound and locked when status cannot authorize it', async () => {
+  const staticEntryError = { code: 'ENTRY_UNAVAILABLE', message: 'ENTRY_UNAVAILABLE' };
+  const entryCases = [
+    { label: 'partial entry', data: { entry: null, entryError: staticEntryError } },
+    { label: 'bridge entry PASS', data: { entry: entryPassSlip() } },
+  ];
+  const statusCases = [
+    { label: 'status failure', info: null },
+    { label: 'missing entry', info: (runId: string) => ({ format: 'run-info-v1', runId }) },
+  ];
+  let caseIndex = 0;
+  for (const entryCase of entryCases) {
+    for (const statusCase of statusCases) {
+      const runId = 'run-unverified-' + (++caseIndex);
+      const info = statusCase.info ? statusCase.info(runId) : null;
+      const label = entryCase.label + ' + ' + statusCase.label;
+      const { dom, doc, state } = harness({
+        newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId, ...entryCase.data } }),
+        ...(info ? { runInfoByRun: { [runId]: info } } : {}),
+      });
+      try {
+        await booted(doc);
+        create(doc);
+        await waitFor(() => state.newRunCalls === 1, label + ': create sent');
+        await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false,
+          label + ': created identity remains bound');
+        assert.match(element<HTMLElement>(doc, 'newRunLine').textContent!, new RegExp(runId),
+          label + ': exact created run identity');
+        assertDraftFrozen(doc);
+        assert.match(element<HTMLElement>(doc, 'newErr').textContent!,
+          /Đã tạo lượt nhưng chưa đọc được kết quả kiểm tra đầu vào/,
+          label + ': truthful created-but-unverified notice');
+        assert.equal(element<HTMLButtonElement>(doc, 'btnFlow').disabled, true,
+          label + ': bridge entry is not execution authorization');
+        element<HTMLFormElement>(doc, 'newRunForm').dispatchEvent(
+          new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        assert.equal(state.newRunCalls, 1, label + ': retry gesture never creates a second run');
+      } finally { dom.window.close(); }
+    }
+  }
+});
+
 test('the whole-flow confirmation shows the frozen run; cancel makes no source call', async () => {
   const { dom, doc, state } = harness({
     newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-confirm' } }),
@@ -952,6 +1004,16 @@ function collectedRunInfo(runId = 'run-synthetic') {
   return info;
 }
 
+/** A run whose M1 action is enabled, used by selection and singleflight regressions. */
+function runnableModuleInfo(runId: string) {
+  const info: any = syntheticRunInfo(runId);
+  info.modules = info.modules.map((module: any) =>
+    module.id === 'M1' ? { ...module, canRun: true, blockedBy: null } : { ...module, canRun: false });
+  info.gates = { entry: entryPassSlip(), m1: null, m2: null, m3: null };
+  info.selection = null;
+  return info;
+}
+
 function fire(window: any, node: Element, type: string): void {
   node.dispatchEvent(new window.Event(type, { bubbles: true }));
 }
@@ -969,6 +1031,20 @@ function syntheticSampling(overrides: any = {}) {
     plans: [], counts: [], countRefresh: null, attempts: [], blockedBy: null,
     ...overrides,
   };
+}
+
+function syntheticReviewStats(runId: string, count: number) {
+  if (!count) return { format: 'review-stats-v1', runId, sources: [] };
+  const numbers = {
+    commentCount: count, averageStar: 5,
+    starCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: count },
+    firstCommentAt: '2026-11-01T09:00:00+07:00', lastCommentAt: '2026-11-05T09:00:00+07:00',
+  };
+  return { format: 'review-stats-v1', runId, sources: [{
+    sourceSha256: 'c'.repeat(64), kind: 'legacy', status: 'SUCCEEDED',
+    completedAt: '2026-11-11T08:00:00Z', all: numbers,
+    links: [{ shopId: '801', itemId: '100', url: 'https://shopee.vn/product/801/100', ...numbers }],
+  }] };
 }
 
 function syntheticReviewSource(overrides: any = {}) {
@@ -1146,6 +1222,13 @@ async function samplingHarness(sampling: any = {}, options: {
 function buttonByText(doc: Document, text: string): HTMLButtonElement | undefined {
   return [...doc.querySelectorAll('#rsPanel button')]
     .find((button) => button.textContent === text) as HTMLButtonElement | undefined;
+}
+
+function moduleAction(doc: Document, moduleId: string): HTMLButtonElement | undefined {
+  const prefix = 'Bước ' + moduleId.slice(1);
+  const card = [...doc.querySelectorAll('#techDetails article.mod')]
+    .find((entry) => entry.querySelector('h3')?.textContent?.startsWith(prefix));
+  return (card?.querySelector('button.abtn') as HTMLButtonElement | null) || undefined;
 }
 
 test('the M3 panel keeps legacy with-comments and one shared 300 input for a selected run', async () => {
@@ -1811,6 +1894,70 @@ test('a late sampling response for an unselected run never stops the selected ru
   } finally { dom.window.close(); }
 });
 
+test('selecting a run clears the old detail instead of leaving its actions while status is pending', async () => {
+  const gateB = deferred<void>();
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-a', product: 'Sản phẩm A', status: 'IDLE' },
+      { runId: 'run-b', product: 'Sản phẩm B', status: 'IDLE' }],
+    runInfoByRun: { 'run-a': runnableModuleInfo('run-a'), 'run-b': runnableModuleInfo('run-b') },
+    statusGate: (runId) => runId === 'run-b' ? gateB : undefined,
+  });
+  try {
+    await waitFor(() => moduleAction(doc, 'M1')?.disabled === false, 'run A action');
+    runListButton(doc, 'run-b').click();
+    await waitFor(() => state.statusCalls.filter((runId) => runId === 'run-b').length === 1, 'B status pending');
+    const detail = element<HTMLElement>(doc, 'runDetail');
+    assert.match(detail.textContent || '', /Đang tải/, 'the pending selection is shown immediately');
+    assert.doesNotMatch(detail.textContent || '', /Sản phẩm A/, 'run A detail is cleared before B answers');
+    assert.equal(moduleAction(doc, 'M1'), undefined, 'run A action is not left visible');
+    gateB.resolve();
+    await waitFor(() => /Sản phẩm B/.test(detail.textContent || ''), 'B detail');
+  } finally { gateB.resolve(); dom.window.close(); }
+});
+
+test('a detached module action from the previous run cannot dispatch the newly selected run', async () => {
+  const gateB = deferred<void>();
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-a', product: 'Sản phẩm A', status: 'IDLE' },
+      { runId: 'run-b', product: 'Sản phẩm B', status: 'IDLE' }],
+    runInfoByRun: { 'run-a': runnableModuleInfo('run-a'), 'run-b': runnableModuleInfo('run-b') },
+    statusGate: (runId) => runId === 'run-b' ? gateB : undefined,
+  });
+  try {
+    await waitFor(() => moduleAction(doc, 'M1')?.disabled === false, 'run A action');
+    const stale = moduleAction(doc, 'M1')!;
+    runListButton(doc, 'run-b').click();
+    await waitFor(() => state.statusCalls.filter((runId) => runId === 'run-b').length === 1, 'B status pending');
+    stale.click();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.deepEqual(state.launchCalls, [], 'a stale action never dispatches any run');
+  } finally { gateB.resolve(); dom.window.close(); }
+});
+
+test('a pending module action stays single-flight through an unrelated read rerender', async () => {
+  const samplingGate = deferred<void>();
+  const runGate = deferred<any>();
+  const { dom, doc, state } = harness({
+    runs: [{ runId: 'run-a', product: 'Sản phẩm A', status: 'IDLE' }],
+    runInfoByRun: { 'run-a': runnableModuleInfo('run-a') },
+    samplingByRun: { 'run-a': syntheticSampling({ runId: 'run-a' }) },
+    reviewGates: { 'run-a': samplingGate },
+    runModuleResult: () => runGate.promise,
+  });
+  try {
+    await waitFor(() => moduleAction(doc, 'M1')?.disabled === false, 'run A action');
+    moduleAction(doc, 'M1')!.click();
+    await waitFor(() => state.launchCalls.length === 1, 'first module dispatch');
+    samplingGate.resolve();
+    await waitFor(() => doc.querySelectorAll('#rsPanel').length === 1, 'sampling read repainted detail');
+    const repainted = moduleAction(doc, 'M1');
+    assert.ok(repainted, 'the M1 action card remains');
+    if (!repainted.disabled) repainted.click();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(state.launchCalls.length, 1, 'the pending module action is never dispatched twice');
+  } finally { runGate.resolve({ ok: false, error: { code: 'SYNTHETIC', message: 'SYNTHETIC' } }); dom.window.close(); }
+});
+
 test('supported stop reasons are translated and an unknown code never leaks raw', async () => {
   const attempt = {
     attemptId: 'attempt-stops', planSha256: 'd'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
@@ -1978,20 +2125,22 @@ test('a pending action refreshes the panel that replaced its original run select
   });
   const doc = result.doc;
   const runButton = (runId: string): HTMLButtonElement => runListButton(doc, runId);
+  const selectedSource = (): string | undefined =>
+    (doc.getElementById('rdSource') as HTMLSelectElement | null)?.value;
   try {
     const failure = deferred<any>();
     result.state.exportReviewResult = () => failure.promise;
     await waitFor(() => doc.querySelectorAll('.runbtn').length === 2, 'run list');
     runButton(runA).click();
-    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel');
+    await waitFor(() => selectedSource() === sourceA, 'run A panel');
     element<HTMLButtonElement>(doc, 'rdDownload').click();
     await waitFor(() => result.state.exportReviewFilesCalls.length === 1, 'pending download');
     assert.equal(element<HTMLButtonElement>(doc, 'rdDownload').disabled, true, 'the original panel is busy');
 
     runButton(runB).click();
-    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel');
+    await waitFor(() => selectedSource() === sourceB, 'run B panel');
     runButton(runA).click();
-    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'replacement run A panel');
+    await waitFor(() => selectedSource() === sourceA, 'replacement run A panel');
     assert.equal(element<HTMLButtonElement>(doc, 'rdDownload').disabled, true, 'the replacement panel is busy');
 
     failure.resolve({ ok: false, error: { code: 'EXPORT_FAILED', message: 'EXPORT_FAILED' } });
@@ -2007,9 +2156,9 @@ test('a pending action refreshes the panel that replaced its original run select
     element<HTMLButtonElement>(doc, 'rdDownload').click();
     await waitFor(() => result.state.exportReviewFilesCalls.length === 2, 'second pending download');
     runButton(runB).click();
-    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceB, 'run B panel again');
+    await waitFor(() => selectedSource() === sourceB, 'run B panel again');
     runButton(runA).click();
-    await waitFor(() => element<HTMLSelectElement>(doc, 'rdSource').value === sourceA, 'run A panel again');
+    await waitFor(() => selectedSource() === sourceA, 'run A panel again');
     assert.equal(element<HTMLButtonElement>(doc, 'rdDownload').disabled, true, 'the visible panel is busy again');
 
     success.resolve({ ok: true, data: {
@@ -3021,9 +3170,9 @@ test('a module-output reply for a run left meanwhile never repaints the selected
     runs: [{ runId: 'run-a', product: 'Sản phẩm A', status: 'DONE' },
       { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' }],
     runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
-    moduleOutputsResult: (runId, call) => runId === 'run-a' && call === 1
+    moduleOutputsResult: (runId) => runId === 'run-a'
       ? gate.promise
-      : { ok: true, data: view(runId, runId === 'run-a' ? 'alpha' : 'beta') },
+      : { ok: true, data: view(runId, 'beta') },
   });
   try {
     await waitFor(() => doc.querySelectorAll('#runList button').length === 2, 'run list');
@@ -3209,6 +3358,76 @@ test('B3: the results tab shows numbers for the run and changes them per product
     resultButton('run-empty').click();
     await waitFor(() => doc.getElementById('resultEmpty') !== null, 'empty run');
     assert.equal(element(doc, 'resultEmpty').textContent, 'Lượt này chưa có bình luận.');
+  } finally { dom.window.close(); }
+});
+
+test('result stats refresh on the terminal status poll and replace a cached zero', async () => {
+  const runId = 'run-terminal';
+  const info: any = syntheticRunInfo(runId);
+  info.state = { status: 'RUNNING', module: 'M3', errorCode: null };
+  let collected = false;
+  let statsCalls = 0;
+  const { dom, doc, state } = harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'RUNNING' }],
+    runInfoByRun: { [runId]: info },
+    fastPoll: true,
+    reviewStatsResult: () => {
+      statsCalls += 1;
+      return { ok: true, data: syntheticReviewStats(runId, collected ? 12 : 0) };
+    },
+  });
+  try {
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+    await waitFor(() => statsCalls >= 1 && doc.getElementById('resultEmpty') !== null, 'zero cached while running');
+    const statusBefore = state.statusCalls.filter((id) => id === runId).length;
+    const statsBefore = statsCalls;
+    info.state = { status: 'DONE', module: null, errorCode: null };
+    collected = true;
+    await waitFor(() => state.statusCalls.filter((id) => id === runId).length > statusBefore, 'terminal poll');
+    await waitFor(() => statsCalls > statsBefore, 'terminal stats refresh');
+    await waitFor(() => element(doc, 'resultCount').textContent?.includes('12 bình luận') === true,
+      'terminal result counts');
+    assert.equal(doc.getElementById('resultEmpty'), null, 'the cached zero is replaced');
+  } finally { dom.window.close(); }
+});
+
+test('custom collection completion refreshes review data and result stats without run polling', async () => {
+  const runId = 'run-custom-done';
+  const info: any = syntheticRunInfo(runId);
+  info.state = { status: 'IDLE', module: null, errorCode: null };
+  const attempt = {
+    attemptId: 'attempt-custom', planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  let collected = false;
+  let statsCalls = 0;
+  const { dom, doc, state } = harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'IDLE' }],
+    runInfoByRun: { [runId]: info },
+    samplingByRun: { [runId]: syntheticSampling({ runId, attempts: [attempt] }) },
+    fastPoll: true,
+    reviewStatsResult: () => {
+      statsCalls += 1;
+      return { ok: true, data: syntheticReviewStats(runId, collected ? 12 : 0) };
+    },
+  });
+  try {
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+    await waitFor(() => statsCalls >= 1 && doc.getElementById('resultEmpty') !== null, 'zero cached while collecting');
+    const samplingBefore = state.reviewSamplingCallsByRun[runId] || 0;
+    const dataBefore = state.reviewDataCallsByRun[runId] || 0;
+    const statsBefore = statsCalls;
+    state.samplingByRun![runId].attempts[0].status = 'SUCCEEDED';
+    collected = true;
+    await waitFor(() => (state.reviewSamplingCallsByRun[runId] || 0) > samplingBefore,
+      'sampling poll observes terminal completion');
+    await waitFor(() => (state.reviewDataCallsByRun[runId] || 0) > dataBefore,
+      'stored review data refresh');
+    await waitFor(() => statsCalls > statsBefore, 'stored result stats refresh');
+    await waitFor(() => element(doc, 'resultCount').textContent?.includes('12 bình luận') === true,
+      'delivered result counts');
+    assert.equal(doc.getElementById('resultEmpty'), null, 'the cached empty result is replaced');
   } finally { dom.window.close(); }
 });
 

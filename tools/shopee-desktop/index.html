@@ -2457,6 +2457,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     navSeq: 0,
     screen: 'new',
     info: null,
+    loadingRunId: null,
+    moduleRunBusy: {},
     newRunId: null,
     newEntry: null,
     newBinding: null,
@@ -3189,15 +3191,27 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return panel;
   }
 
-  async function onRunModule(moduleId, button) {
-    var runId = state.selectedRunId;
-    if (!runId) return;
+  async function onRunModule(moduleId, button, visibleRunId, visibleSelectionSeq) {
+    var runId = visibleRunId;
+    if (!runId || state.selectedRunId !== runId || state.selectionSeq !== visibleSelectionSeq) return;
+    var busyKey = runId + ':' + moduleId;
+    if (state.moduleRunBusy[busyKey]) return;
     clearError();
+    state.moduleRunBusy[busyKey] = true;
     button.disabled = true;
-    var res = await api.runModule(runId, String(moduleId).toLowerCase());
-    if (!res.ok) showError(res.error);
-    await loadInfo(runId);
-    await refreshRuns();
+    try {
+      var res = await api.runModule(runId, String(moduleId).toLowerCase());
+      if (state.selectedRunId !== runId) {
+        await refreshRuns();
+        return;
+      }
+      if (!res.ok) showError(res.error);
+      await loadInfo(runId);
+      await refreshRuns();
+    } finally {
+      delete state.moduleRunBusy[busyKey];
+      if (state.selectedRunId === runId) renderDetail();
+    }
   }
 
   var RS_MODE_LABEL = {
@@ -3386,6 +3400,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function loadSampling(runId) {
     var seq = (state.samplingSeq[runId] || 0) + 1;
     state.samplingSeq[runId] = seq;
+    var previous = state.sampling[runId];
     var res = await api.reviewSampling(runId);
     if (seq !== state.samplingSeq[runId]) return;
     if (res.ok) {
@@ -3396,6 +3411,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     if (state.selectedRunId === runId) renderDetail();
     manageSamplingPoll(runId);
+    if (state.selectedRunId === runId && samplingRunning(previous) && !samplingRunning(state.sampling[runId])) {
+      loadReviewData(runId);
+      if (state.screen === 'result') loadReviewStats(runId);
+    }
+  }
+
+  function samplingRunning(view) {
+    return !!(view && (
+      (view.countRefresh && view.countRefresh.status === 'RUNNING') ||
+      (view.attempts || []).some(function (attempt) { return attempt && attempt.status === 'RUNNING'; })
+    ));
   }
 
   async function loadReviewData(runId) {
@@ -3478,11 +3504,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   function manageSamplingPoll(runId) {
-    var view = state.sampling[runId];
-    var running = !!(view && (
-      (view.countRefresh && view.countRefresh.status === 'RUNNING') ||
-      (view.attempts || []).some(function (attempt) { return attempt && attempt.status === 'RUNNING'; })
-    ));
+    var running = samplingRunning(state.sampling[runId]);
     if (state.selectedRunId !== runId) return;
     if (!running) { stopSamplingPoll(); return; }
     if (state.samplingPoll && state.samplingPollRunId === runId) return;
@@ -4694,8 +4716,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var row = h('div', 'btnrow');
       var btn = h('button', 'abtn', 'Chạy bước này');
       btn.type = 'button';
-      btn.disabled = !state.connected || !mod.canRun;
-      btn.addEventListener('click', function () { onRunModule(mod.id, btn); });
+      var visibleRunId = info.runId;
+      var visibleSelectionSeq = state.selectionSeq;
+      btn.disabled = !state.connected || !mod.canRun || !!state.moduleRunBusy[visibleRunId + ':' + mod.id];
+      btn.addEventListener('click', function () {
+        onRunModule(mod.id, btn, visibleRunId, visibleSelectionSeq);
+      });
       row.appendChild(btn);
       if (!state.connected) {
         row.appendChild(h('span', 'hint', 'Chưa kết nối máy chủ.'));
@@ -4939,12 +4965,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return card;
   }
 
+  function emptyRunText() {
+    if (state.selectedRunId && state.loadingRunId === state.selectedRunId) return 'Đang tải lượt…';
+    return state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chủ.';
+  }
+
   function renderResult() {
     var root = $('resultDetail');
     clear(root);
     var info = state.info;
     if (!info) {
-      root.appendChild(h('p', 'muted', state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chủ.'));
+      root.appendChild(h('p', 'muted', emptyRunText()));
       return;
     }
     var runId = info.runId;
@@ -4985,7 +5016,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     clear(root);
     var info = state.info;
     if (!info) {
-      root.appendChild(h('p', 'muted', state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chủ.'));
+      root.appendChild(h('p', 'muted', emptyRunText()));
       return;
     }
     var item = state.runs.find(function (r) { return r.runId === info.runId; }) || {};
@@ -5145,6 +5176,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.runs = (res.data && res.data.runs) || [];
     if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
       state.selectedRunId = null;
+      state.loadingRunId = null;
     }
     renderRunList();
   }
@@ -5154,6 +5186,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.infoSeq[runId] = seq;
     var res = await api.status(runId);
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
+    state.loadingRunId = null;
     if (!res.ok) {
       showError(res.error);
       state.info = null;
@@ -5175,7 +5208,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     stopSamplingPoll();
     state.selectionSeq += 1;
     state.selectedRunId = runId;
+    state.loadingRunId = runId;
+    state.info = null;
     renderRunList();
+    renderDetail();
     await loadInfo(runId);
   }
 
@@ -5207,6 +5243,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     loadReviewData(runId);
     loadModuleOutputs(runId);
     if (!running) {
+      if (state.screen === 'result') loadReviewStats(runId);
       stopPoll();
       await refreshRuns();
     }
@@ -6209,6 +6246,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         return;
       }
       var runId = res.data.runId;
+      var entryError = res.data.entryError && typeof res.data.entryError === 'object' ? res.data.entryError : null;
       var status = await api.status(runId);
       if (generation !== state.newFormSeq) {
         state.newStaleRunId = runId;
@@ -6218,8 +6256,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         await refreshRuns();
         return;
       }
+      var statusEntry = status.ok && status.data && status.data.gates &&
+        typeof status.data.gates === 'object' ? status.data.gates.entry : null;
       state.newRunId = runId;
-      state.newEntry = status.ok && status.data ? status.data.gates.entry : null;
+      state.newEntry = statusEntry || null;
       state.newStaleRunId = null;
       state.preferredRunId = runId;
       state.newBinding = {
@@ -6233,7 +6273,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       showNewNotice(justSaved
         ? 'Đã lưu sản phẩm và tạo lượt. Biểu mẫu đã khóa theo lượt này.'
         : 'Đã tạo lượt. Biểu mẫu đã khóa theo lượt này.');
-      if (!status.ok) showNewError('Đã tạo lượt nhưng chưa đọc được kết quả kiểm tra đầu vào. ' + plainError(status.error));
+      if (!state.newEntry) {
+        var entryDetail = entryError ? plainError(entryError) : (!status.ok ? plainError(status.error) : '');
+        showNewError('Đã tạo lượt nhưng chưa đọc được kết quả kiểm tra đầu vào.' +
+          (entryDetail ? ' ' + entryDetail : ''));
+      }
       renderNewResult();
       await refreshRuns();
     } finally {
