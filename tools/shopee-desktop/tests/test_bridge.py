@@ -317,6 +317,55 @@ else:
         self.assertTrue(result['ok'], result)
         self.assertFalse(self.opencli_log.exists(), 'legacy create never probes the calendar')
 
+    def test_created_run_keeps_its_identity_when_entry_is_unavailable(self):
+        saved = self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                         keyword='kem chống nắng', categoryId=HEALTH)
+        self.assertTrue(saved['ok'], saved)
+        payload = {
+            'presetId': 'kem-chong-nang-abc', 'endDate': completed_date(),
+            'collectionPolicy': {'mode': 'stars', 'stars': [2, 3], 'totalPerLink': 500,
+                                 'allocation': 'pooled'}}
+        cases = (
+            ('transport timeout', 'timeout',
+             {'code': 'SSH_TIMEOUT', 'message': 'SSH_TIMEOUT'}),
+            ('explicit entry error',
+             {'format': 'error-v1', 'code': 'CAPTURE_LOGIN_REQUIRED',
+              'message': 'CAPTURE_LOGIN_REQUIRED'},
+             {'code': 'CAPTURE_LOGIN_REQUIRED', 'message': 'CAPTURE_LOGIN_REQUIRED'}),
+            ('unsafe entry error code',
+             {'format': 'error-v1', 'code': 'bad code!', 'message': 'bad code!'},
+             {'code': 'REMOTE_OUTPUT_INVALID', 'message': 'REMOTE_OUTPUT_INVALID'}),
+            ('malformed entry format', {'format': 'gate-result-v1'},
+             {'code': 'REMOTE_OUTPUT_INVALID', 'message': 'REMOTE_OUTPUT_INVALID'}),
+        )
+        for label, entry, expected_error in cases:
+            with self.subTest(label=label):
+                before = set(self.runs.iterdir())
+                calls = []
+                real_run = tdn_shopee_app.subprocess.run
+
+                def run(command, **options):
+                    text = options.get('input', b'').decode('utf-8', 'replace')
+                    if ' gate entry --run ' not in text:
+                        calls.append('new')
+                        return real_run(command, **options)
+                    calls.append('entry')
+                    if entry == 'timeout':
+                        raise subprocess.TimeoutExpired(command, options.get('timeout', 120))
+                    return subprocess.CompletedProcess(
+                        command, 0, stdout=json.dumps(entry).encode('utf-8'), stderr=b'')
+
+                with mock.patch.object(tdn_shopee_app.subprocess, 'run', side_effect=run):
+                    result = self.api.newRun(payload)
+                self.assertEqual(calls, ['new', 'entry'],
+                                 'creation runs once and an unavailable entry is never retried')
+                self.assertTrue(result['ok'], result)
+                run_id = result['data']['runId']
+                self.assertEqual(result, {'ok': True, 'data': {
+                    'runId': run_id, 'entry': None, 'entryError': expected_error}})
+                self.assertEqual(set(self.runs.iterdir()) - before, {self.runs / run_id},
+                                 'the exact created run remains the only creation')
+
     def test_calendar_transport_uses_150_seconds_while_config_stays_30(self):
         (self.base / 'config.json').write_text(json.dumps({
             'sshCommand': ['bash', '-s'], 'remoteScript': str(SCRIPT),

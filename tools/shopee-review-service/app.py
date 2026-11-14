@@ -296,7 +296,10 @@ class BrowserWorker:
 
     async def run_job(self, job_id):
         job = get_job(job_id)
-        if job['state'] == 'cancelled':
+        # Queue items are stale references: cancel keeps the old item, resume adds
+        # another, and a restart re-enqueues every persisted queued job. Only the
+        # job's current persisted state may admit an execution.
+        if job['state'] != 'queued':
             return
         self.active_job = job_id
         update_job(job_id, state='running', error=None, cancel_requested=0)
