@@ -14,6 +14,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 URL = 'https://shopee.vn/product/100/200'
@@ -164,34 +165,35 @@ class ServiceTests(unittest.TestCase):
                     await task
 
         async def scenario():
-            worker = app.worker
-            self.assertTrue(worker.queue.empty(), 'this owner-boundary test starts with an idle queue')
+            worker = app.BrowserWorker()
             page = FakePage(result)
             worker.page = page
             worker.navigate_product = lambda _url: asyncio.sleep(0, result={'state': 'ready'})
             worker.ensure_browser = lambda: asyncio.sleep(0)
+            with mock.patch.object(app, 'worker', worker):
+                self.assertTrue(worker.queue.empty(), 'this scenario starts with its own idle worker')
 
-            payload = app.JobInput.model_validate_json(json.dumps({'url': URL}))
-            job = await app.create_job(payload)
-            self.assertEqual((await app.cancel_job(job['id']))['state'], 'cancelled')
-            self.assertEqual((await app.resume_job(job['id']))['state'], 'queued')
-            self.assertEqual(worker.queue.qsize(), 2, 'cancel leaves the stale reference until the worker drains it')
+                payload = app.JobInput.model_validate_json(json.dumps({'url': URL}))
+                job = await app.create_job(payload)
+                self.assertEqual((await app.cancel_job(job['id']))['state'], 'cancelled')
+                self.assertEqual((await app.resume_job(job['id']))['state'], 'queued')
+                self.assertEqual(worker.queue.qsize(), 2, 'cancel leaves the stale reference until the worker drains it')
 
-            await drain(worker)
-            self.assertEqual(page.crawls, 1, 'one created run executes exactly once after cancel and resume')
-            final = app.get_job(job['id'])
-            self.assertEqual(final['state'], 'succeeded')
-            stored = json.loads((app.DATA / 'results' / f"{job['id']}.json").read_text(encoding='utf-8'))
-            self.assertEqual((stored['job_id'], stored['complete']), (job['id'], True))
-            self.assertEqual(stored['records'], result['records'])
+                await drain(worker)
+                self.assertEqual(page.crawls, 1, 'one created run executes exactly once after cancel and resume')
+                final = app.get_job(job['id'])
+                self.assertEqual(final['state'], 'succeeded')
+                stored = json.loads((app.DATA / 'results' / f"{job['id']}.json").read_text(encoding='utf-8'))
+                self.assertEqual((stored['job_id'], stored['complete']), (job['id'], True))
+                self.assertEqual(stored['records'], result['records'])
 
-            page.crawls = 0
-            cancelled = await app.create_job(payload)
-            self.assertEqual((await app.cancel_job(cancelled['id']))['state'], 'cancelled')
-            await drain(worker)
-            self.assertEqual(page.crawls, 0, 'a cancelled queued job without resume never runs')
-            self.assertEqual(app.get_job(cancelled['id'])['state'], 'cancelled')
-            self.assertFalse((app.DATA / 'results' / f"{cancelled['id']}.json").exists())
+                page.crawls = 0
+                cancelled = await app.create_job(payload)
+                self.assertEqual((await app.cancel_job(cancelled['id']))['state'], 'cancelled')
+                await drain(worker)
+                self.assertEqual(page.crawls, 0, 'a cancelled queued job without resume never runs')
+                self.assertEqual(app.get_job(cancelled['id'])['state'], 'cancelled')
+                self.assertFalse((app.DATA / 'results' / f"{cancelled['id']}.json").exists())
 
         asyncio.run(scenario())
 

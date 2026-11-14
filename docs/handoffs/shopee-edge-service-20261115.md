@@ -51,7 +51,16 @@ runs real create → cancel while queued → resume → worker drain with a fake
 and asserts one crawler invocation, `state=succeeded`, and the stored result's
 exact `job_id`/`complete`/records. The negative control in the same test creates
 and cancels a queued job without resume and asserts zero crawls, `state=cancelled`,
-and no result file.
+and no result file. The scenario builds its own fresh `BrowserWorker` and patches
+`app.worker` only for that scenario with `mock.patch.object`, so the shared module
+worker, its queue, page and loop binding are restored on exit. Resume and cancel
+endpoints run against that exact patched worker.
+
+Claim boundary: this proves no duplicate terminal execution and the
+cancelled-without-resume negative control. It does not claim a new FIFO or
+resume-tail-position guarantee, and adds no durable queue fields. Existing resume
+behavior (progress counters reset, fresh crawler config) is unchanged; no new
+saved-cursor continuation behavior is claimed.
 
 Red (pre-fix, intended duplicate execution):
 
@@ -76,7 +85,9 @@ git diff --check
 # clean
 ```
 
-Raw outputs are outside Git in
+Review follow-up (test isolation only): the production guard is unchanged and
+the original D red log is retained; no new red proof was taken for this
+refactor. Raw outputs are outside Git in
 `/home/pkhang/lanes/shopee-edge-bridge-20261115-evidence/`.
 `sourceCalls=0`, `productionMutations=0`, `browserStarted=false`; temporary
 isolated `APP_DATA_DIR`/`SHOPEE_FLOW_STATE` roots and a synthetic token only.
