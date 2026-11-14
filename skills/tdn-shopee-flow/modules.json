@@ -55,7 +55,7 @@
         "totalPerLink": 300,
         "allocation": "pooled"
       },
-      "schema": "contracts/foundation/shopee-review-sampling.schema.json#/$defs/policy",
+      "schema": "contracts/foundation/shopee-review-sampling.schema.json#/$defs/anyPolicy",
       "legacyReviewCapPerLinkOnly": true
     }
   },

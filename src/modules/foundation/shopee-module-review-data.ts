@@ -7,7 +7,7 @@ import schema from '../../../contracts/foundation/shopee-module-review-data.sche
 import type { RunTracking, RunTrackingRecord, ReviewDataLink, ReviewDataExport, ModuleReviewArchive } from '../../../contracts/foundation/shopee-module-review-data.generated.js';
 import type { SamplingResult } from '../../../contracts/foundation/shopee-review-sampling.generated.js';
 import { canonicalJson } from './canonical-json.js';
-import { samplingDigest, validateSamplingResult } from './shopee-review-sampling.js';
+import { pagesPerLink, samplingDigest, validateSamplingResult } from './shopee-review-sampling.js';
 import { readPublicReviewJournal, validatePublicEnvelope, PUBLIC_REVIEW_MAX_BYTES } from '../../platform/collectors/shopee-public-reviews.js';
 import { frozenAttemptProof, journalsFor, stateFor } from '../../../scripts/module-review-sampling.js';
 import { hashFile, hashFolder, ModuleError, object, safePath, validateModuleValue } from '../../../scripts/module-pick.js';
@@ -172,8 +172,9 @@ async function customSource(run: string, id: string): Promise<VerifiedModuleRevi
     if (result) { validateSamplingResult(result, plan, attempt.planSha256!, link, j!.inputSha256); results.push(result); }
     // Provider terminal time is retained with its explicit basis, never inferred from file/import time.
     if (result && date(j?.job?.updated_at)) collectedAt.set(link.url, j!.job!.updated_at);
-    const actual = result ? result.rows.length : null;
-    return { ...link, requested: plan.policy.totalPerLink, actual, shortfall: actual === null ? null : Math.max(0,plan.policy.totalPerLink-actual),
+    // Pages mode sets no comment target: its 2000 safety cap is not a requested count.
+    const actual = result ? result.rows.length : null, requested = pagesPerLink(plan.policy) === null ? plan.policy.totalPerLink : null;
+    return { ...link, requested, actual, shortfall: actual === null || requested === null ? null : Math.max(0,requested-actual),
       complete: result?.complete ?? null, status: result?.stopReason ?? j?.job?.state ?? 'not-observed' };
   });
   const proof = await snapshotFiles(run, paths), published = JSON.parse(proof.find(p => p.path === `${base}/output/reviews.json`)!.bytes.toString('utf8')) as ModuleReviewRow[];

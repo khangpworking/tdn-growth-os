@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import schema from '../../../contracts/foundation/shopee-review-sampling.schema.json' with { type: 'json' };
-import type { ReviewPolicy, ReviewSamplingInput, ShopeeReviewPlan, ReviewCounts, ReviewLink, SamplingResult } from '../../../contracts/foundation/shopee-review-sampling.generated.js';
+import type { AnyReviewPolicy, ReviewPagesInput, ReviewPagesPolicy, ReviewPolicy, ReviewSamplingInput, ShopeeReviewPlan, ReviewCounts, ReviewLink, SamplingResult } from '../../../contracts/foundation/shopee-review-sampling.generated.js';
 import { canonicalJson } from './canonical-json.js';
 
-export type { ReviewPolicy, ReviewSamplingInput, ShopeeReviewPlan, ReviewCounts, ReviewLink, SamplingResult };
+export type { AnyReviewPolicy, ReviewPagesInput, ReviewPagesPolicy, ReviewPolicy, ReviewSamplingInput, ShopeeReviewPlan, ReviewCounts, ReviewLink, SamplingResult };
 export class ReviewSamplingError extends Error {
   constructor(readonly code: string) { super(code); }
 }
@@ -20,19 +20,26 @@ export function validateSampling<T>(definition: string, value: unknown): T {
   if (!check(value)) throw new ReviewSamplingError('REVIEW_SAMPLING_INVALID');
   return value as T;
 }
-export function reviewPolicy(input: unknown): ReviewPolicy {
-  const value = validateSampling<ReviewSamplingInput>('input', input);
+/** Count mode keeps shopee-review-policy-v1; pages mode is v2 with the service's 2000-row safety cap. */
+export function reviewPolicy(input: unknown): AnyReviewPolicy {
+  const pages = input !== null && typeof input === 'object' && (input as Record<string, unknown>).limitBy === 'pages';
+  const value = validateSampling<ReviewSamplingInput | ReviewPagesInput>(pages ? 'pagesInput' : 'input', input);
   if (value.mode === 'stars' ? !value.stars.length : value.stars.length !== 0 || value.allocation !== 'pooled')
     throw new ReviewSamplingError('REVIEW_POLICY_INVALID');
-  return { format: 'shopee-review-policy-v1', ...value, stars: [...value.stars].sort((a,b) => a-b), textRule: 'comment-or-attributes-v1', order:'native-filter-ascending-stars-v1' };
+  const stars = [...value.stars].sort((a,b) => a-b), rules = { textRule: 'comment-or-attributes-v1', order:'native-filter-ascending-stars-v1' } as const;
+  if ('limitBy' in value) return { format: 'shopee-review-policy-v2', limitBy: 'pages', mode: value.mode, stars, pagesPerLink: value.pagesPerLink, totalPerLink: 2000, allocation: 'pooled', ...rules };
+  return { format: 'shopee-review-policy-v1', ...value, stars, ...rules };
 }
-export function validateReviewPolicy(value: unknown): ReviewPolicy {
-  const v = validateSampling<ReviewPolicy>('policy', value);
-  const normalized = reviewPolicy({ mode:v.mode, stars:v.stars, totalPerLink:v.totalPerLink, allocation:v.allocation });
+export const pagesPerLink = (policy: AnyReviewPolicy): number | null => policy.format === 'shopee-review-policy-v2' ? policy.pagesPerLink : null;
+export function validateReviewPolicy(value: unknown): AnyReviewPolicy {
+  const v = validateSampling<AnyReviewPolicy>('anyPolicy', value);
+  const normalized = reviewPolicy(v.format === 'shopee-review-policy-v2'
+    ? { mode:v.mode, stars:v.stars, limitBy:'pages', pagesPerLink:v.pagesPerLink, allocation:v.allocation }
+    : { mode:v.mode, stars:v.stars, totalPerLink:v.totalPerLink, allocation:v.allocation });
   if (canonicalJson(v) !== canonicalJson(normalized)) throw new ReviewSamplingError('REVIEW_POLICY_INVALID');
   return v;
 }
-export function starTargets(policy: ReviewPolicy): ShopeeReviewPlan['targets'] {
+export function starTargets(policy: AnyReviewPolicy): ShopeeReviewPlan['targets'] {
   if (policy.allocation !== 'equal-stars') return [];
   const base = Math.floor(policy.totalPerLink / policy.stars.length), remainder = policy.totalPerLink % policy.stars.length;
   return policy.stars.map((star, index) => ({ star, target:base + (index < remainder ? 1 : 0) }));
@@ -66,6 +73,8 @@ export function validateSamplingResult(value: unknown, plan: ShopeeReviewPlan, p
   if(result.phase==='checkpoint'&&result.complete || result.phase==='terminal'&&result.stopReason==='running')
     throw new ReviewSamplingError('REVIEW_CHECKPOINT_INVALID');
   if (result.rows.length > policy.totalPerLink) throw new ReviewSamplingError('REVIEW_CAP_EXCEEDED');
+  const pages = pagesPerLink(policy);
+  if (pages !== null && result.pages.length > pages) throw new ReviewSamplingError('REVIEW_PAGE_LIMIT_EXCEEDED');
   for (const row of result.rows) {
     const text = [row.comment ?? '', ...row.attributes].some(v => /[\p{L}\p{N}]/u.test(v));
     const invalidReasons=row.admissionReasons.some(reason=>reason!=='SOURCE_TIME_NOT_PARSED');

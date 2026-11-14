@@ -90,6 +90,7 @@ test('S05 row 3: recovery finds our job among foreign and malformed rows and rej
       { method: 'GET', path: '/jobs?limit=100', body: [job(1), null, { id: IDS[2] },
         job(2, 'invented', { request: { url: 'https://example.invalid/item', max_comments: 20 } }),
         job(0, 'queued', { request: { url: `https://shopee.vn/synthetic-i.${PRODUCTS[0].shopId}.${PRODUCTS[0].itemId}`, max_comments: 20 } }),
+        job(0, 'queued', { id: '10000000-0000-4000-8000-000000000004', request: { url: PRODUCTS[0].productUrl, max_comments: 20, max_pages: 10 } }),
         ...(duplicate ? [job(0, 'queued', { id: IDS[2] })] : [])] });
     if (!duplicate) script.push(...successfulScript().slice(3));
     const transport = new FakeTransport(script), client = bindings.open({ ...store, clock, fetch: transport.fetch });
@@ -286,7 +287,7 @@ test('S2 optional checkpoint metadata is absent and complete never becomes true 
   assert.equal(JSON.stringify(safe).includes('synthetic-author-only'), false);
 });
 for (const change of [{ state: 'invented' }, { id: IDS[1] }, { request: { url: PRODUCTS[1].productUrl, max_comments: 20 } },
-  { request: { url: PRODUCTS[0].productUrl, max_comments: 21 } }, { created_at: '2026-02-02T00:00:00.000Z' }]) test(`S2 invalid poll identity/state ${JSON.stringify(change)} stops`, async t => {
+  { request: { url: PRODUCTS[0].productUrl, max_comments: 21 } }, { request: { url: PRODUCTS[0].productUrl, max_comments: 20, max_pages: 10 } }, { created_at: '2026-02-02T00:00:00.000Z' }]) test(`S2 invalid poll identity/state ${JSON.stringify(change)} stops`, async t => {
   const store = await temporaryPublicStore(t), clock = new FakeClock();
   const script = successfulScript().slice(0, 4); script[3]!.body = job(0, 'running', change);
   const transport = new FakeTransport(script); const collected = await bindings.open({ ...store, clock, fetch: transport.fetch }).run(PRODUCTS);

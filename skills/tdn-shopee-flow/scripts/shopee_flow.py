@@ -800,7 +800,10 @@ def evaluate_gate(run, gate, *, readonly_file=None):
                 valid_policy = 'reviewCapPerLink' not in request
             except ModuleFailure:
                 policy, valid_policy = None, False
-            check('collection_policy', valid_policy, {'valid': valid_policy, 'totalPerLink': policy['totalPerLink'] if policy else None})
+            if policy and policy['format'] == 'shopee-review-policy-v2':
+                check('collection_policy', valid_policy, {'valid': valid_policy, 'pagesPerLink': policy['pagesPerLink']})
+            else:
+                check('collection_policy', valid_policy, {'valid': valid_policy, 'totalPerLink': policy['totalPerLink'] if policy else None})
         else:
             check('review_cap_1_300', type(cap) is int and params['reviewCapPerLink']['min'] <= cap <= params['reviewCapPerLink']['max'], cap if type(cap) is int else None)
         off = os.environ.get('TDN_SHOPEE_FLOW_READONLY') != '1' and not (READONLY_FILE if readonly_file is None else pathlib.Path(readonly_file)).exists()
@@ -2059,9 +2062,12 @@ def flow_capture_specs(run):
 
 
 def flow_policy(value, full=False):
+    # Count mode stays shopee-review-policy-v1 byte for byte; pages mode is v2, which v1 readers refuse.
+    pages = isinstance(value, dict) and (value.get('format') == 'shopee-review-policy-v2' if full else value.get('limitBy') == 'pages')
     repo, _ = module_config()
     schema = gate_read(repo / 'contracts/foundation/shopee-review-sampling.schema.json')
-    definition = flow_expand_schema(schema['$defs']['policy' if full else 'input'], schema)
+    name = ('pagesPolicy' if pages else 'policy') if full else ('pagesInput' if pages else 'input')
+    definition = flow_expand_schema(schema['$defs'][name], schema)
     if not gate_schema(value, definition):
         raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
     policy = {**value, 'stars': sorted(value['stars'])}
@@ -2069,6 +2075,10 @@ def flow_policy(value, full=False):
         if value['stars'] != policy['stars']:
             raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
         return policy
+    if pages:
+        return {'format': 'shopee-review-policy-v2', 'limitBy': 'pages', 'mode': policy['mode'], 'stars': policy['stars'],
+                'pagesPerLink': policy['pagesPerLink'], 'totalPerLink': 2000, 'allocation': 'pooled',
+                'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'}
     return {'format': 'shopee-review-policy-v1', **policy,
             'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'}
 

@@ -70,6 +70,72 @@
         }
       }
     },
+    "pagesInput": {
+      "title": "ReviewPagesInput",
+      "description": "Pages mode: each link stops after pagesPerLink Shopee review pages, counted across all requested filters.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "stars",
+        "limitBy",
+        "pagesPerLink",
+        "allocation"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "all",
+            "with-comments",
+            "stars"
+          ]
+        },
+        "stars": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "uniqueItems": true
+        },
+        "limitBy": {
+          "const": "pages"
+        },
+        "pagesPerLink": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "allocation": {
+          "const": "pooled"
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "stars"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "stars": {
+            "minItems": 1,
+            "type": "array"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "stars": {
+            "maxItems": 0,
+            "type": "array"
+          }
+        }
+      }
+    },
     "policy": {
       "title": "ReviewPolicy",
       "type": "object",
@@ -149,6 +215,99 @@
         }
       }
     },
+    "pagesPolicy": {
+      "title": "ReviewPagesPolicy",
+      "description": "Pages-mode policy. A new format so readers of shopee-review-policy-v1 refuse it; totalPerLink is the review service safety cap.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "limitBy",
+        "mode",
+        "stars",
+        "pagesPerLink",
+        "totalPerLink",
+        "allocation",
+        "textRule",
+        "order"
+      ],
+      "properties": {
+        "format": {
+          "const": "shopee-review-policy-v2"
+        },
+        "limitBy": {
+          "const": "pages"
+        },
+        "mode": {
+          "enum": [
+            "all",
+            "with-comments",
+            "stars"
+          ]
+        },
+        "stars": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "uniqueItems": true
+        },
+        "pagesPerLink": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "totalPerLink": {
+          "const": 2000
+        },
+        "allocation": {
+          "const": "pooled"
+        },
+        "textRule": {
+          "const": "comment-or-attributes-v1"
+        },
+        "order": {
+          "const": "native-filter-ascending-stars-v1"
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "stars"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "stars": {
+            "minItems": 1,
+            "type": "array"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "stars": {
+            "maxItems": 0,
+            "type": "array"
+          }
+        }
+      }
+    },
+    "anyPolicy": {
+      "title": "AnyReviewPolicy",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/policy"
+        },
+        {
+          "$ref": "#/$defs/pagesPolicy"
+        }
+      ]
+    },
     "link": {
       "title": "ReviewLink",
       "type": "object",
@@ -225,7 +384,7 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "policy": {
-          "$ref": "#/$defs/policy"
+          "$ref": "#/$defs/anyPolicy"
         },
         "policySha256": {
           "type": "string",
@@ -394,7 +553,7 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "policy": {
-          "$ref": "#/$defs/policy"
+          "$ref": "#/$defs/anyPolicy"
         },
         "attemptId": {
           "type": "string",
@@ -423,6 +582,11 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 2000
+            },
+            "max_pages": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
             },
             "sampling": {
               "$ref": "#/$defs/samplingBinding"
@@ -1353,7 +1517,7 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "policy": {
-      "$ref": "#/$defs/policy"
+      "$ref": "#/$defs/anyPolicy"
     },
     "policySha256": {
       "type": "string",
