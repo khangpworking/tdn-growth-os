@@ -455,12 +455,20 @@ class Api:
         run_id = data.get('runId')
         if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
-        entry = self._remote('entry', run_id=run_id, config=config)
-        if not entry['ok']:
-            return entry
-        if entry['data'].get('format') != 'handoff-v1':
-            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
-        return {'ok': True, 'data': {'runId': run_id, 'entry': entry['data']}}
+        def created_without_entry(code):
+            code = code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID'
+            return {'ok': True, 'data': {'runId': run_id, 'entry': None,
+                                         'entryError': {'code': code, 'message': code}}}
+
+        try:
+            entry = self._remote('entry', run_id=run_id, config=config)
+        except _BridgeFailure as error:
+            return created_without_entry(error.code)
+        if entry['ok'] and entry['data'].get('format') == 'handoff-v1':
+            return {'ok': True, 'data': {'runId': run_id, 'entry': entry['data']}}
+        if entry['ok']:
+            return created_without_entry('REMOTE_OUTPUT_INVALID')
+        return created_without_entry(entry.get('error', {}).get('code'))
 
     @staticmethod
     def _validate_metric_options(options):
