@@ -146,3 +146,57 @@ this worktree. The symlink was removed afterward. Logs are outside Git.
 - Native Windows QA was not run or claimed.
 
 Business decisions pending: none for this scoped UI repair.
+
+## Combined release/audit — integrated reviewed fixes
+
+This section records post-integration status. Reviewed UI `c5e79324` was combined
+with reviewed bridge/service commits `98d40d75`, `a68c0e0d`, then `8c63631f` in
+that order. Each owned product/test path was byte-compared to its reviewed owner
+commit before checks.
+
+### Confirmed failure classes
+
+| Class | Repaired behavior |
+|---|---|
+| A | Wrong-run or duplicate module action: visible-run/generation binding plus per-run/module single-flight. |
+| B | Standard and custom completion freshness: terminal status polling and sampling completion refresh stored review data/stats. |
+| C | Known committed identity lost after an entry error: bridge keeps the exact created run and reports a pinned partial shape; UI keeps it locked with status-only authorization. |
+| D | Terminal stale refs re-execute: service admits only currently `queued` jobs, so cancel/resume drains stale references without duplicate execution. |
+
+### Audit matrix
+
+| Audited surface | Outcome |
+|---|---|
+| Product/date/policy/create and bridge | C repaired; pre-create failures and normal create/entry success preserved. |
+| Run selection/module actions/status poll | A and B repaired; no confirmed additional defect in the audited paths. |
+| Custom plan/count/stop/reconcile | Audited; no confirmed additional defect or policy change. |
+| Stored review stats/save/export | B freshness repaired; reads remain offline stored reads, never source calls. |
+| Service queue/cancel/resume/restart | D repaired; resume eligibility and current progress behavior unchanged. |
+| CLI/export/gate paths | Audited; no confirmed additional defects. |
+
+### Preserved boundaries
+
+- `request`/`count-v1` byte contract; pages default `10`, range `1-100`,
+  safety cap `2000`; M2 product dedup/selection; entry, capture-spec,
+  eligibility, approval, evidence and accounting semantics.
+- `src/`, `scripts/`, `skills/`, `contracts/` and dependency manifests are
+  unchanged. Policies/validators inside the three production owners are
+  unchanged.
+- Only authoritative `status.gates.entry` may authorize the flow. Bridge
+  `entryError` is notice-only. New review stats/data requests are offline stored
+  reads.
+
+### Integrated checks
+
+- UI suite: 79 passed, 0 failed.
+- Desktop bridge: 51 passed, 0 failed.
+- Review service: 6 passed, 0 failed, using temporary isolated stores and a
+  synthetic token; no actual browser.
+- Typecheck exit `0`; `git diff --check` clean.
+- Unchanged CLI baseline reused: 122 tests, exit `0`, 3 fixture skips
+  (119 executed). Review/sampling/import/export/stats TS baseline: 45 passed.
+  Hosted full Check remains mandatory on the final PR head.
+
+This is not an exhaustive bug-free claim. Native Windows QA was not run.
+
+`sourceCalls=0` · `productionMutations=0`
