@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AutomaticReviewBinding, ReviewSamplingAttempt, ReviewSamplingAttemptState, SamplingJournal, SamplingResult, SamplingJobInput } from '../contracts/foundation/shopee-review-sampling.generated.js';
-import { reviewPolicy, samplingDigest, validateReviewPlan, validateSampling, validateReviewCounts, validateSamplingResult, starTargets, ReviewSamplingError,
+import { pagesPerLink, reviewPolicy, samplingDigest, validateReviewPlan, validateSampling, validateReviewCounts, validateSamplingResult, starTargets, ReviewSamplingError,
   type ReviewLink, type ShopeeReviewPlan, type ReviewCounts } from '../src/modules/foundation/shopee-review-sampling.js';
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ShopeeReviewSamplingCollector, readSamplingJournal } from '../src/platform/collectors/shopee-review-sampling.js';
@@ -47,6 +47,12 @@ async function exclusive(run:string,name:string,value:unknown):Promise<void>{
     const parent=await open(resolve(file,'..'),'r');try{await parent.sync();}finally{await parent.close();}
   } finally {await handle.close();await unlink(temporary).catch(()=>{});}
 }
+// Pages mode adds max_pages; count-mode job requests keep their original bytes.
+function jobRequest(link:ReviewLink,attempt:ReviewSamplingAttempt,plan:ShopeeReviewPlan|null):SamplingJobInput{
+  if(!plan)return {kind:'counts',url:link.url,request_key:attempt.attemptId};
+  const pages=pagesPerLink(plan.policy);
+  return {url:link.url,max_comments:plan.policy.totalPerLink,...(pages===null?{}:{max_pages:pages}),sampling:{attemptId:attempt.attemptId,planSha256:attempt.planSha256!,policySha256:plan.policySha256,policy:plan.policy}};
+}
 async function planFor(run:string,digest:string):Promise<ShopeeReviewPlan>{
   if(!hex.test(digest))throw new ModuleError('REVIEW_PLAN_INVALID',2);
   const plan=validateReviewPlan(await readJson(run,`m3-custom/plans/${digest}.json`),digest),context=await samplingContext(run);
@@ -61,7 +67,7 @@ export async function frozenAttemptProof(run:string,kind:Kind,id:string){
   const journals=await journalsFor(run,attempt);
   for(let index=0;index<journals.length;index++){
     const journal=journals[index],link=attempt.links[index]!;if(!journal)continue;
-    const expected:SamplingJobInput=plan?{url:link.url,max_comments:plan.policy.totalPerLink,sampling:{attemptId:attempt.attemptId,planSha256:attempt.planSha256!,policySha256:plan.policySha256,policy:plan.policy}}:{kind:'counts',url:link.url,request_key:attempt.attemptId};
+    const expected=jobRequest(link,attempt,plan);
     if(canonicalJson(journal.request)!==canonicalJson(expected))throw new ModuleError('REVIEW_JOURNAL_CHANGED');
     if(journal.result?.format==='shopee-sampled-result-v1')validateSamplingResult(journal.result,plan!,attempt.planSha256!,link,samplingDigest(expected));
   }
@@ -147,7 +153,7 @@ export async function reserveConfiguredAttempt(run:string,identity:ExecutionIden
     throw new ModuleError('AUTOMATIC_COLLECTION_EXISTS');
   }
   await assertSamplingIdle(run);
-  const saved=await saveReviewPlan(run,{mode:policy.mode,stars:policy.stars,totalPerLink:policy.totalPerLink,allocation:policy.allocation});
+  const saved=await saveReviewPlan(run,policy.format==='shopee-review-policy-v2'?{mode:policy.mode,stars:policy.stars,limitBy:'pages',pagesPerLink:policy.pagesPerLink,allocation:policy.allocation}:{mode:policy.mode,stars:policy.stars,totalPerLink:policy.totalPerLink,allocation:policy.allocation});
   const attemptId=randomUUID(),binding:AutomaticReviewBinding={format:'shopee-automatic-review-binding-v1',runId:basename(run),requestSha256:context.requestSha256,m2Digest:context.m2Digest,policySha256:samplingDigest(policy),planSha256:saved.planSha256,attemptId,...identity,createdAt:new Date().toISOString()};
   validateSampling('automatic',binding);
   // The immutable identity/plan binding precedes all attempt material and dispatch.
@@ -163,12 +169,19 @@ export async function stopReviewAttempt(run:string,kind:Kind,id:string){
 }
 function summarizeLink(link:ReviewLink,plan:ShopeeReviewPlan|null,journal:SamplingJournal|null){
   const result=journal?.result?.format==='shopee-sampled-result-v1'?journal.result:null;
-  const actual=result&&result.pages.length>0?result.rows.length:null,requested=plan?.policy.totalPerLink??0;
-  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null?null:requested-actual,stopReason:result?.stopReason??(journal?.errorCode??'not_started'),
+  // Pages mode has no comment target, so requested/shortfall stay null.
+  const actual=result&&result.pages.length>0?result.rows.length:null,requested=plan&&pagesPerLink(plan.policy)!==null?null:plan?.policy.totalPerLink??0;
+  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null||requested===null?null:requested-actual,stopReason:result?.stopReason??(journal?.errorCode??'not_started'),
     stars:plan?.policy.mode==='stars'?plan.policy.stars.map(star=>{const target=plan.targets.find(q=>q.star===star)?.target??null;
       const groupObserved=result?.pages.some(page=>page.filter===String(star))??false;
       const got=groupObserved?result!.rows.filter(row=>row.ratingStar===star).length:null;
       return {star,target,actual:got,shortfall:target===null||got===null?null:target-got};}):[]};
+}
+/** Count mode proves the comment cap; pages mode proves each link's saved pages stay within pagesPerLink. */
+export function m3LimitCheck(plan:ShopeeReviewPlan,summaries:{actual:number|null}[],results:Pick<SamplingResult,'pages'>[]){
+  const pages=pagesPerLink(plan.policy);
+  if(pages===null)return {id:'cap_not_exceeded',ok:summaries.every(s=>s.actual!==null&&s.actual<=plan.policy.totalPerLink)};
+  return {id:'pages_not_exceeded',ok:results.length===summaries.length&&results.every(r=>r.pages.length<=pages)};
 }
 export async function reviewSamplingView(run:string){
   let context:Awaited<ReturnType<typeof samplingContext>>|null=null,blockedBy:{code:string}|null=null;
@@ -198,7 +211,7 @@ export async function reviewSamplingView(run:string){
     for(let index=0;index<js.length;index++){
       const journal=js[index],link=attempt.links[index]!;
       if(!journal)continue;
-      const expected:SamplingJobInput=plan?{url:link.url,max_comments:plan.policy.totalPerLink,sampling:{attemptId:attempt.attemptId,planSha256:attempt.planSha256!,policySha256:plan.policySha256,policy:plan.policy}}:{kind:'counts',url:link.url,request_key:attempt.attemptId};
+      const expected=jobRequest(link,attempt,plan);
       if(canonicalJson(journal.request)!==canonicalJson(expected))throw new ModuleError('REVIEW_JOURNAL_CHANGED');
       if(journal.result?.format==='shopee-sampled-result-v1')validateSamplingResult(journal.result,plan!,attempt.planSha256!,link,samplingDigest(expected));
     }
@@ -252,7 +265,7 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
     for(let index=0;index<attempt.links.length;index++){
       const link=attempt.links[index]!,file=await safePath(run,`${base}/journal/${samplingDigest(link)}.json`);
       if(deps.reconcileOnly&&await readSamplingJournal(file)===null)continue;
-      const request:SamplingJobInput=plan?{url:link.url,max_comments:plan.policy.totalPerLink,sampling:{attemptId:attempt.attemptId,planSha256:attempt.planSha256!,policySha256:plan.policySha256,policy:plan.policy}}:{kind:'counts',url:link.url,request_key:attempt.attemptId};
+      const request=jobRequest(link,attempt,plan);
       journals[index]=await collector.run(file,request,link,plan,deps.reconcileOnly,controller.signal);
       if(journals[index]!.errorCode){errorCode=journals[index]!.errorCode;break;}
     }
@@ -268,15 +281,15 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   let gate:Record<string,unknown>|null=null;
   if(plan){
     const results=journals.flatMap(j=>j?.result?.format==='shopee-sampled-result-v1'?[j.result]:[]);
-    for(const result of results){const link=attempt.links.find(l=>l.url===result.link.url);if(!link)throw new ModuleError('REVIEW_RESULT_CHANGED');const request={url:link.url,max_comments:plan.policy.totalPerLink,sampling:{attemptId:attempt.attemptId,planSha256:attempt.planSha256!,policySha256:plan.policySha256,policy:plan.policy}};validateSamplingResult(result,plan,attempt.planSha256!,link,samplingDigest(request));}
+    for(const result of results){const link=attempt.links.find(l=>l.url===result.link.url);if(!link)throw new ModuleError('REVIEW_RESULT_CHANGED');validateSamplingResult(result,plan,attempt.planSha256!,link,samplingDigest(jobRequest(link,attempt,plan)));}
     const rows=results.flatMap(result=>result.rows),ids=rows.map(row=>row.reviewId);
-    const checks=[{id:'verdict_ok',ok:!errorCode&&!unresolved&&results.length===attempt.links.length&&results.every(r=>r.phase==='terminal'&&['record_limit','exhausted','page_limit'].includes(r.stopReason))},
-      {id:'min_reviews_per_link',ok:summaries.every(s=>s.actual!==null&&s.actual>=1)},{id:'cap_not_exceeded',ok:summaries.every(s=>s.actual!==null&&s.actual<=plan.policy.totalPerLink)},
+    const checks:{id:string;ok:boolean;level?:string}[]=[{id:'verdict_ok',ok:!errorCode&&!unresolved&&results.length===attempt.links.length&&results.every(r=>r.phase==='terminal'&&['record_limit','exhausted','page_limit'].includes(r.stopReason))},
+      {id:'min_reviews_per_link',ok:summaries.every(s=>s.actual!==null&&s.actual>=1)},m3LimitCheck(plan,summaries,results),
       {id:'no_duplicate_review_ids',ok:ids.every(Boolean)&&new Set(ids).size===ids.length},{id:'product_ids_match_m2',ok:results.every(r=>attempt.links.some(link=>canonicalJson(link)===canonicalJson(r.link)))},
-      {id:'shape_shopee_public_rows',ok:true},{id:'links_below_cap',level:'warn',ok:summaries.every(s=>s.shortfall===0)}];
+      {id:'shape_shopee_public_rows',ok:true},...(pagesPerLink(plan.policy)===null?[{id:'links_below_cap',level:'warn',ok:summaries.every(s=>s.shortfall===0)}]:[])];
     const pass=checks.every(check=>check.ok||check.level==='warn');
     await atomicJson(run,`${base}/output/reviews.json`,pass?rows:[]);
-    await atomicJson(run,`${base}/output/outcome.json`,{format:'m3-custom-outcome-v1',planSha256:attempt.planSha256,verdict:pass?(summaries.some(s=>s.shortfall!==0)?'PARTIAL_LISTINGS':'OK'):'FAILED',errorCode:pass?null:errorCode??'M3_GATE_FAILED',links:summaries});
+    await atomicJson(run,`${base}/output/outcome.json`,{format:'m3-custom-outcome-v1',planSha256:attempt.planSha256,verdict:pass?(pagesPerLink(plan.policy)===null&&summaries.some(s=>s.shortfall!==0)?'PARTIAL_LISTINGS':'OK'):'FAILED',errorCode:pass?null:errorCode??'M3_GATE_FAILED',links:summaries});
     gate={format:'handoff-v1',module:'M3',runId:basename(run),skillVersion:'custom-review-sampling-v1',verdict:pass?'PASS':['HUMAN_LOGIN_REQUIRED','HUMAN_VERIFICATION_REQUIRED'].includes(errorCode??'')?'WAIT_OWNER':'FAIL',inputSha256:attempt.planSha256,outputSha256:await hashFolder(run,`${base}/output`),checks,errorCode:pass?null:errorCode??'M3_GATE_FAILED',next:null};
     await atomicJson(run,`${base}/gate.json`,gate);
     if(!pass)errorCode??='M3_GATE_FAILED';

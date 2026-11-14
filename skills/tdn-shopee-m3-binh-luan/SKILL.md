@@ -74,6 +74,8 @@ Phép kiểm của cổng M3 (hợp đồng mục 8):
 - `shape_shopee_public_rows`: file đúng khuôn `shopee-public-rows`.
 - `links_below_cap` (cảnh báo): `got` = `{ "belowCap": <số link có ít bình luận hơn trần>, "cap": <trần> }`; `ok` sai khi `belowCap` > 0, nhưng cảnh báo không đổi kết luận cổng.
 
+Lượt giới hạn theo số trang (`shopee-review-policy-v2`, `limitBy: "pages"`, `pagesPerLink` 1–100) chỉ chạy qua lần lấy cấu hình (`m3-custom`). Cổng của lần lấy đó thay `cap_not_exceeded` bằng `pages_not_exceeded` (số trang đã lưu của mỗi link ≤ `pagesPerLink`, đếm chung mọi bộ lọc sao), giữ `min_reviews_per_link` và không có `links_below_cap`. Số bình luận chỉ bị chặn bởi trần an toàn 2000 của dịch vụ.
+
 M3 đạt khi mỗi link có ít nhất 1 bình luận. Một link có ít bình luận hơn trần là chuyện bình thường: nó chỉ là cảnh báo `links_below_cap`, không làm cổng M3 trượt. Kết luận thu `PARTIAL_LISTINGS` vẫn giữ các dòng đã thu và cổng M3 vẫn `PASS`.
 
 Mã chặn của luồng (hợp đồng mục 7, không phải mã app):

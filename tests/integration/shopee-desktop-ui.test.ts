@@ -3243,3 +3243,94 @@ test('a step that has not run shows no result card: stopped at step 1, step 3 no
     }
   } finally { dom.window.close(); }
 });
+
+const PAGES_POLICY = {
+  format: 'shopee-review-policy-v2', limitBy: 'pages', mode: 'with-comments', stars: [], pagesPerLink: 10,
+  totalPerLink: 2000, allocation: 'pooled', textRule: 'comment-or-attributes-v1', order: 'native-filter-ascending-stars-v1',
+};
+
+function limitBy(doc: Document, value: 'count' | 'pages'): void {
+  const radio = doc.querySelector(`input[name="newLimitBy"][value="${value}"]`) as HTMLInputElement;
+  radio.checked = true;
+  radio.dispatchEvent(new (doc.defaultView as any).Event('change', { bubbles: true }));
+}
+
+test('C2: limiting by Shopee review pages swaps the count field for a page field and sends the pages input', async () => {
+  const { dom, doc, state } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-pages' } }),
+    runInfoByRun: { 'run-pages': createdRunInfo('run-pages') },
+  });
+  try {
+    await booted(doc);
+    const shown = () => ['newTotalField', 'newBalancedRow', 'newPagesField'].map((id) => !element(doc, id).hidden);
+    assert.equal((doc.querySelector('input[name="newLimitBy"]:checked') as HTMLInputElement).value, 'count');
+    assert.equal(element<HTMLInputElement>(doc, 'newPages').value, '10');
+    chooseStars(doc, [3, 2], 300);
+    assert.deepEqual(shown(), [true, true, false], 'count mode keeps today’s fields');
+    element<HTMLInputElement>(doc, 'newBalanced').checked = true;
+
+    limitBy(doc, 'pages');
+    assert.deepEqual(shown(), [false, false, true], 'pages mode hides the count and the equal split');
+    element<HTMLInputElement>(doc, 'newPages').value = '12';
+    fire(dom.window, element(doc, 'newPages'), 'input');
+    assert.equal(element<HTMLElement>(doc, 'newPolicySummary').textContent, 'Đánh giá 2 và 3 sao · tối đa 12 trang mỗi link');
+
+    element<HTMLInputElement>(doc, 'newPages').value = '101';
+    create(doc);
+    assert.equal(state.newRunCalls, 0, 'more than 100 pages is refused inline');
+    assert.match(element<HTMLElement>(doc, 'newErr').textContent!, /từ 1 đến 100/);
+
+    element<HTMLInputElement>(doc, 'newPages').value = '12';
+    fire(dom.window, element(doc, 'newPages'), 'input');
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'new-run sent');
+    assert.deepEqual(state.newRunInputs[0]!.collectionPolicy,
+      { mode: 'stars', stars: [2, 3], limitBy: 'pages', pagesPerLink: 12, allocation: 'pooled' });
+  } finally { dom.window.close(); }
+
+  const back = harness();
+  try {
+    await booted(back.doc);
+    limitBy(back.doc, 'pages');
+    limitBy(back.doc, 'count');
+    assert.equal(element(back.doc, 'newTotalField').hidden, false);
+    assert.equal(element(back.doc, 'newPagesField').hidden, true);
+    assert.equal(element<HTMLElement>(back.doc, 'newPolicySummary').textContent, 'Đánh giá có bình luận · tối đa 300 mỗi link');
+  } finally { back.dom.window.close(); }
+});
+
+test('C2: a pages-mode run shows its page limit in the run list, the run meta and the step 3 card', async () => {
+  const info: any = syntheticRunInfo();
+  info.request = { ...clone(createdRunInfo('run-synthetic').request), collectionPolicy: clone(PAGES_POLICY) };
+  const { dom, doc } = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE', request: info.request }],
+    runInfo: info, sampling: syntheticSampling(),
+  });
+  try {
+    await waitFor(() => doc.getElementById('rsPanel')?.querySelector('.policy-frozen') != null, 'step 3 card');
+    assert.match(runListButton(doc, 'run-synthetic').textContent!, /Tối đa 10 trang mỗi link/);
+    const meta = [...doc.querySelectorAll('dl.run-meta > div')]
+      .map((row) => [row.querySelector('dt')!.textContent, row.querySelector('dd')!.textContent]);
+    assert.deepEqual(meta.find(([label]) => label === 'Số lượng mỗi link'), ['Số lượng mỗi link', 'Tối đa 10 trang mỗi link']);
+    assert.deepEqual(meta.find(([label]) => label === 'Cách lấy bình luận'),
+      ['Cách lấy bình luận', 'Đánh giá có bình luận · tối đa 10 trang mỗi link']);
+    assert.match(doc.querySelector('#rsPanel .policy-frozen')!.textContent!, /Đánh giá có bình luận · tối đa 10 trang mỗi link/);
+  } finally { dom.window.close(); }
+});
+
+test('C2: the mock API lists a pages-mode run and creates one from the pages form', async () => {
+  const dom = new JSDOM(html, { url: 'file:///shopee-desktop/index.html?mock=1', runScripts: 'dangerously' });
+  const doc = dom.window.document;
+  try {
+    await booted(doc);
+    await waitFor(() => doc.querySelectorAll('#runList .runbtn').length > 0, 'mock run list');
+    assert.match(runListButton(doc, 'c9d0e1f2').textContent!, /Tối đa 10 trang mỗi link/);
+    limitBy(doc, 'pages');
+    create(doc);
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false, 'mock create result');
+    await waitFor(() => doc.querySelectorAll('#runList .runbtn').length === 10, 'created run listed');
+    const created = [...doc.querySelectorAll<HTMLButtonElement>('#runList .runbtn')]
+      .filter((button) => /trang mỗi link/.test(button.textContent || ''));
+    assert.equal(created.length, 2, 'the seeded and the created pages-mode runs');
+  } finally { dom.window.close(); }
+});

@@ -429,9 +429,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
                 <label><input type="checkbox" data-new-star="2"> 2★</label>
                 <label><input type="checkbox" data-new-star="1"> 1★</label>
               </div>
-              <label class="rs-opt"><input type="checkbox" id="newBalanced"> Chia đều số lượng cho từng mức sao</label>
+              <label class="rs-opt" id="newBalancedRow"><input type="checkbox" id="newBalanced"> Chia đều số lượng cho từng mức sao</label>
             </fieldset>
-            <label class="field"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
+            <fieldset class="policy-group">
+              <legend>Giới hạn theo</legend>
+              <label class="rs-opt"><input type="radio" name="newLimitBy" value="count" checked> Số bình luận</label>
+              <label class="rs-opt"><input type="radio" name="newLimitBy" value="pages"> Số trang bình luận trên Shopee</label>
+            </fieldset>
+            <label class="field" id="newTotalField"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
+            <label class="field" id="newPagesField" hidden><span>Số trang tối đa cho mỗi link sản phẩm</span><input type="number" id="newPages" min="1" max="100" step="1" value="10"></label>
           </div>
           <p class="policy-summary" id="newPolicySummary" aria-live="polite"></p>
           <p class="policy-note">Số lượng tính chung cho mỗi link, không tính riêng từng mức sao. App chỉ lấy phần chữ, không tải ảnh và video. Bình luận trùng chỉ tính một lần.</p>
@@ -590,6 +596,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     verdict_ok: 'Lấy bình luận thành công (đủ, hoặc thiếu một phần)',
     min_reviews_per_link: 'Mỗi link có ít nhất 1 bình luận',
     cap_not_exceeded: 'Không link nào vượt số lượng yêu cầu',
+    pages_not_exceeded: 'Không link nào vượt số trang cho phép',
     no_duplicate_review_ids: 'Không có bình luận trùng',
     product_ids_match_m2: 'Bình luận thuộc đúng các link đã chọn',
     shape_shopee_public_rows: 'Dữ liệu đúng định dạng',
@@ -797,9 +804,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var allocation = raw.allocation;
     var total = raw.totalPerLink;
     var stars = Array.isArray(raw.stars) ? raw.stars.slice() : null;
+    var pages = raw.limitBy === 'pages';
     if (POLICY_MODES.indexOf(mode) === -1) return { error: 'Chọn nguồn bình luận.' };
-    if (allocation !== 'pooled' && allocation !== 'equal-stars') return { error: 'Cách chia số lượng không hợp lệ.' };
-    if (!Number.isInteger(total) || total < 1 || total > 2000) {
+    if (allocation !== 'pooled' && (pages || allocation !== 'equal-stars')) return { error: 'Cách chia số lượng không hợp lệ.' };
+    if (pages && (!Number.isInteger(raw.pagesPerLink) || raw.pagesPerLink < 1 || raw.pagesPerLink > 100)) {
+      return { error: 'Số trang mỗi link phải là số nguyên từ 1 đến 100.' };
+    }
+    if (!pages && (!Number.isInteger(total) || total < 1 || total > 2000)) {
       return { error: 'Tổng số bình luận mỗi link phải là số nguyên từ 1 đến 2000.' };
     }
     if (!stars || stars.some(function (star) { return !Number.isInteger(star) || star < 1 || star > 5; })) {
@@ -811,7 +822,35 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (allocation === 'equal-stars' && mode !== 'stars') {
       return { error: 'Chỉ chia đều khi nguồn là “Chọn sao”.' };
     }
+    if (pages) return { value: { mode: mode, stars: stars, limitBy: 'pages', pagesPerLink: raw.pagesPerLink, allocation: 'pooled' } };
     return { value: { mode: mode, stars: stars, totalPerLink: total, allocation: allocation } };
+  }
+
+  /** The persisted run policy: count mode stays v1; pages mode is v2 with the 2000-row safety cap. */
+  function persistedPolicy(policy) {
+    var stars = policy.stars.slice().sort(function (a, b) { return a - b; });
+    if (policy.limitBy === 'pages') {
+      return {
+        format: 'shopee-review-policy-v2', limitBy: 'pages', mode: policy.mode, stars: stars,
+        pagesPerLink: policy.pagesPerLink, totalPerLink: 2000, allocation: 'pooled',
+        textRule: 'comment-or-attributes-v1', order: 'native-filter-ascending-stars-v1'
+      };
+    }
+    return {
+      format: 'shopee-review-policy-v1',
+      mode: policy.mode,
+      stars: stars,
+      totalPerLink: policy.totalPerLink,
+      allocation: policy.allocation,
+      textRule: 'comment-or-attributes-v1',
+      order: 'native-filter-ascending-stars-v1'
+    };
+  }
+
+  function limitText(policy) {
+    return policy.limitBy === 'pages'
+      ? 'tối đa ' + fmtInt(policy.pagesPerLink) + ' trang mỗi link'
+      : 'tối đa ' + fmtInt(policy.totalPerLink) + ' mỗi link';
   }
 
   function policyText(policy) {
@@ -823,17 +862,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     if (policy.mode === 'stars') {
       var stars = (policy.stars || []).join(' và ');
-      var starsText = 'Đánh giá ' + (stars || 'chưa chọn') + ' sao · tối đa ' +
-        fmtInt(policy.totalPerLink) + ' mỗi link';
+      var starsText = 'Đánh giá ' + (stars || 'chưa chọn') + ' sao · ' + limitText(policy);
       return policy.allocation === 'equal-stars' ? starsText + ' · chia đều' : starsText;
     }
-    return (POLICY_MODE_LABEL[policy.mode] || 'Cách lấy khác') + ' · tối đa ' +
-      fmtInt(policy.totalPerLink) + ' mỗi link';
+    return (POLICY_MODE_LABEL[policy.mode] || 'Cách lấy khác') + ' · ' + limitText(policy);
   }
 
   function requestPolicy(request) {
     if (request && request.collectionPolicy && typeof request.collectionPolicy === 'object' &&
-        request.collectionPolicy.format === 'shopee-review-policy-v1') {
+        (request.collectionPolicy.format === 'shopee-review-policy-v1' ||
+         request.collectionPolicy.format === 'shopee-review-policy-v2' && request.collectionPolicy.limitBy === 'pages')) {
       return request.collectionPolicy;
     }
     if (request && request.format === 'request-v1') {
@@ -891,15 +929,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       };
       if (policy && !policy.legacy) {
         request.format = 'request-v2';
-        request.collectionPolicy = {
-          format: 'shopee-review-policy-v1',
-          mode: policy.mode,
-          stars: policy.stars.slice().sort(function (a, b) { return a - b; }),
-          totalPerLink: policy.totalPerLink,
-          allocation: policy.allocation,
-          textRule: 'comment-or-attributes-v1',
-          order: 'native-filter-ascending-stars-v1'
-        };
+        request.collectionPolicy = persistedPolicy(policy);
       } else {
         request.format = 'request-v1';
         request.reviewCapPerLink = policy && policy.totalPerLink ? policy.totalPerLink : 300;
@@ -952,6 +982,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       if (!run.selection) blockedBy = { code: 'M2_INVALID' };
       else if (run.execution.status === 'RUNNING') blockedBy = { code: 'RUN_BUSY' };
       var fallback = automaticPolicy(run);
+      if (fallback.limitBy === 'pages') fallback = { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' };
       return {
         format: 'review-sampling-view-v1',
         runId: run.runId,
@@ -1113,7 +1144,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     function planForPolicy(run, input) {
       var stars = input.stars.slice().sort(function (a, b) { return a - b; });
-      var policy = {
+      var policy = input.limitBy === 'pages' ? {
+        mode: input.mode, stars: stars, limitBy: 'pages', pagesPerLink: input.pagesPerLink, totalPerLink: 2000,
+        allocation: 'pooled', textRule: 'comment-or-attributes-v1'
+      } : {
         mode: input.mode, stars: stars, totalPerLink: input.totalPerLink,
         allocation: input.allocation, textRule: 'comment-or-attributes-v1'
       };
@@ -1161,6 +1195,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       if (!policy || policy.legacy) {
         return { mode: 'with-comments', stars: [], totalPerLink: policy ? policy.totalPerLink : 300, allocation: 'pooled' };
       }
+      if (policy.limitBy === 'pages') {
+        return { mode: policy.mode, stars: (policy.stars || []).slice(), limitBy: 'pages', pagesPerLink: policy.pagesPerLink, allocation: 'pooled' };
+      }
       return {
         mode: policy.mode, stars: (policy.stars || []).slice(),
         totalPerLink: policy.totalPerLink, allocation: policy.allocation
@@ -1182,7 +1219,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         links: samplingLinks(run).map(function (link) {
           return {
             shopId: link.shopId, itemId: link.itemId,
-            requested: policy.totalPerLink, actual: null, shortfall: null, stopReason: null,
+            requested: policy.limitBy === 'pages' ? null : policy.totalPerLink, actual: null, shortfall: null, stopReason: null,
             stars: policy.stars.map(function (star) {
               var target = (saved.plan.targets || []).find(function (t) { return t.star === star; });
               return { star: star, target: target ? target.target : null, actual: null, shortfall: null };
@@ -1204,12 +1241,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       attempt.status = status || 'SUCCEEDED';
       attempt.errorCode = status === 'FAILED' ? 'PROVIDER_BLOCKED' : null;
       attempt.links = samplingLinks(run).map(function (link, index) {
-        var actual = index === 0 ? policy.totalPerLink : 2;
-        var shortfall = Math.max(0, policy.totalPerLink - actual);
+        var byPages = policy.limitBy === 'pages';
+        var actual = index === 0 ? (byPages ? 6 * policy.pagesPerLink : policy.totalPerLink) : 2;
+        var shortfall = byPages ? null : Math.max(0, policy.totalPerLink - actual);
         return {
           shopId: link.shopId, itemId: link.itemId,
-          requested: policy.totalPerLink, actual: actual, shortfall: shortfall,
-          stopReason: shortfall ? 'last_page' : 'record_limit',
+          requested: byPages ? null : policy.totalPerLink, actual: actual, shortfall: shortfall,
+          stopReason: byPages ? (index === 0 ? 'page_limit' : 'exhausted') : shortfall ? 'last_page' : 'record_limit',
           stars: policy.stars.map(function (star) {
             var target = (saved.plan.targets || []).find(function (t) { return t.star === star; });
             var targetValue = target ? target.target : null;
@@ -1250,7 +1288,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         ? policyOrCap : { legacy: true, totalPerLink: policyOrCap };
       var policyCheck = policy.legacy
         ? { id: 'review_cap_1_300', ok: true, got: policy.totalPerLink }
-        : { id: 'collection_policy', ok: true, got: { totalPerLink: policy.totalPerLink, mode: policy.mode } };
+        : policy.limitBy === 'pages'
+          ? { id: 'collection_policy', ok: true, got: { valid: true, pagesPerLink: policy.pagesPerLink } }
+          : { id: 'collection_policy', ok: true, got: { totalPerLink: policy.totalPerLink, mode: policy.mode } };
       return {
         format: 'handoff-v1', module: 'ENTRY', runId: runId, skillVersion: '1.0.0', verdict: 'PASS',
         inputSha256: null, outputSha256: shaFor(runId, 'request'),
@@ -1538,7 +1578,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     };
     rh.state = finishState(rh.runId, 'STOPPED', 'M1', 'CAPTURE_PERIOD_NOT_SELECTABLE', null);
 
-    [ra, rb, rc, rd, re, rf, rg, rh].forEach(seedLegacyExecution);
+    // Limited by Shopee review pages: step 2 passed, step 3 not started.
+    var pagesPolicy = { mode: 'with-comments', stars: [], limitBy: 'pages', pagesPerLink: 10, allocation: 'pooled' };
+    var ri = makeRun('c9d0e1f2', '2026-11-14T02:00:00Z', 'Sản phẩm mẫu I', { keywords: ['kệ gỗ mẫu'], endDate: '2026-11-13', policy: pagesPolicy });
+    ri.gates.entry = entrySlip(ri.runId, pagesPolicy);
+    ri.gates.m1 = m1Slip(ri.runId);
+    ri.selection = selectionFor(ri.runId);
+    ri.gates.m2 = m2Slip(ri.runId);
+    ri.state = finishState(ri.runId, 'IDLE', 'M2', null, null);
+
+    [ra, rb, rc, rd, re, rf, rg, rh, ri].forEach(seedLegacyExecution);
 
     function beginExecution(run, module, attemptId) {
       var key = module.toUpperCase();
@@ -1951,7 +2000,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         if (hasPolicy) {
           var rawPolicy = input.collectionPolicy;
           if (!rawPolicy || typeof rawPolicy !== 'object' ||
-              Object.keys(rawPolicy).sort().join(',') !== 'allocation,mode,stars,totalPerLink') {
+              Object.keys(rawPolicy).sort().join(',') !== (rawPolicy.limitBy === 'pages'
+                ? 'allocation,limitBy,mode,pagesPerLink,stars' : 'allocation,mode,stars,totalPerLink')) {
             return Promise.resolve(err('NEW_RUN_INPUT_INVALID', 'Cấu hình thu bình luận không đúng dạng.'));
           }
           var checked = normalizePolicy(rawPolicy);
@@ -2009,15 +2059,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
               preset: clone(expectedPreset),
               window: clone(selectedWindow)
             },
-            collectionPolicy: {
-              format: 'shopee-review-policy-v1',
-              mode: policy.mode,
-              stars: policy.stars.slice().sort(function (a, b) { return a - b; }),
-              totalPerLink: policy.totalPerLink,
-              allocation: policy.allocation,
-              textRule: 'comment-or-attributes-v1',
-              order: 'native-filter-ascending-stars-v1'
-            }
+            collectionPolicy: persistedPolicy(policy)
           };
           makeOpts.captureSpec = {
             contractVersion: 'metric-v3-capture-spec-v3',
@@ -3282,6 +3324,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function rsBlockText(code) { return RS_BLOCK_TEXT[code] || 'Chưa lấy được lúc này. Kiểm tra lại trạng thái lượt rồi thử lại.'; }
   function valOrDash(value) { return value === null || value === undefined ? 'chưa có số liệu' : String(value); }
   function actualText(value) { return value === null || value === undefined ? 'Chưa có số liệu' : String(value); }
+  // A pages-limited run sets no comment target: requested stays null once the link has a count.
+  function byPagesLink(link) {
+    return (link.requested === null || link.requested === undefined) && typeof link.actual === 'number';
+  }
+  function requestedText(link) { return byPagesLink(link) ? 'Theo số trang' : valOrDash(link.requested); }
   function stopReasonText(value) {
     if (value === null || value === undefined || value === '') return RS_STOP_UNKNOWN;
     return RD_STOP_TEXT[value] || RS_STOP_UNKNOWN;
@@ -3544,9 +3591,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       name.appendChild(h('div', null, 'Link ' + (index + 1)));
       if (link.url) name.appendChild(h('code', 'rs-url', link.url));
       row.appendChild(name);
-      row.appendChild(h('td', 'num', valOrDash(link.requested)));
+      row.appendChild(h('td', 'num', requestedText(link)));
       row.appendChild(h('td', 'num', actualText(link.actual)));
-      row.appendChild(h('td', 'num', valOrDash(link.shortfall)));
+      row.appendChild(h('td', 'num', byPagesLink(link) ? 'Không tính' : valOrDash(link.shortfall)));
       var note = h('td');
       var stars = link.stars || [];
       if (stars.length) {
@@ -4291,7 +4338,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     list.appendChild(rdCheckRow(hasTotal ? Number(source.rowCount) > 0 : null, hasTotal
       ? 'Đã lấy được ' + fmtInt(source.rowCount) + ' bình luận từ ' + links.length + ' link'
       : 'Chưa có số liệu tổng bình luận đã lấy'));
-    if (links.length) {
+    if (links.length && !links.every(byPagesLink)) {
       var reached = links.filter(function (link) { return rdLinkReached(link) === true; }).length;
       var unknown = links.filter(function (link) { return rdLinkReached(link) === null; }).length;
       var text = reached + '/' + links.length + ' link đạt số lượng đặt';
@@ -4303,6 +4350,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   function rdResultChip(link) {
     var reached = rdLinkReached(link);
+    if (byPagesLink(link)) return h('span', 'chip s-pass', 'Đã lấy theo số trang');
     if (reached === true) return h('span', 'chip s-pass', 'Đủ');
     if (reached === null) return h('span', 'chip s-idle', 'Chưa có số liệu');
     var missing = typeof link.shortfall === 'number' ? link.shortfall : Number(link.requested) - Number(link.actual);
@@ -4326,7 +4374,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       name.appendChild(h('div', null, 'Link ' + (index + 1)));
       if (link.url) name.appendChild(h('code', 'rs-url', link.url));
       row.appendChild(name);
-      row.appendChild(h('td', 'num', valOrDash(link.requested)));
+      row.appendChild(h('td', 'num', requestedText(link)));
       row.appendChild(h('td', 'num', actualText(link.actual)));
       var result = h('td');
       result.appendChild(rdResultChip(link));
@@ -4717,7 +4765,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var policy = requestPolicy(request);
     if (policy) {
       out.policy = policyText(policy);
-      if (policy.totalPerLink !== null && policy.totalPerLink !== undefined) {
+      if (policy.limitBy === 'pages') {
+        out.quantity = 'Tối đa ' + fmtInt(policy.pagesPerLink) + ' trang mỗi link';
+      } else if (policy.totalPerLink !== null && policy.totalPerLink !== undefined) {
         out.quantity = 'Tối đa ' + fmtInt(policy.totalPerLink) + ' mỗi link';
       }
     }
@@ -5249,7 +5299,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.newLocked = !!locked;
     ['presetSel', 'productLabel', 'productKeyword', 'productKeyword2', 'periodPreset', 'startDate',
       'endDate', 'moSmartQuery', 'moFake', 'moGifts', 'moDeleted', 'moShopMall', 'moShopRegular',
-      'moAi', 'moCustomCategory', 'moSmartExclusion', 'newTotal', 'newBalanced']
+      'moAi', 'moCustomCategory', 'moSmartExclusion', 'newTotal', 'newPages', 'newBalanced']
       .forEach(function (id) {
         var el = $(id);
         if (el) el.disabled = !!locked;
@@ -5257,7 +5307,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     Array.prototype.forEach.call(document.querySelectorAll('.mo-cat'), function (el) {
       el.disabled = !!locked;
     });
-    Array.prototype.forEach.call(document.querySelectorAll('input[name="newPolicyMode"]'), function (el) {
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="newPolicyMode"], input[name="newLimitBy"]'), function (el) {
       el.disabled = !!locked;
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-new-star]'), function (el) {
@@ -5454,6 +5504,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       .filter(function (el) { return el.checked; })
       .map(function (el) { return Number(el.dataset.newStar); })
       .sort(function (a, b) { return a - b; });
+    if (newLimitByPages()) {
+      return {
+        mode: modeEl ? modeEl.value : '',
+        stars: stars,
+        limitBy: 'pages',
+        pagesPerLink: Number($('newPages').value),
+        allocation: 'pooled'
+      };
+    }
     return {
       mode: modeEl ? modeEl.value : '',
       stars: stars,
@@ -5462,7 +5521,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     };
   }
 
+  function newLimitByPages() {
+    var el = document.querySelector('input[name="newLimitBy"]:checked');
+    return !!el && el.value === 'pages';
+  }
+
   function policyPayload(value) {
+    if (value.limitBy === 'pages') {
+      return {
+        mode: value.mode,
+        stars: value.stars.slice(),
+        limitBy: 'pages',
+        pagesPerLink: value.pagesPerLink,
+        allocation: 'pooled'
+      };
+    }
     return {
       mode: value.mode,
       stars: value.stars.slice(),
@@ -5475,12 +5548,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var modeEl = document.querySelector('input[name="newPolicyMode"]:checked');
     var mode = modeEl ? modeEl.value : 'with-comments';
     var group = $('newStarsGroup');
+    var byPages = newLimitByPages();
     group.hidden = mode !== 'stars';
-    $('newBalanced').disabled = mode !== 'stars';
+    $('newBalanced').disabled = mode !== 'stars' || byPages;
+    $('newBalancedRow').hidden = byPages;
+    $('newTotalField').hidden = byPages;
+    $('newPagesField').hidden = !byPages;
     if (mode !== 'stars') {
       Array.prototype.forEach.call(document.querySelectorAll('[data-new-star]'), function (el) { el.checked = false; });
-      $('newBalanced').checked = false;
     }
+    if (mode !== 'stars' || byPages) $('newBalanced').checked = false;
   }
 
   function selectedProductLabel() {
@@ -5867,7 +5944,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function onNewFormInput(ev) {
     if (state.newSilent) return;
     var id = ev && ev.target ? ev.target.id : '';
-    if (ev && ev.target && ev.target.name === 'newPolicyMode') syncNewPolicy();
+    if (ev && ev.target && (ev.target.name === 'newPolicyMode' || ev.target.name === 'newLimitBy')) syncNewPolicy();
     if (id === 'presetSel') syncProductMode();
     if (id === 'periodPreset') {
       applyPeriodPreset($('periodPreset').value);
@@ -5918,7 +5995,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var raw = readPolicyRaw();
     var checked = normalizePolicy(raw);
     if (checked.error) {
-      return { error: { code: 'REVIEW_POLICY_INVALID', message: checked.error, focus: raw.mode === 'stars' ? 'newStarsGroup' : 'newTotal' } };
+      return { error: { code: 'REVIEW_POLICY_INVALID', message: checked.error, focus: raw.mode === 'stars' ? 'newStarsGroup' : raw.limitBy === 'pages' ? 'newPages' : 'newTotal' } };
     }
     return {
       value: {
@@ -6194,7 +6271,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     factRow('Khoảng thời gian', binding.summary.period || 'Chưa có');
     factRow('Bộ lọc Metric', binding.summary.metric || 'Chưa có');
     factRow('Cách lấy bình luận', binding.summary.policy || policyText(binding.policyView) || 'Chưa có');
-    if (binding.policyView && binding.policyView.totalPerLink !== null &&
+    if (binding.policyView && binding.policyView.limitBy === 'pages') {
+      factRow('Số trang tối đa', fmtInt(binding.policyView.pagesPerLink) + ' trang mỗi link');
+    } else if (binding.policyView && binding.policyView.totalPerLink !== null &&
         binding.policyView.totalPerLink !== undefined) {
       factRow('Số lượng tối đa', fmtInt(binding.policyView.totalPerLink) + ' bình luận mỗi link');
     }

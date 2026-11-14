@@ -220,3 +220,41 @@ test('reconcile after a lost submit response and expired deadline reads, cancels
     assert.ok(!requests.some((entry) => entry.route.includes(decoyId)), 'the decoy job is never read or cancelled');
   });
 });
+
+test('reconcile binds a page-limited job only when max_pages also matches', async () => {
+  const policy = reviewPolicy({ mode: 'with-comments', stars: [], limitBy: 'pages', pagesPerLink: 10, allocation: 'pooled' });
+  const plan = { format: 'shopee-review-plan-v1' as const, runId: 'run-synthetic', requestSha256: 'a'.repeat(64), m2Digest: 'b'.repeat(64),
+    policy, policySha256: samplingDigest(policy), targets: starTargets(policy), links: [LINK] };
+  const planSha256 = samplingDigest(plan);
+  const request = { url: LINK.url, max_comments: 2000, max_pages: 10,
+    sampling: { planSha256, policySha256: plan.policySha256, policy, attemptId: ATTEMPT } };
+  const intentAt = new Date(AT.getTime() - 60_000);
+  const job = (id: string, req: unknown) => ({ id, request: req, state: 'running', created_at: intentAt.toISOString(),
+    updated_at: AT.toISOString(), result_available: false });
+  const candidateId = '00000000-0000-4000-8000-000000000002';
+  const decoyId = '00000000-0000-4000-8000-000000000003';
+  const routes: string[] = [];
+  const fakeFetch = (async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    routes.push(url.pathname + url.search);
+    if (url.pathname === '/jobs') return response([job(candidateId, request), job(decoyId, { ...request, max_pages: 20 })]);
+    if (url.pathname === `/jobs/${candidateId}`) return response({ ...job(candidateId, request), state: 'cancelled' });
+    if (url.pathname === `/jobs/${candidateId}/cancel`) return response({ state: 'cancelled' }, 202);
+    throw new Error('unexpected synthetic route ' + url.pathname);
+  }) as typeof fetch;
+
+  await withDir(async (dir) => {
+    const file = path.join(dir, 'journal.json');
+    await writeFile(file, canonicalJson({
+      format: 'shopee-sampling-journal-v1', inputSha256: samplingDigest(request), request,
+      intentAt: intentAt.toISOString(), deadline: new Date(AT.getTime() - 30_000).toISOString(), baselineIds: [], job: null,
+      result: null, resultSha256: null, terminal: false, errorCode: null, requestCount: 1,
+      requestCountUncertain: true, cancelIntent: false,
+    }), { mode: 0o600 });
+    const controller = new AbortController();
+    controller.abort();
+    const recovered = await collector(fakeFetch).run(file, request, LINK, plan, true, controller.signal);
+    assert.equal(recovered.job?.id, candidateId);
+    assert.ok(!routes.some((route) => route.includes(decoyId)), 'a job with another page limit is never bound');
+  });
+});

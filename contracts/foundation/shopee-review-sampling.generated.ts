@@ -2,6 +2,11 @@
 
 /**
  * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
+ * via the `definition` "anyPolicy".
+ */
+export type AnyReviewPolicy = ReviewPolicy | ReviewPagesPolicy;
+/**
+ * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
  * via the `definition` "jobInput".
  */
 export type SamplingJobInput = CollectionJobInput | CountsJobInput;
@@ -49,7 +54,7 @@ export interface ShopeeReviewPlan {
   runId: string;
   requestSha256: string;
   m2Digest: string;
-  policy: ReviewPolicy;
+  policy: AnyReviewPolicy;
   policySha256: string;
   /**
    * @maxItems 5
@@ -74,6 +79,26 @@ export interface ReviewPolicy {
   stars: number[];
   totalPerLink: number;
   allocation: 'pooled' | 'equal-stars';
+  textRule: 'comment-or-attributes-v1';
+  order: 'native-filter-ascending-stars-v1';
+}
+/**
+ * Pages-mode policy. A new format so readers of shopee-review-policy-v1 refuse it; totalPerLink is the review service safety cap.
+ *
+ * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
+ * via the `definition` "pagesPolicy".
+ */
+export interface ReviewPagesPolicy {
+  format: 'shopee-review-policy-v2';
+  limitBy: 'pages';
+  mode: 'all' | 'with-comments' | 'stars';
+  /**
+   * @maxItems 5
+   */
+  stars: number[];
+  pagesPerLink: number;
+  totalPerLink: 2000;
+  allocation: 'pooled';
   textRule: 'comment-or-attributes-v1';
   order: 'native-filter-ascending-stars-v1';
 }
@@ -108,6 +133,22 @@ export interface ReviewSamplingInput {
   allocation: 'pooled' | 'equal-stars';
 }
 /**
+ * Pages mode: each link stops after pagesPerLink Shopee review pages, counted across all requested filters.
+ *
+ * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
+ * via the `definition` "pagesInput".
+ */
+export interface ReviewPagesInput {
+  mode: 'all' | 'with-comments' | 'stars';
+  /**
+   * @maxItems 5
+   */
+  stars: number[];
+  limitBy: 'pages';
+  pagesPerLink: number;
+  allocation: 'pooled';
+}
+/**
  * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
  * via the `definition` "plan".
  */
@@ -116,7 +157,7 @@ export interface ShopeeReviewPlan1 {
   runId: string;
   requestSha256: string;
   m2Digest: string;
-  policy: ReviewPolicy;
+  policy: AnyReviewPolicy;
   policySha256: string;
   /**
    * @maxItems 5
@@ -164,12 +205,13 @@ export interface SourceStarCounts {
 export interface SamplingBinding {
   planSha256: string;
   policySha256: string;
-  policy: ReviewPolicy;
+  policy: AnyReviewPolicy;
   attemptId: string;
 }
 export interface CollectionJobInput {
   url: string;
   max_comments: number;
+  max_pages?: number;
   sampling: SamplingBinding;
 }
 export interface CountsJobInput {

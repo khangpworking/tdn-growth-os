@@ -33,7 +33,7 @@
       ]
     },
     "collectionPolicy": {
-      "$ref": "https://tdn.local/contracts/foundation/shopee-review-sampling.schema.json#/$defs/policy"
+      "$ref": "https://tdn.local/contracts/foundation/shopee-review-sampling.schema.json#/$defs/anyPolicy"
     },
     "captureSpec": {
       "anyOf": [

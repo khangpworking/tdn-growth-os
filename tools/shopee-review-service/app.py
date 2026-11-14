@@ -76,12 +76,35 @@ class ReviewPolicy(BaseModel):
         return self
 
 
+class ReviewPagesPolicy(BaseModel):
+    """Pages mode: stop each link after pagesPerLink review pages; totalPerLink is the 2000 safety cap."""
+    model_config = ConfigDict(extra='forbid', strict=True)
+    format: Literal['shopee-review-policy-v2']
+    limitBy: Literal['pages']
+    mode: Literal['all', 'with-comments', 'stars']
+    stars: list[int]
+    pagesPerLink: int = Field(ge=1, le=100)
+    totalPerLink: Literal[2000]
+    allocation: Literal['pooled']
+    textRule: Literal['comment-or-attributes-v1']
+    order: Literal['native-filter-ascending-stars-v1']
+
+    @model_validator(mode='after')
+    def validate_policy(self):
+        if self.mode == 'stars':
+            if not self.stars or self.stars != sorted(set(self.stars)) or any(type(v) is not int or not 1 <= v <= 5 for v in self.stars):
+                raise ValueError('INVALID_SAMPLING_POLICY')
+        elif self.stars:
+            raise ValueError('INVALID_SAMPLING_POLICY')
+        return self
+
+
 class SamplingBinding(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     attemptId: str = Field(pattern=r'^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$')
     planSha256: str = Field(pattern=r'^[a-f0-9]{64}$')
     policySha256: str = Field(pattern=r'^[a-f0-9]{64}$')
-    policy: ReviewPolicy
+    policy: ReviewPolicy | ReviewPagesPolicy = Field(discriminator='format')
 
     @model_validator(mode='after')
     def validate_digest(self):
@@ -95,6 +118,8 @@ class JobInput(BaseModel):
     model_config = ConfigDict(extra='forbid')
     url: str
     max_comments: int = Field(default=100, ge=1, le=2000, strict=True)
+    # Optional page limit; missing means the original 500-page crawl.
+    max_pages: int | None = Field(default=None, ge=1, le=500, strict=True)
     sampling: SamplingBinding | None = None
 
     @field_validator('url')
@@ -106,6 +131,8 @@ class JobInput(BaseModel):
     def validate_cap(self):
         if self.sampling and self.sampling.policy.totalPerLink != self.max_comments:
             raise ValueError('INVALID_SAMPLING_CAP')
+        if self.sampling and self.max_pages != getattr(self.sampling.policy, 'pagesPerLink', None):
+            raise ValueError('INVALID_SAMPLING_PAGES')
         return self
 
 
@@ -119,6 +146,23 @@ class CountsInput(BaseModel):
     @classmethod
     def validate_url(cls, value):
         return canonical_url(value)
+
+
+def max_pages(request):
+    return request.get('max_pages', 500)
+
+
+def crawl_state(request, result):
+    """Job state for a finished crawl; None means a crawl error the worker classifies."""
+    stopped = result.get('stop_reason')
+    if stopped == 'cancelled':
+        return 'cancelled'
+    if result.get('error'):
+        return None
+    # Reaching an asked page limit is the requested outcome; the default 500-page stop stays partial.
+    if stopped in {'record_limit', 'expected_count_reached', 'last_page', 'exhausted'} or stopped == 'page_limit' and max_pages(request) < 500:
+        return 'succeeded'
+    return 'partial'
 
 
 def db():
@@ -276,7 +320,7 @@ class BrowserWorker:
                 update_job(job_id, state='cancelled')
                 return
             await self.page.evaluate('(config) => { window.__shopeeApiConfig=config; window.__shopeeCancel=false; window.__shopeeDomSnapshot=null; window.__shopeeDomProgress=null; }',
-                                     {'url': job['request']['url'], 'limit': job['request'].get('max_comments', 0), 'maxPages': 500,
+                                     {'url': job['request']['url'], 'limit': job['request'].get('max_comments', 0), 'maxPages': max_pages(job['request']),
                                       'sampling': job['request'].get('sampling'), 'kind': job['request'].get('kind'),
                                       'deadlineAt': int(time.time() * 1000) + (60_000 if job['request'].get('kind') == 'counts' else 1_800_000)})
             task = asyncio.create_task(self.page.evaluate((ROOT / 'crawler.js').read_text(encoding='utf-8')))
@@ -305,16 +349,10 @@ class BrowserWorker:
                 save_result(job_id, {'job_id': job_id, 'product_url': job['request']['url'], 'observed_at': now(), **result})
                 update_job(job_id, state='succeeded')
                 return
-            stopped = result.get('stop_reason')
-            if stopped == 'cancelled':
-                state = 'cancelled'
-            elif result.get('error'):
+            state = crawl_state(job['request'], result)
+            if state is None:
                 observed = await self.observe_session()
                 state = observed['state'] if observed['state'] in WAITING else 'failed'
-            elif stopped in {'record_limit', 'expected_count_reached', 'last_page', 'exhausted'}:
-                state = 'succeeded'
-            else:
-                state = 'partial'
             result = {'job_id': job_id, 'complete': state == 'succeeded', 'observed_at': now(), **result}
             save_result(job_id, result)
             update_job(job_id, state=state, collected=len(result['records']), page=result['pages'][-1]['page'] if result['pages'] else 0, error=result.get('error'))

@@ -300,6 +300,8 @@ function listRow(raw: unknown): { id: string | null; url: string | null; job: No
   const r = typeof v.request === 'object' && v.request !== null && !Array.isArray(v.request) ? v.request as Record<string, unknown> : null;
   let url: string | null = null; try { url = r ? normalizePublicReviewUrl(r.url) : null; } catch { url = null; }
   if (!r || url === null) return { id, url, job: null };
+  // A page-limited job is another caller's identity, never this collector's {url, max_comments} job.
+  if (r.max_pages !== undefined) return { id, url: null, job: null };
   const job = { id: v.id, request: { url, max_comments: r.max_comments }, state: v.state, created_at: serviceUtc(v.created_at), updated_at: serviceUtc(v.updated_at),
     result_available: v.result_available, ...(v.collected === undefined ? {} : { collected: v.collected }) };
   return { id, url, job: validJob(job) ? job : null };
@@ -461,6 +463,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
       };
       const parseJob = (raw: unknown, bound = true) => {
         const v = object(raw), r = object(v.request);
+        if (r.max_pages !== undefined) return fail();
         const job = { id: v.id, request: { url: normalizePublicReviewUrl(r.url), max_comments: r.max_comments }, state: v.state,
           created_at: serviceUtc(v.created_at), updated_at: serviceUtc(v.updated_at), result_available: v.result_available,
           ...(v.collected === undefined ? {} : { collected: v.collected }) };

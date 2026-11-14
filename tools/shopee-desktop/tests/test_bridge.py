@@ -125,6 +125,28 @@ class BridgeTest(unittest.TestCase):
             'totalPerLink': 500, 'allocation': 'pooled',
             'textRule': 'comment-or-attributes-v1', 'order': 'native-filter-ascending-stars-v1'})
 
+    def test_new_run_passes_a_pages_limit_and_refuses_an_invalid_one_before_the_remote(self):
+        saved = self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
+                         keyword='kem chống nắng', categoryId=HEALTH)
+        self.assertTrue(saved['ok'], saved)
+        pages = {'mode': 'with-comments', 'stars': [], 'limitBy': 'pages', 'pagesPerLink': 10, 'allocation': 'pooled'}
+        result = self.api.newRun({'presetId': 'kem-chong-nang-abc', 'endDate': completed_date(), 'collectionPolicy': pages})
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['data']['entry']['verdict'], 'PASS', result)
+        request = json.loads((self.runs / result['data']['runId'] / 'request.json').read_text(encoding='utf-8'))
+        self.assertEqual((request['collectionPolicy']['format'], request['collectionPolicy']['pagesPerLink']),
+                         ('shopee-review-policy-v2', 10))
+        before = list(self.runs.iterdir())
+        for policy in ({**pages, 'pagesPerLink': 101}, {**pages, 'pagesPerLink': 0},
+                       {**pages, 'allocation': 'equal-stars'}, {**pages, 'totalPerLink': 300}):
+            with self.subTest(policy=policy):
+                with mock.patch.object(tdn_shopee_app, '_load_config') as load:
+                    refused = self.api.newRun({'presetId': 'kem-chong-nang-abc', 'endDate': completed_date(),
+                                               'collectionPolicy': policy})
+                self.assertEqual(refused, {'ok': False, 'error': {'code': 'ARG_INVALID', 'message': 'ARG_INVALID'}})
+                load.assert_not_called()
+        self.assertEqual(list(self.runs.iterdir()), before)
+
     def test_new_run_roundtrips_selected_metric_options_and_reads_capture_specs(self):
         saved = self.add(presetId='kem-chong-nang-abc', label='Kem chống nắng ABC',
                          keyword='kem chống nắng', categoryId=HEALTH)

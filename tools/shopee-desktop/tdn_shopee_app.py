@@ -483,14 +483,16 @@ class Api:
 
     @staticmethod
     def _validate_collection_policy(policy):
-        fields = {'mode', 'stars', 'totalPerLink', 'allocation'}
+        # Pages mode limits Shopee review pages per link; it has no comment count and no equal-stars split.
+        pages = isinstance(policy, dict) and policy.get('limitBy') == 'pages'
+        fields = {'mode', 'stars', 'limitBy', 'pagesPerLink', 'allocation'} if pages else {'mode', 'stars', 'totalPerLink', 'allocation'}
         if not isinstance(policy, dict) or set(policy) != fields:
             raise _BridgeFailure('ARG_INVALID')
         if (policy['mode'] not in ('all', 'with-comments', 'stars') or
-                policy['allocation'] not in ('pooled', 'equal-stars')):
+                policy['allocation'] not in (('pooled',) if pages else ('pooled', 'equal-stars'))):
             raise _BridgeFailure('ARG_INVALID')
-        total = policy['totalPerLink']
-        if type(total) is not int or total < 1 or total > 2000:
+        total = policy['pagesPerLink'] if pages else policy['totalPerLink']
+        if type(total) is not int or total < 1 or total > (100 if pages else 2000):
             raise _BridgeFailure('ARG_INVALID')
         stars = policy['stars']
         if not isinstance(stars, list) or any(type(star) is not int or star < 1 or star > 5 for star in stars):
