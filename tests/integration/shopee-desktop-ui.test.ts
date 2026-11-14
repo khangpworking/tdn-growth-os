@@ -945,6 +945,13 @@ function syntheticRunInfo(runId = 'run-synthetic') {
   };
 }
 
+/** A run whose step 3 already ran (M3 gate written), so its result card shows. */
+function collectedRunInfo(runId = 'run-synthetic') {
+  const info: any = syntheticRunInfo(runId);
+  info.gates.m3 = passSlip('M3');
+  return info;
+}
+
 function fire(window: any, node: Element, type: string): void {
   node.dispatchEvent(new window.Event(type, { bubbles: true }));
 }
@@ -1888,7 +1895,7 @@ test('the save and export panel stays available without M2, keeps the chosen sou
       txt: { canExport: false, blockedBy: { code: 'EXPORT_BLOCKED' }, receipt: null },
     },
   });
-  const info: any = syntheticRunInfo();
+  const info: any = collectedRunInfo();
   info.gates.m2 = null;
   info.selection = null;
   info.modules = info.modules.map((mod: any) => mod.id === 'M3' ? { ...mod, canRun: false } : mod);
@@ -1963,7 +1970,7 @@ test('a pending action refreshes the panel that replaced its original run select
       { runId: runA, product: 'Sản phẩm A', status: 'IDLE' },
       { runId: runB, product: 'Sản phẩm B', status: 'IDLE' },
     ],
-    runInfoByRun: { [runA]: syntheticRunInfo(runA), [runB]: syntheticRunInfo(runB) },
+    runInfoByRun: { [runA]: collectedRunInfo(runA), [runB]: collectedRunInfo(runB) },
     reviewDataByRun: {
       [runA]: syntheticReviewData({ runId: runA, sources: [syntheticReviewSource({ sourceSha256: sourceA })] }),
       [runB]: syntheticReviewData({ runId: runB, sources: [syntheticReviewSource({ sourceSha256: sourceB })] }),
@@ -2025,7 +2032,7 @@ test('readonly blocks new DB save and new export while permitting an already cre
   });
   const result = harness({
     runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-    runInfo: syntheticRunInfo(),
+    runInfo: collectedRunInfo(),
     reviewData: syntheticReviewData({ readonly: true, sources: [cached] }),
   });
   try {
@@ -2277,7 +2284,7 @@ test('M3 save and launch failures stay in the local plain alert', async () => {
 test('review-data failures stay in the local plain alert without raw codes', async () => {
   const result = harness({
     runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-    runInfo: syntheticRunInfo(),
+    runInfo: collectedRunInfo(),
     reviewData: syntheticReviewData(),
     exportReviewResult: () => ({ ok: false, error: { code: 'EXPORT_FAILED', message: 'EXPORT_FAILED' } }),
   });
@@ -2296,7 +2303,7 @@ test('review-data failures stay in the local plain alert without raw codes', asy
 test('results stay above one closed step section and a failed run opens it', async () => {
   const done = harness({
     runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-    runInfo: syntheticRunInfo(), sampling: syntheticSampling(), reviewData: syntheticReviewData(),
+    runInfo: collectedRunInfo(), sampling: syntheticSampling(), reviewData: syntheticReviewData(),
   });
   try {
     await waitFor(() => done.doc.getElementById('rdPanel') !== null &&
@@ -2774,7 +2781,7 @@ test('a short link marked complete is reported by derived counts, not the source
   });
   const result = harness({
     runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-    runInfo: syntheticRunInfo(),
+    runInfo: collectedRunInfo(),
     reviewData: syntheticReviewData({ sources: [source] }),
   });
   try {
@@ -3202,5 +3209,37 @@ test('B3: the results tab shows numbers for the run and changes them per product
     resultButton('run-empty').click();
     await waitFor(() => doc.getElementById('resultEmpty') !== null, 'empty run');
     assert.equal(element(doc, 'resultEmpty').textContent, 'Lượt này chưa có bình luận.');
+  } finally { dom.window.close(); }
+});
+
+test('a step that has not run shows no result card: stopped at step 1, step 3 not started, step 3 started', async () => {
+  const stoppedAtM1: any = syntheticRunInfo('run-m1');
+  stoppedAtM1.gates.m1 = { ...passSlip('M1'), verdict: 'FAIL', errorCode: 'CAPTURE_PERIOD_NOT_SELECTABLE' };
+  stoppedAtM1.gates.m2 = null;
+  stoppedAtM1.selection = null;
+  stoppedAtM1.state = { status: 'STOPPED', module: 'M1', errorCode: 'CAPTURE_PERIOD_NOT_SELECTABLE' };
+  const m3Started: any = syntheticRunInfo('run-m3');
+  m3Started.modules = m3Started.modules.map((mod: any) => mod.id === 'M3'
+    ? { ...mod, execution: { status: 'FAILED', errorCode: 'RUN_INTERRUPTED' } } : mod);
+  const cases: [string, any, string[]][] = [
+    ['run-m1', stoppedAtM1, ['Bước 1 Lấy số liệu bán hàng']],
+    ['run-m2', syntheticRunInfo('run-m2'), ['Bước 1 Lấy số liệu bán hàng', 'Bước 2 Chọn link bán chạy']],
+    ['run-m3', m3Started, ['Bước 1 Lấy số liệu bán hàng', 'Bước 2 Chọn link bán chạy', 'Bước 3 Lấy bình luận']],
+  ];
+  const { dom, doc } = harness({
+    runs: cases.map(([runId]) => ({ runId, product: 'Sản phẩm ' + runId, status: 'DONE' })),
+    runInfoByRun: Object.fromEntries(cases.map(([runId, info]) => [runId, info])),
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId, { keywords: [runId] }) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === cases.length, 'run list');
+    for (const [runId, , cards] of cases) {
+      runListButton(doc, runId).click();
+      await waitFor(() => doc.querySelector('#moduleOutputsPanel')?.textContent?.includes(runId) === true,
+        'step results ' + runId);
+      const titles = [...doc.querySelectorAll('#moduleOutputsPanel article.mod > .mh > h3')].map((node) => node.textContent);
+      assert.deepEqual(titles, cards, runId);
+      assert.equal(doc.getElementById('rdPanel') !== null, cards.length === 3, runId + ' step 3 card');
+    }
   } finally { dom.window.close(); }
 });
