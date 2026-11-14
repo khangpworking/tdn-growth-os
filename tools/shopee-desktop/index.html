@@ -1528,7 +1528,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     rg.gates.m2 = m2Slip(rg.runId);
     rg.state = finishState(rg.runId, 'IDLE', 'M2', null, null);
 
-    [ra, rb, rc, rd, re, rf, rg].forEach(seedLegacyExecution);
+    // Stopped at M1: steps 2 and 3 never ran.
+    var rh = makeRun('b8c9d0e1', '2026-11-13T02:00:00Z', 'Sản phẩm mẫu H', { keywords: ['kệ gỗ mẫu'], endDate: '2026-11-13', cap: 300 });
+    rh.gates.entry = entrySlip(rh.runId, 300);
+    rh.gates.m1 = {
+      format: 'handoff-v1', module: 'M1', runId: rh.runId, skillVersion: '1.0.0', verdict: 'FAIL',
+      inputSha256: shaFor(rh.runId, 'request'), outputSha256: shaFor(rh.runId, 'm1'),
+      checks: [], errorCode: 'CAPTURE_PERIOD_NOT_SELECTABLE', next: null
+    };
+    rh.state = finishState(rh.runId, 'STOPPED', 'M1', 'CAPTURE_PERIOD_NOT_SELECTABLE', null);
+
+    [ra, rb, rc, rd, re, rf, rg, rh].forEach(seedLegacyExecution);
 
     function beginExecution(run, module, attemptId) {
       var key = module.toUpperCase();
@@ -4972,7 +4982,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (moduleOutput) root.appendChild(moduleOutput);
 
     var hasM3 = (info.modules || []).some(function (mod) { return mod.id === 'M3'; });
-    if (hasM3) (moduleOutput || root).appendChild(reviewDataPanel(info));
+    var m3View = moduleExecution(info, 'M3');
+    var m3Started = !!(m3View && m3View.status && m3View.status !== 'IDLE') || !!(info.gates && info.gates.m3);
+    if (hasM3 && m3Started) (moduleOutput || root).appendChild(reviewDataPanel(info));
     var samplingView = state.sampling[info.runId];
     var samplingPanelShown = hasM3 && !!(
       info.selection || (samplingView && samplingView.m2Digest) ||
