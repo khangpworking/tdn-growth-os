@@ -5,6 +5,7 @@ requirements.lock.txt). No browser, Shopee page or network is used: the worker
 gets a fake page that records the crawler config and returns a fixed result.
 """
 import asyncio
+from contextlib import suppress
 import hashlib
 import importlib
 import json
@@ -61,7 +62,7 @@ class FakePage:
     """Records the crawler config; the crawler script returns `result`."""
 
     def __init__(self, result):
-        self.result, self.config = result, None
+        self.result, self.config, self.crawls = result, None, 0
 
     def locator(self, _):
         return FakeLocator()
@@ -71,6 +72,7 @@ class FakePage:
             self.config = arg
             return None
         if expression.startswith('(async () =>'):
+            self.crawls += 1
             return self.result
         return None
 
@@ -146,6 +148,52 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual((config['maxPages'], config['limit'], state), (7, 20, 'succeeded'))
         config, state = self.run_job({'url': URL, 'max_comments': 20}, result)
         self.assertEqual((config['maxPages'], state), (500, 'partial'), 'existing callers keep 500 pages and partial')
+
+    def test_cancel_then_resume_executes_the_job_once_after_draining_stale_queue_items(self):
+        app = self.app
+        result = {'stop_reason': 'last_page', 'error': None,
+                  'records': [{'id': 'review-1'}], 'pages': [{'page': 1}]}
+
+        async def drain(worker):
+            task = asyncio.create_task(worker.run())
+            try:
+                await asyncio.wait_for(worker.queue.join(), 5)
+            finally:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
+
+        async def scenario():
+            worker = app.worker
+            self.assertTrue(worker.queue.empty(), 'this owner-boundary test starts with an idle queue')
+            page = FakePage(result)
+            worker.page = page
+            worker.navigate_product = lambda _url: asyncio.sleep(0, result={'state': 'ready'})
+            worker.ensure_browser = lambda: asyncio.sleep(0)
+
+            payload = app.JobInput.model_validate_json(json.dumps({'url': URL}))
+            job = await app.create_job(payload)
+            self.assertEqual((await app.cancel_job(job['id']))['state'], 'cancelled')
+            self.assertEqual((await app.resume_job(job['id']))['state'], 'queued')
+            self.assertEqual(worker.queue.qsize(), 2, 'cancel leaves the stale reference until the worker drains it')
+
+            await drain(worker)
+            self.assertEqual(page.crawls, 1, 'one created run executes exactly once after cancel and resume')
+            final = app.get_job(job['id'])
+            self.assertEqual(final['state'], 'succeeded')
+            stored = json.loads((app.DATA / 'results' / f"{job['id']}.json").read_text(encoding='utf-8'))
+            self.assertEqual((stored['job_id'], stored['complete']), (job['id'], True))
+            self.assertEqual(stored['records'], result['records'])
+
+            page.crawls = 0
+            cancelled = await app.create_job(payload)
+            self.assertEqual((await app.cancel_job(cancelled['id']))['state'], 'cancelled')
+            await drain(worker)
+            self.assertEqual(page.crawls, 0, 'a cancelled queued job without resume never runs')
+            self.assertEqual(app.get_job(cancelled['id'])['state'], 'cancelled')
+            self.assertFalse((app.DATA / 'results' / f"{cancelled['id']}.json").exists())
+
+        asyncio.run(scenario())
 
 
 if __name__ == '__main__':
