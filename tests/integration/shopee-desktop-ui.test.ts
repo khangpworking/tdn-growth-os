@@ -45,6 +45,9 @@ function harness(options: {
   listRunsGate?: Deferred<any> | undefined;
   presets?: ReturnType<typeof preset>[];
   connectionResult?: any;
+  connectionResults?: any[];
+  connectionResultFor?: (call: number) => any | Promise<any>;
+  fastReconnect?: boolean;
   captureSpecsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
   moduleOutputsResult?: (runId: string, call: number) => any | Promise<any> | undefined;
   openModuleEvidenceResult?: (runId: string, kind: string, sha256: string) => any;
@@ -54,7 +57,7 @@ function harness(options: {
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
-    refreshCountCalls: number;
+    refreshCountCalls: number; connectionCalls: number;
     newRunInputs: any[]; flowCalls: string[]; statusCalls: string[];
     presets: ReturnType<typeof preset>[];
     runsView: any[];
@@ -82,7 +85,7 @@ function harness(options: {
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
     openLinkCalls: string[];
   } = {
-    addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0,
+    addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
     presets: options.presets ? options.presets.slice() : [preset('kem', 'Kem chống nắng')],
     runsView: options.runs ? options.runs.slice() : [],
@@ -110,7 +113,15 @@ function harness(options: {
   };
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
-    connection: async () => options.connectionResult || ({ ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } }),
+    connection: async () => {
+      state.connectionCalls++;
+      if (options.connectionResultFor) return clone(await options.connectionResultFor(state.connectionCalls));
+      if (options.connectionResults) {
+        const index = Math.min(state.connectionCalls - 1, options.connectionResults.length - 1);
+        return clone(options.connectionResults[index]);
+      }
+      return options.connectionResult || ({ ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } });
+    },
     presets: async () => {
       state.presetsCalls++;
       return { ok: true, data: { format: 'presets-v1', presets: state.presets.slice() } };
@@ -303,6 +314,11 @@ function harness(options: {
         const nativeSetInterval = window.setInterval.bind(window);
         (window as any).setInterval = (handler: any, delay?: number, ...args: any[]) =>
           nativeSetInterval(handler, delay === 10000 || delay === 3000 ? 25 : delay, ...args);
+      }
+      if (options.fastReconnect) {
+        const nativeSetTimeout = window.setTimeout.bind(window);
+        (window as any).setTimeout = (handler: any, delay?: number, ...args: any[]) =>
+          nativeSetTimeout(handler, delay && delay >= 250 ? 5 : delay, ...args);
       }
       const dialog = window.HTMLDialogElement && window.HTMLDialogElement.prototype;
       if (dialog && !dialog.showModal) {
@@ -2972,6 +2988,132 @@ test('connection and disabled create states explain themselves without the data 
     assert.match(element<HTMLElement>(on.doc, 'connText').title, /\/synthetic\/runs/,
       'the data path stays in the tooltip only');
   } finally { on.dom.window.close(); }
+});
+
+test('native recovery retries automatically and enables create only after read-only hydration', async () => {
+  const { dom, doc, state } = harness({
+    connectionResults: [
+      { ok: true, data: { connected: false, readonly: null, runsRoot: null, reason: 'SSH_FAILED' } },
+      { ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic/runs' } },
+    ],
+    fastReconnect: true,
+  });
+  try {
+    await waitFor(() => state.connectionCalls >= 2, 'automatic connection retry');
+    await booted(doc);
+    assert.equal(state.newRunCalls, 0, 'reconnect does not replay create');
+    assert.equal(state.launchCalls.length, 0, 'reconnect does not replay module actions');
+    assert.equal(state.presetsCalls, 1, 'reconnect hydrates presets once');
+    assert.equal(element<HTMLElement>(doc, 'connText').textContent, 'Đã kết nối máy chủ');
+  } finally { dom.window.close(); }
+});
+
+test('an idle online session notices network loss, preserves the draft and selection, and blocks writes until fresh hydration', async () => {
+  const gate = deferred<void>();
+  let statusCalls = 0;
+  let phase: 'online' | 'drop' = 'online';
+  const online = { ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic/runs' } };
+  const runInfo = (runId: string) => {
+    const info: any = collectedRunInfo(runId);
+    info.modules = info.modules.map((module: any) =>
+      module.id === 'M1' ? { ...module, canRun: true, blockedBy: null } : module);
+    return info;
+  };
+  const sourceA = 'a'.repeat(64);
+  const sourceB = 'b'.repeat(64);
+  const { dom, doc, state } = harness({
+    runs: [
+      { runId: 'run-a', product: 'Sản phẩm A', status: 'IDLE' },
+      { runId: 'run-b', product: 'Sản phẩm B', status: 'IDLE' },
+    ],
+    runInfoByRun: { 'run-a': runInfo('run-a'), 'run-b': runInfo('run-b') },
+    reviewDataByRun: {
+      'run-a': syntheticReviewData({ runId: 'run-a', sources: [syntheticReviewSource({ sourceSha256: sourceA })] }),
+      'run-b': syntheticReviewData({ runId: 'run-b', sources: [syntheticReviewSource({ sourceSha256: sourceB })] }),
+    },
+    statusGate: () => {
+      statusCalls += 1;
+      return statusCalls >= 3 ? gate : undefined;
+    },
+    connectionResultFor: () => {
+      if (phase === 'drop') {
+        phase = 'online';
+        return { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } };
+      }
+      return online;
+    },
+    fastReconnect: true,
+  });
+  try {
+    await booted(doc);
+    runListButton(doc, 'run-b').click();
+    await waitFor(() => runListButton(doc, 'run-b').classList.contains('on'), 'explicit selection');
+    fillProduct(doc, 'Sản phẩm nháp', 'kem nháp');
+    const presetsBefore = state.presetsCalls;
+
+    phase = 'drop';
+    await waitFor(() => element<HTMLButtonElement>(doc, 'btnNew').disabled === true,
+      'writes disabled after the idle health check fails');
+    assert.equal(state.connectionCalls > 1, true,
+      'health failure noticed without a click: calls=' + state.connectionCalls +
+      ' status=' + statusCalls + ' presets=' + state.presetsCalls);
+    assert.equal(element<HTMLSelectElement>(doc, 'presetSel').value, '__new__');
+    assert.equal(element<HTMLInputElement>(doc, 'productLabel').value, 'Sản phẩm nháp');
+    assert.equal(element<HTMLInputElement>(doc, 'productKeyword').value, 'kem nháp');
+    assert.equal(runListButton(doc, 'run-b').classList.contains('on'), true, 'selection preserved');
+
+    await waitFor(() => statusCalls >= 3, 'the recovered selected-run status call reached the held gate');
+    assert.equal(element<HTMLButtonElement>(doc, 'btnNew').disabled, true,
+      'create stays disabled while fresh hydration is pending');
+    const pendingAction = moduleAction(doc, 'M1');
+    assert.ok(pendingAction, 'the selected run still offers its M1 action while hydration is pending');
+    assert.equal(pendingAction.disabled, true, 'the module write stays disabled while fresh hydration is pending');
+    assert.equal(element<HTMLSelectElement>(doc, 'presetSel').value, '__new__');
+    assert.equal(element<HTMLInputElement>(doc, 'productLabel').value, 'Sản phẩm nháp');
+    assert.equal(element<HTMLInputElement>(doc, 'productKeyword').value, 'kem nháp');
+    assert.equal(runListButton(doc, 'run-b').classList.contains('on'), true,
+      'selection preserved while hydration is pending');
+
+    gate.resolve();
+    await booted(doc);
+    assert.equal(element<HTMLButtonElement>(doc, 'btnNew').disabled, false,
+      'create re-enabled after authoritative hydration');
+    const readyAction = moduleAction(doc, 'M1');
+    assert.ok(readyAction, 'the selected run offers its M1 action after hydration');
+    assert.equal(readyAction.disabled, false, 'the module write re-enabled after authoritative hydration');
+    assert.equal(state.presetsCalls, presetsBefore + 1, 'recovery hydrates once');
+    const callsAfterRecovery = state.connectionCalls;
+    await waitFor(() => state.connectionCalls > callsAfterRecovery, 'periodic health check while online');
+    assert.equal(state.presetsCalls, presetsBefore + 1, 'healthy polls never rehydrate');
+    assert.equal(state.newRunCalls, 0, 'no pending action is replayed');
+    assert.equal(state.launchCalls.length, 0, 'no module action is replayed');
+    assert.equal(element<HTMLInputElement>(doc, 'productLabel').value, 'Sản phẩm nháp');
+    assert.equal(runListButton(doc, 'run-b').classList.contains('on'), true, 'selection survives recovery');
+
+    // A healthy 15 s poll must leave unrelated business errors, detail DOM and focus alone.
+    const action = moduleAction(doc, 'M1');
+    assert.ok(action, 'the selected run offers its M1 action');
+    action.click();
+    await waitFor(() => state.launchCalls.length === 1, 'module action dispatched');
+    await waitFor(() => !element<HTMLElement>(doc, 'errbar').hidden, 'module failure shown in the error bar');
+    await waitFor(() => doc.getElementById('rdSource') !== null, 'review detail rendered after the action');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(element<HTMLElement>(doc, 'errbar').title, 'MODULE_INVALID', 'a business error is on screen');
+    const editor = element<HTMLSelectElement>(doc, 'rdSource');
+    const errorText = element<HTMLElement>(doc, 'errbar').textContent;
+    const errorTitle = element<HTMLElement>(doc, 'errbar').title;
+    editor.focus();
+    assert.equal(doc.activeElement, editor, 'the detail editor holds focus before the poll');
+    const callsBeforePoll = state.connectionCalls;
+    await waitFor(() => state.connectionCalls > callsBeforePoll, 'healthy poll with an error and a focused editor');
+    assert.equal(element<HTMLElement>(doc, 'errbar').hidden, false, 'the business error survives the healthy poll');
+    assert.equal(element<HTMLElement>(doc, 'errbar').textContent, errorText);
+    assert.equal(element<HTMLElement>(doc, 'errbar').title, errorTitle);
+    assert.equal(doc.getElementById('rdSource'), editor, 'the detail DOM is not re-rendered by a healthy poll');
+    assert.equal(doc.activeElement, editor, 'the detail editor keeps focus through the healthy poll');
+    assert.equal(state.launchCalls.length, 1, 'the failed module action is not replayed');
+    assert.equal(state.presetsCalls, presetsBefore + 1, 'healthy polls never rehydrate after recovery');
+  } finally { gate.resolve(); dom.window.close(); }
 });
 
 const evidenceDescriptor = (kind: string, fileName: string, mediaType: string) => ({

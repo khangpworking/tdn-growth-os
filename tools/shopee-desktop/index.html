@@ -742,6 +742,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return 'Có lỗi khi xử lý. Hãy thử lại; nếu vẫn lỗi, báo người quản trị.';
   }
 
+  var TRANSPORT_ERROR_CODES = {
+    SSH_FAILED: true, SSH_TIMEOUT: true, NOT_SENT: true, NO_CANDIDATE: true,
+    HOST_IDENTITY_MISMATCH: true, HOST_KEY_MISSING: true, HOST_PROBE_UNAVAILABLE: true,
+    NETWORK_UNAVAILABLE: true, LAN_SCOPE_TOO_BROAD: true
+  };
+
+  function isTransportError(error) {
+    return !!TRANSPORT_ERROR_CODES[errorCode(error)];
+  }
+
   var SEQUENCE = [
     { kind: 'gate', key: 'entry' },
     { kind: 'mod', id: 'M1' },
@@ -2473,6 +2483,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     runFilter: 'all',
     savedProduct: null,
     connected: false,
+    connectionState: 'connecting',
+    connectionPromise: null,
+    connectionEpoch: 0,
+    connectionHydrating: false,
+    connectionEverReady: false,
+    reconnectTimer: null,
+    reconnectAttempt: 0,
+    healthTimer: null,
     readonly: false,
     runsRoot: null,
     poll: null,
@@ -2515,6 +2533,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     bar.textContent = plainError(error);
     bar.title = errorCode(error);
     bar.hidden = false;
+    if (isTransportError(error)) beginReconnect();
   }
   function clearError() {
     var bar = $('errbar');
@@ -5163,22 +5182,28 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
   }
 
+  async function fetchRuns() {
+    var seq = ++state.runsSeq;
+    var res = await api.listRuns();
+    if (seq !== state.runsSeq) return null;
+    if (!res.ok) { showError(res.error); return null; }
+    state.runs = (res.data && res.data.runs) || [];
+    if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
+      state.selectedRunId = null;
+      state.loadingRunId = null;
+      stopPoll();
+    }
+    renderRunList();
+    return res;
+  }
+
   async function refreshRuns() {
     if (!state.connected) {
       state.runs = [];
       renderRunList();
       return;
     }
-    var seq = ++state.runsSeq;
-    var res = await api.listRuns();
-    if (seq !== state.runsSeq) return;
-    if (!res.ok) { showError(res.error); return; }
-    state.runs = (res.data && res.data.runs) || [];
-    if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
-      state.selectedRunId = null;
-      state.loadingRunId = null;
-    }
-    renderRunList();
+    await fetchRuns();
   }
 
   async function loadInfo(runId) {
@@ -5260,6 +5285,166 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.poll = setInterval(function () { pollOnce(info.runId); }, 10000);
   }
 
+  function connectionRetryDelay() {
+    var step = Math.min(state.reconnectAttempt, 4);
+    return Math.min(15000, 1000 * Math.pow(2, step)) + Math.floor(Math.random() * 250);
+  }
+
+  function clearReconnectTimer() {
+    if (state.reconnectTimer) {
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+  }
+
+  function scheduleReconnect() {
+    if (state.reconnectTimer) return;
+    state.reconnectTimer = setTimeout(function () {
+      state.reconnectTimer = null;
+      requestConnection();
+    }, connectionRetryDelay());
+    state.reconnectAttempt += 1;
+  }
+
+  var HEALTH_POLL_MS = 15000;
+
+  function clearHealthPoll() {
+    if (state.healthTimer) {
+      clearTimeout(state.healthTimer);
+      state.healthTimer = null;
+    }
+  }
+
+  function scheduleHealthPoll() {
+    clearHealthPoll();
+    if (state.connectionState !== 'online') return;
+    state.healthTimer = setTimeout(function () {
+      state.healthTimer = null;
+      requestConnection(true);
+    }, HEALTH_POLL_MS);
+  }
+
+  function beginReconnect() {
+    state.connectionEpoch += 1;
+    state.connected = false;
+    state.connectionState = 'offline';
+    clearHealthPoll();
+    stopPoll();
+    stopSamplingPoll();
+    var dot = $('connDot');
+    var text = $('connText');
+    dot.className = 'dot stop';
+    text.textContent = 'Chưa kết nối máy chủ.';
+    text.title = '';
+    updateNewButton();
+    updateFlowButton();
+    if (state.info) renderDetail();
+    scheduleReconnect();
+  }
+
+  function requestConnection(healthOnly) {
+    if (state.connectionPromise) return state.connectionPromise;
+    clearReconnectTimer();
+    var promise = runConnectionAttempt(healthOnly);
+    state.connectionPromise = promise;
+    var release = function () {
+      if (state.connectionPromise === promise) state.connectionPromise = null;
+    };
+    promise.then(release, release);
+    return promise;
+  }
+
+  async function runConnectionAttempt(healthOnly) {
+    var epoch = state.connectionEpoch;
+    var wasOnline = state.connectionState === 'online';
+    var res = await api.connection();
+    if (epoch !== state.connectionEpoch) return res;
+    var data = res && res.ok && res.data ? res.data : null;
+    if (!(data && data.connected)) {
+      var bridgeMissing = !!(res && !res.ok && res.error && res.error.code === 'BRIDGE_MISSING');
+      renderConnection(res);
+      state.connectionState = 'offline';
+      clearHealthPoll();
+      if (bridgeMissing) {
+        scheduleReconnect();
+      } else if ((res && res.ok) || isTransportError(res && res.error)) {
+        if (epoch === state.connectionEpoch) beginReconnect();
+      }
+      return res;
+    }
+    if (healthOnly && wasOnline) {
+      var changed = (data.readonly !== state.readonly) || (data.runsRoot !== state.runsRoot);
+      state.connectionState = 'online';
+      state.connected = true;
+      if (changed) renderConnection(res);
+      scheduleHealthPoll();
+      return res;
+    }
+    var first = !state.connectionEverReady;
+    state.connectionHydrating = true;
+    renderConnection(res);
+    var ready = false;
+    try {
+      ready = await hydrateAfterConnect(epoch, first);
+    } finally {
+      state.connectionHydrating = false;
+    }
+    if (ready) {
+      updateNewButton();
+      updateFlowButton();
+      if (state.info) renderDetail();
+      scheduleHealthPoll();
+    } else if (epoch === state.connectionEpoch) {
+      scheduleReconnect();
+    }
+    return res;
+  }
+
+  async function hydrateAfterConnect(epoch, first) {
+    var pres = await api.presets();
+    if (epoch !== state.connectionEpoch) return false;
+    if (pres.ok) {
+      state.presets = (pres.data && pres.data.presets) || [];
+      renderPresets();
+    } else {
+      showError(pres.error);
+      if (epoch !== state.connectionEpoch) return false;
+    }
+    var runs = await fetchRuns();
+    if (epoch !== state.connectionEpoch) return false;
+    if (!runs) return false;
+    if (state.newBinding) {
+      var bindingRunId = state.newBinding.runId;
+      var status = await api.status(bindingRunId);
+      if (epoch !== state.connectionEpoch) return false;
+      if (status.ok && status.data) {
+        var gates = status.data.gates;
+        state.newEntry = gates && typeof gates === 'object' ? gates.entry || null : null;
+        state.newRunId = bindingRunId;
+      } else {
+        state.newEntry = null;
+        showError(status.error);
+        if (epoch !== state.connectionEpoch) return false;
+      }
+      renderNewResult();
+    }
+    if (state.selectedRunId) {
+      await loadInfo(state.selectedRunId);
+      if (epoch !== state.connectionEpoch) return false;
+    } else if (first && state.runs.length) {
+      await selectRun(state.runs[0].runId);
+      if (epoch !== state.connectionEpoch) return false;
+    } else {
+      renderDetail();
+    }
+    state.connected = true;
+    state.connectionState = 'online';
+    state.connectionEverReady = true;
+    state.reconnectAttempt = 0;
+    clearError();
+    return true;
+  }
+
   function renderConnection(res) {
     var dot = $('connDot');
     var text = $('connText');
@@ -5267,7 +5452,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var data = res && res.ok && res.data ? res.data : null;
     var connected = !!(data && data.connected);
     var bridgeMissing = !!(res && !res.ok && res.error && res.error.code === 'BRIDGE_MISSING');
-    state.connected = connected;
+    state.connected = connected && !state.connectionHydrating;
     state.readonly = !!(data && data.readonly);
     state.runsRoot = (data && data.runsRoot) || null;
     if (res && !res.ok && !bridgeMissing) showError(res.error);
@@ -6523,6 +6708,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       state.runFilter = $('runFilter').value || 'all';
       renderRunList();
     });
+    window.addEventListener('beforeunload', function () {
+      clearReconnectTimer();
+      clearHealthPoll();
+      stopPoll();
+      stopSamplingPoll();
+    });
   }
 
   async function boot() {
@@ -6535,28 +6726,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     windowLine();
     syncNewPolicy();
     renderNewSummary();
+    renderRunList();
+    renderDetail();
     updateNewButton();
 
-    var conn = await api.connection();
-    renderConnection(conn);
-    if (!state.connected) {
-      renderPresets();
-      renderRunList();
-      renderDetail();
-      return;
-    }
-
-    var pres = await api.presets();
-    if (pres.ok) {
-      state.presets = (pres.data && pres.data.presets) || [];
-      renderPresets();
-    } else {
-      showError(pres.error);
-    }
-
-    await refreshRuns();
-    if (state.runs.length) await selectRun(state.runs[0].runId);
-    else renderDetail();
+    await requestConnection();
   }
 
   boot().catch(function (e) {

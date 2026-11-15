@@ -13,6 +13,9 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
+
+import tdn_shopee_transport
 
 
 _RUN_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}')
@@ -182,13 +185,22 @@ def _load_config():
         raise _BridgeFailure('CONFIG_MISSING') from None
     except (OSError, ValueError):
         raise _BridgeFailure('CONFIG_INVALID') from None
-    allowed = {'sshCommand', 'remoteScript', 'runsRoot', 'presetsRoot', 'remoteEnvFile', 'timeoutSeconds'}
+    allowed = {'sshCommand', 'remoteScript', 'runsRoot', 'presetsRoot', 'remoteEnvFile',
+               'timeoutSeconds', 'network'}
     if not isinstance(config, dict) or set(config) - allowed:
         raise _BridgeFailure('CONFIG_INVALID')
-    command = config.get('sshCommand')
-    if (not isinstance(command, list) or not command or
-            not all(isinstance(arg, str) and arg.strip() and '\x00' not in arg for arg in command)):
-        raise _BridgeFailure('CONFIG_INVALID')
+    network = config.get('network')
+    if network is not None:
+        try:
+            network = tdn_shopee_transport.normalize_network(network)
+        except tdn_shopee_transport.TransportError:
+            raise _BridgeFailure('CONFIG_INVALID') from None
+    native = bool(network and network.get('enabled'))
+    if not native:
+        command = config.get('sshCommand')
+        if (not isinstance(command, list) or not command or
+                not all(isinstance(arg, str) and arg.strip() and '\x00' not in arg for arg in command)):
+            raise _BridgeFailure('CONFIG_INVALID')
     for key in ('remoteScript', 'runsRoot', 'presetsRoot', 'remoteEnvFile'):
         value = config.get(key)
         if value is None and key != 'remoteScript':
@@ -198,11 +210,34 @@ def _load_config():
     timeout = config.get('timeoutSeconds', 30)
     if type(timeout) is not int or timeout <= 0:
         raise _BridgeFailure('CONFIG_INVALID')
-    return {**config, 'timeoutSeconds': timeout}
+    result = {**config, 'timeoutSeconds': timeout}
+    if network is not None:
+        result['network'] = network
+    return result
 
 
 class Api:
     """Only these public methods are exposed to the page."""
+
+    _CONNECTION_FAILURE_CODES = frozenset({
+        'SSH_FAILED', 'SSH_TIMEOUT', 'NOT_SENT', 'NO_CANDIDATE', 'NETWORK_UNAVAILABLE',
+        'LAN_SCOPE_TOO_BROAD', 'HOST_PROBE_UNAVAILABLE', 'HOST_IDENTITY_MISMATCH',
+        'HOST_KEY_MISSING',
+    })
+
+    def __init__(self):
+        self._transport = None
+        self._transport_key = None
+        self._transport_lock = threading.Lock()
+        self._connection_condition = threading.Condition()
+        self._connection_inflight = False
+        self._connection_result = None
+        self._connection_failure = None
+        self._connection_failure_at = 0.0
+        self._connection_attempts = 0
+
+    def _connection_backoff(self):
+        return min(15, 2 ** min(self._connection_attempts, 4))
 
     def _safe(self, operation):
         try:
@@ -217,6 +252,42 @@ class Api:
         if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id):
             raise _BridgeFailure('ARG_INVALID')
         return run_id
+
+    def _transport_for(self, config):
+        network = config.get('network')
+        if not network or not network.get('enabled'):
+            return None
+        key = hashlib.sha256(json.dumps(network, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()
+        with self._transport_lock:
+            if self._transport is None or self._transport_key != key:
+                try:
+                    self._transport = tdn_shopee_transport.NativeTransport(network)
+                except tdn_shopee_transport.TransportError:
+                    raise _BridgeFailure('CONFIG_INVALID') from None
+                self._transport_key = key
+            return self._transport
+
+    def _invalidate_native(self, token):
+        if token is None:
+            return
+        transport, generation = token
+        with self._transport_lock:
+            if self._transport is not transport:
+                return
+            transport.invalidate(generation)
+
+    def _dispatch_argv(self, config):
+        transport = self._transport_for(config)
+        if transport is None:
+            return config['sshCommand'], None
+        endpoint, generation = transport.dispatch_token()
+        if endpoint is None:
+            raise _BridgeFailure('NOT_SENT')
+        try:
+            return transport.argv_for(endpoint), (transport, generation)
+        except tdn_shopee_transport.TransportError as error:
+            self._invalidate_native((transport, generation))
+            raise _BridgeFailure(error.code) from None
 
     def _remote_plan(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
                      kind=None, attempt_id=None, export_sha256=None):
@@ -263,19 +334,27 @@ class Api:
         config, lines = self._remote_plan(action, run_id=run_id, payload=payload, config=config,
                                           plan_sha256=plan_sha256, kind=kind, attempt_id=attempt_id,
                                           export_sha256=export_sha256)
+        argv, token = self._dispatch_argv(config)
+        return self._invoke(action, config, lines, argv, token=token)
+
+    def _invoke(self, action, config, lines, argv, *, token=None, timeout=None):
         options = {'input': ('\n'.join(lines) + '\n').encode('utf-8'), 'capture_output': True,
-                   'timeout': 150 if action == 'metricDateAvailability' else config['timeoutSeconds']}
+                   'timeout': timeout if timeout is not None else (
+                       150 if action == 'metricDateAvailability' else config['timeoutSeconds'])}
         if sys.platform == 'win32':
             options['creationflags'] = subprocess.CREATE_NO_WINDOW
         try:
-            result = subprocess.run(config['sshCommand'], **options)
+            result = subprocess.run(argv, **options)
         except subprocess.TimeoutExpired:
+            self._invalidate_native(token)
             raise _BridgeFailure('SSH_TIMEOUT') from None
         except OSError:
+            self._invalidate_native(token)
             raise _BridgeFailure('SSH_FAILED') from None
         except UnicodeError:
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID') from None
         if result.returncode == 255:
+            self._invalidate_native(token)
             raise _BridgeFailure('SSH_FAILED')
         try:
             output = json.loads(result.stdout.decode('utf-8'), parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
@@ -299,17 +378,109 @@ class Api:
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return {'ok': True, 'data': output}
 
+    def _probe_connection(self):
+        config = _load_config()
+        transport = self._transport_for(config)
+        if transport is None:
+            return self._remote('connection', config=config)
+        deadline = time.monotonic() + config['network']['lan']['wallSeconds']
+        _, lines = self._remote_plan('connection', config=config)
+
+        def attempt(endpoints):
+            failure = None
+            for endpoint in endpoints:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None, _BridgeFailure('SSH_TIMEOUT')
+                try:
+                    argv = transport.argv_for(endpoint)
+                except tdn_shopee_transport.TransportError as error:
+                    raise _BridgeFailure(error.code) from None
+                try:
+                    result = self._invoke('connection', config, lines, argv, timeout=remaining)
+                except _BridgeFailure as error:
+                    if error.code not in ('SSH_FAILED', 'SSH_TIMEOUT'):
+                        raise
+                    failure = error
+                    continue
+                if result.get('ok'):
+                    data = result.get('data')
+                    if (isinstance(data, dict) and data.get('format') == 'connection-v1' and
+                            type(data.get('readonly')) is bool and isinstance(data.get('runsRoot'), str) and
+                            data['runsRoot']):
+                        transport.activate(endpoint)
+                        return result, None
+                failure = _BridgeFailure('REMOTE_OUTPUT_INVALID')
+            return None, failure
+
+        try:
+            candidates = transport.find_candidates(deadline)
+        except tdn_shopee_transport.TransportError as error:
+            raise _BridgeFailure(error.code) from None
+        result, last = attempt(candidates)
+        if result is None and transport.active_endpoint() is not None and deadline - time.monotonic() > 0:
+            # The cached endpoint passed the pin check but failed its
+            # authenticated probe: spend the remaining budget on one full
+            # rediscovery instead of reusing it.
+            transport.invalidate(None)
+            try:
+                candidates = transport.find_candidates(deadline)
+            except tdn_shopee_transport.TransportError as error:
+                raise _BridgeFailure(error.code) from None
+            result, failure = attempt(candidates)
+            last = failure or last
+        if result is not None:
+            return result
+        if last is not None:
+            raise last
+        raise _BridgeFailure(transport.last_code or 'NO_CANDIDATE')
+
     def connection(self):
-        result = self._safe(lambda: self._remote('connection'))
+        with self._connection_condition:
+            if self._connection_inflight:
+                while self._connection_inflight:
+                    self._connection_condition.wait()
+                return self._connection_result
+            now = time.monotonic()
+            if (self._connection_failure is not None and
+                    now - self._connection_failure_at < self._connection_backoff()):
+                return self._connection_failure
+            self._connection_inflight = True
+        answer = None
+        try:
+            answer = self._connection_answer()
+        finally:
+            with self._connection_condition:
+                self._connection_inflight = False
+                if answer is None:
+                    answer = {'ok': True, 'data': {'connected': False, 'readonly': None,
+                                                   'runsRoot': None, 'reason': 'REMOTE_OUTPUT_INVALID'}}
+                self._connection_result = answer
+                self._connection_condition.notify_all()
+        return answer
+
+    def _connection_answer(self):
+        result = self._safe(self._probe_connection)
         if result['ok']:
             data = result['data']
             if (data.get('format') == 'connection-v1' and type(data.get('readonly')) is bool and
                     isinstance(data.get('runsRoot'), str) and data['runsRoot']):
-                return {'ok': True, 'data': {'connected': True, 'readonly': data['readonly'], 'runsRoot': data['runsRoot']}}
+                self._connection_failure = None
+                self._connection_attempts = 0
+                return {'ok': True, 'data': {'connected': True, 'readonly': data['readonly'],
+                                             'runsRoot': data['runsRoot']}}
             reason = 'REMOTE_OUTPUT_INVALID'
         else:
             reason = result['error']['code']
-        return {'ok': True, 'data': {'connected': False, 'readonly': None, 'runsRoot': None, 'reason': reason}}
+        answer = {'ok': True, 'data': {'connected': False, 'readonly': None, 'runsRoot': None,
+                                       'reason': reason}}
+        if reason in self._CONNECTION_FAILURE_CODES:
+            self._connection_attempts += 1
+            self._connection_failure = answer
+            self._connection_failure_at = time.monotonic()
+        else:
+            self._connection_failure = None
+        return answer
 
     def presets(self):
         return self._safe(lambda: self._remote('presets'))
@@ -856,6 +1027,7 @@ class Api:
             raise _BridgeFailure('SAVE_FAILED')
         config, lines = self._remote_plan('readModuleEvidence' if evidence_kind else 'readReviewExport',
                                           run_id=run_id, export_sha256=digest, kind=evidence_kind)
+        argv, token = self._dispatch_argv(config)
         try:
             handle, temp_name = tempfile.mkstemp(prefix='.tdn-shopee-', suffix='.part', dir=str(folder))
         except OSError:
@@ -884,10 +1056,11 @@ class Api:
             if sys.platform == 'win32':
                 options['creationflags'] = subprocess.CREATE_NO_WINDOW
             try:
-                process = subprocess.Popen(config['sshCommand'], **options)
+                process = subprocess.Popen(argv, **options)
                 process.stdin.write(('\n'.join(lines) + '\n').encode('utf-8'))
                 process.stdin.close()
             except OSError:
+                self._invalidate_native(token)
                 raise _BridgeFailure('SSH_FAILED') from None
 
             def stop_for_timeout():
@@ -905,6 +1078,7 @@ class Api:
                 try:
                     chunk = process.stdout.read(1024 * 1024)
                 except OSError:
+                    self._invalidate_native(token)
                     raise _BridgeFailure('SSH_FAILED') from None
                 if not chunk:
                     break
@@ -928,8 +1102,10 @@ class Api:
             timer.cancel()
             timer = None
             if timed_out:
+                self._invalidate_native(token)
                 raise _BridgeFailure('SSH_TIMEOUT')
             if returncode == 255:
+                self._invalidate_native(token)
                 raise _BridgeFailure('SSH_FAILED')
             if returncode != 0:
                 stderr.seek(0)
