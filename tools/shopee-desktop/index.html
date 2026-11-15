@@ -2388,7 +2388,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var readyPromise = new Promise(function (res) { resolveReady = res; });
     var mock = mockAllowed ? createMockApi(mockCase) : null;
 
-    function bridgePresent() { return !!(window.pywebview && window.pywebview.api); }
+    function bridgePresent() {
+      return !!(window.pywebview && window.pywebview.api
+        && typeof window.pywebview.api.connection === 'function');
+    }
     function settle(next) {
       if (mode !== 'pending') return;
       mode = next;

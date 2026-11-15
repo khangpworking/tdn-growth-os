@@ -54,6 +54,7 @@ function harness(options: {
   reviewStatsResult?: (runId: string) => any;
   statusGate?: (runId: string) => Deferred<void> | undefined;
   fastPoll?: boolean;
+  bridge?: 'complete' | 'partial';
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -309,7 +310,7 @@ function harness(options: {
     url: 'file:///shopee-desktop/index.html',
     runScripts: 'dangerously',
     beforeParse(window) {
-      (window as any).pywebview = { api };
+      (window as any).pywebview = { api: options.bridge === 'partial' ? {} : api };
       if (options.fastPoll) {
         const nativeSetInterval = window.setInterval.bind(window);
         (window as any).setInterval = (handler: any, delay?: number, ...args: any[]) =>
@@ -332,7 +333,7 @@ function harness(options: {
       }
     },
   });
-  return { dom, doc: dom.window.document, window: dom.window, state };
+  return { dom, doc: dom.window.document, window: dom.window, state, api };
 }
 
 const element = <T extends HTMLElement>(doc: Document, id: string): T => doc.getElementById(id) as T;
@@ -3693,5 +3694,29 @@ test('C2: the mock API lists a pages-mode run and creates one from the pages for
     const created = [...doc.querySelectorAll<HTMLButtonElement>('#runList .runbtn')]
       .filter((button) => /trang mỗi link/.test(button.textContent || ''));
     assert.equal(created.length, 2, 'the seeded and the created pages-mode runs');
+  } finally { dom.window.close(); }
+});
+
+test('a partial bridge at boot that finishes later recovers readiness', async () => {
+  // pywebview exposes window.pywebview.api = {} before it adds the methods and fires
+  // pywebviewready; a first launch can boot between those two phases.
+  const { dom, doc, window, state, api: bridgeApi } = harness({ bridge: 'partial' });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const startupCode = element<HTMLElement>(doc, 'errbar').title;
+
+    Object.assign((window as any).pywebview.api, bridgeApi);
+    window.dispatchEvent(new window.Event('pywebviewready'));
+
+    const deadline = Date.now() + 3000;
+    while (state.connectionCalls < 1 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.ok(state.connectionCalls >= 1,
+      'the completed bridge was never used after startup; startup surface=' + startupCode);
+    await waitFor(() => !element<HTMLButtonElement>(doc, 'btnNew').disabled,
+      'create enabled after the bridge finished');
+    assert.equal(element<HTMLElement>(doc, 'errbar').hidden, true,
+      'the startup bridge error is cleared after recovery');
   } finally { dom.window.close(); }
 });
