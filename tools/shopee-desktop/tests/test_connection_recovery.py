@@ -120,6 +120,7 @@ class Boundary:
         self.socket_lock = threading.Lock()
         self.keyscan_timeout = False
         self.keyscan_delays = {}
+        self.inventory_delay = 0.0
         self.ssh_timeout = False
         self.ssh = self.answer
         self.calls = []
@@ -151,6 +152,7 @@ class Boundary:
         if executable == 'powershell.exe':
             self.calls.append(('powershell', kwargs))
             self.powershell_calls.append(list(argv))
+            self.advance(self.inventory_delay)
             return completed(argv, 0, json.dumps(self.scopes).encode())
         if executable == self.keyscan_path:
             self.calls.append(('keyscan', kwargs))
@@ -532,6 +534,30 @@ class NativeRecoveryTests(NativeCase):
         self.assertTrue(all(kwargs.get('timeout') <= 6
                             for kind, kwargs in stub.calls if kind == 'ssh'))
 
+    def test_cold_healthy_known_host_does_not_pay_lan_inventory(self):
+        # Physical adapter inventory costs ~2.4s on the Windows desktop; a cold
+        # connection to a known host with a matching pin must not wait for it.
+        clock = Clock()
+        seed = '192.168.1.50'
+        stub = self.boundary(
+            scopes=[physical()],
+            key_outputs={seed: key_line(seed)},
+            clock=clock,
+        )
+        stub.inventory_delay = 2.4
+        self.use_config(network=self.network(seed=seed))
+
+        result = tdn_shopee_app.Api().connection()
+
+        self.assertTrue(result['data']['connected'], result)
+        self.assertLess(clock.now, 2.0, 'cold healthy connection paid the LAN inventory cost')
+        self.assertEqual(stub.powershell_calls, [])
+        self.assertEqual(stub.tcp_targets, [])
+        self.assertEqual([call[-1] for call in stub.keyscan_calls], [seed])
+        self.assertEqual(stub.keyscan_calls[0][1:3], ['-t', 'ed25519'])
+        self.assertEqual(seed, stub.ssh_calls[-1][0][-3])
+        self.assert_pinned_argv(stub.ssh_calls[0][0])
+
     def test_healthy_poll_reverifies_active_endpoint_without_full_scan(self):
         clock = Clock()
         stub = self.boundary(
@@ -640,9 +666,10 @@ class NativeRecoveryTests(NativeCase):
     def test_windows_probes_use_hidden_creation_flags(self):
         stub = self.boundary(
             scopes=[physical()],
-            key_outputs={'192.168.1.50': key_line('192.168.1.50')},
+            key_outputs={'192.168.1.44': key_line('192.168.1.44')},
+            open_hosts={'192.168.1.44'},
         )
-        self.use_config(network=self.network(seed='192.168.1.50', lan={'enabled': False}))
+        self.use_config(network=self.network(seed='192.168.1.99'))
         hidden = 0x08000000
         with mock.patch.object(subprocess, 'CREATE_NO_WINDOW', hidden, create=True), \
                 mock.patch('sys.platform', 'win32'):

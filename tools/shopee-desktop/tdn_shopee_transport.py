@@ -63,6 +63,15 @@ _NETWORK_KEYS = {
 }
 _LAN_KEYS = {'enabled', 'maxHosts', 'maxOpenHosts', 'concurrency', 'wallSeconds'}
 _IDENTITY_KEYS = {'keyType', 'publicKey', 'sha256'}
+_KEYSCAN_FAMILY = {
+    'ssh-ed25519': 'ed25519',
+    'ecdsa-sha2-nistp256': 'ecdsa',
+    'ecdsa-sha2-nistp384': 'ecdsa',
+    'ecdsa-sha2-nistp521': 'ecdsa',
+    'rsa-sha2-512': 'rsa',
+    'rsa-sha2-256': 'rsa',
+    'ssh-rsa': 'rsa',
+}
 _ENUMERATE = (
     "$ErrorActionPreference='Stop'; "
     "Get-NetIPConfiguration | "
@@ -315,15 +324,6 @@ class NativeTransport:
                 return []
             if self._candidate_cache is not None and now - self._candidate_cache_at < 0.75:
                 return list(self._candidate_cache)
-            self._refresh_scope_locked(deadline)
-            if deadline - time.monotonic() <= 0:
-                self._last_code = 'SSH_TIMEOUT'
-                if self._active is not None or self._candidate_cache is not None:
-                    self._generation += 1
-                self._active = None
-                self._candidate_cache = None
-                self._candidate_cache_at = 0.0
-                return []
             found = []
             skip = set()
             active = self._active
@@ -348,7 +348,18 @@ class NativeTransport:
             # probe, so a cold list of slow unresolved names still falls back.
             known_deadline = time.monotonic() + remaining / 2
             found.extend(self._known_candidates(known_deadline, skip))
-            if not found:
+            if not found and self.network['lan']['enabled']:
+                # The physical adapter inventory is only needed for the LAN
+                # sweep; explicit pinned targets must not pay for it first.
+                self._refresh_scope_locked(deadline)
+                if deadline - time.monotonic() <= 0:
+                    self._last_code = 'SSH_TIMEOUT'
+                    if self._active is not None or self._candidate_cache is not None:
+                        self._generation += 1
+                    self._active = None
+                    self._candidate_cache = None
+                    self._candidate_cache_at = 0.0
+                    return []
                 found = self._lan_candidates(deadline)
             self._candidate_cache = list(found)
             self._candidate_cache_at = time.monotonic()
@@ -606,6 +617,7 @@ class NativeTransport:
             result = subprocess.run(
                 [
                     self.network['keyscanExecutable'],
+                    '-t', _KEYSCAN_FAMILY[self.network['hostIdentity']['keyType']],
                     '-T', str(timeout),
                     '-p', str(self.network['port']),
                     address,
