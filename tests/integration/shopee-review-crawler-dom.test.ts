@@ -147,7 +147,7 @@ test('a scoped native observed zero with a loaded empty list is a genuine verifi
   } finally { dom.window.close(); }
 });
 
-test('a selected star with no reviews (Shopee "No ratings yet", no list) is exhausted and the next star still runs', async () => {
+test('a selected star whose "No ratings yet" box stays stable for 3 s (no list) is exhausted and the next star still runs', async () => {
   const dom = boot(`
     <div class="product-ratings">
       ${filter('all', 'All', 2)}
@@ -182,6 +182,47 @@ test('a selected star with no reviews (Shopee "No ratings yet", no list) is exha
       { filter: '1', stopReason: 'exhausted' }, { filter: '2', stopReason: 'exhausted' }, { filter: '3', stopReason: 'exhausted' },
     ]);
     assert.deepEqual(json(result.pages.map((page: any) => [page.filter, page.cards])), [['1', 1], ['2', 0], ['3', 1]]);
+  } finally { dom.window.close(); }
+});
+
+test('a stale "No ratings yet" box whose filter loads cards after the post-click pause is not exhausted', async () => {
+  // Sol repro on e1cddb26: 1 Star (0) shows the box; 2 Star still shows a stale (0) and Shopee keeps the
+  // same box node until the 2-star cards arrive, 6 s after the click (after the 3.5 s post-click pause).
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'All', 1)}
+      ${filter('with-comments', 'With Comments', 1)}
+      ${filter('1', '1 Star', 0, true)}${filter('2', '2 Star', 0)}${filter('3', '3 Star', 0)}
+      ${filter('4', '4 Star', 0)}${filter('5', '5 Star', 0)}
+      <div class="product-ratings-comments-view__no-data">
+        <div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>
+    </div>`);
+  const window = dom.window as any;
+  const root = window.document.querySelector('.product-ratings');
+  const two = root.querySelector('[data-key="2"]');
+  const now = window.Date.now;
+  let loadAt: number | null = null;
+  window.Date.now = () => {
+    const time = now();
+    if (loadAt !== null && time >= loadAt) {
+      loadAt = null;
+      two.textContent = '2 Star (1)';
+      root.querySelector('.product-ratings-comments-view__no-data').remove();
+      root.insertAdjacentHTML('beforeend', `<div class="product-ratings__list" style="opacity:1">${card('s2', 2, 'Hai sao')}</div>`);
+    }
+    return time;
+  };
+  two.addEventListener('click', () => {
+    root.querySelector('[data-key="1"]').classList.remove('product-rating-overview__filter--active');
+    two.classList.add('product-rating-overview__filter--active');
+    loadAt = now() + 6000; // after the 3.5 s post-click pause the stale box is still seen for about 2 s
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'stars', stars: [2], totalPerLink: 10, allocation: 'pooled' }));
+    assert.equal(result.error, null);
+    assert.equal(result.stop_reason, 'exhausted');
+    assert.deepEqual(json(result.records.map((row: any) => [row.review_id, row.stars])), [['s2', 2]]);
+    assert.deepEqual(json(result.pages.map((page: any) => [page.filter, page.cards])), [['2', 1]]);
   } finally { dom.window.close(); }
 });
 
