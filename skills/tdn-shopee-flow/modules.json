@@ -1,7 +1,7 @@
 {
   "format": "modules-v1",
   "flow": {
-    "skill": "tdn-shopee-flow",
+    "skill": "tdn-shopee-4-buoc",
     "skillVersion": "1.0.0"
   },
   "params": {
@@ -138,21 +138,18 @@
       "files_readable",
       "has_shopee_rows",
       "period_matches",
-      "masked_ids"
+      "masked_ids",
+      "saved_capture_source_verified"
     ],
     "m2": [
-      "links_1_to_5",
-      "ids_numeric",
-      "no_duplicate_shop",
-      "no_masked_above_lowest_pick",
-      "links_in_m1",
-      "pick_rule_version",
-      "pick_reason_present"
+      "links_match_source_order",
+      "five_distinct_products"
     ],
     "m3": [
       "verdict_ok",
       "min_reviews_per_link",
       "cap_not_exceeded",
+      "pages_not_exceeded",
       "no_duplicate_review_ids",
       "product_ids_match_m2",
       "shape_shopee_public_rows",

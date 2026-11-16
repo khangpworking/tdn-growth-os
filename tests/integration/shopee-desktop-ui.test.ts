@@ -57,6 +57,7 @@ function harness(options: {
   reviewProcessResult?: (runId: string) => any;
   processReviewDataResult?: (runId: string, sourceSha256: string) => any;
   runsProgressResults?: any[];
+  libraryResult?: any;
   hasFocus?: boolean;
   fastProgress?: boolean;
   fastPoll?: boolean;
@@ -146,7 +147,7 @@ function harness(options: {
       if (options.listRunsGate && state.flowCalls.length > 0) await options.listRunsGate.promise;
       return { ok: true, data: { format: 'runs-v1', runs: state.runsView.slice() } };
     },
-    library: async () => ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } }),
+    library: async () => clone(options.libraryResult || ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } })),
     newRun: async (input: any) => {
       state.newRunCalls++;
       state.newRunInputs.push(clone(input));
@@ -3183,4 +3184,23 @@ test('mock mode: each approved scenario shows its status line and fires its one 
       }
     } finally { dom.window.close(); }
   }
+});
+
+test('the technical-docs tab shows the 4-step guide from modules.json first, then each module with its gate checks', async () => {
+  const root = new URL('../../skills/', import.meta.url);
+  const modules = JSON.parse(await readFile(new URL('tdn-shopee-flow/modules.json', root), 'utf8'));
+  const skills = await Promise.all([modules.flow, ...modules.modules].map(async (m: any) => ({
+    name: m.skill, version: m.skillVersion, text: await readFile(new URL(`${m.skill}/SKILL.md`, root), 'utf8') })));
+  const { dom, doc, state } = harness({ libraryResult: { ok: true, data: { format: 'library-v1', modules, skills } } });
+  try {
+    await waitFor(() => state.listRunsCalls > 0, 'connected');
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][3]!.click();
+    await waitFor(() => doc.querySelectorAll('#libBody .libcard').length === 1 + modules.modules.length, 'library cards');
+    const cards = [...doc.querySelectorAll('#libBody .libcard')];
+    assert.equal(cards[0]!.querySelector('h2')!.textContent, 'Cả 4 bước (tdn-shopee-4-buoc)');
+    assert.equal(cards[0]!.querySelector('pre')!.textContent, skills[0]!.text);
+    const m2 = cards[1 + modules.modules.findIndex((m: any) => m.id === 'M2')]!;
+    assert.deepEqual([...m2.querySelectorAll('.chklist code')].map((c) => c.textContent).slice(0, 2),
+      ['links_match_source_order', 'five_distinct_products']);
+  } finally { dom.window.close(); }
 });
