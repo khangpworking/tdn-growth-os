@@ -36,7 +36,7 @@ export interface ReviewDataSaveInput {
 }
 export interface ReviewDataExportInput {
   sourceSha256: string;
-  format: 'json' | 'txt';
+  format: 'json' | 'txt' | 'labelled-json';
 }
 export interface ReviewDataSaved {
   format: 'review-data-saved-v1';
@@ -56,7 +56,7 @@ export interface ReviewDataExport {
   format: 'review-data-export-v1';
   runId: string;
   sourceSha256: string;
-  exportFormat: 'json' | 'txt';
+  exportFormat: 'json' | 'txt' | 'labelled-json';
   exportVersion: 'module-review-export-v1';
   exportSha256: string;
   byteSize: number;

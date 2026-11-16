@@ -335,6 +335,14 @@ class ReviewDataBridgeTest(unittest.TestCase):
         self.assertEqual([call['payload'] for call in self.calls()[:2]], [
             {'sourceSha256': SOURCE, 'format': 'json'}, {'sourceSha256': SOURCE, 'format': 'txt'}])
 
+    def test_labelled_comments_download_is_saved_as_a_json_file(self):
+        self.choose_folder(str(self.exports))
+        result = self.api.exportReviewFiles('run-1', {'sourceSha256': SOURCE, 'formats': ['labelled-json']})
+        self.assertEqual(result, {'ok': True, 'data': {'cancelled': False, 'files': [
+            {'format': 'labelled-json', 'saved': True, 'fileName': 'shopee-run-1.labelled-json.json', 'errorCode': None}]}})
+        self.assertEqual((self.exports / 'shopee-run-1.labelled-json.json').read_bytes(), BODY)
+        self.assertEqual(self.calls()[0]['payload'], {'sourceSha256': SOURCE, 'format': 'labelled-json'})
+
     def test_one_download_reports_a_failed_format_without_writing_it(self):
         self.choose_folder(str(self.exports))
         os.environ['BRIDGE_RAW_MODE'] = 'error'

@@ -196,7 +196,8 @@
         "format": {
           "enum": [
             "json",
-            "txt"
+            "txt",
+            "labelled-json"
           ]
         }
       }
@@ -295,7 +296,8 @@
         "exportFormat": {
           "enum": [
             "json",
-            "txt"
+            "txt",
+            "labelled-json"
           ]
         },
         "exportVersion": {

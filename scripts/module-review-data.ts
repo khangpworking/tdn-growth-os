@@ -4,7 +4,8 @@ import { basename, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import BetterSqlite3 from 'better-sqlite3';
 import { ModuleError, validateModuleValue } from './module-pick.js';
-import { discoverModuleReviewSources, prepareReviewExport, readReviewExportBytes, validateReviewData, type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
+import { discoverModuleReviewSources, prepareReviewExport, publishLabelledReviewExport, readReviewExportBytes, validateReviewData,
+  type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
 import { reviewDataView, saveModuleReviewData } from '../src/modules/raw-db/module-shopee-reviews.js';
 import { reviewProcessJevClient, reviewProcessSettings, reviewProcessStart, reviewProcessStartable, reviewProcessView, runReviewProcess,
   runReviewProcessAfterM3 } from '../src/modules/raw-db/module-review-process.js';
@@ -55,12 +56,26 @@ type StoredInsightLabel = {
   status:'kept'|'unclear'; choice:string|null;
 };
 
+/** Stored Jev labels of one review id; whether they apply is decided per row by insightRowTags. */
+type StoredRowTag = InsightTag & { textSha256:string; known:boolean };
+export type InsightLabelStore = { labels:Map<string,StoredRowTag[]>; productNames:Map<string,string>; available:boolean };
+
 /**
- * Read Jev's persisted APP_JEV labels without changing the application DB. A label is accepted only when
- * its text hash still matches the exact M3 row being displayed; stale labels are ignored as a group.
+ * A row's tags: the review id's labels only when every label's text hash matches THIS row's own text
+ * (stale labels are ignored as a group). Two results may share a review id with different text.
  */
-function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): { labels:Map<string,InsightTag[]>; productNames:Map<string,string>; available:boolean } {
-  const labels = new Map<string,InsightTag[]>(), productNames = new Map<string,string>();
+export function insightRowTags(row:ModuleReviewRow, store:InsightLabelStore):InsightTag[] {
+  const entries = row.reviewId ? store.labels.get(row.reviewId) : undefined;
+  if (!entries?.length) return [];
+  const attributesJson = row.attributes.length ? JSON.stringify(row.attributes) : null;
+  const hash = insightSha256(codingText(row.comment,attributesJson));
+  if (entries.some(entry => entry.textSha256 !== hash)) return [];
+  return entries.filter(entry => entry.known).map(({ code, name, polarity, status, choice }) => ({ code, name, polarity, status, choice }));
+}
+
+/** Read Jev's persisted APP_JEV labels without changing the application DB. */
+function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): InsightLabelStore {
+  const labels = new Map<string,StoredRowTag[]>(), productNames = new Map<string,string>();
   const databasePath = process.env.TDN_WORKSPACE_DB;
   if (!databasePath || !isAbsolute(databasePath)) return { labels, productNames, available:false };
   let db:BetterSqlite3.Database;
@@ -72,7 +87,7 @@ function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): { labels
     return { labels, productNames, available:false };
   }
   try {
-    const wanted = new Map(rows.flatMap(row => row.reviewId ? [[row.reviewId,row] as const] : []));
+    const wanted = new Set(rows.flatMap(row => row.reviewId ? [row.reviewId] : []));
     if (!wanted.size) return { labels, productNames, available:true };
     const wantedIds = [...wanted.keys()];
     const stored:StoredInsightLabel[] = [];
@@ -87,24 +102,14 @@ function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): { labels
           AND r.external_id IN (${chunk.map(() => '?').join(',')})
         ORDER BY r.external_id, c.theme_code`).all(book.version,...chunk) as StoredInsightLabel[]);
     }
-    const grouped = new Map<string,{ valid:boolean; rows:StoredInsightLabel[] }>();
-    for (const item of stored) {
-      const row = wanted.get(item.externalId);
-      if (!row) continue;
-      const entry = grouped.get(item.externalId) ?? { valid:true, rows:[] };
-      const attributesJson = row.attributes.length ? JSON.stringify(row.attributes) : null;
-      if (item.textSha256 !== insightSha256(codingText(row.comment,attributesJson))) entry.valid = false;
-      entry.rows.push(item);
-      grouped.set(item.externalId,entry);
-      if (item.productName) productNames.set(item.externalId,item.productName);
-    }
     const names = new Map(book.core.map(theme => [theme.code,theme.name] as const));
-    for (const [externalId,entry] of grouped) {
-      if (!entry.valid) continue;
-      const tags = entry.rows.filter(item => names.has(item.code)).map(item => ({
-        code:item.code, name:names.get(item.code)!, polarity:item.polarity, status:item.status, choice:item.choice,
-      }));
-      if (tags.length) labels.set(externalId,tags);
+    for (const item of stored) {
+      if (!wanted.has(item.externalId)) continue;
+      const entries = labels.get(item.externalId) ?? [];
+      entries.push({ code:item.code, name:names.get(item.code) ?? item.code, polarity:item.polarity, status:item.status,
+        choice:item.choice, textSha256:item.textSha256, known:names.has(item.code) });
+      labels.set(item.externalId,entries);
+      if (item.productName) productNames.set(item.externalId,item.productName);
     }
     return { labels, productNames, available:true };
   } catch {
@@ -266,14 +271,14 @@ function insightSummary(rows:number, comments:number, themes:InsightTheme[], gen
     model:'jev-derived-v1', generatedAt };
 }
 
-function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:{ labels:Map<string,InsightTag[]>; productNames:Map<string,string>; available:boolean }, generatedAt:string|null):InsightBucket {
+function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:InsightLabelStore, generatedAt:string|null):InsightBucket {
   type ThemeAccumulator = { count:number; unclearCount:number; keptCount:number;
     polarityCounts:Record<InsightPolarity,number>; keptPolarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] };
   const byTheme = new Map<string,ThemeAccumulator>(definitions.map(theme => [theme.code,{ count:0, unclearCount:0, keptCount:0,
     polarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, keptPolarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, comments:[] }]));
   const comments:InsightComment[] = [];
   rows.forEach((row,index) => {
-    const tags = row.reviewId ? labelStore.labels.get(row.reviewId) ?? [] : [];
+    const tags = insightRowTags(row,labelStore);
     if (!tags.length) return;
     const comment = insightComment(row,sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
     comments.push(comment);
@@ -307,12 +312,16 @@ function validateInsightView(value:unknown): asserts value is { format:'review-i
   }
 }
 
+/** One label store per run, built from the rows of every step-3 result (result tab and download share it). */
+function runInsightLabels(sources:{ rows:ModuleReviewRow[] }[], book:LabelCodebook) {
+  return readInsightLabels(sources.flatMap(source => source.rows),book);
+}
+
 /** Read the verified M3 rows and the current Jev codebook labels for the result-tab drilldown. */
 export async function reviewInsightsView(run:string):Promise<unknown> {
   const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
   const sources = await discoverModuleReviewSources(run);
-  const allRows = sources.flatMap(source => source.rows);
-  const labelStore = readInsightLabels(allRows,book);
+  const labelStore = runInsightLabels(sources,book);
   const sourceViews = sources.map(source => {
     const links = source.links.map(link => {
       const rows = source.rows.filter(row => row.shopId === link.shopId && row.itemId === link.itemId);
@@ -327,13 +336,40 @@ export async function reviewInsightsView(run:string):Promise<unknown> {
   return view;
 }
 
+/**
+ * Every collected comment of one verified step-3 result (no cap, no filter), each with its current Jev tags
+ * (empty when the row has no valid label). Same label reading as the result tab.
+ */
+export function labelledCommentsFile(source:{ runId:string; sourceSha256:string; rows:ModuleReviewRow[] }, book:LabelCodebook,
+  labelStore:InsightLabelStore) {
+  const comments = source.rows.map((row,index) => {
+    const tags = insightRowTags(row,labelStore);
+    const view = insightComment(row,source.sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
+    return { id:view.id, text:view.text, comment:row.comment ?? null, attributes:row.attributes, rating:view.rating, date:view.date,
+      productName:view.productName, url:view.url, tags:view.tags };
+  });
+  return { format:'shopee-labelled-comments-v1', runId:source.runId, sourceSha256:source.sourceSha256, codebookVersion:book.version,
+    labelsAvailable:labelStore.available, total:comments.length, labelled:comments.filter(comment => comment.tags.length).length, comments };
+}
+
+export async function prepareLabelledReviewExport(run:string, sourceSha256:string) {
+  const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
+  const sources = await discoverModuleReviewSources(run);
+  const source = sources.find(item => item.sourceSha256 === sourceSha256);
+  if (!source) throw new ModuleError('REVIEW_SOURCE_CHANGED',23);
+  // Same label store as the result tab (reviewInsightsView), so the file and the screen agree.
+  const file = labelledCommentsFile(source,book,runInsightLabels(sources,book));
+  return publishLabelledReviewExport(run,source,Buffer.from(`${JSON.stringify(file,null,2)}\n`,'utf8'));
+}
+
 export async function reviewDataCommand(args:string[]):Promise<unknown> {
   const [action,runArg,...extra]=args;if(!runArg)throw new ModuleError('USAGE',2);const run=resolve(runArg);
   if(action==='view'&&!extra.length)return reviewDataView(run);
   if(action==='stats'&&!extra.length)return reviewStatsView(run);
   if(action==='insights'&&!extra.length)return reviewInsightsView(run);
   if(action==='save'&&!extra.length){const value=validateReviewData<ReviewDataSaveInput>('saveInput',await input());return saveModuleReviewData(run,value.sourceSha256);}
-  if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());return prepareReviewExport(run,value.sourceSha256,value.format);}
+  if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());
+    return value.format==='labelled-json'?prepareLabelledReviewExport(run,value.sourceSha256):prepareReviewExport(run,value.sourceSha256,value.format);}
   if(action==='read'&&extra.length===1)return readReviewExportBytes(run,extra[0]!);
   if(action==='process-view'&&!extra.length)return reviewProcessView(run,await reviewProcessSettings());
   // runs-progress: the step-4 status of many runs in one call, from the same view (one error-v1 per run that cannot be read).
