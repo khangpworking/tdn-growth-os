@@ -685,6 +685,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     has_shopee_rows: 'Có ít nhất 1 sản phẩm Shopee',
     period_matches: 'Số liệu đúng khoảng thời gian đã chọn',
     masked_ids: 'Số sản phẩm bị ẩn mã',
+    saved_capture_source_verified: 'File số liệu đã lưu khớp nguồn',
+    links_match_source_order: 'Link đúng thứ tự doanh thu của nguồn',
+    five_distinct_products: 'Đủ 5 sản phẩm khác nhau',
     links_1_to_5: 'Chọn được từ 1 đến 5 link sản phẩm',
     ids_numeric: 'Mã shop và mã sản phẩm hợp lệ',
     no_duplicate_shop: 'Mỗi shop chỉ có 1 link',
@@ -1001,7 +1004,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     var MOCK_MODULES = {
       format: 'modules-v1',
-      flow: { skill: 'tdn-shopee-flow', skillVersion: '1.0.0' },
+      flow: { skill: 'tdn-shopee-4-buoc', skillVersion: '1.0.0' },
       params: {
         reviewCapPerLink: { min: 1, max: 300, default: 300 },
         minReviewsPerLink: 1,
@@ -1017,12 +1020,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       gates: {
         entry: ['product_text', 'period_dates', 'collection_policy', 'readonly_off', 'capture_spec_present'],
         m1: ['capture_success', 'files_readable', 'has_shopee_rows', 'period_matches', 'masked_ids'],
-        m2: ['links_1_to_5', 'ids_numeric', 'no_duplicate_shop', 'no_masked_above_lowest_pick', 'links_in_m1', 'pick_rule_version', 'pick_reason_present'],
+        m2: ['links_match_source_order', 'five_distinct_products'],
         m3: ['verdict_ok', 'min_reviews_per_link', 'cap_not_exceeded', 'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_below_cap']
       }
     };
 
     var MOCK_SKILLS = [
+      { name: 'tdn-shopee-4-buoc', version: '1.0.0', text: 'tdn-shopee-4-buoc · v1.0.0\n\nChạy 4 bước Shopee bằng dòng lệnh: Metric, chọn 5 link, lấy bình luận, lưu + Jev lọc + Jev gắn nhãn.' },
       { name: 'tdn-shopee-m1-metric', version: '1.0.0', text: 'tdn-shopee-m1-metric · v1.0.0\n\nĐầu vào: request.json của lượt.\nViệc: gọi capture Metric theo captureSpec, ghi m1/.\nĐầu ra: m1/spec.json và m1/<UUID>/run1/ với manifest và file từng cửa sổ.\nKhông thử lại; gặp bước đăng nhập hoặc xác minh thì trả mã chuyển chủ.' },
       { name: 'tdn-shopee-m2-chon', version: '1.0.0', text: 'tdn-shopee-m2-chon · v1.0.0\n\nĐầu vào: m1/ đã qua cổng M1.\nViệc: chọn tối đa 5 link Shopee theo luật autorun-pick-v3; không gọi mạng, không dùng AI.\nĐầu ra: m2/selection.json (selection-v1) kèm số dòng bị che ID và lý do chọn cho từng link.' },
       { name: 'tdn-shopee-m3-binh-luan', version: '1.0.1', text: 'tdn-shopee-m3-binh-luan · v1.0.1\n\nĐầu vào: m2/selection.json đã qua cổng M2.\nViệc: thu bình luận công khai theo từng link, tối đa trần của request.\nĐầu ra: m3/reviews.json và m3/outcome.json.\nM3 đạt khi mỗi link có ít nhất 1 bình luận; link có ít bình luận hơn trần chỉ là cảnh báo.\nKhông ghi vào cơ sở dữ liệu của app.' }
@@ -8090,6 +8094,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     var gatesMap = lib.modules.gates || {};
     var skills = lib.skills || [];
+    var flow = lib.modules.flow;
+    var flowSkill = flow && skills.find(function (s) { return s.name === flow.skill; });
+    if (flowSkill) {
+      // The whole-run guide (all 4 steps) comes first; its text is the library's own SKILL.md.
+      var flowCard = h('article', 'panel libcard');
+      flowCard.appendChild(h('h2', null, 'Cả 4 bước (' + flow.skill + ')'));
+      var flowPre = h('pre', 'skilltext');
+      flowPre.textContent = String(flowSkill.text || '');
+      flowCard.appendChild(flowPre);
+      root.appendChild(flowCard);
+    }
     lib.modules.modules.forEach(function (m) {
       var card = h('article', 'panel libcard');
       card.appendChild(h('h2', null, moduleTitle(m.id, m.skill) + ' (' + m.skill + ')'));
