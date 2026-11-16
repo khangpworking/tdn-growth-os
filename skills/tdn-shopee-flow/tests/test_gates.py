@@ -581,6 +581,7 @@ class M3CheckTests(GateTest):
 
     def test_request_v2_refuses_and_keeps_the_m3_slip(self):
         # Step 3 of a request-v2 run is a custom attempt (m3-custom/); gate m3 must not judge m3/ or rewrite gates/m3.json.
+        self.m2_pass()
         request = request_payload()
         del request['reviewCapPerLink']
         request.update(format='request-v2', collectionPolicy={'mode': 'with-comments', 'stars': [], 'totalPerLink': 50, 'allocation': 'pooled'})
@@ -591,13 +592,27 @@ class M3CheckTests(GateTest):
             'verdict': 'PASS', 'inputSha256': 'a' * 64, 'outputSha256': 'b' * 64, 'checks': [], 'errorCode': None, 'next': None})
         slip_file = self.run / 'gates' / 'm3.json'
         write_json(slip_file, {'format': 'handoff-v1', 'module': 'M3', 'runId': RUN_ID, 'verdict': 'PASS'})
-        before = slip_file.read_bytes()
+        before = {path.name: path.read_bytes() for path in (self.run / 'gates').iterdir()}
         proc = subprocess.run([sys.executable, str(SCRIPT), 'gate', 'm3', '--run', RUN_ID],
                               capture_output=True, text=True, env=self.env(), timeout=60)
         self.assertEqual(proc.returncode, 2, proc.stdout)
         self.assertEqual(json.loads(proc.stdout)['code'], 'GATE_M3_REQUEST_V2')
-        self.assertEqual(slip_file.read_bytes(), before)
-        self.assertEqual(sorted(path.name for path in (self.run / 'gates').iterdir()), ['m3.json'])
+        self.assertEqual({path.name: path.read_bytes() for path in (self.run / 'gates').iterdir()}, before)
+
+    def test_symlinked_request_keeps_the_controlled_refusal(self):
+        self.m2_pass()
+        real = self.run / 'request-real.json'
+        (self.run / 'request.json').replace(real)
+        try:
+            os.symlink(real, self.run / 'request.json')
+        except OSError:
+            self.skipTest('symlinks unavailable')
+        proc = subprocess.run([sys.executable, str(SCRIPT), 'gate', 'm3', '--run', RUN_ID],
+                              capture_output=True, text=True, env=self.env(), timeout=60)
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertTrue(proc.stdout.startswith('ERROR:'), proc.stdout)
+        self.assertNotIn('Traceback', proc.stderr)
+        self.assertFalse((self.run / 'gates' / 'm3.json').exists())
 
 
 class SlipTests(GateTest):
