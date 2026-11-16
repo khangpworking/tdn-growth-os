@@ -2072,10 +2072,8 @@ def progress_step4(view):
     if status == 'RUNNING':
         stages = worst.get('stages') or {}
         stage = next((name for name in ('save', 'filter', 'label') if (stages.get(name) or {}).get('state') == 'RUNNING'), None)
-        save, filtered, label = (stages.get(name) or {} for name in ('save', 'filter', 'label'))
-        done, total = {'save': (save.get('done'), None), 'filter': (filtered.get('done'), save.get('done')),
-                       'label': (label.get('done'), label.get('total'))}.get(stage, (None, None))
-        active = {'step': 4, 'stage': stage, 'done': done, 'total': total}
+        counts = stages.get(stage) or {}
+        active = {'step': 4, 'stage': stage, 'done': counts.get('done'), 'total': counts.get('total')}  # copied from the view, never recomputed
     return status, active
 
 

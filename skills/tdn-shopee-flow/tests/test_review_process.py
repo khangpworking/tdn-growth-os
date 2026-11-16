@@ -181,8 +181,8 @@ class RunsProgressTests(ReviewProcessFlowTest):
             sources = []
             for state in states:
                 stage = lambda name, done, total: {'state': 'RUNNING' if running == name and state == 'RUNNING' else 'IDLE', 'done': done, 'total': total}
-                sources.append({'sourceSha256': SHA, 'state': state, 'stages': {'save': stage('save', 5, 5), 'filter': stage('filter', 2, 5),
-                                                                                'label': stage('label', 0, None)}})
+                sources.append({'sourceSha256': SHA, 'state': state, 'stages': {'save': stage('save', 4, 6), 'filter': stage('filter', 2, 7),
+                                                                                'label': stage('label', 1, 3)}})
             value[run_id] = {'format': 'review-process-view-v1', 'runId': run_id, 'autoRun': True, 'labelUnresolved': False, 'sources': sources}
         path = pathlib.Path(self._tmp.name) / 'views.json'
         path.write_text(json.dumps(value))
@@ -194,12 +194,13 @@ class RunsProgressTests(ReviewProcessFlowTest):
         return payload
 
     def test_runs_progress_reports_four_steps_the_active_stage_and_finished(self):
-        old, done, live = (self.make_run(run_id=r) for r in ('old00001', 'done0001', 'live0001'))
-        for run in (old, done, live):
+        old, done, live, saving, labelling = (self.make_run(run_id=r) for r in ('old00001', 'done0001', 'live0001', 'save0001', 'labl0001'))
+        for run in (old, done, live, saving, labelling):
             self.passed_steps(run)
-        for run in (done, live):
+        for run in (done, live, saving, labelling):
             self.mark_auto(run)
-        payload = self.progress(self.views(done0001=['PASS'], live0001=(['RUNNING'], 'filter')))
+        payload = self.progress(self.views(done0001=['PASS'], live0001=(['RUNNING'], 'filter'), save0001=(['RUNNING'], 'save'),
+                                           labl0001=(['RUNNING'], 'label')))
         self.assertEqual(set(payload), {'format', 'generatedAt', 'runs'})
         self.assertEqual(payload['format'], 'runs-progress-v1')
         runs = {r['runId']: r for r in payload['runs']}
@@ -208,11 +209,13 @@ class RunsProgressTests(ReviewProcessFlowTest):
         self.assertEqual((runs['old00001']['steps'], runs['old00001']['finished']), (['PASS', 'PASS', 'PASS', 'NOT_APPLICABLE'], True))
         self.assertEqual((runs['done0001']['steps'], runs['done0001']['finished']), (['PASS', 'PASS', 'PASS', 'PASS'], True))
         self.assertEqual((runs['live0001']['steps'], runs['live0001']['finished']), (['PASS', 'PASS', 'PASS', 'RUNNING'], False))
-        self.assertEqual(runs['live0001']['active'], {'step': 4, 'stage': 'filter', 'done': 2, 'total': 5})
+        self.assertEqual(runs['live0001']['active'], {'step': 4, 'stage': 'filter', 'done': 2, 'total': 7}, 'filter counts of the view, not save.done')
+        self.assertEqual(runs['save0001']['active'], {'step': 4, 'stage': 'save', 'done': 4, 'total': 6}, 'the view knows the save total')
+        self.assertEqual(runs['labl0001']['active'], {'step': 4, 'stage': 'label', 'done': 1, 'total': 3})
         self.assertIsNone(runs['old00001']['active'])
         calls = self.step4_calls()
         self.assertEqual([(c[0], sorted(pathlib.Path(r).name for r in c[1:])) for c in calls],
-                         [('process-views', ['done0001', 'live0001'])], 'one node call, only for runs with step-4 files')
+                         [('process-views', ['done0001', 'labl0001', 'live0001', 'save0001'])], 'one node call, only for runs with step-4 files')
 
     def test_step4_is_the_worst_source_of_the_ts_view_and_never_pass_without_the_view(self):
         cases = {'idle0001': (['PASS', 'IDLE'], 'IDLE'), 'fail0001': (['PASS', 'FAIL', 'RUNNING'], 'FAIL'), 'none0001': ([], 'IDLE'),
