@@ -1125,11 +1125,15 @@ class Api:
         if (not isinstance(value, dict) or set(value) != {'verdict', 'checks'} or
                 value['verdict'] not in ('PASS', 'FAIL') or not isinstance(value['checks'], list)):
             return False
-        return all(isinstance(check, dict) and set(check) == {'id', 'ok', 'level', 'got'} and
+        if not all(isinstance(check, dict) and set(check) == {'id', 'ok', 'level', 'got'} and
                    check['id'] in allowed and type(check['ok']) is bool and
                    check['level'] in ('error', 'warn') and
                    isinstance(check['got'], str) and len(check['got']) <= 200
-                   for check in value['checks'])
+                   for check in value['checks']):
+            return False
+        # Contract order, each id at most once.
+        order = [allowed.index(check['id']) for check in value['checks']]
+        return all(a < b for a, b in zip(order, order[1:]))
 
     @classmethod
     def _review_process_source(cls, source):
@@ -1163,19 +1167,24 @@ class Api:
         if not isinstance(run, dict) or set(run) != keys:
             return False
         steps, active = run['steps'], run['active']
+        if not isinstance(steps, list) or len(steps) != 4 or not all(step in _PROGRESS_STEP_STATES for step in steps):
+            return False
+        # active is the running step, and null only when no step runs.
+        if (active is None) != ('RUNNING' not in steps):
+            return False
         if active is not None:
             if not isinstance(active, dict) or set(active) != {'step', 'stage', 'done', 'total'}:
                 return False
             step = active['step']
-            if type(step) is not int or not 1 <= step <= 4:
+            if type(step) is not int or not 1 <= step <= 4 or steps[step - 1] != 'RUNNING':
                 return False
             if (active['stage'] not in ('save', 'filter', 'label') if step == 4 else active['stage'] is not None):
                 return False
             if not cls._count(active['done']) or not cls._count(active['total']):
                 return False
+        finished = steps[3] == 'PASS' or (steps[3] == 'NOT_APPLICABLE' and steps[:3] == ['PASS'] * 3)
         return (isinstance(run['runId'], str) and _RUN_ID.fullmatch(run['runId']) is not None and
-                isinstance(steps, list) and len(steps) == 4 and all(step in _PROGRESS_STEP_STATES for step in steps) and
-                type(run['finished']) is bool and cls._stamp(run['changedAt']))
+                run['finished'] is finished and cls._stamp(run['changedAt'], nullable=False))
 
     def notify(self, title=None, body=None):
         return self._safe(lambda: self._notify(title, body))

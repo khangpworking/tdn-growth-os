@@ -109,6 +109,51 @@ class Step4BridgeTest(unittest.TestCase):
             added(changed)
             self.assertEqual(answering(changed).runsProgress()['error']['code'], 'REMOTE_OUTPUT_INVALID')
 
+    def progress_code(self, steps, active, finished, changed_at='2026-11-16T08:59:40Z'):
+        value = runs_progress()
+        value['runs'][0].update(steps=steps, active=active, finished=finished, changedAt=changed_at)
+        result = answering(value).runsProgress()
+        return 'OK' if result['ok'] else result['error']['code']
+
+    def test_runs_progress_finished_follows_the_contract_definition(self):
+        for steps, finished, code in (
+                (['PASS', 'PASS', 'PASS', 'PASS'], True, 'OK'),
+                (['PASS', 'PASS', 'PASS', 'NOT_APPLICABLE'], True, 'OK'),
+                (['PASS', 'PASS', 'FAIL', 'NOT_APPLICABLE'], False, 'OK'),
+                (['PASS', 'PASS', 'PASS', 'PASS'], False, 'REMOTE_OUTPUT_INVALID'),
+                (['PASS', 'PASS', 'FAIL', 'NOT_APPLICABLE'], True, 'REMOTE_OUTPUT_INVALID'),
+                (['PASS', 'PASS', 'PASS', 'FAIL'], True, 'REMOTE_OUTPUT_INVALID')):
+            self.assertEqual(self.progress_code(steps, None, finished), code, (steps, finished))
+        running = {'step': 1, 'stage': None, 'done': None, 'total': None}
+        self.assertEqual(self.progress_code(['RUNNING', 'IDLE', 'IDLE', 'IDLE'], running, True),
+                         'REMOTE_OUTPUT_INVALID')
+
+    def test_runs_progress_active_is_the_running_step(self):
+        step3 = {'step': 3, 'stage': None, 'done': 320, 'total': 1500}
+        self.assertEqual(self.progress_code(['PASS', 'PASS', 'RUNNING', 'IDLE'], step3, False), 'OK')
+        for steps, active in ((['PASS', 'PASS', 'PASS', 'IDLE'], step3),
+                              (['PASS', 'PASS', 'RUNNING', 'IDLE'], None),
+                              (['PASS', 'RUNNING', 'IDLE', 'IDLE'], step3)):
+            self.assertEqual(self.progress_code(steps, active, False), 'REMOTE_OUTPUT_INVALID', (steps, active))
+
+    def test_runs_progress_requires_changed_at(self):
+        self.assertEqual(self.progress_code(['PASS', 'PASS', 'PASS', 'PASS'], None, True, None),
+                         'REMOTE_OUTPUT_INVALID')
+
+    def test_gate_checks_follow_the_contract_order(self):
+        def check(check_id):
+            return {'id': check_id, 'ok': True, 'level': 'error', 'got': '0'}
+        for side, ids, ok in (
+                ('in', ['source_unchanged', 'not_saved_twice', 'fee_estimate_recorded'], True),
+                ('out', ['all_rows_saved', 'one_filter_result_each', 'kept_all_labelled', 'no_new_label_on_excluded',
+                         'no_failed_jev_call', 'receipt_complete'], True),
+                ('in', ['review_ids_valid', 'source_unchanged'], False),
+                ('out', ['all_rows_saved', 'all_rows_saved'], False)):
+            value = review_process_view()
+            value['sources'][0]['gates'][side] = {'verdict': 'PASS', 'checks': [check(i) for i in ids]}
+            result = answering(value).reviewProcess('a1b2c3d4')
+            self.assertEqual(result['ok'], ok, (side, ids))
+
     def test_step4_errors_cross_as_a_static_code_only(self):
         api = app.Api()
         api._remote = lambda *args, **kwargs: {'ok': False, 'error': {'code': 'RUN_BUSY', 'message': 'server text'}}

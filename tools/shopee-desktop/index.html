@@ -622,9 +622,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 <dialog id="flowDialog" aria-labelledby="flowDialogTitle">
   <div class="dialog-body">
     <h2 id="flowDialogTitle">Bắt đầu lấy dữ liệu?</h2>
-    <p class="lead">App sẽ chạy lần lượt 3 bước cho đúng lượt dưới đây.</p>
+    <p class="lead">App sẽ chạy lần lượt 4 bước cho đúng lượt dưới đây.</p>
     <dl class="dialog-facts" id="flowDialogFacts"></dl>
-    <p class="dialog-note" id="flowDialogNote">Bắt đầu sẽ dùng một lượt tra số liệu bán hàng, sau đó chọn link bán chạy và bắt đầu lấy bình luận. Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.</p>
+    <p class="dialog-note" id="flowDialogNote">Bắt đầu sẽ dùng một lượt tra số liệu bán hàng, sau đó chọn link bán chạy, bắt đầu lấy bình luận rồi tự lưu và phân loại bình luận. Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.</p>
     <div class="btnrow">
       <button class="abtn primary" id="flowConfirmBtn" type="button">Bắt đầu lấy dữ liệu</button>
       <button class="abtn" id="flowCancelBtn" type="button">Hủy</button>
@@ -1700,7 +1700,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     // Step 4 demo (?s4=s1run|s3run|running|pass|fail|old, default pass). The first
     // runs-progress poll answers the state just before the scenario event, later
-    // polls the scenario itself, so the notification for that event shows once.
+    // polls the scenario itself, so the notification for that event shows once
+    // (the page asks again after MOCK_EVENT_MS in demo mode).
     var S4_SCENARIO = { s1run: 1, s3run: 1, running: 1, pass: 1, fail: 1, old: 1 }[pageParam('s4')] ? pageParam('s4') : 'pass';
     var s4Kind = { s1run: 'pass', s3run: 'pass' }[S4_SCENARIO] || S4_SCENARIO;
     var s4Polls = 0;
@@ -2846,6 +2847,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
 
     return {
+      isMock: function () { return mode === 'mock'; },
       connection: function () { return call('connection', []); },
       presets: function () { return call('presets', []); },
       listRuns: function () { return call('listRuns', []); },
@@ -2977,6 +2979,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     step4Poll: null,
     progressTimer: null,
     progressSeen: false,
+    mockEventShown: false,
     progressByRun: {},
     progressRuns: [],
     progressAt: null,
@@ -5753,13 +5756,45 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   };
   var STEP4_MODULE_TEXT = { pass: 'Hoàn tất', running: 'Đang chạy', fail: 'Dừng vì lỗi', old: 'Không tự chạy', idle: 'Chưa chạy' };
   var PROGRESS_POLL_MS = 15000;
+  var MOCK_EVENT_MS = 1000;
   var STEP4_POLL_MS = 10000;
   var RECENT_EVENT_MS = 24 * 60 * 60 * 1000;
   var NOTICE_LIMIT = 3;
 
+  // A run may have several M3 sources: the card follows the worst one, so any stop shows
+  // (with «Chạy tiếp» for that source) and «Đạt» needs every source to pass.
+  var STEP4_SOURCE_RANK = { FAIL: 1, RUNNING: 2, IDLE: 3, NOT_APPLICABLE: 4, PASS: 5 };
+  function step4SourceRank(source) {
+    return source.state === 'FAIL' && source.canResume ? 0 : STEP4_SOURCE_RANK[source.state] || 3;
+  }
   function step4Source(runId) {
     var view = state.reviewProcess[runId];
-    return view && view.sources && view.sources.length ? view.sources[0] : null;
+    var sources = (view && view.sources) || [];
+    return sources.reduce(function (worst, source) {
+      return !worst || step4SourceRank(source) < step4SourceRank(worst) ? source : worst;
+    }, null);
+  }
+  // Labelled count for the whole run, only when every source passed.
+  function step4Labelled(runId) {
+    var view = state.reviewProcess[runId];
+    var sources = (view && view.sources) || [];
+    if (!sources.length || !sources.every(function (source) { return source.state === 'PASS'; })) return null;
+    return sources.reduce(function (sum, source) { return sum + source.stages.label.done; }, 0);
+  }
+  var STEP4_SOURCE_STATE_TEXT = { PASS: 'đạt kiểm tra', RUNNING: 'đang chạy', FAIL: 'dừng vì lỗi', IDLE: 'chưa chạy', NOT_APPLICABLE: 'không tự chạy' };
+  function step4SourcesNote(view, source) {
+    var sources = view.sources;
+    if (sources.length < 2) return null;
+    var counts = {};
+    sources.forEach(function (item) { counts[item.state] = (counts[item.state] || 0) + 1; });
+    if (counts.PASS === sources.length) {
+      return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận, cả ' + fmtInt(sources.length) +
+        ' đều đạt kiểm tra. Số liệu bên trên là của nguồn đầu tiên.';
+    }
+    var parts = ['FAIL', 'RUNNING', 'IDLE', 'NOT_APPLICABLE', 'PASS'].filter(function (key) { return counts[key]; })
+      .map(function (key) { return fmtInt(counts[key]) + ' ' + STEP4_SOURCE_STATE_TEXT[key]; });
+    return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận: ' + parts.join(', ') +
+      '. Số liệu bên trên là của nguồn ' + STEP4_SOURCE_STATE_TEXT[source.state] + '.';
   }
 
   // pass | running | fail | old | idle, the five states of the approved card.
@@ -5892,6 +5927,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var skipped = source.stages.label.unresolvedSkipped;
       if (!view.labelUnresolved && present(skipped) && skipped > 0) {
         card.appendChild(h('p', 'rs-note', fmtInt(skipped) + ' bình luận «chưa rõ» (có khiếu nại hoặc sao thấp) chưa được gắn chủ đề, chờ anh quyết định.'));
+      }
+      var sourcesNote = step4SourcesNote(view, source);
+      if (sourcesNote) {
+        var sourcesLine = h('p', 'rs-note', sourcesNote);
+        sourcesLine.id = 's4Sources';
+        card.appendChild(sourcesLine);
       }
     }
     if (kind === 'fail') {
@@ -6119,10 +6160,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function scheduleProgressPoll() {
     stopProgressPoll();
     if (state.connectionState !== 'online') return;
+    // Demo only: the mock answers the state before its scenario event first, so its
+    // second answer comes after a second instead of 15 s and the event shows at once.
+    var delay = api.isMock() && !state.mockEventShown ? MOCK_EVENT_MS : PROGRESS_POLL_MS;
+    state.mockEventShown = true;
     state.progressTimer = setTimeout(function () {
       state.progressTimer = null;
       pollProgress();
-    }, PROGRESS_POLL_MS);
+    }, delay);
   }
 
   async function pollProgress() {
@@ -6185,6 +6230,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function deliverEvent(event) {
     if (event.kind === 'finished' || (event.kind === 'fail' && event.step === 4)) await loadReviewProcess(event.runId);
+    if (event.kind === 'pass' && event.step === 2) {
+      // runs-progress carries no link count; the run status has the selection.
+      var info = await api.status(event.runId);
+      var picked = info.ok && info.data && info.data.selection && info.data.selection.links;
+      event.links = Array.isArray(picked) && picked.length ? picked.length : null;
+    }
     var notice = eventNotice(event);
     if (document.hasFocus() && document.visibilityState !== 'hidden') showNotice(notice);
     else api.notify(notice.title, notice.body);
@@ -6202,7 +6253,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       notice.body = name + ': bước 1 ' + STEP_NAMES[0] + ' đã bắt đầu.';
     } else if (event.kind === 'pass') {
       var active = run.active;
-      var done = { 1: 'đã lấy số liệu bán hàng.', 2: 'đã chọn link bán chạy.', 4: 'đã lưu và phân loại bình luận.' }[n] ||
+      var done = { 1: 'đã lấy số liệu bán hàng.', 4: 'đã lưu và phân loại bình luận.',
+        2: 'đã chọn ' + (event.links ? fmtInt(event.links) + ' ' : '') + 'link bán chạy.' }[n] ||
         (active && active.step === 4 && present(active.total) ? 'đã lấy ' + fmtInt(active.total) + ' bình luận.' : 'đã lấy bình luận.');
       notice.tone = 'ok';
       notice.title = 'Bước ' + n + ' đạt';
@@ -6219,7 +6271,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       notice.title = 'Bước ' + n + ' không đạt';
       notice.body = name + ': bước ' + n + ' ' + STEP_NAMES[n - 1] + ' không đạt kiểm tra. Mở lượt để xem.';
     } else {
-      var labelled = source && source.state === 'PASS' ? source.stages.label.done : null;
+      var labelled = step4Labelled(event.runId);
       notice.tone = 'ok';
       notice.title = 'Lượt hoàn tất';
       notice.body = name + ': ' + (run.steps[3] === 'PASS' ? 'cả 4 bước đạt.' : 'cả 3 bước đạt.') +
@@ -6319,7 +6371,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       state.reviewProcessFor[run.runId] = run.changedAt;
       loadReviewProcess(run.runId);
     }
-    var labelled = source && source.state === 'PASS' ? source.stages.label.done : null;
+    var labelled = step4Labelled(run.runId);
     return { tone: 'ok', text: 'Hoàn tất 4/4 bước' + (present(labelled) ? ' · ' + fmtInt(labelled) + ' bình luận đã gắn chủ đề' : '') };
   }
 
@@ -7919,7 +7971,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         binding.policyView.totalPerLink !== undefined) {
       factRow('Số lượng tối đa', fmtInt(binding.policyView.totalPerLink) + ' bình luận mỗi link');
     }
-    $('flowDialogNote').textContent = 'Bắt đầu sẽ dùng một lượt tra số liệu bán hàng cho đúng lượt này, sau đó chọn link bán chạy và bắt đầu lấy bình luận. ' +
+    $('flowDialogNote').textContent = 'Bắt đầu sẽ dùng một lượt tra số liệu bán hàng cho đúng lượt này, sau đó chọn link bán chạy, bắt đầu lấy bình luận rồi tự lưu và phân loại bình luận. ' +
       'Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.';
     state.flowDialogBinding = {
       runId: binding.runId,

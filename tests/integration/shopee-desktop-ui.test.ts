@@ -842,7 +842,9 @@ test('the whole-flow confirmation shows the frozen run; cancel makes no source c
     const consequence = dialog.querySelector('#flowDialogNote')!.textContent || '';
     assert.match(consequence, /lượt tra số liệu bán hàng/,
       'starting a run names the sales-data lookup it uses');
-    assert.match(consequence, /bắt đầu lấy bình luận/, 'the consequence says collection starts');
+    assert.match(consequence, /bắt đầu lấy bình luận rồi tự lưu và phân loại bình luận/,
+      'the consequence says collection starts and step 4 follows');
+    assert.match(dialog.querySelector('.lead')!.textContent || '', /lần lượt 4 bước/, 'the flow has four steps');
     assert.doesNotMatch(consequence, /gọi dữ liệu/, 'the consequence does not use a vague technical phrase');
     assert.doesNotMatch(consequence, /%|phút|giây|ETA/, 'no invented completion estimate');
     assert.match(dialog.textContent || '', /không báo trước/, 'no completion ETA is promised');
@@ -2930,6 +2932,40 @@ test('step 4 card follows step 3 and shows the running, pass, fail and old state
   } finally { dom.window.close(); }
 });
 
+test('step 4 card with several sources: any stop wins and resumes that source, «Đạt kiểm tra» needs every source', async () => {
+  const second = 'd'.repeat(64);
+  const withSha = (source: any, sha: string) => ({ ...source, sourceSha256: sha });
+  const views: Record<string, any[]> = {
+    'run-fail': [step4Source('PASS'), withSha(step4Source('FAIL'), second)],
+    'run-running': [step4Source('PASS'), withSha(step4Source('RUNNING'), second)],
+    'run-pass': [step4Source('PASS'), withSha(step4Source('PASS'), second)],
+    'run-old': [step4Source('NOT_APPLICABLE')],
+  };
+  const { dom, doc, state } = step4Harness({
+    reviewProcessResult: (runId) => ({ ok: true, data: {
+      format: 'review-process-view-v1', runId, autoRun: runId !== 'run-old', labelUnresolved: false, sources: views[runId],
+    } }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 4, 'run list');
+    for (const [runId, chip, note] of [
+      ['run-fail', 'Dừng vì lỗi', 'Lượt này có 2 nguồn bình luận: 1 dừng vì lỗi, 1 đạt kiểm tra. Số liệu bên trên là của nguồn dừng vì lỗi.'],
+      ['run-running', 'Đang chạy', 'Lượt này có 2 nguồn bình luận: 1 đang chạy, 1 đạt kiểm tra. Số liệu bên trên là của nguồn đang chạy.'],
+      ['run-pass', 'Đạt kiểm tra', 'Lượt này có 2 nguồn bình luận, cả 2 đều đạt kiểm tra. Số liệu bên trên là của nguồn đầu tiên.'],
+    ] as const) {
+      runListButton(doc, runId).click();
+      await waitFor(() => step4Card(doc)?.querySelector('.mh .chip')?.textContent === chip, 'step 4 card ' + runId);
+      assert.equal(doc.getElementById('s4Sources')?.textContent, note, runId);
+      assert.equal(doc.getElementById('s4Resume') !== null, runId === 'run-fail', runId + ' «Chạy tiếp»');
+    }
+    runListButton(doc, 'run-fail').click();
+    await waitFor(() => doc.getElementById('s4Resume') !== null, 'fail card again');
+    element<HTMLButtonElement>(doc, 's4Resume').click();
+    await waitFor(() => state.processReviewDataCalls.length === 1, 'resume sent');
+    assert.deepEqual(state.processReviewDataCalls, [{ runId: 'run-fail', sourceSha256: second }]);
+  } finally { dom.window.close(); }
+});
+
 test('the technical log adds the step 4 chips after M3 and both step 4 checks with technical details', async () => {
   const { dom, doc } = step4Harness();
   try {
@@ -3071,7 +3107,7 @@ test('a progress transition notifies once: never on the first poll, a Windows to
   } finally { front.dom.window.close(); }
 });
 
-test('mock mode: each approved scenario shows its status line and fires its one notification', async () => {
+test('mock mode: each approved scenario shows its status line and fires its one notification within seconds', async () => {
   const expected: Record<string, [string, string | null]> = {
     s1run: ['Bước 1/4 Lấy số liệu bán hàng: đang lấy số liệu Metric', 'Lượt bắt đầu chạy'],
     s3run: ['Bước 3/4 Lấy bình luận: đang lấy 320/1.500', 'Bước 2 đạt'],
@@ -3085,9 +3121,6 @@ test('mock mode: each approved scenario shows its status line and fires its one 
       url: 'file:///shopee-desktop/index.html?mock=1&s4=' + scenario, runScripts: 'dangerously',
       beforeParse(window) {
         window.document.hasFocus = () => true;
-        const nativeSetTimeout = window.setTimeout.bind(window);
-        (window as any).setTimeout = (handler: any, delay?: number, ...args: any[]) =>
-          nativeSetTimeout(handler, delay === 15000 ? 20 : delay, ...args);
       },
     });
     const doc = dom.window.document;
@@ -3096,6 +3129,9 @@ test('mock mode: each approved scenario shows its status line and fires its one 
       await waitFor(() => shown() === text && (title === null || !!doc.querySelector('#noticeBox .notice')), 'status ' + scenario);
       await new Promise((resolve) => setTimeout(resolve, 80));
       assert.deepEqual(lines(doc.getElementById('noticeBox'), '.notice b'), title === null ? [] : [title], scenario);
+      if (scenario === 's3run') {
+        assert.match(doc.querySelector('#noticeBox .notice-body > div')!.textContent || '', /đã chọn 5 link bán chạy\. Bước 3 Lấy bình luận đã bắt đầu\./);
+      }
     } finally { dom.window.close(); }
   }
 });
