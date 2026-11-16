@@ -11,9 +11,14 @@ export function inspectV3ProductsPanel({ action = 'read', index, labels, candida
     /^(Top Products|Top sản phẩm|Sản phẩm bán chạy)$/i.test(text(e.querySelector('.statistic-item__title'))));
   if (panels.length !== 1) return { stop: 'EVIDENCE_PRODUCTS_PANEL_MISSING' };
   const panel = panels[0], rect = panel.getBoundingClientRect();
-  const controls = [...panel.querySelectorAll('.ant-select')].filter(visible);
-  if (controls.length !== 2) return { stop: 'EVIDENCE_PRODUCTS_CONTROLS_MISSING' };
+  // Pagination page-size selects are never sort controls.
+  const controls = [...panel.querySelectorAll('.ant-select')].filter(e => visible(e) && !e.closest('.ant-pagination'));
+  const dropdowns = controls.length === 2;
   const values = controls.map(e => text(e.querySelector('.ant-select-selection-item') || e));
+  // Newer Metric layout: the sort sits on the table header, not in the two dropdowns.
+  const headers = [...panel.querySelectorAll('th.ant-table-column-has-sorters')]
+    .filter(e => visible(e) && /^(Revenue in time period|Doanh số trong kỳ)$/i.test(text(e)));
+  if (['open', 'option'].includes(action) && !dropdowns) return { stop: 'EVIDENCE_PRODUCTS_CONTROLS_MISSING' };
   if (action === 'open') {
     if (![0, 1].includes(index)) return { stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' };
     const target = controls[index].querySelector('.ant-select-selector') || controls[index];
@@ -28,18 +33,18 @@ export function inspectV3ProductsPanel({ action = 'read', index, labels, candida
     options[0].click();
     return { ok: true };
   }
-  // Newer Metric layout: the sort sits on the table header, not in the two dropdowns.
-  const headers = [...panel.querySelectorAll('th.ant-table-column-has-sorters')]
-    .filter(e => visible(e) && /^(Revenue in time period|Doanh số trong kỳ)$/i.test(text(e)));
   if (action === 'headerSort') {
     if (headers.length !== 1) return { stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' };
     headers[0].click();
     return { ok: true };
   }
   let sortLabels = values;
-  let sorted = /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(values[0]) &&
+  let sorted = dropdowns && /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(values[0]) &&
     /^(Descending|Giảm dần)$/i.test(values[1]);
-  if (!sorted && headers.length) {
+  // Two visible dropdowns (any labels) mean the dropdown layout; the header is used only without them.
+  const headerLayout = !dropdowns && headers.length > 0;
+  if (!dropdowns && !headers.length) return { stop: 'EVIDENCE_PRODUCTS_CONTROLS_MISSING' };
+  if (headerLayout) {
     if (headers.length !== 1) return { stop: 'EVIDENCE_PRODUCTS_SORT_MISMATCH', values, header: true };
     sorted = Boolean(headers[0].querySelector('.ant-table-column-sorter-down.active'));
     if (!sorted) return { stop: 'EVIDENCE_PRODUCTS_SORT_MISMATCH', values, header: true };
@@ -62,7 +67,7 @@ export function inspectV3ProductsPanel({ action = 'read', index, labels, candida
     return true;
   };
   const heading = panel.querySelector('.statistic-item__title');
-  if (![heading, ...controls].every(contained)) return { stop: 'EVIDENCE_PRODUCTS_PANEL_CLIPPED' };
+  if (![heading, ...(headerLayout ? headers : controls)].every(contained)) return { stop: 'EVIDENCE_PRODUCTS_PANEL_CLIPPED' };
   // Source identities must be present in actual DOM attributes/links. Never infer a rank from
   // the number of cards or recreate a source picture from raw JSON/title matching.
   const nodes = [...panel.querySelectorAll('[data-row-key],[data-product-base-id],[data-product-id],a[href]')];

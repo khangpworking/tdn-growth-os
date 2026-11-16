@@ -751,6 +751,8 @@ type ProducerOptions = {
   final: SortFinal; clipped?: boolean; initialSort?: [string, string];
   // 'header': current Metric layout (export + page-size selects, sort on the column header).
   layout?: 'header'; headerClickActivates?: boolean; headerLabel?: string;
+  // Old dropdown layout that also shows a revenue header with an active descending arrow.
+  activeHeader?: boolean;
 };
 
 /** Browser boundary for the real capture producer: real form observers, panel inspector and evidence code. */
@@ -781,6 +783,8 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     document.body.append(menu);
   };
   const header = options.layout === 'header';
+  const pagination = document.createElement('div');
+  pagination.className = 'ant-pagination';
   for (const [index, label] of (header ? ['Excel', '20 products / page'] : options.initialSort ?? ['Doanh số', 'Tăng dần']).entries()) {
     const select = document.createElement('div');
     select.className = 'ant-select';
@@ -794,19 +798,23 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
       selector.addEventListener('click', () => openMenu(index));
       select.addEventListener('click', () => openMenu(index));
     }
-    panel.append(select);
+    if (header && index === 1) {
+      // Live panel: the page-size changer sits inside the table pagination.
+      select.classList.add('ant-pagination-options-size-changer');
+      pagination.append(select);
+    } else panel.append(select);
     items.push(item);
   }
   let headerDown: HTMLElement | null = null;
   const table = document.createElement('table');
-  if (header) {
+  if (header || options.activeHeader) {
     const th = document.createElement('th');
     th.className = 'ant-table-cell ant-table-column-has-sorters';
     th.textContent = options.headerLabel ?? 'Revenue in time period';
     const up = document.createElement('span');
     up.className = 'ant-table-column-sorter-up';
     headerDown = document.createElement('span');
-    headerDown.className = 'ant-table-column-sorter-down';
+    headerDown.className = options.activeHeader ? 'ant-table-column-sorter-down active' : 'ant-table-column-sorter-down';
     th.append(up, headerDown);
     th.addEventListener('click', () => { if (options.headerClickActivates) headerDown!.classList.add('active'); });
     table.append(th);
@@ -827,6 +835,7 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     return node;
   });
   panel.append(wrapper);
+  if (header) panel.append(pagination);
   document.body.append(panel);
   const bounds = (element: Element, top: number, height: number) => {
     element.getBoundingClientRect = () => ({ x: 0, y: top, left: 0, top, right: 100, bottom: top + height, width: 100, height, toJSON() {} });
@@ -836,6 +845,13 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
   bounds(wrapper, 70, 100);
   [table, ...panel.querySelectorAll('th')].forEach(node => bounds(node, 64, 5));
   [...panel.querySelectorAll('.ant-select')].forEach((select, i) => bounds(select, 52 + i * 8, 6));
+  if (header) {
+    // Live panel: the export select in the panel header measures 0x0; only the size changer is visible.
+    panel.querySelector('.ant-select')!.getBoundingClientRect = () =>
+      ({ x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON() {} });
+    bounds(pagination, 176, 8);
+    bounds(pagination.querySelector('.ant-select')!, 177, 6);
+  }
   rows.forEach((row, i) => bounds(row, 72 + i * 5, 4));
 
   const selectedWindow = spec.windows[0];
@@ -958,6 +974,32 @@ test('capture reads the header sort: one header click activates descending and t
   const observed = JSON.parse(await readFile(join(run, 'm1/selected/observed-responses.json'), 'utf8'));
   assert.deepEqual(observed.filter((r: any) => r.urlPath.endsWith('/products/')).map((r: any) => r.requestBody.sort_by),
     ['revenue_custom__desc', 'revenue_custom__desc'], 'a new products response follows the header click');
+});
+
+test('capture uses the dropdown sort, not an active header arrow, whenever two dropdowns are visible', async (t) => {
+  const req = requestBytes(true);
+  const request = JSON.parse(req.toString('utf8'));
+  const spec = validateMetricV3CaptureSpec(request.captureSpec) as any;
+  const rows = distinctRows(5);
+  const cases: [[string, string], [string, string]][] = [
+    [['Revenue in time period', 'Ascending'], ['Revenue in time period', 'Giảm dần']],
+    [['Units sold', 'High to low'], ['Doanh số trong kỳ', 'Giảm dần']],
+  ];
+  for (const [initialSort, labels] of cases) {
+    const { page } = await captureProducer(t, spec, {
+      initialRows: rows, finalRows: rows, final: 'valid', initialSort, activeHeader: true,
+    });
+    const run = await mkdtemp(join(tmpdir(), 'metric-producer-dropdown-over-header-'));
+    t.after(() => rm(run, { recursive: true, force: true }));
+    await mkdir(join(run, 'm1'), { recursive: true });
+    await writeFile(join(run, 'request.json'), req);
+    await adapter.captureV3Preset(page, spec, join(run, 'm1'), () => {},
+      { evidence: true, moduleEvidence: { runId: basename(run), requestSha256: sha256(req) } });
+
+    const evidence = JSON.parse(await readFile(join(run, 'm1/selected/evidence/manifest.json'), 'utf8'));
+    assert.deepEqual([evidence.topProductsProof.status, evidence.topProductsProof.metricLabel, evidence.topProductsProof.orderLabel],
+      ['AVAILABLE', ...labels], `${initialSort.join(' / ')}: labels come from the dropdowns the capture changed, not the header arrow`);
+  }
 });
 
 test('capture refuses the header layout when the descending arrow never becomes active or the header is missing', async (t) => {
