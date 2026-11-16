@@ -162,7 +162,7 @@ test('insights aggregate ten themes, polarities, comments and per-link buckets',
   assert.equal(themeOf(linkB.insights, 'T-THIETKE').count, 1);
   assert.ok(themeOf(linkB.insights, 'T-THIETKE').summary.text.includes('“Hộp đẹp, dùng tiện” (khen)'));
   assert.ok(!themeOf(linkA.insights, 'T-THIETKE').summary.text?.includes('Hộp đẹp'), 'no cross-link quote');
-  assert.ok(linkB.insights.summary.text.includes('1 trong 1 bình luận'), linkB.insights.summary.text);
+  assert.ok(linkB.insights.summary.text.startsWith('Jev đã đọc 1/1 bình luận; 1 bình luận có ít nhất 1 chủ đề.'), linkB.insights.summary.text);
   assert.deepEqual(await fs.readFile(database), databaseBytes, 'review-insights must not write the application database');
 });
 
