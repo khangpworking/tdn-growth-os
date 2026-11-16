@@ -941,6 +941,8 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
           observed[lastProduct]?.requestBody?.sort_by !== 'revenue_custom__desc')
         stop('CAPTURE_PRODUCT_SORT_UNAVAILABLE');
     }
+    // Lean: step 2 picks from the extra top-100 products response, appended last (sourceMap points at it).
+    if (lean) raw = [...raw, await requestV3TopProducts(page, spec, window, raw.length)];
     // Retain diagnostics before the gate, but publish a manifest only on full success.
     await writeFile(join(dir, 'raw-responses.json'), bytes(raw), { flag: 'wx', mode: 0o600 });
     const manifest = buildV3WindowManifest(spec, window, state, raw, new Date().toISOString());
@@ -1001,6 +1003,19 @@ export function buildV3PageRequests(spec, window) {
       }),
     },
   }));
+}
+
+/** Rows step 2 reads in lean mode. Live 17/11: limit 100 returns 100 rows in about 1 s, no Metric credit. */
+export const V3_TOP_PRODUCTS_LIMIT = 100;
+
+/** Lean mode (spec v3): one in-page products request with the validated scope and limit 100.
+ *  A failed request stops the capture with its own CAPTURE_* code; there is no 20-row fallback. */
+async function requestV3TopProducts(page, spec, window, responseOrder) {
+  const request = buildV3PageRequests(spec, window).find((r) => r.urlPath === '/v2/market/analytics/products/');
+  request.requestBody.limit = V3_TOP_PRODUCTS_LIMIT;
+  const result = await page.evaluate(requestV3InPage, request);
+  if (result.stop) stop(result.stop, { window: window.id, stage: 'top-products' });
+  return sanitizeNetworkResponses([{ ...result, responseOrder }])[0];
 }
 
 /** Runs in the logged-in page. No credentials or headers cross the bridge. */
@@ -1087,6 +1102,7 @@ export async function captureV3PageRequests(page, spec, outputDir, fallbackReaso
       raw.push({ ...result, responseOrder: raw.length });
     }
     const sanitized = sanitizeNetworkResponses(raw);
+    if (lean) sanitized.push(await requestV3TopProducts(page, spec, window, sanitized.length));
     // This state describes the request applied to the provider, not DOM controls.
     // The same publication gate independently checks every retained request.
     const observation = {
