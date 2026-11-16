@@ -579,87 +579,29 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   const platformIds = { shopee: 1, lazada: 2, tiki: 3, tiktok: 8 };
   const sourceMap = {};
   const missingEndpoints = [];
+  // Lean mode (Shopee module flow, spec v3): products is required; any other endpoint that is
+  // missing or fails its own checks is left out of sourceMap and listed, never used.
+  const lean = spec.contractVersion === 'metric-v3-capture-spec-v3';
+  const omitted = [];
+  const optional = (endpoint) => lean && endpoint !== 'products';
   for (const endpoint of endpoints) {
     const rows = rawResponses
       .map((r, i) => ({ r, i }))
       .filter(({ r }) => r.urlPath === `/v2/market/analytics/${endpoint}/`);
-    if (rows.length === 0) { missingEndpoints.push(endpoint); continue; }
-    for (const found of rows) {
-      if (found.r.status !== 200 || found.r.body?.status !== 'success') stop('CAPTURE_RESPONSE_MISSING');
-      const q = found.r.requestBody,
-        inc = q?.include_query;
-      const comparisons = inc?.composite_compare_lst;
-      const comparison = comparisons?.[0]?.[0];
-      const expectedComparison = {
-        first_field: spec.preset.advancedFilter.firstField,
-        second_field: spec.preset.advancedFilter.secondField,
-        first_rate: spec.preset.advancedFilter.firstRate,
-        second_rate: spec.preset.advancedFilter.secondRate,
-        compare_condition: spec.preset.advancedFilter.operator,
-      };
-      const comparisonMatches =
-        Array.isArray(comparisons) &&
-        comparisons.length === 1 &&
-        Array.isArray(comparisons[0]) &&
-        comparisons[0].length === 1 &&
-        comparison &&
-        Object.keys(comparison).length === 5 &&
-        Object.entries(expectedComparison).every(([key, value]) => comparison[key] === value);
-      if (
-        !inc ||
-        !equalSet(
-          inc.platforms,
-          spec.preset.platforms.map((p) => platformIds[p]),
-        ) ||
-        !equalSet(inc.queries, spec.preset.keywords) ||
-        !equalSet(
-          inc.bee_categories,
-          spec.preset.category.children.map((n) => n.id),
-        ) ||
-        inc.is_smart_queries !== spec.preset.smartQuery ||
-        inc.is_remove_bad_product !== spec.preset.usefulFilters.fake ||
-        !equalSet(inc.official_types, spec.preset.shopTypes.map(v => v === 'mall' ? 1 : 0)) ||
-        !equalSet(inc.brands, []) ||
-        !equalSet(q.exclude_query?.queries, spec.preset.exclusions) ||
-        q.exclude_query?.is_smart_queries !== (spec.preset.smartExclusion ?? false) ||
-        q.use_ai_normalized !== spec.preset.aiNormalisation ||
-        q.start_date !== window.period.startDate.replaceAll('-', '') ||
-        q.end_date !== window.period.endDate.replaceAll('-', '') ||
-        !comparisonMatches
-      )
-        stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
-      if (endpoint === 'insight') {
-        if (q.interval_days !== window.intervalDays || !Array.isArray(found.r.body.data))
-          stop('CAPTURE_TREND_INTERVAL_MISMATCH');
-      } else if (q.is_filter_gift !== spec.preset.usefulFilters.gifts || q.notIncludeDeletedProduct !== spec.preset.usefulFilters.deleted) stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
-      if (
-        ['products', 'shops', 'groups'].includes(endpoint) &&
-        (!Array.isArray(found.r.body.data?.[endpoint]) ||
-          q.page !== 0 ||
-          q.limit < 15 ||
-          !/^revenue_custom(_sum)?__desc$/.test(q.sort_by))
-      )
-        stop('CAPTURE_RESPONSE_MISSING');
-      sourceMap[endpoint] = `raw-responses.json#/${found.i}/body/data`;
+    if (rows.length === 0) { (optional(endpoint) ? omitted : missingEndpoints).push(endpoint); continue; }
+    let failure = null;
+    for (const found of rows) if ((failure = windowResponseFailure(spec, window, endpoint, found, platformIds))) break;
+    if (failure) {
+      if (optional(endpoint)) { omitted.push(endpoint); continue; }
+      stop(failure);
     }
+    sourceMap[endpoint] = `raw-responses.json#/${rows.at(-1).i}/body/data`;
   }
   // Validate every observed response before allowing missing UI traffic to fall back.
-  if (!missingEndpoints.includes('search-basic')) {
-    const basic = rawResponses.findLast((r) => r.urlPath.endsWith('/search-basic/')).body.data?.search_basic;
-    const required = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
-    if (
-      !required.flatMap((k) => [k, `PREVIOUS_${k}`]).every((k) => basic?.aggregations?.some((a) => a.aggregation === k))
-    )
-      stop('CAPTURE_RESPONSE_MISSING');
-    if (
-      ![
-        'REVENUE__BY__PRICE_RANGE_CUSTOM',
-        'ORDER_COUNT__BY__PRICE_RANGE_CUSTOM',
-        'REVENUE__BY__SHOP_TYPE_CUSTOM',
-        'ORDER_COUNT__BY__SHOP_TYPE_CUSTOM',
-      ].every((k) => basic.aggregations.some((a) => a.aggregation === k && Array.isArray(a.entities)))
-    )
-      stop('CAPTURE_RESPONSE_MISSING');
+  if (sourceMap['search-basic'] && !searchBasicComplete(rawResponses)) {
+    if (!optional('search-basic')) stop('CAPTURE_RESPONSE_MISSING');
+    delete sourceMap['search-basic'];
+    omitted.push('search-basic');
   }
   if (missingEndpoints.length) stop(captureMethod === 'ui' ? 'CAPTURE_UI_CHANGED' : 'CAPTURE_RESPONSE_MISSING',
     { missingEndpoints, window: window.id, stage: 'response-readiness' });
@@ -676,6 +618,7 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
     appliedState: observation.appliedState,
     selectedCategoryIds: observation.selectedCategoryIds,
     sourceMap,
+    ...(omitted.length ? { optionalEndpointsOmitted: endpoints.filter((e) => omitted.includes(e)) } : {}),
     displayedKPIs: observation.displayedKPIs,
     comparison: 'source-previous-period',
     captureGate: 'PASSED',
@@ -693,6 +636,79 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   };
   if (!(spec.contractVersion === 'metric-v3-capture-spec-v3' ? validateSelectedManifest : validateManifest)(manifest)) stop('CAPTURE_MANIFEST_INVALID');
   return manifest;
+}
+
+/** First failed check of one saved endpoint response, or null. Codes match the strict gate. */
+function windowResponseFailure(spec, window, endpoint, found, platformIds) {
+  if (found.r.status !== 200 || found.r.body?.status !== 'success') return 'CAPTURE_RESPONSE_MISSING';
+  const q = found.r.requestBody,
+    inc = q?.include_query;
+  const comparisons = inc?.composite_compare_lst;
+  const comparison = comparisons?.[0]?.[0];
+  const expectedComparison = {
+    first_field: spec.preset.advancedFilter.firstField,
+    second_field: spec.preset.advancedFilter.secondField,
+    first_rate: spec.preset.advancedFilter.firstRate,
+    second_rate: spec.preset.advancedFilter.secondRate,
+    compare_condition: spec.preset.advancedFilter.operator,
+  };
+  const comparisonMatches =
+    Array.isArray(comparisons) &&
+    comparisons.length === 1 &&
+    Array.isArray(comparisons[0]) &&
+    comparisons[0].length === 1 &&
+    comparison &&
+    Object.keys(comparison).length === 5 &&
+    Object.entries(expectedComparison).every(([key, value]) => comparison[key] === value);
+  if (
+    !inc ||
+    !equalSet(
+      inc.platforms,
+      spec.preset.platforms.map((p) => platformIds[p]),
+    ) ||
+    !equalSet(inc.queries, spec.preset.keywords) ||
+    !equalSet(
+      inc.bee_categories,
+      spec.preset.category.children.map((n) => n.id),
+    ) ||
+    inc.is_smart_queries !== spec.preset.smartQuery ||
+    inc.is_remove_bad_product !== spec.preset.usefulFilters.fake ||
+    !equalSet(inc.official_types, spec.preset.shopTypes.map(v => v === 'mall' ? 1 : 0)) ||
+    !equalSet(inc.brands, []) ||
+    !equalSet(q.exclude_query?.queries, spec.preset.exclusions) ||
+    q.exclude_query?.is_smart_queries !== (spec.preset.smartExclusion ?? false) ||
+    q.use_ai_normalized !== spec.preset.aiNormalisation ||
+    q.start_date !== window.period.startDate.replaceAll('-', '') ||
+    q.end_date !== window.period.endDate.replaceAll('-', '') ||
+    !comparisonMatches
+  )
+    return 'CAPTURE_REQUEST_SCOPE_MISMATCH';
+  if (endpoint === 'insight') {
+    if (q.interval_days !== window.intervalDays || !Array.isArray(found.r.body.data))
+      return 'CAPTURE_TREND_INTERVAL_MISMATCH';
+  } else if (q.is_filter_gift !== spec.preset.usefulFilters.gifts || q.notIncludeDeletedProduct !== spec.preset.usefulFilters.deleted) return 'CAPTURE_REQUEST_SCOPE_MISMATCH';
+  if (
+    ['products', 'shops', 'groups'].includes(endpoint) &&
+    (!Array.isArray(found.r.body.data?.[endpoint]) ||
+      q.page !== 0 ||
+      q.limit < 15 ||
+      !/^revenue_custom(_sum)?__desc$/.test(q.sort_by))
+  )
+    return 'CAPTURE_RESPONSE_MISSING';
+  return null;
+}
+
+/** search-basic must carry every headline and breakdown aggregation the report reads. */
+function searchBasicComplete(rawResponses) {
+  const basic = rawResponses.findLast((r) => r.urlPath.endsWith('/search-basic/')).body.data?.search_basic;
+  const required = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
+  return required.flatMap((k) => [k, `PREVIOUS_${k}`]).every((k) => basic?.aggregations?.some((a) => a.aggregation === k)) &&
+    [
+      'REVENUE__BY__PRICE_RANGE_CUSTOM',
+      'ORDER_COUNT__BY__PRICE_RANGE_CUSTOM',
+      'REVENUE__BY__SHOP_TYPE_CUSTOM',
+      'ORDER_COUNT__BY__SHOP_TYPE_CUSTOM',
+    ].every((k) => basic.aggregations.some((a) => a.aggregation === k && Array.isArray(a.entities)));
 }
 
 async function performFormAction(page, action) {
@@ -869,6 +885,8 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     }
     stop('CAPTURE_RESPONSE_TIMEOUT');
   };
+  const lean = spec.contractVersion === 'metric-v3-capture-spec-v3';
+  const requiredEndpoints = lean ? ['products'] : endpoints;
   const manifests = [];
   for (const window of spec.windows) {
     progress(`Applying ${window.id}`);
@@ -879,7 +897,8 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
       await act({ kind: 'closePopups' });
     }
     await selectV3Dates(page, window.period);
-    await selectV3TrendInterval(page, window.intervalDays);
+    // Lean mode reads products only; Metric may reset the trend interval on submit anyway.
+    if (!lean) await selectV3TrendInterval(page, window.intervalDays);
     await act({ kind: 'closePopups' });
     state = await until((s) => s.submitReady, 'CAPTURE_CONTROL_NOT_SELECTABLE');
     assertV3Applied(spec, window, state);
@@ -891,13 +910,13 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     await act({ kind: 'submit' });
     await page.wait(1000);
     await idle();
-    await act({ kind: 'revealTrend' });
-    // Wait for all five endpoints, not just the first successful headline.
+    if (!lean) await act({ kind: 'revealTrend' });
+    // Wait for all five endpoints (lean: products only), not just the first successful headline.
     for (let i = 0; i < 90; i++) {
       const paths = await page.evaluate(() =>
         window.__tdnV3Capture.responses.filter((r) => r.status === 200).map((r) => r.urlPath),
       );
-      if (endpoints.every((e) => paths.includes(`/v2/market/analytics/${e}/`))) break;
+      if (requiredEndpoints.every((e) => paths.includes(`/v2/market/analytics/${e}/`))) break;
       await read();
       await page.wait(1000);
     }
@@ -1060,7 +1079,9 @@ export async function captureV3PageRequests(page, spec, outputDir, fallbackReaso
   const manifests = [];
   for (const window of spec.windows) {
     const raw = [];
-    for (const request of buildV3PageRequests(spec, window)) {
+    // Lean mode (spec v3) requests only products; the manifest lists the others as omitted.
+    const lean = spec.contractVersion === 'metric-v3-capture-spec-v3';
+    for (const request of buildV3PageRequests(spec, window).filter((r) => !lean || r.urlPath === '/v2/market/analytics/products/')) {
       const result = await page.evaluate(requestV3InPage, request);
       if (result.stop) stop(result.stop);
       raw.push({ ...result, responseOrder: raw.length });
