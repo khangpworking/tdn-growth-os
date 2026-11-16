@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { SamplingJournal, SamplingJob, SamplingJobInput, SamplingResult, ReviewLink, ShopeeReviewPlan } from '../../../contracts/foundation/shopee-review-sampling.generated.js';
 import { canonicalJson } from '../../modules/foundation/canonical-json.js';
@@ -26,34 +27,30 @@ export interface SamplingCollectorOptions {
   submitLockFile?: string;
 }
 /** Owner L4: a run whose step 3 finds the service busy with another run waits, polling the job list. */
-const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000, LOCK_STALE_MS = 120_000;
+const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
 const defaultSubmitLock = () => path.join(process.env.SHOPEE_FLOW_STATE ?? path.join(os.homedir(), '.local/state/tdn-growth-os'),
   'shopee-flow', 'review-submit.lock');
-/** A lock is stale when it cannot be read, its process is gone, or it is older than any check-and-submit (crash release). */
-function staleLock(held: string): boolean {
-  try {
-    const value = JSON.parse(held) as { pid?: unknown; at?: unknown };
-    if (!Number.isInteger(value.pid) || typeof value.at !== 'number' || Date.now() - value.at > LOCK_STALE_MS) return true;
-    try { process.kill(value.pid as number, 0); return false; } catch (error) { return (error as NodeJS.ErrnoException).code === 'ESRCH'; }
-  } catch { return true; }
-}
-/** Exclusive cross-run lock around "service free? then submit"; returns its release. */
+type LockDatabase = { exec(sql: string): unknown; close(): unknown };
+/**
+ * Exclusive cross-run lock around "service free? then submit": an EXCLUSIVE transaction on a small SQLite file.
+ * SQLite holds it with an OS file lock, which the kernel releases when the holder's process ends, so there is no
+ * stale lock to detect or remove. Returns its release.
+ */
 async function acquireSubmitLock(file: string, wait: () => Promise<void>): Promise<() => Promise<void>> {
   await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-  const token = randomUUID(), body = JSON.stringify({ pid: process.pid, token, at: Date.now() });
-  const release = async () => { try { if (await fs.readFile(file, 'utf8') === body) await fs.unlink(file); } catch { /* already gone */ } };
-  while (true) {
-    const temp = `${file}.${token}.tmp`;
-    await fs.writeFile(temp, body, { mode: 0o600, flag: 'wx' });
-    try { await fs.link(temp, file); return release; }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
-    finally { await fs.unlink(temp).catch(() => {}); }
-    const held = await fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return null; throw error; });
-    if (held === null) continue;
-    // Remove a stale lock only while it still holds the same bytes, never a fresh holder's lock.
-    if (staleLock(held)) { if (await fs.readFile(file, 'utf8').catch(() => null) === held) await fs.unlink(file).catch(() => {}); continue; }
-    await wait();
-  }
+  const Database = createRequire(import.meta.url)('better-sqlite3') as new (file: string, options: { timeout: number }) => LockDatabase;
+  const db = new Database(file, { timeout: 0 });
+  try {
+    while (true) {
+      try {
+        db.exec('BEGIN EXCLUSIVE');
+        return async () => { try { db.exec('COMMIT'); } finally { db.close(); } };
+      } catch (error) {
+        if ((error as { code?: unknown }).code !== 'SQLITE_BUSY') throw error;
+      }
+      await wait();
+    }
+  } catch (error) { db.close(); throw error; }
 }
 /** Dedicated versioned transport; the legacy collector/journals retain their original contract. */
 export class ShopeeReviewSamplingCollector {

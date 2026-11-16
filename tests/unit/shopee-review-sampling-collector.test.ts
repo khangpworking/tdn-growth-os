@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -221,6 +223,40 @@ test('owner L4: two waiting runs never both submit when the service becomes free
     assert.notEqual(a.job?.id, b.job?.id, 'each run binds its own job');
   });
   assert.deepEqual([log.posts, log.postsWhileBusy], [2, 0], 'the second run submits only after the first job finished');
+});
+
+test('owner L4: a lock held by another process blocks both waiters; its process ending releases it, nothing is removed as stale', async () => {
+  const { plan, planSha256 } = planFixture();
+  const first = requestFixture(planSha256);
+  const second = { ...first, sampling: { ...first.sampling, attemptId: '00000000-0000-4000-8000-0000000000bb' } };
+  const { fakeFetch, log } = busyService(() => false, { runningReads: 2, postDelayMs: 30 });
+  await withDir(async (dir) => {
+    const lock = path.join(dir, 'review-submit.lock');
+    // Another run holds the lock in its own process (an old lock left by a run that will die).
+    const holder = spawn(process.execPath, ['-e', `const D=require('better-sqlite3');const d=new D(${JSON.stringify(lock)},{timeout:0});` +
+      `d.exec('BEGIN EXCLUSIVE');process.stdout.write('held\\n');setInterval(()=>{},1000);`], { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'inherit'] });
+    await once(holder.stdout!, 'data');
+    let lockWaits = 0, postsWhileHeld: number | null = null;
+    const sleep = async (ms: number) => {
+      if (ms === 1_000 && ++lockWaits === 6 && postsWhileHeld === null) {
+        postsWhileHeld = log.posts;
+        const exited = once(holder, 'exit');
+        holder.kill('SIGKILL');
+        await exited;
+      }
+      await new Promise(resolve => setTimeout(resolve, 5));
+    };
+    let a, b;
+    try {
+      [a, b] = await Promise.all([
+        collector(fakeFetch, { sleep, submitLockFile: lock }).run(path.join(dir, 'a.json'), first, LINK, plan),
+        collector(fakeFetch, { sleep, submitLockFile: lock }).run(path.join(dir, 'b.json'), second, LINK, plan),
+      ]);
+    } finally { holder.kill('SIGKILL'); }
+    assert.equal(postsWhileHeld, 0, 'no waiter submits while another process holds the lock');
+    assert.deepEqual([a.errorCode, b.errorCode], [null, null]);
+  });
+  assert.deepEqual([log.posts, log.postsWhileBusy], [2, 0], 'after the holder died, the two waiters still submit one at a time');
 });
 
 test('a written record with an unparsed raw date stays admissible instead of failing the job', async () => {
