@@ -28,12 +28,28 @@ export function inspectV3ProductsPanel({ action = 'read', index, labels, candida
     options[0].click();
     return { ok: true };
   }
-  const sorted = /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(values[0]) &&
+  // Newer Metric layout: the sort sits on the table header, not in the two dropdowns.
+  const headers = [...panel.querySelectorAll('th.ant-table-column-has-sorters')]
+    .filter(e => visible(e) && /^(Revenue in time period|Doanh số trong kỳ)$/i.test(text(e)));
+  if (action === 'headerSort') {
+    if (headers.length !== 1) return { stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' };
+    headers[0].click();
+    return { ok: true };
+  }
+  let sortLabels = values;
+  let sorted = /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(values[0]) &&
     /^(Descending|Giảm dần)$/i.test(values[1]);
+  if (!sorted && headers.length) {
+    if (headers.length !== 1) return { stop: 'EVIDENCE_PRODUCTS_SORT_MISMATCH', values, header: true };
+    sorted = Boolean(headers[0].querySelector('.ant-table-column-sorter-down.active'));
+    if (!sorted) return { stop: 'EVIDENCE_PRODUCTS_SORT_MISMATCH', values, header: true };
+    const label = text(headers[0]);
+    sortLabels = [label, /^Doanh số/i.test(label) ? 'Giảm dần' : 'Descending'];
+  }
   if (!sorted) return { stop: 'EVIDENCE_PRODUCTS_SORT_MISMATCH', values };
   // Data admission reads native controls only. A scrolling/clipped list is an image
   // limitation; the strict default read below still refuses to claim panel coverage.
-  if (action === 'sort') return { values };
+  if (action === 'sort') return { values: sortLabels };
   if (panel.querySelector('.ant-spin-spinning,.ant-skeleton-active,[aria-busy=true]')) return { stop: 'EVIDENCE_PRODUCTS_LOADING' };
   const contained = e => {
     const r = e.getBoundingClientRect();
@@ -76,7 +92,7 @@ export function inspectV3ProductsPanel({ action = 'read', index, labels, candida
     covered.push({ sourceRank: i + 1, productBaseId: id });
   }
   if (candidates.length && !covered.length) return { stop: 'EVIDENCE_PRODUCTS_ID_UNAVAILABLE' };
-  return { title: text(heading), metricLabel: values[0], orderLabel: values[1], candidates: covered,
+  return { title: text(heading), metricLabel: sortLabels[0], orderLabel: sortLabels[1], candidates: covered,
     rect: { x: rect.left + window.scrollX, y: rect.top + window.scrollY, width: rect.width, height: rect.height } };
 }
 
@@ -87,6 +103,19 @@ export async function selectV3ProductsOrder(page, waitForIdle = async () => {}) 
   let state = await page.evaluate(inspectV3ProductsPanel, { action: 'sort' });
   if (!state.stop) return { changed };
   if (state.stop !== 'EVIDENCE_PRODUCTS_SORT_MISMATCH') throw Object.assign(new Error('CAPTURE_PRODUCT_SORT_UNAVAILABLE'), { code: 'CAPTURE_PRODUCT_SORT_UNAVAILABLE' });
+  if (state.header) {
+    // Header layout: click the "Revenue in time period" column until its descending arrow is active.
+    for (let click = 0; click < 3; click++) {
+      const result = await page.evaluate(inspectV3ProductsPanel, { action: 'headerSort' });
+      if (result.stop) break;
+      await page.wait(250);
+      await waitForIdle();
+      state = await page.evaluate(inspectV3ProductsPanel, { action: 'sort' });
+      if (!state.stop) return { changed: true };
+      if (!state.header) break;
+    }
+    throw Object.assign(new Error('CAPTURE_PRODUCT_SORT_UNAVAILABLE'), { code: 'CAPTURE_PRODUCT_SORT_UNAVAILABLE' });
+  }
   for (const index of [0, 1]) {
     state = await page.evaluate(inspectV3ProductsPanel, { action: 'sort' });
     if (!state.stop) return { changed };
