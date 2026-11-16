@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -20,12 +20,16 @@ test('desktop bridge projects saved module outputs and opens exact evidence byte
   const state = join(base, 'state');
   const presets = join(base, 'presets');
   const bin = join(base, 'bin');
-  const temp = join(base, 'tmp');
-  for (const folder of [state, presets, bin, temp]) await mkdir(folder);
-  // One fixed evidence folder per machine; a file left by an older click is removed before the next open.
-  const evidenceFolder = join(temp, 'tdn-shopee-evidence');
+  for (const folder of [state, presets, bin]) await mkdir(folder);
+  // The app's own evidence folder next to config.json: an older click's file is removed before the next open,
+  // a link inside is never followed or removed, and a linked folder is refused.
+  const evidenceFolder = join(base, 'evidence');
   await mkdir(evidenceFolder);
   await writeFile(join(evidenceFolder, 'top-products.png'), 'older click');
+  const outside = join(base, 'outside');
+  await mkdir(outside);
+  await writeFile(join(outside, 'keep.json'), 'not evidence');
+  await symlink(join(outside, 'keep.json'), join(evidenceFolder, 'link.json'));
   await writeFile(config, JSON.stringify({
     sshCommand: ['bash', '-s'], remoteScript: join(repo, 'skills/tdn-shopee-flow/scripts/shopee_flow.py'),
     runsRoot: dirname(run), presetsRoot: presets, timeoutSeconds: 120,
@@ -45,11 +49,17 @@ if len(sys.argv) > 2:
     out['open'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
     out['again'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
     out['wrong'] = api.openModuleEvidence(run, 'raw', '0' * 64)
+    import os, shutil
+    folder = ${JSON.stringify(evidenceFolder)}
+    out['listing'] = sorted(os.listdir(folder))
+    shutil.rmtree(folder)
+    os.symlink(${JSON.stringify(outside)}, folder)
+    out['linked'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
 print(json.dumps(out))`;
   const result = spawnSync('python3', ['-c', script, run.split('/').pop()!, digest], {
     encoding: 'utf8', timeout: 120000,
     env: { ...process.env, TDN_SHOPEE_APP_CONFIG: config, SHOPEE_FLOW_STATE: state,
-      PYTHONDONTWRITEBYTECODE: '1', XDG_OPEN_LOG: opened, TMPDIR: temp,
+      PYTHONDONTWRITEBYTECODE: '1', XDG_OPEN_LOG: opened,
       PATH: `${bin}:${process.env.PATH ?? ''}` },
   });
   assert.equal(result.status, 0, result.stderr);
@@ -71,7 +81,8 @@ print(json.dumps(out))`;
   const views = (await readFile(opened, 'utf8')).trim().split('\n');
   assert.equal(views.length, 2, 'only the verified descriptor opens the OS viewer');
   assert.deepEqual(views.map(view => dirname(view)), [evidenceFolder, evidenceFolder], 'every click reuses the one folder');
-  assert.deepEqual(await readdir(evidenceFolder), ['raw-responses.json'], 'older files are removed, no folder per click');
-  assert.deepEqual(await readdir(temp), ['tdn-shopee-evidence']);
+  assert.deepEqual(data.listing, ['link.json', 'raw-responses.json'], 'older regular files are removed; the link is left alone');
   assert.deepEqual(await readFile(views[1]!), rawBytes);
+  assert.deepEqual(data.linked, { ok: false, error: { code: 'EVIDENCE_OPEN_FAILED', message: 'EVIDENCE_OPEN_FAILED' } });
+  assert.deepEqual((await readdir(outside)).sort(), ['keep.json'], 'files behind a linked folder are never removed');
 });
