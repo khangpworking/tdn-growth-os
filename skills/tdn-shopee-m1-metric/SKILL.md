@@ -9,8 +9,10 @@ Xem đầy đủ: `tdn-shopee-4-buoc`.
 
 - Đầu vào: `request.json` của lượt (lượt mới tạo bằng `new-run`).
 - Lệnh: `shopee-cli.py m1 --run <runId> --detach`, rồi `gate m1 --run <runId>`.
-- Việc: mở Metric một lần: 1 kỳ (app dùng 30 ngày), 4 sàn, đúng ngành hàng và bộ lọc của lượt, sắp theo cột doanh thu. Lấy thêm 1 gói 100 sản phẩm cùng phạm vi. Gói này hỏng thì bước 1 dừng.
+- Input của `new-run` chọn đường:
+  - Có cả `startDate` và `metricOptions` (đường 1 kỳ, app dùng): mở Metric một lần: 1 kỳ, 4 sàn, đúng ngành hàng và bộ lọc đã chọn, sắp theo cột doanh thu. Lấy thêm 1 gói 100 sản phẩm cùng phạm vi. Gói này hỏng thì bước 1 dừng.
+  - Không có cả hai (đường cũ): lấy 2 kỳ `30d` và `12m` theo spec của preset. Không có gói 100 sản phẩm.
 - Đầu ra: `m1/`.
-- Cổng m1 kiểm: `capture_success`, `files_readable`, `has_shopee_rows`, `period_matches`, `saved_capture_source_verified`. `masked_ids` chỉ là cảnh báo.
+- Cổng m1 kiểm: `capture_success`, `files_readable`, `has_shopee_rows`, `period_matches`. Đường 1 kỳ kiểm thêm `saved_capture_source_verified`. `masked_ids` chỉ là cảnh báo.
 - Code: `scripts/capture-metric-preset.ts`, `tools/opencli-metric/clis/metric/`.
 - Không thử lại. Gặp đăng nhập hoặc xác minh thì dừng và báo chủ.

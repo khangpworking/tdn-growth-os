@@ -23,19 +23,26 @@ Exit code chung: `0` PASS · `20` FAIL · `21` chờ chủ · `22` bước trư�
 Lane live đổi sau mỗi lần deploy. Không ghi cứng đường dẫn lane hay thư mục home. Lấy đường dẫn từ file cấu hình của app desktop:
 
 - File cấu hình: biến `TDN_SHOPEE_APP_CONFIG`, nếu không có thì `%APPDATA%\tdn-shopee-flow\config.json` trên máy chạy app.
-- `remoteScript`: đường dẫn `shopee-cli.py` của lane live. Đây là lệnh duy nhất được gọi.
-- `remoteEnvFile`: file env của module. Nạp file này trong cùng shell, trước lệnh. Thiếu bước này thì lệnh có gọi Metric lỗi `METRIC_DATE_CHECK_FAILED`.
-- `runsRoot`, `presetsRoot` (nếu có): app xuất thành `SHOPEE_FLOW_RUNS`, `SHOPEE_FLOW_PRESETS`. Làm giống app.
-- `sshCommand`: cách app vào máy chạy lane. Dùng cùng cách đó.
+- `remoteScript` (bắt buộc): đường dẫn `shopee-cli.py` của lane live. Đây là lệnh duy nhất được gọi.
+- `remoteEnvFile`, `runsRoot`, `presetsRoot`: không bắt buộc. Chỉ dùng khóa có trong cấu hình.
 
-Mỗi lệnh chạy trong một shell như sau (thay `<…>` bằng giá trị trong cấu hình, không in giá trị ra báo cáo):
+**Cách vào máy chạy lane.** App chọn một trong hai cách. Làm đúng cách app đang dùng:
+
+- `network.enabled` = `true` (cách nối trực tiếp): app tự tìm máy chạy lane và chỉ nối khi khóa máy (host key) khớp `network.hostIdentity`. Sau đó app gọi `ssh` với `network.sshExecutable`, `user`, `port`, `identityFile`, `knownHostsFile`. Khi đó `sshCommand` có thể không có. Không đoán địa chỉ máy. Không tắt kiểm khóa máy. Chưa biết máy nào thì dừng, hỏi chủ.
+- `network` không có hoặc `enabled` = `false`: app gọi đúng lệnh trong `sshCommand` (một danh sách tham số).
+- Đang ở ngay trên máy chạy lane: không cần `ssh`.
+
+**Shell của mỗi lệnh.** App gửi các dòng sau cho máy chạy lane. Bỏ dòng của khóa không có trong cấu hình. Thay `<…>` bằng giá trị trong cấu hình. Không in giá trị ra báo cáo.
 
 ```
-export SHOPEE_FLOW_RUNS="<runsRoot>"          # chỉ khi có runsRoot
-export SHOPEE_FLOW_PRESETS="<presetsRoot>"    # chỉ khi có presetsRoot
-set -a; . "<remoteEnvFile>"; set +a
+export PYTHONDONTWRITEBYTECODE=1
+export SHOPEE_FLOW_RUNS="<runsRoot>"          # chỉ khi cấu hình có runsRoot
+export SHOPEE_FLOW_PRESETS="<presetsRoot>"    # chỉ khi cấu hình có presetsRoot
+if [ -f "<remoteEnvFile>" ]; then set -a; . "<remoteEnvFile>"; set +a; fi   # chỉ khi cấu hình có remoteEnvFile
 python3 "<remoteScript>" <lệnh> ...
 ```
+
+Lệnh có gọi Metric báo `METRIC_DATE_CHECK_FAILED`: kiểm xem env đã được nạp chưa (cấu hình có `remoteEnvFile` và file đó có trên máy). Thiếu thì dừng, báo chủ.
 
 Dưới đây `shopee-cli.py` nghĩa là `python3 "<remoteScript>"` chạy trong shell đó.
 
@@ -65,8 +72,16 @@ shopee-cli.py gate entry --run <runId>
 
 - `metric-date-availability` cho ngày hôm nay thường trả `available:false` và `errorCode: CAPTURE_PERIOD_NOT_SELECTABLE`, exit 0. Đây là bình thường. Dùng `lastSelectableDate` làm `endDate`.
 - Lệnh đó lỗi (exit khác 0) sau khi đã nạp env: dừng, báo chủ (thường là Metric mất đăng nhập).
-- Input chỉ nhận các khóa: `presetId`, `startDate`, `endDate`, `metricOptions`, và một trong hai: `reviewCapPerLink` hoặc `collectionPolicy`. Không có cả hai thì mặc định lấy bình luận có chữ, 300/link.
-- `endDate` phải trước hôm nay (giờ Việt Nam). `startDate` = `endDate` − 29 ngày (30 ngày, giống app).
+- Input chỉ nhận các khóa: `presetId`, `endDate`, `startDate`, `metricOptions`, và nhiều nhất một trong hai: `reviewCapPerLink` hoặc `collectionPolicy`. Không có cả hai thì mặc định lấy bình luận có chữ, 300/link.
+- Có 2 đường. Input chọn đường. Mọi lượt `new-run` đều là `request-v2`.
+
+  | Input | Đường | Bước 1 | Bước 2 |
+  |---|---|---|---|
+  | Có cả `startDate` và `metricOptions` | 1 kỳ (đường của app) | 1 kỳ `selected` = `startDate`→`endDate`, spec `metric-v3-capture-spec-v3`, thêm gói 100 sản phẩm | Jev chọn, luật `metric-products-unique-v2`, đúng 5 link |
+  | Không có cả hai | cũ | 2 kỳ `30d` và `12m` kết thúc ở `endDate` (theo `params.windows`), spec của preset, không có gói 100 sản phẩm | luật cũ `autorun-pick-v3` (không Jev), 1–5 link |
+
+  Chỉ có một trong hai khóa `startDate`, `metricOptions`: lỗi `NEW_RUN_INPUT_INVALID`.
+- Đường 1 kỳ: `endDate` phải trước hôm nay (giờ Việt Nam) và `startDate` ≤ `endDate`. App dùng `startDate` = `endDate` − 29 ngày (30 ngày). Skill này dùng đường 1 kỳ, giống app.
 - Mẫu input:
   ```
   {"presetId":"vien-uong-canxi","startDate":"2026-10-14","endDate":"2026-11-12",
@@ -84,9 +99,9 @@ shopee-cli.py run-info --run <runId>        # chờ M1 hết RUNNING
 shopee-cli.py gate m1 --run <runId>
 ```
 
-- Mở Metric một lần: 1 kỳ, 4 sàn, đúng ngành hàng và bộ lọc của preset, sắp theo cột doanh thu.
-- Lấy thêm 1 gói 100 sản phẩm cùng phạm vi (không tốn điểm). Gói này hỏng thì bước 1 dừng.
-- Đầu ra: `m1/`. `gate m1` in kết luận và ghi `gates/m1.json`. Cổng kiểm: chạy thành công, file đọc được, có dòng Shopee, đúng kỳ, file nguồn đã lưu khớp (`saved_capture_source_verified`). `masked_ids` chỉ là cảnh báo.
+- Đường 1 kỳ: mở Metric một lần: 1 kỳ, 4 sàn, đúng ngành hàng và bộ lọc đã chọn, sắp theo cột doanh thu. Lấy thêm 1 gói 100 sản phẩm cùng phạm vi (không tốn điểm). Gói này hỏng thì bước 1 dừng.
+- Đường cũ: lấy 2 kỳ `30d` và `12m` theo spec của preset. Không có gói 100 sản phẩm.
+- Đầu ra: `m1/`. `gate m1` in kết luận và ghi `gates/m1.json`. Cổng kiểm: chạy thành công, file đọc được, có dòng Shopee, đúng kỳ. Đường 1 kỳ kiểm thêm file nguồn đã lưu khớp (`saved_capture_source_verified`). `masked_ids` chỉ là cảnh báo.
 - Lỗi hay gặp: `CAPTURE_LOGIN_REQUIRED` (chủ đăng nhập Metric), `CAPTURE_UI_CHANGED` (trang Metric không ở tiếng Anh), `CAPTURE_PERIOD_NOT_SELECTABLE` (chọn ngày khác).
 
 ## Bước 2. Chọn 5 link Shopee
@@ -97,11 +112,10 @@ shopee-cli.py run-info --run <runId>        # chờ M2 hết RUNNING
 shopee-cli.py gate m2 --run <runId>
 ```
 
-- Đi theo thứ tự doanh thu trong 100 dòng, bỏ dòng không phải Shopee. Jev xét từng sản phẩm: đúng loại hàng không, có trùng sản phẩm đã chọn không (luật `metric-products-unique-v2`).
-- Đầu ra: `m2/selection.json`, đúng 5 link khác nhau.
-- Cổng kiểm: `links_match_source_order` (link đúng thứ tự nguồn), `five_distinct_products` (đủ 5 sản phẩm khác nhau).
-- Đã đạt thì không chạy lại (`M2_ALREADY_PASSED`). Muốn chọn lại: tạo lượt mới.
-- Không đủ 5 link (`FEWER_THAN_FIVE_DISTINCT_PRODUCTS`, `PICK_PRODUCT_UNRESOLVED`): dừng, báo chủ.
+- Đường 1 kỳ (lượt có `selectionPolicy` = `metric-products-unique-v2`): đi theo thứ tự doanh thu trong 100 dòng, bỏ dòng không phải Shopee. Jev xét từng sản phẩm: đúng loại hàng không, có trùng sản phẩm đã chọn không. Đầu ra: `m2/selection.json`, đúng 5 link khác nhau. Cổng kiểm: `links_match_source_order` (link đúng thứ tự nguồn), `five_distinct_products` (đủ 5 sản phẩm khác nhau).
+- Đường cũ (lượt không có `selectionPolicy`): luật `autorun-pick-v3`, không Jev, kỳ `30d`. Đầu ra 1–5 link. Cổng kiểm: `links_1_to_5`, `ids_numeric`, `no_duplicate_shop`, `no_masked_above_lowest_pick`, `links_in_m1`, `pick_rule_version`, `pick_reason_present`.
+- Đường 1 kỳ: đã đạt thì không chạy lại (`M2_ALREADY_PASSED`). Muốn chọn lại: tạo lượt mới.
+- Đường 1 kỳ không đủ 5 link (`FEWER_THAN_FIVE_DISTINCT_PRODUCTS`, `PICK_PRODUCT_UNRESOLVED`): dừng, báo chủ.
 
 ## Bước 3. Lấy bình luận
 
@@ -132,7 +146,7 @@ shopee-cli.py review-process --run <runId>                                   # t
 shopee-cli.py process-review-data --run <runId> --source-sha256 <sha> --detach   # chỉ khi cần «Chạy tiếp»
 shopee-cli.py review-insights --run <runId>                                  # kết quả
 echo '{"sourceSha256":"<sha>","format":"labelled-json"}' | shopee-cli.py export-review-data --run <runId> --stdin
-shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256> > <file>.json
+shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256>   # in nội dung file ra stdout
 ```
 
 - `review-process` → `sources[]`, mỗi nguồn có `state` (`IDLE`, `NOT_APPLICABLE`, `RUNNING`, `PASS`, `FAIL`), `errorCode`, `canResume`, `fee`, `stages.save|filter|label` (tổng và số đã xong), `gates.in` và `gates.out`. Bước 4 chưa có lệnh `gate` riêng: cổng của bước 4 là `gates.in` và `gates.out`.
@@ -142,7 +156,18 @@ shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256> > 
 - Jev lọc: 2 câu hỏi cho mỗi bình luận: có liên quan sản phẩm/đơn hàng không; có lời chê không.
 - Jev gắn nhãn: 10 nhãn chung. Mỗi nhãn chọn khen / chê / cả hai / kể / chưa đánh giá / không nhắc. Bình luận đã có nhãn thì dùng lại, không gọi Jev lần hai.
 - Chi phí: khoảng 1–1,5 USD cho 250 bình luận (lần chạy thử: 1,37 USD).
-- Đầu ra cho người dùng: file JSON toàn bộ bình luận kèm nhãn (`labelled-json`). `export-review-data` trả `exportSha256`; `read-review-export` in nội dung file.
+- Đầu ra cho người dùng: file JSON toàn bộ bình luận kèm nhãn (`labelled-json`). `export-review-data` trả `exportSha256`; `read-review-export` in nội dung file ra stdout.
+- File này chứa bình luận riêng. Khi lưu ra file:
+  - Lưu vào một thư mục của người dùng, ngoài mọi repo và worktree Git.
+  - Dùng tên file mới. Không ghi đè file đã có.
+  - Chỉ chủ file được đọc (quyền 600).
+  ```
+  umask 077; set -o noclobber
+  out="<thư mục người dùng>/<runId>-labelled.json"
+  [ -e "$out" ] && { echo "file đã có, dừng"; exit 1; }
+  shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256> > "$out"
+  chmod 600 "$out"
+  ```
 - Chạy lại bước 4 trên cùng nguồn: không gọi Jev lại.
 
 ## Báo cáo sau mỗi lượt
