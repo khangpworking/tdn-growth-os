@@ -74,6 +74,14 @@ python3 -m unittest discover -s tools/shopee-desktop/tests -p 'test_review_data_
 
 The Linux fixture suites require a POSIX host and repository checkout: their `sshCommand`, `remoteScript`, `runsRoot` and fake remote use local POSIX paths, so the same suites are not Windows-native tests. A Windows `C:\...` path correctly fails remote path validation; do not weaken that validator to run them. The fake remote in `tools/shopee-desktop/tests/test_review_data_bridge.py` is a reference only for the bridge contract and emits synthetic export bytes. For packaged Windows QA, use a real SSH connection to the isolated Fedora fixture described in the handoff, never the real runs folder, production database, or a real source. Windows packaging, the native Save dialog, and WebView2 rendering remain pending real Windows QA.
 
+## Step 4 and notifications
+
+Under step 3, **Bước 4 Lưu và phân loại bình luận** shows save, filter and label from `review-process --run` (`review-process-view-v1`). **Chạy tiếp** appears only when the source stopped with `canResume: true`; it sends `process-review-data --run <id> --source-sha256 <sha> --detach` and expects `review-process-start-v1`. The header status line and the run status chips read `runs-progress` (`runs-progress-v1`), one call for all runs about every 15 seconds. The bridge rejects any key or enum value outside these three formats.
+
+A notification fires once per change seen between two polls (run started, step passed, step stopped, run finished), never for the first poll after the app starts. With the window in front it is a notice at the bottom left; otherwise the bridge method `notify(title, body)` shows a Windows toast. The toast runs the system `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand <constant script>` (WinRT `ToastNotificationManager`); title and body travel only in environment variables and become XML text nodes. No package is added to the build, nothing listens in the background, and no network is used. Off Windows `notify` does nothing and answers ok.
+
+Offline coverage: `python3 -m unittest discover -s tools/shopee-desktop/tests -p 'test_step4_bridge.py' -v` and `node --test tests/integration/shopee-desktop-ui.test.ts`. The demo page `index.html?mock=1&s4=<s1run|s3run|running|pass|fail|old>` shows each approved scenario; its first progress poll answers the state just before the scenario event, so the notification appears on the next poll.
+
 Build one windowed executable with the HTML bundled:
 
 ```powershell
