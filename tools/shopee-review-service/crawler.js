@@ -191,6 +191,16 @@
     const selected = [...root.querySelectorAll('.product-rating-overview__filter--active')].filter(visible);
     return selected.length === 1 && selected[0] === nativeControl(key);
   };
+  // Shopee keeps the next arrow enabled on the last page; the active page equal to the
+  // highest numbered page button in the one visible controller is the last page.
+  const lastPage = () => {
+    const controllers = [...root.querySelectorAll('.shopee-page-controller')].filter(visible);
+    if (controllers.length !== 1) return false;
+    const numbers = [...controllers[0].querySelectorAll('button')].filter(visible)
+      .map(button => button.innerText.trim()).filter(text => /^[1-9]\d*$/.test(text)).map(Number);
+    const active = activePage();
+    return active !== null && numbers.length > 0 && active === Math.max(...numbers);
+  };
   const noPagination = () => [...root.querySelectorAll('.shopee-page-controller')].filter(visible).length === 0;
   const observedZero = key => { const count=sourceCount(key); return count.status === 'observed' && count.value === 0; };
   const loadedList = () => { const lists=[...root.querySelectorAll('.product-ratings__list')].filter(visible); return lists.length === 1 && lists.every(list => getComputedStyle(list).opacity === '1' && list.getAttribute('aria-busy') !== 'true'); };
@@ -308,6 +318,7 @@
         pages.push({filter:state.key,page:state.page,cards:current.length,collected:records.size,ids:current.map(card => card.dataset.cmtid)});
         if (quota.has(state.key) && state.actual >= quota.get(state.key)) {state.done=true;state.stopReason='quota';}
         else if (!current.length || singlePage(state.key)) {state.done=true;state.stopReason='exhausted';}
+        else if (lastPage()) {state.done=true;state.stopReason='exhausted';}
         else if (disabled(nextControl())) {state.done=true;state.stopReason='exhausted';}
         publish();
         if (state.done || records.size >= policy.totalPerLink) break;

@@ -63,7 +63,7 @@ test('pooled stars traverse ascending and fill the shared total low-star-first w
         ${card('a1', 1, 'Một')}${card('a2', 1, 'Hai')}
       </div>
       <div class="shopee-page-controller">
-        <button>1</button><button class="shopee-button-solid--primary">1</button>
+        <button>1</button><button class="shopee-button-solid--primary">1</button><button>2</button>
         <button class="shopee-icon-button--right">›</button>
       </div>
     </div>`);
@@ -203,6 +203,69 @@ test('an unobserved rating stays null and is never reported as zero stars', asyn
     ]);
     assert.equal(result.stop_reason, 'exhausted');
   } finally { dom.window.close(); }
+});
+
+/** Live Shopee page controller (17/11): the next arrow looks the same on every page, the last one included. */
+const controller = (active: number, total: number) => `
+  <nav aria-label="" class="shopee-page-controller product-ratings__page-controller" role="navigation">
+    <button class="shopee-icon-button shopee-icon-button--left"><svg></svg></button>
+    ${Array.from({ length: total }, (_, i) => i + 1).map(page => page === active
+      ? `<button class="shopee-button-solid shopee-button-solid--primary">${page}</button>`
+      : `<button class="shopee-button-no-outline">${page}</button>`).join('')}
+    ${total > 2 ? '<button class="shopee-button-no-outline shopee-button-no-outline--non-click">...</button>' : ''}
+    <button class="shopee-icon-button shopee-icon-button--right"><svg></svg></button>
+  </nav>`;
+
+/** With Comments list split over pages; next only works while a higher page exists (as on Shopee). */
+async function pagedCrawl(count: number, pages: string[][], totalPages = pages.length) {
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'Tất cả', count)}
+      ${filter('with-comments', 'Có bình luận', count, true)}
+      <div class="product-ratings__list" style="opacity:1">${pages[0]!.join('')}</div>
+      <div class="controller">${controller(1, totalPages)}</div>
+    </div>`);
+  const window = dom.window as any;
+  const list = window.document.querySelector('.product-ratings__list');
+  const holder = window.document.querySelector('.controller');
+  let page = 1, nextClicks = 0;
+  holder.addEventListener('click', (event: any) => {
+    if (!event.target.closest('.shopee-icon-button--right')) return;
+    nextClicks++;
+    if (page >= pages.length) return; // Shopee: clicking next on the last page changes nothing.
+    page++;
+    list.innerHTML = pages[page - 1]!.join('');
+    holder.innerHTML = controller(page, totalPages);
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'with-comments', stars: [], totalPerLink: 50, allocation: 'pooled' }));
+    return { result, nextClicks };
+  } finally { dom.window.close(); }
+}
+
+test('the last page stops as exhausted although its next arrow stays enabled', async () => {
+  // Shopee count larger than the cards, so only the last-page rule can end the list.
+  const { result, nextClicks } = await pagedCrawl(40, [
+    [card('p1', 5, 'Một'), card('p2', 4, 'Hai')], [card('p3', 5, 'Ba'), card('p4', 3, 'Bốn')], [card('p5', 5, 'Năm')],
+  ]);
+  assert.equal(result.stop_reason, 'exhausted');
+  assert.equal(result.error, null);
+  assert.deepEqual(json(result.groups), [{ filter: 'with-comments', stopReason: 'exhausted' }]);
+  assert.deepEqual(json(result.records.map((row: any) => row.review_id)), ['p1', 'p2', 'p3', 'p4', 'p5']);
+  assert.deepEqual(json(result.pages.map((p: any) => p.page)), [1, 2, 3]);
+  assert.equal(nextClicks, 2, 'next is never clicked on the last page');
+});
+
+test('a displayed count already met on page 1 never stops the list while a higher page is shown', async () => {
+  // Shopee shows count 2 (stale) and 2 cards on page 1, but the bar shows [1] 2; page 2 holds one more card.
+  const { result, nextClicks } = await pagedCrawl(2, [
+    [card('q1', 5, 'Một'), card('q2', 5, 'Hai')], [card('q3', 5, 'Ba')],
+  ]);
+  assert.equal(result.stop_reason, 'exhausted');
+  assert.deepEqual(json(result.groups), [{ filter: 'with-comments', stopReason: 'exhausted' }]);
+  assert.deepEqual(json(result.records.map((row: any) => row.review_id)), ['q1', 'q2', 'q3'], 'no review is dropped');
+  assert.deepEqual(json(result.pages.map((p: any) => p.page)), [1, 2]);
+  assert.equal(nextClicks, 1);
 });
 
 async function identicalFilterCrawl(change: 'fresh' | 'loading' | 'stale' | 'busy' | 'wrong-filter'): Promise<any> {
