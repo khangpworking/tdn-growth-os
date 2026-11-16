@@ -1,4 +1,4 @@
-import { access, lstat, mkdir, open, readFile, readdir, link, unlink } from 'node:fs/promises';
+import { access, lstat, mkdir, open, readFile, readdir, link, rename, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
@@ -143,14 +143,24 @@ async function automaticBinding(run:string):Promise<AutomaticReviewBinding|null>
   const binding=validateSampling<AutomaticReviewBinding>('automatic',value);
   if(binding.runId!==basename(run))throw new ModuleError('REVIEW_PLAN_CHANGED');return binding;
 }
+/** A finished FAILED attempt whose link journals hold no saved review row. */
+async function failedWithoutReviews(run:string,attempt:ReviewSamplingAttempt):Promise<boolean>{
+  const state=await stateFor(run,'custom',attempt.attemptId);
+  if(state.status!=='FAILED'||await attemptUnresolved(run,attempt,state))return false;
+  return (await journalsFor(run,attempt)).every(j=>j?.result?.format!=='shopee-sampled-result-v1'||j.result.rows.length===0);
+}
 export async function reserveConfiguredAttempt(run:string,identity:ExecutionIdentity){
   await writable();executionIdentity(identity);
   const request=await readRequest(run);if(!request.collectionPolicy)throw new ModuleError('CONFIGURED_POLICY_MISSING');
   const context=await samplingContext(run),policy=request.collectionPolicy,existing=await automaticBinding(run);
   if(existing){
     if(existing.requestSha256!==context.requestSha256||existing.m2Digest!==context.m2Digest||existing.policySha256!==samplingDigest(policy))throw new ModuleError('REVIEW_PLAN_CHANGED',23);
-    await planFor(run,existing.planSha256);await frozenAttemptProof(run,'custom',existing.attemptId);
-    throw new ModuleError('AUTOMATIC_COLLECTION_EXISTS');
+    await planFor(run,existing.planSha256);const {attempt}=await frozenAttemptProof(run,'custom',existing.attemptId);
+    if(!await failedWithoutReviews(run,attempt))throw new ModuleError('AUTOMATIC_COLLECTION_EXISTS');
+    // Owner L4b: the bound attempt finished, failed and saved no review; keep it as history and bind a fresh one.
+    const history=await safePath(run,`m3-custom/automatic-history/${existing.attemptId}.json`);
+    await mkdir(resolve(history,'..'),{recursive:true,mode:0o700});
+    await rename(await safePath(run,'m3-custom/automatic.json'),history);
   }
   await assertSamplingIdle(run);
   const saved=await saveReviewPlan(run,policy.format==='shopee-review-policy-v2'?{mode:policy.mode,stars:policy.stars,limitBy:'pages',pagesPerLink:policy.pagesPerLink,allocation:policy.allocation}:{mode:policy.mode,stars:policy.stars,totalPerLink:policy.totalPerLink,allocation:policy.allocation});

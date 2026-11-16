@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -134,6 +135,39 @@ def _safe_filename(name, export_format):
     return stem + extension
 
 
+def _real_directory(path):
+    """True only for a real directory: not a symlink, not a Windows junction or other reparse point."""
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    reparse = getattr(info, 'st_reparse_tag', 0) or (getattr(info, 'st_file_attributes', 0) & 0x400)
+    return stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode) and not reparse
+
+
+def _evidence_folder():
+    """The app's own evidence folder next to config.json (per user). Older regular files directly inside are
+    removed first; links are never followed, and a file a viewer still holds open (Windows lock) stays."""
+    folder = _config_path().parent / 'evidence'
+    try:
+        folder.mkdir(mode=0o700, exist_ok=True)
+    except OSError:
+        raise _BridgeFailure('EVIDENCE_OPEN_FAILED') from None
+    if not _real_directory(folder):
+        raise _BridgeFailure('EVIDENCE_OPEN_FAILED')
+    with os.scandir(folder) as entries:
+        for entry in entries:
+            try:
+                if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
+                    continue
+                if getattr(entry.stat(follow_symlinks=False), 'st_file_attributes', 0) & 0x400:
+                    continue
+                os.unlink(entry.path)
+            except OSError:
+                pass
+    return folder
+
+
 def _publish_without_replacing(temp_path, destination):
     """Copy a verified file to `destination`, or to `name (N).ext` when that name is taken."""
     stem, extension = os.path.splitext(destination.name)
@@ -214,17 +248,21 @@ def _choose_save_folder():
     return os.fspath(selected)
 
 
-def _load_config():
+def _config_path():
     override = os.environ.get('TDN_SHOPEE_APP_CONFIG')
     if override is not None:
         path = Path(override)
         if not override or not path.is_absolute():
             raise _BridgeFailure('CONFIG_INVALID')
-    else:
-        appdata = os.environ.get('APPDATA')
-        if not appdata:
-            raise _BridgeFailure('CONFIG_MISSING')
-        path = Path(appdata) / 'tdn-shopee-flow' / 'config.json'
+        return path
+    appdata = os.environ.get('APPDATA')
+    if not appdata:
+        raise _BridgeFailure('CONFIG_MISSING')
+    return Path(appdata) / 'tdn-shopee-flow' / 'config.json'
+
+
+def _load_config():
+    path = _config_path()
     try:
         config = json.loads(path.read_text(encoding='utf-8-sig'))
     except FileNotFoundError:
@@ -572,9 +610,9 @@ class Api:
                 type(descriptor['byteSize']) is not int or not 1 <= descriptor['byteSize'] <= EXPORT_MAX_BYTES):
             raise _BridgeFailure('EVIDENCE_IDENTITY_MISMATCH')
         try:
-            folder = Path(tempfile.mkdtemp(prefix='tdn-shopee-evidence-'))
-            destination = folder / file_name
-            self._stream_export(run_id, digest, descriptor['byteSize'], destination, evidence_kind=kind)
+            folder = _evidence_folder()
+            destination = self._stream_export(run_id, digest, descriptor['byteSize'], folder / file_name,
+                                              evidence_kind=kind, keep_existing=True)
             if sys.platform == 'win32':
                 os.startfile(str(destination))
             else:

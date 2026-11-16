@@ -377,6 +377,27 @@ function summary(gate: ReviewProcessGateFile | null): ReviewProcessGateSummary |
  * A source is PASS only while `recordedPassHolds` holds (the same rule as runs-progress); a recorded PASS that no longer holds
  * (or a stop recorded by the automatic start) is FAIL with «Chạy tiếp».
  */
+/**
+ * The step 4 card's label rule per saved review of one source (same rule as counts()): eligible = filter outcome allowed
+ * at the recorded versions; labelled = eligible with a review_code row of the codebook, any origin. Keyed by review_key.
+ * Null before step 4 recorded a plan, or without the application DB.
+ */
+export async function reviewProcessLabelCoverage(run: string, source: VerifiedModuleReviewCollection): Promise<Map<string, { eligible: boolean; labelled: boolean }> | null> {
+  const recorded = await readOptional<ReviewProcessPlan>(run, `${folder(source.sourceSha256)}/plan.json`, 'plan');
+  if (!recorded) return null;
+  let db: BetterSqlite3.Database;
+  try { db = configuredDatabase(true); } catch { return null; }
+  try {
+    const v = recorded.versions;
+    const rows = db.prepare(`SELECT rr.review_key reviewKey, coalesce(a.outcome IN (SELECT value FROM json_each(@allowed)), 0) eligible,
+        EXISTS (SELECT 1 FROM review_code c WHERE c.review_key = rr.review_key AND c.codebook_version = @codebook) coded
+      FROM run_review rr LEFT JOIN review_filter_assessment a ON a.review_key = rr.review_key AND a.policy_version = @policy AND a.policy_sha256 = @policySha
+      WHERE rr.run_id = @dataset`).all({ dataset: datasetId(run, source.sourceSha256), policy: v.filterPolicy, policySha: v.filterPolicySha256,
+      codebook: v.codebook, allowed: JSON.stringify(allowedOutcomes(v)) }) as { reviewKey: string; eligible: number | bigint; coded: number | bigint }[];
+    return new Map(rows.map(row => [row.reviewKey, { eligible: Number(row.eligible) === 1, labelled: Number(row.eligible) === 1 && Number(row.coded) === 1 }]));
+  } catch { return null; } finally { db.close(); }
+}
+
 export async function reviewProcessView(run: string, settings: ReviewProcessSettings): Promise<ReviewProcessView> {
   const autoRun = await reviewProcessAutoRun(run), v = await versions(settings, 'none');
   let db: BetterSqlite3.Database | null = null;

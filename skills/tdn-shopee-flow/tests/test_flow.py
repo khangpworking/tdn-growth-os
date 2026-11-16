@@ -1097,7 +1097,7 @@ class _SamplingHandler(http.server.BaseHTTPRequestHandler):
             return self.send(404, {})
         if state.delay:
             time.sleep(state.delay)
-        if state.mode == 'fail':
+        if state.mode == 'fail' or state.mode == 'fail-after-one' and state.jobs:
             return self.send(400, {'error': 'synthetic upstream refusal'})
         return self.send(202, state.job(body))
 
@@ -1272,7 +1272,48 @@ class ConfiguredFlowTests(FlowTest):
         self.assertEqual(first.returncode, 0, (out, err))
         self.assertEqual(json.loads(out)['status'], 'DONE')
 
-    def test_a_later_failed_explicit_attempt_keeps_current_failed_over_the_earlier_pass(self):
+    def test_step3_rerun_after_a_failed_automatic_attempt_starts_fresh_only_when_it_saved_no_review(self):
+        # Owner L4b: 0 saved reviews -> «chạy lại bước 3» binds a fresh automatic attempt for the same plan.
+        run_id = self.create()
+        self.transport.sampling.mode = 'fail'
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertNotEqual(rc, 0, (payload, stderr))
+        binding = self.runs / run_id / 'm3-custom' / 'automatic.json'
+        first = json.loads(binding.read_text())
+        # A real step 3 failure (nothing passed before it) still shows FAIL.
+        self.assertEqual(self.info(run_id)['execution']['modules']['M3']['status'], 'FAILED')
+        steps = next(r for r in self.command('runs-progress')[1]['runs'] if r['runId'] == run_id)['steps']
+        self.assertEqual(steps[2], 'FAIL', steps)
+        self.transport.sampling.mode = 'ok'
+        rc, payload, stderr = self.command('m3', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        second = json.loads(binding.read_text())
+        self.assertNotEqual(second['attemptId'], first['attemptId'])
+        self.assertEqual(second['planSha256'], first['planSha256'], 'the same plan')
+        history = self.runs / run_id / 'm3-custom' / 'automatic-history' / f"{first['attemptId']}.json"
+        self.assertEqual(json.loads(history.read_text()), first, 'the failed binding is kept as history')
+        self.assertEqual(len(self.attempts(run_id)), 2)
+        self.assertEqual(self.info(run_id)['execution']['modules']['M3']['status'], 'SUCCEEDED')
+
+        # One saved review keeps today's block, so «Lượt này đã lấy bình luận rồi» stays true.
+        run_id = self.create()
+        self.transport.sampling.jobs.clear()
+        self.transport.sampling.mode = 'fail-after-one'
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertNotEqual(rc, 0, (payload, stderr))
+        binding = self.runs / run_id / 'm3-custom' / 'automatic.json'
+        binding_bytes = binding.read_bytes()
+        rows = [row for path in (self.attempts(run_id)[0] / 'journal').glob('*.json')
+                for row in ((json.loads(path.read_text()).get('result') or {}).get('rows') or [])]
+        self.assertGreaterEqual(len(rows), 1, 'the failed automatic attempt saved reviews')
+        self.transport.sampling.mode = 'ok'
+        rc, refused, stderr = self.command('m3', '--run', run_id)
+        self.assertEqual(rc, 20, (refused, stderr))
+        self.assertEqual(refused.get('code') or refused.get('errorCode'), 'AUTOMATIC_COLLECTION_EXISTS', refused)
+        self.assertEqual(len(self.attempts(run_id)), 1)
+        self.assertEqual(binding.read_bytes(), binding_bytes)
+
+    def test_a_later_failed_extra_attempt_shows_only_in_the_attempt_list_while_step3_and_the_run_stay_passed(self):
         run_id = self.create()
         rc, payload, stderr = self.command('run', '--run', run_id)
         self.assertEqual(rc, 0, (payload, stderr))
@@ -1297,22 +1338,25 @@ class ConfiguredFlowTests(FlowTest):
         finally:
             out, err = worker.communicate(timeout=90)
         self.assertNotEqual(worker.returncode, 0, (out, err))
+        # Owner L5: the failed extra attempt shows only in the attempt list; step 3, the run detail, the run list
+        # and the status line keep the passed step 3 (no error code that the detail would show).
+        automatic_id = json.loads(binding_bytes)['attemptId']
         view = self.info(run_id)['execution']['modules']['M3']
-        self.assertEqual(view['status'], 'FAILED')
-        self.assertEqual((view['currentGate']['verdict'], view['currentGate']['errorCode']),
-                         ('FAIL', 'REVIEW_HTTP_400'), view['currentGate'])
-        self.assertEqual(view['historicalGate']['verdict'], 'PASS')
-        self.assertNotEqual(view.get('attemptId'), json.loads(binding_bytes)['attemptId'])
+        self.assertEqual((view['status'], view['errorCode'], view['attemptId']), ('SUCCEEDED', None, automatic_id), view)
+        self.assertEqual(view['currentGate']['verdict'], 'PASS')
         self.assertEqual(len(self.attempts(run_id)), 2, 'the failed extra attempt is a separate immutable attempt')
         self.assertEqual((self.runs / run_id / 'm3-custom' / 'automatic.json').read_bytes(), binding_bytes)
         run = self.command('runs')[1]['runs'][0]
-        self.assertNotEqual(run['execution']['modules']['M3']['status'], 'SUCCEEDED')
+        self.assertEqual((run['status'], run['execution']['status'], run['errorCode']), ('SUCCEEDED', 'SUCCEEDED', None), run['execution'])
+        rc, progress, stderr = self.command('runs-progress')
+        self.assertEqual(rc, 0, (progress, stderr))
+        steps = next(r for r in progress['runs'] if r['runId'] == run_id)['steps']
+        self.assertEqual(steps[:3], ['PASS', 'PASS', 'PASS'], steps)
         sampling = self.command('review-sampling', '--run', run_id)[1]
         by_id = {a['attemptId']: a for a in sampling['attempts']}
-        self.assertIs(by_id[json.loads(binding_bytes)['attemptId']].get('automatic'), True,
-                      'the saved automatic binding stays marked automatic')
-        self.assertIs(by_id[view['attemptId']].get('automatic'), False,
-                      'the explicit failed attempt is never marked automatic')
+        self.assertIs(by_id[automatic_id].get('automatic'), True, 'the saved automatic binding stays marked automatic')
+        extra = next(a for a in sampling['attempts'] if a['attemptId'] != automatic_id)
+        self.assertEqual((extra['status'], extra.get('automatic')), ('FAILED', False), 'the attempt list shows the failed extra attempt')
 
 
 if __name__ == '__main__':

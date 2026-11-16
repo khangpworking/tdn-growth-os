@@ -20,6 +20,7 @@ import {
   datasetId, reviewProcessSettings, reviewProcessView, runReviewProcess, runReviewProcessAfterM3, validateReviewProcess, type ReviewProcessSettings,
 } from '../../src/modules/raw-db/module-review-process.js';
 import { REVIEW_FILTER_POLICY_VERSION } from '../../src/modules/raw-db/review-filter.js';
+import { reviewInsightsView } from '../../scripts/module-review-data.js';
 import { LINKS, addCustomAttempt, createModuleRun, moduleRow, writeCanonical } from '../fixtures/shopee-module-review-data.js';
 import { labelsGolden, seedLabelCode, seedLabelCodebook, seedLabelReview } from '../fixtures/raw-db-v1-labels.js';
 import { holdLabelsLock, until } from '../fixtures/raw-db-v1-y2.js';
@@ -144,6 +145,31 @@ test('Q1-5 gates and receipt: a full pass saves, filters, labels KEEP only, and 
     save: { state: 'PASS', total: 4, done: 4, inserted: 4, alreadyPresent: 0 },
     filter: { state: 'PASS', total: 4, done: 4, keep: 3, exclude: 1, unresolved: 0, noContent: 0 },
     label: { state: 'PASS', total: 3, done: 3, unresolvedSkipped: 0 } });
+});
+
+test('the AI summary counts only the reviews step 4 counts: an earlier Jev label on a review step 4 excludes is left out, and «no theme» rows still show counts', async t => {
+  const f = await workspace(t);
+  const { runDir, sourceSha256 } = await passedRun(f.base, 'run-summary', [['Good jar', 'off-topic spam'], ['Fine lid', 'Neat cap']]);
+  await saveModuleReviewData(runDir, sourceSha256);
+  // An earlier Jev label (APP_JEV, theme T-GIA, same text) on the review this run's step 4 filter will exclude: review_code
+  // is keyed by review, so a label written by an earlier pass stays. One insert; review_code rows are insert-only.
+  const seed = f.open(); seedLabelCodebook(seed);
+  seed.prepare(`INSERT INTO review_code(review_key, codebook_version, theme_code, block_key, polarity, journey_step, status, confidence,
+    coder, text_sha256, coded_at, origin, import_sha256, choice) VALUES (?, ?, 'T-GIA', NULL, 'khen', 'Sau mua', 'kept', 0.9, ?, ?,
+    '2026-11-01T00:00:00.000Z', 'APP_JEV', ?, NULL)`).run('S05:run-summary-0-1', labelsGolden.codebook_version, MODEL,
+    createHash('sha256').update('off-topic spam', 'utf8').digest('hex'), 'a'.repeat(64));
+  seed.close();
+  assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS');
+  const label = (await reviewProcessView(runDir, await settings())).sources[0]!.stages.label;
+  assert.deepEqual([label.done, label.total], [3, 3]);
+  const insights = await reviewInsightsView(runDir) as any;
+  const [source] = insights.sources;
+  // Every kept review was read as «no theme»: counts are shown, not EMPTY; the excluded review's label is in no number.
+  assert.deepEqual([source.all.summary.status, source.all.summary.text.split(' Dòng chưa đủ')[0]],
+    ['READY', 'Jev đã đọc 3/3 bình luận; 0 bình luận có ít nhất 1 chủ đề. Tổng số nhãn: 0 khen, 0 chê, 0 trung lập (một bình luận có thể mang nhiều nhãn).']);
+  assert.deepEqual(source.links.map((link: any) => link.insights.summary.text.split('. Tổng số nhãn')[0]),
+    ['Jev đã đọc 1/1 bình luận; 0 bình luận có ít nhất 1 chủ đề', 'Jev đã đọc 2/2 bình luận; 0 bình luận có ít nhất 1 chủ đề']);
+  assert.deepEqual([source.all.comments.length, source.all.themes.find((theme: any) => theme.code === 'T-GIA').count], [0, 0]);
 });
 
 test('Q1-3 and retries: a filter call that keeps failing is retried 3 times, then step 4 stops before labels with gate FAIL', async t => {

@@ -1074,8 +1074,29 @@ def module_blocking(run, module, manual=False, owner_pid=None):
         request = gate_read(gate_path(run, 'request.json'))
         if isinstance(request, dict) and request.get('format') == 'request-v2':
             changed = automatic.get('requestSha256') != gate_hash(run, 'request.json') or automatic.get('m2Digest') != gate_hash(run, 'm2/selection.json')
-            return {'code': 'REVIEW_PLAN_CHANGED' if changed else 'AUTOMATIC_COLLECTION_EXISTS', 'gate': None}, 23 if changed else 20
+            if changed or not module_automatic_retry(run, automatic.get('attemptId')):
+                return {'code': 'REVIEW_PLAN_CHANGED' if changed else 'AUTOMATIC_COLLECTION_EXISTS', 'gate': None}, 23 if changed else 20
     return None, 0
+
+
+def module_automatic_retry(run, attempt_id):
+    """Owner L4b: the automatic attempt finished FAILED and saved no review, so «chạy lại bước 3» starts a fresh one
+    for the same plan. The TS reservation re-checks this before it replaces the binding."""
+    if not isinstance(attempt_id, str) or not re.fullmatch(r'[a-f0-9-]{36}', attempt_id):
+        return False
+    base = f'm3-custom/attempts/{attempt_id}'
+    state = gate_read(gate_path(run, f'{base}/state.json'))
+    if not isinstance(state, dict) or state.get('status') != 'FAILED':
+        return False
+    journals = gate_path(run, f'{base}/journal')
+    for journal in journals.iterdir() if journals.is_dir() else []:
+        if not journal.name.endswith('.json'):
+            continue
+        value = gate_read(gate_path(run, f'{base}/journal/{journal.name}'))
+        result = value.get('result') if isinstance(value, dict) else None
+        if isinstance(result, dict) and result.get('format') == 'shopee-sampled-result-v1' and result.get('rows'):
+            return False
+    return True
 
 
 def module_readonly():
@@ -1398,6 +1419,20 @@ def flow_gate_matches(run, module, slip, execution=None):
             and slip.get('outputSha256') is not None and slip['outputSha256'] == gate_hash(run, outputs))
 
 
+def flow_passed_before_extra(attempts):
+    """The passed step-3 attempt when every later M3 attempt is a finished, unsuccessful extra («lấy thêm», kind custom);
+    otherwise None. `attempts` are M3 candidates or ledger records with status, kind and sequence."""
+    order = lambda a: (a.get('sequence') or 0, a.get('startedAt') or '', a.get('executionId') or a.get('attemptId') or '')
+    passed = [a for a in attempts if a.get('status') == 'SUCCEEDED' and a.get('currentGate', True)]
+    if not passed:
+        return None
+    best = max(passed, key=order)
+    later = [a for a in attempts if order(a) > order(best)]
+    extras = bool(later) and all(a.get('kind') == 'custom' and a.get('status') not in ('RUNNING', 'UNCERTAIN', 'SUCCEEDED')
+                                 for a in later)
+    return best if extras else None
+
+
 def flow_execution_view(run, config):
     records = flow_execution_records(run)
     sampling = None
@@ -1440,7 +1475,7 @@ def flow_execution_view(run, config):
                     'attemptId': attempt['attemptId'], 'startedAt': attempt.get('createdAt'),
                     'endedAt': record.get('endedAt') if record else None, 'status': status,
                     'currentGate': attempt['gate'] if matched else None, 'basis': 'custom-attempt',
-                    'errorCode': attempt.get('errorCode')})
+                    'errorCode': attempt.get('errorCode'), 'kind': record.get('kind') if record else None})
                 if attempt.get('gate'):
                     history.append((attempt.get('executionId') or attempt['attemptId'], attempt['gate']))
             # A missing/deleted attempt must never revive an old successful receipt.
@@ -1461,6 +1496,9 @@ def flow_execution_view(run, config):
                        'endedAt': state.get('endedAt') if stopped else None,
                        'errorCode': state.get('errorCode') if live or stopped else None,
                        'basis': 'legacy-gate' if previous else 'none', 'currentGate': previous if matched else None}
+        # Owner L5: after step 3 passed, a failed «lấy thêm» shows only in the attempt list, never as the step's status.
+        if module == 'M3' and not active:
+            current = flow_passed_before_extra(candidates) or current
         if current['status'] == 'SUCCEEDED' and not current.get('currentGate'):
             current = {**current, 'status': 'UNKNOWN', 'errorCode': 'EXECUTION_RECEIPT_CHANGED'}
         modules[module] = {key: current.get(key) for key in ('status', 'executionId', 'sequence', 'attemptId', 'startedAt', 'endedAt', 'basis', 'currentGate', 'errorCode')}
@@ -2013,13 +2051,15 @@ def progress_m3_counts(run):
 def progress_steps(run):
     """Cheap step 1-3 states from the execution ledger, the live state and the gate slips (no node, no hash replay)."""
     state = gate_read(gate_path(run, 'state.json')) or {}
-    records = {}
+    records, m3 = {}, []
     root = gate_path(run, 'executions')
     for child in root.iterdir() if root.is_dir() else []:
         if not child.name.endswith('.json') or child.name.endswith('.tmp'):
             continue
         value = gate_read(gate_path(run, f'executions/{child.name}'))
         if isinstance(value, dict) and value.get('module') in ('M1', 'M2', 'M3') and type(value.get('sequence')) is int:
+            if value['module'] == 'M3':
+                m3.append(value)
             if value['module'] not in records or value['sequence'] > records[value['module']]['sequence']:
                 records[value['module']] = value
     steps = []
@@ -2031,6 +2071,8 @@ def progress_steps(run):
             status = record.get('status')
             live = status == 'RUNNING' and (module_pid_live(record.get('pid')) or module == 'M3' and record.get('attemptId') and
                                            (gate_read(gate_path(run, f'm3-custom/attempts/{record["attemptId"]}/state.json')) or {}).get('status') == 'RUNNING')
+            if not live and module == 'M3' and flow_passed_before_extra(m3):
+                status = 'SUCCEEDED'  # owner L5: a failed «lấy thêm» keeps step 3 = PASS
             steps.append('RUNNING' if live else {'SUCCEEDED': 'PASS', 'WAIT_OWNER': 'WAIT_OWNER'}.get(status, 'FAIL'))
         else:
             slip = gate_read(gate_path(run, f'gates/{module.lower()}.json'))

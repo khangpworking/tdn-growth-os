@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { SamplingJournal, SamplingJob, SamplingJobInput, SamplingResult, ReviewLink, ShopeeReviewPlan } from '../../../contracts/foundation/shopee-review-sampling.generated.js';
 import { canonicalJson } from '../../modules/foundation/canonical-json.js';
@@ -21,17 +23,47 @@ const utc = (value: unknown): string => {
 export interface SamplingCollectorOptions {
   token: string; baseUrl?: string; fetch?: typeof fetch; now?: () => Date;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<unknown>;
+  /** One lock file shared by every run on this machine; default under the Shopee flow state folder. */
+  submitLockFile?: string;
+}
+/** Owner L4: a run whose step 3 finds the service busy with another run waits, polling the job list. */
+const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
+const defaultSubmitLock = () => path.join(process.env.SHOPEE_FLOW_STATE ?? path.join(os.homedir(), '.local/state/tdn-growth-os'),
+  'shopee-flow', 'review-submit.lock');
+type LockDatabase = { exec(sql: string): unknown; close(): unknown };
+/**
+ * Exclusive cross-run lock around "service free? then submit": an EXCLUSIVE transaction on a small SQLite file.
+ * SQLite holds it with an OS file lock, which the kernel releases when the holder's process ends, so there is no
+ * stale lock to detect or remove. Returns its release.
+ */
+async function acquireSubmitLock(file: string, wait: () => Promise<void>): Promise<() => Promise<void>> {
+  await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+  const Database = createRequire(import.meta.url)('better-sqlite3') as new (file: string, options: { timeout: number }) => LockDatabase;
+  const db = new Database(file, { timeout: 0 });
+  try {
+    while (true) {
+      try {
+        db.exec('BEGIN EXCLUSIVE');
+        return async () => { try { db.exec('COMMIT'); } finally { db.close(); } };
+      } catch (error) {
+        if ((error as { code?: unknown }).code !== 'SQLITE_BUSY') throw error;
+      }
+      await wait();
+    }
+  } catch (error) { db.close(); throw error; }
 }
 /** Dedicated versioned transport; the legacy collector/journals retain their original contract. */
 export class ShopeeReviewSamplingCollector {
   readonly #base: string; readonly #fetch: typeof fetch; readonly #now: () => Date;
   readonly #sleep: NonNullable<SamplingCollectorOptions['sleep']>;
+  readonly #lock: string;
   constructor(readonly options: SamplingCollectorOptions) {
     this.#base = options.baseUrl?.replace(/\/$/,'') ?? 'http://127.0.0.1:8877';
     if (!/^http:\/\/(?:127\.0\.0\.1|\[::1\]):8877$/.test(this.#base) || !options.token || options.token.length > 512 || !/^[\x21-\x7e]+$/.test(options.token))
       throw new ReviewSamplingError('COLLECTOR_NOT_CONFIGURED');
     this.#fetch = options.fetch ?? fetch; this.#now = options.now ?? (() => new Date());
     this.#sleep = options.sleep ?? ((ms,signal) => delay(ms, undefined, {signal}));
+    this.#lock = options.submitLockFile ?? defaultSubmitLock();
   }
   async run(file: string, request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan | null, reconcileOnly = false, signal?: AbortSignal): Promise<SamplingJournal> {
     validateSampling('jobInput',request);
@@ -133,17 +165,34 @@ export class ShopeeReviewSamplingCollector {
     try {
       if(!j.intentAt) {
         if(reconcileOnly) {j.terminal=true;j.errorCode='STOPPED_BEFORE_SUBMIT';await save();return j;}
-        const session = await new ShopeePublicReviewSessionClient({token:this.options.token,baseUrl:this.#base,now:this.#now,
-          dispatch:async(method,route,timeout)=>({status:200,value:await call(method,route,undefined,false,timeout)})}).check(signal);
-        if(session.state!=='READY') throw new ReviewSamplingError(session.state==='LOGIN_REQUIRED'?'HUMAN_LOGIN_REQUIRED':session.state==='VERIFICATION_REQUIRED'?'HUMAN_VERIFICATION_REQUIRED':'HEALTH_NOT_READY');
-        const all=await list();
-        if(all.some(raw=>active(String(object(raw).state)) || ['needs_login','needs_verification'].includes(String(object(raw).state)))) throw new ReviewSamplingError('HEALTH_NOT_READY');
-        j.baselineIds=all.map(raw=>String(object(raw).id));
-        j.intentAt=this.#now().toISOString();await save(); // Durable one-use submission permission.
-        try { j.job=parseJob(await call('POST','kind' in request ? '/count-jobs' : '/jobs',request));await save(); }
-        catch(error) {
-          if(error instanceof ReviewSamplingError && /^REVIEW_HTTP_4\d\d$/.test(error.code)) { j.terminal=true;throw error; }
-          throw new ReviewSamplingError('SUBMISSION_UNCERTAIN');
+        // Stop and the deadline end any wait; nothing is submitted while waiting (intentAt stays null).
+        const pause = async (ms:number) => {
+          if(signal?.aborted)throw new ReviewSamplingError('OWNER_ABORTED');
+          if(left()<=0)throw new ReviewSamplingError('DEADLINE');
+          await this.#sleep(Math.min(ms,left()),signal);
+        };
+        while(!j.intentAt) {
+          const session = await new ShopeePublicReviewSessionClient({token:this.options.token,baseUrl:this.#base,now:this.#now,
+            dispatch:async(method,route,timeout)=>({status:200,value:await call(method,route,undefined,false,timeout)})}).check(signal);
+          if(session.state!=='READY') throw new ReviewSamplingError(session.state==='LOGIN_REQUIRED'?'HUMAN_LOGIN_REQUIRED':session.state==='VERIFICATION_REQUIRED'?'HUMAN_VERIFICATION_REQUIRED':'HEALTH_NOT_READY');
+          // One run at a time checks "free" and submits, so two waiting runs never submit together.
+          const release=await acquireSubmitLock(this.#lock,()=>pause(LOCK_POLL_MS));
+          let busy=false;
+          try {
+            const all=await list();
+            if(all.some(raw=>['needs_login','needs_verification'].includes(String(object(raw).state)))) throw new ReviewSamplingError('HEALTH_NOT_READY');
+            busy=all.some(raw=>active(String(object(raw).state)));
+            if(!busy) {
+              j.baselineIds=all.map(raw=>String(object(raw).id));
+              j.intentAt=this.#now().toISOString();await save(); // Durable one-use submission permission.
+              try { j.job=parseJob(await call('POST','kind' in request ? '/count-jobs' : '/jobs',request));await save(); }
+              catch(error) {
+                if(error instanceof ReviewSamplingError && /^REVIEW_HTTP_4\d\d$/.test(error.code)) { j.terminal=true;throw error; }
+                throw new ReviewSamplingError('SUBMISSION_UNCERTAIN');
+              }
+            }
+          } finally { await release(); }
+          if(busy) await pause(BUSY_POLL_MS); // another run's job is active: wait until the service is free
         }
       } else if(!j.job) await reconcile();
       // A same-attempt reconcile can read/cancel after acquisition deadline, never acquire again.

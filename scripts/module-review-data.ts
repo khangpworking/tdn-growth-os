@@ -7,7 +7,7 @@ import { ModuleError, validateModuleValue } from './module-pick.js';
 import { discoverModuleReviewSources, prepareReviewExport, publishLabelledReviewExport, readReviewExportBytes, validateReviewData,
   type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
 import { reviewDataView, saveModuleReviewData } from '../src/modules/raw-db/module-shopee-reviews.js';
-import { reviewProcessJevClient, reviewProcessSettings, reviewProcessStart, reviewProcessStartable, reviewProcessView, runReviewProcess,
+import { reviewProcessJevClient, reviewProcessLabelCoverage, reviewProcessSettings, reviewProcessStart, reviewProcessStartable, reviewProcessView, runReviewProcess,
   runReviewProcessAfterM3 } from '../src/modules/raw-db/module-review-process.js';
 import { DEFAULT_CODEBOOK_FILE, codingText, parseLabelCodebook, type LabelCodebook } from '../src/modules/raw-db/review-labeller.js';
 import type { ReviewDataSaveInput, ReviewDataExportInput } from '../contracts/foundation/shopee-module-review-data.generated.js';
@@ -65,12 +65,16 @@ export type InsightLabelStore = { labels:Map<string,StoredRowTag[]>; productName
  * (stale labels are ignored as a group). Two results may share a review id with different text.
  */
 export function insightRowTags(row:ModuleReviewRow, store:InsightLabelStore):InsightTag[] {
+  return insightRowLabels(row,store).filter(entry => entry.known).map(({ code, name, polarity, status, choice }) => ({ code, name, polarity, status, choice }));
+}
+
+/** Every stored Jev result of THIS row's text, including "no theme"; non-empty means Jev read the row (as step 4 counts it). */
+function insightRowLabels(row:ModuleReviewRow, store:InsightLabelStore):StoredRowTag[] {
   const entries = row.reviewId ? store.labels.get(row.reviewId) : undefined;
   if (!entries?.length) return [];
   const attributesJson = row.attributes.length ? JSON.stringify(row.attributes) : null;
   const hash = insightSha256(codingText(row.comment,attributesJson));
-  if (entries.some(entry => entry.textSha256 !== hash)) return [];
-  return entries.filter(entry => entry.known).map(({ code, name, polarity, status, choice }) => ({ code, name, polarity, status, choice }));
+  return entries.some(entry => entry.textSha256 !== hash) ? [] : entries;
 }
 
 /** Read Jev's persisted APP_JEV labels without changing the application DB. */
@@ -255,9 +259,10 @@ function insightThemeSummary(definition:LabelCodebook['core'][number], entry:{ k
     text:`Nội dung tiêu biểu từ các bình luận đã gắn nhãn cho chủ đề này: ${selected.map(quote).join('; ')}.` };
 }
 
-function insightSummary(rows:number, comments:number, themes:InsightTheme[], generatedAt:string|null, available:boolean):InsightSummary {
+function insightSummary(rows:number, read:number, comments:number, themes:InsightTheme[], generatedAt:string|null, available:boolean):InsightSummary {
   if (!available) return { status:'UNAVAILABLE', text:null, model:null, generatedAt:null };
-  if (!comments) return { status:'EMPTY', text:null, model:null, generatedAt:null };
+  // EMPTY only when nothing was read; a bucket read entirely as «no theme» still shows its counts.
+  if (!read && !comments) return { status:'EMPTY', text:null, model:null, generatedAt:null };
   const top = [...themes].filter(theme => theme.count > 0).sort((a,b) => b.count-a.count || a.code.localeCompare(b.code)).slice(0,3)
     .map(theme => `${theme.name} (${theme.count})`).join(', ');
   const polarity = themes.reduce((total,theme) => {
@@ -267,17 +272,26 @@ function insightSummary(rows:number, comments:number, themes:InsightTheme[], gen
   const neutral = polarity.ke + polarity.khong_ro_huong;
   const subject = top ? ` Chủ đề được nhắc nhiều nhất: ${top}.` : '';
   return { status:'READY',
-    text:`Đã gắn nhãn Jev cho ${comments} trong ${rows} bình luận. Các nhãn gồm ${polarity.khen} khen, ${polarity.che} chê và ${neutral} trung lập.${subject} Dòng chưa đủ bằng chứng được giữ là “không rõ phân loại”.`,
+    text:`Jev đã đọc ${read}/${rows} bình luận; ${comments} bình luận có ít nhất 1 chủ đề. Tổng số nhãn: ${polarity.khen} khen, ${polarity.che} chê, ${neutral} trung lập (một bình luận có thể mang nhiều nhãn).${subject} Dòng chưa đủ bằng chứng được giữ là “không rõ phân loại”.`,
     model:'jev-derived-v1', generatedAt };
 }
 
-function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:InsightLabelStore, generatedAt:string|null):InsightBucket {
+type LabelCoverage = Awaited<ReturnType<typeof reviewProcessLabelCoverage>>;
+function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:InsightLabelStore, generatedAt:string|null,
+  coverage:LabelCoverage):InsightBucket {
   type ThemeAccumulator = { count:number; unclearCount:number; keptCount:number;
     polarityCounts:Record<InsightPolarity,number>; keptPolarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] };
   const byTheme = new Map<string,ThemeAccumulator>(definitions.map(theme => [theme.code,{ count:0, unclearCount:0, keptCount:0,
     polarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, keptPolarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, comments:[] }]));
   const comments:InsightComment[] = [];
+  // «Jev đã đọc X/Y» uses the step 4 card's rule when step 4 has data; otherwise the rows with a stored Jev result.
+  const card = coverage ? rows.map(row => row.reviewId ? coverage.get(`S05:${row.reviewId}`) : undefined) : null;
+  const read = card ? card.filter(entry => entry?.labelled).length : rows.filter(row => insightRowLabels(row,labelStore).length).length;
+  const readOf = card ? card.filter(entry => entry?.eligible).length : rows.length;
+  // One population for every number of the bucket: with step 4 data, only the reviews step 4 counts (eligible).
+  const counted = (index:number) => !card || card[index]?.eligible === true;
   rows.forEach((row,index) => {
+    if (!counted(index)) return;
     const tags = insightRowTags(row,labelStore);
     if (!tags.length) return;
     const comment = insightComment(row,sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
@@ -292,7 +306,7 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
       theme.comments.push(comment);
     }
   });
-  const total = rows.length;
+  const total = readOf;
   const themes = definitions.map(definition => {
     const entry = byTheme.get(definition.code)!;
     return { code:definition.code, name:definition.name, count:entry.count, unclearCount:entry.unclearCount,
@@ -300,7 +314,7 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
       summary:insightThemeSummary(definition,entry,labelStore.available,generatedAt),
       comments:entry.comments.slice(0,INSIGHT_MAX_COMMENTS) };
   });
-  return { summary:insightSummary(total,comments.length,themes,generatedAt,labelStore.available), themes,
+  return { summary:insightSummary(readOf,read,comments.length,themes,generatedAt,labelStore.available), themes,
     comments:comments.slice(0,INSIGHT_MAX_COMMENTS) };
 }
 
@@ -322,15 +336,17 @@ export async function reviewInsightsView(run:string):Promise<unknown> {
   const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
   const sources = await discoverModuleReviewSources(run);
   const labelStore = runInsightLabels(sources,book);
-  const sourceViews = sources.map(source => {
+  const sourceViews = [];
+  for (const source of sources) {
+    const coverage = await reviewProcessLabelCoverage(run,source);
     const links = source.links.map(link => {
       const rows = source.rows.filter(row => row.shopId === link.shopId && row.itemId === link.itemId);
       return { shopId:link.shopId, itemId:link.itemId, url:link.url,
-        insights:insightBucket(rows,source.sourceSha256,book.core,labelStore,source.completedAt) };
+        insights:insightBucket(rows,source.sourceSha256,book.core,labelStore,source.completedAt,coverage) };
     });
-    return { sourceSha256:source.sourceSha256, kind:source.kind, status:source.status, completedAt:source.completedAt,
-      all:insightBucket(source.rows,source.sourceSha256,book.core,labelStore,source.completedAt), links };
-  });
+    sourceViews.push({ sourceSha256:source.sourceSha256, kind:source.kind, status:source.status, completedAt:source.completedAt,
+      all:insightBucket(source.rows,source.sourceSha256,book.core,labelStore,source.completedAt,coverage), links });
+  }
   const view = { format:'review-insights-v1', runId:basename(run), codebookVersion:book.version, sources:sourceViews };
   validateInsightView(view);
   return view;
