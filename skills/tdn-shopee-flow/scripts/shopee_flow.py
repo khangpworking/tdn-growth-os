@@ -947,6 +947,16 @@ def cmd_gate(ns):
     if run.is_symlink() or not run.is_dir():
         die('run folder not found or unsafe', 2)
     try:
+        request = gate_read(gate_path(run, 'request.json')) if ns.gate == 'm3' else None
+    except ValueError:
+        request = None  # An unsafe request.json keeps the existing gate path and its controlled result.
+    if isinstance(request, dict) and request.get('format') == 'request-v2':
+        # Step 3 of a request-v2 run lives in m3-custom/; its verdict is review-data → sources[].gateVerdict.
+        # Refuse without touching gates/m3.json (reading m3/ would write a false FAIL).
+        print(json.dumps({'format': 'error-v1', 'code': 'GATE_M3_REQUEST_V2',
+                          'message': 'gate m3 does not apply to request-v2 runs; read review-data sources[].gateVerdict.'}))
+        sys.exit(2)
+    try:
         slip, exit_code = evaluate_gate(run, ns.gate)
         path = gate_path(run, f'gates/{ns.gate}.json')
         path.parent.mkdir(mode=0o700, exist_ok=True)

@@ -133,7 +133,7 @@ shopee-cli.py review-data --run <runId>     # kết luận bước 3
 - Lấy qua dịch vụ lấy bình luận trên máy chạy lane, theo cách lấy đã chốt ở bước 0: số bình luận/link hoặc số trang/link, theo số sao hay chỉ bình luận có chữ.
 - Lượt khác đang lấy thì lượt này chờ đến lượt.
 - Lượt tạo bằng `new-run` (`request-v2`) ghi bình luận vào `m3-custom/attempts/<attemptId>/`, không vào `m3/`.
-- **Cấm chạy `gate m3` cho lượt `request-v2`.** Lệnh đó chỉ đọc `m3/`, báo FAIL, và ghi đè `gates/m3.json` thành FAIL dù bước 3 đạt.
+- `gate m3` không dùng cho lượt `request-v2`: lệnh từ chối với mã `GATE_M3_REQUEST_V2` (exit 2) và không đổi `gates/m3.json`. Dùng `review-data` → `sources[].gateVerdict`.
 - Kết luận bước 3: `review-data` → `sources[]`. Mỗi nguồn có `kind`, `rowCount`, `gateVerdict`, `canSaveDb`, `sourceSha256`. Chỉ đi tiếp khi nguồn đó có `gateVerdict` = `PASS`. `run-info` → `execution.modules.M3.currentGate` là cùng cổng đó.
 - Cổng của nguồn kiểm: lấy xong mọi link, mỗi link có ít nhất 1 bình luận, không vượt số bình luận (hoặc số trang) cho phép, không trùng mã bình luận, đúng các link của bước 2 (5 link ở đường 1 kỳ, 1–5 link ở đường cũ). `links_below_cap` chỉ là cảnh báo.
 - Lấy thêm theo cách khác: `echo '<plan JSON>' | shopee-cli.py save-review-plan --run <runId> --stdin` → lấy `planSha256` → `shopee-cli.py m3 --run <runId> --plan-sha256 <sha> --detach`. Xem các lần lấy bằng `review-sampling --run <runId>`. Lần lấy thêm hỏng không làm hỏng bước 3 đã đạt.
