@@ -1863,18 +1863,45 @@ def review_process_script(repo, config, action, run, *args):
     return value
 
 
+M3_KEY = re.compile(r'legacy|[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}')
+
+
+def review_process_m3_output(run, key):
+    """The output hash on the M3 slip of one source key ('legacy' or a custom attempt id); None when unknown."""
+    slip = gate_read(gate_path(run, 'gates/m3.json' if key == 'legacy' else f'm3-custom/attempts/{key}/gate.json'))
+    value = slip.get('outputSha256') if isinstance(slip, dict) else None
+    return value if isinstance(value, str) and re.fullmatch(r'[a-f0-9]{64}', value) else None
+
+
 def review_process_after_m3(run, repo, config, attempt_id, value=None):
     """Owner F582: step 4 starts by itself after an M3 PASS, inside the same run lock, only for runs created by this release.
-    A step-4 stop is recorded under m4/ and never changes the M3 result, its exit code or state.json."""
+    A step-4 stop is recorded under m4/ and never changes the M3 result, its exit code or state.json. A stop before the
+    worker wrote any step-4 state goes into the link file m4/m3/<key>.json, so the run shows step 4 FAIL with «Chạy tiếp»."""
     if value is not None:
         slip = gate_read(gate_path(run, f'm3-custom/attempts/{attempt_id}/gate.json'))
         if value.get('status') != 'SUCCEEDED' or not isinstance(slip, dict) or slip.get('verdict') != 'PASS':
             return
     if not gate_path(run, 'm4/auto.json').is_file():
         return
+    key = attempt_id or 'legacy'
     try:
-        review_process_script(repo, config, 'process-auto', run, attempt_id or 'legacy')
-    except (ModuleFailure, OSError, ValueError):
+        review_process_script(repo, config, 'process-auto', run, key)
+        return
+    except ModuleFailure as failure:
+        code = failure.code
+    except (OSError, ValueError):
+        code = 'REVIEW_PROCESS_FAILED'
+    if code == 'RUN_BUSY' or not M3_KEY.fullmatch(key):
+        return  # A live step 4 already owns this run; its own state tells the story.
+    try:
+        output = review_process_m3_output(run, key)
+        prior = gate_read(gate_path(run, f'm4/m3/{key}.json'))
+        sha = prior.get('sourceSha256') if isinstance(prior, dict) and prior.get('m3OutputSha256') == output else None
+        module_atomic_json(run, f'm4/m3/{key}.json', {
+            'format': 'review-process-link-v1', 'runId': run.name, 'm3': key, 'm3OutputSha256': output,
+            'sourceSha256': sha if isinstance(sha, str) and re.fullmatch(r'[a-f0-9]{64}', sha) else None,
+            'errorCode': code, 'recordedAt': flow_now()})
+    except (OSError, ValueError):
         pass
 
 
@@ -1917,10 +1944,10 @@ def cmd_review_process(ns):
             review_process_script(repo, config, 'process-check', run, ns.source_sha256)
             read_fd, write_fd = os.pipe()
             try:
-                logs = gate_path(run, 'logs'); logs.mkdir(mode=0o700, exist_ok=True)
+                gate_path(run, 'm4/logs').mkdir(mode=0o700, parents=True, exist_ok=True)
                 args = [sys.executable, str(pathlib.Path(__file__).resolve()), 'review-process-worker', '--run', run.name,
                         '--source-sha256', ns.source_sha256, '--worker-lock-fd', str(lock.fileno()), '--worker-ready-fd', str(read_fd)]
-                log = gate_path(run, f'logs/{time.time_ns()}-review-process.log')
+                log = gate_path(run, f'm4/logs/{time.time_ns()}-review-process.log')
                 with open(log, 'x', encoding='utf8') as output:
                     os.chmod(log, 0o600)
                     child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=output, stderr=output,
@@ -2019,45 +2046,108 @@ def progress_db():
         return None
 
 
+def progress_m3_sources(run):
+    """Every M3 PASS source a step 4 is owed for, as (key, slip output hash): the legacy slip and each passed custom attempt."""
+    sources = []
+    slip = gate_read(gate_path(run, 'gates/m3.json'))
+    if isinstance(slip, dict) and slip.get('verdict') == 'PASS' and gate_path(run, 'm3/reviews.json').is_file():
+        sources.append('legacy')
+    root = gate_path(run, 'm3-custom/attempts')
+    for child in sorted(root.iterdir()) if root.is_dir() else []:
+        if child.name == 'legacy' or not M3_KEY.fullmatch(child.name):
+            continue
+        slip = gate_read(gate_path(run, f'm3-custom/attempts/{child.name}/gate.json'))
+        state = gate_read(gate_path(run, f'm3-custom/attempts/{child.name}/state.json'))
+        if isinstance(slip, dict) and slip.get('verdict') == 'PASS' and isinstance(state, dict) and state.get('status') == 'SUCCEEDED':
+            sources.append(child.name)
+    return [(key, review_process_m3_output(run, key)) for key in sources]
+
+
+PROGRESS_COUNTS = (
+    "SELECT count(*), count(a.review_key), coalesce(sum(a.outcome IN (SELECT value FROM json_each(:allowed))), 0), "
+    "coalesce(sum(a.outcome IN (SELECT value FROM json_each(:allowed)) AND EXISTS (SELECT 1 FROM review_code c "
+    "WHERE c.review_key = rr.review_key AND c.codebook_version = :codebook)), 0) FROM run_review rr "
+    "LEFT JOIN review_filter_assessment a ON a.review_key = rr.review_key AND a.policy_version = :policy "
+    "AND a.policy_sha256 = :policySha WHERE rr.run_id = :dataset")
+
+
+def progress_counts(run, sha, db):
+    """(saved, assessed, eligible, labelled) of one step-4 source at its recorded plan versions; None when unknown."""
+    plan = gate_read(gate_path(run, f'm4/{sha}/plan.json'))
+    versions = plan.get('versions') if isinstance(plan, dict) and isinstance(plan.get('versions'), dict) else None
+    if db is None or not versions:
+        return None
+    allowed = json.dumps(['KEEP', 'UNRESOLVED'] if versions.get('labelUnresolved') else ['KEEP'])
+    try:
+        return db.execute(PROGRESS_COUNTS, {'allowed': allowed, 'codebook': versions.get('codebook'), 'policy': versions.get('filterPolicy'),
+                                            'policySha': versions.get('filterPolicySha256'), 'dataset': f'module-m3:{run.name}:{sha}'}).fetchone()
+    except sqlite3.Error:
+        return None
+
+
+def progress_complete(run, sha, db):
+    """A recorded PASS holds only while the output gate passed on this receipt and every DB-derived stage is complete."""
+    import hashlib
+    gate, receipt = gate_path(run, f'm4/{sha}/gate.json'), gate_path(run, f'm4/{sha}/receipt.json')
+    slip = gate_read(gate)
+    try:
+        receipt_sha = hashlib.sha256(receipt.read_bytes()).hexdigest()
+    except OSError:
+        return False
+    rows = ((gate_read(receipt) or {}).get('counts') or {}).get('rows')
+    if not isinstance(slip, dict) or slip.get('verdict') != 'PASS' or slip.get('outputSha256') != receipt_sha or type(rows) is not int:
+        return False
+    found = progress_counts(run, sha, db)
+    try:
+        imported = db is not None and db.execute('SELECT 1 FROM raw_db_module_review_import WHERE source_sha256 = ?', (sha,)).fetchone() is not None
+    except sqlite3.Error:
+        return False
+    if not found or not imported:
+        return False
+    saved, assessed, eligible, labelled = found
+    return saved == rows and saved > 0 and assessed == saved and labelled == eligible
+
+
 def progress_step4(run, db):
-    """Worst state over the started sources (m4/<source>/state.json); IDLE or NOT_APPLICABLE when none started."""
+    """Worst state over every M3 PASS source (FAIL > RUNNING > not run > PASS). A source with no step 4 yet is IDLE (or
+    NOT_APPLICABLE for a run created before this release); a stop of the automatic start recorded in the link file is FAIL."""
     auto = gate_path(run, 'm4/auto.json').is_file()
-    root = gate_path(run, 'm4')
-    started = []
-    for child in root.iterdir() if root.is_dir() else []:
-        if re.fullmatch(r'[a-f0-9]{64}', child.name):
-            value = gate_read(gate_path(run, f'm4/{child.name}/state.json'))
-            if isinstance(value, dict) and value.get('status') in ('RUNNING', 'PASS', 'FAIL'):
-                status = value['status']
-                if status == 'RUNNING' and not module_pid_live(value.get('pid')):
-                    status = 'FAIL'
-                started.append((status, child.name, value, child / 'state.json'))
-    if not started:
-        return ('IDLE' if auto else 'NOT_APPLICABLE'), None, []
-    rank = {'FAIL': 3, 'RUNNING': 2, 'PASS': 1}
-    status, sha, value, _ = max(started, key=lambda s: rank[s[0]])
+    pending = 'IDLE' if auto else 'NOT_APPLICABLE'
+    found = []
+    for key, output in progress_m3_sources(run):
+        link_path = gate_path(run, f'm4/m3/{key}.json')
+        link = gate_read(link_path)
+        if not isinstance(link, dict) or link.get('m3OutputSha256') != output:
+            found.append((pending, None, None, []))
+            continue
+        sha = link.get('sourceSha256') if isinstance(link.get('sourceSha256'), str) and re.fullmatch(r'[a-f0-9]{64}', link['sourceSha256']) else None
+        if link.get('errorCode'):
+            found.append(('FAIL', sha, None, [link_path]))
+            continue
+        value = gate_read(gate_path(run, f'm4/{sha}/state.json')) if sha else None
+        status = value.get('status') if isinstance(value, dict) else None
+        if status == 'RUNNING':
+            status = 'RUNNING' if module_pid_live(value.get('pid')) else 'FAIL'
+        elif status == 'PASS':
+            status = 'PASS' if progress_complete(run, sha, db) else 'FAIL'
+        elif status != 'FAIL':
+            status = pending
+        files = [link_path, gate_path(run, f'm4/{sha}/state.json')] if sha else [link_path]
+        found.append((status, sha, value, files))
+    if not found:
+        return pending, None, []
+    rank = {'FAIL': 4, 'RUNNING': 3, 'IDLE': 2, 'NOT_APPLICABLE': 2, 'PASS': 1}
+    status, sha, value, _ = max(found, key=lambda s: rank[s[0]])
     active = None
     if status == 'RUNNING':
-        import sqlite3
         stage = value.get('stage') if value.get('stage') in ('save', 'filter', 'label') else None
-        plan = gate_read(gate_path(run, f'm4/{sha}/plan.json'))
-        versions = plan.get('versions') if isinstance(plan, dict) and isinstance(plan.get('versions'), dict) else None
-        done = total = None
-        if db is not None and stage and versions:
-            allowed = json.dumps(['KEEP', 'UNRESOLVED'] if versions.get('labelUnresolved') else ['KEEP'])
-            try:
-                saved, assessed, eligible, labelled = db.execute(
-                    "SELECT count(*), count(a.review_key), coalesce(sum(a.outcome IN (SELECT value FROM json_each(:allowed))), 0), "
-                    "coalesce(sum(a.outcome IN (SELECT value FROM json_each(:allowed)) AND EXISTS (SELECT 1 FROM review_code c "
-                    "WHERE c.review_key = rr.review_key AND c.codebook_version = :codebook)), 0) FROM run_review rr "
-                    "LEFT JOIN review_filter_assessment a ON a.review_key = rr.review_key AND a.policy_version = :policy WHERE rr.run_id = :dataset",
-                    {'allowed': allowed, 'codebook': versions.get('codebook'), 'policy': versions.get('filterPolicy'),
-                     'dataset': f'module-m3:{run.name}:{sha}'}).fetchone()
-                done, total = {'save': (saved, None), 'filter': (assessed, saved), 'label': (labelled, eligible)}[stage]
-            except sqlite3.Error:
-                pass
+        counted = progress_counts(run, sha, db) if stage else None
+        done, total = (None, None)
+        if counted:
+            saved, assessed, eligible, labelled = counted
+            done, total = {'save': (saved, None), 'filter': (assessed, saved), 'label': (labelled, eligible)}[stage]
         active = {'step': 4, 'stage': stage, 'done': done, 'total': total}
-    return status, active, [s[3] for s in started]
+    return status, active, [path for item in found for path in item[3]]
 
 
 def flow_runs_progress():

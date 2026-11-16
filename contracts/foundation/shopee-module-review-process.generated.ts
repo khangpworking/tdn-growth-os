@@ -6,6 +6,7 @@ export type ShopeeModuleReviewProcess =
   | RunsProgress
   | ReviewProcessAutoRecord
   | ReviewProcessStateRecord
+  | ReviewProcessLinkRecord
   | ReviewProcessGateFile
   | ReviewProcessPlan
   | ReviewProcessStageFile
@@ -141,6 +142,18 @@ export interface ReviewProcessStateRecord {
   retries: number;
   errorCode: ReviewProcessErrorCode | null;
   waiting: 'LABELS_BUSY' | null;
+}
+/**
+ * m4/m3/<legacy|attemptId>.json: which step-4 source belongs to one M3 PASS source (by the M3 slip output hash), and the last failure of the automatic start after M3 when it stopped before any step-4 state was written. A start clears errorCode.
+ */
+export interface ReviewProcessLinkRecord {
+  format: 'review-process-link-v1';
+  runId: string;
+  m3: string;
+  m3OutputSha256: string | null;
+  sourceSha256: string | null;
+  errorCode: string | null;
+  recordedAt: string;
 }
 export interface ReviewProcessGateFile {
   format: 'handoff-v1';

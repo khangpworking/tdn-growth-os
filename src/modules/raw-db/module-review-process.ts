@@ -6,7 +6,7 @@ import type BetterSqlite3 from 'better-sqlite3';
 import { createRequire } from 'node:module';
 import schema from '../../../contracts/foundation/shopee-module-review-process.schema.json' with { type: 'json' };
 import type {
-  ReviewProcessCheck, ReviewProcessErrorCode, ReviewProcessFee, ReviewProcessGateFile, ReviewProcessGateSummary, ReviewProcessPlan,
+  ReviewProcessCheck, ReviewProcessErrorCode, ReviewProcessFee, ReviewProcessGateFile, ReviewProcessGateSummary, ReviewProcessLinkRecord, ReviewProcessPlan,
   ReviewProcessReceipt, ReviewProcessSource, ReviewProcessStageAttempt, ReviewProcessStageFile, ReviewProcessStart, ReviewProcessStateRecord,
   ReviewProcessVersions, ReviewProcessView,
 } from '../../../contracts/foundation/shopee-module-review-process.generated.js';
@@ -25,6 +25,8 @@ import { assertModuleImportable, moduleImportReceipt } from './shopee-reviews-lo
  * Step 4 of the Shopee module flow (owner F577 to F586, design B): save → Jev filter → Jev label for one verified M3 source,
  * in order, stopping at the first failed stage. Stage status is derived from DB rows; the files under `m4/<sourceSha256>/`
  * hold the worker state, one receipt per stage, the plan with the fee estimate, the final receipt and the two gates.
+ * `m4/m3/<legacy|attemptId>.json` links each M3 PASS source to its step-4 source (and records a stop of the automatic start
+ * that happened before any step-4 state), so `runs-progress` can count every M3 source without node.
  * Nothing outside `m4/` is written in the run folder; no existing format is changed.
  */
 
@@ -61,6 +63,14 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 const wait = (seconds: number) => new Promise(resolve => setTimeout(resolve, seconds * 1000));
 export const datasetId = (run: string, sourceSha256: string) => `module-m3:${basename(run)}:${sourceSha256}`;
 const folder = (sourceSha256: string) => `m4/${sourceSha256}`;
+const m3Key = (source: VerifiedModuleReviewCollection) => source.kind === 'legacy' ? 'legacy' : source.attemptId!;
+const linkPath = (source: VerifiedModuleReviewCollection) => `m4/m3/${m3Key(source)}.json`;
+/** The output hash on the M3 slip of this source (the same value the Python side reads from the slip). */
+function m3OutputSha256(source: VerifiedModuleReviewCollection): string | null {
+  const path = source.kind === 'legacy' ? 'gates/m3.json' : `m3-custom/attempts/${source.attemptId}/gate.json`;
+  const gate = JSON.parse(source.proof.find(p => p.path === path)!.bytes.toString('utf8')) as { outputSha256?: unknown };
+  return typeof gate.outputSha256 === 'string' ? gate.outputSha256 : null;
+}
 
 function pidLive(pid: number | null): boolean {
   if (pid === null) return false;
@@ -103,8 +113,8 @@ function plannedCalls(db: BetterSqlite3.Database | null, source: VerifiedModuleR
   const content = source.rows.filter(row => hasReviewContent(row.comment, row.attributes.length ? JSON.stringify(row.attributes) : null)).map(row => `S05:${row.reviewId}`);
   if (!db) return { filter: content.length, label: content.length };
   const rows = db.prepare(`SELECT a.outcome, EXISTS (SELECT 1 FROM review_code c WHERE c.review_key = j.value AND c.codebook_version = @codebook) labelled
-    FROM json_each(@keys) j LEFT JOIN review_filter_assessment a ON a.review_key = j.value AND a.policy_version = @policy`)
-    .all({ keys: JSON.stringify(content), codebook: v.codebook, policy: v.filterPolicy }) as { outcome: string | null; labelled: number | bigint }[];
+    FROM json_each(@keys) j LEFT JOIN review_filter_assessment a ON a.review_key = j.value AND a.policy_version = @policy AND a.policy_sha256 = @policySha`)
+    .all({ keys: JSON.stringify(content), codebook: v.codebook, policy: v.filterPolicy, policySha: v.filterPolicySha256 }) as { outcome: string | null; labelled: number | bigint }[];
   const allowed = allowedOutcomes(settings);
   return { filter: rows.filter(row => row.outcome === null).length,
     label: rows.filter(row => !Number(row.labelled) && (row.outcome === null || allowed.includes(row.outcome))).length };
@@ -133,8 +143,8 @@ function counts(db: BetterSqlite3.Database | null, run: string, source: Verified
         AND c.codebook_version = @codebook AND c.origin = 'APP_JEV' AND c.coded_at >= @since)), 0) newer,
       coalesce(sum(a.outcome NOT IN (SELECT value FROM json_each(@allowed)) AND EXISTS (SELECT 1 FROM review_code c WHERE c.review_key = rr.review_key
         AND c.codebook_version = @codebook AND c.coded_at < @since)), 0) older
-    FROM run_review rr LEFT JOIN review_filter_assessment a ON a.review_key = rr.review_key AND a.policy_version = @policy
-    WHERE rr.run_id = @dataset`).get({ dataset: datasetId(run, source.sourceSha256), policy: v.filterPolicy, codebook: v.codebook,
+    FROM run_review rr LEFT JOIN review_filter_assessment a ON a.review_key = rr.review_key AND a.policy_version = @policy AND a.policy_sha256 = @policySha
+    WHERE rr.run_id = @dataset`).get({ dataset: datasetId(run, source.sourceSha256), policy: v.filterPolicy, policySha: v.filterPolicySha256, codebook: v.codebook,
     allowed: JSON.stringify(allowedOutcomes(settings)), since: since ?? '9999' }) as Record<string, number | bigint>;
   const n = (key: string) => Number(row[key]);
   return { ...zero, saved: n('saved'), assessed: n('assessed'), keep: n('keep'), exclude: n('exclude'), unresolved: n('unresolved'), noContent: n('noContent'),
@@ -158,12 +168,20 @@ export interface ReviewProcessDeps {
   settings: ReviewProcessSettings;
   /** Null when Jev is disabled or not configured: the input gate then fails with JEV_DISABLED before any write. */
   client: TypesafeJevClient | null;
-  /** When given, a different plan identity is refused before any call. */
-  planSha256?: string | undefined;
 }
 export function reviewProcessJevClient(environment: NodeJS.ProcessEnv): TypesafeJevClient | null {
   try { const configuration = typesafeJevConfigurationFromEnvironment(environment); return configuration.enabled ? new TypesafeJevClient(configuration) : null; }
   catch { return null; }
+}
+
+async function writeLink(run: string, source: VerifiedModuleReviewCollection, sourceSha256: string | null, error: string | null): Promise<void> {
+  await writeAtomic(run, linkPath(source), 'linkRecord', { format: 'review-process-link-v1', runId: basename(run), m3: m3Key(source),
+    m3OutputSha256: m3OutputSha256(source), sourceSha256, errorCode: error, recordedAt: now() } satisfies ReviewProcessLinkRecord);
+}
+/** The link of this source when it still belongs to the current M3 slip and to this step-4 source. */
+async function readLink(run: string, source: VerifiedModuleReviewCollection): Promise<ReviewProcessLinkRecord | null> {
+  const link = await readOptional<ReviewProcessLinkRecord>(run, linkPath(source), 'linkRecord');
+  return link && link.m3OutputSha256 === m3OutputSha256(source) && (link.sourceSha256 === null || link.sourceSha256 === source.sourceSha256) ? link : null;
 }
 
 async function stageAttempt(run: string, sourceSha256: string, stage: Stage, attempt: ReviewProcessStageAttempt): Promise<void> {
@@ -177,7 +195,8 @@ async function stageAttempt(run: string, sourceSha256: string, stage: Stage, att
  * Runs save → filter → label for one verified M3 source and writes the gates and receipts under `m4/<sourceSha256>/`.
  * Each pass runs again while work is left and no call failed (the 1,500-call cap per pass stays). A failed Jev call is
  * retried up to settings.maxRetries times per stage; a retry pays only for the reviews that are left. LABELS_BUSY waits
- * and retries without failing. The caller holds the run lock.
+ * and retries without failing. A start whose plan identity (source, policy text, codebook, model, labelUnresolved) differs from
+ * the plan recorded by the first start that began work is refused before any call. The caller holds the run lock.
  */
 export async function runReviewProcess(run: string, sourceSha256: string, deps: ReviewProcessDeps): Promise<ReviewProcessStateRecord> {
   const { settings, client } = deps, base = folder(sourceSha256);
@@ -186,6 +205,9 @@ export async function runReviewProcess(run: string, sourceSha256: string, deps: 
   if (!source) throw new ModuleError('REVIEW_SOURCE_CHANGED', 23);
   const prior = await readOptional<ReviewProcessStateRecord>(run, `${base}/state.json`, 'stateRecord');
   if (prior?.status === 'RUNNING' && prior.pid !== process.pid && prior.pid !== process.ppid && pidLive(prior.pid)) throw new ModuleError('RUN_BUSY', 24);
+  // The plan binds once work began under it (a save attempt exists); a start refused by its input gate binds nothing.
+  const recorded = await readOptional(run, `${base}/save.json`, 'stageFile') ? await readOptional<ReviewProcessPlan>(run, `${base}/plan.json`, 'plan') : null;
+  await writeLink(run, source, sourceSha256, null);
   let state: ReviewProcessStateRecord = { format: 'review-process-state-v1', runId: basename(run), sourceSha256, status: 'RUNNING', stage: 'save', pid: process.pid,
     startedAt: now(), finishedAt: null, retries: 0, errorCode: null, waiting: null };
   const publish = async (change: Partial<ReviewProcessStateRecord>) => { state = { ...state, ...change }; await writeAtomic(run, `${base}/state.json`, 'stateRecord', state); };
@@ -209,10 +231,10 @@ export async function runReviewProcess(run: string, sourceSha256: string, deps: 
       check('not_saved_twice', db !== null && !savedError, savedError ?? stored ?? error ?? 'not checked'));
     if (!client) error ??= 'JEV_DISABLED';
     checks.push(check('jev_ready_versions_fixed', client !== null, client ? `${v.filterPolicy} / ${v.codebook}` : 'jev disabled'));
-    const planned = plan(run, db, source, v, settings);
-    if (deps.planSha256 !== undefined && deps.planSha256 !== planned.planSha256) error ??= 'GATE_FAILED';
-    await writeAtomic(run, `${base}/plan.json`, 'plan', planned);
-    checks.push(check('fee_estimate_recorded', true, `${planned.fee.total} USD`));
+    const planned = plan(run, db, source, v, settings), changed = recorded !== null && recorded.planSha256 !== planned.planSha256;
+    if (changed) error ??= 'GATE_FAILED';
+    else await writeAtomic(run, `${base}/plan.json`, 'plan', planned);
+    checks.push(check('fee_estimate_recorded', !changed, changed ? 'plan changed' : `${planned.fee.total} USD`));
     await writeAtomic(run, `${base}/gate-in.json`, 'gateFile', gateFile(run, settings, sourceSha256, checks, error ? contractError(error) : null, planned.planSha256));
     if (error) { state = { ...state, stage: null }; return await finish(); }
 
@@ -302,12 +324,16 @@ export async function runReviewProcess(run: string, sourceSha256: string, deps: 
   }
 }
 
-/** The automatic start after an M3 PASS: only for runs created by this release, only for the source that just passed. */
+/**
+ * The automatic start after an M3 PASS: only for runs created by this release, only for the source that just passed. A passed
+ * M3 that is not a verified source is a stop (REVIEW_SOURCE_CHANGED); the caller records it in the link file.
+ */
 export async function runReviewProcessAfterM3(run: string, attempt: string, deps: ReviewProcessDeps): Promise<ReviewProcessStateRecord | null> {
   if (!await reviewProcessAutoRun(run)) return null;
   const source = (await discoverModuleReviewSources(run)).find(s => s.gateVerdict === 'PASS' && s.status === 'SUCCEEDED'
     && (attempt === 'legacy' ? s.kind === 'legacy' : s.kind === 'custom' && s.attemptId === attempt));
-  return source ? runReviewProcess(run, source.sourceSha256, deps) : null;
+  if (!source) throw new ModuleError('REVIEW_SOURCE_CHANGED', 23);
+  return runReviewProcess(run, source.sourceSha256, deps);
 }
 
 /** The read-only check before a detached start: the source is a current M3 PASS and its step 4 is not running. */
@@ -329,7 +355,11 @@ function summary(gate: ReviewProcessGateFile | null): ReviewProcessGateSummary |
   return gate ? { verdict: gate.verdict, checks: gate.checks } : null;
 }
 
-/** Read-only `review-process-view-v1`: no Jev call, no write; the DB is opened read-only. Lists the current M3 PASS sources, newest first. */
+/**
+ * Read-only `review-process-view-v1`: no Jev call, no write; the DB is opened read-only. Lists the current M3 PASS sources, newest first.
+ * A source is PASS only while its output gate passed and every DB-derived stage is complete; a recorded PASS that no longer holds
+ * (or a stop recorded by the automatic start) is FAIL with «Chạy tiếp».
+ */
 export async function reviewProcessView(run: string, settings: ReviewProcessSettings): Promise<ReviewProcessView> {
   const autoRun = await reviewProcessAutoRun(run), v = await versions(settings, 'none');
   let db: BetterSqlite3.Database | null = null;
@@ -343,16 +373,23 @@ export async function reviewProcessView(run: string, settings: ReviewProcessSett
     const views: ReviewProcessSource[] = [];
     for (const source of sources) {
       const base = folder(source.sourceSha256);
-      const record = await readOptional<ReviewProcessStateRecord>(run, `${base}/state.json`, 'stateRecord');
-      const live = record?.status === 'RUNNING' && pidLive(record.pid);
-      const state = !record ? (autoRun ? 'IDLE' : 'NOT_APPLICABLE') : live ? 'RUNNING' : record.status === 'RUNNING' ? 'FAIL' : record.status;
-      const failedStage = state === 'FAIL' ? record?.stage ?? null : null, runningStage = state === 'RUNNING' ? record!.stage : null;
+      const record = await readOptional<ReviewProcessStateRecord>(run, `${base}/state.json`, 'stateRecord'), link = await readLink(run, source);
+      const out = record && record.status !== 'RUNNING' ? await readOptional<ReviewProcessGateFile>(run, `${base}/gate.json`, 'gateFile') : null;
       const c = counts(db, run, source, v, settings, record?.startedAt ?? null), saved = savedReceipt(db, source);
+      const savePass = saved !== null && c.saved === c.rows, filterPass = savePass && c.assessed === c.saved, labelPass = filterPass && c.labelled === c.eligible;
+      const live = record?.status === 'RUNNING' && pidLive(record.pid);
+      let state: ReviewProcessSource['state'], error: string | null = null, failedStage: Stage | null = null;
+      if (link?.errorCode) { state = 'FAIL'; error = link.errorCode; }
+      else if (!record) state = autoRun ? 'IDLE' : 'NOT_APPLICABLE';
+      else if (live) state = 'RUNNING';
+      else if (record.status === 'PASS' && out?.verdict === 'PASS' && labelPass) state = 'PASS';
+      else if (record.status === 'PASS') { state = 'FAIL'; error = db ? 'GATE_FAILED' : 'APP_DB_NOT_CONFIGURED'; failedStage = !savePass ? 'save' : !filterPass ? 'filter' : 'label'; }
+      else { state = 'FAIL'; error = record.errorCode ?? 'GATE_FAILED'; failedStage = record.stage; }
+      const runningStage = state === 'RUNNING' ? record!.stage : null;
       const derived = (stage: Stage, done: boolean) => done ? 'PASS' : runningStage === stage ? 'RUNNING' : failedStage === stage ? 'FAIL' : 'IDLE';
-      const savePass = saved !== null, filterPass = savePass && c.assessed === c.saved, labelPass = filterPass && c.labelled === c.eligible;
       const planned = await readOptional<ReviewProcessPlan>(run, `${base}/plan.json`, 'plan') ?? plan(run, db, source, v, settings);
-      views.push({ sourceSha256: source.sourceSha256, state, errorCode: state === 'FAIL' ? record?.errorCode ?? 'GATE_FAILED' : null,
-        startedAt: record?.startedAt ?? null, finishedAt: state === 'RUNNING' ? null : record?.finishedAt ?? null, retries: record?.retries ?? 0,
+      views.push({ sourceSha256: source.sourceSha256, state, errorCode: state === 'FAIL' ? contractError(error ?? 'GATE_FAILED') : null,
+        startedAt: record?.startedAt ?? null, finishedAt: state === 'RUNNING' ? null : record?.finishedAt ?? link?.recordedAt ?? null, retries: record?.retries ?? 0,
         canResume: state === 'FAIL' || state === 'NOT_APPLICABLE', fee: planned.fee,
         stages: {
           save: { state: derived('save', savePass), total: c.rows, done: c.saved, inserted: saved?.reviewsInserted ?? 0, alreadyPresent: saved?.reviewsAlreadyPresent ?? 0 },
@@ -361,10 +398,9 @@ export async function reviewProcessView(run: string, settings: ReviewProcessSett
             unresolvedSkipped: filterPass ? (settings.labelUnresolved ? 0 : c.unresolved) : null },
         },
         gates: { in: record ? summary(await readOptional<ReviewProcessGateFile>(run, `${base}/gate-in.json`, 'gateFile')) : null,
-          out: record && state !== 'RUNNING' ? summary(await readOptional<ReviewProcessGateFile>(run, `${base}/gate.json`, 'gateFile')) : null } });
+          out: state !== 'RUNNING' ? summary(out) : null } });
     }
     return validateReviewProcess<ReviewProcessView>('view', { format: 'review-process-view-v1', runId: basename(run), autoRun,
       labelUnresolved: settings.labelUnresolved, sources: views });
   } finally { db?.close(); }
 }
-

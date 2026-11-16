@@ -15,8 +15,9 @@ import { discoverModuleReviewSources } from '../../src/modules/foundation/shopee
 import { saveModuleReviewData } from '../../src/modules/raw-db/module-shopee-reviews.js';
 import { labelReviewsInDbV1 } from '../../src/modules/raw-db/review-labeller.js';
 import {
-  reviewProcessSettings, reviewProcessView, runReviewProcess, validateReviewProcess, type ReviewProcessSettings,
+  datasetId, reviewProcessSettings, reviewProcessView, runReviewProcess, runReviewProcessAfterM3, validateReviewProcess, type ReviewProcessSettings,
 } from '../../src/modules/raw-db/module-review-process.js';
+import { REVIEW_FILTER_POLICY_VERSION } from '../../src/modules/raw-db/review-filter.js';
 import { LINKS, addCustomAttempt, createModuleRun, moduleRow, writeCanonical } from '../fixtures/shopee-module-review-data.js';
 import { labelsGolden, seedLabelCode, seedLabelCodebook, seedLabelReview } from '../fixtures/raw-db-v1-labels.js';
 import { holdLabelsLock, until } from '../fixtures/raw-db-v1-y2.js';
@@ -37,9 +38,9 @@ const filterAnswer = (exclude: boolean) => ({ status: 200, body: JSON.stringify(
 const labelAnswer = () => ({ status: 200, body: labelsGolden.no_theme_response.replaceAll(labelsGolden.model, MODEL) });
 
 /** Filter questions carry LOC; label questions carry theme codes. A review whose text holds "off-topic" is excluded. */
-function fakeJev(respond: (kind: 'filter' | 'label', wire: Wire, ordinal: number) => Reply = () => 'FAIL') {
+function fakeJev(respond: (kind: 'filter' | 'label', wire: Wire, ordinal: number) => Reply = () => 'FAIL', model = MODEL) {
   const calls: { kind: 'filter' | 'label'; text: string }[] = [];
-  const client = new TypesafeJevClient({ enabled: true, apiKey: 'synthetic-unused-key', model: MODEL }, async (_url, init) => {
+  const client = new TypesafeJevClient({ enabled: true, apiKey: 'synthetic-unused-key', model }, async (_url, init) => {
     const wire = JSON.parse(String(init?.body)) as Wire;
     const kind = 'LOC' in wire.questions ? 'filter' : 'label';
     const text = String(Object.values(wire.state)[0]);
@@ -176,18 +177,75 @@ test('Q1-4 a resume pays only for the reviews left; a run after PASS makes no ca
   assert.deepEqual([third.calls.length, rows()], [0, before]);
 });
 
-test('Q1-6 a changed plan or a disabled Jev is refused by the input gate before any write or call', async t => {
+test('Q1-6 a disabled Jev is refused before any write; a start whose plan differs from the plan work began under is refused before any call', async t => {
   const f = await workspace(t);
   const { runDir, sourceSha256 } = await passedRun(f.base, 'run-plan', [['Good jar'], ['Nice lid']]);
-  const jev = fakeJev(honest);
-  const changed = await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: jev.client, planSha256: 'f'.repeat(64) });
   const disabled = await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: null });
-  assert.deepEqual([changed.status, changed.errorCode, disabled.status, disabled.errorCode], ['FAIL', 'GATE_FAILED', 'FAIL', 'JEV_DISABLED']);
-  assert.equal(jev.calls.length, 0);
+  assert.deepEqual([disabled.status, disabled.errorCode], ['FAIL', 'JEV_DISABLED']);
   const db = f.open(); t.after(() => db.close());
   assert.equal(scalar(db, 'SELECT count(*) FROM run_review'), 0, 'nothing saved');
   const gateIn = await readM4(runDir, sourceSha256, 'gate-in.json');
   assert.deepEqual(gateIn.checks.find((c: { id: string }) => c.id === 'jev_ready_versions_fixed'), { id: 'jev_ready_versions_fixed', ok: false, level: 'error', got: 'jev disabled' });
+
+  const first = fakeJev(() => 'FAIL');
+  assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings({ maxRetries: 0 }), client: first.client })).errorCode, 'JEV_CALL_FAILED',
+    'a refused input gate binds no plan');
+  const recorded = await readM4(runDir, sourceSha256, 'plan.json');
+  const other = fakeJev(honest, 'synthetic-other-model');
+  const changed = await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: other.client });
+  assert.deepEqual([changed.status, changed.errorCode, other.calls.length], ['FAIL', 'GATE_FAILED', 0]);
+  assert.deepEqual((await readM4(runDir, sourceSha256, 'gate-in.json')).checks.at(-1), { id: 'fee_estimate_recorded', ok: false, level: 'error', got: 'plan changed' });
+  assert.deepEqual(await readM4(runDir, sourceSha256, 'plan.json'), recorded, 'the recorded plan is kept');
+  assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS', 'the same plan resumes');
+});
+
+test('filter completion needs the recorded policy hash: assessments under the same version but another policy text never pass the filter stage', async t => {
+  const f = await workspace(t);
+  const { runDir, sourceSha256 } = await passedRun(f.base, 'run-policy', [['Good jar'], ['Nice lid']]);
+  await saveModuleReviewData(runDir, sourceSha256);
+  const db = f.open(); t.after(() => db.close());
+  const assess = db.prepare(`INSERT INTO review_filter_assessment(review_key,policy_version,policy_sha256,run_id,outcome,reason,p_keep,p_exclude,p_unresolved,p_complaint,
+    rating_star,model,text_sha256,response_sha256,assessed_at) VALUES (?,?,?,?,'KEEP','JEV_KEEP',1,0,0,0,5,'m',?,?,'2026-11-16T00:00:00.000Z')`);
+  for (const key of ['S05:run-policy-0-0', 'S05:run-policy-1-0']) assess.run(key, REVIEW_FILTER_POLICY_VERSION, 'f'.repeat(64), datasetId(runDir, sourceSha256), 'b'.repeat(64), 'c'.repeat(64));
+  const jev = fakeJev(honest);
+  const state = await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: jev.client });
+  assert.deepEqual([state.status, state.stage, state.errorCode, jev.calls.length], ['FAIL', 'filter', 'GATE_FAILED', 0]);
+  const [source] = (await reviewProcessView(runDir, await settings())).sources;
+  assert.deepEqual([source!.state, source!.stages.filter.state, source!.stages.filter.done, source!.stages.label.state], ['FAIL', 'FAIL', 0, 'IDLE']);
+});
+
+test('a recorded PASS is shown as PASS only while the output gate passed and every DB-derived stage is complete', async t => {
+  const f = await workspace(t);
+  const { runDir, sourceSha256 } = await passedRun(f.base, 'run-holds', [['Good jar'], ['Nice lid']]);
+  assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS');
+  assert.equal((await reviewProcessView(runDir, await settings())).sources[0]!.state, 'PASS');
+  const moved = path.join(f.base, 'other.sqlite'), other = new Database(moved); applyMigrations(other); other.close();
+  process.env.TDN_WORKSPACE_DB = moved;
+  const [empty] = (await reviewProcessView(runDir, await settings())).sources;
+  assert.deepEqual([empty!.state, empty!.errorCode, empty!.canResume, empty!.stages.save.state], ['FAIL', 'GATE_FAILED', true, 'FAIL'], 'the DB no longer holds the step-4 rows');
+  process.env.TDN_WORKSPACE_DB = f.databasePath;
+  const gate = await readM4(runDir, sourceSha256, 'gate.json');
+  await writeCanonical(path.join(runDir, 'm4', sourceSha256, 'gate.json'), { ...gate, verdict: 'FAIL', errorCode: 'GATE_FAILED' });
+  const [failed] = (await reviewProcessView(runDir, await settings())).sources;
+  assert.deepEqual([failed!.state, failed!.canResume, failed!.gates.out?.verdict], ['FAIL', true, 'FAIL']);
+});
+
+test('a stop of the automatic start before any step-4 state is a FAIL with «Chạy tiếp»; the resume clears it', async t => {
+  const f = await workspace(t);
+  const { runDir, sourceSha256 } = await passedRun(f.base, 'run-handoff', [['Good jar'], ['Nice lid']]);
+  const [m3] = await discoverModuleReviewSources(runDir);
+  await assert.rejects(runReviewProcessAfterM3(runDir, '22222222-2222-4222-8222-222222222222', { settings: await settings(), client: null }), /REVIEW_SOURCE_CHANGED/,
+    'a passed M3 that is not a verified source is a stop, not a silent skip');
+  const slip = JSON.parse(await fs.readFile(path.join(runDir, 'm3-custom', 'attempts', m3!.attemptId!, 'gate.json'), 'utf8'));
+  // The link the flow script writes when process-auto fails (shopee_flow.py review_process_after_m3).
+  await writeCanonical(path.join(runDir, 'm4', 'm3', `${m3!.attemptId}.json`), { format: 'review-process-link-v1', runId: 'run-handoff', m3: m3!.attemptId,
+    m3OutputSha256: slip.outputSha256, sourceSha256: null, errorCode: 'REVIEW_PROCESS_FAILED', recordedAt: '2026-11-16T00:00:00+00:00' });
+  const [stopped] = (await reviewProcessView(runDir, await settings())).sources;
+  assert.deepEqual([stopped!.state, stopped!.errorCode, stopped!.canResume], ['FAIL', 'GATE_FAILED', true]);
+  assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS');
+  const link = JSON.parse(await fs.readFile(path.join(runDir, 'm4', 'm3', `${m3!.attemptId}.json`), 'utf8'));
+  assert.deepEqual([link.sourceSha256, link.errorCode], [sourceSha256, null]);
+  assert.equal((await reviewProcessView(runDir, await settings())).sources[0]!.state, 'PASS');
 });
 
 test('LABELS_BUSY: while another pass holds the labels lock step 4 waits and then finishes with PASS', async t => {

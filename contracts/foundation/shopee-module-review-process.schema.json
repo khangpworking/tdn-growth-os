@@ -19,6 +19,9 @@
       "$ref": "#/$defs/stateRecord"
     },
     {
+      "$ref": "#/$defs/linkRecord"
+    },
+    {
       "$ref": "#/$defs/gateFile"
     },
     {
@@ -724,6 +727,71 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "linkRecord": {
+      "title": "ReviewProcessLinkRecord",
+      "description": "m4/m3/<legacy|attemptId>.json: which step-4 source belongs to one M3 PASS source (by the M3 slip output hash), and the last failure of the automatic start after M3 when it stopped before any step-4 state was written. A start clears errorCode.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "m3",
+        "m3OutputSha256",
+        "sourceSha256",
+        "errorCode",
+        "recordedAt"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-link-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "m3": {
+          "type": "string",
+          "pattern": "^(?:legacy|[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})$"
+        },
+        "m3OutputSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
