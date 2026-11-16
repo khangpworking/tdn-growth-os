@@ -1142,6 +1142,6 @@ test('capture accepts valid sorted data in a clipped panel while whole-panel evi
   const output = await moduleOutputs(run) as any;
   assert.deepEqual([output.m1.dataValid, output.m1.shopeeRowCount], [true, 5], 'valid sorted data still passes M1');
   assert.equal(output.m2.fiveDistinct, true);
-  assert.equal(output.m2.errorCode, 'EVIDENCE_PRODUCTS_PANEL_CLIPPED', 'M2 cannot pass without retained panel coverage');
+  assert.equal(output.m2.errorCode, null, 'an uncovered panel picture no longer blocks M2 (F599)');
   assert.equal(output.m2.evidence.topProducts.available, false);
 });
