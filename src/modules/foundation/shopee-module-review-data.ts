@@ -261,10 +261,43 @@ export async function prepareReviewExport(run: string, sourceSha256: string, for
   await publishExclusive(run,`review-data/exports/${sourceSha256}/module-review-export-v1/${format}.json`,Buffer.from(canonicalJson(receipt)));
   return receipt;
 }
+/**
+ * The labelled comments file carries the current Jev labels, which change after step 4 runs again.
+ * Each version is stored by its own digest, so an older file is never served as the current one.
+ */
+const labelledReceiptPath = (sourceSha256: string, exportSha256: string) =>
+  `review-data/exports/${sourceSha256}/module-review-export-v1/labelled-json/${exportSha256}.json`;
+export async function publishLabelledReviewExport(run: string, source: VerifiedModuleReviewCollection, bytes: Buffer): Promise<ReviewDataExport> {
+  if (bytes.length > EXPORT_MAX_BYTES) throw new ModuleError('REVIEW_EXPORT_TOO_LARGE');
+  const exportSha256 = reviewDataHash(bytes), path = labelledReceiptPath(source.sourceSha256,exportSha256);
+  const receipt = validateReviewData<ReviewDataExport>('export', {format:'review-data-export-v1',runId:source.runId,sourceSha256:source.sourceSha256,
+    exportFormat:'labelled-json',exportVersion:'module-review-export-v1',exportSha256,byteSize:bytes.length,
+    fileName:`shopee-${source.runId}-${source.sourceSha256.slice(0,12)}-binh-luan-nhan.json`,rowCount:source.rows.length,reused:false});
+  const existing = await optionalBytes(run,path);
+  if (existing) {
+    if (!existing.equals(Buffer.from(canonicalJson(receipt)))) throw new ModuleError('REVIEW_EXPORT_CHANGED');
+    const saved = await readBounded(run,`review-data/files/${exportSha256}`,EXPORT_MAX_BYTES);
+    if (!saved.equals(bytes)) throw new ModuleError('REVIEW_EXPORT_CHANGED');
+    return { ...receipt, reused: true };
+  }
+  await assertReviewDataWritable();
+  await publishExclusive(run,`review-data/files/${exportSha256}`,bytes);
+  await publishExclusive(run,path,Buffer.from(canonicalJson(receipt)));
+  return receipt;
+}
 export async function readReviewExportBytes(run: string, digest: string): Promise<Buffer> {
   if (!hex.test(digest)) throw new ModuleError('REVIEW_DATA_INVALID',2);
   for (const name of await names(run,'review-data/exports')) {
     if (!hex.test(name)) continue;
+    const labelled = await optionalBytes(run,labelledReceiptPath(name,digest));
+    if (labelled) {
+      const receipt = validateReviewData<ReviewDataExport>('export',JSON.parse(labelled.toString('utf8')));
+      if (receipt.exportSha256 !== digest || receipt.sourceSha256 !== name || receipt.runId !== basename(run) || receipt.exportFormat !== 'labelled-json')
+        throw new ModuleError('REVIEW_EXPORT_CHANGED');
+      const bytes = await readBounded(run,`review-data/files/${digest}`,EXPORT_MAX_BYTES);
+      if (bytes.length !== receipt.byteSize || reviewDataHash(bytes) !== digest) throw new ModuleError('REVIEW_EXPORT_CHANGED');
+      return bytes;
+    }
     for (const format of ['json','txt'] as const) {
       const raw = await optionalBytes(run,`review-data/exports/${name}/module-review-export-v1/${format}.json`);
       if (!raw) continue;

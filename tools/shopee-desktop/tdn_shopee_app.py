@@ -108,6 +108,10 @@ def _error(code, message=None):
     return {'ok': False, 'error': {'code': code, 'message': code if message is None else message}}
 
 
+# Download formats -> file extension. 'labelled-json' = every collected comment with its Jev labels.
+REVIEW_FILE_FORMATS = {'json': 'json', 'txt': 'txt', 'labelled-json': 'json'}
+
+
 def _safe_filename(name, export_format):
     fallback = f'shopee-reviews.{export_format}'
     if not isinstance(name, str):
@@ -1241,7 +1245,7 @@ class Api:
         if (not isinstance(value, dict) or set(value) != {'sourceSha256', 'formats'} or
                 not isinstance(value['formats'], list) or not value['formats'] or
                 len(set(value['formats'])) != len(value['formats']) or
-                any(item not in ('json', 'txt') for item in value['formats'])):
+                any(item not in REVIEW_FILE_FORMATS for item in value['formats'])):
             raise _BridgeFailure('ARG_INVALID')
         source = self._sha256(value['sourceSha256'])
         files, prepared = {}, []
@@ -1263,7 +1267,7 @@ class Api:
                 return {'ok': True, 'data': {'cancelled': True,
                                              'files': [files[item] for item in value['formats'] if item in files]}}
             for export_format, receipt in prepared:
-                destination = Path(folder) / _safe_filename(receipt['fileName'], export_format)
+                destination = Path(folder) / _safe_filename(receipt['fileName'], REVIEW_FILE_FORMATS[export_format])
                 try:
                     destination = self._stream_export(run_id, receipt['exportSha256'], receipt['byteSize'],
                                                       destination, keep_existing=True)

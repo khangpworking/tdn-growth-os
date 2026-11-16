@@ -4,7 +4,8 @@ import { basename, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import BetterSqlite3 from 'better-sqlite3';
 import { ModuleError, validateModuleValue } from './module-pick.js';
-import { discoverModuleReviewSources, prepareReviewExport, readReviewExportBytes, validateReviewData, type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
+import { discoverModuleReviewSources, prepareReviewExport, publishLabelledReviewExport, readModuleReviewSource, readReviewExportBytes, validateReviewData,
+  type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
 import { reviewDataView, saveModuleReviewData } from '../src/modules/raw-db/module-shopee-reviews.js';
 import { reviewProcessJevClient, reviewProcessSettings, reviewProcessStart, reviewProcessStartable, reviewProcessView, runReviewProcess,
   runReviewProcessAfterM3 } from '../src/modules/raw-db/module-review-process.js';
@@ -327,13 +328,37 @@ export async function reviewInsightsView(run:string):Promise<unknown> {
   return view;
 }
 
+/**
+ * Every collected comment of one verified step-3 result (no cap, no filter), each with its current Jev tags
+ * (empty when the row has no valid label). Same label reading as the result tab.
+ */
+export function labelledCommentsFile(source:{ runId:string; sourceSha256:string; rows:ModuleReviewRow[] }, book:LabelCodebook,
+  labelStore:{ labels:Map<string,InsightTag[]>; productNames:Map<string,string>; available:boolean }) {
+  const comments = source.rows.map((row,index) => {
+    const tags = row.reviewId ? labelStore.labels.get(row.reviewId) ?? [] : [];
+    const view = insightComment(row,source.sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
+    return { id:view.id, text:view.text, comment:row.comment ?? null, attributes:row.attributes, rating:view.rating, date:view.date,
+      productName:view.productName, url:view.url, tags:view.tags };
+  });
+  return { format:'shopee-labelled-comments-v1', runId:source.runId, sourceSha256:source.sourceSha256, codebookVersion:book.version,
+    labelsAvailable:labelStore.available, total:comments.length, labelled:comments.filter(comment => comment.tags.length).length, comments };
+}
+
+export async function prepareLabelledReviewExport(run:string, sourceSha256:string) {
+  const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
+  const source = await readModuleReviewSource(run,sourceSha256);
+  const file = labelledCommentsFile(source,book,readInsightLabels(source.rows,book));
+  return publishLabelledReviewExport(run,source,Buffer.from(`${JSON.stringify(file,null,2)}\n`,'utf8'));
+}
+
 export async function reviewDataCommand(args:string[]):Promise<unknown> {
   const [action,runArg,...extra]=args;if(!runArg)throw new ModuleError('USAGE',2);const run=resolve(runArg);
   if(action==='view'&&!extra.length)return reviewDataView(run);
   if(action==='stats'&&!extra.length)return reviewStatsView(run);
   if(action==='insights'&&!extra.length)return reviewInsightsView(run);
   if(action==='save'&&!extra.length){const value=validateReviewData<ReviewDataSaveInput>('saveInput',await input());return saveModuleReviewData(run,value.sourceSha256);}
-  if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());return prepareReviewExport(run,value.sourceSha256,value.format);}
+  if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());
+    return value.format==='labelled-json'?prepareLabelledReviewExport(run,value.sourceSha256):prepareReviewExport(run,value.sourceSha256,value.format);}
   if(action==='read'&&extra.length===1)return readReviewExportBytes(run,extra[0]!);
   if(action==='process-view'&&!extra.length)return reviewProcessView(run,await reviewProcessSettings());
   // runs-progress: the step-4 status of many runs in one call, from the same view (one error-v1 per run that cannot be read).

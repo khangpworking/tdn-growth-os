@@ -1225,13 +1225,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     function exportMockReviewData(run, input) {
       if (!input || typeof input !== 'object' ||
           Object.keys(input).sort().join(',') !== 'format,sourceSha256' ||
-          (input.format !== 'json' && input.format !== 'txt') ||
+          (input.format !== 'json' && input.format !== 'txt' && input.format !== 'labelled-json') ||
           typeof input.sourceSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(input.sourceSha256)) {
         return err('ARG_INVALID', 'ARG_INVALID');
       }
       var source = reviewSources(run).find(function (item) { return item.sourceSha256 === input.sourceSha256; });
       if (!source) return err('SOURCE_NOT_FOUND', 'SOURCE_NOT_FOUND');
-      var availability = source.exportFormats[input.format];
+      var availability = source.exportFormats[input.format === 'labelled-json' ? 'json' : input.format];
       if (!availability || !availability.canExport) {
         return err(availability && availability.blockedBy ? availability.blockedBy.code : 'SOURCE_NOT_EXPORTABLE', 'SOURCE_NOT_EXPORTABLE');
       }
@@ -1244,7 +1244,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           exportFormat: input.format, exportVersion: 'module-review-export-v1',
           exportSha256: shaFor(run.runId, 'export:' + key),
           byteSize: source.rowCount ? 2048 : 0,
-          fileName: 'shopee-' + run.runId + '-' + source.sourceSha256.slice(0, 12) + '.' + input.format,
+          fileName: 'shopee-' + run.runId + '-' + source.sourceSha256.slice(0, 12) +
+            (input.format === 'labelled-json' ? '-binh-luan-nhan.json' : '.' + input.format),
           rowCount: source.rowCount, reused: false
         };
         run.reviewExportReceipts[key] = receipt;
@@ -5684,26 +5685,43 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return card;
   }
 
-  function insightCommentDrilldown(bucket) {
+  // The whole comment list of the shown result is a download, not an on-screen sample.
+  // The count is the collected total of that result from the result numbers (review-stats).
+  function insightCommentDownload(runId, source, statsView) {
     var card = h('article', 'mod insight-card');
     card.id = 'resultCommentDrilldown';
     var head = h('div', 'mh');
     head.appendChild(h('h3', null, 'Chi tiết bình luận'));
     card.appendChild(head);
-    card.appendChild(h('p', 'insight-lead', 'Mở danh sách để xem nội dung, số sao và các nhãn Jev của từng bình luận mẫu.'));
-    var details = document.createElement('details');
-    details.className = 'drilldown';
-    var comments = bucket && Array.isArray(bucket.comments) ? bucket.comments : [];
-    var summary = document.createElement('summary');
-    summary.textContent = comments.length ? 'Xem ' + fmtInt(comments.length) + ' bình luận mẫu' : 'Chưa có bình luận mẫu';
-    details.appendChild(summary);
-    if (comments.length) details.appendChild(commentList(comments, 24));
-    else details.appendChild(h('p', 'theme-note', 'Chưa có dữ liệu bình luận để mở.'));
-    card.appendChild(details);
+    card.appendChild(h('p', 'insight-lead', 'Tải về máy toàn bộ bình luận đã lấy của lượt này, kèm số sao và các chủ đề Jev đã gắn cho từng bình luận.'));
+    var stats = source && statsView && Array.isArray(statsView.sources)
+      ? statsView.sources.find(function (item) { return item.sourceSha256 === source.sourceSha256; }) : null;
+    var total = stats && stats.all && typeof stats.all.commentCount === 'number' ? stats.all.commentCount : null;
+    var actions = h('div', 'rs-actions');
+    var button = h('button', 'abtn primary', total === null ? 'Tải bình luận (JSON)' : 'Tải ' + fmtInt(total) + ' bình luận (JSON)');
+    button.type = 'button';
+    button.id = 'resultCommentDownload';
+    button.disabled = !source || total === 0;
+    var note = h('span', 'rs-hint');
+    note.id = 'resultCommentDownloadNote';
+    button.addEventListener('click', async function () {
+      button.disabled = true;
+      note.textContent = 'Đang chuẩn bị file…';
+      var res = await api.exportReviewFiles(runId, { sourceSha256: source.sourceSha256, formats: ['labelled-json'] });
+      button.disabled = false;
+      var file = res.ok && res.data && Array.isArray(res.data.files) ? res.data.files[0] : null;
+      note.textContent = !res.ok ? 'Chưa tải được file (' + plainError(res.error) + ').'
+        : res.data && res.data.cancelled ? 'Đã hủy tải file.'
+        : file && file.saved ? 'Đã lưu “' + file.fileName + '”.'
+        : 'Chưa tải được file (' + plainError({ code: file ? file.errorCode : 'SAVE_FAILED' }) + ').';
+    });
+    actions.appendChild(button);
+    actions.appendChild(note);
+    card.appendChild(actions);
     return card;
   }
 
-  function reviewInsightsPanel(view, runId) {
+  function reviewInsightsPanel(view, runId, statsView) {
     var source = resultInsightsSource(view, runId);
     var bucket = insightBucket(source, runId);
     var wrap = h('section', 'insight-card');
@@ -5711,7 +5729,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     wrap.setAttribute('aria-label', 'Phân tích AI và nhãn chủ đề');
     wrap.appendChild(insightSummaryCard(bucket));
     wrap.appendChild(insightThemeCard(bucket));
-    wrap.appendChild(insightCommentDrilldown(bucket));
+    wrap.appendChild(insightCommentDownload(runId, source, statsView));
     return wrap;
   }
 
@@ -6484,7 +6502,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       root.appendChild(h('p', 'muted', 'Đang tải AI và nhãn chủ đề…'));
       return;
     }
-    root.appendChild(reviewInsightsPanel(insights, runId));
+    root.appendChild(reviewInsightsPanel(insights, runId, view));
   }
 
   function renderDetail() {

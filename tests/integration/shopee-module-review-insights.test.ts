@@ -9,7 +9,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import Database from 'better-sqlite3';
-import { reviewInsightsView } from '../../scripts/module-review-data.js';
+import { prepareLabelledReviewExport, reviewInsightsView } from '../../scripts/module-review-data.js';
+import { readReviewExportBytes } from '../../src/modules/foundation/shopee-module-review-data.js';
 import { DEFAULT_CODEBOOK_FILE, codingText, parseLabelCodebook } from '../../src/modules/raw-db/review-labeller.js';
 import { LINKS, addCustomAttempt, addLegacySource, createModuleRun, moduleRow, sha256, type NativeRow } from '../fixtures/shopee-module-review-data.js';
 
@@ -509,4 +510,30 @@ test('extracted theme summaries stay bounded for long comments', async t => {
   assert.equal(quotes.length, 3);
   assert.ok(quotes.every(quote => quote.length <= 161), JSON.stringify(quotes.map(quote => quote.length)));
   assert.ok(quotes.every(quote => quote.endsWith('…')));
+});
+
+test('the labelled comments download holds every collected row with its current Jev tags', async t => {
+  const base = await fixture(t);
+  const run = await createModuleRun(base, { runId: 'run-labelled' });
+  const [a, b] = run.links;
+  const a1 = moduleRow(a!, 'review-a1', { comment: 'Kem thấm nhanh', ratingStar: 5 });
+  const a2 = moduleRow(a!, 'review-a2', { comment: 'Chưa gắn nhãn', ratingStar: 3 });
+  const b1 = moduleRow(b!, 'review-b1', { comment: 'Hộp đẹp', ratingStar: 4 });
+  await addLegacySource(run, { rowsByLink: [[a1, a2], [b1]] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, [
+    labelRow(a1, 'Kem A', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'CO_HIEUQUA' }]),
+  ]);
+  useDatabase(t, database);
+  const [source] = (await reviewInsightsView(run.runDir) as any).sources;
+
+  const receipt = await prepareLabelledReviewExport(run.runDir, source.sourceSha256);
+  assert.deepEqual([receipt.exportFormat, receipt.rowCount, receipt.reused], ['labelled-json', 3, false]);
+  assert.equal(receipt.fileName, `shopee-run-labelled-${source.sourceSha256.slice(0, 12)}-binh-luan-nhan.json`);
+  const file = JSON.parse((await readReviewExportBytes(run.runDir, receipt.exportSha256)).toString('utf8'));
+  assert.deepEqual([file.format, file.sourceSha256, file.codebookVersion, file.total, file.labelled],
+    ['shopee-labelled-comments-v1', source.sourceSha256, BOOK.version, 3, 1]);
+  assert.deepEqual(file.comments.map((c: any) => [c.id, c.tags.map((tag: any) => tag.code), c.productName]),
+    [['review-a1', ['T-CONGDUNG'], 'Kem A'], ['review-a2', [], null], ['review-b1', [], null]]);
+  assert.equal((await prepareLabelledReviewExport(run.runDir, source.sourceSha256)).reused, true, 'same labels reuse the saved file');
 });
