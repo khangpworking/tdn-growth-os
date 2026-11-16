@@ -715,7 +715,7 @@ test('customize category refuses the page-request fallback before reading or sub
   assert.equal(evaluations, 0);
 });
 
-test('v3 lean page-request fallback requests and requires only products', async (t) => {
+test('v3 lean page-request fallback requests only products, then the top-100 products request step 2 reads', async (t) => {
   const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
   const saved = selectedResponses(spec);
   const requested: string[] = [];
@@ -732,9 +732,11 @@ test('v3 lean page-request fallback requests and requires only products', async 
   const output = await mkdtemp(join(tmpdir(), 'metric-lean-page-request-'));
   t.after(() => rm(output, { recursive: true, force: true }));
   await adapter.captureV3PageRequests(page, spec, output, 'CAPTURE_UI_CHANGED');
-  assert.deepEqual(requested, ['/v2/market/analytics/products/']);
+  assert.deepEqual(requested, ['/v2/market/analytics/products/', '/v2/market/analytics/products/']);
   const manifest = JSON.parse(await readFile(join(output, 'selected/manifest.json'), 'utf8'));
-  assert.deepEqual(manifest.sourceMap, { products: 'raw-responses.json#/0/body/data' });
+  const raw = JSON.parse(await readFile(join(output, 'selected/raw-responses.json'), 'utf8'));
+  assert.deepEqual(raw.map((r: any) => r.requestBody.limit), [20, 100]);
+  assert.deepEqual(manifest.sourceMap, { products: 'raw-responses.json#/1/body/data' });
   assert.deepEqual(manifest.optionalEndpointsOmitted, ['search-basic', 'insight', 'shops', 'groups']);
 });
 
@@ -820,6 +822,8 @@ type ProducerOptions = {
   layout?: 'header'; headerClickActivates?: boolean; headerLabel?: string;
   // Old dropdown layout that also shows a revenue header with an active descending arrow.
   activeHeader?: boolean;
+  // Lean extra top-100 products request: its rows (default finalRows), or 'fail' for a failed in-page request.
+  top100?: Record<string, unknown>[] | 'fail';
   // Metric resets the trend chart (e.g. Week -> Month for a 1-year range): page and insight request show this interval.
   trendIntervalDays?: number;
 };
@@ -952,9 +956,16 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     finalPushed = true;
     (pageWindow as any).__tdnV3Capture.responses.push(structuredClone(finalProducts));
   };
+  const topRequests: any[] = [];
   const page = {
     evaluate: async (fn: Function, arg?: any) => {
       if (fn.name === 'readV3Page') return read();
+      if (fn.name === 'requestV3InPage') {
+        topRequests.push(structuredClone(arg));
+        if (options.top100 === 'fail') return { stop: 'CAPTURE_PAGE_REQUEST_FAILED' };
+        return { urlPath: arg.urlPath, method: 'POST', status: 200, requestBody: arg.requestBody,
+          body: { ...structuredClone(finalProducts.body), data: { ...structuredClone(finalProducts.body.data), products: structuredClone(options.top100 ?? options.finalRows) } } };
+      }
       if (fn.name === 'installObserver') {
         (pageWindow as any).__tdnV3Capture = { responses: [], pending: 0, last: 0, overflow: false };
         return { ok: true };
@@ -977,7 +988,7 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     wait: async () => {},
     screenshot: browser.page.screenshot,
   };
-  return { page, panel, pushFinal };
+  return { page, panel, pushFinal, topRequests };
 }
 
 test('capture keeps pre-sort traffic as diagnostics and publishes the final sorted products source', async (t) => {
@@ -988,7 +999,10 @@ test('capture keeps pre-sort traffic as diagnostics and publishes the final sort
   const finalRows = Array.from({ length: 20 }, (_, i) => ({
     product_base_id: `1__${8000 + i}__801`, product_name: `Final product ${i + 1}`, revenue_custom: 10_000 - i,
   }));
-  const { page } = await captureProducer(t, spec, { initialRows, finalRows, final: 'valid' });
+  const top100 = Array.from({ length: 100 }, (_, i) => ({
+    product_base_id: `1__${9000 + i}__801`, product_name: `Top product ${i + 1}`, revenue_custom: 20_000 - i,
+  }));
+  const { page, topRequests } = await captureProducer(t, spec, { initialRows, finalRows, final: 'valid', top100 });
   const output = await mkdtemp(join(tmpdir(), 'metric-producer-sort-'));
   t.after(() => rm(output, { recursive: true, force: true }));
   await adapter.captureV3Preset(page, spec, output, () => {},
@@ -1002,11 +1016,54 @@ test('capture keeps pre-sort traffic as diagnostics and publishes the final sort
   assert.deepEqual(observedProducts.map((response: any) => response.requestBody.sort_by),
     ['order_custom__desc', 'revenue_custom__desc'], 'the pre-sort response stays in observed diagnostics');
   assert.deepEqual(observedProducts[0].body.data.products, initialRows, 'diagnostics keep the initial candidates unchanged');
-  assert.equal(rawProducts.length, 1, 'authoritative raw carries only the final products response');
-  assert.deepEqual(rawProducts[0].body.data.products, finalRows, 'the full final candidate list is retained');
-  assert.equal(manifest.sourceMap.products, `raw-responses.json#/${raw.indexOf(rawProducts[0])}/body/data`,
-    'sourceMap addresses the final response inside authoritative bytes');
-  assert.equal(raw.length, 5, 'every other endpoint response remains authoritative');
+  assert.equal(rawProducts.length, 2, 'authoritative raw carries the final UI products response and the top-100 request');
+  assert.deepEqual(rawProducts[0].body.data.products, finalRows, 'the full final UI candidate list is retained');
+  assert.equal(topRequests.length, 1, 'one extra in-page products request');
+  const { limit, ...topScope } = rawProducts[1].requestBody;
+  const { limit: uiLimit, ...uiScope } = rawProducts[0].requestBody;
+  assert.deepEqual([uiLimit, limit, topScope], [20, 100, uiScope], 'same scope, sort and page as the UI request; only the limit is 100');
+  assert.deepEqual(rawProducts[1].body.data.products, top100, 'all 100 rows are retained');
+  assert.equal(manifest.sourceMap.products, `raw-responses.json#/${raw.indexOf(rawProducts[1])}/body/data`,
+    'step 2 reads the top-100 response inside authoritative bytes');
+  assert.equal(raw.length, 6, 'every other endpoint response remains authoritative');
+});
+
+test('lean capture stops with the request code and publishes no manifest when the top-100 products request fails', async (t) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const rows = distinctRows(5);
+  const { page } = await captureProducer(t, spec, { initialRows: rows, finalRows: rows, final: 'valid', top100: 'fail' });
+  const output = await mkdtemp(join(tmpdir(), 'metric-producer-top100-fail-'));
+  t.after(() => rm(output, { recursive: true, force: true }));
+  await assert.rejects(adapter.captureV3Preset(page, spec, output, () => {},
+    { moduleEvidence: { runId: 'synthetic-producer', requestSha256: 'a'.repeat(64) } }),
+    { message: 'CAPTURE_PAGE_REQUEST_FAILED' });
+  await assert.rejects(readFile(join(output, 'selected/manifest.json')), { code: 'ENOENT' }, 'no 20-row fallback is published');
+});
+
+test('step 2 picks five Shopee links from the top-100 response when the first 20 rows are all TikTok', async (t) => {
+  // Live «canxi» (daa626c9): the UI's 20 rows held too few Shopee products; rows 21+ hold the rest.
+  const req = requestBytes(true);
+  const spec = validateMetricV3CaptureSpec(JSON.parse(req.toString('utf8')).captureSpec) as any;
+  const tiktok = Array.from({ length: 20 }, (_, i) => ({
+    product_base_id: `8__${9100 + i}__901`, product_name: `TikTok product ${i + 1}`, revenue_custom: 50_000 - i,
+  }));
+  const { page } = await captureProducer(t, spec, { initialRows: tiktok, finalRows: tiktok, final: 'valid', top100: [...tiktok, ...distinctRows(5)] });
+  const run = await mkdtemp(join(tmpdir(), 'metric-producer-top100-pick-'));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(join(run, 'm1'), { recursive: true });
+  await writeFile(join(run, 'request.json'), req);
+  await adapter.captureV3Preset(page, spec, join(run, 'm1'), () => {},
+    { moduleEvidence: { runId: basename(run), requestSha256: sha256(req) } });
+  await mkdir(join(run, 'gates'), { recursive: true });
+  await writeFile(join(run, 'gates/m1.json'), jsonBytes({ format: 'handoff-v1', module: 'M1', runId: basename(run),
+    skillVersion: '1.0.0', verdict: 'PASS', inputSha256: null, outputSha256: await hashFolder(run, 'm1'),
+    checks: [], errorCode: null, next: null }));
+  await main(run);
+
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual([output.m1.dataValid, output.m1.shopeeRowCount], [true, 5]);
+  assert.deepEqual([output.m2.fiveDistinct, output.m2.errorCode], [true, null]);
+  assert.deepEqual(output.m2.links.map((link: any) => link.sourceRank), [21, 22, 23, 24, 25]);
 });
 
 test('lean capture (spec v3) passes when Metric resets the trend interval, leaving insight out of the sourceMap', async (t) => {
