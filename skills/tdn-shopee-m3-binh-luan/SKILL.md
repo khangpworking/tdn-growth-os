@@ -12,7 +12,7 @@ Xem đầy đủ: `tdn-shopee-4-buoc`.
 - Việc: lấy bình luận của các link bước 2 (5 link ở đường 1 kỳ, 1–5 link ở đường cũ) qua dịch vụ lấy bình luận, theo cách lấy đã chốt khi tạo lượt (số bình luận/link hoặc số trang/link, theo số sao hay chỉ bình luận có chữ). Mặc định: bình luận có chữ, 300/link.
 - Đầu ra (lượt mới `request-v2`): `m3-custom/attempts/<attemptId>/`.
 - Kết luận: `review-data --run <runId>` → `sources[].gateVerdict`. Chỉ đi tiếp khi `PASS`.
-- Cấm chạy `gate m3` cho lượt `request-v2`: lệnh đó chỉ đọc `m3/` và ghi đè `gates/m3.json` thành FAIL.
+- `gate m3` không dùng cho lượt `request-v2`: lệnh từ chối với mã `GATE_M3_REQUEST_V2` (exit 2) và không đổi `gates/m3.json`. Dùng `review-data` → `sources[].gateVerdict`.
 - Sau khi bước 3 đạt, bước 4 tự chạy (tốn phí Jev).
 - Code: `scripts/module-review-sampling.ts`, `tools/shopee-review-service/`.
 - Lượt cũ (`request-v1`) ghi vào `m3/` qua `scripts/module-collect-public.ts`; chỉ lượt đó dùng `gate m3`.

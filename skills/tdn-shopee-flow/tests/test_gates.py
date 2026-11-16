@@ -579,6 +579,26 @@ class M3CheckTests(GateTest):
         self.assertEqual(slip['verdict'], 'WAIT_OWNER')
         self.assertEqual(slip['errorCode'], 'SHOPEE_LOGIN_REQUIRED')
 
+    def test_request_v2_refuses_and_keeps_the_m3_slip(self):
+        # Step 3 of a request-v2 run is a custom attempt (m3-custom/); gate m3 must not judge m3/ or rewrite gates/m3.json.
+        request = request_payload()
+        del request['reviewCapPerLink']
+        request.update(format='request-v2', collectionPolicy={'mode': 'with-comments', 'stars': [], 'totalPerLink': 50, 'allocation': 'pooled'})
+        write_json(self.run / 'request.json', request)
+        attempt = '0f0e0d0c-0b0a-4908-8706-050403020100'
+        write_json(self.run / 'm3-custom' / 'attempts' / attempt / 'gate.json', {
+            'format': 'handoff-v1', 'module': 'M3', 'runId': RUN_ID, 'skillVersion': 'custom-review-sampling-v1',
+            'verdict': 'PASS', 'inputSha256': 'a' * 64, 'outputSha256': 'b' * 64, 'checks': [], 'errorCode': None, 'next': None})
+        slip_file = self.run / 'gates' / 'm3.json'
+        write_json(slip_file, {'format': 'handoff-v1', 'module': 'M3', 'runId': RUN_ID, 'verdict': 'PASS'})
+        before = slip_file.read_bytes()
+        proc = subprocess.run([sys.executable, str(SCRIPT), 'gate', 'm3', '--run', RUN_ID],
+                              capture_output=True, text=True, env=self.env(), timeout=60)
+        self.assertEqual(proc.returncode, 2, proc.stdout)
+        self.assertEqual(json.loads(proc.stdout)['code'], 'GATE_M3_REQUEST_V2')
+        self.assertEqual(slip_file.read_bytes(), before)
+        self.assertEqual(sorted(path.name for path in (self.run / 'gates').iterdir()), ['m3.json'])
+
 
 class SlipTests(GateTest):
     def test_all_handoff_keys(self):
