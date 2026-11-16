@@ -615,18 +615,16 @@ test('v3 rejects stale applied state or request scope for any saved option', () 
     ['shop type', (observation) => { observation.appliedState.shopTypes = ['mall', 'regular']; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
     ['AI normalisation', (observation) => { observation.appliedState.aiNormalisation = false; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
     ['smart exclusion', (observation) => { observation.appliedState.smartExclusion = false; }, 'CAPTURE_APPLIED_STATE_MISMATCH'],
+    // v3 (lean) requires only products; scope errors on products still stop.
     ['gift filter request', (_observation, responses) => {
-      responses.find((response) => response.urlPath.endsWith('/search-basic/')).requestBody.is_filter_gift = true;
+      responses.find((response) => response.urlPath.endsWith('/products/')).requestBody.is_filter_gift = true;
     }, 'CAPTURE_REQUEST_SCOPE_MISMATCH'],
     ['deleted filter request', (_observation, responses) => {
       responses.find((response) => response.urlPath.endsWith('/products/')).requestBody.notIncludeDeletedProduct = true;
     }, 'CAPTURE_REQUEST_SCOPE_MISMATCH'],
     ['request dates', (_observation, responses) => {
-      responses.find((response) => response.urlPath.endsWith('/groups/')).requestBody.end_date = '20261003';
+      responses.find((response) => response.urlPath.endsWith('/products/')).requestBody.end_date = '20261003';
     }, 'CAPTURE_REQUEST_SCOPE_MISMATCH'],
-    ['trend interval', (_observation, responses) => {
-      responses.find((response) => response.urlPath.endsWith('/insight/')).requestBody.interval_days = 30;
-    }, 'CAPTURE_TREND_INTERVAL_MISMATCH'],
   ];
   for (const [name, mutate, code] of cases) {
     const spec = validateMetricV3CaptureSpec(selectedV3Spec({
@@ -649,6 +647,52 @@ test('v3 rejects stale applied state or request scope for any saved option', () 
   }
 });
 
+const productsPath = '/v2/market/analytics/products/';
+const v3Manifest = (mutate: (responses: any[]) => any[] | void) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  let responses = selectedResponses(spec);
+  responses = mutate(responses) ?? responses;
+  return () => adapter.buildV3WindowManifest(spec, spec.windows[0], selectedObservation(spec), responses, '2026-10-26T07:00:00.000Z');
+};
+
+test('v3 lean: a trend interval reset by Metric omits insight and keeps products and the other valid endpoints', () => {
+  const manifest = v3Manifest((responses) => {
+    responses.find((r) => r.urlPath.endsWith('/insight/')).requestBody.interval_days = 30;
+  })();
+  assert.deepEqual(Object.keys(manifest.sourceMap), ['search-basic', 'products', 'shops', 'groups']);
+  assert.deepEqual(manifest.optionalEndpointsOmitted, ['insight']);
+  // buildV3WindowManifest validates against the v3 window schema before it returns.
+});
+
+test('v3 lean: a capture with only the products response passes', () => {
+  let raw: any[] = [];
+  const manifest = v3Manifest((responses) => (raw = responses.filter((r) => r.urlPath === productsPath)))();
+  assert.deepEqual(manifest.sourceMap, { products: 'raw-responses.json#/0/body/data' });
+  assert.deepEqual(manifest.optionalEndpointsOmitted, ['search-basic', 'insight', 'shops', 'groups']);
+  assert.equal(raw.length, 1);
+});
+
+test('v3 lean: products is still required with its full scope and sort checks', () => {
+  const cases: [string, (responses: any[]) => any[] | void, string][] = [
+    ['products missing', (responses) => responses.filter((r) => r.urlPath !== productsPath), 'CAPTURE_UI_CHANGED'],
+    ['wrong keyword', (responses) => { responses.find((r) => r.urlPath === productsPath).requestBody.include_query.queries = ['other']; },
+      'CAPTURE_REQUEST_SCOPE_MISMATCH'],
+    ['wrong sort', (responses) => { responses.find((r) => r.urlPath === productsPath).requestBody.sort_by = 'order_custom__desc'; },
+      'CAPTURE_RESPONSE_MISSING'],
+  ];
+  for (const [name, mutate, code] of cases) assert.throws(v3Manifest(mutate), { message: code }, name);
+});
+
+test('v3 replay: saved raw with all five valid endpoints keeps the same five-entry sourceMap', () => {
+  let raw: any[] = [];
+  const manifest = v3Manifest((responses) => { raw = responses; })();
+  const expected = Object.fromEntries(['search-basic', 'insight', 'products', 'shops', 'groups'].map((endpoint) =>
+    [endpoint, `raw-responses.json#/${raw.findLastIndex((r) => r.urlPath === `/v2/market/analytics/${endpoint}/`)}/body/data`]));
+  assert.deepEqual(manifest.sourceMap, expected);
+  assert.deepEqual(Object.keys(manifest.sourceMap), Object.keys(expected), 'key order is unchanged for canonical replay');
+  assert.equal('optionalEndpointsOmitted' in manifest, false, 'old full runs carry no omitted list');
+});
+
 test('v3 refuses empty shop or group selections instead of restoring defaults', () => {
   for (const preset of [
     { shopTypes: [] },
@@ -669,6 +713,29 @@ test('customize category refuses the page-request fallback before reading or sub
     { message: 'CAPTURE_CUSTOM_CATEGORY_FALLBACK_UNSUPPORTED' },
   );
   assert.equal(evaluations, 0);
+});
+
+test('v3 lean page-request fallback requests and requires only products', async (t) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const saved = selectedResponses(spec);
+  const requested: string[] = [];
+  const page = {
+    evaluate: async (fn: Function, arg?: any) => {
+      if (fn.name === 'readV3RequestContext') return { taxonomy: selectedObservation(spec).taxonomy };
+      if (fn.name === 'requestV3InPage') {
+        requested.push(arg.urlPath);
+        return { ...structuredClone(saved.find((r: any) => r.urlPath === arg.urlPath)), requestBody: arg.requestBody };
+      }
+      throw new Error(`unexpected ${fn.name}`);
+    },
+  };
+  const output = await mkdtemp(join(tmpdir(), 'metric-lean-page-request-'));
+  t.after(() => rm(output, { recursive: true, force: true }));
+  await adapter.captureV3PageRequests(page, spec, output, 'CAPTURE_UI_CHANGED');
+  assert.deepEqual(requested, ['/v2/market/analytics/products/']);
+  const manifest = JSON.parse(await readFile(join(output, 'selected/manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.sourceMap, { products: 'raw-responses.json#/0/body/data' });
+  assert.deepEqual(manifest.optionalEndpointsOmitted, ['search-basic', 'insight', 'shops', 'groups']);
 });
 
 function observeSubmits(document: Document) {
@@ -753,6 +820,8 @@ type ProducerOptions = {
   layout?: 'header'; headerClickActivates?: boolean; headerLabel?: string;
   // Old dropdown layout that also shows a revenue header with an active descending arrow.
   activeHeader?: boolean;
+  // Metric resets the trend chart (e.g. Week -> Month for a 1-year range): page and insight request show this interval.
+  trendIntervalDays?: number;
 };
 
 /** Browser boundary for the real capture producer: real form observers, panel inspector and evidence code. */
@@ -862,6 +931,8 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     /^(Descending|Giảm dần)$/i.test((options.initialSort ?? ['Doanh số', 'Tăng dần'])[1]);
   // Live Metric (header layout) already requests revenue_custom__desc on submit.
   if (!initialSorted && !header) initialProducts.requestBody.sort_by = 'order_custom__desc';
+  if (options.trendIntervalDays)
+    initialResponses.find((response: any) => response.urlPath.endsWith('/insight/')).requestBody.interval_days = options.trendIntervalDays;
   initialProducts.body.data.products = options.initialRows;
   const finalProducts = structuredClone(initialProducts);
   finalProducts.requestBody.sort_by = options.final === 'invalid' ? 'order_custom__desc' : 'revenue_custom__desc';
@@ -873,7 +944,7 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     taxonomy: base.taxonomy, selectedCategoryIds: categoriesApplied ? spec.preset.category.children.map((child: any) => child.id) : [],
     advancedVisible: true, categoryMode: 'Advanced', breadcrumb: [], formReady: true, multi: true, keywordInput: '',
     period: structuredClone(selectedWindow.period), submitReady: true, submitIdle: true, resultsReady: true,
-    trendIntervalDays: selectedWindow.intervalDays, comparisonDefault: true, displayedKPIs: 'synthetic producer capture',
+    trendIntervalDays: options.trendIntervalDays ?? selectedWindow.intervalDays, comparisonDefault: true, displayedKPIs: 'synthetic producer capture',
     appliedState: { ...structuredClone(spec.preset), keywords: [...keywords] },
   });
   const pushFinal = () => {
@@ -936,6 +1007,19 @@ test('capture keeps pre-sort traffic as diagnostics and publishes the final sort
   assert.equal(manifest.sourceMap.products, `raw-responses.json#/${raw.indexOf(rawProducts[0])}/body/data`,
     'sourceMap addresses the final response inside authoritative bytes');
   assert.equal(raw.length, 5, 'every other endpoint response remains authoritative');
+});
+
+test('lean capture (spec v3) passes when Metric resets the trend interval, leaving insight out of the sourceMap', async (t) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const rows = distinctRows(5);
+  const { page } = await captureProducer(t, spec, { initialRows: rows, finalRows: rows, final: 'valid', trendIntervalDays: 30 });
+  const output = await mkdtemp(join(tmpdir(), 'metric-producer-lean-'));
+  t.after(() => rm(output, { recursive: true, force: true }));
+  await adapter.captureV3Preset(page, spec, output, () => {},
+    { moduleEvidence: { runId: 'synthetic-producer', requestSha256: 'a'.repeat(64) } });
+  const manifest = JSON.parse(await readFile(join(output, 'selected/manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.optionalEndpointsOmitted, ['insight']);
+  assert.match(manifest.sourceMap.products, /^raw-responses\.json#\/\d+\/body\/data$/);
 });
 
 test('capture refuses a native sort change without a subsequent valid final products response', async (t) => {
