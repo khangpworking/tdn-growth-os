@@ -151,10 +151,13 @@ test('the AI summary counts only the reviews step 4 counts: an earlier Jev label
   const f = await workspace(t);
   const { runDir, sourceSha256 } = await passedRun(f.base, 'run-summary', [['Good jar', 'off-topic spam'], ['Fine lid', 'Neat cap']]);
   await saveModuleReviewData(runDir, sourceSha256);
-  // An earlier Jev label (APP_JEV, theme T-GIA, same text) on the review the step 4 filter will exclude.
-  const seed = f.open(); seedLabelCodebook(seed); seedLabelCode(seed, 'S05:run-summary-0-1', 'APP_JEV');
-  seed.prepare('UPDATE review_code SET text_sha256 = ? WHERE review_key = ?')
-    .run(createHash('sha256').update('off-topic spam', 'utf8').digest('hex'), 'S05:run-summary-0-1');
+  // An earlier Jev label (APP_JEV, theme T-GIA, same text) on the review this run's step 4 filter will exclude: review_code
+  // is keyed by review, so a label written by an earlier pass stays. One insert; review_code rows are insert-only.
+  const seed = f.open(); seedLabelCodebook(seed);
+  seed.prepare(`INSERT INTO review_code(review_key, codebook_version, theme_code, block_key, polarity, journey_step, status, confidence,
+    coder, text_sha256, coded_at, origin, import_sha256, choice) VALUES (?, ?, 'T-GIA', NULL, 'khen', 'Sau mua', 'kept', 0.9, ?, ?,
+    '2026-11-01T00:00:00.000Z', 'APP_JEV', ?, NULL)`).run('S05:run-summary-0-1', labelsGolden.codebook_version, MODEL,
+    createHash('sha256').update('off-topic spam', 'utf8').digest('hex'), 'a'.repeat(64));
   seed.close();
   assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS');
   const label = (await reviewProcessView(runDir, await settings())).sources[0]!.stages.label;
