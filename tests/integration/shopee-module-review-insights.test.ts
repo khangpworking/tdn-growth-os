@@ -146,8 +146,8 @@ test('insights aggregate ten themes, polarities, comments and per-link buckets',
   assert.equal(all.summary.status, 'READY');
   assert.equal(all.summary.model, 'jev-derived-v1');
   assert.equal(all.summary.generatedAt, '2026-11-10T00:05:00.000Z');
-  assert.ok(all.summary.text.includes('Đã gắn nhãn Jev cho 3 trong 3 bình luận'), all.summary.text);
-  assert.ok(all.summary.text.includes('2 khen, 1 chê và 2 trung lập'), all.summary.text);
+  assert.ok(all.summary.text.startsWith('Jev đã đọc 3/3 bình luận; 3 bình luận có ít nhất 1 chủ đề. ' +
+    'Tổng số nhãn: 2 khen, 1 chê, 2 trung lập (một bình luận có thể mang nhiều nhãn).'), all.summary.text);
   assert.ok(all.summary.text.includes('Chủ đề được nhắc nhiều nhất: '), all.summary.text);
 
   const linkA = source.links.find((link: any) => link.shopId === a!.shopId);
@@ -216,7 +216,7 @@ test('a stale text hash suppresses the whole label group without hiding other co
   assert.ok(themeOf(all, 'T-THIETKE').summary.text.includes('“Nội dung còn khớp” (khen)'));
   assert.ok(!themeOf(all, 'T-THIETKE').summary.text.includes('Đã đổi nội dung'));
   assert.equal(all.summary.status, 'READY');
-  assert.ok(all.summary.text.includes('Đã gắn nhãn Jev cho 1 trong 2 bình luận'), all.summary.text);
+  assert.ok(all.summary.text.startsWith('Jev đã đọc 1/2 bình luận; 1 bình luận có ít nhất 1 chủ đề.'), all.summary.text);
 });
 
 test('missing database is UNAVAILABLE, an unlabelled database is EMPTY and no sources stay valid', async t => {
@@ -261,9 +261,11 @@ test('label batches read every wanted id and keep stale groups suppressed across
   const rows = [...rowsA, ...rowsB];
   await addLegacySource(run, { cap: 300, rowsByLink: [rowsA, rowsB] });
   const database = path.join(base, 'app.db');
+  // Row 598: Jev read it and found no theme (stored NO_THEME); row 599: stale labels, not read for this text.
   createInsightDatabase(database, rows.map((row, index) => labelRow(row, 'Kem Batch', index === 599
     ? [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'OK' },
        { code: 'T-GIA', polarity: 'che', status: 'kept', choice: 'DAT', stale: true }]
+    : index === 598 ? [{ code: 'NO_THEME', polarity: null as unknown as Polarity, status: 'kept', choice: null }]
     : [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'OK' }])));
   const db = new Database(database);
   db.prepare('INSERT INTO product(product_key, product_name) VALUES (?, ?)').run('product-unrelated', 'Kem Unrelated');
@@ -279,14 +281,15 @@ test('label batches read every wanted id and keep stale groups suppressed across
   const view = await reviewInsightsView(run.runDir) as any;
   const all = view.sources[0].all;
   assert.equal(all.comments.length, 200);
-  assert.equal(themeOf(all, 'T-CONGDUNG').count, 599);
+  assert.equal(themeOf(all, 'T-CONGDUNG').count, 598);
   assert.equal(themeOf(all, 'T-GIA').count, 0);
   assert.equal(themeOf(all, 'T-GIA').summary.status, 'EMPTY');
   assert.ok(!themeOf(all, 'T-CONGDUNG').summary.text.includes('Ngoài lượt'), 'labels outside the run are not evidence');
   assert.ok(themeOf(all, 'T-CONGDUNG').summary.text.startsWith('Nội dung tiêu biểu từ các bình luận'));
   assert.ok(themeOf(all, 'T-CONGDUNG').summary.text.includes('Bình luận batch'));
   assert.equal(all.summary.status, 'READY');
-  assert.ok(all.summary.text.includes('Đã gắn nhãn Jev cho 599 trong 600 bình luận'), all.summary.text);
+  assert.ok(all.summary.text.startsWith('Jev đã đọc 599/600 bình luận; 598 bình luận có ít nhất 1 chủ đề. ' +
+    'Tổng số nhãn: 598 khen, 0 chê, 0 trung lập (một bình luận có thể mang nhiều nhãn).'), all.summary.text);
 });
 
 test('the overall and per-theme comment cap keeps the first 200 labelled comments deterministically', async t => {

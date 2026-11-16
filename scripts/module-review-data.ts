@@ -65,12 +65,16 @@ export type InsightLabelStore = { labels:Map<string,StoredRowTag[]>; productName
  * (stale labels are ignored as a group). Two results may share a review id with different text.
  */
 export function insightRowTags(row:ModuleReviewRow, store:InsightLabelStore):InsightTag[] {
+  return insightRowLabels(row,store).filter(entry => entry.known).map(({ code, name, polarity, status, choice }) => ({ code, name, polarity, status, choice }));
+}
+
+/** Every stored Jev result of THIS row's text, including "no theme"; non-empty means Jev read the row (as step 4 counts it). */
+function insightRowLabels(row:ModuleReviewRow, store:InsightLabelStore):StoredRowTag[] {
   const entries = row.reviewId ? store.labels.get(row.reviewId) : undefined;
   if (!entries?.length) return [];
   const attributesJson = row.attributes.length ? JSON.stringify(row.attributes) : null;
   const hash = insightSha256(codingText(row.comment,attributesJson));
-  if (entries.some(entry => entry.textSha256 !== hash)) return [];
-  return entries.filter(entry => entry.known).map(({ code, name, polarity, status, choice }) => ({ code, name, polarity, status, choice }));
+  return entries.some(entry => entry.textSha256 !== hash) ? [] : entries;
 }
 
 /** Read Jev's persisted APP_JEV labels without changing the application DB. */
@@ -255,7 +259,7 @@ function insightThemeSummary(definition:LabelCodebook['core'][number], entry:{ k
     text:`Nội dung tiêu biểu từ các bình luận đã gắn nhãn cho chủ đề này: ${selected.map(quote).join('; ')}.` };
 }
 
-function insightSummary(rows:number, comments:number, themes:InsightTheme[], generatedAt:string|null, available:boolean):InsightSummary {
+function insightSummary(rows:number, read:number, comments:number, themes:InsightTheme[], generatedAt:string|null, available:boolean):InsightSummary {
   if (!available) return { status:'UNAVAILABLE', text:null, model:null, generatedAt:null };
   if (!comments) return { status:'EMPTY', text:null, model:null, generatedAt:null };
   const top = [...themes].filter(theme => theme.count > 0).sort((a,b) => b.count-a.count || a.code.localeCompare(b.code)).slice(0,3)
@@ -267,7 +271,7 @@ function insightSummary(rows:number, comments:number, themes:InsightTheme[], gen
   const neutral = polarity.ke + polarity.khong_ro_huong;
   const subject = top ? ` Chủ đề được nhắc nhiều nhất: ${top}.` : '';
   return { status:'READY',
-    text:`Đã gắn nhãn Jev cho ${comments} trong ${rows} bình luận. Các nhãn gồm ${polarity.khen} khen, ${polarity.che} chê và ${neutral} trung lập.${subject} Dòng chưa đủ bằng chứng được giữ là “không rõ phân loại”.`,
+    text:`Jev đã đọc ${read}/${rows} bình luận; ${comments} bình luận có ít nhất 1 chủ đề. Tổng số nhãn: ${polarity.khen} khen, ${polarity.che} chê, ${neutral} trung lập (một bình luận có thể mang nhiều nhãn).${subject} Dòng chưa đủ bằng chứng được giữ là “không rõ phân loại”.`,
     model:'jev-derived-v1', generatedAt };
 }
 
@@ -277,7 +281,9 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
   const byTheme = new Map<string,ThemeAccumulator>(definitions.map(theme => [theme.code,{ count:0, unclearCount:0, keptCount:0,
     polarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, keptPolarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, comments:[] }]));
   const comments:InsightComment[] = [];
+  let read = 0;
   rows.forEach((row,index) => {
+    if (insightRowLabels(row,labelStore).length) read++;
     const tags = insightRowTags(row,labelStore);
     if (!tags.length) return;
     const comment = insightComment(row,sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
@@ -300,7 +306,7 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
       summary:insightThemeSummary(definition,entry,labelStore.available,generatedAt),
       comments:entry.comments.slice(0,INSIGHT_MAX_COMMENTS) };
   });
-  return { summary:insightSummary(total,comments.length,themes,generatedAt,labelStore.available), themes,
+  return { summary:insightSummary(total,read,comments.length,themes,generatedAt,labelStore.available), themes,
     comments:comments.slice(0,INSIGHT_MAX_COMMENTS) };
 }
 
