@@ -50,6 +50,7 @@ _COMMANDS = {
     'reconcileReviewAttempt': ('reconcile-review-attempt', '--run'),
     'reviewData': ('review-data', '--run'),
     'reviewStats': ('review-stats', '--run'),
+    'reviewInsights': ('review-insights', '--run'),
     'saveReviewData': ('save-review-data', '--run'),
     'exportReviewData': ('export-review-data', '--run'),
     'readReviewExport': ('read-review-export', '--run'),
@@ -296,7 +297,7 @@ class Api:
             words.append(self._metric_end_date(payload))
         if action in ('status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence', 'entry', 'flow', 'm1', 'm2', 'm3',
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
-                      'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats',
+                      'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats', 'reviewInsights',
                       'saveReviewData', 'exportReviewData', 'readReviewExport'):
             words.append(self._run_id(run_id))
         if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
@@ -887,6 +888,102 @@ class Api:
                     isinstance(link['url'], str) and len(link['url']) <= 2000 and
                     _SHOPEE_LINK.fullmatch(link['url']) is not None
                     for link in links))
+
+    def reviewInsights(self, runId=None):
+        return self._safe(lambda: self._review_insights(runId))
+
+    def _review_insights(self, run_id):
+        """Read the Jev themes, AI summary and bounded comment examples for one run.
+
+        This is deliberately a separate contract from review-stats-v1: the stats
+        reader is numbers-only, while this surface is the explicit, user-facing
+        drilldown that is allowed to carry review text and tag evidence.
+        """
+        result = self._remote('reviewInsights', run_id=run_id)
+        if not result['ok']:
+            code = result.get('error', {}).get('code')
+            raise _BridgeFailure(code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID')
+        data = result['data']
+        if (set(data) != {'format', 'runId', 'codebookVersion', 'sources'} or
+                data.get('format') != 'review-insights-v1' or data.get('runId') != run_id or
+                not isinstance(data.get('codebookVersion'), str) or not data['codebookVersion'] or
+                not isinstance(data.get('sources'), list) or
+                not all(self._review_insights_source(source) for source in data['sources'])):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    @staticmethod
+    def _review_insights_summary(value):
+        if not isinstance(value, dict) or set(value) != {'status', 'text', 'model', 'generatedAt'}:
+            return False
+        return (value['status'] in ('READY', 'EMPTY', 'UNAVAILABLE') and
+                (value['text'] is None or (isinstance(value['text'], str) and len(value['text']) <= 4000)) and
+                (value['model'] is None or (isinstance(value['model'], str) and len(value['model']) <= 200)) and
+                (value['generatedAt'] is None or (isinstance(value['generatedAt'], str) and len(value['generatedAt']) <= 128)))
+
+    @staticmethod
+    def _review_insights_comment_tag(value):
+        if not isinstance(value, dict) or set(value) != {'code', 'name', 'polarity', 'status', 'choice'}:
+            return False
+        return (isinstance(value['code'], str) and re.fullmatch(r'T-[A-Z0-9]+', value['code']) is not None and
+                isinstance(value['name'], str) and bool(value['name']) and
+                value['polarity'] in ('khen', 'che', 'ke', 'khong_ro_huong') and
+                value['status'] in ('kept', 'unclear') and
+                (value['choice'] is None or isinstance(value['choice'], str)))
+
+    @classmethod
+    def _review_insights_comment(cls, value):
+        if not isinstance(value, dict) or set(value) != {'id', 'text', 'rating', 'date', 'productName', 'url', 'tags'}:
+            return False
+        return (isinstance(value['id'], str) and bool(value['id']) and len(value['id']) <= 256 and
+                isinstance(value['text'], str) and len(value['text']) <= 4000 and
+                (value['rating'] is None or (type(value['rating']) is int and 1 <= value['rating'] <= 5)) and
+                (value['date'] is None or isinstance(value['date'], str)) and
+                (value['productName'] is None or isinstance(value['productName'], str)) and
+                (value['url'] is None or (_SHOPEE_LINK.fullmatch(value['url']) is not None and len(value['url']) <= 2000)) and
+                isinstance(value['tags'], list) and len(value['tags']) <= 10 and
+                all(cls._review_insights_comment_tag(tag) for tag in value['tags']))
+
+    @classmethod
+    def _review_insights_bucket(cls, value):
+        if not isinstance(value, dict) or set(value) != {'summary', 'themes', 'comments'}:
+            return False
+        themes = value['themes']
+        comments = value['comments']
+        if not isinstance(themes, list) or len(themes) > 10 or not isinstance(comments, list) or len(comments) > 200:
+            return False
+        for theme in themes:
+            if (not isinstance(theme, dict) or
+                    set(theme) != {'code', 'name', 'count', 'unclearCount', 'share', 'polarityCounts', 'summary', 'comments'}):
+                return False
+            polarity = theme['polarityCounts']
+            if (not isinstance(theme['code'], str) or re.fullmatch(r'T-[A-Z0-9]+', theme['code']) is None or
+                    not isinstance(theme['name'], str) or not theme['name'] or
+                    type(theme['count']) is not int or theme['count'] < 0 or
+                    type(theme['unclearCount']) is not int or theme['unclearCount'] < 0 or
+                    not (isinstance(theme['share'], (int, float)) and 0 <= theme['share'] <= 1) or
+                    not cls._review_insights_summary(theme['summary']) or
+                    not isinstance(polarity, dict) or set(polarity) != {'khen', 'che', 'ke', 'khong_ro_huong'} or
+                    any(type(count) is not int or count < 0 for count in polarity.values()) or
+                    not isinstance(theme['comments'], list) or len(theme['comments']) > len(comments) or
+                    not all(cls._review_insights_comment(comment) for comment in theme['comments'])):
+                return False
+        return cls._review_insights_summary(value['summary']) and all(cls._review_insights_comment(comment) for comment in comments)
+
+    @classmethod
+    def _review_insights_source(cls, source):
+        if not isinstance(source, dict) or set(source) != {'sourceSha256', 'kind', 'status', 'completedAt', 'all', 'links'}:
+            return False
+        links = source['links']
+        return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
+                source['kind'] in ('legacy', 'custom') and source['status'] in ('SUCCEEDED', 'FAILED') and
+                (source['completedAt'] is None or isinstance(source['completedAt'], str)) and
+                cls._review_insights_bucket(source['all']) and isinstance(links, list) and len(links) <= 5 and
+                all(isinstance(link, dict) and set(link) == {'shopId', 'itemId', 'url', 'insights'} and
+                    isinstance(link['shopId'], str) and _SHOP_ITEM_ID.fullmatch(link['shopId']) is not None and
+                    isinstance(link['itemId'], str) and _SHOP_ITEM_ID.fullmatch(link['itemId']) is not None and
+                    isinstance(link['url'], str) and _SHOPEE_LINK.fullmatch(link['url']) is not None and
+                    cls._review_insights_bucket(link['insights']) for link in links))
 
     def saveReviewData(self, runId=None, input=None):
         return self._safe(lambda: self._save_review_data(runId, input))
