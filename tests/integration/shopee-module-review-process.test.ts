@@ -147,21 +147,26 @@ test('Q1-5 gates and receipt: a full pass saves, filters, labels KEEP only, and 
     label: { state: 'PASS', total: 3, done: 3, unresolvedSkipped: 0 } });
 });
 
-test('the AI summary reads the step 4 card numbers: an excluded review with an older label is not counted, and «no theme» rows still show counts', async t => {
+test('the AI summary counts only the reviews step 4 counts: an earlier Jev label on a review step 4 excludes is left out, and «no theme» rows still show counts', async t => {
   const f = await workspace(t);
   const { runDir, sourceSha256 } = await passedRun(f.base, 'run-summary', [['Good jar', 'off-topic spam'], ['Fine lid', 'Neat cap']]);
   await saveModuleReviewData(runDir, sourceSha256);
-  // An older label (not APP_JEV) on the review the filter will exclude.
-  const seed = f.open(); seedLabelCodebook(seed); seedLabelCode(seed, 'S05:run-summary-0-1'); seed.close();
+  // An earlier Jev label (APP_JEV, theme T-GIA, same text) on the review the step 4 filter will exclude.
+  const seed = f.open(); seedLabelCodebook(seed); seedLabelCode(seed, 'S05:run-summary-0-1', 'APP_JEV');
+  seed.prepare('UPDATE review_code SET text_sha256 = ? WHERE review_key = ?')
+    .run(createHash('sha256').update('off-topic spam', 'utf8').digest('hex'), 'S05:run-summary-0-1');
+  seed.close();
   assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS');
   const label = (await reviewProcessView(runDir, await settings())).sources[0]!.stages.label;
   assert.deepEqual([label.done, label.total], [3, 3]);
   const insights = await reviewInsightsView(runDir) as any;
   const [source] = insights.sources;
-  // Every kept review was read as «no theme»: counts are shown, not EMPTY.
-  assert.deepEqual([source.all.summary.status, source.all.summary.text.split(' Tổng số nhãn')[0]],
-    ['READY', 'Jev đã đọc 3/3 bình luận; 0 bình luận có ít nhất 1 chủ đề.']);
-  assert.deepEqual(source.links.map((link: any) => link.insights.summary.text.split(';')[0]), ['Jev đã đọc 1/1 bình luận', 'Jev đã đọc 2/2 bình luận']);
+  // Every kept review was read as «no theme»: counts are shown, not EMPTY; the excluded review's label is in no number.
+  assert.deepEqual([source.all.summary.status, source.all.summary.text.split(' Dòng chưa đủ')[0]],
+    ['READY', 'Jev đã đọc 3/3 bình luận; 0 bình luận có ít nhất 1 chủ đề. Tổng số nhãn: 0 khen, 0 chê, 0 trung lập (một bình luận có thể mang nhiều nhãn).']);
+  assert.deepEqual(source.links.map((link: any) => link.insights.summary.text.split('. Tổng số nhãn')[0]),
+    ['Jev đã đọc 1/1 bình luận; 0 bình luận có ít nhất 1 chủ đề', 'Jev đã đọc 2/2 bình luận; 0 bình luận có ít nhất 1 chủ đề']);
+  assert.deepEqual([source.all.comments.length, source.all.themes.find((theme: any) => theme.code === 'T-GIA').count], [0, 0]);
 });
 
 test('Q1-3 and retries: a filter call that keeps failing is retried 3 times, then step 4 stops before labels with gate FAIL', async t => {

@@ -288,7 +288,10 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
   const card = coverage ? rows.map(row => row.reviewId ? coverage.get(`S05:${row.reviewId}`) : undefined) : null;
   const read = card ? card.filter(entry => entry?.labelled).length : rows.filter(row => insightRowLabels(row,labelStore).length).length;
   const readOf = card ? card.filter(entry => entry?.eligible).length : rows.length;
+  // One population for every number of the bucket: with step 4 data, only the reviews step 4 counts (eligible).
+  const counted = (index:number) => !card || card[index]?.eligible === true;
   rows.forEach((row,index) => {
+    if (!counted(index)) return;
     const tags = insightRowTags(row,labelStore);
     if (!tags.length) return;
     const comment = insightComment(row,sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
@@ -303,7 +306,7 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
       theme.comments.push(comment);
     }
   });
-  const total = rows.length;
+  const total = readOf;
   const themes = definitions.map(definition => {
     const entry = byTheme.get(definition.code)!;
     return { code:definition.code, name:definition.name, count:entry.count, unclearCount:entry.unclearCount,
