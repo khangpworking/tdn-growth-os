@@ -3125,7 +3125,7 @@ test('mock mode: each approved scenario shows its status line and fires its one 
     });
     const doc = dom.window.document;
     try {
-      const shown = () => (doc.getElementById('runStatusLink') || doc.querySelector('#runStatus .muted'))?.textContent;
+      const shown = () => (doc.getElementById('runStatusLink') || doc.querySelector('#runStatus .st-idle'))?.textContent;
       await waitFor(() => shown() === text && (title === null || !!doc.querySelector('#noticeBox .notice')), 'status ' + scenario);
       await new Promise((resolve) => setTimeout(resolve, 80));
       assert.deepEqual(lines(doc.getElementById('noticeBox'), '.notice b'), title === null ? [] : [title], scenario);

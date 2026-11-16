@@ -12,6 +12,9 @@
   --stop: #b0352a; --stop-tint: #f7e2de;
   --need: #855c00; --need-tint: #f7ecd0;
   --idle: #8a9aa0; --shadow: rgba(20, 39, 46, .16);
+  /* Header run status, colours of the approved step 4 mockup. */
+  --st-ok: #1f7a4d; --st-run: #9a6700; --st-fail: #b42318; --st-idle: #98a2b3; --st-idle-text: #667085;
+  --st-pill-line: #d0d5dd; --st-pill-fg: #344054; --st-pill-bg: #ffffff;
   --body: "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, Consolas, "Courier New", monospace;
 }
@@ -23,6 +26,8 @@
     --stop: #f0877b; --stop-tint: #3d201c;
     --need: #e3bd6b; --need-tint: #3a3018;
     --idle: #6d7f86; --shadow: rgba(0, 0, 0, .45);
+    --st-ok: var(--ok); --st-run: var(--need); --st-fail: var(--stop); --st-idle: var(--idle); --st-idle-text: var(--muted);
+    --st-pill-line: var(--line); --st-pill-fg: var(--fg); --st-pill-bg: var(--panel);
     color-scheme: dark;
   }
 }
@@ -352,19 +357,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 .dialog-note { font-size: 13px; color: var(--muted); }
 /* Step 4: header run status, idle check rows and in-app notices. */
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
-.run-status { flex-basis: 100%; display: grid; justify-items: end; gap: 4px; margin-top: 2px; font-size: 14px; font-weight: 400; }
+.conn:has(> .run-status) { justify-content: flex-end; }
+.run-status { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-top: 6px; font-size: 14px; }
 .st-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
-.pill { display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; font-size: 12px; background: var(--panel); }
-.pill .d, .st-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; background: var(--idle); }
+.pill { display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--st-pill-line); border-radius: 999px; padding: 1px 8px; font-size: 12px; color: var(--st-pill-fg); background: var(--st-pill-bg); }
+.pill .d, .st-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; background: var(--st-idle); }
 .st-dot { width: 10px; height: 10px; }
-.pill.t-ok .d, .st-dot.t-ok { background: var(--ok); }
-.pill.t-fail .d, .st-dot.t-fail { background: var(--stop); }
-.pill.t-run .d, .pill.t-wait .d, .st-dot.t-run { background: var(--need); }
+.pill.t-ok .d, .st-dot.t-ok { background: var(--st-ok); }
+.pill.t-fail .d, .st-dot.t-fail { background: var(--st-fail); }
+.pill.t-run .d, .pill.t-wait .d, .st-dot.t-run { background: var(--st-run); }
 .pill.t-run .d, .st-dot.t-run { animation: pulse 1.2s ease-in-out infinite; }
+.st-idle { color: var(--st-idle-text); }
 .st-link { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.st-link.t-ok { color: var(--ok); }
-.st-link.t-run { color: var(--need); }
-.st-link.t-fail { color: var(--stop); }
+.st-link.t-ok { color: var(--st-ok); }
+.st-link.t-run { color: var(--st-run); }
+.st-link.t-fail { color: var(--st-fail); }
 .ck.ck-idle { opacity: .6; }
 .notice-box { position: fixed; left: 16px; bottom: 16px; z-index: 50; display: grid; gap: 8px; width: min(420px, calc(100% - 32px)); }
 .notice { display: flex; gap: 10px; align-items: flex-start; background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--idle); border-radius: 10px; padding: 10px 14px; box-shadow: 0 6px 20px var(--shadow); font-size: 14px; }
@@ -6388,7 +6395,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var row = h('div', 'st-row');
     if (!subject) {
       row.appendChild(h('span', 'st-dot t-idle'));
-      row.appendChild(h('span', 'muted', 'Không có lượt nào đang chạy'));
+      row.appendChild(h('span', 'st-idle', 'Không có lượt nào đang chạy'));
       box.appendChild(row);
       return;
     }

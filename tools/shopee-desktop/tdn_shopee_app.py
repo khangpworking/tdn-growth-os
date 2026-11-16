@@ -1169,8 +1169,8 @@ class Api:
         steps, active = run['steps'], run['active']
         if not isinstance(steps, list) or len(steps) != 4 or not all(step in _PROGRESS_STEP_STATES for step in steps):
             return False
-        # active is the running step, and null only when no step runs.
-        if (active is None) != ('RUNNING' not in steps):
+        # At most one step runs; active is that step, and null only when no step runs.
+        if steps.count('RUNNING') > 1 or (active is None) != ('RUNNING' not in steps):
             return False
         if active is not None:
             if not isinstance(active, dict) or set(active) != {'step', 'stage', 'done', 'total'}:

@@ -136,6 +136,11 @@ class Step4BridgeTest(unittest.TestCase):
                               (['PASS', 'RUNNING', 'IDLE', 'IDLE'], step3)):
             self.assertEqual(self.progress_code(steps, active, False), 'REMOTE_OUTPUT_INVALID', (steps, active))
 
+    def test_runs_progress_has_at_most_one_running_step(self):
+        step4 = {'step': 4, 'stage': 'filter', 'done': 240, 'total': 531}
+        self.assertEqual(self.progress_code(['PASS', 'PASS', 'RUNNING', 'RUNNING'], step4, False),
+                         'REMOTE_OUTPUT_INVALID')
+
     def test_runs_progress_requires_changed_at(self):
         self.assertEqual(self.progress_code(['PASS', 'PASS', 'PASS', 'PASS'], None, True, None),
                          'REMOTE_OUTPUT_INVALID')
