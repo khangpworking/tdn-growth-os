@@ -352,16 +352,20 @@ export function reviewProcessStart(run: string, state: ReviewProcessStateRecord)
 }
 
 /**
- * The one rule for a recorded PASS (the same rule as `progress_complete` in shopee_flow.py): the output gate passed on the
- * receipt on disk, and at the recorded plan's versions the import receipt exists and every row is saved, filtered and labelled.
+ * The one rule for a recorded PASS, used by the view and therefore by runs-progress (shopee_flow.py reads this view): the output
+ * gate passed on the receipt on disk, the receipt counts the rows the DB holds, and at the recorded plan's versions a valid
+ * import receipt exists and every row is saved, filtered and labelled.
  */
 async function recordedPassHolds(run: string, sourceSha256: string, out: ReviewProcessGateFile | null, recorded: ReviewProcessPlan | null,
   c: Counts, imported: boolean): Promise<boolean> {
-  if (out?.verdict !== 'PASS' || !recorded) return false;
-  let receipt: Buffer;
-  try { receipt = await readFile(await safePath(run, `${folder(sourceSha256)}/receipt.json`)); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
-  return out.outputSha256 === sha256(receipt) && imported && c.saved === c.rows && c.saved > 0 && c.assessed === c.saved && c.labelled === c.eligible;
+  if (out?.verdict !== 'PASS' || !recorded || !imported) return false;
+  let bytes: Buffer, receipt: ReviewProcessReceipt;
+  try {
+    bytes = await readFile(await safePath(run, `${folder(sourceSha256)}/receipt.json`));
+    receipt = validateReviewProcess<ReviewProcessReceipt>('receipt', JSON.parse(bytes.toString('utf8')));
+  } catch { return false; }
+  return out.outputSha256 === sha256(bytes) && receipt.counts.rows === c.rows && receipt.counts.saved === c.saved
+    && c.saved === c.rows && c.saved > 0 && c.assessed === c.saved && c.labelled === c.eligible;
 }
 
 function summary(gate: ReviewProcessGateFile | null): ReviewProcessGateSummary | null {
@@ -390,7 +394,10 @@ export async function reviewProcessView(run: string, settings: ReviewProcessSett
       const out = record && record.status !== 'RUNNING' ? await readOptional<ReviewProcessGateFile>(run, `${base}/gate.json`, 'gateFile') : null;
       // Stages are judged at the versions recorded at start (policy, codebook, labelUnresolved); current settings only before any start.
       const recorded = await readOptional<ReviewProcessPlan>(run, `${base}/plan.json`, 'plan'), sv = recorded?.versions ?? v;
-      const c = counts(db, run, source, sv, record?.startedAt ?? null), saved = savedReceipt(db, source);
+      // A damaged import receipt is a stop with «Chạy tiếp», never a throw.
+      let saved: ReturnType<typeof savedReceipt> = null, damaged = false;
+      try { saved = savedReceipt(db, source); } catch { damaged = true; }
+      const c = counts(db, run, source, sv, record?.startedAt ?? null);
       const savePass = saved !== null && c.saved === c.rows, filterPass = savePass && c.assessed === c.saved, labelPass = filterPass && c.labelled === c.eligible;
       const live = record?.status === 'RUNNING' && pidLive(record.pid);
       let state: ReviewProcessSource['state'], error: string | null = null, failedStage: Stage | null = null;
@@ -398,7 +405,7 @@ export async function reviewProcessView(run: string, settings: ReviewProcessSett
       else if (!record) state = autoRun ? 'IDLE' : 'NOT_APPLICABLE';
       else if (live) state = 'RUNNING';
       else if (record.status === 'PASS' && await recordedPassHolds(run, source.sourceSha256, out, recorded, c, saved !== null)) state = 'PASS';
-      else if (record.status === 'PASS') { state = 'FAIL'; error = db ? 'GATE_FAILED' : 'APP_DB_NOT_CONFIGURED'; failedStage = !savePass ? 'save' : !filterPass ? 'filter' : 'label'; }
+      else if (record.status === 'PASS') { state = 'FAIL'; error = damaged ? 'DB_IMPORT_CONFLICT' : db ? 'GATE_FAILED' : 'APP_DB_NOT_CONFIGURED'; failedStage = !savePass ? 'save' : !filterPass ? 'filter' : 'label'; }
       else { state = 'FAIL'; error = record.errorCode ?? 'GATE_FAILED'; failedStage = record.stage; }
       const runningStage = state === 'RUNNING' ? record!.stage : null;
       const derived = (stage: Stage, done: boolean) => done ? 'PASS' : runningStage === stage ? 'RUNNING' : failedStage === stage ? 'FAIL' : 'IDLE';

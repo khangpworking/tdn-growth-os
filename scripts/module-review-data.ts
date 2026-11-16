@@ -336,6 +336,11 @@ export async function reviewDataCommand(args:string[]):Promise<unknown> {
   if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());return prepareReviewExport(run,value.sourceSha256,value.format);}
   if(action==='read'&&extra.length===1)return readReviewExportBytes(run,extra[0]!);
   if(action==='process-view'&&!extra.length)return reviewProcessView(run,await reviewProcessSettings());
+  // runs-progress: the step-4 status of many runs in one call, from the same view (one error-v1 per run that cannot be read).
+  if(action==='process-views'){const settings=await reviewProcessSettings();const views:unknown[]=[];
+    for(const one of [run,...extra.map(e=>resolve(e))]){try{views.push(await reviewProcessView(one,settings));}
+      catch(error){const code=error instanceof ModuleError?error.code:'REVIEW_DATA_FAILED';views.push({format:'error-v1',code,message:code});}}
+    return views;}
   if(action==='process-check'&&extra.length===1){await reviewProcessStartable(run,extra[0]!);return {format:'review-process-check-v1'};}
   if((action==='process'||action==='process-auto')&&extra.length===1){
     const deps={settings:await reviewProcessSettings(),client:reviewProcessJevClient(process.env)};

@@ -7,6 +7,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { afterEach, beforeEach, mock, type TestContext } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import Database from 'better-sqlite3';
 import { applyMigrations } from '../../src/platform/db/index.js';
 import { TypesafeJevClient } from '../../src/platform/ai/typesafe-jev-client.js';
@@ -257,6 +259,37 @@ test('stages are judged at the recorded plan: changing labelUnresolved after a P
   const [source] = view.sources;
   assert.deepEqual([view.labelUnresolved, source!.state, source!.stages.label.state, source!.stages.label.total, source!.stages.label.unresolvedSkipped],
     [true, 'PASS', 'PASS', 1, 1], 'the UNRESOLVED review is not owed a label under the recorded plan');
+});
+
+test('runs-progress and the view give the same step-4 status on the same fixtures: wrong receipt row count, damaged import receipt, complete', async t => {
+  const f = await workspace(t);
+  const passed = async (runId: string) => {
+    const run = await passedRun(f.base, runId, [['Good jar'], ['Nice lid']]);
+    assert.equal((await runReviewProcess(run.runDir, run.sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS');
+    return run;
+  };
+  const rows = await passed('run-rows'), damaged = await passed('run-damaged');
+  await passed('run-complete');
+  // A receipt whose gate hash matches but whose row count is wrong.
+  const receipt = await readM4(rows.runDir, rows.sourceSha256, 'receipt.json');
+  const bytes = await writeCanonical(path.join(rows.runDir, 'm4', rows.sourceSha256, 'receipt.json'), { ...receipt, counts: { ...receipt.counts, rows: 3 } });
+  const gate = await readM4(rows.runDir, rows.sourceSha256, 'gate.json');
+  await writeCanonical(path.join(rows.runDir, 'm4', rows.sourceSha256, 'gate.json'), { ...gate, outputSha256: createHash('sha256').update(bytes).digest('hex') });
+  // A damaged import receipt row (the immutability triggers are dropped on this test DB only).
+  const db = f.open();
+  for (const name of db.prepare(`SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'raw_db_module_review_import'`).pluck().all()) db.exec(`DROP TRIGGER "${name}"`);
+  db.prepare(`UPDATE raw_db_module_review_import SET receipt_json = '{"damaged":true}' WHERE source_sha256 = ?`).run(damaged.sourceSha256);
+  db.close();
+
+  const progress = spawnSync('python3', [path.resolve('skills/tdn-shopee-flow/scripts/shopee_flow.py'), 'runs-progress'],
+    { env: { ...process.env, SHOPEE_FLOW_RUNS: f.base, PYTHONDONTWRITEBYTECODE: '1' }, encoding: 'utf8', timeout: 120_000 });
+  assert.equal(progress.status, 0, progress.stderr);
+  const step4 = Object.fromEntries((JSON.parse(progress.stdout) as { runs: { runId: string; steps: string[] }[] }).runs.map(r => [r.runId, r.steps[3]]));
+  const view = async (runDir: string) => (await reviewProcessView(runDir, await settings())).sources[0]!;
+  const [badRows, badReceipt, complete] = [await view(rows.runDir), await view(damaged.runDir), await view(path.join(f.base, 'run-complete'))];
+  assert.deepEqual([badRows.state, badReceipt.state, complete.state], ['FAIL', 'FAIL', 'PASS']);
+  assert.deepEqual([step4['run-rows'], step4['run-damaged'], step4['run-complete']], [badRows.state, badReceipt.state, complete.state]);
+  assert.deepEqual([badRows.canResume, badReceipt.canResume, badReceipt.errorCode], [true, true, 'DB_IMPORT_CONFLICT'], 'a damaged receipt is a stop, never a throw');
 });
 
 test('a stop of the automatic start before any step-4 state is a FAIL with «Chạy tiếp»; the resume clears it', async t => {

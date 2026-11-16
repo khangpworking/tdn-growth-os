@@ -23,6 +23,11 @@ STEP4_NODE = FAKE_NODE.replace(
     if os.environ.get('STEP4_FAIL'):
         print(json.dumps({'format': 'error-v1', 'code': os.environ['STEP4_FAIL'], 'message': os.environ['STEP4_FAIL']}))
         sys.exit(20)
+    if args[index + 1] == 'process-views':
+        views = json.loads(pathlib.Path(os.environ['STEP4_VIEWS']).read_text()) if os.environ.get('STEP4_VIEWS') else {}
+        error = {'format': 'error-v1', 'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'}
+        print(json.dumps([views.get(pathlib.Path(run).name, error) for run in args[index + 2:]]))
+        sys.exit(0)
     if args[index + 1] == 'process':
         time.sleep(float(os.environ.get('STEP4_SLEEP', '0')))
         print(json.dumps({'format': 'review-process-start-v1', 'runId': pathlib.Path(args[index + 2]).name,
@@ -161,45 +166,32 @@ class ResumeTests(ReviewProcessFlowTest):
 
 
 class RunsProgressTests(ReviewProcessFlowTest):
-    VERSIONS = {'filterPolicy': 'P', 'filterPolicySha256': 'b' * 64, 'codebook': 'C', 'labelUnresolved': False}
-
-    def make_db(self, dataset, rows=5, assessed=2, labelled=0, policy_sha='b' * 64, imported=()):
-        db = sqlite3.connect(pathlib.Path(self._tmp.name) / 'app.db')
-        db.executescript('CREATE TABLE IF NOT EXISTS run_review(run_id TEXT, review_key TEXT); '
-                         'CREATE TABLE IF NOT EXISTS review_filter_assessment(review_key TEXT, policy_version TEXT, policy_sha256 TEXT, outcome TEXT); '
-                         'CREATE TABLE IF NOT EXISTS review_code(review_key TEXT, codebook_version TEXT); '
-                         'CREATE TABLE IF NOT EXISTS raw_db_module_review_import(source_sha256 TEXT);')
-        keys = [f'{dataset}/{i}' for i in range(rows)]
-        db.executemany('INSERT INTO run_review VALUES (?, ?)', [(dataset, key) for key in keys])
-        db.executemany("INSERT INTO review_filter_assessment VALUES (?, 'P', ?, 'KEEP')", [(key, policy_sha) for key in keys[:assessed]])
-        db.executemany("INSERT INTO review_code VALUES (?, 'C')", [(key,) for key in keys[:labelled]])
-        db.executemany('INSERT INTO raw_db_module_review_import VALUES (?)', [(sha,) for sha in imported])
-        db.commit(); db.close()
+    """runs-progress takes step 4 from the TS view (one node call); the PASS rule itself is tested on the TS side."""
 
     def passed_steps(self, run):
         for module in ('m1', 'm2', 'm3'):
             write_json(run / 'gates' / f'{module}.json', slip(module.upper(), run.name))
         write_json(run / 'm3' / 'reviews.json', [])
 
-    def passed_attempt(self, run, attempt):
-        write_json(run / 'm3-custom' / 'attempts' / attempt / 'gate.json', slip('M3', run.name, None, 'c' * 64))
-        write_json(run / 'm3-custom' / 'attempts' / attempt / 'state.json', {'status': 'SUCCEEDED'})
+    def views(self, **runs):
+        """One canned review-process-view-v1 per run id: a list of source states, or (states, running stage)."""
+        value = {}
+        for run_id, states in runs.items():
+            states, running = states if isinstance(states, tuple) else (states, None)
+            sources = []
+            for state in states:
+                stage = lambda name, done, total: {'state': 'RUNNING' if running == name and state == 'RUNNING' else 'IDLE', 'done': done, 'total': total}
+                sources.append({'sourceSha256': SHA, 'state': state, 'stages': {'save': stage('save', 5, 5), 'filter': stage('filter', 2, 5),
+                                                                                'label': stage('label', 0, None)}})
+            value[run_id] = {'format': 'review-process-view-v1', 'runId': run_id, 'autoRun': True, 'labelUnresolved': False, 'sources': sources}
+        path = pathlib.Path(self._tmp.name) / 'views.json'
+        path.write_text(json.dumps(value))
+        return {'STEP4_VIEWS': str(path)}
 
-    def step4(self, run, key, sha, status, pid=None, stage=None, gate='PASS', rows=5):
-        output = 'c' * 64 if key != 'legacy' else None
-        write_json(run / 'm4' / 'm3' / f'{key}.json', {'format': 'review-process-link-v1', 'runId': run.name, 'm3': key,
-                                                       'm3OutputSha256': output, 'sourceSha256': sha, 'errorCode': None,
-                                                       'recordedAt': '2026-11-16T00:00:00+00:00'})
-        write_json(run / 'm4' / sha / 'state.json', {'status': status, 'pid': pid, 'stage': stage})
-        write_json(run / 'm4' / sha / 'plan.json', {'versions': self.VERSIONS})
-        write_json(run / 'm4' / sha / 'receipt.json', {'counts': {'rows': rows}})
-        receipt = hashlib.sha256((run / 'm4' / sha / 'receipt.json').read_bytes()).hexdigest()
-        write_json(run / 'm4' / sha / 'gate.json', {'verdict': gate, 'outputSha256': receipt})
-
-    def progress(self):
-        rc, payload, stderr = self.command('runs-progress')
+    def progress(self, extra=None):
+        rc, payload, stderr = self.command('runs-progress', extra_env=extra)
         self.assertEqual(rc, 0, (payload, stderr))
-        return {r['runId']: r for r in payload['runs']}
+        return payload
 
     def test_runs_progress_reports_four_steps_the_active_stage_and_finished(self):
         old, done, live = (self.make_run(run_id=r) for r in ('old00001', 'done0001', 'live0001'))
@@ -207,12 +199,7 @@ class RunsProgressTests(ReviewProcessFlowTest):
             self.passed_steps(run)
         for run in (done, live):
             self.mark_auto(run)
-        self.step4(done, 'legacy', SHA, 'PASS')
-        self.step4(live, 'legacy', SHA, 'RUNNING', pid=os.getpid(), stage='filter')
-        self.make_db(f'module-m3:done0001:{SHA}', assessed=5, labelled=5, imported=[SHA])
-        self.make_db(f'module-m3:live0001:{SHA}')
-        rc, payload, stderr = self.command('runs-progress')
-        self.assertEqual(rc, 0, (payload, stderr))
+        payload = self.progress(self.views(done0001=['PASS'], live0001=(['RUNNING'], 'filter')))
         self.assertEqual(set(payload), {'format', 'generatedAt', 'runs'})
         self.assertEqual(payload['format'], 'runs-progress-v1')
         runs = {r['runId']: r for r in payload['runs']}
@@ -223,36 +210,20 @@ class RunsProgressTests(ReviewProcessFlowTest):
         self.assertEqual((runs['live0001']['steps'], runs['live0001']['finished']), (['PASS', 'PASS', 'PASS', 'RUNNING'], False))
         self.assertEqual(runs['live0001']['active'], {'step': 4, 'stage': 'filter', 'done': 2, 'total': 5})
         self.assertIsNone(runs['old00001']['active'])
-        write_json(live / 'm4' / SHA / 'state.json', {'status': 'RUNNING', 'pid': self.dead_pid, 'stage': 'filter'})
-        live_run = self.progress()['live0001']
-        self.assertEqual((live_run['steps'][3], live_run['active'], live_run['finished']), ('FAIL', None, False), 'a dead worker is a stop')
+        calls = self.step4_calls()
+        self.assertEqual([(c[0], sorted(pathlib.Path(r).name for r in c[1:])) for c in calls],
+                         [('process-views', ['done0001', 'live0001'])], 'one node call, only for runs with step-4 files')
 
-    def test_a_recorded_pass_is_finished_only_with_a_passing_output_gate_and_complete_db_stages(self):
-        cases = {'gatefail': {'gate': 'FAIL'}, 'unsaved0': {'imported': False}, 'unfiltr0': {'assessed': 4},
-                 'unlabel0': {'labelled': 4}, 'policy00': {'policy_sha': 'f' * 64}, 'complete': {}}
-        for run_id, change in cases.items():
-            run, sha = self.make_run(run_id=run_id), hashlib.sha256(run_id.encode()).hexdigest()
+    def test_step4_is_the_worst_source_of_the_ts_view_and_never_pass_without_the_view(self):
+        cases = {'idle0001': (['PASS', 'IDLE'], 'IDLE'), 'fail0001': (['PASS', 'FAIL', 'RUNNING'], 'FAIL'), 'none0001': ([], 'IDLE'),
+                 'pass0001': (['PASS', 'PASS'], 'PASS'), 'error001': (None, 'FAIL')}
+        for run_id in cases:
+            run = self.make_run(run_id=run_id)
             self.passed_steps(run)
             self.mark_auto(run)
-            self.step4(run, 'legacy', sha, 'PASS', gate=change.get('gate', 'PASS'))
-            self.make_db(f'module-m3:{run_id}:{sha}', assessed=change.get('assessed', 5), labelled=change.get('labelled', 5),
-                         policy_sha=change.get('policy_sha', 'b' * 64), imported=[sha] if change.get('imported', True) else [])
-        runs = self.progress()
-        for run_id in cases:
-            expected = ('PASS', True) if run_id == 'complete' else ('FAIL', False)
-            self.assertEqual((runs[run_id]['steps'][3], runs[run_id]['finished']), expected, run_id)
-
-    def test_every_m3_source_counts_and_an_unprocessed_one_keeps_the_run_unfinished(self):
-        run = self.make_run(run_id='multi001')
-        self.passed_steps(run)
-        self.mark_auto(run)
-        self.passed_attempt(run, ATTEMPT)
-        self.step4(run, 'legacy', SHA, 'PASS')
-        self.make_db(f'module-m3:multi001:{SHA}', assessed=5, labelled=5, imported=[SHA])
-        self.assertEqual((self.progress()['multi001']['steps'][3], self.progress()['multi001']['finished']), ('IDLE', False))
-        other = 'd' * 64
-        self.step4(run, ATTEMPT, other, 'PASS')
-        self.make_db(f'module-m3:multi001:{other}', assessed=5, labelled=5, imported=[other])
-        self.assertEqual((self.progress()['multi001']['steps'][3], self.progress()['multi001']['finished']), ('PASS', True))
-        write_json(run / 'm3-custom' / 'attempts' / ATTEMPT / 'gate.json', slip('M3', run.name, None, 'e' * 64))
-        self.assertEqual(self.progress()['multi001']['steps'][3], 'IDLE', 'a link to an older M3 output does not count')
+        env = self.views(**{run_id: states for run_id, (states, _) in cases.items() if states is not None})
+        runs = {r['runId']: r for r in self.progress(env)['runs']}
+        for run_id, (_, expected) in cases.items():
+            self.assertEqual((runs[run_id]['steps'][3], runs[run_id]['finished']), (expected, expected == 'PASS'), run_id)
+        runs = {r['runId']: r for r in self.progress({**env, 'STEP4_FAIL': 'REVIEW_DATA_FAILED'})['runs']}
+        self.assertEqual({r['steps'][3] for r in runs.values()}, {'FAIL'}, 'a failed node call never shows PASS')
