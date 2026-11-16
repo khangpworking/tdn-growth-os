@@ -41,11 +41,9 @@ export function inspectV3ProductsPanel({ action = 'read', index, labels, candida
   let sortLabels = values;
   let sorted = dropdowns && /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(values[0]) &&
     /^(Descending|Giảm dần)$/i.test(values[1]);
-  // The header path is allowed only when no dropdown sort layout is present on the panel.
-  const dropdownLayout = values.some(v => /^(Ascending|Descending|Tăng dần|Giảm dần)$/i.test(v)) ||
-    (dropdowns && /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(values[0]));
-  const headerLayout = !sorted && !dropdownLayout && headers.length > 0;
-  if (!sorted && !headerLayout && !dropdowns) return { stop: 'EVIDENCE_PRODUCTS_CONTROLS_MISSING' };
+  // Two visible dropdowns (any labels) mean the dropdown layout; the header is used only without them.
+  const headerLayout = !dropdowns && headers.length > 0;
+  if (!dropdowns && !headers.length) return { stop: 'EVIDENCE_PRODUCTS_CONTROLS_MISSING' };
   if (headerLayout) {
     if (headers.length !== 1) return { stop: 'EVIDENCE_PRODUCTS_SORT_MISMATCH', values, header: true };
     sorted = Boolean(headers[0].querySelector('.ant-table-column-sorter-down.active'));

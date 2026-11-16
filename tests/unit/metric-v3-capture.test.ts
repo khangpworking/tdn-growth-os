@@ -976,24 +976,30 @@ test('capture reads the header sort: one header click activates descending and t
     ['revenue_custom__desc', 'revenue_custom__desc'], 'a new products response follows the header click');
 });
 
-test('capture uses the dropdown sort, not an active header arrow, when the two sort dropdowns are present', async (t) => {
+test('capture uses the dropdown sort, not an active header arrow, whenever two dropdowns are visible', async (t) => {
   const req = requestBytes(true);
   const request = JSON.parse(req.toString('utf8'));
   const spec = validateMetricV3CaptureSpec(request.captureSpec) as any;
   const rows = distinctRows(5);
-  const { page } = await captureProducer(t, spec, {
-    initialRows: rows, finalRows: rows, final: 'valid', initialSort: ['Revenue in time period', 'Ascending'], activeHeader: true,
-  });
-  const run = await mkdtemp(join(tmpdir(), 'metric-producer-dropdown-over-header-'));
-  t.after(() => rm(run, { recursive: true, force: true }));
-  await mkdir(join(run, 'm1'), { recursive: true });
-  await writeFile(join(run, 'request.json'), req);
-  await adapter.captureV3Preset(page, spec, join(run, 'm1'), () => {},
-    { evidence: true, moduleEvidence: { runId: basename(run), requestSha256: sha256(req) } });
+  const cases: [[string, string], [string, string]][] = [
+    [['Revenue in time period', 'Ascending'], ['Revenue in time period', 'Giảm dần']],
+    [['Units sold', 'High to low'], ['Doanh số trong kỳ', 'Giảm dần']],
+  ];
+  for (const [initialSort, labels] of cases) {
+    const { page } = await captureProducer(t, spec, {
+      initialRows: rows, finalRows: rows, final: 'valid', initialSort, activeHeader: true,
+    });
+    const run = await mkdtemp(join(tmpdir(), 'metric-producer-dropdown-over-header-'));
+    t.after(() => rm(run, { recursive: true, force: true }));
+    await mkdir(join(run, 'm1'), { recursive: true });
+    await writeFile(join(run, 'request.json'), req);
+    await adapter.captureV3Preset(page, spec, join(run, 'm1'), () => {},
+      { evidence: true, moduleEvidence: { runId: basename(run), requestSha256: sha256(req) } });
 
-  const evidence = JSON.parse(await readFile(join(run, 'm1/selected/evidence/manifest.json'), 'utf8'));
-  assert.deepEqual([evidence.topProductsProof.status, evidence.topProductsProof.metricLabel, evidence.topProductsProof.orderLabel],
-    ['AVAILABLE', 'Revenue in time period', 'Giảm dần'], 'the order comes from the dropdown the capture changed, not the header arrow');
+    const evidence = JSON.parse(await readFile(join(run, 'm1/selected/evidence/manifest.json'), 'utf8'));
+    assert.deepEqual([evidence.topProductsProof.status, evidence.topProductsProof.metricLabel, evidence.topProductsProof.orderLabel],
+      ['AVAILABLE', ...labels], `${initialSort.join(' / ')}: labels come from the dropdowns the capture changed, not the header arrow`);
+  }
 });
 
 test('capture refuses the header layout when the descending arrow never becomes active or the header is missing', async (t) => {
