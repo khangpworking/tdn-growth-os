@@ -749,6 +749,8 @@ type SortFinal = 'valid' | 'invalid' | 'absent';
 type ProducerOptions = {
   initialRows: Record<string, unknown>[]; finalRows: Record<string, unknown>[];
   final: SortFinal; clipped?: boolean; initialSort?: [string, string];
+  // 'header': current Metric layout (export + page-size selects, sort on the column header).
+  layout?: 'header'; headerClickActivates?: boolean; headerLabel?: string;
 };
 
 /** Browser boundary for the real capture producer: real form observers, panel inspector and evidence code. */
@@ -778,7 +780,8 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     menu.getBoundingClientRect = () => ({ x: 0, y: 60, left: 0, top: 60, right: 100, bottom: 70, width: 100, height: 10, toJSON() {} });
     document.body.append(menu);
   };
-  for (const [index, label] of (options.initialSort ?? ['Doanh số', 'Tăng dần']).entries()) {
+  const header = options.layout === 'header';
+  for (const [index, label] of (header ? ['Excel', '20 products / page'] : options.initialSort ?? ['Doanh số', 'Tăng dần']).entries()) {
     const select = document.createElement('div');
     select.className = 'ant-select';
     const selector = document.createElement('div');
@@ -787,10 +790,27 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     item.className = 'ant-select-selection-item';
     item.textContent = label;
     select.append(selector, item);
-    selector.addEventListener('click', () => openMenu(index));
-    select.addEventListener('click', () => openMenu(index));
+    if (!header) {
+      selector.addEventListener('click', () => openMenu(index));
+      select.addEventListener('click', () => openMenu(index));
+    }
     panel.append(select);
     items.push(item);
+  }
+  let headerDown: HTMLElement | null = null;
+  const table = document.createElement('table');
+  if (header) {
+    const th = document.createElement('th');
+    th.className = 'ant-table-cell ant-table-column-has-sorters';
+    th.textContent = options.headerLabel ?? 'Revenue in time period';
+    const up = document.createElement('span');
+    up.className = 'ant-table-column-sorter-up';
+    headerDown = document.createElement('span');
+    headerDown.className = 'ant-table-column-sorter-down';
+    th.append(up, headerDown);
+    th.addEventListener('click', () => { if (options.headerClickActivates) headerDown!.classList.add('active'); });
+    table.append(th);
+    panel.append(table);
   }
   const wrapper = document.createElement('div');
   if (options.clipped) {
@@ -814,6 +834,7 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
   bounds(panel, 40, 150);
   bounds(heading, 42, 8);
   bounds(wrapper, 70, 100);
+  [table, ...panel.querySelectorAll('th')].forEach(node => bounds(node, 64, 5));
   [...panel.querySelectorAll('.ant-select')].forEach((select, i) => bounds(select, 52 + i * 8, 6));
   rows.forEach((row, i) => bounds(row, 72 + i * 5, 4));
 
@@ -823,7 +844,8 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
   const initialProducts = initialResponses.find((response: any) => response.urlPath === '/v2/market/analytics/products/');
   const initialSorted = /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test((options.initialSort ?? ['Doanh số', 'Tăng dần'])[0]) &&
     /^(Descending|Giảm dần)$/i.test((options.initialSort ?? ['Doanh số', 'Tăng dần'])[1]);
-  if (!initialSorted) initialProducts.requestBody.sort_by = 'order_custom__desc';
+  // Live Metric (header layout) already requests revenue_custom__desc on submit.
+  if (!initialSorted && !header) initialProducts.requestBody.sort_by = 'order_custom__desc';
   initialProducts.body.data.products = options.initialRows;
   const finalProducts = structuredClone(initialProducts);
   finalProducts.requestBody.sort_by = options.final === 'invalid' ? 'order_custom__desc' : 'revenue_custom__desc';
@@ -858,6 +880,8 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
         return arg.kind === 'date' ? { done: true } : { ok: true };
       }
       const result = await browser.page.evaluate(fn, arg);
+      if (fn.name === 'inspectV3ProductsPanel' && arg?.action === 'headerSort' &&
+          headerDown?.classList.contains('active')) pushFinal();
       if (fn.name === 'inspectV3ProductsPanel' && arg?.action === 'option' &&
           /^(Revenue in time period|Revenue|Doanh số trong kỳ|Doanh số)$/i.test(items[0]!.textContent!) &&
           /^(Descending|Giảm dần)$/i.test(items[1]!.textContent!)) pushFinal();
@@ -911,6 +935,59 @@ test('capture refuses a native sort change without a subsequent valid final prod
       { moduleEvidence: { runId: 'synthetic-producer', requestSha256: 'a'.repeat(64) } }),
       { message: 'CAPTURE_PRODUCT_SORT_UNAVAILABLE' }, final);
   }
+});
+
+test('capture reads the header sort: one header click activates descending and the final revenue request is published', async (t) => {
+  const req = requestBytes(true);
+  const request = JSON.parse(req.toString('utf8'));
+  const spec = validateMetricV3CaptureSpec(request.captureSpec) as any;
+  const rows = distinctRows(5);
+  const { page } = await captureProducer(t, spec, {
+    initialRows: rows, finalRows: rows, final: 'valid', layout: 'header', headerClickActivates: true,
+  });
+  const run = await mkdtemp(join(tmpdir(), 'metric-producer-header-'));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(join(run, 'm1'), { recursive: true });
+  await writeFile(join(run, 'request.json'), req);
+  await adapter.captureV3Preset(page, spec, join(run, 'm1'), () => {},
+    { evidence: true, moduleEvidence: { runId: basename(run), requestSha256: sha256(req) } });
+
+  const evidence = JSON.parse(await readFile(join(run, 'm1/selected/evidence/manifest.json'), 'utf8'));
+  assert.deepEqual([evidence.topProductsProof.status, evidence.topProductsProof.metricLabel, evidence.topProductsProof.orderLabel],
+    ['AVAILABLE', 'Revenue in time period', 'Descending'], 'labels come from the active header arrow');
+  const observed = JSON.parse(await readFile(join(run, 'm1/selected/observed-responses.json'), 'utf8'));
+  assert.deepEqual(observed.filter((r: any) => r.urlPath.endsWith('/products/')).map((r: any) => r.requestBody.sort_by),
+    ['revenue_custom__desc', 'revenue_custom__desc'], 'a new products response follows the header click');
+});
+
+test('capture refuses the header layout when the descending arrow never becomes active or the header is missing', async (t) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const rows = distinctRows(5);
+  const cases: [string, Partial<ProducerOptions>][] = [
+    ['never active', { headerClickActivates: false }],
+    ['no matching header', { headerClickActivates: true, headerLabel: 'Total revenue' }],
+  ];
+  for (const [name, extra] of cases) {
+    const { page } = await captureProducer(t, spec, { initialRows: rows, finalRows: rows, final: 'valid', layout: 'header', ...extra });
+    const output = await mkdtemp(join(tmpdir(), 'metric-producer-header-refused-'));
+    t.after(() => rm(output, { recursive: true, force: true }));
+    await assert.rejects(adapter.captureV3Preset(page, spec, output, () => {},
+      { moduleEvidence: { runId: 'synthetic-producer', requestSha256: 'a'.repeat(64) } }),
+      { message: 'CAPTURE_PRODUCT_SORT_UNAVAILABLE' }, name);
+  }
+});
+
+test('capture refuses the header layout when the arrow is active but the final products request is not revenue descending', async (t) => {
+  const spec = validateMetricV3CaptureSpec(selectedV3Spec()) as any;
+  const rows = distinctRows(5);
+  const { page } = await captureProducer(t, spec, {
+    initialRows: rows, finalRows: rows, final: 'invalid', layout: 'header', headerClickActivates: true,
+  });
+  const output = await mkdtemp(join(tmpdir(), 'metric-producer-header-invalid-'));
+  t.after(() => rm(output, { recursive: true, force: true }));
+  await assert.rejects(adapter.captureV3Preset(page, spec, output, () => {},
+    { moduleEvidence: { runId: 'synthetic-producer', requestSha256: 'a'.repeat(64) } }),
+    { message: 'CAPTURE_PRODUCT_SORT_UNAVAILABLE' });
 });
 
 test('capture accepts valid sorted data in a clipped panel while whole-panel evidence stays unavailable', async (t) => {
