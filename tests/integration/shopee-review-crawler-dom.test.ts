@@ -185,6 +185,28 @@ test('a selected star whose "No ratings yet" box stays stable for 3 s (no list) 
   } finally { dom.window.close(); }
 });
 
+test('a "No ratings yet" box beside a visible page controller is never an exhausted star', async () => {
+  // Live 17/11: Shopee's empty state has no page controller, so a box with one is not that state.
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'Tất cả', 0)}
+      ${filter('with-comments', 'Có bình luận', 0, true)}
+      ${filter('1', '1 sao', 0)}${filter('2', '2 sao', 0)}${filter('3', '3 sao', 0)}
+      ${filter('4', '4 sao', 0)}${filter('5', '5 sao', 0)}
+      <div class="product-ratings-comments-view__no-data">
+        <div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>
+      <div class="shopee-page-controller"><button class="shopee-button-solid shopee-button-solid--primary">1</button></div>
+    </div>`);
+  try {
+    const result = await crawl(dom, reviewPolicy({
+      mode: 'with-comments', stars: [], totalPerLink: 20, allocation: 'pooled',
+    }));
+    assert.equal(result.stop_reason, 'control_changed');
+    assert.equal(result.error, 'CONTROL_CHANGED');
+    assert.deepEqual(json(result.records ?? []), []);
+  } finally { dom.window.close(); }
+});
+
 test('a stale "No ratings yet" box whose filter loads cards after the post-click pause is not exhausted', async () => {
   // Sol repro on e1cddb26: 1 Star (0) shows the box; 2 Star still shows a stale (0) and Shopee keeps the
   // same box node until the 2-star cards arrive, 6 s after the click (after the 3.5 s post-click pause).

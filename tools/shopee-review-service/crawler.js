@@ -207,7 +207,8 @@
   // Shopee's empty filter has no list at all, only its visible "No ratings yet" box (live 17/11).
   const noDataShown = () => [...root.querySelectorAll('.product-ratings__list')].filter(visible).length === 0 &&
     [...root.querySelectorAll('.product-ratings-comments-view__no-data')].filter(visible).length === 1;
-  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 && (loadedList() || noDataShown()) && (noPagination() || activePage() === 1);
+  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 &&
+    (loadedList() && (noPagination() || activePage() === 1) || noDataShown() && noPagination()); // live: the box never has a page bar
   // The no-data box can be stale from the previous empty filter (Shopee keeps the same node on 0 -> 0).
   // Accept it only after the same box and the same empty state hold for 3 s of continuous sampling.
   const EMPTY_STABLE_MS = 3000;
