@@ -6,6 +6,7 @@ gets a fake page that records the crawler config and returns a fixed result.
 """
 import asyncio
 from contextlib import suppress
+import gc
 import hashlib
 import importlib
 import json
@@ -14,6 +15,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+import warnings
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -127,6 +129,40 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(state({'url': URL}, {'stop_reason': 'repeated_page', 'error': None}), 'partial')
         self.assertEqual(state({'url': URL, 'max_pages': 10}, {'stop_reason': 'cancelled', 'error': None}), 'cancelled')
         self.assertIsNone(state({'url': URL, 'max_pages': 10}, {'stop_reason': 'control_changed', 'error': 'CONTROL_CHANGED'}))
+
+    def test_status_polls_close_every_job_database_connection(self):
+        # Live 17/11: every poll left one jobs.sqlite3 connection open until the fd limit gave HTTP 500.
+        app, job_id = self.app, 'job-connection-leak'
+        with app.db() as connection:
+            connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
+                               (job_id, json.dumps({'url': URL}), 'queued', app.now(), app.now()))
+        database = str(pathlib.Path(self._tmp.name, 'jobs.sqlite3').resolve())
+
+        def open_files():
+            if not os.path.isdir('/proc/self/fd'):
+                return 0
+            count = 0
+            for fd in os.listdir('/proc/self/fd'):
+                with suppress(OSError):
+                    count += os.readlink(os.path.join('/proc/self/fd', fd)) == database
+            return count
+
+        gc.collect()
+        before = open_files()
+        gc.disable()
+        try:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter('always', ResourceWarning)
+                for _ in range(100):
+                    app.get_job(job_id)
+                    app.update_job(job_id, page=1)
+                    app.list_jobs(limit=5)
+                leaked = open_files() - before
+                gc.collect()
+        finally:
+            gc.enable()
+        self.assertEqual(leaked, 0, 'open jobs.sqlite3 connections after 300 calls')
+        self.assertEqual([str(w.message) for w in caught if issubclass(w.category, ResourceWarning)], [])
 
     def run_job(self, payload, result):
         app = self.app
