@@ -105,22 +105,22 @@ async function versions(settings: ReviewProcessSettings, model: string): Promise
   return { filterPolicy: REVIEW_FILTER_POLICY_VERSION, filterPolicySha256: reviewFilterPolicySha256(), codebook: parseLabelCodebook(bytes.toString('utf8')).version,
     codebookSha256: sha256(bytes), model, labelUnresolved: settings.labelUnresolved };
 }
-const allowedOutcomes = (settings: ReviewProcessSettings) => settings.labelUnresolved ? ['KEEP', 'UNRESOLVED'] : ['KEEP'];
+const allowedOutcomes = (v: ReviewProcessVersions) => v.labelUnresolved ? ['KEEP', 'UNRESOLVED'] : ['KEEP'];
 const reviewKeys = (source: VerifiedModuleReviewCollection) => source.rows.map(row => `S05:${row.reviewId}`);
 
 /** Calls still needed for this source (rows with content, without a row at the fixed versions). Labels are an upper bound before the filter ends. */
-function plannedCalls(db: BetterSqlite3.Database | null, source: VerifiedModuleReviewCollection, v: ReviewProcessVersions, settings: ReviewProcessSettings) {
+function plannedCalls(db: BetterSqlite3.Database | null, source: VerifiedModuleReviewCollection, v: ReviewProcessVersions) {
   const content = source.rows.filter(row => hasReviewContent(row.comment, row.attributes.length ? JSON.stringify(row.attributes) : null)).map(row => `S05:${row.reviewId}`);
   if (!db) return { filter: content.length, label: content.length };
   const rows = db.prepare(`SELECT a.outcome, EXISTS (SELECT 1 FROM review_code c WHERE c.review_key = j.value AND c.codebook_version = @codebook) labelled
     FROM json_each(@keys) j LEFT JOIN review_filter_assessment a ON a.review_key = j.value AND a.policy_version = @policy AND a.policy_sha256 = @policySha`)
     .all({ keys: JSON.stringify(content), codebook: v.codebook, policy: v.filterPolicy, policySha: v.filterPolicySha256 }) as { outcome: string | null; labelled: number | bigint }[];
-  const allowed = allowedOutcomes(settings);
+  const allowed = allowedOutcomes(v);
   return { filter: rows.filter(row => row.outcome === null).length,
     label: rows.filter(row => !Number(row.labelled) && (row.outcome === null || allowed.includes(row.outcome))).length };
 }
 function plan(run: string, db: BetterSqlite3.Database | null, source: VerifiedModuleReviewCollection, v: ReviewProcessVersions, settings: ReviewProcessSettings): ReviewProcessPlan {
-  const calls = plannedCalls(db, source, v, settings);
+  const calls = plannedCalls(db, source, v);
   const filter = round2(calls.filter * settings.feeUsdPerCall.filter), label = round2(calls.label * settings.feeUsdPerCall.label);
   const fee: ReviewProcessFee = { currency: 'USD', filter, label, total: round2(filter + label), basis: 'ESTIMATE' };
   return { format: 'review-process-plan-v1', runId: basename(run), sourceSha256: source.sourceSha256, versions: v, calls, fee,
@@ -131,7 +131,7 @@ interface Counts {
   rows: number; saved: number; assessed: number; keep: number; exclude: number; unresolved: number; noContent: number;
   eligible: number; labelled: number; newLabelsOnNotAllowed: number; olderLabelsOnNotAllowed: number;
 }
-function counts(db: BetterSqlite3.Database | null, run: string, source: VerifiedModuleReviewCollection, v: ReviewProcessVersions, settings: ReviewProcessSettings, since: string | null): Counts {
+function counts(db: BetterSqlite3.Database | null, run: string, source: VerifiedModuleReviewCollection, v: ReviewProcessVersions, since: string | null): Counts {
   const zero: Counts = { rows: source.rows.length, saved: 0, assessed: 0, keep: 0, exclude: 0, unresolved: 0, noContent: 0, eligible: 0, labelled: 0,
     newLabelsOnNotAllowed: 0, olderLabelsOnNotAllowed: 0 };
   if (!db) return zero;
@@ -145,7 +145,7 @@ function counts(db: BetterSqlite3.Database | null, run: string, source: Verified
         AND c.codebook_version = @codebook AND c.coded_at < @since)), 0) older
     FROM run_review rr LEFT JOIN review_filter_assessment a ON a.review_key = rr.review_key AND a.policy_version = @policy AND a.policy_sha256 = @policySha
     WHERE rr.run_id = @dataset`).get({ dataset: datasetId(run, source.sourceSha256), policy: v.filterPolicy, policySha: v.filterPolicySha256, codebook: v.codebook,
-    allowed: JSON.stringify(allowedOutcomes(settings)), since: since ?? '9999' }) as Record<string, number | bigint>;
+    allowed: JSON.stringify(allowedOutcomes(v)), since: since ?? '9999' }) as Record<string, number | bigint>;
   const n = (key: string) => Number(row[key]);
   return { ...zero, saved: n('saved'), assessed: n('assessed'), keep: n('keep'), exclude: n('exclude'), unresolved: n('unresolved'), noContent: n('noContent'),
     eligible: n('eligible'), labelled: n('labelled'), newLabelsOnNotAllowed: n('newer'), olderLabelsOnNotAllowed: n('older') };
@@ -254,7 +254,7 @@ export async function runReviewProcess(run: string, sourceSha256: string, deps: 
       filter: async () => { const r = await filterReviewsInDbV1(db!, artifacts, client, { runId: datasetId(run, sourceSha256), policyVersion: v.filterPolicy });
         return { failed: r.failed, called: r.called, left: r.notAssessed, result: { ...r } }; },
       label: async () => { const r = await labelReviewsInDbV1(db!, artifacts, client, { runId: datasetId(run, sourceSha256), captureRoot: run,
-        scope: { keywords: keyword ? [keyword] : [], category: null }, filterPolicyVersion: v.filterPolicy, filterOutcomes: allowedOutcomes(settings) });
+        scope: { keywords: keyword ? [keyword] : [], category: null }, filterPolicyVersion: v.filterPolicy, filterOutcomes: allowedOutcomes(v) });
         return { failed: r.failed, called: r.called, left: r.skipped, result: { ...r } }; },
     };
     for (const stage of ['filter', 'label'] as const) {
@@ -283,7 +283,7 @@ export async function runReviewProcess(run: string, sourceSha256: string, deps: 
         retries++;
         await publish({ retries: state.retries + 1 });
       }
-      const c = counts(db, run, source, v, settings, state.startedAt);
+      const c = counts(db, run, source, v, state.startedAt);
       if (stage === 'filter' ? c.assessed !== c.saved : c.labelled !== c.eligible) { error = 'GATE_FAILED'; return await finish(); }
     }
     return await finish();
@@ -294,7 +294,7 @@ export async function runReviewProcess(run: string, sourceSha256: string, deps: 
 
   /** Output gate (R1 to R6) and the receipt; written on every end so a stop is explained. */
   async function finish(): Promise<ReviewProcessStateRecord> {
-    const c = counts(db, run, source!, v, settings, state.startedAt), saved = savedReceipt(db, source!);
+    const c = counts(db, run, source!, v, state.startedAt), saved = savedReceipt(db, source!);
     const planned = await readOptional<ReviewProcessPlan>(run, `${base}/plan.json`, 'plan');
     const calls = { filter: 0, label: 0 };
     for (const stage of ['filter', 'label'] as const) {
@@ -305,7 +305,7 @@ export async function runReviewProcess(run: string, sourceSha256: string, deps: 
       planSha256: planned?.planSha256 ?? sha256(''), versions: v, fee: planned?.fee ?? { currency: 'USD', filter: 0, label: 0, total: 0, basis: 'ESTIMATE' },
       counts: { rows: c.rows, saved: c.saved, inserted: saved?.reviewsInserted ?? 0, alreadyPresent: saved?.reviewsAlreadyPresent ?? 0,
         firstVersionDiffers: saved?.firstVersionDiffers ?? 0, keep: c.keep, exclude: c.exclude, unresolved: c.unresolved, noContent: c.noContent,
-        labelEligible: c.eligible, labelled: c.labelled, unresolvedSkipped: settings.labelUnresolved ? 0 : c.unresolved, olderLabelsOnNotKept: c.olderLabelsOnNotAllowed },
+        labelEligible: c.eligible, labelled: c.labelled, unresolvedSkipped: v.labelUnresolved ? 0 : c.unresolved, olderLabelsOnNotKept: c.olderLabelsOnNotAllowed },
       calls, retries: state.retries, startedAt: state.startedAt, finishedAt: now() };
     const receiptBytes = await writeAtomic(run, `${base}/receipt.json`, 'receipt', receipt);
     const checks = [
@@ -351,13 +351,26 @@ export function reviewProcessStart(run: string, state: ReviewProcessStateRecord)
     status: state.status, pid: process.pid });
 }
 
+/**
+ * The one rule for a recorded PASS (the same rule as `progress_complete` in shopee_flow.py): the output gate passed on the
+ * receipt on disk, and at the recorded plan's versions the import receipt exists and every row is saved, filtered and labelled.
+ */
+async function recordedPassHolds(run: string, sourceSha256: string, out: ReviewProcessGateFile | null, recorded: ReviewProcessPlan | null,
+  c: Counts, imported: boolean): Promise<boolean> {
+  if (out?.verdict !== 'PASS' || !recorded) return false;
+  let receipt: Buffer;
+  try { receipt = await readFile(await safePath(run, `${folder(sourceSha256)}/receipt.json`)); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
+  return out.outputSha256 === sha256(receipt) && imported && c.saved === c.rows && c.saved > 0 && c.assessed === c.saved && c.labelled === c.eligible;
+}
+
 function summary(gate: ReviewProcessGateFile | null): ReviewProcessGateSummary | null {
   return gate ? { verdict: gate.verdict, checks: gate.checks } : null;
 }
 
 /**
  * Read-only `review-process-view-v1`: no Jev call, no write; the DB is opened read-only. Lists the current M3 PASS sources, newest first.
- * A source is PASS only while its output gate passed and every DB-derived stage is complete; a recorded PASS that no longer holds
+ * A source is PASS only while `recordedPassHolds` holds (the same rule as runs-progress); a recorded PASS that no longer holds
  * (or a stop recorded by the automatic start) is FAIL with «Chạy tiếp».
  */
 export async function reviewProcessView(run: string, settings: ReviewProcessSettings): Promise<ReviewProcessView> {
@@ -375,19 +388,21 @@ export async function reviewProcessView(run: string, settings: ReviewProcessSett
       const base = folder(source.sourceSha256);
       const record = await readOptional<ReviewProcessStateRecord>(run, `${base}/state.json`, 'stateRecord'), link = await readLink(run, source);
       const out = record && record.status !== 'RUNNING' ? await readOptional<ReviewProcessGateFile>(run, `${base}/gate.json`, 'gateFile') : null;
-      const c = counts(db, run, source, v, settings, record?.startedAt ?? null), saved = savedReceipt(db, source);
+      // Stages are judged at the versions recorded at start (policy, codebook, labelUnresolved); current settings only before any start.
+      const recorded = await readOptional<ReviewProcessPlan>(run, `${base}/plan.json`, 'plan'), sv = recorded?.versions ?? v;
+      const c = counts(db, run, source, sv, record?.startedAt ?? null), saved = savedReceipt(db, source);
       const savePass = saved !== null && c.saved === c.rows, filterPass = savePass && c.assessed === c.saved, labelPass = filterPass && c.labelled === c.eligible;
       const live = record?.status === 'RUNNING' && pidLive(record.pid);
       let state: ReviewProcessSource['state'], error: string | null = null, failedStage: Stage | null = null;
       if (link?.errorCode) { state = 'FAIL'; error = link.errorCode; }
       else if (!record) state = autoRun ? 'IDLE' : 'NOT_APPLICABLE';
       else if (live) state = 'RUNNING';
-      else if (record.status === 'PASS' && out?.verdict === 'PASS' && labelPass) state = 'PASS';
+      else if (record.status === 'PASS' && await recordedPassHolds(run, source.sourceSha256, out, recorded, c, saved !== null)) state = 'PASS';
       else if (record.status === 'PASS') { state = 'FAIL'; error = db ? 'GATE_FAILED' : 'APP_DB_NOT_CONFIGURED'; failedStage = !savePass ? 'save' : !filterPass ? 'filter' : 'label'; }
       else { state = 'FAIL'; error = record.errorCode ?? 'GATE_FAILED'; failedStage = record.stage; }
       const runningStage = state === 'RUNNING' ? record!.stage : null;
       const derived = (stage: Stage, done: boolean) => done ? 'PASS' : runningStage === stage ? 'RUNNING' : failedStage === stage ? 'FAIL' : 'IDLE';
-      const planned = await readOptional<ReviewProcessPlan>(run, `${base}/plan.json`, 'plan') ?? plan(run, db, source, v, settings);
+      const planned = recorded ?? plan(run, db, source, v, settings);
       views.push({ sourceSha256: source.sourceSha256, state, errorCode: state === 'FAIL' ? contractError(error ?? 'GATE_FAILED') : null,
         startedAt: record?.startedAt ?? null, finishedAt: state === 'RUNNING' ? null : record?.finishedAt ?? link?.recordedAt ?? null, retries: record?.retries ?? 0,
         canResume: state === 'FAIL' || state === 'NOT_APPLICABLE', fee: planned.fee,
@@ -395,7 +410,7 @@ export async function reviewProcessView(run: string, settings: ReviewProcessSett
           save: { state: derived('save', savePass), total: c.rows, done: c.saved, inserted: saved?.reviewsInserted ?? 0, alreadyPresent: saved?.reviewsAlreadyPresent ?? 0 },
           filter: { state: derived('filter', filterPass), total: c.rows, done: c.assessed, keep: c.keep, exclude: c.exclude, unresolved: c.unresolved, noContent: c.noContent },
           label: { state: derived('label', labelPass), total: filterPass ? c.eligible : null, done: c.labelled,
-            unresolvedSkipped: filterPass ? (settings.labelUnresolved ? 0 : c.unresolved) : null },
+            unresolvedSkipped: filterPass ? (sv.labelUnresolved ? 0 : c.unresolved) : null },
         },
         gates: { in: record ? summary(await readOptional<ReviewProcessGateFile>(run, `${base}/gate-in.json`, 'gateFile')) : null,
           out: state !== 'RUNNING' ? summary(out) : null } });

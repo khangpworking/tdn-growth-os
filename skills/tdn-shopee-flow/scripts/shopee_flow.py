@@ -2086,7 +2086,8 @@ def progress_counts(run, sha, db):
 
 
 def progress_complete(run, sha, db):
-    """A recorded PASS holds only while the output gate passed on this receipt and every DB-derived stage is complete."""
+    """A recorded PASS holds only while the output gate passed on this receipt and every DB-derived stage is complete
+    at the recorded plan versions (the same rule as recordedPassHolds in src/modules/raw-db/module-review-process.ts)."""
     import hashlib
     gate, receipt = gate_path(run, f'm4/{sha}/gate.json'), gate_path(run, f'm4/{sha}/receipt.json')
     slip = gate_read(gate)

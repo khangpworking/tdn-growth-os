@@ -230,6 +230,35 @@ test('a recorded PASS is shown as PASS only while the output gate passed and eve
   assert.deepEqual([failed!.state, failed!.canResume, failed!.gates.out?.verdict], ['FAIL', true, 'FAIL']);
 });
 
+test('a recorded PASS needs gate.json outputSha256 to match receipt.json: a missing or changed receipt is FAIL (same rule as runs-progress)', async t => {
+  const f = await workspace(t);
+  const { runDir, sourceSha256 } = await passedRun(f.base, 'run-receipt', [['Good jar'], ['Nice lid']]);
+  assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings(), client: fakeJev(honest).client })).status, 'PASS');
+  const file = path.join(runDir, 'm4', sourceSha256, 'receipt.json'), bytes = await fs.readFile(file);
+  await fs.writeFile(file, `${bytes.toString('utf8').trimEnd()} \n`);
+  const [changed] = (await reviewProcessView(runDir, await settings())).sources;
+  assert.deepEqual([changed!.state, changed!.errorCode, changed!.canResume], ['FAIL', 'GATE_FAILED', true]);
+  await fs.unlink(file);
+  const [missing] = (await reviewProcessView(runDir, await settings())).sources;
+  assert.deepEqual([missing!.state, missing!.errorCode, missing!.canResume], ['FAIL', 'GATE_FAILED', true]);
+  await fs.writeFile(file, bytes);
+  assert.equal((await reviewProcessView(runDir, await settings())).sources[0]!.state, 'PASS');
+});
+
+test('stages are judged at the recorded plan: changing labelUnresolved after a PASS keeps the view at PASS (same rule as runs-progress)', async t => {
+  const f = await workspace(t);
+  const { runDir, sourceSha256 } = await passedRun(f.base, 'run-recorded', [['Good jar'], ['unsure lid']]);
+  const unsure = { status: 200, body: JSON.stringify({ model: MODEL, answers: {
+    LOC: { type: 'choice', choice: 'RIENG', confidence: 0.8, probabilities: { GIU: 0.1, LOAI: 0.1, RIENG: 0.8 } },
+    CHE: { type: 'choice', choice: 'KHONG', probabilities: { CO: 0.1, KHONG: 0.9, RIENG: 0 }, confidence: 0.9 } } }) };
+  const jev = fakeJev((kind, wire) => kind === 'filter' && String(Object.values(wire.state)[0]).includes('unsure') ? unsure : honest(kind, wire));
+  assert.equal((await runReviewProcess(runDir, sourceSha256, { settings: await settings({ labelUnresolved: false }), client: jev.client })).status, 'PASS');
+  const view = await reviewProcessView(runDir, await settings({ labelUnresolved: true }));
+  const [source] = view.sources;
+  assert.deepEqual([view.labelUnresolved, source!.state, source!.stages.label.state, source!.stages.label.total, source!.stages.label.unresolvedSkipped],
+    [true, 'PASS', 'PASS', 1, 1], 'the UNRESOLVED review is not owed a label under the recorded plan');
+});
+
 test('a stop of the automatic start before any step-4 state is a FAIL with «Chạy tiếp»; the resume clears it', async t => {
   const f = await workspace(t);
   const { runDir, sourceSha256 } = await passedRun(f.base, 'run-handoff', [['Good jar'], ['Nice lid']]);
