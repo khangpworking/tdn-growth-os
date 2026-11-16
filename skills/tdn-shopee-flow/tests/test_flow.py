@@ -1280,6 +1280,10 @@ class ConfiguredFlowTests(FlowTest):
         self.assertNotEqual(rc, 0, (payload, stderr))
         binding = self.runs / run_id / 'm3-custom' / 'automatic.json'
         first = json.loads(binding.read_text())
+        # A real step 3 failure (nothing passed before it) still shows FAIL.
+        self.assertEqual(self.info(run_id)['execution']['modules']['M3']['status'], 'FAILED')
+        steps = next(r for r in self.command('runs-progress')[1]['runs'] if r['runId'] == run_id)['steps']
+        self.assertEqual(steps[2], 'FAIL', steps)
         self.transport.sampling.mode = 'ok'
         rc, payload, stderr = self.command('m3', '--run', run_id)
         self.assertEqual(rc, 0, (payload, stderr))
@@ -1309,7 +1313,7 @@ class ConfiguredFlowTests(FlowTest):
         self.assertEqual(len(self.attempts(run_id)), 1)
         self.assertEqual(binding.read_bytes(), binding_bytes)
 
-    def test_a_later_failed_explicit_attempt_is_failed_in_the_attempt_view_but_the_run_stays_passed(self):
+    def test_a_later_failed_extra_attempt_shows_only_in_the_attempt_list_while_step3_and_the_run_stay_passed(self):
         run_id = self.create()
         rc, payload, stderr = self.command('run', '--run', run_id)
         self.assertEqual(rc, 0, (payload, stderr))
@@ -1334,28 +1338,25 @@ class ConfiguredFlowTests(FlowTest):
         finally:
             out, err = worker.communicate(timeout=90)
         self.assertNotEqual(worker.returncode, 0, (out, err))
+        # Owner L5: the failed extra attempt shows only in the attempt list; step 3, the run detail, the run list
+        # and the status line keep the passed step 3 (no error code that the detail would show).
+        automatic_id = json.loads(binding_bytes)['attemptId']
         view = self.info(run_id)['execution']['modules']['M3']
-        self.assertEqual(view['status'], 'FAILED')
-        self.assertEqual((view['currentGate']['verdict'], view['currentGate']['errorCode']),
-                         ('FAIL', 'REVIEW_HTTP_400'), view['currentGate'])
-        self.assertEqual(view['historicalGate']['verdict'], 'PASS')
-        self.assertNotEqual(view.get('attemptId'), json.loads(binding_bytes)['attemptId'])
+        self.assertEqual((view['status'], view['errorCode'], view['attemptId']), ('SUCCEEDED', None, automatic_id), view)
+        self.assertEqual(view['currentGate']['verdict'], 'PASS')
         self.assertEqual(len(self.attempts(run_id)), 2, 'the failed extra attempt is a separate immutable attempt')
         self.assertEqual((self.runs / run_id / 'm3-custom' / 'automatic.json').read_bytes(), binding_bytes)
         run = self.command('runs')[1]['runs'][0]
-        self.assertNotEqual(run['execution']['modules']['M3']['status'], 'SUCCEEDED')
-        # Owner L5: the failed extra attempt shows only in the attempt list; the run and its status line keep PASS.
-        self.assertEqual((run['status'], run['execution']['status']), ('SUCCEEDED', 'SUCCEEDED'), run['execution'])
+        self.assertEqual((run['status'], run['execution']['status'], run['errorCode']), ('SUCCEEDED', 'SUCCEEDED', None), run['execution'])
         rc, progress, stderr = self.command('runs-progress')
         self.assertEqual(rc, 0, (progress, stderr))
         steps = next(r for r in progress['runs'] if r['runId'] == run_id)['steps']
         self.assertEqual(steps[:3], ['PASS', 'PASS', 'PASS'], steps)
         sampling = self.command('review-sampling', '--run', run_id)[1]
         by_id = {a['attemptId']: a for a in sampling['attempts']}
-        self.assertIs(by_id[json.loads(binding_bytes)['attemptId']].get('automatic'), True,
-                      'the saved automatic binding stays marked automatic')
-        self.assertIs(by_id[view['attemptId']].get('automatic'), False,
-                      'the explicit failed attempt is never marked automatic')
+        self.assertIs(by_id[automatic_id].get('automatic'), True, 'the saved automatic binding stays marked automatic')
+        extra = next(a for a in sampling['attempts'] if a['attemptId'] != automatic_id)
+        self.assertEqual((extra['status'], extra.get('automatic')), ('FAILED', False), 'the attempt list shows the failed extra attempt')
 
 
 if __name__ == '__main__':

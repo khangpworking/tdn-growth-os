@@ -1420,16 +1420,17 @@ def flow_gate_matches(run, module, slip, execution=None):
 
 
 def flow_passed_before_extra(attempts):
-    """True when step 3 passed and every later M3 attempt is a finished, unsuccessful extra («lấy thêm», kind custom).
-    `attempts` are M3 candidates or ledger records with status, kind and sequence."""
+    """The passed step-3 attempt when every later M3 attempt is a finished, unsuccessful extra («lấy thêm», kind custom);
+    otherwise None. `attempts` are M3 candidates or ledger records with status, kind and sequence."""
     order = lambda a: (a.get('sequence') or 0, a.get('startedAt') or '', a.get('executionId') or a.get('attemptId') or '')
     passed = [a for a in attempts if a.get('status') == 'SUCCEEDED' and a.get('currentGate', True)]
     if not passed:
-        return False
+        return None
     best = max(passed, key=order)
     later = [a for a in attempts if order(a) > order(best)]
-    return bool(later) and all(a.get('kind') == 'custom' and a.get('status') not in ('RUNNING', 'UNCERTAIN', 'SUCCEEDED')
-                               for a in later)
+    extras = bool(later) and all(a.get('kind') == 'custom' and a.get('status') not in ('RUNNING', 'UNCERTAIN', 'SUCCEEDED')
+                                 for a in later)
+    return best if extras else None
 
 
 def flow_execution_view(run, config):
@@ -1440,7 +1441,7 @@ def flow_execution_view(run, config):
         sampling = review_sampling_script(repo, config, 'view', run)
     attempts = sampling.get('attempts', []) if sampling else []
     state = gate_read(gate_path(run, 'state.json')) or {}
-    modules, passed_m3, revision = {}, False, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
+    modules, revision = {}, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
     for module in ('M1', 'M2', 'M3'):
         candidates = []
         previous = gate_read(gate_path(run, f'gates/{module.lower()}.json'))
@@ -1495,19 +1496,18 @@ def flow_execution_view(run, config):
                        'endedAt': state.get('endedAt') if stopped else None,
                        'errorCode': state.get('errorCode') if live or stopped else None,
                        'basis': 'legacy-gate' if previous else 'none', 'currentGate': previous if matched else None}
+        # Owner L5: after step 3 passed, a failed «lấy thêm» shows only in the attempt list, never as the step's status.
+        if module == 'M3' and not active:
+            current = flow_passed_before_extra(candidates) or current
         if current['status'] == 'SUCCEEDED' and not current.get('currentGate'):
             current = {**current, 'status': 'UNKNOWN', 'errorCode': 'EXECUTION_RECEIPT_CHANGED'}
-        if module == 'M3' and not active:
-            passed_m3 = flow_passed_before_extra(candidates)
         modules[module] = {key: current.get(key) for key in ('status', 'executionId', 'sequence', 'attemptId', 'startedAt', 'endedAt', 'basis', 'currentGate', 'errorCode')}
         modules[module]['historicalGate'] = next((gate for identity, gate in reversed(history)
             if identity != (current.get('executionId') or current.get('attemptId')) and gate != current.get('currentGate')), None)
     active = [(m, v) for m, v in modules.items() if v['status'] in ('RUNNING', 'UNCERTAIN')]
     candidates = [(m, v) for m, v in modules.items() if v['status'] != 'IDLE']
     chosen = max(active or candidates, key=lambda pair: (pair[1].get('sequence') or 0, pair[0])) if candidates else (None, {'status': 'IDLE'})
-    # Owner L5: a failed «lấy thêm» after step 3 passed never turns the run itself into FAILED.
-    status = 'SUCCEEDED' if chosen[0] == 'M3' and passed_m3 else chosen[1]['status']
-    return {'format': 'run-execution-view-v1', 'revision': revision, 'status': status,
+    return {'format': 'run-execution-view-v1', 'revision': revision, 'status': chosen[1]['status'],
             'currentModule': chosen[0], 'currentExecutionId': chosen[1].get('executionId'), 'modules': modules}
 
 
