@@ -2539,25 +2539,32 @@ test('the comment card downloads every collected comment and its button shows th
   const runId = 'run-synthetic';
   const sample = Array.from({ length: 200 }, (_, i) => ({ id: 'r' + i, text: 'Bình luận ' + i, rating: 5, date: null,
     productName: null, url: 'https://shopee.vn/product/801/100', tags: [] }));
-  const insights = { format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [{
-    sourceSha256: 'c'.repeat(64), kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z',
-    all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, themes: [], comments: sample }, links: [] }] };
-  const { doc, state } = harness({
-    runs: [{ runId, product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
-    moduleOutputsResult: (id) => ({ ok: true, data: moduleOutputView(id) }),
-    reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 1234) }),
-    reviewInsightsResult: () => ({ ok: true, data: insights }),
-  });
-  try {
+  const insights = (sourceSha256: string) => ({ format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [{
+    sourceSha256, kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z',
+    all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, themes: [], comments: sample }, links: [] }] });
+  const open = async (insightsSource: string) => {
+    const opened = harness({
+      runs: [{ runId, product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+      runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+      moduleOutputsResult: (id) => ({ ok: true, data: moduleOutputView(id) }),
+      reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 1234) }),
+      reviewInsightsResult: () => ({ ok: true, data: insights(insightsSource) }),
+    });
+    const { doc } = opened;
     await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
     [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
     await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 1, 'result run list');
     doc.querySelector<HTMLButtonElement>('#resultRunList button')!.click();
     await waitFor(() => doc.getElementById('resultCommentDownload') !== null, 'comment download');
+    return opened;
+  };
+
+  const { doc, state } = await open('c'.repeat(64));
+  try {
     const card = element(doc, 'resultCommentDrilldown');
     assert.equal(card.querySelector('h3')!.textContent, 'Chi tiết bình luận');
     assert.equal(element(doc, 'resultCommentDownload').textContent, 'Tải 1.234 bình luận (JSON)', 'the collected total, not the 200 sample');
+    assert.equal(element<HTMLButtonElement>(doc, 'resultCommentDownload').disabled, false);
     assert.doesNotMatch(card.textContent || '', /bình luận mẫu/);
     assert.equal(card.querySelector('details'), null, 'no on-screen sample list');
     element<HTMLButtonElement>(doc, 'resultCommentDownload').click();
@@ -2565,6 +2572,16 @@ test('the comment card downloads every collected comment and its button shows th
     assert.deepEqual(state.exportReviewFilesCalls.at(-1), { runId, input: { sourceSha256: 'c'.repeat(64), formats: ['labelled-json'] } });
     assert.equal(element(doc, 'resultCommentDownloadNote').textContent, 'Đã lưu “shopee-run-synthetic.labelled-json”.');
   } finally { doc.defaultView!.close(); }
+
+  // The shown result has no matching numbers: the size is unknown, so nothing can be downloaded.
+  const unknown = await open('d'.repeat(64));
+  try {
+    const button = element<HTMLButtonElement>(unknown.doc, 'resultCommentDownload');
+    assert.deepEqual([button.disabled, button.textContent], [true, 'Tải bình luận (JSON)']);
+    assert.equal(element(unknown.doc, 'resultCommentDownloadNote').textContent, 'Chưa có số bình luận, thử tải lại trang kết quả.');
+    button.click();
+    assert.equal(unknown.state.exportReviewFilesCalls.length, 0);
+  } finally { unknown.doc.defaultView!.close(); }
 });
 
 test('B3: the results tab shows numbers for the run and changes them per product link', async () => {

@@ -5687,7 +5687,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The whole comment list of the shown result is a download, not an on-screen sample.
   // The count is the collected total of that result from the result numbers (review-stats).
-  function insightCommentDownload(runId, source, statsView) {
+  function insightCommentDownload(runId, source) {
+    var statsView = state.reviewStats[runId];
     var card = h('article', 'mod insight-card');
     card.id = 'resultCommentDrilldown';
     var head = h('div', 'mh');
@@ -5701,9 +5702,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var button = h('button', 'abtn primary', total === null ? 'Tải bình luận (JSON)' : 'Tải ' + fmtInt(total) + ' bình luận (JSON)');
     button.type = 'button';
     button.id = 'resultCommentDownload';
-    button.disabled = !source || total === 0;
     var note = h('span', 'rs-hint');
     note.id = 'resultCommentDownloadNote';
+    // Never offer a download whose size is unknown.
+    button.disabled = total === null;
+    if (total === null) note.textContent = 'Chưa có số bình luận, thử tải lại trang kết quả.';
     button.addEventListener('click', async function () {
       button.disabled = true;
       note.textContent = 'Đang chuẩn bị file…';
@@ -5721,7 +5724,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return card;
   }
 
-  function reviewInsightsPanel(view, runId, statsView) {
+  function reviewInsightsPanel(view, runId) {
     var source = resultInsightsSource(view, runId);
     var bucket = insightBucket(source, runId);
     var wrap = h('section', 'insight-card');
@@ -5729,7 +5732,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     wrap.setAttribute('aria-label', 'Phân tích AI và nhãn chủ đề');
     wrap.appendChild(insightSummaryCard(bucket));
     wrap.appendChild(insightThemeCard(bucket));
-    wrap.appendChild(insightCommentDownload(runId, source, statsView));
+    wrap.appendChild(insightCommentDownload(runId, source));
     return wrap;
   }
 
@@ -6502,7 +6505,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       root.appendChild(h('p', 'muted', 'Đang tải AI và nhãn chủ đề…'));
       return;
     }
-    root.appendChild(reviewInsightsPanel(insights, runId, view));
+    root.appendChild(reviewInsightsPanel(insights, runId));
   }
 
   function renderDetail() {

@@ -537,3 +537,24 @@ test('the labelled comments download holds every collected row with its current 
     [['review-a1', ['T-CONGDUNG'], 'Kem A'], ['review-a2', [], null], ['review-b1', [], null]]);
   assert.equal((await prepareLabelledReviewExport(run.runDir, source.sourceSha256)).reused, true, 'same labels reuse the saved file');
 });
+
+test('the download reads labels like the result tab when two results share a review id', async t => {
+  const base = await fixture(t);
+  const run = await createModuleRun(base, { runId: 'run-shared-id' });
+  const [a, b] = run.links;
+  const legacy = moduleRow(a!, 'review-shared', { comment: 'Bản cũ của bình luận' });
+  await addLegacySource(run, { rowsByLink: [[legacy], [moduleRow(b!, 'review-b1', { comment: 'Hộp đẹp' })]] });
+  const custom = moduleRow(a!, 'review-shared', { comment: 'Bản mới của bình luận' });
+  await addCustomAttempt(run, { rowsByLink: [[custom], [moduleRow(b!, 'review-c2', { comment: 'Nguồn custom B' })]] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, [labelRow(legacy, 'Kem A', [{ code: 'T-GIA', polarity: 'che', status: 'kept', choice: 'DAT' }])]);
+  useDatabase(t, database);
+  const view = await reviewInsightsView(run.runDir) as any;
+  assert.equal(view.sources.length, 2);
+  for (const source of view.sources) {
+    const onScreen = source.all.comments.find((c: any) => c.id === 'review-shared')?.tags ?? [];
+    const receipt = await prepareLabelledReviewExport(run.runDir, source.sourceSha256);
+    const file = JSON.parse((await readReviewExportBytes(run.runDir, receipt.exportSha256)).toString('utf8'));
+    assert.deepEqual(file.comments.find((c: any) => c.id === 'review-shared').tags, onScreen, source.kind);
+  }
+});

@@ -4,7 +4,7 @@ import { basename, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import BetterSqlite3 from 'better-sqlite3';
 import { ModuleError, validateModuleValue } from './module-pick.js';
-import { discoverModuleReviewSources, prepareReviewExport, publishLabelledReviewExport, readModuleReviewSource, readReviewExportBytes, validateReviewData,
+import { discoverModuleReviewSources, prepareReviewExport, publishLabelledReviewExport, readReviewExportBytes, validateReviewData,
   type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
 import { reviewDataView, saveModuleReviewData } from '../src/modules/raw-db/module-shopee-reviews.js';
 import { reviewProcessJevClient, reviewProcessSettings, reviewProcessStart, reviewProcessStartable, reviewProcessView, runReviewProcess,
@@ -308,12 +308,16 @@ function validateInsightView(value:unknown): asserts value is { format:'review-i
   }
 }
 
+/** One label store per run, built from the rows of every step-3 result (result tab and download share it). */
+function runInsightLabels(sources:{ rows:ModuleReviewRow[] }[], book:LabelCodebook) {
+  return readInsightLabels(sources.flatMap(source => source.rows),book);
+}
+
 /** Read the verified M3 rows and the current Jev codebook labels for the result-tab drilldown. */
 export async function reviewInsightsView(run:string):Promise<unknown> {
   const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
   const sources = await discoverModuleReviewSources(run);
-  const allRows = sources.flatMap(source => source.rows);
-  const labelStore = readInsightLabels(allRows,book);
+  const labelStore = runInsightLabels(sources,book);
   const sourceViews = sources.map(source => {
     const links = source.links.map(link => {
       const rows = source.rows.filter(row => row.shopId === link.shopId && row.itemId === link.itemId);
@@ -346,8 +350,11 @@ export function labelledCommentsFile(source:{ runId:string; sourceSha256:string;
 
 export async function prepareLabelledReviewExport(run:string, sourceSha256:string) {
   const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
-  const source = await readModuleReviewSource(run,sourceSha256);
-  const file = labelledCommentsFile(source,book,readInsightLabels(source.rows,book));
+  const sources = await discoverModuleReviewSources(run);
+  const source = sources.find(item => item.sourceSha256 === sourceSha256);
+  if (!source) throw new ModuleError('REVIEW_SOURCE_CHANGED',23);
+  // Same label store as the result tab (reviewInsightsView), so the file and the screen agree.
+  const file = labelledCommentsFile(source,book,runInsightLabels(sources,book));
   return publishLabelledReviewExport(run,source,Buffer.from(`${JSON.stringify(file,null,2)}\n`,'utf8'));
 }
 
