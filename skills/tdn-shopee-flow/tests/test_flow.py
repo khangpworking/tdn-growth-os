@@ -1272,7 +1272,7 @@ class ConfiguredFlowTests(FlowTest):
         self.assertEqual(first.returncode, 0, (out, err))
         self.assertEqual(json.loads(out)['status'], 'DONE')
 
-    def test_a_later_failed_explicit_attempt_keeps_current_failed_over_the_earlier_pass(self):
+    def test_a_later_failed_explicit_attempt_is_failed_in_the_attempt_view_but_the_run_stays_passed(self):
         run_id = self.create()
         rc, payload, stderr = self.command('run', '--run', run_id)
         self.assertEqual(rc, 0, (payload, stderr))
@@ -1307,6 +1307,12 @@ class ConfiguredFlowTests(FlowTest):
         self.assertEqual((self.runs / run_id / 'm3-custom' / 'automatic.json').read_bytes(), binding_bytes)
         run = self.command('runs')[1]['runs'][0]
         self.assertNotEqual(run['execution']['modules']['M3']['status'], 'SUCCEEDED')
+        # Owner L5: the failed extra attempt shows only in the attempt list; the run and its status line keep PASS.
+        self.assertEqual((run['status'], run['execution']['status']), ('SUCCEEDED', 'SUCCEEDED'), run['execution'])
+        rc, progress, stderr = self.command('runs-progress')
+        self.assertEqual(rc, 0, (progress, stderr))
+        steps = next(r for r in progress['runs'] if r['runId'] == run_id)['steps']
+        self.assertEqual(steps[:3], ['PASS', 'PASS', 'PASS'], steps)
         sampling = self.command('review-sampling', '--run', run_id)[1]
         by_id = {a['attemptId']: a for a in sampling['attempts']}
         self.assertIs(by_id[json.loads(binding_bytes)['attemptId']].get('automatic'), True,
