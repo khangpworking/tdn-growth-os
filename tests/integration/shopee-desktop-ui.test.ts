@@ -2948,7 +2948,7 @@ test('the technical log adds the step 4 chips after M3 and both step 4 checks wi
       assert.deepEqual(seq.slice(-3).map((pair) => pair[1]), [...chips], runId);
       const gates = [...doc.querySelectorAll('#techDetails > article.gate')].slice(-2);
       assert.deepEqual(gates.map((gate) => gate.querySelector('h3')!.textContent), ['Kiểm tra trước bước 4', 'Kiểm tra sau bước 4']);
-      assert.equal(gates[1].querySelector('.gh .chip')!.textContent, out, runId);
+      assert.equal(gates[1]!.querySelector('.gh .chip')!.textContent, out, runId);
     }
     runListButton(doc, 'run-fail').click();
     await waitFor(() => !!step4Card(doc)?.querySelector('#s4Resume'), 'fail loaded');
