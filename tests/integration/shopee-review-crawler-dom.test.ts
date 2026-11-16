@@ -147,6 +147,107 @@ test('a scoped native observed zero with a loaded empty list is a genuine verifi
   } finally { dom.window.close(); }
 });
 
+test('a selected star whose "No ratings yet" box stays stable for 3 s (no list) is exhausted and the next star still runs', async () => {
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'All', 2)}
+      ${filter('with-comments', 'With Comments', 2)}
+      ${filter('1', '1 Star', 1, true)}${filter('2', '2 Star', 0)}${filter('3', '3 Star', 1)}
+      ${filter('4', '4 Star', 0)}${filter('5', '5 Star', 0)}
+      <div class="product-ratings__list" style="opacity:1">${card('s1', 1, 'Một sao')}</div>
+    </div>`);
+  const window = dom.window as any;
+  const root = window.document.querySelector('.product-ratings');
+  const select = (key: string) => {
+    for (const element of root.querySelectorAll('.product-rating-overview__filter'))
+      element.classList.toggle('product-rating-overview__filter--active', element.dataset.key === key);
+  };
+  root.querySelector('[data-key="2"]').addEventListener('click', () => {
+    select('2');
+    root.querySelector('.product-ratings__list')?.remove();
+    root.insertAdjacentHTML('beforeend', '<div class="product-ratings-comments-view__no-data">' +
+      '<div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>');
+  });
+  root.querySelector('[data-key="3"]').addEventListener('click', () => {
+    select('3');
+    root.querySelector('.product-ratings-comments-view__no-data')?.remove();
+    root.insertAdjacentHTML('beforeend', `<div class="product-ratings__list" style="opacity:1">${card('s3', 3, 'Ba sao')}</div>`);
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'stars', stars: [1, 2, 3], totalPerLink: 10, allocation: 'pooled' }));
+    assert.equal(result.stop_reason, 'exhausted');
+    assert.equal(result.error, null);
+    assert.deepEqual(json(result.records.map((row: any) => [row.review_id, row.stars])), [['s1', 1], ['s3', 3]]);
+    assert.deepEqual(json(result.groups), [
+      { filter: '1', stopReason: 'exhausted' }, { filter: '2', stopReason: 'exhausted' }, { filter: '3', stopReason: 'exhausted' },
+    ]);
+    assert.deepEqual(json(result.pages.map((page: any) => [page.filter, page.cards])), [['1', 1], ['2', 0], ['3', 1]]);
+  } finally { dom.window.close(); }
+});
+
+test('a "No ratings yet" box beside a visible page controller is never an exhausted star', async () => {
+  // Live 17/11: Shopee's empty state has no page controller, so a box with one is not that state.
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'Tất cả', 0)}
+      ${filter('with-comments', 'Có bình luận', 0, true)}
+      ${filter('1', '1 sao', 0)}${filter('2', '2 sao', 0)}${filter('3', '3 sao', 0)}
+      ${filter('4', '4 sao', 0)}${filter('5', '5 sao', 0)}
+      <div class="product-ratings-comments-view__no-data">
+        <div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>
+      <div class="shopee-page-controller"><button class="shopee-button-solid shopee-button-solid--primary">1</button></div>
+    </div>`);
+  try {
+    const result = await crawl(dom, reviewPolicy({
+      mode: 'with-comments', stars: [], totalPerLink: 20, allocation: 'pooled',
+    }));
+    assert.equal(result.stop_reason, 'control_changed');
+    assert.equal(result.error, 'CONTROL_CHANGED');
+    assert.deepEqual(json(result.records ?? []), []);
+  } finally { dom.window.close(); }
+});
+
+test('a stale "No ratings yet" box whose filter loads cards after the post-click pause is not exhausted', async () => {
+  // Sol repro on e1cddb26: 1 Star (0) shows the box; 2 Star still shows a stale (0) and Shopee keeps the
+  // same box node until the 2-star cards arrive, 6 s after the click (after the 3.5 s post-click pause).
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'All', 1)}
+      ${filter('with-comments', 'With Comments', 1)}
+      ${filter('1', '1 Star', 0, true)}${filter('2', '2 Star', 0)}${filter('3', '3 Star', 0)}
+      ${filter('4', '4 Star', 0)}${filter('5', '5 Star', 0)}
+      <div class="product-ratings-comments-view__no-data">
+        <div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>
+    </div>`);
+  const window = dom.window as any;
+  const root = window.document.querySelector('.product-ratings');
+  const two = root.querySelector('[data-key="2"]');
+  const now = window.Date.now;
+  let loadAt: number | null = null;
+  window.Date.now = () => {
+    const time = now();
+    if (loadAt !== null && time >= loadAt) {
+      loadAt = null;
+      two.textContent = '2 Star (1)';
+      root.querySelector('.product-ratings-comments-view__no-data').remove();
+      root.insertAdjacentHTML('beforeend', `<div class="product-ratings__list" style="opacity:1">${card('s2', 2, 'Hai sao')}</div>`);
+    }
+    return time;
+  };
+  two.addEventListener('click', () => {
+    root.querySelector('[data-key="1"]').classList.remove('product-rating-overview__filter--active');
+    two.classList.add('product-rating-overview__filter--active');
+    loadAt = now() + 6000; // after the 3.5 s post-click pause the stale box is still seen for about 2 s
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'stars', stars: [2], totalPerLink: 10, allocation: 'pooled' }));
+    assert.equal(result.error, null);
+    assert.equal(result.stop_reason, 'exhausted');
+    assert.deepEqual(json(result.records.map((row: any) => [row.review_id, row.stars])), [['s2', 2]]);
+    assert.deepEqual(json(result.pages.map((page: any) => [page.filter, page.cards])), [['2', 1]]);
+  } finally { dom.window.close(); }
+});
+
 test('a still-loading empty list is not treated as exhaustion', async () => {
   const dom = boot(`
     <div class="product-ratings">

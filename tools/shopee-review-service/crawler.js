@@ -204,7 +204,25 @@
   const noPagination = () => [...root.querySelectorAll('.shopee-page-controller')].filter(visible).length === 0;
   const observedZero = key => { const count=sourceCount(key); return count.status === 'observed' && count.value === 0; };
   const loadedList = () => { const lists=[...root.querySelectorAll('.product-ratings__list')].filter(visible); return lists.length === 1 && lists.every(list => getComputedStyle(list).opacity === '1' && list.getAttribute('aria-busy') !== 'true'); };
-  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 && loadedList() && (noPagination() || activePage() === 1);
+  // Shopee's empty filter has no list at all, only its visible "No ratings yet" box (live 17/11).
+  const noDataShown = () => [...root.querySelectorAll('.product-ratings__list')].filter(visible).length === 0 &&
+    [...root.querySelectorAll('.product-ratings-comments-view__no-data')].filter(visible).length === 1;
+  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 &&
+    (loadedList() && (noPagination() || activePage() === 1) || noDataShown() && noPagination()); // live: the box never has a page bar
+  // The no-data box can be stale from the previous empty filter (Shopee keeps the same node on 0 -> 0).
+  // Accept it only after the same box and the same empty state hold for 3 s of continuous sampling.
+  const EMPTY_STABLE_MS = 3000;
+  const noDataBox = () => [...root.querySelectorAll('.product-ratings-comments-view__no-data')].find(visible) || null;
+  const emptyWatch = () => {
+    let since = null, box = null;
+    return key => {
+      if (!verifiedEmpty(key)) { since = null; box = null; return false; }
+      if (loadedList()) return true; // A loaded empty list keeps its immediate acceptance.
+      const current = noDataBox(), now = Date.now();
+      if (since === null || current !== box) { since = now; box = current; return false; }
+      return now - since >= EMPTY_STABLE_MS;
+    };
+  };
   const singlePage = key => { const count=sourceCount(key); return noPagination() && count.status === 'observed' && count.value > 0 && count.value === cards().length; };
   const observeFilterTransition = () => {
     const initialCards = new Set(root.querySelectorAll('[data-cmtid]'));
@@ -229,10 +247,10 @@
     };
   };
   const settle = async (key, page, old, changed, transition = null) => {
-    const end = Math.min(deadline, Date.now() + 20_000);
+    const end = Math.min(deadline, Date.now() + 20_000), stableEmpty = emptyWatch();
     while (Date.now() < end) {
       check();
-      if (page === 1 && verifiedEmpty(key)) return;
+      if (page === 1 && stableEmpty(key)) return;
       const ready = loadedList() && cards().length > 0;
       const pageMatches = activePage() === page || page === 1 && singlePage(key);
       if (isActive(key) && pageMatches && ready && (!changed || signature() !== old || transition?.completed())) return;
