@@ -147,6 +147,44 @@ test('a scoped native observed zero with a loaded empty list is a genuine verifi
   } finally { dom.window.close(); }
 });
 
+test('a selected star with no reviews (Shopee "No ratings yet", no list) is exhausted and the next star still runs', async () => {
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'All', 2)}
+      ${filter('with-comments', 'With Comments', 2)}
+      ${filter('1', '1 Star', 1, true)}${filter('2', '2 Star', 0)}${filter('3', '3 Star', 1)}
+      ${filter('4', '4 Star', 0)}${filter('5', '5 Star', 0)}
+      <div class="product-ratings__list" style="opacity:1">${card('s1', 1, 'Một sao')}</div>
+    </div>`);
+  const window = dom.window as any;
+  const root = window.document.querySelector('.product-ratings');
+  const select = (key: string) => {
+    for (const element of root.querySelectorAll('.product-rating-overview__filter'))
+      element.classList.toggle('product-rating-overview__filter--active', element.dataset.key === key);
+  };
+  root.querySelector('[data-key="2"]').addEventListener('click', () => {
+    select('2');
+    root.querySelector('.product-ratings__list')?.remove();
+    root.insertAdjacentHTML('beforeend', '<div class="product-ratings-comments-view__no-data">' +
+      '<div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>');
+  });
+  root.querySelector('[data-key="3"]').addEventListener('click', () => {
+    select('3');
+    root.querySelector('.product-ratings-comments-view__no-data')?.remove();
+    root.insertAdjacentHTML('beforeend', `<div class="product-ratings__list" style="opacity:1">${card('s3', 3, 'Ba sao')}</div>`);
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'stars', stars: [1, 2, 3], totalPerLink: 10, allocation: 'pooled' }));
+    assert.equal(result.stop_reason, 'exhausted');
+    assert.equal(result.error, null);
+    assert.deepEqual(json(result.records.map((row: any) => [row.review_id, row.stars])), [['s1', 1], ['s3', 3]]);
+    assert.deepEqual(json(result.groups), [
+      { filter: '1', stopReason: 'exhausted' }, { filter: '2', stopReason: 'exhausted' }, { filter: '3', stopReason: 'exhausted' },
+    ]);
+    assert.deepEqual(json(result.pages.map((page: any) => [page.filter, page.cards])), [['1', 1], ['2', 0], ['3', 1]]);
+  } finally { dom.window.close(); }
+});
+
 test('a still-loading empty list is not treated as exhaustion', async () => {
   const dom = boot(`
     <div class="product-ratings">

@@ -204,7 +204,10 @@
   const noPagination = () => [...root.querySelectorAll('.shopee-page-controller')].filter(visible).length === 0;
   const observedZero = key => { const count=sourceCount(key); return count.status === 'observed' && count.value === 0; };
   const loadedList = () => { const lists=[...root.querySelectorAll('.product-ratings__list')].filter(visible); return lists.length === 1 && lists.every(list => getComputedStyle(list).opacity === '1' && list.getAttribute('aria-busy') !== 'true'); };
-  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 && loadedList() && (noPagination() || activePage() === 1);
+  // Shopee's empty filter has no list at all, only its visible "No ratings yet" box (live 17/11).
+  const noDataShown = () => [...root.querySelectorAll('.product-ratings__list')].filter(visible).length === 0 &&
+    [...root.querySelectorAll('.product-ratings-comments-view__no-data')].filter(visible).length === 1;
+  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 && (loadedList() || noDataShown()) && (noPagination() || activePage() === 1);
   const singlePage = key => { const count=sourceCount(key); return noPagination() && count.status === 'observed' && count.value > 0 && count.value === cards().length; };
   const observeFilterTransition = () => {
     const initialCards = new Set(root.querySelectorAll('[data-cmtid]'));
