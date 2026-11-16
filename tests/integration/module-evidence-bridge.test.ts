@@ -49,9 +49,12 @@ if len(sys.argv) > 2:
     out['open'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
     out['again'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
     out['wrong'] = api.openModuleEvidence(run, 'raw', '0' * 64)
-    import os, shutil
+    import hashlib, os, shutil
     folder = ${JSON.stringify(evidenceFolder)}
     out['listing'] = sorted(os.listdir(folder))
+    # Read the opened bytes now: the folder is replaced by a link below.
+    with open(os.path.join(folder, 'raw-responses.json'), 'rb') as opened_file:
+        out['openedSha256'] = hashlib.sha256(opened_file.read()).hexdigest()
     shutil.rmtree(folder)
     os.symlink(${JSON.stringify(outside)}, folder)
     out['linked'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
@@ -80,9 +83,10 @@ print(json.dumps(out))`;
   assert.deepEqual(data.wrong, { ok: false, error: { code: 'EVIDENCE_IDENTITY_MISMATCH', message: 'EVIDENCE_IDENTITY_MISMATCH' } });
   const views = (await readFile(opened, 'utf8')).trim().split('\n');
   assert.equal(views.length, 2, 'only the verified descriptor opens the OS viewer');
-  assert.deepEqual(views.map(view => dirname(view)), [evidenceFolder, evidenceFolder], 'every click reuses the one folder');
+  // The evidence folder is <folder of the config.json the app loads>/evidence, reused by every click.
+  assert.deepEqual(views, [join(dirname(config), 'evidence', 'raw-responses.json'), join(dirname(config), 'evidence', 'raw-responses.json')]);
   assert.deepEqual(data.listing, ['link.json', 'raw-responses.json'], 'older regular files are removed; the link is left alone');
-  assert.deepEqual(await readFile(views[1]!), rawBytes);
+  assert.equal(data.openedSha256, digest, 'the opened file holds the exact evidence bytes');
   assert.deepEqual(data.linked, { ok: false, error: { code: 'EVIDENCE_OPEN_FAILED', message: 'EVIDENCE_OPEN_FAILED' } });
   assert.deepEqual((await readdir(outside)).sort(), ['keep.json'], 'files behind a linked folder are never removed');
 });
