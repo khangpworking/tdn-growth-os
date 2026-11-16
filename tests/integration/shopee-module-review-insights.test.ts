@@ -551,10 +551,13 @@ test('the download reads labels like the result tab when two results share a rev
   useDatabase(t, database);
   const view = await reviewInsightsView(run.runDir) as any;
   assert.equal(view.sources.length, 2);
+  const expected: Record<string, string[]> = { legacy: ['T-GIA'], custom: [] };
   for (const source of view.sources) {
     const onScreen = source.all.comments.find((c: any) => c.id === 'review-shared')?.tags ?? [];
     const receipt = await prepareLabelledReviewExport(run.runDir, source.sourceSha256);
     const file = JSON.parse((await readReviewExportBytes(run.runDir, receipt.exportSha256)).toString('utf8'));
-    assert.deepEqual(file.comments.find((c: any) => c.id === 'review-shared').tags, onScreen, source.kind);
+    const inFile = file.comments.find((c: any) => c.id === 'review-shared').tags;
+    assert.deepEqual(inFile, onScreen, source.kind + ': file and result tab agree');
+    assert.deepEqual(inFile.map((tag: any) => tag.code), expected[source.kind], source.kind + ': the labelled text keeps its tag');
   }
 });

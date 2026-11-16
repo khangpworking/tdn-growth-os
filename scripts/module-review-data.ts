@@ -56,12 +56,26 @@ type StoredInsightLabel = {
   status:'kept'|'unclear'; choice:string|null;
 };
 
+/** Stored Jev labels of one review id; whether they apply is decided per row by insightRowTags. */
+type StoredRowTag = InsightTag & { textSha256:string; known:boolean };
+export type InsightLabelStore = { labels:Map<string,StoredRowTag[]>; productNames:Map<string,string>; available:boolean };
+
 /**
- * Read Jev's persisted APP_JEV labels without changing the application DB. A label is accepted only when
- * its text hash still matches the exact M3 row being displayed; stale labels are ignored as a group.
+ * A row's tags: the review id's labels only when every label's text hash matches THIS row's own text
+ * (stale labels are ignored as a group). Two results may share a review id with different text.
  */
-function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): { labels:Map<string,InsightTag[]>; productNames:Map<string,string>; available:boolean } {
-  const labels = new Map<string,InsightTag[]>(), productNames = new Map<string,string>();
+export function insightRowTags(row:ModuleReviewRow, store:InsightLabelStore):InsightTag[] {
+  const entries = row.reviewId ? store.labels.get(row.reviewId) : undefined;
+  if (!entries?.length) return [];
+  const attributesJson = row.attributes.length ? JSON.stringify(row.attributes) : null;
+  const hash = insightSha256(codingText(row.comment,attributesJson));
+  if (entries.some(entry => entry.textSha256 !== hash)) return [];
+  return entries.filter(entry => entry.known).map(({ code, name, polarity, status, choice }) => ({ code, name, polarity, status, choice }));
+}
+
+/** Read Jev's persisted APP_JEV labels without changing the application DB. */
+function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): InsightLabelStore {
+  const labels = new Map<string,StoredRowTag[]>(), productNames = new Map<string,string>();
   const databasePath = process.env.TDN_WORKSPACE_DB;
   if (!databasePath || !isAbsolute(databasePath)) return { labels, productNames, available:false };
   let db:BetterSqlite3.Database;
@@ -73,7 +87,7 @@ function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): { labels
     return { labels, productNames, available:false };
   }
   try {
-    const wanted = new Map(rows.flatMap(row => row.reviewId ? [[row.reviewId,row] as const] : []));
+    const wanted = new Set(rows.flatMap(row => row.reviewId ? [row.reviewId] : []));
     if (!wanted.size) return { labels, productNames, available:true };
     const wantedIds = [...wanted.keys()];
     const stored:StoredInsightLabel[] = [];
@@ -88,24 +102,14 @@ function readInsightLabels(rows:ModuleReviewRow[], book:LabelCodebook): { labels
           AND r.external_id IN (${chunk.map(() => '?').join(',')})
         ORDER BY r.external_id, c.theme_code`).all(book.version,...chunk) as StoredInsightLabel[]);
     }
-    const grouped = new Map<string,{ valid:boolean; rows:StoredInsightLabel[] }>();
-    for (const item of stored) {
-      const row = wanted.get(item.externalId);
-      if (!row) continue;
-      const entry = grouped.get(item.externalId) ?? { valid:true, rows:[] };
-      const attributesJson = row.attributes.length ? JSON.stringify(row.attributes) : null;
-      if (item.textSha256 !== insightSha256(codingText(row.comment,attributesJson))) entry.valid = false;
-      entry.rows.push(item);
-      grouped.set(item.externalId,entry);
-      if (item.productName) productNames.set(item.externalId,item.productName);
-    }
     const names = new Map(book.core.map(theme => [theme.code,theme.name] as const));
-    for (const [externalId,entry] of grouped) {
-      if (!entry.valid) continue;
-      const tags = entry.rows.filter(item => names.has(item.code)).map(item => ({
-        code:item.code, name:names.get(item.code)!, polarity:item.polarity, status:item.status, choice:item.choice,
-      }));
-      if (tags.length) labels.set(externalId,tags);
+    for (const item of stored) {
+      if (!wanted.has(item.externalId)) continue;
+      const entries = labels.get(item.externalId) ?? [];
+      entries.push({ code:item.code, name:names.get(item.code) ?? item.code, polarity:item.polarity, status:item.status,
+        choice:item.choice, textSha256:item.textSha256, known:names.has(item.code) });
+      labels.set(item.externalId,entries);
+      if (item.productName) productNames.set(item.externalId,item.productName);
     }
     return { labels, productNames, available:true };
   } catch {
@@ -267,14 +271,14 @@ function insightSummary(rows:number, comments:number, themes:InsightTheme[], gen
     model:'jev-derived-v1', generatedAt };
 }
 
-function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:{ labels:Map<string,InsightTag[]>; productNames:Map<string,string>; available:boolean }, generatedAt:string|null):InsightBucket {
+function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:InsightLabelStore, generatedAt:string|null):InsightBucket {
   type ThemeAccumulator = { count:number; unclearCount:number; keptCount:number;
     polarityCounts:Record<InsightPolarity,number>; keptPolarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] };
   const byTheme = new Map<string,ThemeAccumulator>(definitions.map(theme => [theme.code,{ count:0, unclearCount:0, keptCount:0,
     polarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, keptPolarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, comments:[] }]));
   const comments:InsightComment[] = [];
   rows.forEach((row,index) => {
-    const tags = row.reviewId ? labelStore.labels.get(row.reviewId) ?? [] : [];
+    const tags = insightRowTags(row,labelStore);
     if (!tags.length) return;
     const comment = insightComment(row,sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
     comments.push(comment);
@@ -337,9 +341,9 @@ export async function reviewInsightsView(run:string):Promise<unknown> {
  * (empty when the row has no valid label). Same label reading as the result tab.
  */
 export function labelledCommentsFile(source:{ runId:string; sourceSha256:string; rows:ModuleReviewRow[] }, book:LabelCodebook,
-  labelStore:{ labels:Map<string,InsightTag[]>; productNames:Map<string,string>; available:boolean }) {
+  labelStore:InsightLabelStore) {
   const comments = source.rows.map((row,index) => {
-    const tags = row.reviewId ? labelStore.labels.get(row.reviewId) ?? [] : [];
+    const tags = insightRowTags(row,labelStore);
     const view = insightComment(row,source.sourceSha256,index,tags,row.reviewId ? labelStore.productNames.get(row.reviewId) ?? null : null);
     return { id:view.id, text:view.text, comment:row.comment ?? null, attributes:row.attributes, rating:view.rating, date:view.date,
       productName:view.productName, url:view.url, tags:view.tags };
