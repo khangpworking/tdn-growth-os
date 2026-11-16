@@ -8,7 +8,7 @@ import re
 import sqlite3
 import time
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -165,10 +165,19 @@ def crawl_state(request, result):
     return 'partial'
 
 
+@contextmanager
 def db():
+    # sqlite3's own context manager only commits or rolls back; it never closes the connection.
     connection = sqlite3.connect(DATA / 'jobs.sqlite3', timeout=10)
     connection.row_factory = sqlite3.Row
-    return connection
+    try:
+        yield connection
+        connection.commit()
+    except BaseException:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def initialize_db():
