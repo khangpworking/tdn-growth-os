@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { basename, dirname, join } from 'node:path';
 import { hashFolder, main, ModuleError, sha256 } from '../../scripts/module-pick.js';
 import { moduleOutputs, readModuleEvidence, verifyModuleSelection } from '../../scripts/module-metric-output.js';
 import { answer, fakeJev } from '../helpers/fake-pick-jev.js';
@@ -80,7 +81,7 @@ test('a shortage is reported with its reason while the captured rows stay visibl
   assert.equal(output.m2.evidence.topProducts.available, true, 'a business shortage does not hide available evidence');
 });
 
-test('a selected source rank outside the pictured panel is an explicit technical M2 error', async t => {
+test('a selected source rank outside the pictured panel hides the picture but M2 still passes', async t => {
   const duplicates = Array.from({ length: 15 }, (_, i) => ({ ...product('DHC Kẽm 60 viên', 801, 10_000 - i * 10) }));
   const later = ['DHC Vitamin C 60 ngày', 'DHC Biotin 60 ngày', 'DHC Magiê 60 ngày', 'DHC Canxi 60 ngày']
     .map((name, i) => product(name, 801, 9_000 - i * 10));
@@ -88,8 +89,20 @@ test('a selected source rank outside the pictured panel is an explicit technical
   const output = await moduleOutputs(run) as any;
   assert.equal(output.m2.fiveDistinct, true, 'business predicates stay truthful');
   assert.equal(output.m2.selectedCount, 5);
-  assert.equal(output.m2.errorCode, 'EVIDENCE_RANK_NOT_COVERED', 'the uncovered rank is a specific technical failure');
-  assert.equal(output.m2.evidence.topProducts.available, false);
+  assert.equal(output.m2.errorCode, null, 'the picture is not an M2 criterion (owner decision)');
+  assert.deepEqual([output.m2.evidence.topProducts.available, output.m2.evidence.topProducts.errorCode],
+    [false, 'EVIDENCE_RANK_NOT_COVERED'], 'the uncovered picture is not shown');
+  await assert.rejects(readModuleEvidence(run, 'top-products', 'a'.repeat(64)),
+    (error: any) => error?.code === 'EVIDENCE_RANK_NOT_COVERED', 'an uncovered picture is never served');
+  // The real step-2 gate (shopee_flow.py) passes on the same run.
+  const state = await mkdtemp(join(tmpdir(), 'shopee-flow-state-'));
+  t.after(() => rm(state, { recursive: true, force: true }));
+  const gate = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+    ['skills/tdn-shopee-flow/scripts/shopee_flow.py', 'gate', 'm2', '--run', basename(run)],
+    { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
+  const slip = JSON.parse(gate.stdout);
+  assert.deepEqual([gate.status, slip.verdict, slip.errorCode], [0, 'PASS', null], gate.stderr);
+  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok]), [['links_match_source_order', true], ['five_distinct_products', true]]);
 });
 
 test('a panel without both native sorting controls cannot certify the selected ranks', async t => {
@@ -98,7 +111,7 @@ test('a panel without both native sorting controls cannot certify the selected r
   assert.deepEqual([output.m2.fiveDistinct, output.m2.selectedCount], [true, 5]);
   assert.equal(output.m2.evidence.topProducts.available, false);
   assert.equal(output.m2.evidence.topProducts.errorCode, 'EVIDENCE_PRODUCTS_CONTROLS_MISSING');
-  assert.equal(output.m2.errorCode, 'EVIDENCE_PRODUCTS_CONTROLS_MISSING');
+  assert.equal(output.m2.errorCode, null, 'the picture state is not an M2 error');
 });
 
 test('raw candidates beyond the pictured panel stay captured and source-ordered', async t => {

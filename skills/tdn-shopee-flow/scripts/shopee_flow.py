@@ -856,7 +856,6 @@ def evaluate_gate(run, gate, *, readonly_file=None):
                 proof = metric_output_script(run, 'verify-selection')
                 check('links_match_source_order', proof.get('linksMatchSourceOrder') is True, proof.get('selectedCount'))
                 check('five_distinct_products', proof.get('fiveDistinct') is True, proof.get('shortageReason'))
-                check('selected_ranks_evidenced', proof.get('panelCovered') is True, proof.get('panelCovered'))
                 code = proof.get('errorCode')
             except ModuleFailure as failure:
                 check('links_match_source_order', False, failure.code)

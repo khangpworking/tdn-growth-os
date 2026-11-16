@@ -143,7 +143,8 @@ export async function verifyModuleSelection(run: string) {
     files.topProducts.coverage.some(c => c.sourceRank === l.sourceRank && c.productBaseId === l.productBaseId));
   return { linksMatchSourceOrder: true, fiveDistinct, selectedCount: expected.links.length,
     shortageReason: expected.selectionProof.shortageReason,
-    errorCode: expected.selectionProof.shortageReason ?? files.topProducts.descriptor.errorCode ?? (panelCovered ? null : 'EVIDENCE_RANK_NOT_COVERED'),
+    // The Top Products picture is shown only when it covers the chosen ranks; it never fails M2.
+    errorCode: expected.selectionProof.shortageReason ?? null,
     links: expected.links, skipped: expected.selectionProof.skipped, panelCovered };
 }
 
