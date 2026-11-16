@@ -12,6 +12,9 @@
   --stop: #b0352a; --stop-tint: #f7e2de;
   --need: #855c00; --need-tint: #f7ecd0;
   --idle: #8a9aa0; --shadow: rgba(20, 39, 46, .16);
+  /* Header run status, colours of the approved step 4 mockup. */
+  --st-ok: #1f7a4d; --st-run: #9a6700; --st-fail: #b42318; --st-idle: #98a2b3; --st-idle-text: #667085;
+  --st-pill-line: #d0d5dd; --st-pill-fg: #344054; --st-pill-bg: #ffffff;
   --body: "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, Consolas, "Courier New", monospace;
 }
@@ -23,6 +26,8 @@
     --stop: #f0877b; --stop-tint: #3d201c;
     --need: #e3bd6b; --need-tint: #3a3018;
     --idle: #6d7f86; --shadow: rgba(0, 0, 0, .45);
+    --st-ok: var(--ok); --st-run: var(--need); --st-fail: var(--stop); --st-idle: var(--idle); --st-idle-text: var(--muted);
+    --st-pill-line: var(--line); --st-pill-fg: var(--fg); --st-pill-bg: var(--panel);
     color-scheme: dark;
   }
 }
@@ -350,6 +355,36 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 .dialog-facts dt { font-size: 12.5px; color: var(--muted); }
 .dialog-facts dd { margin: 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
 .dialog-note { font-size: 13px; color: var(--muted); }
+/* Step 4: header run status, idle check rows and in-app notices. */
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+.conn:has(> .run-status) { justify-content: flex-end; }
+.run-status { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-top: 6px; font-size: 14px; }
+.st-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.pill { display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--st-pill-line); border-radius: 999px; padding: 1px 8px; font-size: 12px; color: var(--st-pill-fg); background: var(--st-pill-bg); }
+.pill .d, .st-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; background: var(--st-idle); }
+.st-dot { width: 10px; height: 10px; }
+.pill.t-ok .d, .st-dot.t-ok { background: var(--st-ok); }
+.pill.t-fail .d, .st-dot.t-fail { background: var(--st-fail); }
+.pill.t-run .d, .pill.t-wait .d, .st-dot.t-run { background: var(--st-run); }
+.pill.t-run .d, .st-dot.t-run { animation: pulse 1.2s ease-in-out infinite; }
+.st-idle { color: var(--st-idle-text); }
+.st-link { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.st-link.t-ok { color: var(--st-ok); }
+.st-link.t-run { color: var(--st-run); }
+.st-link.t-fail { color: var(--st-fail); }
+.ck.ck-idle { opacity: .6; }
+.notice-box { position: fixed; left: 16px; bottom: 16px; z-index: 50; display: grid; gap: 8px; width: min(420px, calc(100% - 32px)); }
+.notice { display: flex; gap: 10px; align-items: flex-start; background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--idle); border-radius: 10px; padding: 10px 14px; box-shadow: 0 6px 20px var(--shadow); font-size: 14px; }
+.notice.t-ok { border-left-color: var(--ok); }
+.notice.t-ok b { color: var(--ok); }
+.notice.t-run { border-left-color: var(--need); }
+.notice.t-run b { color: var(--need); }
+.notice.t-fail { border-left-color: var(--stop); }
+.notice.t-fail b { color: var(--stop); }
+.notice-body { flex: 1; min-width: 0; }
+.notice-go { display: inline-block; margin-top: 4px; color: var(--accent); text-decoration: underline; }
+.notice-close { border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .pill.t-run .d, .st-dot.t-run { animation: none; } }
 </style>
 </head>
 <body>
@@ -358,12 +393,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     <div>
       <p class="kicker">TDN Growth OS</p>
       <h1>Lấy bình luận Shopee</h1>
-      <p class="sub">3 bước. Mỗi bước được kiểm tra xong mới sang bước sau.</p>
+      <p class="sub">4 bước. Mỗi bước được kiểm tra xong mới sang bước sau.</p>
     </div>
     <div class="conn">
       <span class="dot" id="connDot"></span>
       <span id="connText">Đang kết nối máy chủ…</span>
       <span class="ro" id="roText" hidden>Hệ thống đang tạm dừng lấy dữ liệu.</span>
+      <div class="run-status" id="runStatus" role="status" aria-live="polite" hidden></div>
     </div>
   </header>
 
@@ -593,15 +629,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 <dialog id="flowDialog" aria-labelledby="flowDialogTitle">
   <div class="dialog-body">
     <h2 id="flowDialogTitle">Bắt đầu lấy dữ liệu?</h2>
-    <p class="lead">App sẽ chạy lần lượt 3 bước cho đúng lượt dưới đây.</p>
+    <p class="lead">App sẽ chạy lần lượt 4 bước cho đúng lượt dưới đây.</p>
     <dl class="dialog-facts" id="flowDialogFacts"></dl>
-    <p class="dialog-note" id="flowDialogNote">Bắt đầu sẽ dùng một lượt tra số liệu bán hàng, sau đó chọn link bán chạy và bắt đầu lấy bình luận. Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.</p>
+    <p class="dialog-note" id="flowDialogNote">Bắt đầu sẽ dùng một lượt tra số liệu bán hàng, sau đó chọn link bán chạy, bắt đầu lấy bình luận rồi tự lưu và phân loại bình luận. Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.</p>
     <div class="btnrow">
       <button class="abtn primary" id="flowConfirmBtn" type="button">Bắt đầu lấy dữ liệu</button>
       <button class="abtn" id="flowCancelBtn" type="button">Hủy</button>
     </div>
   </div>
 </dialog>
+
+<div class="notice-box" id="noticeBox"></div>
 
 <script>
 (function () {
@@ -1662,7 +1700,127 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     ri.gates.m2 = m2Slip(ri.runId);
     ri.state = finishState(ri.runId, 'IDLE', 'M2', null, null);
 
-    [ra, rb, rc, rd, re, rf, rg, rh, ri].forEach(seedLegacyExecution);
+    [ra, rb, rc, rd, re, rf, rg, rh, ri].forEach(function (run) {
+      run.seeded = true;
+      seedLegacyExecution(run);
+    });
+
+    // Step 4 demo (?s4=s1run|s3run|running|pass|fail|old, default pass). The first
+    // runs-progress poll answers the state just before the scenario event, later
+    // polls the scenario itself, so the notification for that event shows once
+    // (the page asks again after MOCK_EVENT_MS in demo mode).
+    var S4_SCENARIO = { s1run: 1, s3run: 1, running: 1, pass: 1, fail: 1, old: 1 }[pageParam('s4')] ? pageParam('s4') : 'pass';
+    var s4Kind = { s1run: 'pass', s3run: 'pass' }[S4_SCENARIO] || S4_SCENARIO;
+    var s4Polls = 0;
+    var s4EventAt = null;
+    var S4_TARGET = 'a1b2c3d4';
+    var S4_OTHER = 'c9d0e1f2';
+
+    function s4Check(id, got, ok) { return { id: id, ok: ok !== false, level: 'error', got: got }; }
+    function s4GateIn() {
+      return { verdict: 'PASS', checks: [
+        s4Check('source_unchanged', 'mã băm khớp'), s4Check('review_ids_valid', '531/531'),
+        s4Check('not_saved_twice', '0 dòng trùng'),
+        s4Check('jev_ready_versions_fixed', 'lọc 2026-11-04.2 · chủ đề 2026-11-04.1'),
+        s4Check('fee_estimate_recorded', 'khoảng 2,9 USD')
+      ] };
+    }
+    function s4GateOut(failed) {
+      return { verdict: failed ? 'FAIL' : 'PASS', checks: [
+        s4Check('all_rows_saved', '531/531'), s4Check('one_filter_result_each', '531/531'),
+        s4Check('kept_all_labelled', failed ? '312/498' : '498/498', !failed),
+        s4Check('no_new_label_on_excluded', '0'),
+        s4Check('no_failed_jev_call', failed ? '1 lỗi: JEV_TIMEOUT' : '0', !failed),
+        s4Check('receipt_complete', 'có')
+      ] };
+    }
+    function s4MockSource(run, kind) {
+      var save = { state: 'PASS', total: 531, done: 531, inserted: 412, alreadyPresent: 119 };
+      var filter = { state: 'PASS', total: 531, done: 531, keep: 498, exclude: 12, unresolved: 9, noContent: 12 };
+      var label = { state: 'PASS', total: 498, done: 498, unresolvedSkipped: 9 };
+      var source = {
+        sourceSha256: shaFor(run.runId, 'm3'), state: 'PASS', errorCode: null,
+        startedAt: '2026-11-08T02:31:00Z', finishedAt: '2026-11-08T02:39:00Z', retries: 0, canResume: false,
+        fee: { currency: 'USD', filter: 0.31, label: 2.6, total: 2.91, basis: 'ESTIMATE' },
+        stages: { save: save, filter: filter, label: label },
+        gates: { in: s4GateIn(), out: s4GateOut(false) }
+      };
+      if (kind === 'running') {
+        source.state = 'RUNNING';
+        source.finishedAt = null;
+        source.stages.filter = { state: 'RUNNING', total: 531, done: 240, keep: 228, exclude: 5, unresolved: 3, noContent: 4 };
+        source.stages.label = { state: 'IDLE', total: null, done: 0, unresolvedSkipped: null };
+        source.gates.out = null;
+      } else if (kind === 'fail') {
+        source.state = 'FAIL';
+        source.errorCode = 'JEV_CALL_FAILED';
+        source.finishedAt = '2026-11-08T02:37:00Z';
+        source.retries = 3;
+        source.canResume = true;
+        source.stages.label = { state: 'FAIL', total: 498, done: 312, unresolvedSkipped: 9 };
+        source.gates.out = s4GateOut(true);
+      } else if (kind === 'old') {
+        source.state = 'NOT_APPLICABLE';
+        source.startedAt = null;
+        source.finishedAt = null;
+        source.canResume = true;
+        source.stages = {
+          save: { state: 'IDLE', total: 531, done: 0, inserted: null, alreadyPresent: null },
+          filter: { state: 'IDLE', total: null, done: 0, keep: null, exclude: null, unresolved: null, noContent: null },
+          label: { state: 'IDLE', total: null, done: 0, unresolvedSkipped: null }
+        };
+        source.gates = { in: null, out: null };
+      }
+      return source;
+    }
+    function s4RunKind(run) {
+      if (run.runId === S4_TARGET) return s4Kind;
+      if (!isPass(run.gates.m3)) return null;
+      return run.seeded ? 'old' : 'pass';
+    }
+    function mockReviewProcess(run) {
+      var kind = s4RunKind(run);
+      return {
+        format: 'review-process-view-v1', runId: run.runId,
+        autoRun: kind !== 'old' && !(run.seeded && run.runId !== S4_TARGET), labelUnresolved: false,
+        sources: kind ? [s4MockSource(run, kind)] : []
+      };
+    }
+    function s4Progress(run, before) {
+      var exec = run.execution;
+      var steps = ['M1', 'M2', 'M3'].map(function (id) {
+        var status = exec.modules[id].status;
+        return { RUNNING: 'RUNNING', SUCCEEDED: 'PASS', FAILED: 'FAIL' }[status] || 'IDLE';
+      });
+      var running = steps.indexOf('RUNNING');
+      var active = running === -1 ? null : { step: running + 1, stage: null, done: null, total: null };
+      var kind = s4RunKind(run);
+      steps.push({ pass: 'PASS', running: 'RUNNING', fail: 'FAIL', old: 'NOT_APPLICABLE' }[kind] ||
+        (run.seeded ? 'NOT_APPLICABLE' : 'IDLE'));
+      if (kind === 'running') active = { step: 4, stage: 'filter', done: 240, total: 531 };
+      var changedAt = run.createdAt;
+      var scenarioRun = (run.runId === S4_TARGET && S4_SCENARIO === s4Kind) ||
+        (run.runId === S4_OTHER && (S4_SCENARIO === 's1run' || S4_SCENARIO === 's3run'));
+      if (run.runId === S4_OTHER && S4_SCENARIO === 's1run') {
+        steps = before ? ['IDLE', 'IDLE', 'IDLE', 'IDLE'] : ['RUNNING', 'IDLE', 'IDLE', 'IDLE'];
+        active = before ? null : { step: 1, stage: null, done: null, total: null };
+      } else if (run.runId === S4_OTHER && S4_SCENARIO === 's3run') {
+        steps = before ? ['PASS', 'RUNNING', 'IDLE', 'IDLE'] : ['PASS', 'PASS', 'RUNNING', 'IDLE'];
+        active = before ? { step: 2, stage: null, done: null, total: null } : { step: 3, stage: null, done: 320, total: 1500 };
+      } else if (run.runId === S4_TARGET && before && S4_SCENARIO === 'running') {
+        steps = ['PASS', 'PASS', 'RUNNING', 'IDLE'];
+        active = { step: 3, stage: null, done: 480, total: 531 };
+      } else if (run.runId === S4_TARGET && before && (S4_SCENARIO === 'pass' || S4_SCENARIO === 'fail')) {
+        steps = ['PASS', 'PASS', 'PASS', 'RUNNING'];
+        active = { step: 4, stage: 'label', done: S4_SCENARIO === 'pass' ? 480 : 312, total: 498 };
+      }
+      if (scenarioRun && S4_SCENARIO !== 'old') {
+        changedAt = before ? new Date(Date.now() - 60000).toISOString() : s4EventAt;
+      }
+      var finished = steps[3] === 'PASS' ||
+        (steps[3] === 'NOT_APPLICABLE' && steps.slice(0, 3).every(function (step) { return step === 'PASS'; }));
+      return { runId: run.runId, steps: steps, active: active, finished: finished, changedAt: changedAt };
+    }
 
     function beginExecution(run, module, attemptId) {
       var key = module.toUpperCase();
@@ -2472,6 +2630,31 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         return Promise.resolve(ok(mockReviewInsights(run)));
       },
+      reviewProcess: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(ok(mockReviewProcess(run)));
+      },
+      processReviewData: function (runId, sourceSha256) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        var source = mockReviewProcess(run).sources[0];
+        if (!source || source.sourceSha256 !== sourceSha256) return Promise.resolve(err('ARG_INVALID', 'ARG_INVALID'));
+        if (!source.canResume) return Promise.resolve(err('RUN_BUSY', 'RUN_BUSY'));
+        if (runId === S4_TARGET) s4Kind = 'running';
+        return Promise.resolve(ok({ format: 'review-process-start-v1', runId: runId, sourceSha256: sourceSha256,
+          status: 'RUNNING', pid: 4321 }));
+      },
+      runsProgress: function () {
+        var before = s4Polls === 0;
+        s4Polls += 1;
+        if (!before && !s4EventAt) s4EventAt = new Date().toISOString();
+        return Promise.resolve(ok({
+          format: 'runs-progress-v1', generatedAt: new Date().toISOString(),
+          runs: Array.from(store.values()).map(function (run) { return s4Progress(run, before); })
+        }));
+      },
+      notify: function () { return Promise.resolve(ok({ shown: false })); },
       saveReviewData: function (runId, input) {
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
@@ -2671,6 +2854,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
 
     return {
+      isMock: function () { return mode === 'mock'; },
       connection: function () { return call('connection', []); },
       presets: function () { return call('presets', []); },
       listRuns: function () { return call('listRuns', []); },
@@ -2702,6 +2886,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       reviewInsights: function (runId) { return call('reviewInsights', [runId]); },
       saveReviewData: function (runId, input) { return call('saveReviewData', [runId, input]); },
       exportReviewFiles: function (runId, input) { return call('exportReviewFiles', [runId, input]); },
+      reviewProcess: function (runId) { return call('reviewProcess', [runId]); },
+      processReviewData: function (runId, sourceSha256) { return call('processReviewData', [runId, sourceSha256]); },
+      runsProgress: function () { return call('runsProgress', []); },
+      notify: function (title, body) { return call('notify', [title, body]); },
       library: function () { return call('library', []); }
     };
   })();
@@ -2788,7 +2976,22 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     reviewSelection: {},
     reviewNeedsPick: {},
     reviewBusy: {},
-    reviewNotice: {}
+    reviewNotice: {},
+    reviewProcess: {},
+    reviewProcessErrors: {},
+    reviewProcessActionErrors: {},
+    reviewProcessSeq: {},
+    reviewProcessBusy: {},
+    reviewProcessFor: {},
+    step4Poll: null,
+    progressTimer: null,
+    progressSeen: false,
+    mockEventShown: false,
+    progressByRun: {},
+    progressRuns: [],
+    progressAt: null,
+    scrollTarget: null,
+    noticeChain: Promise.resolve()
   };
 
   function showError(error) {
@@ -5521,6 +5724,711 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return card;
   }
 
+  // Step 4 (save → filter → label) from review-process-view-v1, and the
+  // header status line and notifications from runs-progress-v1.
+  var STEP_NAMES = ['Lấy số liệu bán hàng', 'Chọn link bán chạy', 'Lấy bình luận', 'Lưu và phân loại'];
+  var STEP_FULL_NAMES = ['Lấy số liệu bán hàng', 'Chọn link bán chạy', 'Lấy bình luận', 'Lưu và phân loại bình luận'];
+  var STEP4_TITLE = 'Bước 4 Lưu và phân loại bình luận';
+  var STEP4_STAGES = [
+    { key: 'save', label: 'Lưu bình luận vào hệ thống', part: 'lưu' },
+    { key: 'filter', label: 'Lọc bình luận không liên quan', part: 'lọc' },
+    { key: 'label', label: 'Gắn chủ đề cho bình luận', part: 'gắn chủ đề' }
+  ];
+  var STEP4_ERROR_TEXT = {
+    JEV_CALL_FAILED: 'Jev không trả lời',
+    JEV_DISABLED: 'Jev đang tắt',
+    REVIEW_SOURCE_CHANGED: 'bình luận của bước 3 đã thay đổi sau khi kiểm tra',
+    DB_IMPORT_CONFLICT: 'bình luận đã lưu trước đó không khớp',
+    PRODUCT_NAME_PROVENANCE_MISSING: 'thiếu nguồn của tên sản phẩm',
+    APP_DB_NOT_CONFIGURED: 'máy chủ chưa có nơi lưu bình luận',
+    READONLY_ON: 'hệ thống đang tạm dừng lấy dữ liệu',
+    GATE_FAILED: 'kiểm tra sau bước 4 không đạt'
+  };
+  var STEP4_CHECK_LABELS = {
+    source_unchanged: 'Bước 3 đạt kiểm tra và dữ liệu không đổi sau khi kiểm tra',
+    review_ids_valid: 'Mọi bình luận có mã riêng và thuộc đúng link đã chọn',
+    not_saved_twice: 'Lưu lại không tạo dòng trùng',
+    jev_ready_versions_fixed: 'Jev sẵn sàng; phiên bản bộ lọc và bộ chủ đề đã cố định cho lượt',
+    fee_estimate_recorded: 'Đã ghi phí Jev ước tính vào biên nhận',
+    all_rows_saved: 'Đã lưu đủ bình luận của bước 3, không bỏ dòng nào',
+    one_filter_result_each: 'Mỗi bình luận có đúng 1 kết quả lọc',
+    kept_all_labelled: 'Mọi bình luận được giữ đều có chủ đề (kể cả «không có chủ đề»)',
+    no_new_label_on_excluded: 'Không gắn chủ đề mới cho bình luận bị loại',
+    no_failed_jev_call: 'Không có lời gọi Jev nào lỗi',
+    receipt_complete: 'Có biên nhận: số đếm, phiên bản, phí ước tính, mã băm'
+  };
+  var STEP4_CHIP = {
+    pass: ['s-pass', 'Đạt kiểm tra'], running: ['s-run', 'Đang chạy'], fail: ['s-fail', 'Dừng vì lỗi'],
+    old: ['s-idle', 'Không tự chạy'], idle: ['s-idle', 'Chưa chạy']
+  };
+  var STEP4_MODULE_TEXT = { pass: 'Hoàn tất', running: 'Đang chạy', fail: 'Dừng vì lỗi', old: 'Không tự chạy', idle: 'Chưa chạy' };
+  var PROGRESS_POLL_MS = 15000;
+  var MOCK_EVENT_MS = 1000;
+  var STEP4_POLL_MS = 10000;
+  var RECENT_EVENT_MS = 24 * 60 * 60 * 1000;
+  var NOTICE_LIMIT = 3;
+
+  // A run may have several M3 sources: the card follows the worst one, so any stop shows
+  // (with «Chạy tiếp» for that source) and «Đạt» needs every source to pass.
+  var STEP4_SOURCE_RANK = { FAIL: 1, RUNNING: 2, IDLE: 3, NOT_APPLICABLE: 4, PASS: 5 };
+  function step4SourceRank(source) {
+    return source.state === 'FAIL' && source.canResume ? 0 : STEP4_SOURCE_RANK[source.state] || 3;
+  }
+  function step4Source(runId) {
+    var view = state.reviewProcess[runId];
+    var sources = (view && view.sources) || [];
+    return sources.reduce(function (worst, source) {
+      return !worst || step4SourceRank(source) < step4SourceRank(worst) ? source : worst;
+    }, null);
+  }
+  // Labelled count for the whole run, only when every source passed.
+  function step4Labelled(runId) {
+    var view = state.reviewProcess[runId];
+    var sources = (view && view.sources) || [];
+    if (!sources.length || !sources.every(function (source) { return source.state === 'PASS'; })) return null;
+    return sources.reduce(function (sum, source) { return sum + source.stages.label.done; }, 0);
+  }
+  var STEP4_SOURCE_STATE_TEXT = { PASS: 'đạt kiểm tra', RUNNING: 'đang chạy', FAIL: 'dừng vì lỗi', IDLE: 'chưa chạy', NOT_APPLICABLE: 'không tự chạy' };
+  function step4SourcesNote(view, source) {
+    var sources = view.sources;
+    if (sources.length < 2) return null;
+    var counts = {};
+    sources.forEach(function (item) { counts[item.state] = (counts[item.state] || 0) + 1; });
+    if (counts.PASS === sources.length) {
+      return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận, cả ' + fmtInt(sources.length) +
+        ' đều đạt kiểm tra. Số liệu bên trên là của nguồn đầu tiên.';
+    }
+    var parts = ['FAIL', 'RUNNING', 'IDLE', 'NOT_APPLICABLE', 'PASS'].filter(function (key) { return counts[key]; })
+      .map(function (key) { return fmtInt(counts[key]) + ' ' + STEP4_SOURCE_STATE_TEXT[key]; });
+    return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận: ' + parts.join(', ') +
+      '. Số liệu bên trên là của nguồn ' + STEP4_SOURCE_STATE_TEXT[source.state] + '.';
+  }
+
+  // pass | running | fail | old | idle, the five states of the approved card.
+  function step4Kind(runId) {
+    var view = state.reviewProcess[runId];
+    var source = step4Source(runId);
+    if (!source) return view && !view.autoRun ? 'old' : 'idle';
+    return { PASS: 'pass', RUNNING: 'running', FAIL: 'fail', NOT_APPLICABLE: 'old' }[source.state] || 'idle';
+  }
+
+  function countOrUnknown(value) { return present(value) ? fmtInt(value) : 'chưa rõ'; }
+  function doneOfTotal(stage) {
+    return present(stage.total) ? fmtInt(stage.done) + '/' + fmtInt(stage.total) : fmtInt(stage.done);
+  }
+  function usdText(value) {
+    var digits = value > 0 && value < 0.1 ? 2 : 1;
+    return Number(value).toLocaleString('vi-VN', { maximumFractionDigits: digits });
+  }
+  function feeText(fee) {
+    if (!fee) return 'Chưa có';
+    return 'khoảng ' + usdText(fee.total) + ' USD (lọc ' + usdText(fee.filter) + ' + gắn chủ đề ' + usdText(fee.label) + ')';
+  }
+  function step4ErrorText(code) { return STEP4_ERROR_TEXT[code] || 'có lỗi chưa xác định'; }
+  function upperFirst(text) { return text.charAt(0).toUpperCase() + text.slice(1); }
+  function clockText(value) { return vnStamp(value).slice(11); }
+
+  function step4StageNote(stage, def, source) {
+    if (stage.state === 'PASS') {
+      if (def.key === 'save') {
+        return 'Đã lưu ' + doneOfTotal(stage) + ' bình luận (' + countOrUnknown(stage.inserted) + ' mới, ' +
+          countOrUnknown(stage.alreadyPresent) + ' đã có từ trước). Không tốn phí.';
+      }
+      if (def.key === 'filter') {
+        return 'Đã lọc ' + doneOfTotal(stage) + ': giữ ' + countOrUnknown(stage.keep) + ' · loại ' +
+          countOrUnknown(stage.exclude) + ' · chưa rõ ' + countOrUnknown(stage.unresolved) + ' · không có chữ ' +
+          countOrUnknown(stage.noContent) + '.';
+      }
+      return 'Đã gắn chủ đề cho ' + doneOfTotal(stage) + ' bình luận được giữ.';
+    }
+    if (stage.state === 'RUNNING') {
+      return { save: 'Đang lưu ', filter: 'Đang lọc ', label: 'Đang gắn chủ đề ' }[def.key] + doneOfTotal(stage) + '…';
+    }
+    if (stage.state === 'FAIL') {
+      return 'Dừng ở ' + doneOfTotal(stage) +
+        (source.retries ? ' sau ' + fmtInt(source.retries) + ' lần tự thử lại' : '') + ': ' +
+        step4ErrorText(source.errorCode) + '.';
+    }
+    return step4IdleNote(def.key);
+  }
+  function step4IdleNote(key) {
+    if (key === 'filter') return 'Chưa chạy. Bắt đầu khi phần lưu xong.';
+    if (key === 'label') return 'Chưa chạy. Bắt đầu khi phần lọc xong.';
+    return 'Chưa chạy.';
+  }
+
+  function step4Check(tone, label, note, code, got) {
+    var icon = { ok: '✓', warn: '!', fail: '✕', wait: '…', idle: '–' }[tone];
+    var li = h('li', 'ck c-' + (tone === 'wait' || tone === 'idle' ? 'warn' : tone) + (tone === 'idle' ? ' ck-idle' : ''));
+    li.appendChild(h('span', 'ci', icon));
+    var body = h('div');
+    body.appendChild(h('div', 'cl', label));
+    if (note) body.appendChild(h('div', tone === 'ok' || tone === 'idle' ? 'got' : 'warnnote', note));
+    if (code) {
+      var tech = h('details', 'ck-tech');
+      tech.appendChild(h('summary', null, 'Chi tiết kỹ thuật'));
+      var techBody = h('div');
+      techBody.appendChild(h('code', null, code));
+      techBody.appendChild(h('div', 'got', 'Kết quả: ' + got));
+      tech.appendChild(techBody);
+      body.appendChild(tech);
+    }
+    li.appendChild(body);
+    return li;
+  }
+
+  function step4Card(info) {
+    var runId = info.runId;
+    var card = h('article', 'mod');
+    card.id = 's4card';
+    var head = h('div', 'mh');
+    head.appendChild(h('h3', null, STEP4_TITLE));
+    card.appendChild(head);
+
+    if (state.reviewProcessErrors[runId]) {
+      head.appendChild(h('span', 'chip s-idle', 'Chưa có kết quả'));
+      var loadError = h('p', 'errbar local-error', plainError(state.reviewProcessErrors[runId]));
+      loadError.title = errorCode(state.reviewProcessErrors[runId]);
+      card.appendChild(loadError);
+      var retryRow = h('div', 'rs-actions');
+      var retry = h('button', 'abtn', 'Tải lại');
+      retry.type = 'button';
+      retry.addEventListener('click', function () { loadReviewProcess(runId); });
+      retryRow.appendChild(retry);
+      card.appendChild(retryRow);
+      return card;
+    }
+    var view = state.reviewProcess[runId];
+    if (!view) {
+      head.appendChild(h('span', 'chip s-idle', 'Đang tải kết quả…'));
+      card.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
+      return card;
+    }
+    var source = step4Source(runId);
+    var kind = step4Kind(runId);
+    head.appendChild(h('span', 'chip ' + STEP4_CHIP[kind][0], STEP4_CHIP[kind][1]));
+
+    var list = h('ul', 'cks');
+    STEP4_STAGES.forEach(function (def) {
+      var stage = source ? source.stages[def.key] : null;
+      if (kind === 'old' || !stage) {
+        list.appendChild(step4Check('idle', def.label, kind === 'old' ? 'Chưa chạy.' : step4IdleNote(def.key)));
+        return;
+      }
+      var tone = { PASS: 'ok', RUNNING: 'wait', FAIL: 'fail' }[stage.state] || 'idle';
+      list.appendChild(step4Check(tone, def.label, step4StageNote(stage, def, source)));
+    });
+    card.appendChild(list);
+    if (kind === 'old') {
+      card.appendChild(h('p', 'rs-note', 'Lượt này được tạo trước khi có bước 4 nên không tự chạy. Muốn phân loại lượt này thì làm riêng một lần, có báo phí trước.'));
+      return card;
+    }
+    if (source) {
+      var kv = h('dl', 'gkv');
+      kv.appendChild(kvRow('Phí Jev ước tính', feeText(source.fee)));
+      if (source.startedAt) kv.appendChild(kvRow('Bắt đầu', vnStamp(source.startedAt)));
+      if (kind === 'pass' && source.finishedAt) kv.appendChild(kvRow('Xong', vnStamp(source.finishedAt)));
+      if (kind === 'fail' && source.finishedAt) kv.appendChild(kvRow('Dừng', vnStamp(source.finishedAt)));
+      if (kind === 'running') kv.appendChild(kvRow('Tự cập nhật', 'mỗi 10 giây'));
+      card.appendChild(kv);
+      var skipped = source.stages.label.unresolvedSkipped;
+      if (!view.labelUnresolved && present(skipped) && skipped > 0) {
+        card.appendChild(h('p', 'rs-note', fmtInt(skipped) + ' bình luận «chưa rõ» (có khiếu nại hoặc sao thấp) chưa được gắn chủ đề, chờ anh quyết định.'));
+      }
+      var sourcesNote = step4SourcesNote(view, source);
+      if (sourcesNote) {
+        var sourcesLine = h('p', 'rs-note', sourcesNote);
+        sourcesLine.id = 's4Sources';
+        card.appendChild(sourcesLine);
+      }
+    }
+    if (kind === 'fail') {
+      var failed = STEP4_STAGES.find(function (def) { return source.stages[def.key].state === 'FAIL'; }) || STEP4_STAGES[2];
+      var stage = source.stages[failed.key];
+      var left = present(stage.total) ? Math.max(0, stage.total - stage.done) : null;
+      var text = 'Bước 4 dừng ở phần ' + failed.part + '. Phần đã xong được giữ lại.';
+      if (source.canResume) {
+        text += ' Bấm «Chạy tiếp» chỉ xử lý ' + (present(left) ? fmtInt(left) + ' bình luận còn lại' : 'phần còn lại') +
+          ', không tính phí lại phần đã xong.';
+      }
+      var bar = h('p', 'errbar local-error', text);
+      bar.title = source.errorCode || '';
+      card.appendChild(bar);
+      if (source.canResume) {
+        if (state.reviewProcessActionErrors[runId]) {
+          var actionError = h('p', 'errbar local-error', plainError(state.reviewProcessActionErrors[runId]));
+          actionError.id = 's4ResumeErr';
+          actionError.title = errorCode(state.reviewProcessActionErrors[runId]);
+          card.appendChild(actionError);
+        }
+        var actions = h('div', 'rs-actions');
+        var resume = h('button', 'abtn primary', 'Chạy tiếp');
+        resume.type = 'button';
+        resume.id = 's4Resume';
+        resume.disabled = !state.connected || !!state.reviewProcessBusy[runId];
+        var sha = source.sourceSha256;
+        resume.addEventListener('click', function () { onStep4Resume(runId, sha); });
+        actions.appendChild(resume);
+        card.appendChild(actions);
+      }
+    }
+    if (view.autoRun) card.appendChild(h('p', 'rs-note', 'Bước 4 tự chạy ngay khi bước 3 đạt kiểm tra. Bình luận đã xử lý trước đó không tính phí lại.'));
+    return card;
+  }
+
+  async function onStep4Resume(runId, sha) {
+    if (state.reviewProcessBusy[runId] || !state.connected) return;
+    state.reviewProcessBusy[runId] = true;
+    delete state.reviewProcessActionErrors[runId];
+    if (state.selectedRunId === runId) renderDetail();
+    var res = await api.processReviewData(runId, sha);
+    delete state.reviewProcessBusy[runId];
+    if (!res.ok) {
+      state.reviewProcessActionErrors[runId] = res.error;
+      if (state.selectedRunId === runId) renderDetail();
+      if (isTransportError(res.error)) beginReconnect();
+      return;
+    }
+    await loadReviewProcess(runId);
+  }
+
+  function step4SeqChips(info) {
+    var runId = info.runId;
+    var source = step4Source(runId);
+    var kind = step4Kind(runId);
+    function gateText(side) {
+      if (source && source.gates[side]) return source.gates[side].verdict;
+      return kind === 'old' ? 'Không áp dụng' : 'Chưa chạy';
+    }
+    return [['Kiểm tra trước bước 4', gateText('in')], ['M4', STEP4_MODULE_TEXT[kind]],
+      ['Kiểm tra sau bước 4', gateText('out')]].map(function (pair) {
+      var chip = h('div', 'seqch');
+      chip.appendChild(h('b', null, pair[0]));
+      chip.appendChild(h('span', null, pair[1]));
+      return chip;
+    });
+  }
+
+  function step4GateCard(info, side) {
+    var source = step4Source(info.runId);
+    var kind = step4Kind(info.runId);
+    var gate = source ? source.gates[side] : null;
+    var card = h('article', 'gate');
+    var head = h('div', 'gh');
+    head.appendChild(h('h3', null, side === 'in' ? 'Kiểm tra trước bước 4' : 'Kiểm tra sau bước 4'));
+    card.appendChild(head);
+    if (kind === 'old') {
+      card.dataset.tone = 'warn';
+      head.appendChild(h('span', 'chip s-idle', 'Không áp dụng'));
+      card.appendChild(h('p', 'muted', 'Lượt cũ không tự chạy bước 4.'));
+      return card;
+    }
+    if (!gate) {
+      var running = side === 'out' && kind === 'running';
+      card.dataset.tone = running ? 'warn' : 'idle';
+      head.appendChild(running ? h('span', 'chip s-run', 'Chưa chạy') : h('span', 'chip s-idle', 'Chưa kiểm tra'));
+      card.appendChild(h('p', 'muted', side === 'out' ? 'Kiểm tra sau khi bước 4 chạy xong.'
+        : 'Bước trước chưa chạy xong nên chưa kiểm tra.'));
+      return card;
+    }
+    var pass = gate.verdict === 'PASS';
+    card.dataset.tone = pass ? 'pass' : 'fail';
+    head.appendChild(h('span', 'chip ' + (pass ? 's-pass' : 's-fail'), pass ? 'Đạt' : 'Không đạt'));
+    var list = h('ul', 'cks');
+    gate.checks.forEach(function (check) {
+      var tone = check.ok ? 'ok' : check.level === 'warn' ? 'warn' : 'fail';
+      list.appendChild(step4Check(tone, STEP4_CHECK_LABELS[check.id] || 'Điều kiện kiểm tra', null, check.id, check.got));
+    });
+    if (gate.checks.length) card.appendChild(list);
+    else card.appendChild(h('p', 'muted', 'Chưa có nội dung kiểm tra.'));
+    return card;
+  }
+
+  function step4ExecutionLine(source, kind) {
+    if (kind === 'old') return 'Không chạy';
+    if (!source) return 'Chưa chạy';
+    var parts = [];
+    STEP4_STAGES.forEach(function (def) {
+      var stage = source.stages[def.key];
+      var name = { save: 'Lưu', filter: 'Lọc', label: 'Gắn chủ đề' }[def.key];
+      if (stage.state === 'PASS') parts.push(name + ' xong');
+      else if (stage.state === 'RUNNING') parts.push({ save: 'Đang lưu', filter: 'Đang lọc', label: 'Đang gắn chủ đề' }[def.key] + ' ' + doneOfTotal(stage));
+      else if (stage.state === 'FAIL') parts.push(name + ' dừng');
+    });
+    if (!parts.length) return 'Chưa chạy';
+    if ((kind === 'pass' || kind === 'fail') && source.finishedAt) parts[parts.length - 1] += ' ' + clockText(source.finishedAt);
+    if (kind === 'fail' && source.retries) parts[parts.length - 1] += ' (' + fmtInt(source.retries) + ' lần thử lại)';
+    return parts.join(' · ');
+  }
+
+  function step4ModuleCard(info) {
+    var source = step4Source(info.runId);
+    var kind = step4Kind(info.runId);
+    var card = h('article', 'mod');
+    var head = h('div', 'mh');
+    head.appendChild(h('h3', null, STEP4_TITLE));
+    head.appendChild(h('span', 'chip ' + STEP4_CHIP[kind][0], STEP4_MODULE_TEXT[kind]));
+    card.appendChild(head);
+    card.appendChild(h('p', 'execution-line', step4ExecutionLine(source, kind)));
+    var tech = h('details', 'tech-details');
+    tech.appendChild(h('summary', null, 'Thông tin kỹ thuật'));
+    var meta = h('p', 'mm');
+    meta.appendChild(document.createTextNode('Skill: '));
+    meta.appendChild(h('code', null, 'tdn-shopee-m4-luu-phan-loai'));
+    meta.appendChild(document.createTextNode(' · Kiểm tra vào: '));
+    meta.appendChild(h('code', null, 'm3'));
+    meta.appendChild(document.createTextNode(' · Kiểm tra ra: '));
+    meta.appendChild(h('code', null, 'm4'));
+    meta.appendChild(document.createTextNode(' · Biên nhận: '));
+    meta.appendChild(h('code', null, 'm4/<nguồn>/receipt.json'));
+    tech.appendChild(meta);
+    card.appendChild(tech);
+    return card;
+  }
+
+  function step4ResultLine(runId) {
+    var source = step4Source(runId);
+    if (!source) return null;
+    var kind = step4Kind(runId);
+    var line = null;
+    if (kind === 'fail') {
+      var label = source.stages.label;
+      line = h('p', 'errbar local-error', 'Bước 4 dừng giữa chừng: 10 chủ đề bên dưới mới có ' +
+        (present(label.total) ? fmtInt(label.done) + '/' + fmtInt(label.total) + ' bình luận' : 'một phần bình luận') + '. ' +
+        (source.canResume ? 'Mở «Chi tiết lịch sử lượt chạy» để chạy tiếp.' : 'Mở «Chi tiết lịch sử lượt chạy» để xem lý do.'));
+    } else if (kind === 'running') {
+      line = h('p', 'progress', 'Bước 4 đang chạy: 10 chủ đề bên dưới mới có một phần bình luận. Số liệu đủ khi bước 4 xong.');
+    } else if (kind === 'old') {
+      line = h('p', 'progress', 'Lượt cũ: chủ đề chỉ có cho những bình luận đã được gắn từ trước.');
+    } else if (kind === 'idle') {
+      line = h('p', 'progress', 'Bước 4 chưa chạy: 10 chủ đề bên dưới mới có một phần bình luận. Số liệu đủ khi bước 4 xong.');
+    }
+    if (line) line.id = 'step4ResultLine';
+    return line;
+  }
+
+  async function loadReviewProcess(runId) {
+    var seq = (state.reviewProcessSeq[runId] || 0) + 1;
+    state.reviewProcessSeq[runId] = seq;
+    var before = step4Kind(runId);
+    var res = await api.reviewProcess(runId);
+    if (seq !== state.reviewProcessSeq[runId]) return;
+    if (res.ok && res.data && res.data.format === 'review-process-view-v1' && res.data.runId === runId &&
+        Array.isArray(res.data.sources)) {
+      state.reviewProcess[runId] = res.data;
+      delete state.reviewProcessErrors[runId];
+    } else {
+      state.reviewProcessErrors[runId] = res.ok ? { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } : res.error;
+    }
+    if (state.selectedRunId === runId) {
+      renderDetail();
+      manageStep4Poll(runId);
+      if (before === 'running' && step4Kind(runId) !== 'running' && state.screen === 'result') {
+        loadReviewStats(runId);
+        loadReviewInsights(runId);
+      }
+    }
+    renderRunStatus();
+  }
+
+  function stopStep4Poll() {
+    if (state.step4Poll) {
+      clearTimeout(state.step4Poll);
+      state.step4Poll = null;
+    }
+  }
+
+  function manageStep4Poll(runId) {
+    stopStep4Poll();
+    if (state.selectedRunId !== runId || !state.connected || step4Kind(runId) !== 'running') return;
+    state.step4Poll = setTimeout(function () {
+      state.step4Poll = null;
+      if (state.selectedRunId === runId) loadReviewProcess(runId);
+    }, STEP4_POLL_MS);
+  }
+
+  // «Hoàn tất» only when runs-progress says finished; step 4 running or failed wins over state.json.
+  function effectiveStatus(runId, status) {
+    var progress = state.progressByRun[runId];
+    if (!progress) return status;
+    if (progress.steps.indexOf('RUNNING') !== -1) return 'RUNNING';
+    if (progress.steps[3] === 'FAIL') return 'FAILED';
+    if ((status === 'DONE' || status === 'SUCCEEDED') && !progress.finished) return 'RUNNING';
+    return status;
+  }
+
+  function stopProgressPoll() {
+    if (state.progressTimer) {
+      clearTimeout(state.progressTimer);
+      state.progressTimer = null;
+    }
+  }
+
+  function scheduleProgressPoll() {
+    stopProgressPoll();
+    if (state.connectionState !== 'online') return;
+    // Demo only: the mock answers the state before its scenario event first, so its
+    // second answer comes after a second instead of 15 s and the event shows at once.
+    var delay = api.isMock() && !state.mockEventShown ? MOCK_EVENT_MS : PROGRESS_POLL_MS;
+    state.mockEventShown = true;
+    state.progressTimer = setTimeout(function () {
+      state.progressTimer = null;
+      pollProgress();
+    }, delay);
+  }
+
+  async function pollProgress() {
+    var epoch = state.connectionEpoch;
+    stopProgressPoll();
+    var res = await api.runsProgress();
+    if (epoch !== state.connectionEpoch) return;
+    if (res.ok && res.data && res.data.format === 'runs-progress-v1' && Array.isArray(res.data.runs)) {
+      applyProgress(res.data);
+    }
+    scheduleProgressPoll();
+  }
+
+  function progressChanged(before, now) {
+    return !before || before.finished !== now.finished || before.steps.join() !== now.steps.join();
+  }
+
+  function applyProgress(data) {
+    var first = !state.progressSeen;
+    var previous = state.progressByRun;
+    var next = {};
+    data.runs.forEach(function (run) { next[run.runId] = run; });
+    state.progressByRun = next;
+    state.progressRuns = data.runs;
+    state.progressAt = data.generatedAt;
+    state.progressSeen = true;
+    var changed = first ? [] : data.runs.filter(function (run) { return progressChanged(previous[run.runId], run); });
+    var unknown = data.runs.some(function (run) {
+      return !state.runs.some(function (item) { return item.runId === run.runId; });
+    });
+    if (changed.length || unknown) fetchRuns();
+    else renderRunList();
+    var selected = state.selectedRunId;
+    if (selected && changed.some(function (run) { return run.runId === selected; })) loadInfo(selected);
+    else if (state.info) renderDetail();
+    renderRunStatus();
+    // Delivered in order; a step 4 stop or a finish first reads the step 4 view for its numbers.
+    if (!first) progressEvents(previous, next).forEach(function (event) {
+      state.noticeChain = state.noticeChain.then(function () { return deliverEvent(event); });
+    });
+  }
+
+  // One event per transition between two polls; none for the first poll after start.
+  function progressEvents(previous, next) {
+    var events = [];
+    Object.keys(next).forEach(function (runId) {
+      var now = next[runId];
+      var before = previous[runId] || { steps: ['IDLE', 'IDLE', 'IDLE', 'IDLE'], finished: false };
+      var finishing = now.finished && !before.finished;
+      if (now.steps[0] === 'RUNNING' && before.steps[0] !== 'RUNNING') events.push({ kind: 'start', runId: runId, step: 1 });
+      now.steps.forEach(function (stepState, index) {
+        if (stepState === before.steps[index]) return;
+        if (stepState === 'PASS' && !(index === 3 && finishing)) events.push({ kind: 'pass', runId: runId, step: index + 1 });
+        if (stepState === 'FAIL') events.push({ kind: 'fail', runId: runId, step: index + 1 });
+      });
+      if (finishing) events.push({ kind: 'finished', runId: runId, step: 4 });
+    });
+    return events;
+  }
+
+  async function deliverEvent(event) {
+    if (event.kind === 'finished' || (event.kind === 'fail' && event.step === 4)) await loadReviewProcess(event.runId);
+    if (event.kind === 'pass' && event.step === 2) {
+      // runs-progress carries no link count; the run status has the selection.
+      var info = await api.status(event.runId);
+      var picked = info.ok && info.data && info.data.selection && info.data.selection.links;
+      event.links = Array.isArray(picked) && picked.length ? picked.length : null;
+    }
+    var notice = eventNotice(event);
+    if (document.hasFocus() && document.visibilityState !== 'hidden') showNotice(notice);
+    else api.notify(notice.title, notice.body);
+  }
+
+  function eventNotice(event) {
+    var name = shortRunName(event.runId);
+    var run = state.progressByRun[event.runId] || { steps: [], active: null };
+    var source = step4Source(event.runId);
+    var n = event.step;
+    var notice = { runId: event.runId, step4: event.kind === 'finished' || n === 4 || (event.kind === 'pass' && n === 3) };
+    if (event.kind === 'start') {
+      notice.tone = 'run';
+      notice.title = 'Lượt bắt đầu chạy';
+      notice.body = name + ': bước 1 ' + STEP_NAMES[0] + ' đã bắt đầu.';
+    } else if (event.kind === 'pass') {
+      var active = run.active;
+      var done = { 1: 'đã lấy số liệu bán hàng.', 4: 'đã lưu và phân loại bình luận.',
+        2: 'đã chọn ' + (event.links ? fmtInt(event.links) + ' ' : '') + 'link bán chạy.' }[n] ||
+        (active && active.step === 4 && present(active.total) ? 'đã lấy ' + fmtInt(active.total) + ' bình luận.' : 'đã lấy bình luận.');
+      notice.tone = 'ok';
+      notice.title = 'Bước ' + n + ' đạt';
+      notice.body = name + ': ' + done + (n < 4 && run.steps[n] === 'RUNNING' ? ' Bước ' + (n + 1) + ' ' + STEP_NAMES[n] + ' đã bắt đầu.' : '');
+    } else if (event.kind === 'fail' && n === 4) {
+      notice.tone = 'fail';
+      notice.title = 'Bước 4 dừng vì lỗi';
+      notice.body = name + ': ' + (source && source.state === 'FAIL'
+        ? upperFirst(step4ErrorText(source.errorCode)) + (source.retries ? ' sau ' + fmtInt(source.retries) + ' lần thử lại' : '') + '. '
+        : '') + 'Phần đã xong được giữ lại.' +
+        (source && source.canResume ? ' Mở lượt để bấm «Chạy tiếp».' : ' Mở lượt để xem.');
+    } else if (event.kind === 'fail') {
+      notice.tone = 'fail';
+      notice.title = 'Bước ' + n + ' không đạt';
+      notice.body = name + ': bước ' + n + ' ' + STEP_NAMES[n - 1] + ' không đạt kiểm tra. Mở lượt để xem.';
+    } else {
+      var labelled = step4Labelled(event.runId);
+      notice.tone = 'ok';
+      notice.title = 'Lượt hoàn tất';
+      notice.body = name + ': ' + (run.steps[3] === 'PASS' ? 'cả 4 bước đạt.' : 'cả 3 bước đạt.') +
+        (present(labelled) ? ' ' + fmtInt(labelled) + ' bình luận đã gắn chủ đề.' : '');
+    }
+    return notice;
+  }
+
+  function showNotice(notice) {
+    var box = $('noticeBox');
+    var item = h('div', 'notice t-' + notice.tone);
+    item.setAttribute('role', 'alert');
+    var body = h('div', 'notice-body');
+    body.appendChild(h('b', null, notice.title));
+    body.appendChild(h('div', null, notice.body));
+    var go = h('a', 'notice-go', 'Xem lượt');
+    go.href = '#';
+    go.addEventListener('click', function (event) {
+      event.preventDefault();
+      item.remove();
+      openRun(notice.runId, notice.step4);
+    });
+    body.appendChild(go);
+    var close = h('button', 'notice-close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Đóng');
+    close.addEventListener('click', function () { item.remove(); });
+    item.appendChild(body);
+    item.appendChild(close);
+    box.appendChild(item);
+    while (box.children.length > NOTICE_LIMIT) box.removeChild(box.firstChild);
+  }
+
+  async function openRun(runId, toStep4) {
+    state.scrollTarget = { runId: runId, step4: !!toStep4 };
+    state.preferredRunId = runId;
+    showScreen('track');
+    await openTrack();
+  }
+
+  function scrollToTarget(info) {
+    var target = state.scrollTarget;
+    if (!target) return;
+    if (target.runId !== info.runId) { state.scrollTarget = null; return; }
+    var node = target.step4 ? $('s4card') : $('moduleOutputsPanel');
+    if (!node || (target.step4 && !state.reviewProcess[info.runId])) return;
+    state.scrollTarget = null;
+    if (node.scrollIntoView) node.scrollIntoView({ block: target.step4 ? 'center' : 'start', behavior: 'smooth' });
+  }
+
+  function shortRunName(runId) {
+    var run = state.runs.find(function (item) { return item.runId === runId; }) || null;
+    var tracking = runTracking(run);
+    var keyword = tracking && typeof tracking.primaryKeyword === 'string' ? tracking.primaryKeyword.trim() : '';
+    if (tracking && tracking.timeBasis === 'recorded-first-accepted' && keyword && tracking.firstRunAt) {
+      var stamp = vnStamp(tracking.firstRunAt);
+      return keyword + ' ' + stamp.slice(0, 5) + ' ' + stamp.slice(11);
+    }
+    return runDisplayName(tracking, (run && run.product) || ('Lượt ' + runId));
+  }
+
+  function changedTime(run) {
+    var time = run.changedAt ? Date.parse(run.changedAt) : NaN;
+    return isNaN(time) ? 0 : time;
+  }
+
+  // The most recently changed active run; with none active, a run that finished or stopped recently.
+  function progressSubject() {
+    var runs = (state.progressRuns || []).slice().sort(function (a, b) { return changedTime(b) - changedTime(a); });
+    var active = runs.filter(function (run) { return !!run.active; });
+    if (active.length) return { run: active[0], others: active.length - 1 };
+    var now = Date.parse(state.progressAt);
+    var recent = runs.find(function (run) {
+      var settled = (run.finished && run.steps[3] === 'PASS') || run.steps.indexOf('FAIL') !== -1 ||
+        run.steps.indexOf('WAIT_OWNER') !== -1;
+      return settled && !isNaN(now) && run.changedAt && now - changedTime(run) <= RECENT_EVENT_MS;
+    });
+    return recent ? { run: recent, others: 0 } : null;
+  }
+
+  function progressDetail(run) {
+    if (run.active) {
+      var active = run.active;
+      var head = 'Bước ' + active.step + '/4 ' + STEP_NAMES[active.step - 1] + ': ';
+      var count = present(active.done) && present(active.total) ? ' ' + fmtInt(active.done) + '/' + fmtInt(active.total) : '';
+      if (active.step === 1) return { tone: 'run', text: head + 'đang lấy số liệu Metric' };
+      if (active.step === 2) return { tone: 'run', text: head + 'đang chọn link' };
+      if (active.step === 3) return { tone: 'run', text: head + (count ? 'đang lấy' + count : 'đang lấy bình luận') };
+      return { tone: 'run', text: head + { save: 'đang lưu', filter: 'đang lọc', label: 'đang gắn chủ đề' }[active.stage] + count };
+    }
+    var failed = run.steps.indexOf('FAIL');
+    if (failed !== -1) return { tone: 'fail', text: 'Bước ' + (failed + 1) + '/4 ' + STEP_NAMES[failed] + ': dừng vì lỗi. Bấm để xem' };
+    var waiting = run.steps.indexOf('WAIT_OWNER');
+    if (waiting !== -1) return { tone: 'run', text: 'Bước ' + (waiting + 1) + '/4 ' + STEP_NAMES[waiting] + ': cần bạn xử lý. Bấm để xem' };
+    var source = step4Source(run.runId);
+    if (!source && state.reviewProcessFor[run.runId] !== run.changedAt) {
+      state.reviewProcessFor[run.runId] = run.changedAt;
+      loadReviewProcess(run.runId);
+    }
+    var labelled = step4Labelled(run.runId);
+    return { tone: 'ok', text: 'Hoàn tất 4/4 bước' + (present(labelled) ? ' · ' + fmtInt(labelled) + ' bình luận đã gắn chủ đề' : '') };
+  }
+
+  function pillTone(stepState) {
+    return { PASS: 'ok', RUNNING: 'run', FAIL: 'fail', WAIT_OWNER: 'wait' }[stepState] || 'idle';
+  }
+
+  function renderRunStatus() {
+    var box = $('runStatus');
+    clear(box);
+    box.hidden = !state.progressSeen || !state.connected;
+    if (box.hidden) return;
+    var subject = progressSubject();
+    var row = h('div', 'st-row');
+    if (!subject) {
+      row.appendChild(h('span', 'st-dot t-idle'));
+      row.appendChild(h('span', 'st-idle', 'Không có lượt nào đang chạy'));
+      box.appendChild(row);
+      return;
+    }
+    var run = subject.run;
+    var pills = h('div', 'st-row');
+    pills.appendChild(h('span', 'muted', shortRunName(run.runId) + ':'));
+    run.steps.forEach(function (stepState, index) {
+      var tone = pillTone(stepState);
+      var pill = h('span', 'pill t-' + tone);
+      pill.title = 'Bước ' + (index + 1) + ' ' + STEP_FULL_NAMES[index] + ': ' +
+        { ok: 'đạt', run: 'đang chạy', fail: 'lỗi', wait: 'cần bạn xử lý', idle: 'chưa chạy' }[tone];
+      pill.appendChild(h('span', 'd'));
+      pill.appendChild(document.createTextNode('B' + (index + 1) + ' ' + { ok: '✓', run: '…', fail: '✕', wait: '!', idle: '' }[tone]));
+      pills.appendChild(pill);
+    });
+    box.appendChild(pills);
+    var detail = progressDetail(run);
+    row.appendChild(h('span', 'st-dot t-' + detail.tone));
+    var link = h('a', 'st-link t-' + detail.tone, detail.text);
+    link.id = 'runStatusLink';
+    link.href = '#';
+    link.title = 'Mở lượt này ở «Chi tiết lịch sử lượt chạy»';
+    var toStep4 = (run.active && run.active.step === 4) || run.steps[3] === 'FAIL' ||
+      (run.finished && run.steps[3] === 'PASS');
+    link.addEventListener('click', function (event) {
+      event.preventDefault();
+      openRun(run.runId, toStep4);
+    });
+    row.appendChild(link);
+    if (subject.others) row.appendChild(h('span', 'muted', 'và ' + fmtInt(subject.others) + ' lượt khác đang chạy'));
+    box.appendChild(row);
+  }
+
   function emptyRunText() {
     if (state.selectedRunId && state.loadingRunId === state.selectedRunId) return 'Đang tải lượt…';
     return state.connected ? 'Chọn một lượt bên trái.' : 'Chưa kết nối máy chủ.';
@@ -5541,8 +6449,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var meta = requestMeta(info.request || item.request || null);
     var head = h('div', 'dhead');
     head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + runId))));
-    head.appendChild(statusChip(exec ? exec.status : (info.state && info.state.status), tracking));
+    head.appendChild(statusChip(effectiveStatus(runId, exec ? exec.status : (info.state && info.state.status)), tracking));
     root.appendChild(head);
+    var step4Line = step4ResultLine(runId);
+    if (step4Line) root.appendChild(step4Line);
 
     var failure = state.reviewStatsErrors[runId];
     if (failure) {
@@ -5596,7 +6506,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     var head = h('div', 'dhead');
     head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + info.runId))));
-    head.appendChild(statusChip(status, tracking));
+    head.appendChild(statusChip(effectiveStatus(info.runId, status), tracking));
     var note = trackingNote(tracking);
     if (note) head.appendChild(h('span', 'muted', note));
     if (status === 'RUNNING') head.appendChild(h('span', 'muted', 'tự cập nhật mỗi 10 giây'));
@@ -5633,6 +6543,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var m3View = moduleExecution(info, 'M3');
     var m3Started = !!(m3View && m3View.status && m3View.status !== 'IDLE') || !!(info.gates && info.gates.m3);
     if (hasM3 && m3Started) (moduleOutput || root).appendChild(reviewDataPanel(info, true));
+    if (hasM3 && m3Started) (moduleOutput || root).appendChild(step4Card(info));
 
     var failure = (currentView && currentView.errorCode) ||
       (exec && exec.modules ? ['M3', 'M2', 'M1'].map(function (id) { return exec.modules[id]; })
@@ -5657,7 +6568,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       });
     }
     var failed = status === 'FAILED' || status === 'UNCERTAIN' || failedGate ||
-      !!(currentView && currentView.status === 'FAILED');
+      !!(currentView && currentView.status === 'FAILED') || (m3Started && step4Kind(info.runId) === 'fail');
     var tech = h('details', 'tech-details');
     tech.id = 'techDetails';
     tech.open = failed;
@@ -5665,6 +6576,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     var seq = h('div', 'seq');
     SEQUENCE.forEach(function (step) { seq.appendChild(seqChip(step, info)); });
+    if (hasM3 && m3Started) step4SeqChips(info).forEach(function (chip) { seq.appendChild(chip); });
     tech.appendChild(seq);
 
     SEQUENCE.forEach(function (step) {
@@ -5675,7 +6587,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         if (mod) tech.appendChild(moduleCard(mod, info, true));
       }
     });
+    if (hasM3 && m3Started) {
+      tech.appendChild(step4GateCard(info, 'in'));
+      tech.appendChild(step4ModuleCard(info));
+      tech.appendChild(step4GateCard(info, 'out'));
+    }
     root.appendChild(tech);
+    scrollToTarget(info);
   }
 
   var RUN_FILTERS = {
@@ -5692,7 +6610,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     // The filter control lives on the history tab only, so the results tab lists every run.
     var allowed = state.screen === 'result' ? null : RUN_FILTERS[state.runFilter] || null;
     var shown = state.runs.filter(function (run) {
-      return !allowed || allowed.indexOf(run.status) !== -1;
+      return !allowed || allowed.indexOf(effectiveStatus(run.runId, run.status)) !== -1;
     });
     // «Kết quả chạy» shows the same run list as «Chi tiết lịch sử lượt chạy»; only the visible tab holds it.
     clear($(state.screen === 'result' ? 'runList' : 'resultRunList'));
@@ -5707,7 +6625,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         btn.appendChild(h('span', 'rname', runDisplayName(tracking, run.product || run.runId)));
         var info = requestMeta(run.request);
         var meta = h('span', 'rmeta');
-        meta.appendChild(statusChip(run.status, tracking));
+        meta.appendChild(statusChip(effectiveStatus(run.runId, run.status), tracking));
         if (info.period !== 'Chưa có') meta.appendChild(h('span', 'muted', info.period));
         if (info.quantity !== 'Chưa có') meta.appendChild(h('span', 'muted', info.quantity));
         btn.appendChild(meta);
@@ -5766,6 +6684,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       loadSampling(runId);
       loadReviewData(runId);
       loadModuleOutputs(runId);
+      loadReviewProcess(runId);
       if (state.screen === 'result') {
         loadReviewStats(runId);
         loadReviewInsights(runId);
@@ -5775,6 +6694,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function selectRun(runId) {
     stopSamplingPoll();
+    stopStep4Poll();
     state.selectionSeq += 1;
     state.selectedRunId = runId;
     state.loadingRunId = runId;
@@ -5878,11 +6798,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     clearHealthPoll();
     stopPoll();
     stopSamplingPoll();
+    stopStep4Poll();
+    stopProgressPoll();
     var dot = $('connDot');
     var text = $('connText');
     dot.className = 'dot stop';
     text.textContent = 'Chưa kết nối máy chủ.';
     text.title = '';
+    renderRunStatus();
     updateNewButton();
     updateFlowButton();
     if (state.info) renderDetail();
@@ -5941,6 +6864,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       updateFlowButton();
       if (state.info) renderDetail();
       scheduleHealthPoll();
+      pollProgress();
     } else if (epoch === state.connectionEpoch) {
       scheduleReconnect();
     }
@@ -6015,6 +6939,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       text.title = reason ? String(reason) : '';
     }
     ro.hidden = !state.readonly;
+    renderRunStatus();
     updateNewButton();
     updateFlowButton();
     if (state.info) renderDetail();
@@ -7053,7 +7978,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         binding.policyView.totalPerLink !== undefined) {
       factRow('Số lượng tối đa', fmtInt(binding.policyView.totalPerLink) + ' bình luận mỗi link');
     }
-    $('flowDialogNote').textContent = 'Bắt đầu sẽ dùng một lượt tra số liệu bán hàng cho đúng lượt này, sau đó chọn link bán chạy và bắt đầu lấy bình luận. ' +
+    $('flowDialogNote').textContent = 'Bắt đầu sẽ dùng một lượt tra số liệu bán hàng cho đúng lượt này, sau đó chọn link bán chạy, bắt đầu lấy bình luận rồi tự lưu và phân loại bình luận. ' +
       'Bước nào không đạt kiểm tra thì dừng. App không báo trước thời gian hoàn tất.';
     state.flowDialogBinding = {
       runId: binding.runId,
@@ -7260,6 +8185,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       clearHealthPoll();
       stopPoll();
       stopSamplingPoll();
+      stopStep4Poll();
+      stopProgressPoll();
     });
   }
 

@@ -54,7 +54,48 @@ _COMMANDS = {
     'saveReviewData': ('save-review-data', '--run'),
     'exportReviewData': ('export-review-data', '--run'),
     'readReviewExport': ('read-review-export', '--run'),
+    'reviewProcess': ('review-process', '--run'),
+    'processReviewData': ('process-review-data', '--run'),
+    'runsProgress': ('runs-progress',),
 }
+# Step 4 formats (review-process-view-v1, review-process-start-v1, runs-progress-v1).
+_STEP4_STATES = frozenset({'IDLE', 'RUNNING', 'PASS', 'FAIL'})
+_STEP4_SOURCE_STATES = _STEP4_STATES | {'NOT_APPLICABLE'}
+_STEP4_ERRORS = frozenset({
+    'JEV_CALL_FAILED', 'JEV_DISABLED', 'REVIEW_SOURCE_CHANGED', 'DB_IMPORT_CONFLICT',
+    'PRODUCT_NAME_PROVENANCE_MISSING', 'APP_DB_NOT_CONFIGURED', 'READONLY_ON', 'GATE_FAILED',
+})
+_STEP4_GATE_CHECKS = {
+    'in': ('source_unchanged', 'review_ids_valid', 'not_saved_twice', 'jev_ready_versions_fixed',
+           'fee_estimate_recorded'),
+    'out': ('all_rows_saved', 'one_filter_result_each', 'kept_all_labelled', 'no_new_label_on_excluded',
+            'no_failed_jev_call', 'receipt_complete'),
+}
+_STEP4_STAGE_COUNTS = {
+    'save': ('total', 'inserted', 'alreadyPresent'),
+    'filter': ('total', 'keep', 'exclude', 'unresolved', 'noContent'),
+    'label': ('total', 'unresolvedSkipped'),
+}
+_PROGRESS_STEP_STATES = frozenset({'IDLE', 'RUNNING', 'PASS', 'FAIL', 'WAIT_OWNER', 'NOT_APPLICABLE'})
+_STAMP_MAX = 64
+_NOTIFY_TITLE_MAX = 120
+_NOTIFY_BODY_MAX = 400
+_NOTIFY_CONTROL = re.compile(r'[\x00-\x1f\x7f]+')
+# Constant WinRT toast script. Title and body arrive only through environment
+# variables and become XML text nodes, so no caller text is parsed as code or XML.
+_TOAST_SCRIPT = '''$ErrorActionPreference = 'Stop'
+$null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+$null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml('<toast><visual><binding template="ToastGeneric"><text/><text/><text placement="attribution"/></binding></visual></toast>')
+$texts = $xml.GetElementsByTagName('text')
+$null = $texts.Item(0).AppendChild($xml.CreateTextNode($env:TDN_TOAST_TITLE))
+$null = $texts.Item(1).AppendChild($xml.CreateTextNode($env:TDN_TOAST_BODY))
+$null = $texts.Item(2).AppendChild($xml.CreateTextNode('TDN Shopee Flow'))
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+$app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe'
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show($toast)
+'''
 
 
 class _BridgeFailure(Exception):
@@ -291,14 +332,15 @@ class Api:
             raise _BridgeFailure(error.code) from None
 
     def _remote_plan(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
-                     kind=None, attempt_id=None, export_sha256=None):
+                     kind=None, attempt_id=None, export_sha256=None, source_sha256=None):
         words = list(_COMMANDS[action])
         if action == 'metricDateAvailability':
             words.append(self._metric_end_date(payload))
         if action in ('status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence', 'entry', 'flow', 'm1', 'm2', 'm3',
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats', 'reviewInsights',
-                      'saveReviewData', 'exportReviewData', 'readReviewExport'):
+                      'saveReviewData', 'exportReviewData', 'readReviewExport', 'reviewProcess',
+                      'processReviewData'):
             words.append(self._run_id(run_id))
         if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
             words.append('--stdin')
@@ -312,7 +354,10 @@ class Api:
             if kind not in ('full-page', 'top-products', 'raw'):
                 raise _BridgeFailure('ARG_INVALID')
             words.extend(['--kind', kind, '--output-sha256', self._sha256(export_sha256)])
-        if action in ('flow', 'm1', 'm2', 'm3', 'refreshReviewCounts', 'reconcileReviewAttempt'):
+        if action == 'processReviewData':
+            words.extend(['--source-sha256', self._sha256(source_sha256)])
+        if action in ('flow', 'm1', 'm2', 'm3', 'refreshReviewCounts', 'reconcileReviewAttempt',
+                      'processReviewData'):
             words.append('--detach')
         config = _load_config() if config is None else config
         lines = ['export PYTHONDONTWRITEBYTECODE=1']
@@ -331,10 +376,10 @@ class Api:
         return config, lines
 
     def _remote(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
-                kind=None, attempt_id=None, export_sha256=None):
+                kind=None, attempt_id=None, export_sha256=None, source_sha256=None):
         config, lines = self._remote_plan(action, run_id=run_id, payload=payload, config=config,
                                           plan_sha256=plan_sha256, kind=kind, attempt_id=attempt_id,
-                                          export_sha256=export_sha256)
+                                          export_sha256=export_sha256, source_sha256=source_sha256)
         argv, token = self._dispatch_argv(config)
         return self._invoke(action, config, lines, argv, token=token)
 
@@ -1005,6 +1050,169 @@ class Api:
                 type(data.get('reused')) is not bool):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return result
+
+    def reviewProcess(self, runId=None):
+        return self._safe(lambda: self._review_process(runId))
+
+    def _review_process(self, run_id):
+        data = self._step4_remote('reviewProcess', run_id=run_id)
+        if (set(data) != {'format', 'runId', 'autoRun', 'labelUnresolved', 'sources'} or
+                data['format'] != 'review-process-view-v1' or data['runId'] != run_id or
+                type(data['autoRun']) is not bool or type(data['labelUnresolved']) is not bool or
+                not isinstance(data['sources'], list) or
+                not all(self._review_process_source(source) for source in data['sources'])):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return {'ok': True, 'data': data}
+
+    def processReviewData(self, runId=None, sourceSha256=None):
+        return self._safe(lambda: self._process_review_data(runId, sourceSha256))
+
+    def _process_review_data(self, run_id, source_sha256):
+        source_sha256 = self._sha256(source_sha256)
+        data = self._step4_remote('processReviewData', run_id=run_id, source_sha256=source_sha256)
+        if (set(data) != {'format', 'runId', 'sourceSha256', 'status', 'pid'} or
+                data['format'] != 'review-process-start-v1' or data['runId'] != run_id or
+                data['sourceSha256'] != source_sha256 or data['status'] != 'RUNNING' or
+                type(data['pid']) is not int):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return {'ok': True, 'data': data}
+
+    def runsProgress(self):
+        return self._safe(self._runs_progress)
+
+    def _runs_progress(self):
+        data = self._step4_remote('runsProgress')
+        if (set(data) != {'format', 'generatedAt', 'runs'} or data['format'] != 'runs-progress-v1' or
+                not self._stamp(data['generatedAt'], nullable=False) or not isinstance(data['runs'], list) or
+                not all(self._progress_run(run) for run in data['runs'])):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return {'ok': True, 'data': data}
+
+    def _step4_remote(self, action, **kwargs):
+        result = self._remote(action, **kwargs)
+        if not result['ok']:
+            # Static code only: never forward server error text or detail.
+            code = result.get('error', {}).get('code')
+            raise _BridgeFailure(code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID')
+        return result['data']
+
+    @staticmethod
+    def _stamp(value, nullable=True):
+        if value is None:
+            return nullable
+        return isinstance(value, str) and 0 < len(value) <= _STAMP_MAX
+
+    @staticmethod
+    def _count(value, nullable=True):
+        if value is None:
+            return nullable
+        return type(value) is int and value >= 0
+
+    @staticmethod
+    def _fee(value):
+        if value is None:
+            return True
+        keys = {'currency', 'filter', 'label', 'total', 'basis'}
+        return (isinstance(value, dict) and set(value) == keys and value['currency'] == 'USD' and
+                value['basis'] == 'ESTIMATE' and
+                all(type(value[key]) in (int, float) and value[key] >= 0 for key in ('filter', 'label', 'total')))
+
+    @classmethod
+    def _step4_gate(cls, value, side):
+        if value is None:
+            return True
+        allowed = _STEP4_GATE_CHECKS[side]
+        if (not isinstance(value, dict) or set(value) != {'verdict', 'checks'} or
+                value['verdict'] not in ('PASS', 'FAIL') or not isinstance(value['checks'], list)):
+            return False
+        if not all(isinstance(check, dict) and set(check) == {'id', 'ok', 'level', 'got'} and
+                   check['id'] in allowed and type(check['ok']) is bool and
+                   check['level'] in ('error', 'warn') and
+                   isinstance(check['got'], str) and len(check['got']) <= 200
+                   for check in value['checks']):
+            return False
+        # Contract order, each id at most once.
+        order = [allowed.index(check['id']) for check in value['checks']]
+        return all(a < b for a, b in zip(order, order[1:]))
+
+    @classmethod
+    def _review_process_source(cls, source):
+        keys = {'sourceSha256', 'state', 'errorCode', 'startedAt', 'finishedAt', 'retries', 'canResume',
+                'fee', 'stages', 'gates'}
+        if not isinstance(source, dict) or set(source) != keys:
+            return False
+        stages, gates = source['stages'], source['gates']
+        if not isinstance(stages, dict) or set(stages) != set(_STEP4_STAGE_COUNTS):
+            return False
+        for name, counts in _STEP4_STAGE_COUNTS.items():
+            stage = stages[name]
+            if (not isinstance(stage, dict) or set(stage) != {'state', 'done', *counts} or
+                    stage['state'] not in _STEP4_STATES or not cls._count(stage['done'], nullable=False) or
+                    not all(cls._count(stage[key]) for key in counts)):
+                return False
+        state = source['state']
+        return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
+                state in _STEP4_SOURCE_STATES and
+                (source['errorCode'] in _STEP4_ERRORS if state == 'FAIL' else source['errorCode'] is None) and
+                cls._stamp(source['startedAt']) and cls._stamp(source['finishedAt']) and
+                cls._count(source['retries'], nullable=False) and type(source['canResume']) is bool and
+                (not source['canResume'] or state in ('FAIL', 'NOT_APPLICABLE')) and
+                cls._fee(source['fee']) and
+                isinstance(gates, dict) and set(gates) == {'in', 'out'} and
+                cls._step4_gate(gates['in'], 'in') and cls._step4_gate(gates['out'], 'out'))
+
+    @classmethod
+    def _progress_run(cls, run):
+        keys = {'runId', 'steps', 'active', 'finished', 'changedAt'}
+        if not isinstance(run, dict) or set(run) != keys:
+            return False
+        steps, active = run['steps'], run['active']
+        if not isinstance(steps, list) or len(steps) != 4 or not all(step in _PROGRESS_STEP_STATES for step in steps):
+            return False
+        # At most one step runs; active is that step, and null only when no step runs.
+        if steps.count('RUNNING') > 1 or (active is None) != ('RUNNING' not in steps):
+            return False
+        if active is not None:
+            if not isinstance(active, dict) or set(active) != {'step', 'stage', 'done', 'total'}:
+                return False
+            step = active['step']
+            if type(step) is not int or not 1 <= step <= 4 or steps[step - 1] != 'RUNNING':
+                return False
+            if (active['stage'] not in ('save', 'filter', 'label') if step == 4 else active['stage'] is not None):
+                return False
+            if not cls._count(active['done']) or not cls._count(active['total']):
+                return False
+        finished = steps[3] == 'PASS' or (steps[3] == 'NOT_APPLICABLE' and steps[:3] == ['PASS'] * 3)
+        return (isinstance(run['runId'], str) and _RUN_ID.fullmatch(run['runId']) is not None and
+                run['finished'] is finished and cls._stamp(run['changedAt'], nullable=False))
+
+    def notify(self, title=None, body=None):
+        return self._safe(lambda: self._notify(title, body))
+
+    def _notify(self, title, body):
+        """Show one native Windows toast; a no-op that answers ok anywhere else."""
+        if not isinstance(title, str) or not isinstance(body, str):
+            raise _BridgeFailure('ARG_INVALID')
+        title = _NOTIFY_CONTROL.sub(' ', title).strip()[:_NOTIFY_TITLE_MAX]
+        body = _NOTIFY_CONTROL.sub(' ', body).strip()[:_NOTIFY_BODY_MAX]
+        if not title:
+            raise _BridgeFailure('ARG_INVALID')
+        if sys.platform != 'win32':
+            return {'ok': True, 'data': {'shown': False}}
+        root = os.environ.get('SystemRoot') or 'C:\\Windows'
+        shell = os.path.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+        script = base64.b64encode(_TOAST_SCRIPT.encode('utf-16-le')).decode('ascii')
+        env = dict(os.environ, TDN_TOAST_TITLE=title, TDN_TOAST_BODY=body)
+        try:
+            result = subprocess.run([shell, '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
+                                     '-EncodedCommand', script],
+                                    env=env, capture_output=True, timeout=20,
+                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        except (OSError, subprocess.TimeoutExpired):
+            raise _BridgeFailure('NOTIFY_FAILED') from None
+        if result.returncode != 0:
+            raise _BridgeFailure('NOTIFY_FAILED')
+        return {'ok': True, 'data': {'shown': True}}
 
     def exportReviewData(self, runId=None, input=None):
         return self._safe(lambda: self._export_review_data(runId, input))
