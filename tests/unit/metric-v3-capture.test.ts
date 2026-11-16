@@ -781,6 +781,8 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     document.body.append(menu);
   };
   const header = options.layout === 'header';
+  const pagination = document.createElement('div');
+  pagination.className = 'ant-pagination';
   for (const [index, label] of (header ? ['Excel', '20 products / page'] : options.initialSort ?? ['Doanh số', 'Tăng dần']).entries()) {
     const select = document.createElement('div');
     select.className = 'ant-select';
@@ -794,7 +796,11 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
       selector.addEventListener('click', () => openMenu(index));
       select.addEventListener('click', () => openMenu(index));
     }
-    panel.append(select);
+    if (header && index === 1) {
+      // Live panel: the page-size changer sits inside the table pagination.
+      select.classList.add('ant-pagination-options-size-changer');
+      pagination.append(select);
+    } else panel.append(select);
     items.push(item);
   }
   let headerDown: HTMLElement | null = null;
@@ -827,6 +833,7 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
     return node;
   });
   panel.append(wrapper);
+  if (header) panel.append(pagination);
   document.body.append(panel);
   const bounds = (element: Element, top: number, height: number) => {
     element.getBoundingClientRect = () => ({ x: 0, y: top, left: 0, top, right: 100, bottom: top + height, width: 100, height, toJSON() {} });
@@ -836,6 +843,13 @@ async function captureProducer(t: TestContext, spec: any, options: ProducerOptio
   bounds(wrapper, 70, 100);
   [table, ...panel.querySelectorAll('th')].forEach(node => bounds(node, 64, 5));
   [...panel.querySelectorAll('.ant-select')].forEach((select, i) => bounds(select, 52 + i * 8, 6));
+  if (header) {
+    // Live panel: the export select in the panel header measures 0x0; only the size changer is visible.
+    panel.querySelector('.ant-select')!.getBoundingClientRect = () =>
+      ({ x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON() {} });
+    bounds(pagination, 176, 8);
+    bounds(pagination.querySelector('.ant-select')!, 177, 6);
+  }
   rows.forEach((row, i) => bounds(row, 72 + i * 5, 4));
 
   const selectedWindow = spec.windows[0];
