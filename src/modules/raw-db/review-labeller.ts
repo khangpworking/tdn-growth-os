@@ -262,6 +262,11 @@ export interface LabelInput {
   codebookFile?: string | undefined;
   /** Root of the stored `<runId>/scope.json` records. */
   captureRoot: string;
+  /** The block scope of every reviewed run; when present, runScope (which needs a research run row) is not read. */
+  scope?: { keywords: string[]; category: string | null } | undefined;
+  /** Label only reviews whose review_filter_assessment at this policy version has an outcome in filterOutcomes (default KEEP). */
+  filterPolicyVersion?: string | undefined;
+  filterOutcomes?: readonly string[] | undefined;
 }
 export interface LabelResult {
   codebookVersion: string; eligible: number; planned: number; called: number; labelled: number; noTheme: number; rowsInserted: number;
@@ -275,7 +280,7 @@ interface Candidate { review_key: string; platform: string; text: string | null;
 
 /**
  * One labelling pass. A review is eligible when it is a Shopee or TikTok Shop product review, its coding text is not blank and it has no
- * review_code row for the codebook version (any origin). One review = one Jev call; its rows are written in one transaction
+ * review_code row for the codebook version (any origin); with filterPolicyVersion also an allowed filter outcome. One review = one Jev call; its rows are written in one transaction
  * after the answer is checked. A failed call writes nothing for that review and stops the pass. The raw Jev response
  * body is stored in the artifact store; its sha256 is the rows' import_sha256.
  * A real pass holds the labelling lock (labels-lock.ts) from before eligible reviews are selected to the end; it throws
@@ -303,7 +308,10 @@ async function labelPass(db: Database.Database, artifacts: ContentAddressedArtif
     FROM review r JOIN run_review rr ON rr.review_key = r.review_key LEFT JOIN product p ON p.product_key = r.product_key
     WHERE r.platform IN ('shopee','tiktok_shop') AND r.kind = 'product_review' AND (@run IS NULL OR rr.run_id = @run)
       AND NOT EXISTS (SELECT 1 FROM review_code c WHERE c.review_key = r.review_key AND c.codebook_version = @version)
-    ORDER BY rr.run_id, r.review_key`).all({ run: input.runId ?? null, version: book.version }) as Candidate[];
+      AND (@policy IS NULL OR EXISTS (SELECT 1 FROM review_filter_assessment a WHERE a.review_key = r.review_key AND a.policy_version = @policy
+        AND a.outcome IN (SELECT value FROM json_each(@outcomes))))
+    ORDER BY rr.run_id, r.review_key`).all({ run: input.runId ?? null, version: book.version, policy: input.filterPolicyVersion ?? null,
+    outcomes: JSON.stringify(input.filterOutcomes ?? ['KEEP']) }) as Candidate[];
   // A review linked to several runs is labelled once, with the block of its first run.
   const seen = new Set<string>();
   const eligible: (Candidate & { coded: string })[] = [];
@@ -315,7 +323,7 @@ async function labelPass(db: Database.Database, artifacts: ContentAddressedArtif
   }
   const selections = new Map<string, BlockSelection>();
   for (const runId of new Set(eligible.map(review => review.run_id))) {
-    const scope = await runScope(db, input.captureRoot, runId);
+    const scope = input.scope ?? await runScope(db, input.captureRoot, runId);
     selections.set(runId, selectBlock(book, scope.keywords, scope.category));
   }
   const cap = Math.min(book.limits.maxCallsPerRun, input.maxCalls ?? Infinity);

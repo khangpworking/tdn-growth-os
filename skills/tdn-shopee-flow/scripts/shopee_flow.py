@@ -1622,6 +1622,8 @@ def cmd_module(ns):
                     'executionId': execution['executionId'], 'sequence': execution['sequence']})
                 if code:
                     break
+                if module == 'm3':
+                    review_process_after_m3(run, repo, config, execution['attemptId'])
                 execution = None
     except ModuleFailure as failure:
         error, code = failure.code, failure.exit_code
@@ -1713,6 +1715,8 @@ def cmd_review_sampling(ns):
                 value = review_sampling_script(repo, config, 'execute', run, ns.kind, ns.attempt,
                                                'reconcile' if ns.reconcile else 'initial')
                 flow_custom_finish(run, execution, value)
+                if ns.kind == 'custom':
+                    review_process_after_m3(run, repo, config, ns.attempt, value)
             else:
                 reconcile = ns.cmd == 'reconcile-review-attempt'
                 kind = ns.kind if reconcile else 'counts' if ns.cmd == 'review-counts' else 'custom'
@@ -1762,6 +1766,8 @@ def cmd_review_sampling(ns):
                     value = review_sampling_script(repo, config, 'execute', run, kind, attempt_id,
                                                    'reconcile' if reconcile else 'initial')
                     flow_custom_finish(run, execution, value)
+                    if kind == 'custom':
+                        review_process_after_m3(run, repo, config, attempt_id, value)
         if execution:
             value.update({key: execution[key] for key in ('executionId', 'sequence')})
         print(json.dumps(value, ensure_ascii=True))
@@ -1797,7 +1803,7 @@ def cmd_review_data(ns):
         if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
             raise ModuleFailure('NODE_COMMAND_INVALID', 2)
         action = {'review-data': 'view', 'review-stats': 'stats', 'review-insights': 'insights', 'save-review-data': 'save', 'export-review-data': 'export',
-                  'read-review-export': 'read'}[ns.cmd]
+                  'read-review-export': 'read', 'review-process': 'process-view'}[ns.cmd]
         payload = None
         if ns.cmd in ('save-review-data', 'export-review-data'):
             payload = sys.stdin.buffer.read(65537)
@@ -1834,6 +1840,289 @@ def cmd_review_data(ns):
     finally:
         if lock is not None:
             lock.close()
+
+
+# ---------------------------------------------------------------- step 4: save -> Jev filter -> Jev label (design B)
+def review_process_node(config):
+    import shlex
+    command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+    command = shlex.split(command) if isinstance(command, str) else command
+    if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+        raise ModuleFailure('NODE_COMMAND_INVALID', 2)
+    return command
+
+
+def review_process_script(repo, config, action, run, *args):
+    """The TS module owns step 4; only a validated JSON result or a stable error code crosses back."""
+    result = subprocess.run([*review_process_node(config), str(repo / 'scripts/module-review-data.ts'), action, str(run), *args],
+                            cwd=repo, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    try:
+        value = json.loads(result.stdout)
+    except ValueError:
+        raise ModuleFailure('REVIEW_PROCESS_FAILED')
+    if result.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
+        code = value.get('code') if isinstance(value, dict) else None
+        raise ModuleFailure(code if isinstance(code, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'REVIEW_PROCESS_FAILED',
+                            result.returncode if result.returncode in (2, 20, 23, 24) else 20)
+    return value
+
+
+M3_KEY = re.compile(r'legacy|[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}')
+
+
+def review_process_m3_output(run, key):
+    """The output hash on the M3 slip of one source key ('legacy' or a custom attempt id); None when unknown."""
+    slip = gate_read(gate_path(run, 'gates/m3.json' if key == 'legacy' else f'm3-custom/attempts/{key}/gate.json'))
+    value = slip.get('outputSha256') if isinstance(slip, dict) else None
+    return value if isinstance(value, str) and re.fullmatch(r'[a-f0-9]{64}', value) else None
+
+
+def review_process_after_m3(run, repo, config, attempt_id, value=None):
+    """Owner F582: step 4 starts by itself after an M3 PASS, inside the same run lock, only for runs created by this release.
+    A step-4 stop is recorded under m4/ and never changes the M3 result, its exit code or state.json. A stop before the
+    worker wrote any step-4 state goes into the link file m4/m3/<key>.json, so the run shows step 4 FAIL with «Chạy tiếp»."""
+    if value is not None:
+        slip = gate_read(gate_path(run, f'm3-custom/attempts/{attempt_id}/gate.json'))
+        if value.get('status') != 'SUCCEEDED' or not isinstance(slip, dict) or slip.get('verdict') != 'PASS':
+            return
+    if not gate_path(run, 'm4/auto.json').is_file():
+        return
+    key = attempt_id or 'legacy'
+    try:
+        review_process_script(repo, config, 'process-auto', run, key)
+        return
+    except ModuleFailure as failure:
+        code = failure.code
+    except (OSError, ValueError):
+        code = 'REVIEW_PROCESS_FAILED'
+    if code == 'RUN_BUSY' or not M3_KEY.fullmatch(key):
+        return  # A live step 4 already owns this run; its own state tells the story.
+    try:
+        output = review_process_m3_output(run, key)
+        prior = gate_read(gate_path(run, f'm4/m3/{key}.json'))
+        sha = prior.get('sourceSha256') if isinstance(prior, dict) and prior.get('m3OutputSha256') == output else None
+        module_atomic_json(run, f'm4/m3/{key}.json', {
+            'format': 'review-process-link-v1', 'runId': run.name, 'm3': key, 'm3OutputSha256': output,
+            'sourceSha256': sha if isinstance(sha, str) and re.fullmatch(r'[a-f0-9]{64}', sha) else None,
+            'errorCode': code, 'recordedAt': flow_now()})
+    except (OSError, ValueError):
+        pass
+
+
+def cmd_review_process(ns):
+    """«Chạy tiếp» and the manual start of step 4 for one source; same run-lock hand-off as review attempts."""
+    import fcntl
+    lock = None
+    try:
+        run = module_run_folder(ns.run_id)
+        repo, config = module_config()
+        if not re.fullmatch(r'[a-f0-9]{64}', ns.source_sha256):
+            raise ModuleFailure('REVIEW_DATA_INVALID', 2)
+        worker = ns.cmd == 'review-process-worker'
+        if worker:
+            fd, ready = ns.worker_lock_fd, ns.worker_ready_fd
+            if fd is None or ready is None or fd < 3 or ready < 3 or fd == ready:
+                raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+            lock = os.fdopen(fd, 'a')
+            expected, actual = gate_path(run, '.module.lock').stat(), os.fstat(fd)
+            if (expected.st_dev, expected.st_ino) != (actual.st_dev, actual.st_ino):
+                raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+            try:
+                if os.read(ready, 1) != b'1':
+                    raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+            finally:
+                os.close(ready)
+        else:
+            lock = open(gate_path(run, '.module.lock'), 'a')
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ModuleFailure('RUN_BUSY', 24)
+        if not worker:
+            state = gate_read(gate_path(run, 'state.json'))
+            if isinstance(state, dict) and state.get('status') == 'RUNNING' and module_pid_live(state.get('pid')):
+                raise ModuleFailure('RUN_BUSY', 24)
+        if worker or not getattr(ns, 'detach', False):
+            value = review_process_script(repo, config, 'process', run, ns.source_sha256)
+        else:
+            review_process_script(repo, config, 'process-check', run, ns.source_sha256)
+            read_fd, write_fd = os.pipe()
+            try:
+                gate_path(run, 'm4/logs').mkdir(mode=0o700, parents=True, exist_ok=True)
+                args = [sys.executable, str(pathlib.Path(__file__).resolve()), 'review-process-worker', '--run', run.name,
+                        '--source-sha256', ns.source_sha256, '--worker-lock-fd', str(lock.fileno()), '--worker-ready-fd', str(read_fd)]
+                log = gate_path(run, f'm4/logs/{time.time_ns()}-review-process.log')
+                with open(log, 'x', encoding='utf8') as output:
+                    os.chmod(log, 0o600)
+                    child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=output, stderr=output,
+                                             start_new_session=True, pass_fds=(lock.fileno(), read_fd))
+                started = flow_now()
+                module_atomic_json(run, f'm4/{ns.source_sha256}/state.json', {
+                    'format': 'review-process-state-v1', 'runId': run.name, 'sourceSha256': ns.source_sha256, 'status': 'RUNNING',
+                    'stage': 'save', 'pid': child.pid, 'startedAt': started, 'finishedAt': None, 'retries': 0, 'errorCode': None,
+                    'waiting': None})
+                os.write(write_fd, b'1')
+                value = {'format': 'review-process-start-v1', 'runId': run.name, 'sourceSha256': ns.source_sha256,
+                         'status': 'RUNNING', 'pid': child.pid}
+            finally:
+                os.close(read_fd); os.close(write_fd)
+        print(json.dumps(value, ensure_ascii=True))
+        if value.get('status') == 'FAIL':
+            sys.exit(20)
+    except ModuleFailure as error:
+        print(json.dumps({'format': 'error-v1', 'code': error.code, 'message': error.code}))
+        sys.exit(error.exit_code)
+    except (OSError, ValueError, TypeError, KeyError):
+        print(json.dumps({'format': 'error-v1', 'code': 'REVIEW_PROCESS_FAILED', 'message': 'REVIEW_PROCESS_FAILED'}))
+        sys.exit(20)
+    finally:
+        if lock is not None:
+            lock.close()
+
+
+def progress_time(path):
+    try:
+        return dt.datetime.fromtimestamp(path.stat().st_mtime, dt.timezone.utc)
+    except OSError:
+        return None
+
+
+def progress_m3_counts(run):
+    """Comments collected so far by the live custom attempt; None when unknown. Reads journals only."""
+    root = gate_path(run, 'm3-custom/attempts')
+    for child in sorted(root.iterdir() if root.is_dir() else [], key=lambda p: progress_time(p) or dt.datetime.min.replace(tzinfo=dt.timezone.utc), reverse=True):
+        state = gate_read(gate_path(run, f'm3-custom/attempts/{child.name}/state.json'))
+        if not isinstance(state, dict) or state.get('status') != 'RUNNING':
+            continue
+        attempt = gate_read(gate_path(run, f'm3-custom/attempts/{child.name}/attempt.json')) or {}
+        plan = gate_read(gate_path(run, f'm3-custom/plans/{attempt.get("planSha256")}.json')) if attempt.get('planSha256') else None
+        done = 0
+        journals = gate_path(run, f'm3-custom/attempts/{child.name}/journal')
+        for journal in journals.iterdir() if journals.is_dir() else []:
+            value = gate_read(gate_path(run, f'm3-custom/attempts/{child.name}/journal/{journal.name}')) or {}
+            result, job = value.get('result') or {}, value.get('job') or {}
+            rows = result.get('rows') if isinstance(result, dict) else None
+            done += len(rows) if isinstance(rows, list) else job.get('collected', 0) if isinstance(job.get('collected'), int) else 0
+        policy = (plan or {}).get('policy') or {}
+        per_link = policy.get('totalPerLink') if policy.get('mode') != 'pages' else None
+        links = attempt.get('links')
+        total = per_link * len(links) if type(per_link) is int and isinstance(links, list) else None
+        return done, total
+    return None, None
+
+
+def progress_steps(run):
+    """Cheap step 1-3 states from the execution ledger, the live state and the gate slips (no node, no hash replay)."""
+    state = gate_read(gate_path(run, 'state.json')) or {}
+    records = {}
+    root = gate_path(run, 'executions')
+    for child in root.iterdir() if root.is_dir() else []:
+        if not child.name.endswith('.json') or child.name.endswith('.tmp'):
+            continue
+        value = gate_read(gate_path(run, f'executions/{child.name}'))
+        if isinstance(value, dict) and value.get('module') in ('M1', 'M2', 'M3') and type(value.get('sequence')) is int:
+            if value['module'] not in records or value['sequence'] > records[value['module']]['sequence']:
+                records[value['module']] = value
+    steps = []
+    for module in ('M1', 'M2', 'M3'):
+        record = records.get(module)
+        if state.get('status') == 'RUNNING' and state.get('module') == module and module_pid_live(state.get('pid')):
+            steps.append('RUNNING')
+        elif record:
+            status = record.get('status')
+            live = status == 'RUNNING' and (module_pid_live(record.get('pid')) or module == 'M3' and record.get('attemptId') and
+                                           (gate_read(gate_path(run, f'm3-custom/attempts/{record["attemptId"]}/state.json')) or {}).get('status') == 'RUNNING')
+            steps.append('RUNNING' if live else {'SUCCEEDED': 'PASS', 'WAIT_OWNER': 'WAIT_OWNER'}.get(status, 'FAIL'))
+        else:
+            slip = gate_read(gate_path(run, f'gates/{module.lower()}.json'))
+            steps.append(slip.get('verdict') if isinstance(slip, dict) and slip.get('verdict') in ('PASS', 'FAIL', 'WAIT_OWNER') else 'IDLE')
+    return steps
+
+
+def progress_views(runs):
+    """review-process-view-v1 of each run from the TS module, in one node call: the view is the one implementation of the
+    step-4 status, so runs-progress never judges a stage or a PASS itself. None for a run whose view could not be read."""
+    if not runs:
+        return []
+    try:
+        repo, config = module_config()
+        result = subprocess.run([*review_process_node(config), str(repo / 'scripts/module-review-data.ts'), 'process-views', *map(str, runs)],
+                                cwd=repo, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+        values = json.loads(result.stdout)
+    except (OSError, ValueError, ModuleFailure, subprocess.TimeoutExpired):
+        return [None] * len(runs)
+    if result.returncode or not isinstance(values, list) or len(values) != len(runs):
+        return [None] * len(runs)
+    return [v if isinstance(v, dict) and v.get('format') == 'review-process-view-v1' and v.get('runId') == run.name
+            and isinstance(v.get('sources'), list) else None for v, run in zip(values, runs)]
+
+
+def progress_step4(view):
+    """Worst source state of the TS view (FAIL > RUNNING > not run > PASS), and the active stage of a running source.
+    A view that could not be read is FAIL: a PASS is never shown without the view confirming it."""
+    if view is None:
+        return 'FAIL', None
+    sources = [s for s in view['sources'] if isinstance(s, dict)]
+    if not sources:
+        return 'IDLE' if view.get('autoRun') else 'NOT_APPLICABLE', None
+    rank = {'FAIL': 4, 'RUNNING': 3, 'IDLE': 2, 'NOT_APPLICABLE': 2, 'PASS': 1}
+    worst = max(sources, key=lambda s: rank.get(s.get('state'), 4))
+    status = worst.get('state') if worst.get('state') in rank else 'FAIL'
+    active = None
+    if status == 'RUNNING':
+        stages = worst.get('stages') or {}
+        stage = next((name for name in ('save', 'filter', 'label') if (stages.get(name) or {}).get('state') == 'RUNNING'), None)
+        counts = stages.get(stage) or {}
+        active = {'step': 4, 'stage': stage, 'done': counts.get('done'), 'total': counts.get('total')}  # copied from the view, never recomputed
+    return status, active
+
+
+def progress_step4_files(run):
+    """The step-4 files whose change time counts for changedAt: the M3 links and each source's worker state."""
+    m4 = gate_path(run, 'm4')
+    links = sorted((m4 / 'm3').glob('*.json')) if (m4 / 'm3').is_dir() else []
+    states = sorted(p / 'state.json' for p in m4.iterdir() if re.fullmatch(r'[a-f0-9]{64}', p.name)) if m4.is_dir() else []
+    return [p for p in links if not p.name.endswith('.tmp')] + states
+
+
+def flow_runs_progress():
+    """runs-progress-v1: per run 4 step states and one progress line; read-only, no network. Step 4 comes from the TS view
+    (one node call for every run that has step-4 files); a run without m4/ was made before this release and has no step 4."""
+    root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser()
+    found = []
+    for path in root.iterdir() if root.is_dir() else []:
+        if path.is_symlink() or not path.is_dir() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', path.name):
+            continue
+        try:
+            if not isinstance(gate_read(gate_path(path, 'request.json')), dict):
+                continue
+            found.append((path, progress_steps(path), progress_step4_files(path) if gate_path(path, 'm4').is_dir() else None))
+        except (OSError, ValueError):
+            continue  # An unreadable run is left out; one bad folder never hides the others.
+    viewed = [path for path, _, files in found if files is not None]
+    views = dict(zip(viewed, progress_views(viewed)))
+    runs = []
+    for path, steps, files in found:
+        step4, active = progress_step4(views[path]) if files is not None else ('NOT_APPLICABLE', None)
+        files = files or []
+        try:
+            steps.append(step4)
+            if active is None and 'RUNNING' in steps[:3]:
+                step = steps.index('RUNNING') + 1
+                done, total = progress_m3_counts(path) if step == 3 else (None, None)
+                active = {'step': step, 'stage': None, 'done': done, 'total': total}
+            times = [progress_time(p) for p in [gate_path(path, 'state.json'), *files,
+                     *[gate_path(path, f'gates/m{i}.json') for i in (1, 2, 3)]]]
+            ledger = gate_path(path, 'executions')
+            times += [progress_time(p) for p in (ledger.iterdir() if ledger.is_dir() else []) if p.name.endswith('.json')]
+            known = [t for t in times if t is not None]
+            runs.append({'runId': path.name, 'steps': steps, 'active': active,
+                         'finished': step4 == 'PASS' or step4 == 'NOT_APPLICABLE' and steps[:3] == ['PASS', 'PASS', 'PASS'],
+                         'changedAt': max(known).isoformat().replace('+00:00', 'Z') if known else None})
+        except (OSError, ValueError):
+            continue
+    runs.sort(key=lambda r: (r['changedAt'] or '', r['runId']), reverse=True)
+    return {'format': 'runs-progress-v1', 'generatedAt': flow_now().replace('+00:00', 'Z'), 'runs': runs}
 
 
 def flow_presets_root():
@@ -2195,6 +2484,8 @@ def flow_new_run():
         flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
                                  'requestSha256': gate_hash(run, 'request.json'), 'primaryKeyword': spec['preset']['keywords'][0],
                                  'createdAt': flow_now(), 'firstRunAt': None, 'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
+        # Step 4 starts by itself only for runs created by this release (owner F582).
+        module_atomic_json(run, 'm4/auto.json', {'format': 'review-process-auto-v1', 'runId': run.name, 'createdAt': flow_now()})
     return {'format': 'new-run-v1', 'runId': run.name}
 
 
@@ -2295,6 +2586,8 @@ def cmd_flow_query(ns):
             result = flow_capture_specs(module_run_folder(ns.run_id))
         elif ns.cmd == 'run-info':
             result = flow_run_info(module_run_folder(ns.run_id), config)
+        elif ns.cmd == 'runs-progress':
+            result = flow_runs_progress()
         elif ns.cmd == 'runs':
             root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser()
             values = []
@@ -2336,7 +2629,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -2346,7 +2639,14 @@ def main():
     p = FlowArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = p.add_subparsers(dest='cmd', required=True)
     x = sp.add_parser('gate'); x.add_argument('gate', choices=['entry', 'm1', 'm2', 'm3']); x.add_argument('--run', dest='run_id', required=True); x.set_defaults(f=cmd_gate)
-    for name in ('review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'read-review-export'):
+    for name in ('process-review-data', 'review-process-worker'):
+        x = sp.add_parser(name); x.add_argument('--run', dest='run_id', required=True); x.add_argument('--source-sha256', required=True)
+        if name == 'process-review-data':
+            x.add_argument('--detach', action='store_true')
+        else:
+            x.add_argument('--worker-lock-fd', type=int); x.add_argument('--worker-ready-fd', type=int)
+        x.set_defaults(f=cmd_review_process)
+    for name in ('review-data', 'review-stats', 'review-insights', 'review-process', 'save-review-data', 'export-review-data', 'read-review-export'):
         x = sp.add_parser(name); x.add_argument('--run', dest='run_id', required=True)
         if name in ('save-review-data', 'export-review-data'):
             x.add_argument('--stdin', action='store_true', required=True)
@@ -2370,7 +2670,7 @@ def main():
         if name == 'review-attempt-worker':
             x.add_argument('--reconcile', action='store_true'); x.add_argument('--worker-lock-fd', type=int); x.add_argument('--worker-ready-fd', type=int)
         x.set_defaults(f=cmd_review_sampling)
-    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'run-info', 'capture-specs', 'outputs', 'library'):
+    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'runs-progress', 'run-info', 'capture-specs', 'outputs', 'library'):
         x = sp.add_parser(name)
         if name in ('new-run', 'add-product'): x.add_argument('--stdin', action='store_true', required=True)
         if name in ('run-info', 'capture-specs', 'outputs'): x.add_argument('--run', dest='run_id', required=True)

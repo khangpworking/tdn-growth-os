@@ -6,6 +6,8 @@ import BetterSqlite3 from 'better-sqlite3';
 import { ModuleError, validateModuleValue } from './module-pick.js';
 import { discoverModuleReviewSources, prepareReviewExport, readReviewExportBytes, validateReviewData, type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
 import { reviewDataView, saveModuleReviewData } from '../src/modules/raw-db/module-shopee-reviews.js';
+import { reviewProcessJevClient, reviewProcessSettings, reviewProcessStart, reviewProcessStartable, reviewProcessView, runReviewProcess,
+  runReviewProcessAfterM3 } from '../src/modules/raw-db/module-review-process.js';
 import { DEFAULT_CODEBOOK_FILE, codingText, parseLabelCodebook, type LabelCodebook } from '../src/modules/raw-db/review-labeller.js';
 import type { ReviewDataSaveInput, ReviewDataExportInput } from '../contracts/foundation/shopee-module-review-data.generated.js';
 
@@ -333,6 +335,18 @@ export async function reviewDataCommand(args:string[]):Promise<unknown> {
   if(action==='save'&&!extra.length){const value=validateReviewData<ReviewDataSaveInput>('saveInput',await input());return saveModuleReviewData(run,value.sourceSha256);}
   if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());return prepareReviewExport(run,value.sourceSha256,value.format);}
   if(action==='read'&&extra.length===1)return readReviewExportBytes(run,extra[0]!);
+  if(action==='process-view'&&!extra.length)return reviewProcessView(run,await reviewProcessSettings());
+  // runs-progress: the step-4 status of many runs in one call, from the same view (one error-v1 per run that cannot be read).
+  if(action==='process-views'){const settings=await reviewProcessSettings();const views:unknown[]=[];
+    for(const one of [run,...extra.map(e=>resolve(e))]){try{views.push(await reviewProcessView(one,settings));}
+      catch(error){const code=error instanceof ModuleError?error.code:'REVIEW_DATA_FAILED';views.push({format:'error-v1',code,message:code});}}
+    return views;}
+  if(action==='process-check'&&extra.length===1){await reviewProcessStartable(run,extra[0]!);return {format:'review-process-check-v1'};}
+  if((action==='process'||action==='process-auto')&&extra.length===1){
+    const deps={settings:await reviewProcessSettings(),client:reviewProcessJevClient(process.env)};
+    const state=action==='process'?await runReviewProcess(run,extra[0]!,deps):await runReviewProcessAfterM3(run,extra[0]!,deps);
+    return state?reviewProcessStart(run,state):{format:'review-process-check-v1'};
+  }
   throw new ModuleError('USAGE',2);
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
