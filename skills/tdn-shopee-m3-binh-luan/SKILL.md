@@ -1,6 +1,6 @@
 ---
 name: tdn-shopee-m3-binh-luan
-description: Bước 3 của luồng Shopee (5 link → bình luận công khai → cổng của nguồn). Dùng khi cần biết bước 3 lấy bình luận thế nào, code ở đâu, kết luận bước 3 đọc ở đâu. Để chạy cả lượt, dùng skill tdn-shopee-4-buoc.
+description: Bước 3 của luồng Shopee (link đã chọn → bình luận công khai → cổng của nguồn). Dùng khi cần biết bước 3 lấy bình luận thế nào, code ở đâu, kết luận bước 3 đọc ở đâu. Để chạy cả lượt, dùng skill tdn-shopee-4-buoc.
 ---
 
 # Bước 3. Lấy bình luận Shopee
@@ -9,7 +9,7 @@ Xem đầy đủ: `tdn-shopee-4-buoc`.
 
 - Đầu vào: `m2/selection.json` đã qua cổng m2.
 - Lệnh: `shopee-cli.py m3 --run <runId> --detach`.
-- Việc: lấy bình luận của 5 link qua dịch vụ lấy bình luận, theo cách lấy đã chốt khi tạo lượt (số bình luận/link hoặc số trang/link, theo số sao hay chỉ bình luận có chữ). Mặc định: bình luận có chữ, 300/link.
+- Việc: lấy bình luận của các link bước 2 (5 link ở đường 1 kỳ, 1–5 link ở đường cũ) qua dịch vụ lấy bình luận, theo cách lấy đã chốt khi tạo lượt (số bình luận/link hoặc số trang/link, theo số sao hay chỉ bình luận có chữ). Mặc định: bình luận có chữ, 300/link.
 - Đầu ra (lượt mới `request-v2`): `m3-custom/attempts/<attemptId>/`.
 - Kết luận: `review-data --run <runId>` → `sources[].gateVerdict`. Chỉ đi tiếp khi `PASS`.
 - Cấm chạy `gate m3` cho lượt `request-v2`: lệnh đó chỉ đọc `m3/` và ghi đè `gates/m3.json` thành FAIL.

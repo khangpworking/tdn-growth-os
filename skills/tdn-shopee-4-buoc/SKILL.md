@@ -1,6 +1,6 @@
 ---
 name: tdn-shopee-4-buoc
-description: Chạy 4 bước Shopee (Metric → chọn 5 link → lấy bình luận → lưu + Jev lọc + Jev gắn nhãn) không cần app, qua đúng cổng đầu vào và đầu ra của app. Dùng khi được giao chạy một lượt Shopee bằng dòng lệnh.
+description: Chạy 4 bước Shopee (Metric → chọn link → lấy bình luận → lưu + Jev lọc + Jev gắn nhãn) không cần app, qua đúng cổng đầu vào và đầu ra của app. Dùng khi được giao chạy một lượt Shopee bằng dòng lệnh.
 ---
 
 # Chạy 4 bước Shopee không cần app
@@ -12,7 +12,7 @@ Skill này gọi đúng các lệnh mà app desktop gọi. Mọi luật nghiệp
 1. Chỉ gọi lệnh của `shopee-cli.py` trên lane đang chạy. Không gọi script con. Không sửa file trong thư mục lượt. Không sửa code.
 2. Sau mỗi bước: đọc kết luận cổng của bước đó (xem từng bước). Chỉ đi tiếp khi kết luận là `PASS`.
 3. Không thử lại. Lỗi thì dừng và báo `errorCode`.
-4. Hỏi chủ trước 3 việc: chọn sản phẩm/preset, cách lấy bình luận, phí Jev của bước 4. Bước 4 tự chạy ngay khi bước 3 đạt (xem Bước 3), nên hỏi phí Jev **trước khi chạy bước 3**.
+4. Hỏi chủ trước 3 việc: chọn sản phẩm/preset, cách lấy bình luận, phí Jev. Jev tốn phí ở 2 bước: bước 2 (đường 1 kỳ: Jev chọn link) và bước 4 (tự chạy ngay khi bước 3 đạt). Vì vậy hỏi phí Jev một lần, **trước khi chạy bước 2**, cho cả bước 2 và bước 4.
 5. Mất đăng nhập Metric hoặc Shopee, gặp xác minh (`WAIT_OWNER`, exit 21): dừng, báo chủ. Không tự đăng nhập.
 6. Không in token, khóa, nội dung env, địa chỉ máy.
 
@@ -104,7 +104,9 @@ shopee-cli.py gate m1 --run <runId>
 - Đầu ra: `m1/`. `gate m1` in kết luận và ghi `gates/m1.json`. Cổng kiểm: chạy thành công, file đọc được, có dòng Shopee, đúng kỳ. Đường 1 kỳ kiểm thêm file nguồn đã lưu khớp (`saved_capture_source_verified`). `masked_ids` chỉ là cảnh báo.
 - Lỗi hay gặp: `CAPTURE_LOGIN_REQUIRED` (chủ đăng nhập Metric), `CAPTURE_UI_CHANGED` (trang Metric không ở tiếng Anh), `CAPTURE_PERIOD_NOT_SELECTABLE` (chọn ngày khác).
 
-## Bước 2. Chọn 5 link Shopee
+## Bước 2. Chọn link Shopee
+
+Phí Jev của bước 2 và bước 4 phải được chủ duyệt trước lệnh này (luật 4).
 
 ```
 shopee-cli.py m2 --run <runId> --detach
@@ -112,14 +114,15 @@ shopee-cli.py run-info --run <runId>        # chờ M2 hết RUNNING
 shopee-cli.py gate m2 --run <runId>
 ```
 
-- Đường 1 kỳ (lượt có `selectionPolicy` = `metric-products-unique-v2`): đi theo thứ tự doanh thu trong 100 dòng, bỏ dòng không phải Shopee. Jev xét từng sản phẩm: đúng loại hàng không, có trùng sản phẩm đã chọn không. Đầu ra: `m2/selection.json`, đúng 5 link khác nhau. Cổng kiểm: `links_match_source_order` (link đúng thứ tự nguồn), `five_distinct_products` (đủ 5 sản phẩm khác nhau).
+- Đường 1 kỳ (lượt có `selectionPolicy` = `metric-products-unique-v2`): đi theo thứ tự doanh thu trong 100 dòng, bỏ dòng không phải Shopee. Dòng Shopee đầu tiên được chọn ngay. Với mỗi dòng sau, Jev xét: dòng đó trùng một sản phẩm đã chọn, hay là sản phẩm mới. Jev không chắc thì bỏ dòng đó. Đầu ra: `m2/selection.json`, đúng 5 link khác nhau. Cổng kiểm: `links_match_source_order` (link đúng thứ tự nguồn), `five_distinct_products` (đủ 5 sản phẩm khác nhau).
 - Đường cũ (lượt không có `selectionPolicy`): luật `autorun-pick-v3`, không Jev, kỳ `30d`. Đầu ra 1–5 link. Cổng kiểm: `links_1_to_5`, `ids_numeric`, `no_duplicate_shop`, `no_masked_above_lowest_pick`, `links_in_m1`, `pick_rule_version`, `pick_reason_present`.
+- Đường 1 kỳ gọi Jev (có phí): 1 câu hỏi cho mỗi dòng Shopee đã xét sau dòng đầu, đến khi đủ 5 link (nhiều nhất số dòng trong gói 100). Mỗi câu gửi tối đa 3 lần. Code không ghi phí của bước này; phí nhỏ. Số câu đã hỏi nằm ở `m2/selection.json` → `selectionProof.decisions`. Đường cũ không gọi Jev.
 - Đường 1 kỳ: đã đạt thì không chạy lại (`M2_ALREADY_PASSED`). Muốn chọn lại: tạo lượt mới.
 - Đường 1 kỳ không đủ 5 link (`FEWER_THAN_FIVE_DISTINCT_PRODUCTS`, `PICK_PRODUCT_UNRESOLVED`): dừng, báo chủ.
 
 ## Bước 3. Lấy bình luận
 
-Hỏi chủ phí Jev trước lệnh này (luật 4).
+Bước 4 tự chạy ngay khi bước 3 đạt. Chủ chưa duyệt phí Jev (luật 4) thì không chạy lệnh này.
 
 ```
 shopee-cli.py m3 --run <runId> --detach
@@ -132,7 +135,7 @@ shopee-cli.py review-data --run <runId>     # kết luận bước 3
 - Lượt tạo bằng `new-run` (`request-v2`) ghi bình luận vào `m3-custom/attempts/<attemptId>/`, không vào `m3/`.
 - **Cấm chạy `gate m3` cho lượt `request-v2`.** Lệnh đó chỉ đọc `m3/`, báo FAIL, và ghi đè `gates/m3.json` thành FAIL dù bước 3 đạt.
 - Kết luận bước 3: `review-data` → `sources[]`. Mỗi nguồn có `kind`, `rowCount`, `gateVerdict`, `canSaveDb`, `sourceSha256`. Chỉ đi tiếp khi nguồn đó có `gateVerdict` = `PASS`. `run-info` → `execution.modules.M3.currentGate` là cùng cổng đó.
-- Cổng của nguồn kiểm: lấy xong mọi link, mỗi link có ít nhất 1 bình luận, không vượt số bình luận (hoặc số trang) cho phép, không trùng mã bình luận, đúng 5 link của bước 2. `links_below_cap` chỉ là cảnh báo.
+- Cổng của nguồn kiểm: lấy xong mọi link, mỗi link có ít nhất 1 bình luận, không vượt số bình luận (hoặc số trang) cho phép, không trùng mã bình luận, đúng các link của bước 2 (5 link ở đường 1 kỳ, 1–5 link ở đường cũ). `links_below_cap` chỉ là cảnh báo.
 - Lấy thêm theo cách khác: `echo '<plan JSON>' | shopee-cli.py save-review-plan --run <runId> --stdin` → lấy `planSha256` → `shopee-cli.py m3 --run <runId> --plan-sha256 <sha> --detach`. Xem các lần lấy bằng `review-sampling --run <runId>`. Lần lấy thêm hỏng không làm hỏng bước 3 đã đạt.
 - Dừng một lần lấy giữa chừng: `stop-review-attempt --run <runId> --kind custom --attempt <attemptId>`.
 - Lỗi phải dừng: `HUMAN_LOGIN_REQUIRED`, `HUMAN_VERIFICATION_REQUIRED` (báo chủ), `SUBMISSION_UNCERTAIN` (không gửi lại, báo chủ).
@@ -146,8 +149,9 @@ shopee-cli.py review-process --run <runId>                                   # t
 shopee-cli.py process-review-data --run <runId> --source-sha256 <sha> --detach   # chỉ khi cần «Chạy tiếp»
 shopee-cli.py review-insights --run <runId>                                  # kết quả
 echo '{"sourceSha256":"<sha>","format":"labelled-json"}' | shopee-cli.py export-review-data --run <runId> --stdin
-shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256>   # in nội dung file ra stdout
 ```
+
+Sau `export-review-data`, lưu file theo mẫu ở dưới. Không chạy `read-review-export` trần: lệnh đó in toàn bộ bình luận ra màn hình và vào nhật ký của agent.
 
 - `review-process` → `sources[]`, mỗi nguồn có `state` (`IDLE`, `NOT_APPLICABLE`, `RUNNING`, `PASS`, `FAIL`), `errorCode`, `canResume`, `fee`, `stages.save|filter|label` (tổng và số đã xong), `gates.in` và `gates.out`. Bước 4 chưa có lệnh `gate` riêng: cổng của bước 4 là `gates.in` và `gates.out`.
 - Bước 4 đạt khi `state` = `PASS` và `gates.out` có kết luận `PASS`.
@@ -156,20 +160,25 @@ shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256>   
 - Jev lọc: 2 câu hỏi cho mỗi bình luận: có liên quan sản phẩm/đơn hàng không; có lời chê không.
 - Jev gắn nhãn: 10 nhãn chung. Mỗi nhãn chọn khen / chê / cả hai / kể / chưa đánh giá / không nhắc. Bình luận đã có nhãn thì dùng lại, không gọi Jev lần hai.
 - Chi phí: khoảng 1–1,5 USD cho 250 bình luận (lần chạy thử: 1,37 USD).
-- Đầu ra cho người dùng: file JSON toàn bộ bình luận kèm nhãn (`labelled-json`). `export-review-data` trả `exportSha256`; `read-review-export` in nội dung file ra stdout.
+- Đầu ra cho người dùng: file JSON toàn bộ bình luận kèm nhãn (`labelled-json`). `export-review-data` trả `exportSha256`; `read-review-export` đọc nội dung file. Chỉ chạy lệnh đó theo mẫu dưới.
 - File này chứa bình luận riêng. Khi lưu ra file:
   - Lưu vào một thư mục của người dùng, ngoài mọi repo và worktree Git.
   - Dùng tên file mới. Không ghi đè file đã có.
   - Chỉ chủ file được đọc (quyền 600).
+  - Ghi vào file tạm trong cùng thư mục. Chỉ đổi tên khi lệnh đọc thành công. Lệnh đọc lỗi thì xóa file tạm và dừng.
   ```
-  umask 077; set -o noclobber
-  out="<thư mục người dùng>/<runId>-labelled.json"
+  set -o pipefail; umask 077
+  dir="<thư mục người dùng>"; out="$dir/<runId>-labelled.json"
   [ -e "$out" ] && { echo "file đã có, dừng"; exit 1; }
-  shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256> > "$out"
-  chmod 600 "$out"
+  tmp=$(mktemp "$dir/.<runId>-labelled.XXXXXX") || exit 1
+  if shopee-cli.py read-review-export --run <runId> --export-sha256 <exportSha256> > "$tmp" && [ -s "$tmp" ]; then
+    chmod 600 "$tmp" && mv -n "$tmp" "$out" && [ ! -e "$tmp" ] || { rm -f "$tmp"; echo "lưu lỗi, dừng"; exit 1; }
+  else
+    rm -f "$tmp"; echo "đọc lỗi, dừng"; exit 1
+  fi
   ```
 - Chạy lại bước 4 trên cùng nguồn: không gọi Jev lại.
 
 ## Báo cáo sau mỗi lượt
 
-Một bảng: bước, PASS/FAIL, số chính (dòng Shopee bước 1, 5 link bước 2, số bình luận/link bước 3, số bình luận đã gắn nhãn và phí bước 4), mã lỗi nếu có, `runId`.
+Một bảng: bước, PASS/FAIL, số chính (dòng Shopee bước 1, số link bước 2, số câu Jev bước 2, số bình luận/link bước 3, số bình luận đã gắn nhãn và phí bước 4), mã lỗi nếu có, `runId`.
