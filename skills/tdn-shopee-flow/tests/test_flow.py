@@ -1097,7 +1097,7 @@ class _SamplingHandler(http.server.BaseHTTPRequestHandler):
             return self.send(404, {})
         if state.delay:
             time.sleep(state.delay)
-        if state.mode == 'fail':
+        if state.mode == 'fail' or state.mode == 'fail-after-one' and state.jobs:
             return self.send(400, {'error': 'synthetic upstream refusal'})
         return self.send(202, state.job(body))
 
@@ -1271,6 +1271,43 @@ class ConfiguredFlowTests(FlowTest):
             out, err = first.communicate(timeout=90)
         self.assertEqual(first.returncode, 0, (out, err))
         self.assertEqual(json.loads(out)['status'], 'DONE')
+
+    def test_step3_rerun_after_a_failed_automatic_attempt_starts_fresh_only_when_it_saved_no_review(self):
+        # Owner L4b: 0 saved reviews -> «chạy lại bước 3» binds a fresh automatic attempt for the same plan.
+        run_id = self.create()
+        self.transport.sampling.mode = 'fail'
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertNotEqual(rc, 0, (payload, stderr))
+        binding = self.runs / run_id / 'm3-custom' / 'automatic.json'
+        first = json.loads(binding.read_text())
+        self.transport.sampling.mode = 'ok'
+        rc, payload, stderr = self.command('m3', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        second = json.loads(binding.read_text())
+        self.assertNotEqual(second['attemptId'], first['attemptId'])
+        self.assertEqual(second['planSha256'], first['planSha256'], 'the same plan')
+        history = self.runs / run_id / 'm3-custom' / 'automatic-history' / f"{first['attemptId']}.json"
+        self.assertEqual(json.loads(history.read_text()), first, 'the failed binding is kept as history')
+        self.assertEqual(len(self.attempts(run_id)), 2)
+        self.assertEqual(self.info(run_id)['execution']['modules']['M3']['status'], 'SUCCEEDED')
+
+        # One saved review keeps today's block, so «Lượt này đã lấy bình luận rồi» stays true.
+        run_id = self.create()
+        self.transport.sampling.jobs.clear()
+        self.transport.sampling.mode = 'fail-after-one'
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertNotEqual(rc, 0, (payload, stderr))
+        binding = self.runs / run_id / 'm3-custom' / 'automatic.json'
+        binding_bytes = binding.read_bytes()
+        rows = [row for path in (self.attempts(run_id)[0] / 'journal').glob('*.json')
+                for row in ((json.loads(path.read_text()).get('result') or {}).get('rows') or [])]
+        self.assertGreaterEqual(len(rows), 1, 'the failed automatic attempt saved reviews')
+        self.transport.sampling.mode = 'ok'
+        rc, refused, stderr = self.command('m3', '--run', run_id)
+        self.assertEqual(rc, 20, (refused, stderr))
+        self.assertEqual(refused.get('code') or refused.get('errorCode'), 'AUTOMATIC_COLLECTION_EXISTS', refused)
+        self.assertEqual(len(self.attempts(run_id)), 1)
+        self.assertEqual(binding.read_bytes(), binding_bytes)
 
     def test_a_later_failed_explicit_attempt_is_failed_in_the_attempt_view_but_the_run_stays_passed(self):
         run_id = self.create()

@@ -1074,8 +1074,29 @@ def module_blocking(run, module, manual=False, owner_pid=None):
         request = gate_read(gate_path(run, 'request.json'))
         if isinstance(request, dict) and request.get('format') == 'request-v2':
             changed = automatic.get('requestSha256') != gate_hash(run, 'request.json') or automatic.get('m2Digest') != gate_hash(run, 'm2/selection.json')
-            return {'code': 'REVIEW_PLAN_CHANGED' if changed else 'AUTOMATIC_COLLECTION_EXISTS', 'gate': None}, 23 if changed else 20
+            if changed or not module_automatic_retry(run, automatic.get('attemptId')):
+                return {'code': 'REVIEW_PLAN_CHANGED' if changed else 'AUTOMATIC_COLLECTION_EXISTS', 'gate': None}, 23 if changed else 20
     return None, 0
+
+
+def module_automatic_retry(run, attempt_id):
+    """Owner L4b: the automatic attempt finished FAILED and saved no review, so «chạy lại bước 3» starts a fresh one
+    for the same plan. The TS reservation re-checks this before it replaces the binding."""
+    if not isinstance(attempt_id, str) or not re.fullmatch(r'[a-f0-9-]{36}', attempt_id):
+        return False
+    base = f'm3-custom/attempts/{attempt_id}'
+    state = gate_read(gate_path(run, f'{base}/state.json'))
+    if not isinstance(state, dict) or state.get('status') != 'FAILED':
+        return False
+    journals = gate_path(run, f'{base}/journal')
+    for journal in journals.iterdir() if journals.is_dir() else []:
+        if not journal.name.endswith('.json'):
+            continue
+        value = gate_read(gate_path(run, f'{base}/journal/{journal.name}'))
+        result = value.get('result') if isinstance(value, dict) else None
+        if isinstance(result, dict) and result.get('format') == 'shopee-sampled-result-v1' and result.get('rows'):
+            return False
+    return True
 
 
 def module_readonly():
