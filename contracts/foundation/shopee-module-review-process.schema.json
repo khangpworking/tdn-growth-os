@@ -1,0 +1,1118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/foundation/shopee-module-review-process.schema.json",
+  "title": "ShopeeModuleReviewProcess",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/view"
+    },
+    {
+      "$ref": "#/$defs/start"
+    },
+    {
+      "$ref": "#/$defs/runsProgress"
+    },
+    {
+      "$ref": "#/$defs/autoRecord"
+    },
+    {
+      "$ref": "#/$defs/stateRecord"
+    },
+    {
+      "$ref": "#/$defs/gateFile"
+    },
+    {
+      "$ref": "#/$defs/plan"
+    },
+    {
+      "$ref": "#/$defs/stageFile"
+    },
+    {
+      "$ref": "#/$defs/receipt"
+    }
+  ],
+  "$defs": {
+    "errorCode": {
+      "title": "ReviewProcessErrorCode",
+      "enum": [
+        "JEV_CALL_FAILED",
+        "JEV_DISABLED",
+        "REVIEW_SOURCE_CHANGED",
+        "DB_IMPORT_CONFLICT",
+        "PRODUCT_NAME_PROVENANCE_MISSING",
+        "APP_DB_NOT_CONFIGURED",
+        "READONLY_ON",
+        "GATE_FAILED"
+      ]
+    },
+    "check": {
+      "title": "ReviewProcessCheck",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ok",
+        "level",
+        "got"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "source_unchanged",
+            "review_ids_valid",
+            "not_saved_twice",
+            "jev_ready_versions_fixed",
+            "fee_estimate_recorded",
+            "all_rows_saved",
+            "one_filter_result_each",
+            "kept_all_labelled",
+            "no_new_label_on_excluded",
+            "no_failed_jev_call",
+            "receipt_complete"
+          ]
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "level": {
+          "enum": [
+            "error",
+            "warn"
+          ]
+        },
+        "got": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "gateSummary": {
+      "title": "ReviewProcessGateSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict",
+        "checks"
+      ],
+      "properties": {
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        }
+      }
+    },
+    "fee": {
+      "title": "ReviewProcessFee",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "currency",
+        "filter",
+        "label",
+        "total",
+        "basis"
+      ],
+      "properties": {
+        "currency": {
+          "const": "USD"
+        },
+        "filter": {
+          "type": "number",
+          "minimum": 0
+        },
+        "label": {
+          "type": "number",
+          "minimum": 0
+        },
+        "total": {
+          "type": "number",
+          "minimum": 0
+        },
+        "basis": {
+          "const": "ESTIMATE"
+        }
+      }
+    },
+    "saveStage": {
+      "title": "ReviewProcessSaveStage",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "total",
+        "done",
+        "inserted",
+        "alreadyPresent"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "IDLE",
+            "RUNNING",
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "done": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inserted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "alreadyPresent": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "filterStage": {
+      "title": "ReviewProcessFilterStage",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "total",
+        "done",
+        "keep",
+        "exclude",
+        "unresolved",
+        "noContent"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "IDLE",
+            "RUNNING",
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "done": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "keep": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exclude": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "noContent": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "labelStage": {
+      "title": "ReviewProcessLabelStage",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "total",
+        "done",
+        "unresolvedSkipped"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "IDLE",
+            "RUNNING",
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "total": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "done": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolvedSkipped": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "source": {
+      "title": "ReviewProcessSource",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSha256",
+        "state",
+        "errorCode",
+        "startedAt",
+        "finishedAt",
+        "retries",
+        "canResume",
+        "fee",
+        "stages",
+        "gates"
+      ],
+      "properties": {
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "state": {
+          "enum": [
+            "IDLE",
+            "RUNNING",
+            "PASS",
+            "FAIL",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/errorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "canResume": {
+          "type": "boolean"
+        },
+        "fee": {
+          "$ref": "#/$defs/fee"
+        },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "save",
+            "filter",
+            "label"
+          ],
+          "properties": {
+            "save": {
+              "$ref": "#/$defs/saveStage"
+            },
+            "filter": {
+              "$ref": "#/$defs/filterStage"
+            },
+            "label": {
+              "$ref": "#/$defs/labelStage"
+            }
+          }
+        },
+        "gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "in",
+            "out"
+          ],
+          "properties": {
+            "in": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/gateSummary"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "out": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/gateSummary"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "view": {
+      "title": "ReviewProcessView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "autoRun",
+        "labelUnresolved",
+        "sources"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-view-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "autoRun": {
+          "type": "boolean"
+        },
+        "labelUnresolved": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    },
+    "start": {
+      "title": "ReviewProcessStart",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "sourceSha256",
+        "status",
+        "pid"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-start-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "status": {
+          "enum": [
+            "RUNNING",
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "pid": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "runProgress": {
+      "title": "RunProgress",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "steps",
+        "active",
+        "finished",
+        "changedAt"
+      ],
+      "properties": {
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "enum": [
+              "IDLE",
+              "RUNNING",
+              "PASS",
+              "FAIL",
+              "WAIT_OWNER",
+              "NOT_APPLICABLE"
+            ]
+          }
+        },
+        "active": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "step",
+                "stage",
+                "done",
+                "total"
+              ],
+              "properties": {
+                "step": {
+                  "enum": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ]
+                },
+                "stage": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "save",
+                        "filter",
+                        "label"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "done": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "total": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finished": {
+          "type": "boolean"
+        },
+        "changedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "runsProgress": {
+      "title": "RunsProgress",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "generatedAt",
+        "runs"
+      ],
+      "properties": {
+        "format": {
+          "const": "runs-progress-v1"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/runProgress"
+          }
+        }
+      }
+    },
+    "autoRecord": {
+      "title": "ReviewProcessAutoRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "createdAt"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-auto-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "stateRecord": {
+      "title": "ReviewProcessStateRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "sourceSha256",
+        "status",
+        "stage",
+        "pid",
+        "startedAt",
+        "finishedAt",
+        "retries",
+        "errorCode",
+        "waiting"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-state-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "status": {
+          "enum": [
+            "RUNNING",
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "enum": [
+                "save",
+                "filter",
+                "label"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/errorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "waiting": {
+          "anyOf": [
+            {
+              "const": "LABELS_BUSY"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "gateFile": {
+      "title": "ReviewProcessGateFile",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "module",
+        "runId",
+        "skillVersion",
+        "verdict",
+        "inputSha256",
+        "outputSha256",
+        "checks",
+        "errorCode",
+        "next"
+      ],
+      "properties": {
+        "format": {
+          "const": "handoff-v1"
+        },
+        "module": {
+          "const": "M4"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "skillVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "outputSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/errorCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next": {
+          "type": "null"
+        }
+      }
+    },
+    "versions": {
+      "title": "ReviewProcessVersions",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filterPolicy",
+        "filterPolicySha256",
+        "codebook",
+        "codebookSha256",
+        "model",
+        "labelUnresolved"
+      ],
+      "properties": {
+        "filterPolicy": {
+          "type": "string"
+        },
+        "filterPolicySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "codebook": {
+          "type": "string"
+        },
+        "codebookSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "model": {
+          "type": "string"
+        },
+        "labelUnresolved": {
+          "type": "boolean"
+        }
+      }
+    },
+    "plan": {
+      "title": "ReviewProcessPlan",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "sourceSha256",
+        "versions",
+        "calls",
+        "fee",
+        "planSha256"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-plan-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "versions": {
+          "$ref": "#/$defs/versions"
+        },
+        "calls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "filter",
+            "label"
+          ],
+          "properties": {
+            "filter": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "label": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "fee": {
+          "$ref": "#/$defs/fee"
+        },
+        "planSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "stageAttempt": {
+      "title": "ReviewProcessStageAttempt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startedAt",
+        "finishedAt",
+        "errorCode",
+        "passes"
+      ],
+      "properties": {
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "passes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "stageFile": {
+      "title": "ReviewProcessStageFile",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "sourceSha256",
+        "stage",
+        "attempts"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-stage-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "stage": {
+          "enum": [
+            "save",
+            "filter",
+            "label"
+          ]
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stageAttempt"
+          }
+        }
+      }
+    },
+    "receipt": {
+      "title": "ReviewProcessReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "runId",
+        "sourceSha256",
+        "datasetId",
+        "planSha256",
+        "versions",
+        "fee",
+        "counts",
+        "calls",
+        "retries",
+        "startedAt",
+        "finishedAt"
+      ],
+      "properties": {
+        "format": {
+          "const": "review-process-receipt-v1"
+        },
+        "runId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "datasetId": {
+          "type": "string"
+        },
+        "planSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "versions": {
+          "$ref": "#/$defs/versions"
+        },
+        "fee": {
+          "$ref": "#/$defs/fee"
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rows",
+            "saved",
+            "inserted",
+            "alreadyPresent",
+            "firstVersionDiffers",
+            "keep",
+            "exclude",
+            "unresolved",
+            "noContent",
+            "labelEligible",
+            "labelled",
+            "unresolvedSkipped",
+            "olderLabelsOnNotKept"
+          ],
+          "properties": {
+            "rows": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "saved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inserted": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "alreadyPresent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "firstVersionDiffers": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "keep": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "exclude": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unresolved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "noContent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "labelEligible": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "labelled": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unresolvedSkipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "olderLabelsOnNotKept": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "calls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "filter",
+            "label"
+          ],
+          "properties": {
+            "filter": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "label": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

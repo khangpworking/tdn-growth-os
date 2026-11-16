@@ -159,6 +159,21 @@
       "links_below_cap"
     ]
   },
+  "reviewProcess": {
+    "skillVersion": "review-process-v1",
+    "labelUnresolved": false,
+    "maxRetries": 3,
+    "retryWaitSeconds": [
+      10,
+      30,
+      90
+    ],
+    "busyWaitSeconds": 30,
+    "feeUsdPerCall": {
+      "filter": 0.0006,
+      "label": 0.0049
+    }
+  },
   "checkLabels": {
     "links_below_cap": "Số link có ít bình luận hơn trần (cảnh báo)"
   }

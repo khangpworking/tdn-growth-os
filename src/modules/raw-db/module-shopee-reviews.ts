@@ -9,11 +9,11 @@ import type { ReviewDataView, ReviewDataSource, ReviewDataSaved } from '../../..
 import { assertModuleImportable, loadModuleShopeeReviewsToDbV1, moduleImportReceipt, type ModuleProductName } from './shopee-reviews-loader.js';
 import { hashFile, hashFolder, ModuleError, object, pickRaw, prerequisite, readJson } from '../../../scripts/module-pick.js';
 
-function configuration(): {databasePath:string;artifactRoot:string} | null {
+export function configuration(): {databasePath:string;artifactRoot:string} | null {
   const databasePath = process.env.TDN_WORKSPACE_DB, artifactRoot = process.env.TDN_ARTIFACT_ROOT;
   return databasePath && artifactRoot && isAbsolute(databasePath) && isAbsolute(artifactRoot) ? {databasePath,artifactRoot} : null;
 }
-function configuredDatabase(readonly: boolean): BetterSqlite3.Database {
+export function configuredDatabase(readonly: boolean): BetterSqlite3.Database {
   const config = configuration(); if (!config) throw new ModuleError('APP_DB_NOT_CONFIGURED');
   let db: BetterSqlite3.Database;
   try { db = new BetterSqlite3(config.databasePath,{readonly,fileMustExist:true}); }
