@@ -215,7 +215,6 @@ const controller = (active: number, total: number) => `
     ${total > 2 ? '<button class="shopee-button-no-outline shopee-button-no-outline--non-click">...</button>' : ''}
     <button class="shopee-icon-button shopee-icon-button--right"><svg></svg></button>
   </nav>`;
-const textless = (id: string) => `<div data-cmtid="${id}"><div class="rGdC5O">${icons(5)}</div></div>`;
 
 /** With Comments list split over pages; next only works while a higher page exists (as on Shopee). */
 async function pagedCrawl(count: number, pages: string[][], totalPages = pages.length) {
@@ -257,16 +256,16 @@ test('the last page stops as exhausted although its next arrow stays enabled', a
   assert.equal(nextClicks, 2, 'next is never clicked on the last page');
 });
 
-test("Shopee's own count ends the list when every card, textless ones included, was seen", async () => {
-  // Count 4 is reached on page 2 while the controller still shows page 3.
-  const { result, nextClicks } = await pagedCrawl(4, [
-    [card('q1', 5, 'Một'), card('q2', 5, 'Hai')], [card('q3', 5, 'Ba'), textless('q4')],
-  ], 3);
+test('a displayed count already met on page 1 never stops the list while a higher page is shown', async () => {
+  // Shopee shows count 2 (stale) and 2 cards on page 1, but the bar shows [1] 2; page 2 holds one more card.
+  const { result, nextClicks } = await pagedCrawl(2, [
+    [card('q1', 5, 'Một'), card('q2', 5, 'Hai')], [card('q3', 5, 'Ba')],
+  ]);
   assert.equal(result.stop_reason, 'exhausted');
   assert.deepEqual(json(result.groups), [{ filter: 'with-comments', stopReason: 'exhausted' }]);
-  assert.deepEqual(json(result.records.map((row: any) => row.review_id)), ['q1', 'q2', 'q3'], 'the textless card counts but is not kept');
+  assert.deepEqual(json(result.records.map((row: any) => row.review_id)), ['q1', 'q2', 'q3'], 'no review is dropped');
   assert.deepEqual(json(result.pages.map((p: any) => p.page)), [1, 2]);
-  assert.equal(nextClicks, 1, 'no next click after the count is reached');
+  assert.equal(nextClicks, 1);
 });
 
 async function identicalFilterCrawl(change: 'fresh' | 'loading' | 'stale' | 'busy' | 'wrong-filter'): Promise<any> {
