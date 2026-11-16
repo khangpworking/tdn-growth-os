@@ -129,12 +129,13 @@ const CAP = 5;
 
 function legacyJournal(run: ModuleRun, link: ReviewLink, rows: NativeRow[], options: {
   verdict: 'PASS' | 'FAIL'; m2Digest: string; requestSha256: string; observedAt: string; jobUpdatedAt: string;
+  cap: number;
 }): Record<string, any> {
   const state = options.verdict === 'PASS' ? 'succeeded' : 'failed';
   const jobId = '10000000-0000-4000-8000-000000000001';
   const snapshot = {
     contractVersion: 'shopee-public-sanitized-result-v1', jobId, productUrl: link.url, shopId: link.shopId,
-    itemId: link.itemId, maxReviewsPerProduct: CAP, complete: options.verdict === 'PASS',
+    itemId: link.itemId, maxReviewsPerProduct: options.cap, complete: options.verdict === 'PASS',
     stopReason: options.verdict === 'PASS' ? 'last_page' : 'OTHER_OR_MISSING', filter: 'HAS_COMMENTS',
     expectedWithComments: rows.length, startedAt: INTENT_AT, finishedAt: options.observedAt,
     excluded: [], diagnostics: [],
@@ -142,10 +143,10 @@ function legacyJournal(run: ModuleRun, link: ReviewLink, rows: NativeRow[], opti
     rows,
   };
   const snapshotBytes = Buffer.from(canonicalJson(snapshot));
-  const input = { url: link.url, max_comments: CAP };
+  const input = { url: link.url, max_comments: options.cap };
   return {
     contractVersion: 'shopee-public-journal-v1', runKey: run.runId, confirmedSourceSetSha256: options.m2Digest,
-    requestSha256: options.requestSha256, providerId: 'shopee-public-review', maxReviewsPerProduct: CAP,
+    requestSha256: options.requestSha256, providerId: 'shopee-public-review', maxReviewsPerProduct: options.cap,
     mappingRevision: 'shopee-public-review-row-v1', sampleMode: 'STANDARD', productUrl: link.url,
     shopId: link.shopId, itemId: link.itemId, inputSha256: sha256(canonicalJson(input)), intentAt: INTENT_AT,
     submitWindowStart: '2026-11-09T23:59:58.000Z', submitWindowEnd: '2026-11-10T00:00:12.000Z',
@@ -179,8 +180,10 @@ export async function addLegacySource(run: ModuleRun, options: {
   observedAt?: string;
   jobUpdatedAt?: string;
   errorCode?: string;
+  cap?: number;
 } = {}): Promise<LegacySource> {
   const verdict = options.verdict ?? 'PASS';
+  const cap = options.cap ?? CAP;
   const rowsByLink = options.rowsByLink ?? [
     [moduleRow(run.links[0]!, 'review-a', { comment: 'First synthetic comment' })],
     [moduleRow(run.links[1]!, 'review-b', { comment: 'Second synthetic comment' })],
@@ -193,7 +196,7 @@ export async function addLegacySource(run: ModuleRun, options: {
   const journals: Record<string, any>[] = [];
   for (const [index, link] of run.links.entries()) {
     const journal = legacyJournal(run, link, rowsByLink[index] ?? [], {
-      verdict, m2Digest, requestSha256: options.requestSha256 ?? run.requestSha256, observedAt, jobUpdatedAt,
+      verdict, m2Digest, requestSha256: options.requestSha256 ?? run.requestSha256, observedAt, jobUpdatedAt, cap,
     });
     const file = path.join(journalBase, `${samplingDigest([link.shopId, link.itemId])}.json`);
     await writeCanonical(file, journal, 0o600);

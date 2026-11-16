@@ -51,6 +51,12 @@ elif script.endswith('module-review-data.ts'):
         print(json.dumps({'format': 'review-data-view-v1'}))
     elif action == 'stats':
         print(json.dumps({'format': 'review-stats-v1'}))
+    elif action == 'insights':
+        if os.environ.get('FAKE_NODE_INSIGHTS_ERROR'):
+            print(json.dumps({'format': 'error-v1', 'code': 'REVIEW_DATA_FAILED',
+                              'message': 'REVIEW_DATA_FAILED'}))
+            raise SystemExit(20)
+        print(json.dumps({'format': 'review-insights-v1', 'runId': run_id}))
     elif action == 'save':
         print(json.dumps({'format': 'review-data-saved-v1'}))
     elif action == 'export':
@@ -270,6 +276,7 @@ class RefusedLaunchTests(TrackingTest):
         for args, input_text, expected in (
                 (('review-data', '--run', 'offline1'), None, 'review-data-view-v1'),
                 (('review-stats', '--run', 'offline1'), None, 'review-stats-v1'),
+                (('review-insights', '--run', 'offline1'), None, 'review-insights-v1'),
                 (('review-sampling', '--run', 'offline1'), None, 'review-sampling-view-v1'),
                 (('save-review-data', '--run', 'offline1', '--stdin'), '{"synthetic":true}', 'review-data-saved-v1'),
                 (('export-review-data', '--run', 'offline1', '--stdin'), '{"format":"json"}', 'review-data-export-v1')):
@@ -281,6 +288,25 @@ class RefusedLaunchTests(TrackingTest):
                                    '--export-sha256', 'a' * 64)
         self.assertEqual(rc, 0, (value, proc.stderr))
         self.assertEqual(proc.stdout, 'synthetic-export-bytes')
+        self.assertIsNone(self.tracking(offline))
+
+    def test_review_insights_maps_usage_success_and_remote_failure(self):
+        offline = self.make_run('insights01')
+        rc, value, proc = self.cli('review-insights')
+        self.assertEqual(rc, 2, (value, proc.stderr))
+        self.assertEqual((value['format'], value['code']), ('error-v1', 'USAGE'))
+        self.assertFalse(proc.stdout.startswith('usage:'), 'a static JSON error is returned, not argparse text')
+
+        rc, value, proc = self.cli('review-insights', '--run', 'insights01')
+        self.assertEqual(rc, 0, (value, proc.stderr))
+        self.assertEqual((value['format'], value['runId']), ('review-insights-v1', 'insights01'))
+        self.assertIsNone(self.tracking(offline), 'review-insights must not launch a run')
+
+        rc, value, proc = self.cli('review-insights', '--run', 'insights01',
+                                   env={**self.env(), 'FAKE_NODE_INSIGHTS_ERROR': '1'})
+        self.assertEqual(rc, 20, (value, proc.stderr))
+        self.assertEqual((value['format'], value['code']), ('error-v1', 'REVIEW_DATA_FAILED'))
+        self.assertNotIn('Traceback', proc.stderr)
         self.assertIsNone(self.tracking(offline))
 
 
