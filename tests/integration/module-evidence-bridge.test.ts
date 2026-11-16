@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -20,7 +20,12 @@ test('desktop bridge projects saved module outputs and opens exact evidence byte
   const state = join(base, 'state');
   const presets = join(base, 'presets');
   const bin = join(base, 'bin');
-  for (const folder of [state, presets, bin]) await mkdir(folder);
+  const temp = join(base, 'tmp');
+  for (const folder of [state, presets, bin, temp]) await mkdir(folder);
+  // One fixed evidence folder per machine; a file left by an older click is removed before the next open.
+  const evidenceFolder = join(temp, 'tdn-shopee-evidence');
+  await mkdir(evidenceFolder);
+  await writeFile(join(evidenceFolder, 'top-products.png'), 'older click');
   await writeFile(config, JSON.stringify({
     sshCommand: ['bash', '-s'], remoteScript: join(repo, 'skills/tdn-shopee-flow/scripts/shopee_flow.py'),
     runsRoot: dirname(run), presetsRoot: presets, timeoutSeconds: 120,
@@ -38,12 +43,13 @@ run = sys.argv[1]
 out = {'outputs': api.moduleOutputs(run)}
 if len(sys.argv) > 2:
     out['open'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
+    out['again'] = api.openModuleEvidence(run, 'raw', sys.argv[2])
     out['wrong'] = api.openModuleEvidence(run, 'raw', '0' * 64)
 print(json.dumps(out))`;
   const result = spawnSync('python3', ['-c', script, run.split('/').pop()!, digest], {
     encoding: 'utf8', timeout: 120000,
     env: { ...process.env, TDN_SHOPEE_APP_CONFIG: config, SHOPEE_FLOW_STATE: state,
-      PYTHONDONTWRITEBYTECODE: '1', XDG_OPEN_LOG: opened,
+      PYTHONDONTWRITEBYTECODE: '1', XDG_OPEN_LOG: opened, TMPDIR: temp,
       PATH: `${bin}:${process.env.PATH ?? ''}` },
   });
   assert.equal(result.status, 0, result.stderr);
@@ -60,9 +66,12 @@ print(json.dumps(out))`;
   assert.equal(descriptor.sha256, digest);
   assert.deepEqual(data.open, { ok: true, data: { format: 'module-evidence-open-v1', runId: run.split('/').pop(),
     kind: 'raw', sha256: digest, opened: true } });
+  assert.deepEqual(data.again, data.open);
   assert.deepEqual(data.wrong, { ok: false, error: { code: 'EVIDENCE_IDENTITY_MISMATCH', message: 'EVIDENCE_IDENTITY_MISMATCH' } });
   const views = (await readFile(opened, 'utf8')).trim().split('\n');
-  assert.equal(views.length, 1, 'only the verified descriptor opens the OS viewer');
-  assert.deepEqual(await readFile(views[0]!), rawBytes);
-  await rm(dirname(views[0]!), { recursive: true, force: true });
+  assert.equal(views.length, 2, 'only the verified descriptor opens the OS viewer');
+  assert.deepEqual(views.map(view => dirname(view)), [evidenceFolder, evidenceFolder], 'every click reuses the one folder');
+  assert.deepEqual(await readdir(evidenceFolder), ['raw-responses.json'], 'older files are removed, no folder per click');
+  assert.deepEqual(await readdir(temp), ['tdn-shopee-evidence']);
+  assert.deepEqual(await readFile(views[1]!), rawBytes);
 });

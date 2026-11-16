@@ -134,6 +134,23 @@ def _safe_filename(name, export_format):
     return stem + extension
 
 
+EVIDENCE_FOLDER = 'tdn-shopee-evidence'
+
+
+def _evidence_folder():
+    """The one temp folder for opened evidence. Older files are removed first; a file a viewer still holds
+    open (Windows lock) stays, and the new file then gets a `name (N).ext` name."""
+    folder = Path(tempfile.gettempdir()) / EVIDENCE_FOLDER
+    folder.mkdir(exist_ok=True)
+    for old in folder.iterdir():
+        try:
+            if old.is_file() or old.is_symlink():
+                old.unlink()
+        except OSError:
+            pass
+    return folder
+
+
 def _publish_without_replacing(temp_path, destination):
     """Copy a verified file to `destination`, or to `name (N).ext` when that name is taken."""
     stem, extension = os.path.splitext(destination.name)
@@ -572,9 +589,9 @@ class Api:
                 type(descriptor['byteSize']) is not int or not 1 <= descriptor['byteSize'] <= EXPORT_MAX_BYTES):
             raise _BridgeFailure('EVIDENCE_IDENTITY_MISMATCH')
         try:
-            folder = Path(tempfile.mkdtemp(prefix='tdn-shopee-evidence-'))
-            destination = folder / file_name
-            self._stream_export(run_id, digest, descriptor['byteSize'], destination, evidence_kind=kind)
+            folder = _evidence_folder()
+            destination = self._stream_export(run_id, digest, descriptor['byteSize'], folder / file_name,
+                                              evidence_kind=kind, keep_existing=True)
             if sys.platform == 'win32':
                 os.startfile(str(destination))
             else:
