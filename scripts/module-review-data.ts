@@ -38,7 +38,7 @@ type InsightPolarity = 'khen'|'che'|'ke'|'khong_ro_huong';
 type InsightTag = { code:string; name:string; polarity:InsightPolarity; status:'kept'|'unclear'; choice:string|null };
 type InsightComment = { id:string; text:string; rating:number|null; date:string|null; productName:string|null; url:string|null; tags:InsightTag[] };
 type InsightTheme = { code:string; name:string; count:number; unclearCount:number; share:number;
-  polarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] };
+  polarityCounts:Record<InsightPolarity,number>; summary:InsightSummary; comments:InsightComment[] };
 type InsightSummary = { status:'READY'|'EMPTY'|'UNAVAILABLE'; text:string|null; model:string|null; generatedAt:string|null };
 type InsightBucket = { summary:InsightSummary; themes:InsightTheme[]; comments:InsightComment[] };
 
@@ -118,6 +118,136 @@ function insightComment(row:ModuleReviewRow, sourceSha256:string, index:number, 
     date:row.createdAt ?? row.postedAtLocal ?? null, productName, url:row.sourceUrl, tags };
 }
 
+const INSIGHT_POLARITY_LABELS:Record<InsightPolarity,string> = {
+  khen:'khen', che:'chê', ke:'trung lập', khong_ro_huong:'không rõ hướng',
+};
+
+const INSIGHT_THEME_MODEL = 'jev-extractive-theme-v1';
+const INSIGHT_THEME_MAX_SENTENCES = 3;
+const INSIGHT_SENTENCE_MAX_CHARS = 160;
+const INSIGHT_SENTENCE_MIN_CHARS = 4;
+const INSIGHT_NEAR_DUPLICATE = 0.85;
+// Function words only: sentiment and product terms stay in the recurrence score.
+const INSIGHT_STOPWORDS = new Set(['la','và','của','có','cho','với','không','được','rất','này','những','các','một',
+  'mình','thấy','thì','mà','khi','nếu','nhưng','để','từ','đến','trong','ngoài','trên','dưới','ra','vào','lên','xuống',
+  'cũng','vẫn','đã','đang','sẽ','bị','do','vì','nên','hơi','khá','quá','lắm','nhiều','ít','ạ','nhé','nha','nhỉ','đó',
+  'kia','ấy','tôi','bạn','em','anh','chị','họ','nó','vậy','thế','rồi','chứ','như','theo','về','giữa','sau','trước',
+  'mỗi','mọi','ai','gì','nào','sao','ok','oke','okela','đi','nhá','đấy','ơi','à','ừ','vâng','dạ']);
+
+type InsightSentence = { text:string; key:string; tokens:Set<string>; polarity:InsightPolarity; commentIndex:number; score:number };
+
+function insightFlatten(text:string):string {
+  return text.replace(/\s+/g,' ').trim();
+}
+
+function insightSentenceKey(text:string):string {
+  return insightFlatten(text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' '));
+}
+
+function insightTokens(text:string):Set<string> {
+  const words = text.normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  return new Set(words.filter(word => word.length > 1 && !INSIGHT_STOPWORDS.has(word)));
+}
+
+function insightSentences(text:string):string[] {
+  const sentences:string[] = [];
+  for (const line of text.split(/\r?\n+/)) {
+    for (const part of line.split(/\s+·\s+|(?<=[.!?…;])\s+/u)) {
+      const sentence = insightFlatten(part).replace(/^[\-–—•*]+/u,'').replace(/[\s,;:]+$/u,'');
+      if (sentence.length >= INSIGHT_SENTENCE_MIN_CHARS && /[\p{L}\p{N}]/u.test(sentence)) sentences.push(sentence);
+    }
+  }
+  return sentences;
+}
+
+function insightBoundText(text:string,max:number):string {
+  const flat = insightFlatten(text);
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0,max), boundary = cut.lastIndexOf(' ');
+  return `${(boundary >= Math.floor(max * 0.6) ? cut.slice(0,boundary) : cut).trimEnd()}…`;
+}
+
+function insightRank(left:InsightSentence,right:InsightSentence):number {
+  return right.score - left.score || left.commentIndex - right.commentIndex ||
+    (left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
+}
+
+/** Scores deduplicated sentences by how often their content words recur across the theme's kept comments. */
+function insightEvidence(definition:LabelCodebook['core'][number], entry:{ comments:InsightComment[] }): { usable:number; sentences:InsightSentence[] } {
+  const byComment = new Map<string,{ polarity:InsightPolarity; index:number; sentences:{ text:string; key:string; tokens:Set<string> }[] }>();
+  entry.comments.forEach((comment,index) => {
+    if (byComment.has(comment.id)) return;
+    const tag = comment.tags.find(item => item.code === definition.code && item.status === 'kept');
+    if (!tag) return;
+    const sentences = insightSentences(comment.text).map(text => ({ text, key:insightSentenceKey(text), tokens:insightTokens(text) }));
+    if (sentences.length) byComment.set(comment.id,{ polarity:tag.polarity, index, sentences });
+  });
+  const documentFrequency = new Map<string,number>();
+  for (const group of byComment.values()) {
+    const tokens = new Set(group.sentences.flatMap(sentence => [...sentence.tokens]));
+    for (const token of tokens) documentFrequency.set(token,(documentFrequency.get(token) ?? 0) + 1);
+  }
+  const seen = new Set<string>(), sentences:InsightSentence[] = [];
+  for (const group of byComment.values()) {
+    for (const sentence of group.sentences) {
+      if (seen.has(sentence.key)) continue;
+      seen.add(sentence.key);
+      const recurrence = [...sentence.tokens].reduce((total,token) => total + (documentFrequency.get(token) ?? 0),0);
+      sentences.push({ text:sentence.text, key:sentence.key, tokens:sentence.tokens, polarity:group.polarity,
+        commentIndex:group.index, score:recurrence / Math.sqrt(Math.max(1,sentence.tokens.size)) });
+    }
+  }
+  sentences.sort(insightRank);
+  return { usable:byComment.size, sentences };
+}
+
+function insightSameContent(left:InsightSentence,right:InsightSentence):boolean {
+  if (left.key === right.key) return true;
+  if (!left.tokens.size || !right.tokens.size) return false;
+  let shared = 0;
+  for (const token of left.tokens) if (right.tokens.has(token)) shared++;
+  return shared / (left.tokens.size + right.tokens.size - shared) >= INSIGHT_NEAR_DUPLICATE;
+}
+
+/** Picks the strongest recurring sentences, then fills remaining slots by rank, keeping content near-duplicates out. */
+function insightSelectSentences(sentences:InsightSentence[], keptPolarityCounts:Record<InsightPolarity,number>):InsightSentence[] {
+  const selected:InsightSentence[] = [];
+  const accepts = (candidate:InsightSentence) => !selected.includes(candidate) &&
+    !selected.some(item => item.key === candidate.key || insightSameContent(item,candidate));
+  const top = sentences[0]?.score ?? 0;
+  for (const polarity of INSIGHT_POLARITIES) {
+    if (selected.length >= INSIGHT_THEME_MAX_SENTENCES) break;
+    if (!keptPolarityCounts[polarity]) continue;
+    const candidate = sentences.find(item => item.polarity === polarity && item.score >= top * 0.5 && accepts(item));
+    if (candidate) selected.push(candidate);
+  }
+  for (const candidate of sentences) {
+    if (selected.length >= INSIGHT_THEME_MAX_SENTENCES) break;
+    if (accepts(candidate)) selected.push(candidate);
+  }
+  selected.sort(insightRank);
+  return selected;
+}
+
+/** A theme summary extracts representative kept evidence; unclear labels are counted but never used or quoted. */
+function insightThemeSummary(definition:LabelCodebook['core'][number], entry:{ keptCount:number; unclearCount:number;
+  keptPolarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] }, available:boolean,
+  generatedAt:string|null):InsightSummary {
+  if (!available) return { status:'UNAVAILABLE', text:null, model:null, generatedAt:null };
+  if (!entry.keptCount) return { status:'EMPTY', text:null, model:null, generatedAt:null };
+  const evidence = insightEvidence(definition,entry);
+  if (!evidence.usable) return { status:'EMPTY', text:null, model:null, generatedAt:null };
+  const quote = (sentence:InsightSentence) =>
+    `“${insightBoundText(sentence.text,INSIGHT_SENTENCE_MAX_CHARS)}” (${INSIGHT_POLARITY_LABELS[sentence.polarity]})`;
+  if (evidence.usable === 1) {
+    return { status:'READY', model:INSIGHT_THEME_MODEL, generatedAt,
+      text:`Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: ${quote(evidence.sentences[0]!)}.` };
+  }
+  const selected = insightSelectSentences(evidence.sentences,entry.keptPolarityCounts);
+  return { status:'READY', model:INSIGHT_THEME_MODEL, generatedAt,
+    text:`Nội dung tiêu biểu từ các bình luận đã gắn nhãn cho chủ đề này: ${selected.map(quote).join('; ')}.` };
+}
+
 function insightSummary(rows:number, comments:number, themes:InsightTheme[], generatedAt:string|null, available:boolean):InsightSummary {
   if (!available) return { status:'UNAVAILABLE', text:null, model:null, generatedAt:null };
   if (!comments) return { status:'EMPTY', text:null, model:null, generatedAt:null };
@@ -135,9 +265,10 @@ function insightSummary(rows:number, comments:number, themes:InsightTheme[], gen
 }
 
 function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:{ labels:Map<string,InsightTag[]>; productNames:Map<string,string>; available:boolean }, generatedAt:string|null):InsightBucket {
-  type ThemeAccumulator = { count:number; unclearCount:number; polarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] };
-  const byTheme = new Map<string,ThemeAccumulator>(definitions.map(theme => [theme.code,{ count:0, unclearCount:0,
-    polarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, comments:[] }]));
+  type ThemeAccumulator = { count:number; unclearCount:number; keptCount:number;
+    polarityCounts:Record<InsightPolarity,number>; keptPolarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] };
+  const byTheme = new Map<string,ThemeAccumulator>(definitions.map(theme => [theme.code,{ count:0, unclearCount:0, keptCount:0,
+    polarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, keptPolarityCounts:{ khen:0, che:0, ke:0, khong_ro_huong:0 }, comments:[] }]));
   const comments:InsightComment[] = [];
   rows.forEach((row,index) => {
     const tags = row.reviewId ? labelStore.labels.get(row.reviewId) ?? [] : [];
@@ -148,8 +279,9 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
       const theme = byTheme.get(tag.code);
       if (!theme) continue;
       theme.count++;
-      if (tag.status === 'unclear') theme.unclearCount++;
       theme.polarityCounts[tag.polarity]++;
+      if (tag.status === 'unclear') theme.unclearCount++;
+      else { theme.keptCount++; theme.keptPolarityCounts[tag.polarity]++; }
       theme.comments.push(comment);
     }
   });
@@ -158,6 +290,7 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
     const entry = byTheme.get(definition.code)!;
     return { code:definition.code, name:definition.name, count:entry.count, unclearCount:entry.unclearCount,
       share:total ? entry.count / total : 0, polarityCounts:entry.polarityCounts,
+      summary:insightThemeSummary(definition,entry,labelStore.available,generatedAt),
       comments:entry.comments.slice(0,INSIGHT_MAX_COMMENTS) };
   });
   return { summary:insightSummary(total,comments.length,themes,generatedAt,labelStore.available), themes,
