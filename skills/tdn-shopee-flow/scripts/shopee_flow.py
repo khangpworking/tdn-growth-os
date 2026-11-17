@@ -809,8 +809,13 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         off = os.environ.get('TDN_SHOPEE_FLOW_READONLY') != '1' and not (READONLY_FILE if readonly_file is None else pathlib.Path(readonly_file)).exists()
         check('readonly_off', off, off)
         # A user-page run has no capture spec by design: m1-import validates the
-        # input and gate m1 / verify-capture check the source.
-        if not isinstance(request.get('metricSource'), dict):
+        # input and gate m1 / verify-capture check the source. This holds only for
+        # the request m1-import writes, not for a request carrying other sources.
+        source = request.get('metricSource')
+        user_page = (request.get('format') == 'request-v2' and isinstance(source, dict)
+                     and source.get('format') == 'user-page-v1'
+                     and 'captureSpec' not in request and 'metricInput' not in request)
+        if not user_page:
             spec_checks = flow_capture_checks(request)
             # Historical no-spec entry/manual M2/M3 reading remains possible. A fresh
             # M1 always requires all checks below, irrespective of this legacy warning.

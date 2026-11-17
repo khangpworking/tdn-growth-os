@@ -11,6 +11,8 @@ import sys
 import tempfile
 import unittest
 
+from test_gates import CAPTURE_CHECK_IDS, request_payload, selected_request
+
 SCRIPT = pathlib.Path(__file__).resolve().parents[1] / 'scripts' / 'shopee_flow.py'
 
 IMPORT_ID = '3f6c2a1e-8b9d-4c1e-9f00-1234567890ab'
@@ -121,6 +123,30 @@ class M1ImportTest(unittest.TestCase):
         self.assertEqual(entry['verdict'], 'PASS')
         self.assertFalse([c for c in entry['checks'] if c['id'].startswith('capture_spec_')])
         self.assertFalse([c for c in entry['checks'] if not c['ok']])
+
+    def test_a_request_with_another_capture_source_keeps_the_capture_spec_checks(self):
+        # Only the request m1-import writes skips the capture checks; a metricSource next to
+        # a captureSpec / metricInput, or on a request-v1, keeps the original FAIL path.
+        mixed = selected_request()
+        mixed['metricInput']['preset']['smartQuery'] = False
+        mixed['metricSource'] = {'format': 'user-page-v1', 'scope': SCOPE, 'importId': IMPORT_ID}
+        invalid_v1 = request_payload(capture_spec={'windows': 'not-a-list'})
+        invalid_v1['metricSource'] = {}
+        cases = (
+            ('mixed sources', mixed, 'CAPTURE_SMART_QUERY_MISMATCH', 'capture_spec_smart_query'),
+            ('request-v1 with an empty metric source', invalid_v1, 'CAPTURE_SPEC_INVALID', 'capture_spec_present'),
+        )
+        for name, request, error, failed in cases:
+            with self.subTest(name):
+                run = self.runs / f'gate-entry-{error.lower()}'
+                run.mkdir()
+                (run / 'request.json').write_text(json.dumps(request), encoding='utf8')
+                rc, slip = self.command('gate', 'entry', '--run', run.name)
+                self.assertEqual((rc, slip['verdict'], slip['errorCode']), (20, 'FAIL', error))
+                checks = {c['id']: c for c in slip['checks']}
+                self.assertEqual({i for i in checks if i.startswith('capture_spec_')}, set(CAPTURE_CHECK_IDS))
+                self.assertFalse(checks[failed]['ok'], checks[failed])
+                self.assertFalse([c for c in slip['checks'] if c.get('level') == 'warn'])
 
     def test_the_same_payload_reuses_the_run_and_a_changed_one_conflicts(self):
         first, run = self.imported()
