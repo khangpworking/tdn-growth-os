@@ -2464,18 +2464,20 @@ def flow_metric_date_availability(end_date):
     return value
 
 
-def flow_create_run(request, keyword):
+def flow_create_run(request, keyword, run_id=None):
     """Shared run creation: the launch lock, request, state, tracking and step-4 auto record."""
     import fcntl
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     while True:
-        run = root / uuid.uuid4().hex[:8]
+        run = root / (run_id if run_id is not None else uuid.uuid4().hex[:8])
         try:
             run.mkdir(mode=0o700)
             break
         except FileExistsError:
-            continue
+            if run_id is None:
+                continue
+            raise
     # Publish under the launch admission lock so initialization cannot erase an accepted launch.
     with open(gate_path(run, '.module.lock'), 'a') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
@@ -2573,7 +2575,7 @@ def flow_metric_date_time(value):
     """
     match = re.fullmatch(r'([0-9]{4}-[0-9]{2}-[0-9]{2})[Tt ]'
                          r'([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]+)?'
-                         r'(?:[Zz]|([+-])([0-9]{2}):?([0-9]{2})?)', value) if isinstance(value, str) else None
+                         r'(?:[Zz]|([+-])([0-9]{2})(?::?([0-9]{2}))?)', value) if isinstance(value, str) else None
     if match is None or not gate_date(match.group(1)):
         return False
     hour, minute, second = (int(match.group(i)) for i in (2, 3, 4))
@@ -2730,6 +2732,28 @@ def flow_import_receipt(import_id, payload_sha256, completed=False, run=None):
     return record
 
 
+def flow_import_reservation(root, import_id):
+    """Identity durably reserved before the run exists, so a resend after a crash resumes it."""
+    record = gate_read(root / '.imports' / (import_id + '.json'))
+    return record if isinstance(record, dict) and record.get('importId') == import_id else None
+
+
+def flow_import_reserve(root, import_id, payload_sha256, run_id):
+    module_atomic_json(root, f'.imports/{import_id}.json',
+                       {'format': 'metric-user-page-import-reservation-v1', 'importId': import_id,
+                        'payloadSha256': payload_sha256, 'runId': run_id})
+
+
+def flow_import_new_run_id(root):
+    used = {path.name for path in root.iterdir()}
+    used.update(record.get('runId') for record in
+                (gate_read(path) for path in (root / '.imports').glob('*.json')) if isinstance(record, dict))
+    while True:
+        run_id = uuid.uuid4().hex[:8]
+        if run_id not in used:
+            return run_id
+
+
 def flow_m1_import():
     import fcntl
     if module_readonly():
@@ -2749,6 +2773,10 @@ def flow_m1_import():
         existing, record = flow_find_import(root, fields['importId'])
         if existing is not None and record.get('payloadSha256') != fields['payloadSha256']:
             raise ModuleFailure('IMPORT_ID_CONFLICT', 20)
+        reservation = flow_import_reservation(root, fields['importId'])
+        if reservation is not None and reservation.get('payloadSha256') != fields['payloadSha256']:
+            # The reservation covers the window before the run's own receipt exists.
+            raise ModuleFailure('IMPORT_ID_CONFLICT', 20)
         if existing is not None and record.get('completed') is True:
             # Completion is persisted in the receipt, so a gate recheck that went FAIL after
             # tampering cannot make a finished import look interrupted and repairable.
@@ -2758,15 +2786,32 @@ def flow_m1_import():
                 raise ModuleFailure('GATE_NOT_PASSED', 20)
             return {'format': 'metric-user-page-import-result-v1', 'runId': existing.name,
                     'reused': True, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
-        # A receipt without the completed marker is an interrupted import: the validated
-        # resend completes that same run instead of leaving it blocked behind GATE_NOT_PASSED.
+        receipt = flow_import_receipt(fields['importId'], fields['payloadSha256'])
         if existing is not None:
+            # A receipt without the completed marker is an interrupted import: the validated
+            # resend completes that same run instead of leaving it blocked behind GATE_NOT_PASSED.
             run, reused = existing, True
             module_atomic_json(run, 'request.json', request)
+            module_atomic_json(run, 'm1-import.json', receipt)
+        elif reservation is not None and (root / reservation['runId']).is_dir():
+            # Terminated after the run was initialized but before its receipt was published:
+            # the reservation names that run, so the resend completes it instead of duplicating it.
+            run, reused = root / reservation['runId'], True
+            module_atomic_json(run, 'request.json', request)
+            module_atomic_json(run, 'm1-import.json', receipt)
         else:
-            run, reused = flow_create_run(request, fields['keyword']), False
-        module_atomic_json(run, 'm1-import.json',
-                           flow_import_receipt(fields['importId'], fields['payloadSha256']))
+            run_id = reservation['runId'] if reservation is not None else None
+            if run_id is None:
+                run_id = flow_import_new_run_id(root)
+                flow_import_reserve(root, fields['importId'], fields['payloadSha256'], run_id)
+            try:
+                run = flow_create_run(request, fields['keyword'], run_id)
+            except FileExistsError:
+                run_id = flow_import_new_run_id(root)
+                flow_import_reserve(root, fields['importId'], fields['payloadSha256'], run_id)
+                run = flow_create_run(request, fields['keyword'], run_id)
+            reused = False
+            module_atomic_json(run, 'm1-import.json', receipt)
         entry, _, _ = gate_evaluate_write(run, 'entry')
         if entry.get('verdict') != 'PASS':
             raise ModuleFailure('GATE_NOT_PASSED', 20)

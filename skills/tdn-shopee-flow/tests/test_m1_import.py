@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import stat
 import subprocess
@@ -74,7 +75,8 @@ class M1ImportTest(unittest.TestCase):
         return out, self.runs / out['runId']
 
     def run_dirs(self):
-        return sorted(path for path in self.runs.iterdir() if path.name != '.imports.lock')
+        return sorted(path for path in self.runs.iterdir()
+                      if path.is_dir() and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', path.name))
 
     def test_import_writes_the_contract_request_flat_m1_and_both_gates(self):
         out, run = self.imported()
@@ -151,12 +153,13 @@ class M1ImportTest(unittest.TestCase):
         self.assertEqual(list(self.runs.iterdir()), [], 'no run folder for refused input')
 
     def test_a_captured_at_outside_the_manifest_date_time_is_refused_without_a_run(self):
-        # Python's fromisoformat accepts this basic ISO form; the manifest's RFC 3339 date-time does not.
-        value = payload(capturedAt='20261117T150000+0700')
-        rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(value))
-        self.assertEqual((rc, out), (2, {'format': 'error-v1', 'code': 'IMPORT_INPUT_INVALID',
-                                         'message': 'IMPORT_INPUT_INVALID'}))
-        self.assertEqual(list(self.runs.iterdir()), [], 'no run folder for refused input')
+        # The manifest's RFC 3339 date-time (ajv-formats) rejects the basic ISO form, and its
+        # timezone colon is part of the optional minutes group, so a dangling colon is invalid.
+        for captured in ('20261117T150000+0700', '2026-11-17T15:00:00+07:'):
+            rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(payload(capturedAt=captured)))
+            self.assertEqual((rc, out), (2, {'format': 'error-v1', 'code': 'IMPORT_INPUT_INVALID',
+                                             'message': 'IMPORT_INPUT_INVALID'}), captured)
+            self.assertEqual(list(self.runs.iterdir()), [], 'no run folder for refused input')
 
     def test_one_changed_m1_file_blocks_the_reuse(self):
         # The Python gate trusts the declared window digests; the offline TS reader hashes the raw
@@ -220,6 +223,53 @@ class M1ImportTest(unittest.TestCase):
             self.assertEqual([slip['verdict'], slip['runId']], ['PASS', run.name])
         again, _ = self.imported()
         self.assertEqual([again['runId'], again['reused']], [run.name, True])
+
+    def load_flow_module(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('shopee_flow_under_test', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.dont_write_bytecode = saved
+        return module
+
+    def published_runs(self):
+        return [path.name for path in self.run_dirs()]
+
+    def test_termination_before_the_pending_receipt_resumes_the_same_run(self):
+        # Kill the import at its pending-receipt write: the run has request/state/tracking but
+        # no receipt. The reservation made before run creation must keep that identity.
+        import io
+        from unittest import mock
+        with mock.patch.dict(os.environ, self.env(), clear=True):
+            module = self.load_flow_module()
+            write_new = module.write_new
+
+            def terminate(path, text, mode=0o600):
+                if pathlib.PurePosixPath(str(path)).name.startswith('m1-import.json.'):
+                    raise SystemExit(137)
+                return write_new(path, text, mode)
+
+            module.write_new = terminate
+            with mock.patch('sys.stdin', io.TextIOWrapper(io.BytesIO(json.dumps(payload()).encode('utf8')))):
+                with self.assertRaises(SystemExit):
+                    module.flow_m1_import()
+        [crashed] = self.run_dirs()
+        self.assertFalse((crashed / 'm1-import.json').exists())
+        reservation = json.loads((self.runs / '.imports' / f'{IMPORT_ID}.json').read_text())
+        self.assertEqual(reservation['runId'], crashed.name)
+        # The reservation holds the original payload hash, so a different package still conflicts.
+        rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(payload(keyword='another synthetic term')))
+        self.assertEqual((rc, out['code']), (20, 'IMPORT_ID_CONFLICT'))
+        completed, same = self.imported()
+        self.assertEqual([completed['runId'], completed['reused'], same], [crashed.name, True, crashed])
+        for gate in ('entry', 'm1'):
+            self.assertEqual(json.loads((crashed / f'gates/{gate}.json').read_text())['verdict'], 'PASS')
+        again, _ = self.imported()
+        self.assertEqual([again['runId'], again['reused']], [crashed.name, True])
+        self.assertEqual(self.published_runs(), [crashed.name], 'one run for the importId')
 
     def test_deeply_nested_input_is_refused_as_invalid_without_a_run(self):
         # Deep enough to trip the interpreter's recursion guard below the 8 MB cap on any Python.
