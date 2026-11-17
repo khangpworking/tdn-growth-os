@@ -939,6 +939,22 @@ def evaluate_gate(run, gate, *, readonly_file=None):
     return slip, exit_code
 
 
+def gate_evaluate_write(run, gate):
+    """Evaluate and publish one gate slip; `gate` and `m1-import` must write it the same way."""
+    slip, exit_code = evaluate_gate(run, gate)
+    path = gate_path(run, f'gates/{gate}.json')
+    path.parent.mkdir(mode=0o700, exist_ok=True)
+    # Exclusive temp file + replace keeps readers from seeing a half-written slip.
+    temp = gate_path(run, f'gates/.{gate}-{uuid.uuid4().hex}.tmp')
+    text = json.dumps(slip, ensure_ascii=True, separators=(',', ':'))
+    try:
+        write_new(temp, text + '\n')
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
+    return slip, exit_code, text
+
+
 def cmd_gate(ns):
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', ns.run_id):
@@ -957,17 +973,7 @@ def cmd_gate(ns):
                           'message': 'gate m3 does not apply to request-v2 runs; read review-data sources[].gateVerdict.'}))
         sys.exit(2)
     try:
-        slip, exit_code = evaluate_gate(run, ns.gate)
-        path = gate_path(run, f'gates/{ns.gate}.json')
-        path.parent.mkdir(mode=0o700, exist_ok=True)
-        # Exclusive temp file + replace keeps readers from seeing a half-written slip.
-        temp = gate_path(run, f'gates/.{ns.gate}-{uuid.uuid4().hex}.tmp')
-        text = json.dumps(slip, ensure_ascii=True, separators=(',', ':'))
-        try:
-            write_new(temp, text + '\n')
-            os.replace(temp, path)
-        finally:
-            temp.unlink(missing_ok=True)
+        _, exit_code, text = gate_evaluate_write(run, ns.gate)
     except (OSError, ValueError, TypeError, KeyError):
         die('gate files unavailable, invalid, or unsafe', 2)
     print(text)
@@ -2458,8 +2464,32 @@ def flow_metric_date_availability(end_date):
     return value
 
 
-def flow_new_run():
+def flow_create_run(request, keyword):
+    """Shared run creation: the launch lock, request, state, tracking and step-4 auto record."""
     import fcntl
+    root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    while True:
+        run = root / uuid.uuid4().hex[:8]
+        try:
+            run.mkdir(mode=0o700)
+            break
+        except FileExistsError:
+            continue
+    # Publish under the launch admission lock so initialization cannot erase an accepted launch.
+    with open(gate_path(run, '.module.lock'), 'a') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        module_atomic_json(run, 'request.json', request)
+        module_atomic_json(run, 'state.json', flow_state(run))
+        flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
+                                 'requestSha256': gate_hash(run, 'request.json'), 'primaryKeyword': keyword,
+                                 'createdAt': flow_now(), 'firstRunAt': None, 'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
+        # Step 4 starts by itself only for runs created by this release (owner F582).
+        module_atomic_json(run, 'm4/auto.json', {'format': 'review-process-auto-v1', 'runId': run.name, 'createdAt': flow_now()})
+    return run
+
+
+def flow_new_run():
     value = json.load(sys.stdin)
     if not isinstance(value, dict) or set(value) - {'presetId', 'startDate', 'endDate', 'metricOptions', 'reviewCapPerLink', 'collectionPolicy'}:
         raise ModuleFailure('NEW_RUN_INPUT_INVALID', 2)
@@ -2518,26 +2548,188 @@ def flow_new_run():
         request['metricInput'] = metric_input
         request['selectionPolicy'] = 'metric-products-unique-v2'
     flow_assert_capture(request)
+    run = flow_create_run(request, spec['preset']['keywords'][0])
+    return {'format': 'new-run-v1', 'runId': run.name}
+
+
+def flow_canonical(value):
+    """Same member order and types on both sides of the import comparison."""
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False)
+
+
+def flow_json_text(value):
+    # Must stay identical to module_atomic_json's serialization: m1 hashes are taken over these bytes.
+    return json.dumps(value, ensure_ascii=True) + '\n'
+
+
+def flow_import_payload():
+    """Read and validate one user-page import; contract codes only, never a provider call."""
+    import hashlib
+    limit = 8 * 1024 * 1024
+    data = sys.stdin.buffer.read(limit + 1)
+    if len(data) > limit:
+        raise ModuleFailure('IMPORT_TOO_LARGE', 2)
+
+    def unique_object(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError('duplicate input key')
+            value[key] = item
+        return value
+
+    try:
+        payload = json.loads(data, object_pairs_hook=unique_object,
+                             parse_constant=lambda _: (_ for _ in ()).throw(ValueError('invalid constant')))
+    except ValueError:
+        raise ModuleFailure('IMPORT_INPUT_INVALID', 2) from None
+    invalid = lambda: ModuleFailure('IMPORT_INPUT_INVALID', 2)
+    if not isinstance(payload, dict) or set(payload) != {'format', 'importId', 'keyword', 'capturedAt',
+                                                         'collectionPolicy', 'scope', 'response'}:
+        raise invalid()
+    if payload['format'] != 'metric-user-page-import-v1':
+        raise invalid()
+    import_id = payload['importId']
+    if (not isinstance(import_id, str) or
+            not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', import_id)):
+        raise invalid()
+    keyword = payload['keyword']
+    if not isinstance(keyword, str) or not 1 <= len(keyword) <= 120 or keyword != keyword.strip():
+        raise invalid()
+    captured = payload['capturedAt']
+    try:
+        if not isinstance(captured, str) or dt.datetime.fromisoformat(captured.replace('Z', '+00:00')).tzinfo is None:
+            raise ValueError('capturedAt needs a timezone')
+    except ValueError:
+        raise invalid() from None
+    try:
+        policy = flow_policy(payload['collectionPolicy'])
+    except ModuleFailure:
+        raise invalid() from None
+    scope = payload['scope']
+    if not isinstance(scope, dict) or any(key in scope for key in ('limit', 'page', 'sort_by')):
+        raise invalid()
+    start, end = scope.get('start_date'), scope.get('end_date')
+    if (not isinstance(start, str) or not isinstance(end, str) or not re.fullmatch(r'[0-9]{8}', start)
+            or not re.fullmatch(r'[0-9]{8}', end)):
+        raise invalid()
+    try:
+        start_date = dt.date(int(start[:4]), int(start[4:6]), int(start[6:]))
+        end_date = dt.date(int(end[:4]), int(end[4:6]), int(end[6:]))
+    except ValueError:
+        raise invalid() from None
+    if start_date > end_date:
+        raise invalid()
+    response = payload['response']
+    if not isinstance(response, dict) or not {'urlPath', 'method', 'status', 'requestBody', 'body'} <= set(response):
+        raise invalid()
+    if (response['urlPath'] != '/v2/market/analytics/products/' or response['method'] != 'POST'
+            or type(response['status']) is not int or response['status'] != 200):
+        raise invalid()
+    body = response['body']
+    if not isinstance(body, dict) or body.get('status') != 'success':
+        raise invalid()
+    request_body = response['requestBody']
+    if not isinstance(request_body, dict):
+        raise invalid()
+    expected = {**scope, 'limit': 100, 'page': 0, 'sort_by': 'revenue_custom__desc'}
+    if flow_canonical(request_body) != flow_canonical(expected):
+        raise invalid()
+    data_value = body.get('data')
+    products = data_value.get('products') if isinstance(data_value, dict) else None
+    if not isinstance(products, list) or len(products) > 100:
+        raise invalid()
+    if not any(isinstance(row, dict) and isinstance(row.get('product_base_id'), str)
+               and row['product_base_id'].startswith('1__') for row in products):
+        raise ModuleFailure('IMPORT_NO_SHOPEE_ROWS', 20)
+    return payload, {'importId': import_id, 'keyword': keyword, 'capturedAt': captured, 'policy': policy,
+                     'scope': scope, 'response': response, 'startDate': start_date.isoformat(),
+                     'endDate': end_date.isoformat(),
+                     'payloadSha256': hashlib.sha256(flow_canonical(payload).encode('utf8')).hexdigest()}
+
+
+def flow_write_metric_window(run, window, fields):
+    """Flat m1/ the existing readers accept: one products response in one declared window."""
+    import hashlib
+    response = fields['response']
+    raw = [{'urlPath': response['urlPath'], 'method': response['method'], 'status': response['status'],
+            'requestBody': response['requestBody'], 'responseOrder': 0, 'body': response['body']}]
+    raw_bytes = flow_json_text(raw).encode('utf8')
+    module_atomic_json(run, 'm1/selected/raw-responses.json', raw)
+    part = {'contractVersion': 'metric-user-page-window-v1', 'captureMethod': 'user-page',
+            'capturedAt': fields['capturedAt'], 'window': window,
+            'sourceMap': {'products': 'raw-responses.json#/0/body/data'}, 'captureGate': 'PASSED',
+            'files': [{'path': 'raw-responses.json', 'sha256': hashlib.sha256(raw_bytes).hexdigest(),
+                       'byteSize': len(raw_bytes)}]}
+    module_atomic_json(run, 'm1/selected/manifest.json', part)
+    part_bytes = flow_json_text(part).encode('utf8')
+    module_atomic_json(run, 'm1/manifest.json', {
+        'contractVersion': 'metric-v3-capture-v1',
+        'windows': [{'window': 'selected', 'path': 'selected/manifest.json',
+                     'sha256': hashlib.sha256(part_bytes).hexdigest()}]})
+
+
+def flow_find_import(root, import_id):
+    for child in sorted(root.iterdir()):
+        if child.is_symlink() or not child.is_dir() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', child.name):
+            continue
+        try:
+            record = gate_read(gate_path(child, 'm1-import.json'))
+        except ValueError:
+            continue
+        if isinstance(record, dict) and record.get('importId') == import_id:
+            return child, record
+    return None, None
+
+
+def flow_import_gates_intact(run):
+    """Reuse only a run whose published gates still match its request and m1 bytes."""
+    entry = gate_read(gate_path(run, 'gates/entry.json'))
+    m1 = gate_read(gate_path(run, 'gates/m1.json'))
+    return (isinstance(entry, dict) and entry.get('verdict') == 'PASS' and entry.get('runId') == run.name
+            and entry.get('outputSha256') == gate_hash(run, 'request.json')
+            and isinstance(m1, dict) and m1.get('verdict') == 'PASS' and m1.get('runId') == run.name
+            and m1.get('inputSha256') == gate_hash(run, 'request.json')
+            and m1.get('outputSha256') == gate_hash(run, 'm1/'))
+
+
+def flow_m1_import():
+    import fcntl
+    if module_readonly():
+        raise ModuleFailure('READONLY_ON', 2)
+    _, fields = flow_import_payload()
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    while True:
-        run = root / uuid.uuid4().hex[:8]
-        try:
-            run.mkdir(mode=0o700)
-            break
-        except FileExistsError:
-            continue
-    # Publish under the launch admission lock so initialization cannot erase an accepted launch.
-    with open(gate_path(run, '.module.lock'), 'a') as lock:
+    with open(root / '.imports.lock', 'a') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        module_atomic_json(run, 'request.json', request)
-        module_atomic_json(run, 'state.json', flow_state(run))
-        flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
-                                 'requestSha256': gate_hash(run, 'request.json'), 'primaryKeyword': spec['preset']['keywords'][0],
-                                 'createdAt': flow_now(), 'firstRunAt': None, 'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
-        # Step 4 starts by itself only for runs created by this release (owner F582).
-        module_atomic_json(run, 'm4/auto.json', {'format': 'review-process-auto-v1', 'runId': run.name, 'createdAt': flow_now()})
-    return {'format': 'new-run-v1', 'runId': run.name}
+        existing, record = flow_find_import(root, fields['importId'])
+        if existing is not None:
+            if record.get('payloadSha256') != fields['payloadSha256']:
+                raise ModuleFailure('IMPORT_ID_CONFLICT', 20)
+            if not flow_import_gates_intact(existing):
+                raise ModuleFailure('GATE_NOT_PASSED', 20)
+            return {'format': 'metric-user-page-import-result-v1', 'runId': existing.name,
+                    'reused': True, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
+        window = {'id': 'selected', 'period': {'startDate': fields['startDate'], 'endDate': fields['endDate']},
+                  'intervalDays': 7}
+        request = {'format': 'request-v2', 'preset': {'keywords': [fields['keyword']]}, 'windows': [window],
+                   'collectionPolicy': fields['policy'], 'principalTitles': [],
+                   'selectionPolicy': 'metric-products-unique-v2',
+                   'metricSource': {'format': 'user-page-v1', 'scope': fields['scope'],
+                                    'importId': fields['importId']}}
+        run = flow_create_run(request, fields['keyword'])
+        module_atomic_json(run, 'm1-import.json', {'format': 'metric-user-page-import-v1',
+                                                   'importId': fields['importId'],
+                                                   'payloadSha256': fields['payloadSha256']})
+        entry, _, _ = gate_evaluate_write(run, 'entry')
+        if entry.get('verdict') != 'PASS':
+            raise ModuleFailure('GATE_NOT_PASSED', 20)
+        flow_write_metric_window(run, window, fields)
+        captured, _, _ = gate_evaluate_write(run, 'm1')
+        if captured.get('verdict') != 'PASS':
+            raise ModuleFailure('GATE_NOT_PASSED', 20)
+        return {'format': 'metric-user-page-import-result-v1', 'runId': run.name,
+                'reused': False, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
 
 
 def flow_run_info(run, config):
@@ -2621,6 +2813,8 @@ def cmd_flow_query(ns):
             result = flow_metric_date_availability(ns.end_date)
         elif ns.cmd == 'new-run':
             result = flow_new_run()
+        elif ns.cmd == 'm1-import':
+            result = flow_m1_import()
         elif ns.cmd == 'presets':
             values = []
             for path in sorted(flow_presets_root().glob('*.json')):
@@ -2680,7 +2874,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -2721,9 +2915,9 @@ def main():
         if name == 'review-attempt-worker':
             x.add_argument('--reconcile', action='store_true'); x.add_argument('--worker-lock-fd', type=int); x.add_argument('--worker-ready-fd', type=int)
         x.set_defaults(f=cmd_review_sampling)
-    for name in ('connection', 'presets', 'add-product', 'new-run', 'runs', 'runs-progress', 'run-info', 'capture-specs', 'outputs', 'library'):
+    for name in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'runs', 'runs-progress', 'run-info', 'capture-specs', 'outputs', 'library'):
         x = sp.add_parser(name)
-        if name in ('new-run', 'add-product'): x.add_argument('--stdin', action='store_true', required=True)
+        if name in ('new-run', 'add-product', 'm1-import'): x.add_argument('--stdin', action='store_true', required=True)
         if name in ('run-info', 'capture-specs', 'outputs'): x.add_argument('--run', dest='run_id', required=True)
         x.set_defaults(f=cmd_flow_query)
     x = sp.add_parser('metric-date-availability'); x.add_argument('--end-date', required=True)

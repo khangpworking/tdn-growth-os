@@ -208,7 +208,7 @@ export async function moduleOutputs(runArg: string) {
   const run = resolve(runArg), runId = basename(run);
   const request = await frozenRequest(run);
   const m1 = { captureSuccess: null as boolean | null, dataValid: null as boolean | null, errorCode: null as string | null,
-    keywords: request.keywords, period: request.captureSpec?.windows[0]?.period ?? null, shopeeRowCount: null as number | null,
+    keywords: request.keywords, period: request.captureSpec?.windows[0]?.period ?? request.windows[0]?.period ?? null, shopeeRowCount: null as number | null,
     revenueOrderDescending: null as boolean | null,
     evidence: { fullPage: unavailable('full-page', 'CAPTURE_FILES_MISSING'), raw: unavailable('raw', 'CAPTURE_FILES_MISSING') } };
   let files = absentFiles('CAPTURE_FILES_MISSING');

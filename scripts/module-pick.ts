@@ -108,18 +108,52 @@ export async function readRequest(run: string) {
     throw new ModuleError(error instanceof Error ? error.message : 'CAPTURE_INPUT_INVALID');
   }
   const keywords = object(value.preset).keywords as string[];
-  const windows = value.windows as { id: string; period: { startDate: string; endDate: string } }[];
+  const windows = value.windows as { id: string; period: { startDate: string; endDate: string }; intervalDays?: number }[];
   if (captureSpec && (windows.length !== captureSpec.windows.length || JSON.stringify(keywords) !== JSON.stringify(captureSpec.preset.keywords) || windows.some((w, i) =>
       w.id !== captureSpec.windows[i]?.id || w.period.startDate !== captureSpec.windows[i]?.period.startDate ||
       w.period.endDate !== captureSpec.windows[i]?.period.endDate ||
       (object(w).intervalDays !== undefined && object(w).intervalDays !== captureSpec.windows[i]?.intervalDays)))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
-  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: value.selectionPolicy === MODULE_PICK_POLICY || value.selectionPolicy === MODULE_PICK_POLICY_V2 ? value.selectionPolicy as string : null };
+  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: value.selectionPolicy === MODULE_PICK_POLICY || value.selectionPolicy === MODULE_PICK_POLICY_V2 ? value.selectionPolicy as string : null,
+    windows, metricSource: value.metricSource as UserPageMetricSource | undefined };
+}
+type UserPageMetricSource = { format: 'user-page-v1'; scope: Record<string, unknown>; importId: string };
+const USER_PAGE_REQUEST_BODY = { limit: 100, page: 0, sort_by: 'revenue_custom__desc' };
+/** The user-page source keeps the page's own products response, so no preset rebuild is needed. */
+async function readUserPageSource(run: string, request: NonNullable<Awaited<ReturnType<typeof readRequest>>>,
+    source: UserPageMetricSource) {
+  const window = request.windows[0];
+  if (!window || window.id !== 'selected') throw new ModuleError('PICK_WINDOW_MISSING');
+  if ('limit' in source.scope || 'page' in source.scope || 'sort_by' in source.scope) throw new ModuleError('CAPTURE_INPUT_INVALID');
+  const outer = object(await readJson(run, 'm1/manifest.json'));
+  const refs = outer.windows;
+  if (outer.contractVersion !== 'metric-v3-capture-v1' || !Array.isArray(refs) || refs.length !== 1)
+    throw new ModuleError('CAPTURE_SPEC_MISMATCH');
+  const ref = object(refs[0]);
+  if (ref.window !== 'selected' || ref.path !== 'selected/manifest.json') throw new ModuleError('PICK_WINDOW_MISSING');
+  const partBytes = await readFile(await safePath(run, 'm1/selected/manifest.json'));
+  if (sha256(partBytes) !== ref.sha256) throw new ModuleError('CAPTURE_HASH_MISMATCH');
+  const part = object(JSON.parse(partBytes.toString('utf8')));
+  await validateModuleValue('metric-user-page-window-v1', part);
+  if (canonicalJson(part.window) !== canonicalJson(window)) throw new ModuleError('CAPTURE_WINDOW_MISMATCH');
+  const rawBytes = await readFile(await safePath(run, 'm1/selected/raw-responses.json'));
+  const file = (part.files as { path: string; sha256: string; byteSize: number }[])[0]!;
+  if (file.path !== 'raw-responses.json' || file.sha256 !== sha256(rawBytes) || file.byteSize !== rawBytes.length)
+    throw new ModuleError('CAPTURE_HASH_MISMATCH');
+  const raw: unknown = JSON.parse(rawBytes.toString('utf8'));
+  if (!Array.isArray(raw) || raw.length !== 1) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
+  const response = object(raw[0]);
+  if (response.urlPath !== '/v2/market/analytics/products/' || response.method !== 'POST' || response.status !== 200 ||
+      object(response.body).status !== 'success') throw new ModuleError('CAPTURE_SPEC_MISMATCH');
+  if (canonicalJson(response.requestBody) !== canonicalJson({ ...source.scope, ...USER_PAGE_REQUEST_BODY }))
+    throw new ModuleError('CAPTURE_INPUT_INVALID');
+  return { raw, prefix: 'm1', part, rawBytes };
 }
 export async function readPickSource(run: string, request?: Awaited<ReturnType<typeof readRequest>>) {
   if (!request) {
     try { await lstat(await safePath(run, 'request.json')); request = await readRequest(run); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   }
+  if (request?.metricSource) return readUserPageSource(run, request, request.metricSource);
   const selected = request?.captureSpec?.contractVersion === 'metric-v3-capture-spec-v3';
   let scope: AutorunScopeRecord | null = null;
   try { scope = await readJson(run, 'm1/scope.json') as AutorunScopeRecord; }

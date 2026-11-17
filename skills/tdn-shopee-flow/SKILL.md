@@ -15,4 +15,6 @@ Thư mục này chứa phần mã của luồng. Skill này chỉ nói cái gì 
 
 Luồng có 4 bước: 1 Metric, 2 chọn 5 link Shopee, 3 lấy bình luận, 4 lưu + Jev lọc + Jev gắn nhãn. App desktop (`tools/shopee-desktop`) gọi đúng các lệnh này.
 
+Bước 1 có thêm đường nhập từ app: `m1-import --stdin` nhận gói 100 sản phẩm app đã lấy từ trang Metric, tạo lượt `request-v2` với `metricSource` dạng `user-page-v1`, ghi `m1/` phẳng (một cửa sổ `selected`, `metric-user-page-window-v1`) rồi tự ghi cổng `entry` và `m1`. Cùng `importId` và cùng hash gói thì dùng lại lượt (`reused: true`); cùng `importId` nhưng gói khác thì `IMPORT_ID_CONFLICT`. Hợp đồng dữ liệu: `chuan/request-v2.schema.json` và `chuan/metric-user-page-window-v1.schema.json`.
+
 App web cũ (cổng 8787) và các lệnh `start`, `watch`, `status`, `recover` không còn dùng.

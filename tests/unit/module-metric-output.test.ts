@@ -5,9 +5,10 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { hashFolder, main, ModuleError, sha256 } from '../../scripts/module-pick.js';
-import { moduleOutputs, readModuleEvidence, verifyModuleSelection } from '../../scripts/module-metric-output.js';
-import { answer, fakeJev } from '../helpers/fake-pick-jev.js';
+import { moduleOutputs, readModuleEvidence, verifyModuleCapture, verifyModuleSelection } from '../../scripts/module-metric-output.js';
+import { answer, fakeJev, noWait } from '../helpers/fake-pick-jev.js';
 import { buildModuleRun as buildRun, distinctRows as distinct, preset, product, requestBytes, window } from '../helpers/module-run-fixture.js';
+import { buildUserPageRun, jsonBytes, USER_PAGE_WINDOW } from '../helpers/user-page-run-fixture.js';
 
 test('module outputs project a real retained capture and selection without recomputing identity', async t => {
   const { run, rawBytes } = await buildRun(t);
@@ -244,6 +245,28 @@ async function v2Run(t: any) {
   const built = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fake.jev });
   return { ...built, saved: JSON.parse(await readFile(join(built.run, 'm2/selection.json'), 'utf8')) };
 }
+
+test('B0: a user-page run projects its selected window and picks without logic changes', async t => {
+  const { run } = await buildUserPageRun(t);
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual(output.m1.period, USER_PAGE_WINDOW.period);
+  assert.deepEqual([output.m1.captureSuccess, output.m1.dataValid, output.m1.revenueOrderDescending, output.m1.shopeeRowCount],
+    [true, true, true, 5]);
+  assert.deepEqual([output.m2.links, output.m2.errorCode], [[], 'SELECTION_MISSING']);
+  const fake = fakeJev([answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9), answer(4, 'MOI', 0.9)]);
+  const result = await main(run, { jev: () => fake.jev, sleep: noWait });
+  assert.deepEqual([result.verdict, result.exitCode, result.pickedIds.length], ['PASS', 0, 5]);
+  const proof = await verifyModuleSelection(run);
+  assert.deepEqual([proof.fiveDistinct, proof.selectedCount, proof.errorCode], [true, 5, null]);
+});
+
+test('B0: a user-page run whose request changed after creation fails the frozen request check', async t => {
+  const { run, request } = await buildUserPageRun(t);
+  request.windows[0]!.period.endDate = '2026-11-13';
+  await writeFile(join(run, 'request.json'), jsonBytes(request));
+  await assert.rejects(verifyModuleCapture(run), (error: unknown) =>
+    error instanceof ModuleError && error.code === 'RUN_TRACKING_CHANGED');
+});
 
 test('v2: the gate replays the saved answers to the saved selection without asking Jev', async t => {
   const { run, saved } = await v2Run(t);

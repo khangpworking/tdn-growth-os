@@ -56,6 +56,42 @@
         "metric-products-unique-v1",
         "metric-products-unique-v2"
       ]
+    },
+    "metricSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "scope",
+        "importId"
+      ],
+      "properties": {
+        "format": {
+          "const": "user-page-v1"
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "start_date",
+            "end_date"
+          ],
+          "properties": {
+            "start_date": {
+              "type": "string",
+              "pattern": "^[0-9]{8}$"
+            },
+            "end_date": {
+              "type": "string",
+              "pattern": "^[0-9]{8}$"
+            }
+          }
+        },
+        "importId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      }
     }
   },
   "allOf": [
@@ -87,12 +123,34 @@
         }
       },
       "else": {
-        "properties": {
-          "captureSpec": {
-            "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/captureSpec"
-          },
-          "windows": {
-            "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/windows"
+        "if": {
+          "required": [
+            "metricSource"
+          ],
+          "properties": {
+            "metricSource": {}
+          }
+        },
+        "then": {
+          "properties": {
+            "windows": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json#/$defs/window"
+              }
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "captureSpec": {
+              "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/captureSpec"
+            },
+            "windows": {
+              "$ref": "https://tdn.local/shopee-flow/request-v1.schema.json#/properties/windows"
+            }
           }
         }
       }
@@ -107,14 +165,34 @@
         }
       },
       "then": {
+        "anyOf": [
+          {
+            "required": [
+              "metricInput"
+            ]
+          },
+          {
+            "required": [
+              "metricSource"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
         "required": [
-          "metricInput"
+          "metricSource"
         ],
         "properties": {
-          "captureSpec": {
-            "$ref": "https://tdn.local/metric-v3-capture-spec-v3.schema.json"
-          },
-          "metricInput": {}
+          "metricSource": {}
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "captureSpec"
+          ]
         }
       }
     }

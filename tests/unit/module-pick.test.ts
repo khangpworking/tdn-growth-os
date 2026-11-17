@@ -3,11 +3,12 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
-import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pickRaw, readRequest, sha256 } from '../../scripts/module-pick.js';
+import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pickRaw, readPickSource, readRequest, sha256 } from '../../scripts/module-pick.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
 import { pickJevFromEnvironment } from '../../scripts/module-product-pick-jev.js';
 import { fakeJev, noWait } from '../helpers/fake-pick-jev.js';
+import { buildUserPageRun, jsonBytes } from '../helpers/user-page-run-fixture.js';
 
 const { buildV3WindowManifest } = await import(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
 
@@ -489,4 +490,39 @@ test('main refuses a run whose M1 slip failed', async () => {
 
 test('the pick profile stays the capture profile that names autorun-pick-v3', () => {
   assert.equal(CAPTURE_ROW_PROFILE, 'automation-metric-capture-v3');
+});
+
+test('readPickSource returns the saved products response for a user-page run', async t => {
+  const { run, raw } = await buildUserPageRun(t);
+  const source = await readPickSource(run);
+  assert.equal(source.prefix, 'm1');
+  assert.equal((source.part as any).contractVersion, 'metric-user-page-window-v1');
+  assert.deepEqual((source.part as any).sourceMap, { products: 'raw-responses.json#/0/body/data' });
+  assert.deepEqual(source.raw, raw);
+  assert.deepEqual(await pickRaw(run), raw);
+});
+
+test('readPickSource refuses a user-page run after one changed file', async t => {
+  const cases: [string, (state: Awaited<ReturnType<typeof buildUserPageRun>>) => Promise<void>, string][] = [
+    ['raw', async ({ run, raw }) => {
+      await writeFile(join(run, 'm1/selected/raw-responses.json'), jsonBytes([{ ...raw[0], status: 201 }]));
+    }, 'CAPTURE_HASH_MISMATCH'],
+    ['window manifest', async ({ run, part }) => {
+      await writeFile(join(run, 'm1/selected/manifest.json'), jsonBytes({ ...part, capturedAt: '2026-11-18T00:00:00.000Z' }));
+    }, 'CAPTURE_HASH_MISMATCH'],
+    ['request scope', async ({ run, request }) => {
+      (request.metricSource.scope as any).platforms = [1];
+      await writeFile(join(run, 'request.json'), jsonBytes(request));
+    }, 'CAPTURE_INPUT_INVALID'],
+    ['request window', async ({ run, request }) => {
+      request.windows[0]!.period.endDate = '2026-11-13';
+      await writeFile(join(run, 'request.json'), jsonBytes(request));
+    }, 'CAPTURE_WINDOW_MISMATCH'],
+  ];
+  for (const [name, mutate, code] of cases) {
+    const state = await buildUserPageRun(t);
+    await mutate(state);
+    await assert.rejects(readPickSource(state.run), (error: unknown) =>
+      error instanceof ModuleError && error.code === code, name);
+  }
 });
