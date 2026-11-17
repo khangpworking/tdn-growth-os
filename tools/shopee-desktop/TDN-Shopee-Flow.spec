@@ -10,7 +10,10 @@ a = Analysis(
     [os.path.join(here, 'tdn_shopee_app.py')],
     pathex=[here],
     binaries=[],
-    datas=[(os.path.join(here, 'index.html'), '.'), (shared_js, '.')],
+    datas=[(os.path.join(here, 'index.html'), '.'), (shared_js, '.'),
+           # BSD notice of the vendored pychrome must travel with the executable.
+           (os.path.join(here, 'vendor_pychrome', 'LICENSE'), 'third_party/pychrome'),
+           (os.path.join(here, 'vendor_pychrome', 'SOURCE.md'), 'third_party/pychrome')],
     # vendor_pychrome is imported lazily (only when Chrome is attached), so name it here.
     hiddenimports=['tdn_shopee_transport', 'tdn_metric_browser', 'vendor_pychrome', 'vendor_pychrome.browser',
                    'vendor_pychrome.tab', 'vendor_pychrome.exceptions', 'websocket'],

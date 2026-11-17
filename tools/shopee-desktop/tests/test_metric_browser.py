@@ -252,6 +252,105 @@ class LifecycleTest(unittest.TestCase):
         self.assertTrue(all(tab.stopped for tab in world.tabs if tab.started))
 
 
+class CaptureFreezeContractTest(unittest.TestCase):
+    """MetricSession.capture() freezes exactly the newest request; never an older one.
+
+    | row | newest request                       | capture()                                    |
+    |-----|--------------------------------------|----------------------------------------------|
+    | A   | body lookup still blocked            | METRIC_FILTER_PENDING, Metric not asked      |
+    | A2  | body arrives within the wait         | uses that newest filter                      |
+    | B   | body lookup failed                   | METRIC_FILTER_UNAVAILABLE, stays so          |
+    | C   | newest on the other tab, pending     | refused; the older tab is never used         |
+    """
+    FILTER_A = page_body(start_date='20260801')
+    FILTER_B = page_body(start_date='20260901')
+
+    def setUp(self):
+        self.world = World([target('a', 'https://metric.vn/analytics'), target('b', 'https://metric.vn/analytics')])
+        self.listener = self.world.listener()
+        self.listener.body_wait_seconds = 0.3
+        self.listener.poll()
+        self.a, self.b = self.world.tabs
+        self.answers = self.a.answers = self.b.answers = {}    # one answer table for both tabs
+        self.addCleanup(self.listener.stop_all)
+        self.session = mb.MetricSession(tempfile.gettempdir(),
+                                        launcher=mock.Mock(is_alive=lambda port: True, saved_port=lambda: 9))
+        self.session.listener = self.listener
+        self.evaluated = []
+
+        def evaluate(expression, awaitPromise, returnByValue):
+            arg, _ = parse_call(expression)
+            self.evaluated.append(arg['requestBody'])
+            return {'result': {'value': {'urlPath': arg['urlPath'], 'method': 'POST', 'status': 200,
+                                         'requestBody': arg['requestBody'],
+                                         'body': {'status': 'success', 'data': {'products': products(5)}}}}}
+        self.answers['Runtime.evaluate'] = evaluate
+        self.a.products_request(self.FILTER_A, request_id='A')
+
+    def blocked_body(self, body):
+        release = threading.Event()
+        self.addCleanup(release.set)
+        self.answers['Network.getRequestPostData'] = lambda requestId: (
+            release.wait(5), {'postData': json.dumps(body)})[1]
+        return release
+
+    def capture_code(self):
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.session.capture(POLICY)
+        return caught.exception.code
+
+    def test_row_a_a_blocked_lookup_refuses_and_never_imports_the_older_filter(self):
+        release = self.blocked_body(self.FILTER_B)
+        self.a.products_request(None, request_id='B', inline=False)
+        started = time.monotonic()
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_PENDING')
+        self.assertGreaterEqual(time.monotonic() - started, 0.25)    # waited, bounded
+        self.assertEqual(self.evaluated, [])
+        self.assertIsNone(self.session.pending)
+        release.set()
+        wait_until(lambda: self.listener._newest['state'] == 'resolved', 'B body')
+        payload = self.session.capture(POLICY)
+        self.assertEqual(payload['scope']['start_date'], '20260901')
+
+    def test_row_a2_a_body_arriving_within_the_wait_is_used(self):
+        release = self.blocked_body(self.FILTER_B)
+        self.a.products_request(None, request_id='B', inline=False)
+        self.listener.body_wait_seconds = 3
+        threading.Timer(0.1, release.set).start()
+        payload = self.session.capture(POLICY)
+        self.assertEqual(payload['scope']['start_date'], '20260901')
+        self.assertEqual(self.evaluated[0]['start_date'], '20260901')
+
+    def test_row_b_a_failed_lookup_refuses_until_a_new_request(self):
+        def broken(requestId):
+            raise RuntimeError('No resource with given identifier found')
+        self.answers['Network.getRequestPostData'] = broken
+        self.a.products_request(None, request_id='B', inline=False)
+        wait_until(lambda: self.listener._newest['state'] == 'failed', 'lookup failed')
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')   # never falls back to A
+        self.assertEqual(self.evaluated, [])
+        self.a.products_request(page_body(start_date='20261001'), request_id='C')
+        self.assertEqual(self.session.capture(POLICY)['scope']['start_date'], '20261001')
+
+    def test_row_c_the_newest_request_on_the_other_tab_is_waited_for_not_the_older_tab(self):
+        release = self.blocked_body(self.FILTER_B)
+        self.b.products_request(None, request_id='B', inline=False)
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_PENDING')
+        self.assertNotIn('Runtime.evaluate', self.a.methods())
+        release.set()
+        wait_until(lambda: self.listener._newest['state'] == 'resolved', 'B body')
+        payload = self.session.capture(POLICY)
+        self.assertEqual(payload['scope']['start_date'], '20260901')
+        self.assertIn('Runtime.evaluate', self.b.methods())
+        self.assertNotIn('Runtime.evaluate', self.a.methods())
+
+    def test_an_unreadable_inline_body_is_refused_too(self):
+        self.a.emit(requestId='bad', type='Fetch', frameId='a',
+                    request={'url': PRODUCTS, 'method': 'POST', 'postData': 'not json'})
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+
+
 class GatedTab(FakeTab):
     """A fake tab whose start() waits for the test, to hold an attachment in progress."""
     gate = None
@@ -757,6 +856,8 @@ class SharedScriptTest(unittest.TestCase):
         spec = (HERE.parent / 'TDN-Shopee-Flow.spec').read_text(encoding='utf-8')
         self.assertIn("'../opencli-metric/clis/metric/request-in-page.js'", spec)
         self.assertIn("'vendor_pychrome'", spec)
+        self.assertIn("(os.path.join(here, 'vendor_pychrome', 'LICENSE'), 'third_party/pychrome')", spec)
+        self.assertIn("(os.path.join(here, 'vendor_pychrome', 'SOURCE.md'), 'third_party/pychrome')", spec)
         self.assertEqual(mb.shared_js_path().resolve(),
                          (HERE.parents[1] / 'opencli-metric' / 'clis' / 'metric' / 'request-in-page.js').resolve())
 

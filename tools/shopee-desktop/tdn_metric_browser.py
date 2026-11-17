@@ -44,6 +44,7 @@ IMPORT_MAX_BYTES = 8 * 1024 * 1024
 EVALUATE_TIMEOUT = 60          # > the 45 s HTTP timeout inside requestV3InPage
 POLL_SECONDS = 2
 REATTACH_GRACE_SECONDS = 15
+BODY_WAIT_SECONDS = 5          # the click waits this long for the newest request's body
 PLATFORM_NAMES = {1: 'Shopee', 2: 'Lazada', 3: 'Tiki', 8: 'TikTok'}
 _JS_NAME = 'request-in-page.js'
 _JS_START = 'export async function requestV3InPage('
@@ -400,6 +401,12 @@ class MetricListener:
         self._attaching = 0
         self._seq = 0
         self._last_ts = None
+        # The newest user products request across all Metric tabs, recorded on arrival:
+        # {'targetId', 'key', 'requestId', 'state': 'pending'|'resolved'|'failed', 'body'}.
+        # The click freezes exactly this one; it never falls back to an older request.
+        self._newest = None
+        self._body_state = threading.Condition(self._lock)
+        self.body_wait_seconds = BODY_WAIT_SECONDS
         self._app_scripts = collections.deque(maxlen=64)   # sourceURLs of the app's own calls
         self._closed = False
         self._frozen = None
@@ -626,52 +633,72 @@ class MetricListener:
             else:
                 stamp = self._last_ts if self._last_ts is not None else 0.0
             key = (float(stamp), self._seq)
+            record = {'targetId': target_id, 'key': key, 'requestId': event.get('requestId'),
+                      'state': 'pending', 'body': None}
+            if self._newest is None or key > self._newest['key']:
+                self._newest = record
         post_data = request.get('postData')
-        if post_data is None:
-            if request.get('hasPostData'):
-                self._fetch_body_later(target_id, tab, event.get('requestId'), key)
+        if post_data is None and request.get('hasPostData'):
+            self._fetch_body_later(target_id, tab, record)
             return
-        self._publish(target_id, tab, post_data, key)
+        self._publish(target_id, tab, post_data, record)
 
-    def _publish(self, target_id, tab, post_data, key):
+    def _settle(self, record, state, body=None):
+        """Under the lock: the request's body is known (or will never be); wake a waiting click."""
+        record['state'] = state
+        record['body'] = body
+        self._body_state.notify_all()
+
+    def _publish(self, target_id, tab, post_data, record):
         try:
             body = json.loads(post_data) if isinstance(post_data, str) else None
         except ValueError:
-            return
-        if not isinstance(body, dict):
-            return
+            body = None
         with self._lock:
             entry = self._tabs.get(target_id)
-            if self._closed or entry is None or entry.tab is not tab:
+            if not isinstance(body, dict) or self._closed or entry is None or entry.tab is not tab:
+                self._settle(record, 'failed')
                 return
+            self._settle(record, 'resolved', body)
+            key = record['key']
             if entry.last is None or key > entry.last['key']:
                 entry.last = {'body': body, 'seq': key[1], 'key': key, 'at': now_iso()}
 
-    def _fetch_body_later(self, target_id, tab, request_id, key):
+    def _fetch_body_later(self, target_id, tab, record):
         with self._lock:
             if self._closed:
+                self._settle(record, 'failed')
                 return
             if self._worker is None or not self._worker.is_alive():
                 self._worker = threading.Thread(target=self._body_loop, daemon=True)
                 self._worker.start()
-        self._bodies.put((target_id, tab, request_id, key))
+        self._bodies.put((target_id, tab, record))
 
     def _body_loop(self):
         while True:
             item = self._bodies.get()
             if item is None or self._closed:
+                with self._lock:   # nobody will look these bodies up any more
+                    while item is not None:
+                        self._settle(item[2], 'failed')
+                        try:
+                            item = self._bodies.get_nowait()
+                        except queue.Empty:
+                            item = None
                 return
-            target_id, tab, request_id, key = item
+            target_id, tab, record = item
             with self._lock:
                 entry = self._tabs.get(target_id)
                 current = entry is not None and entry.tab is tab
+                if not current:
+                    self._settle(record, 'failed')
             if not current:
                 continue
             try:
-                answer = tab.call_method('Network.getRequestPostData', requestId=request_id, _timeout=5)
+                answer = tab.call_method('Network.getRequestPostData', requestId=record['requestId'], _timeout=5)
             except Exception:
-                continue
-            self._publish(target_id, tab, answer.get('postData') if isinstance(answer, dict) else None, key)
+                answer = None
+            self._publish(target_id, tab, answer.get('postData') if isinstance(answer, dict) else None, record)
 
     # -- the button
 
@@ -685,11 +712,26 @@ class MetricListener:
                                               'body': copy.deepcopy(best.last['body'])}
 
     def freeze(self):
-        """Copy the newest filter at the moment of the click."""
+        """At the click: freeze exactly the newest products request seen on any Metric tab.
+
+        Its body may still be on the way (body worker): wait up to ``body_wait_seconds``
+        (the caller's thread, never a CDP dispatch thread). Still pending, or the body could
+        not be read: refuse. Never fall back to an older request."""
         with self._lock:
-            frozen = self.latest()
-            if frozen is None:
+            record = self._newest
+            if record is None:
                 raise MetricFailure('METRIC_NOT_SEEN')
+            deadline = time.monotonic() + self.body_wait_seconds
+            while record['state'] == 'pending' and not self._closed:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._body_state.wait(remaining)
+            if record['state'] == 'pending':
+                raise MetricFailure('METRIC_FILTER_PENDING')
+            if record['state'] != 'resolved':
+                raise MetricFailure('METRIC_FILTER_UNAVAILABLE')
+            frozen = {'targetId': record['targetId'], 'seq': record['key'][1], 'body': copy.deepcopy(record['body'])}
             self._frozen = frozen
             return copy.deepcopy(frozen)
 
