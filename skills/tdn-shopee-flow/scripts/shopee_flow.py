@@ -2554,7 +2554,10 @@ def flow_new_run():
 
 def flow_canonical(value):
     """Same member order and types on both sides of the import comparison."""
-    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False)
+    try:
+        return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False)
+    except RecursionError:
+        raise ModuleFailure('IMPORT_INPUT_INVALID', 2) from None
 
 
 def flow_json_text(value):
@@ -2581,7 +2584,7 @@ def flow_import_payload():
     try:
         payload = json.loads(data, object_pairs_hook=unique_object,
                              parse_constant=lambda _: (_ for _ in ()).throw(ValueError('invalid constant')))
-    except ValueError:
+    except (ValueError, RecursionError):
         raise ModuleFailure('IMPORT_INPUT_INVALID', 2) from None
     invalid = lambda: ModuleFailure('IMPORT_INPUT_INVALID', 2)
     if not isinstance(payload, dict) or set(payload) != {'format', 'importId', 'keyword', 'capturedAt',
@@ -2682,6 +2685,15 @@ def flow_find_import(root, import_id):
     return None, None
 
 
+def flow_import_finalized(run):
+    """Both gates passed once: from here the receipt may only reuse, never repair."""
+    for gate in ('entry', 'm1'):
+        slip = gate_read(gate_path(run, f'gates/{gate}.json'))
+        if not (isinstance(slip, dict) and slip.get('verdict') == 'PASS' and slip.get('runId') == run.name):
+            return False
+    return True
+
+
 def flow_import_gates_intact(run):
     """Reuse only a run whose published gates still match its request and m1 bytes."""
     entry = gate_read(gate_path(run, 'gates/entry.json'))
@@ -2700,24 +2712,30 @@ def flow_m1_import():
     _, fields = flow_import_payload()
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    window = {'id': 'selected', 'period': {'startDate': fields['startDate'], 'endDate': fields['endDate']},
+              'intervalDays': 7}
+    request = {'format': 'request-v2', 'preset': {'keywords': [fields['keyword']]}, 'windows': [window],
+               'collectionPolicy': fields['policy'], 'principalTitles': [],
+               'selectionPolicy': 'metric-products-unique-v2',
+               'metricSource': {'format': 'user-page-v1', 'scope': fields['scope'],
+                                'importId': fields['importId']}}
     with open(root / '.imports.lock', 'a') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         existing, record = flow_find_import(root, fields['importId'])
-        if existing is not None:
-            if record.get('payloadSha256') != fields['payloadSha256']:
-                raise ModuleFailure('IMPORT_ID_CONFLICT', 20)
+        if existing is not None and record.get('payloadSha256') != fields['payloadSha256']:
+            raise ModuleFailure('IMPORT_ID_CONFLICT', 20)
+        if existing is not None and flow_import_finalized(existing):
             if not flow_import_gates_intact(existing):
                 raise ModuleFailure('GATE_NOT_PASSED', 20)
             return {'format': 'metric-user-page-import-result-v1', 'runId': existing.name,
                     'reused': True, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
-        window = {'id': 'selected', 'period': {'startDate': fields['startDate'], 'endDate': fields['endDate']},
-                  'intervalDays': 7}
-        request = {'format': 'request-v2', 'preset': {'keywords': [fields['keyword']]}, 'windows': [window],
-                   'collectionPolicy': fields['policy'], 'principalTitles': [],
-                   'selectionPolicy': 'metric-products-unique-v2',
-                   'metricSource': {'format': 'user-page-v1', 'scope': fields['scope'],
-                                    'importId': fields['importId']}}
-        run = flow_create_run(request, fields['keyword'])
+        # A matching receipt without both PASS gates is an interrupted import: the validated
+        # resend completes that same run instead of leaving it blocked behind GATE_NOT_PASSED.
+        if existing is not None:
+            run, reused = existing, True
+            module_atomic_json(run, 'request.json', request)
+        else:
+            run, reused = flow_create_run(request, fields['keyword']), False
         module_atomic_json(run, 'm1-import.json', {'format': 'metric-user-page-import-v1',
                                                    'importId': fields['importId'],
                                                    'payloadSha256': fields['payloadSha256']})
@@ -2729,7 +2747,7 @@ def flow_m1_import():
         if captured.get('verdict') != 'PASS':
             raise ModuleFailure('GATE_NOT_PASSED', 20)
         return {'format': 'metric-user-page-import-result-v1', 'runId': run.name,
-                'reused': False, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
+                'reused': reused, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
 
 
 def flow_run_info(run, config):
@@ -2864,7 +2882,7 @@ def cmd_flow_query(ns):
     except ModuleFailure as failure:
         print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
         sys.exit(failure.exit_code)
-    except (OSError, ValueError, KeyError, TypeError, OverflowError):
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
         print(json.dumps({'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID', 'message': 'Invalid or unreadable flow input.'}))
         sys.exit(2)
 

@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import pathlib
+import shutil
 import stat
 import subprocess
 import sys
@@ -71,6 +72,9 @@ class M1ImportTest(unittest.TestCase):
         rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(value or payload()))
         self.assertEqual(rc, 0, out)
         return out, self.runs / out['runId']
+
+    def run_dirs(self):
+        return sorted(path for path in self.runs.iterdir() if path.name != '.imports.lock')
 
     def test_import_writes_the_contract_request_flat_m1_and_both_gates(self):
         out, run = self.imported()
@@ -156,6 +160,46 @@ class M1ImportTest(unittest.TestCase):
         (run / 'request.json').write_text(json.dumps(request))
         rc, slip = self.command('gate', 'm1', '--run', run.name)
         self.assertEqual((rc, slip['verdict'], slip['errorCode']), (23, 'FAIL', 'GATE_INPUT_CHANGED'))
+
+    def test_an_interrupted_import_is_completed_by_resending_the_same_package(self):
+        node = self.bin / 'node'
+        working = node.read_text(encoding='utf8')
+        node.write_text('#!/usr/bin/env python3\nimport sys\nsys.exit(1)\n', encoding='utf8')
+        rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(payload()))
+        # The M1 gate could not finish, but the published receipt must not block the retry.
+        self.assertEqual((rc, out['code']), (20, 'GATE_NOT_PASSED'))
+        [run] = self.run_dirs()
+        self.assertEqual(json.loads((run / 'm1-import.json').read_text())['importId'], IMPORT_ID)
+        self.assertEqual(json.loads((run / 'gates/entry.json').read_text())['verdict'], 'PASS')
+        # The reported crash state: the entry gate is PASS and the M1 folder was never written.
+        shutil.rmtree(run / 'm1')
+        (run / 'gates/m1.json').unlink()
+        node.write_text(working, encoding='utf8')
+        completed, same = self.imported()
+        self.assertEqual([completed['runId'], completed['reused'], same], [run.name, True, run])
+        for gate in ('entry', 'm1'):
+            slip = json.loads((run / f'gates/{gate}.json').read_text())
+            self.assertEqual([slip['verdict'], slip['runId']], ['PASS', run.name])
+        again, _ = self.imported()
+        self.assertEqual([again['runId'], again['reused']], [run.name, True])
+
+    def test_deeply_nested_input_is_refused_as_invalid_without_a_run(self):
+        # Deep enough to trip the interpreter's recursion guard below the 8 MB cap on any Python.
+        deep = '[' * 100000 + '0' + ']' * 100000
+        scope = '{"start_date":"20261014","end_date":"20261112","nested":' + deep + '}'
+        request_body = ('{"start_date":"20261014","end_date":"20261112","nested":' + deep +
+                        ',"limit":100,"page":0,"sort_by":"revenue_custom__desc"}')
+        nested = ('{"format":"metric-user-page-import-v1","importId":"' + IMPORT_ID +
+                  '","keyword":"synthetic term","capturedAt":"2026-11-17T15:00:00+07:00",'
+                  '"collectionPolicy":' + json.dumps(POLICY) + ',"scope":' + scope +
+                  ',"response":{"urlPath":"/v2/market/analytics/products/","method":"POST","status":200,'
+                  '"requestBody":' + request_body + ',"body":{"status":"success","code":0,"data":{"products":' +
+                  json.dumps(products()) + '}}}}')
+        for name, text in (('envelope', deep), ('scope', nested)):
+            rc, out = self.command('m1-import', '--stdin', stdin=text)
+            self.assertEqual((rc, out), (2, {'format': 'error-v1', 'code': 'IMPORT_INPUT_INVALID',
+                                             'message': 'IMPORT_INPUT_INVALID'}), name)
+        self.assertEqual(list(self.runs.iterdir()), [], 'no run folder for refused input')
 
     def test_readonly_refuses_before_reading_the_payload(self):
         rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(payload()),
