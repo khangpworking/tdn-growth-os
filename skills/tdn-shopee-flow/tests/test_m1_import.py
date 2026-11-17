@@ -40,6 +40,9 @@ def payload(**over):
 
 class M1ImportTest(unittest.TestCase):
     def setUp(self):
+        self.reset()
+
+    def reset(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         base = pathlib.Path(self._tmp.name)
@@ -238,38 +241,105 @@ class M1ImportTest(unittest.TestCase):
     def published_runs(self):
         return [path.name for path in self.run_dirs()]
 
-    def test_termination_before_the_pending_receipt_resumes_the_same_run(self):
-        # Kill the import at its pending-receipt write: the run has request/state/tracking but
-        # no receipt. The reservation made before run creation must keep that identity.
+    @staticmethod
+    def write_key(path, runs):
+        """The run-relative record a temp write publishes, from its atomic-write temp name."""
+        temp = pathlib.PurePosixPath(str(path))
+        gate = re.fullmatch(r'\.(entry|m1)-[0-9a-f]{32}\.tmp', temp.name)
+        if gate:
+            return f'gates/{gate.group(1)}.json'
+        name = re.sub(r'\.[0-9a-f]{32}\.tmp$', '', temp.name)
+        parts = pathlib.Path(path).resolve().relative_to(runs.resolve()).parts
+        return f'.imports/{name}' if parts[0] == '.imports' else '/'.join(parts[1:-1] + (name,))
+
+    def crash_before(self, target, occurrence=1):
+        """Terminate the import immediately before one durable write of its path."""
         import io
         from unittest import mock
         with mock.patch.dict(os.environ, self.env(), clear=True):
             module = self.load_flow_module()
-            write_new = module.write_new
+            write_new, write_tracking = module.write_new, module.flow_write_tracking
+            written = [0]
 
             def terminate(path, text, mode=0o600):
-                if pathlib.PurePosixPath(str(path)).name.startswith('m1-import.json.'):
-                    raise SystemExit(137)
+                if self.write_key(path, self.runs) == target:
+                    written[0] += 1
+                    if written[0] == occurrence:
+                        raise SystemExit(137)
                 return write_new(path, text, mode)
 
-            module.write_new = terminate
+            def terminate_tracking(run, value):
+                if target == 'run-tracking.json':
+                    raise SystemExit(137)
+                return write_tracking(run, value)
+
+            module.write_new, module.flow_write_tracking = terminate, terminate_tracking
             with mock.patch('sys.stdin', io.TextIOWrapper(io.BytesIO(json.dumps(payload()).encode('utf8')))):
                 with self.assertRaises(SystemExit):
                     module.flow_m1_import()
+        if target.startswith('.imports/'):
+            self.assertEqual(self.run_dirs(), [], 'terminated before the reservation')
+            self.assertFalse((self.runs / target).exists())
+            return
         [crashed] = self.run_dirs()
-        self.assertFalse((crashed / 'm1-import.json').exists())
+        if target == 'm1-import.json' and occurrence == 2:
+            receipt = json.loads((crashed / target).read_text())
+            self.assertNotIn('completed', receipt, 'terminated before the completed receipt')
+            return
+        self.assertFalse((crashed / target).exists(), 'terminated before the write')
+
+    def test_every_interrupted_import_write_is_repaired_by_the_same_package(self):
+        # Termination immediately before each durable write leaves a reserveable run; the identical
+        # resend must publish exactly one complete run, both gates and the step-4 auto record.
+        points = [
+            ('reservation', f'.imports/{IMPORT_ID}.json', 1),
+            ('request', 'request.json', 1),
+            ('state', 'state.json', 1),
+            ('run tracking', 'run-tracking.json', 1),
+            ('step-4 auto record', 'm4/auto.json', 1),
+            ('pending receipt', 'm1-import.json', 1),
+            ('entry gate', 'gates/entry.json', 1),
+            ('raw responses', 'm1/selected/raw-responses.json', 1),
+            ('window manifest', 'm1/selected/manifest.json', 1),
+            ('m1 root manifest', 'm1/manifest.json', 1),
+            ('m1 gate', 'gates/m1.json', 1),
+            ('completed receipt', 'm1-import.json', 2),
+        ]
+        for label, target, occurrence in points:
+            with self.subTest(stopped_before=label):
+                self.reset()
+                self.crash_before(target, occurrence)
+                completed, run = self.imported()
+                self.assertEqual(completed['reused'], label != 'reservation', label)
+                self.assertEqual(self.published_runs(), [run.name], 'one run for the importId')
+                reservation = json.loads((self.runs / '.imports' / f'{IMPORT_ID}.json').read_text())
+                self.assertEqual(reservation['runId'], run.name, 'no duplicate run was reserved')
+                self.assertEqual(json.loads((run / 'request.json').read_text())['metricSource']['importId'], IMPORT_ID)
+                state = json.loads((run / 'state.json').read_text())
+                self.assertEqual([state['format'], state['runId']], ['state-v1', run.name])
+                tracking = json.loads((run / 'run-tracking.json').read_text())
+                self.assertEqual(tracking['requestSha256'], hashlib.sha256((run / 'request.json').read_bytes()).hexdigest())
+                auto = json.loads((run / 'm4/auto.json').read_text())
+                self.assertEqual([auto['format'], auto['runId']], ['review-process-auto-v1', run.name],
+                                 'step 4 hands off by itself')
+                receipt = json.loads((run / 'm1-import.json').read_text())
+                self.assertEqual([receipt['importId'], receipt['completed']], [IMPORT_ID, True])
+                for gate in ('entry', 'm1'):
+                    slip = json.loads((run / f'gates/{gate}.json').read_text())
+                    self.assertEqual([slip['verdict'], slip['runId']], ['PASS', run.name])
+                again, same = self.imported()
+                self.assertEqual([again['runId'], again['reused'], same], [run.name, True, run])
+
+    def test_a_changed_package_conflicts_with_an_interrupted_imports_reservation(self):
+        # The reservation holds the original payload hash, so a different package conflicts even
+        # while the interrupted run has no receipt of its own yet.
+        self.crash_before('m1-import.json', 1)
+        [crashed] = self.run_dirs()
         reservation = json.loads((self.runs / '.imports' / f'{IMPORT_ID}.json').read_text())
         self.assertEqual(reservation['runId'], crashed.name)
-        # The reservation holds the original payload hash, so a different package still conflicts.
         rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(payload(keyword='another synthetic term')))
         self.assertEqual((rc, out['code']), (20, 'IMPORT_ID_CONFLICT'))
-        completed, same = self.imported()
-        self.assertEqual([completed['runId'], completed['reused'], same], [crashed.name, True, crashed])
-        for gate in ('entry', 'm1'):
-            self.assertEqual(json.loads((crashed / f'gates/{gate}.json').read_text())['verdict'], 'PASS')
-        again, _ = self.imported()
-        self.assertEqual([again['runId'], again['reused']], [crashed.name, True])
-        self.assertEqual(self.published_runs(), [crashed.name], 'one run for the importId')
+        self.assertEqual(self.run_dirs(), [crashed])
 
     def test_deeply_nested_input_is_refused_as_invalid_without_a_run(self):
         # Deep enough to trip the interpreter's recursion guard below the 8 MB cap on any Python.

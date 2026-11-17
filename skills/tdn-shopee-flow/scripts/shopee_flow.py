@@ -2464,9 +2464,40 @@ def flow_metric_date_availability(end_date):
     return value
 
 
-def flow_create_run(request, keyword, run_id=None):
-    """Shared run creation: the launch lock, request, state, tracking and step-4 auto record."""
+def flow_initialize_run(run, request, keyword, receipt=None):
+    """One idempotent initializer for every record a run publishes: request, state, tracking,
+    the step-4 auto record and (for an import) its receipt. An interrupted import resumes here,
+    so a missing record is created before any gate reads the run; existing launch state is kept."""
     import fcntl
+    # Publish under the launch admission lock so initialization cannot erase an accepted launch.
+    with open(gate_path(run, '.module.lock'), 'a') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        if gate_read(gate_path(run, 'request.json')) != request:
+            module_atomic_json(run, 'request.json', request)
+        state = gate_read(gate_path(run, 'state.json'))
+        if not isinstance(state, dict) or state.get('format') != 'state-v1' or state.get('runId') != run.name:
+            module_atomic_json(run, 'state.json', flow_state(run))
+        record = flow_tracking_record(run)
+        digest = gate_hash(run, 'request.json')
+        if record is None:
+            flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
+                                      'requestSha256': digest, 'primaryKeyword': keyword,
+                                      'createdAt': flow_now(), 'firstRunAt': None,
+                                      'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
+        elif record['requestSha256'] != digest:
+            flow_write_tracking(run, {**record, 'requestSha256': digest})
+        auto = gate_read(gate_path(run, 'm4/auto.json'))
+        # Step 4 starts by itself only for runs created by this release (owner F582).
+        if not isinstance(auto, dict) or auto.get('format') != 'review-process-auto-v1' or auto.get('runId') != run.name:
+            module_atomic_json(run, 'm4/auto.json', {'format': 'review-process-auto-v1', 'runId': run.name, 'createdAt': flow_now()})
+        if receipt is not None and gate_read(gate_path(run, 'm1-import.json')) != receipt:
+            module_atomic_json(run, 'm1-import.json', receipt)
+
+
+def flow_create_run(request, keyword, run_id=None, *, resume=False):
+    """Shared run creation: the launch lock, request, state, tracking and step-4 auto record.
+    `resume` adopts the folder an import reserved before creating it, so a crash inside the
+    initializer is completed by the next identical resend instead of publishing a half run."""
     root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     while True:
@@ -2477,17 +2508,10 @@ def flow_create_run(request, keyword, run_id=None):
         except FileExistsError:
             if run_id is None:
                 continue
-            raise
-    # Publish under the launch admission lock so initialization cannot erase an accepted launch.
-    with open(gate_path(run, '.module.lock'), 'a') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        module_atomic_json(run, 'request.json', request)
-        module_atomic_json(run, 'state.json', flow_state(run))
-        flow_write_tracking(run, {'format': 'run-tracking-v1', 'runId': run.name,
-                                 'requestSha256': gate_hash(run, 'request.json'), 'primaryKeyword': keyword,
-                                 'createdAt': flow_now(), 'firstRunAt': None, 'firstObservedLaunchAt': None, 'historyBasis': 'new-run'})
-        # Step 4 starts by itself only for runs created by this release (owner F582).
-        module_atomic_json(run, 'm4/auto.json', {'format': 'review-process-auto-v1', 'runId': run.name, 'createdAt': flow_now()})
+            if not resume or run.is_symlink() or not run.is_dir():
+                raise
+            break
+    flow_initialize_run(run, request, keyword)
     return run
 
 
@@ -2791,19 +2815,13 @@ def flow_m1_import():
             # A receipt without the completed marker is an interrupted import: the validated
             # resend completes that same run instead of leaving it blocked behind GATE_NOT_PASSED.
             run, reused = existing, True
-            module_atomic_json(run, 'request.json', request)
-            module_atomic_json(run, 'm1-import.json', receipt)
-        elif reservation is not None and (root / reservation['runId']).is_dir():
-            # Terminated after the run was initialized but before its receipt was published:
-            # the reservation names that run, so the resend completes it instead of duplicating it.
-            run, reused = root / reservation['runId'], True
-            module_atomic_json(run, 'request.json', request)
-            module_atomic_json(run, 'm1-import.json', receipt)
+        elif reservation is not None:
+            # The reservation names the interrupted run, present or still uncreated; the shared
+            # initializer fills in every record its terminator had not published yet.
+            run, reused = flow_create_run(request, fields['keyword'], reservation['runId'], resume=True), True
         else:
-            run_id = reservation['runId'] if reservation is not None else None
-            if run_id is None:
-                run_id = flow_import_new_run_id(root)
-                flow_import_reserve(root, fields['importId'], fields['payloadSha256'], run_id)
+            run_id = flow_import_new_run_id(root)
+            flow_import_reserve(root, fields['importId'], fields['payloadSha256'], run_id)
             try:
                 run = flow_create_run(request, fields['keyword'], run_id)
             except FileExistsError:
@@ -2811,7 +2829,7 @@ def flow_m1_import():
                 flow_import_reserve(root, fields['importId'], fields['payloadSha256'], run_id)
                 run = flow_create_run(request, fields['keyword'], run_id)
             reused = False
-            module_atomic_json(run, 'm1-import.json', receipt)
+        flow_initialize_run(run, request, fields['keyword'], receipt)
         entry, _, _ = gate_evaluate_write(run, 'entry')
         if entry.get('verdict') != 'PASS':
             raise ModuleFailure('GATE_NOT_PASSED', 20)
