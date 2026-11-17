@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/metric-user-page-window-v1.schema.json",
+  "title": "ShopeeFlowUserPageWindowManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "captureMethod",
+    "capturedAt",
+    "window",
+    "sourceMap",
+    "captureGate",
+    "files"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "metric-user-page-window-v1"
+    },
+    "captureMethod": {
+      "const": "user-page"
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "window": {
+      "$ref": "#/$defs/window"
+    },
+    "sourceMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "products"
+      ],
+      "properties": {
+        "products": {
+          "const": "raw-responses.json#/0/body/data"
+        }
+      }
+    },
+    "captureGate": {
+      "const": "PASSED"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "byteSize"
+        ],
+        "properties": {
+          "path": {
+            "const": "raw-responses.json"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "period",
+        "intervalDays"
+      ],
+      "properties": {
+        "id": {
+          "const": "selected"
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "intervalDays": {
+          "const": 7
+        }
+      }
+    }
+  }
+}

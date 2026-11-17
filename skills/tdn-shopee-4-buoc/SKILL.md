@@ -90,6 +90,13 @@ shopee-cli.py gate entry --run <runId>
   ```
   `metricOptions` cần đủ 7 khóa trên. Cách lấy: chạy `capture-specs --run <lượt cũ cùng preset>`, lấy `captureSpec.preset`, bỏ `keywords, platforms, category, advancedFilter, exclusions`, thêm `categoryIds` = id các mục trong `category.children`.
 - Kết quả: `runId` (8 ký tự). Cổng `entry` kiểm tên sản phẩm, ngày, cách lấy bình luận, khóa bảo trì, và bộ lọc Metric (`capture_spec_*`). `new-run` không in cảnh báo về input; kết luận nằm ở `gate entry`.
+- Đường app đã lấy gói 100 sản phẩm: thay `new-run` + `m1` bằng
+  `echo '<gói JSON>' | shopee-cli.py m1-import --stdin` (schema: `chuan/request-v2.schema.json`,
+  `chuan/metric-user-page-window-v1.schema.json`).
+  Lệnh tạo lượt `request-v2` với `metricSource.format = user-page-v1`, ghi `m1/` phẳng, tự ghi
+  cổng `entry` và `m1`, rồi in `runId`, `reused`, `gates`. Gửi lại đúng gói (cùng `importId`, cùng hash)
+  thì `reused: true` và dùng lại `runId`; cùng `importId` nhưng gói khác thì `IMPORT_ID_CONFLICT`.
+  Không gọi `run`, không gọi Metric. Bước 2 dùng nguyên lệnh `m2` bên dưới.
 
 ## Bước 1. Metric
 
