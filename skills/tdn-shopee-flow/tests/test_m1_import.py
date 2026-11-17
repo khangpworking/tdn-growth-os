@@ -115,6 +115,13 @@ class M1ImportTest(unittest.TestCase):
             slip = json.loads((run / f'gates/{gate}.json').read_text())
             self.assertEqual([slip['format'], slip['verdict'], slip['runId']], ['handoff-v1', 'PASS', run.name])
 
+    def test_a_user_page_import_passes_entry_without_capture_spec_checks(self):
+        _, run = self.imported()
+        entry = json.loads((run / 'gates/entry.json').read_text())
+        self.assertEqual(entry['verdict'], 'PASS')
+        self.assertFalse([c for c in entry['checks'] if c['id'].startswith('capture_spec_')])
+        self.assertFalse([c for c in entry['checks'] if not c['ok']])
+
     def test_the_same_payload_reuses_the_run_and_a_changed_one_conflicts(self):
         first, run = self.imported()
         again, same = self.imported()

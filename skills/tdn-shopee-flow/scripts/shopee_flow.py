@@ -808,14 +808,17 @@ def evaluate_gate(run, gate, *, readonly_file=None):
             check('review_cap_1_300', type(cap) is int and params['reviewCapPerLink']['min'] <= cap <= params['reviewCapPerLink']['max'], cap if type(cap) is int else None)
         off = os.environ.get('TDN_SHOPEE_FLOW_READONLY') != '1' and not (READONLY_FILE if readonly_file is None else pathlib.Path(readonly_file)).exists()
         check('readonly_off', off, off)
-        spec_checks = flow_capture_checks(request)
-        # Historical no-spec entry/manual M2/M3 reading remains possible. A fresh
-        # M1 always requires all checks below, irrespective of this legacy warning.
-        legacy_missing = 'captureSpec' not in request and 'metricInput' not in request
-        for item in spec_checks:
-            check(item['id'], item['ok'], item['got'], legacy_missing)
-        if not legacy_missing:
-            code = next((c['errorCode'] for c in spec_checks if not c['ok']), None)
+        # A user-page run has no capture spec by design: m1-import validates the
+        # input and gate m1 / verify-capture check the source.
+        if not isinstance(request.get('metricSource'), dict):
+            spec_checks = flow_capture_checks(request)
+            # Historical no-spec entry/manual M2/M3 reading remains possible. A fresh
+            # M1 always requires all checks below, irrespective of this legacy warning.
+            legacy_missing = 'captureSpec' not in request and 'metricInput' not in request
+            for item in spec_checks:
+                check(item['id'], item['ok'], item['got'], legacy_missing)
+            if not legacy_missing:
+                code = next((c['errorCode'] for c in spec_checks if not c['ok']), None)
     elif not code and gate == 'm1':
         manifest, windows = gate_metric_windows(run)
         successes, readable, row_counts, periods = [], [], [], []
