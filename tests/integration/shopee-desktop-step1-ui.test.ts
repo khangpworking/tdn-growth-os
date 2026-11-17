@@ -6,11 +6,8 @@ import { JSDOM } from 'jsdom';
 // Step 1 card of the desktop app: the user's own Chrome on Metric. Fake bridge only.
 const html = await readFile(new URL('../../tools/shopee-desktop/index.html', import.meta.url), 'utf8');
 
-const SEEN = {
-  chromeOpen: true, listening: true, seen: true, needsKeyword: false, busy: false, pending: null,
-  filter: { period: '01/10/2026 – 31/10/2026', platforms: 'Shopee, Lazada', keyword: 'canxi' },
-};
-const IDLE = { chromeOpen: false, listening: false, seen: false, filter: null, needsKeyword: false, busy: false, pending: null };
+const SEEN = { chromeOpen: true, listening: true, seen: true, busy: false, pending: null };
+const IDLE = { chromeOpen: false, listening: false, seen: false, busy: false, pending: null };
 
 async function waitFor(check: () => boolean, label: string, ms = 3000): Promise<void> {
   const start = Date.now();
@@ -62,9 +59,11 @@ test('step 1 shows the Metric card and hides the old preset form, run button and
     assert.ok(p.$('legacyNewRun').contains(p.$('endDate')));
     assert.equal(p.$('newPolicySummary').closest('[hidden]'), null); // the policy form stays
     assert.match(p.$('chromeState').textContent!, /Chrome chưa mở/);
-    assert.match(p.$('metricFilterLine').textContent!, /Chưa thấy bộ lọc nào/);
     assert.equal(p.$('btnTakeReviews').disabled, true);
-    assert.equal(p.$('metricKeywordField').hidden, true);
+    // The owner removed the last-filter line and the typed name box: the name comes from Metric's search box.
+    assert.equal(p.$('metricFilterLine'), null);
+    assert.equal(p.$('metricKeywordField'), null);
+    assert.ok(!p.$('metricCard').textContent!.includes('Bộ lọc lần xem cuối'));
     const copy = p.$('metricCard').textContent! + p.$('metricTake').textContent!;
     for (const word of ['CDP', 'JSON', 'postData', 'API', 'request', 'tab ']) assert.ok(!copy.includes(word), word);
     assert.ok(!p.names().includes('metricDateAvailability'));
@@ -73,14 +72,13 @@ test('step 1 shows the Metric card and hides the old preset form, run button and
   }
 });
 
-test('the last filter, open pill and one click send the frozen policy once, then step 2 is reported', async () => {
+test('the open pill and one click send the frozen policy once, then step 2 is reported', async () => {
   let release!: (value: any) => void;
   const gate = new Promise((resolve) => { release = resolve; });
   const p = page([SEEN], async () => { await gate; return { ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } }; });
   try {
     await waitFor(() => p.$('btnTakeReviews').disabled === false, 'take enabled');
     assert.match(p.$('chromeState').textContent!, /Chrome đang mở/);
-    assert.equal(p.$('metricFilterLine').textContent, 'Bộ lọc lần xem cuối: kỳ 01/10/2026 – 31/10/2026, sàn Shopee, Lazada, từ khóa “canxi”');
     p.$('btnTakeReviews').click();
     p.$('btnTakeReviews').click();
     await waitFor(() => p.$('btnTakeReviews').disabled, 'blocked while busy');
@@ -92,24 +90,6 @@ test('the last filter, open pill and one click send the frozen policy once, then
     assert.match(p.$('metricNotice').textContent!, /Đã tạo lượt a1b2c3d4 từ số liệu Metric\. Bước 2 đang chọn 5 link Shopee/);
     assert.equal(p.$('metricDone').hidden, false);
     for (const name of ['newRun', 'runFlow', 'runModule']) assert.ok(!p.names().includes(name), name);
-  } finally {
-    p.dom.window.close();
-  }
-});
-
-test('no keyword on Metric asks for «Tên lượt / từ khóa» and sends it', async () => {
-  const noKeyword = { ...SEEN, needsKeyword: true, filter: { ...SEEN.filter, keyword: null } };
-  const p = page([noKeyword], async () => ({ ok: true, data: { runId: 'b1', reused: false, step2: { ok: true } } }));
-  try {
-    await waitFor(() => p.$('metricKeywordField').hidden === false, 'keyword field');
-    assert.match(p.$('metricFilterLine').textContent!, /từ khóa chưa có$/);
-    assert.equal(p.$('btnTakeReviews').disabled, true);
-    p.$('metricKeyword').value = '  viên canxi ';
-    p.$('metricKeyword').dispatchEvent(new p.dom.window.Event('input'));
-    assert.equal(p.$('btnTakeReviews').disabled, false);
-    p.$('btnTakeReviews').click();
-    await waitFor(() => p.names().includes('takeMetricReviews'), 'sent');
-    assert.equal(p.calls.find((c) => c.method === 'takeMetricReviews')!.args[0].keyword, 'viên canxi');
   } finally {
     p.dom.window.close();
   }

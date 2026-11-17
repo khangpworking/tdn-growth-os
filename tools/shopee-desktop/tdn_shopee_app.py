@@ -1556,12 +1556,9 @@ class Api:
 
     def _take_metric_reviews(self, value):
         if (not isinstance(value, dict) or 'collectionPolicy' not in value or
-                set(value) - {'collectionPolicy', 'keyword'}):
+                set(value) - {'collectionPolicy'}):
             raise _BridgeFailure('ARG_INVALID')
         self._validate_collection_policy(value['collectionPolicy'])
-        keyword = value.get('keyword')
-        if keyword is not None and not isinstance(keyword, str):
-            raise _BridgeFailure('ARG_INVALID')
         session = self._metric_session()
         if not session.busy.acquire(blocking=False):
             raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
@@ -1571,7 +1568,7 @@ class Api:
                 folder = _evidence_folder()
             except _BridgeFailure:
                 folder = None
-            session.capture(value['collectionPolicy'], keyword, screenshot_dir=folder)
+            session.capture(value['collectionPolicy'], screenshot_dir=folder)
             return self._send_metric_import(session, config)
         finally:
             session.busy.release()

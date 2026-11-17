@@ -453,8 +453,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
             <p class="lead" style="margin:0">Chọn cách lấy bình luận ở phần dưới, rồi bấm «Lấy bình luận Shopee». App lấy 100 sản phẩm doanh thu cao nhất theo bộ lọc lần xem cuối.</p>
           </div>
         </div>
-        <p class="windowline" id="metricFilterLine">Chưa thấy bộ lọc nào. Bấm «Mở Metric» rồi xem số liệu trên trang phân tích.</p>
-        <label class="field" id="metricKeywordField" hidden><span>Tên lượt / từ khóa</span><input type="text" id="metricKeyword" maxlength="120" autocomplete="off" placeholder="Ví dụ: viên uống canxi"></label>
       </section>
 
       <form class="panel newrun" id="newRunForm" novalidate>
@@ -2863,8 +2861,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         return Promise.resolve(ok({ format: 'library-v1', modules: clone(MOCK_MODULES), skills: clone(MOCK_SKILLS) }));
       },
       metricBrowserState: function () {
-        return Promise.resolve(ok({ chromeOpen: false, listening: false, seen: false, filter: null,
-          needsKeyword: false, busy: false, pending: null }));
+        return Promise.resolve(ok({ chromeOpen: false, listening: false, seen: false,
+          busy: false, pending: null }));
       },
       openMetric: function () { return Promise.resolve(err('CHROME_NOT_FOUND', 'Trang thử không mở Chrome.')); },
       takeMetricReviews: function () { return Promise.resolve(err('METRIC_NOT_SEEN', 'METRIC_NOT_SEEN')); },
@@ -8273,7 +8271,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     METRIC_FILTER_PENDING: 'Trang Metric chưa gửi xong bộ lọc mới. Bấm lại sau vài giây.',
     METRIC_FILTER_UNAVAILABLE: 'App chưa đọc được bộ lọc mới nhất trên Metric. Chọn lại bộ lọc trên Metric rồi bấm lại.',
     METRIC_TAB_GONE: 'Tab Metric lần xem cuối đã đóng hoặc đã sang trang khác. Mở lại trang Metric, xem lại rồi bấm lại.',
-    METRIC_KEYWORD_REQUIRED: 'Bộ lọc chưa có từ khóa. Nhập «Tên lượt / từ khóa» rồi bấm lại.',
     METRIC_BUSY: 'App đang lấy bình luận. Chờ xong rồi bấm lại.',
     METRIC_IMPORT_PENDING: 'Còn một gói số liệu chưa gửi xong. Bấm «Gửi lại» hoặc «Bỏ và lấy lại từ Metric».',
     METRIC_NOTHING_PENDING: 'Không còn gói số liệu nào để gửi lại.',
@@ -8313,15 +8310,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       : { error: checked.error || 'Cách lấy bình luận chưa hợp lệ.' };
   }
 
-  function metricFilterText(view) {
-    if (!view || !view.seen || !view.filter) {
-      return 'Chưa thấy bộ lọc nào. Bấm «Mở Metric» rồi xem số liệu trên trang phân tích.';
-    }
-    var f = view.filter;
-    return 'Bộ lọc lần xem cuối: kỳ ' + (f.period || 'chưa rõ') + ', sàn ' + (f.platforms || 'chưa rõ') +
-      ', từ khóa ' + (f.keyword ? '“' + f.keyword + '”' : 'chưa có');
-  }
-
   function showMetricError(text) {
     var el = $('metricErr');
     el.textContent = text || '';
@@ -8339,8 +8327,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var pill = $('chromeState');
     pill.className = 'chrome-pill ' + (view.chromeOpen ? 'on' : 'off');
     pill.querySelector('b').textContent = view.chromeOpen ? 'Chrome đang mở' : 'Chrome chưa mở';
-    $('metricFilterLine').textContent = metricFilterText(view);
-    $('metricKeywordField').hidden = !view.needsKeyword;
     var pending = view.pending || null;
     var busy = !!state.metricBusy || !!view.busy;
     $('btnOpenMetric').disabled = !!state.metricOpening || busy;
@@ -8349,9 +8335,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnResendImport').disabled = busy || !state.connected || state.readonly;
     $('btnDiscardImport').disabled = busy;
     var policy = metricPolicy();
-    var keywordOk = !view.needsKeyword || $('metricKeyword').value.trim().length > 0;
     $('btnTakeReviews').disabled = busy || !!pending || !view.seen || !state.connected || state.readonly ||
-      !!policy.error || !keywordOk;
+      !!policy.error;
     var hint = '';
     if (busy) hint = 'Đang lấy danh sách sản phẩm từ Metric và tạo lượt…';
     else if (pending) hint = 'Gói số liệu “' + pending.keyword + '”' + (pending.period ? ' (kỳ ' + pending.period + ')' : '') +
@@ -8360,7 +8345,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     else if (state.readonly) hint = 'Hệ thống đang tạm dừng lấy dữ liệu.';
     else if (!view.seen) hint = 'Nút này bấm được sau khi app thấy bạn xem số liệu trên Metric.';
     else if (policy.error) hint = policy.error;
-    else if (!keywordOk) hint = 'Nhập «Tên lượt / từ khóa» vì bộ lọc trên Metric chưa có từ khóa.';
     $('metricTakeHint').textContent = hint;
     $('metricTakeHint').hidden = !hint;
   }
@@ -8422,7 +8406,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     text += ' Muốn tạo lượt khác, bấm «Mở Metric» rồi xem lại trên Metric.';
     showMetricNotice(text);
     $('metricDone').hidden = false;
-    $('metricKeyword').value = '';
     await refreshRuns();
   }
 
@@ -8445,8 +8428,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var policy = metricPolicy();
     if (policy.error) { showMetricError(policy.error); return; }
     var input = { collectionPolicy: policy.value };
-    var view = state.metricView || {};
-    if (view.needsKeyword) input.keyword = $('metricKeyword').value.trim();
     return runMetricAction(function () { return api.takeMetricReviews(input); });
   }
 
@@ -8474,7 +8455,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnResendImport').addEventListener('click', onResendImport);
     $('btnDiscardImport').addEventListener('click', onDiscardImport);
     $('btnTrackMetricRun').addEventListener('click', onTrackMetricRun);
-    $('metricKeyword').addEventListener('input', renderMetricCard);
     $('newRunForm').addEventListener('change', renderMetricCard);
     $('newRunForm').addEventListener('input', renderMetricCard);
     // The old preset form is hidden: Enter in a policy field must not submit it.
