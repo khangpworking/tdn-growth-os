@@ -9,6 +9,8 @@ import pathlib
 import re
 import sys
 import tempfile
+import threading
+import time
 import unittest
 import uuid
 from unittest import mock
@@ -163,6 +165,98 @@ class HostFilterTest(unittest.TestCase):
         self.assertIn('Network.requestWillBeSent', tab.listeners)
 
 
+class LifecycleTest(unittest.TestCase):
+    """stop_all() is final, even while a poll pass is waiting on /json/list."""
+
+    def blocked_world(self):
+        world = World([])
+        listing = threading.Event()
+        release = threading.Event()
+
+        def list_targets():
+            listing.set()
+            release.wait(5)
+            return [target('a', 'https://metric.vn/analytics')]
+        listener = mb.MetricListener(9, tab_factory=world.factory, list_targets=list_targets,
+                                     clock=lambda: world.now)
+        return world, listener, listing, release
+
+    def test_a_poll_in_flight_cannot_attach_after_stop_all(self):
+        world, listener, listing, release = self.blocked_world()
+        listener.start(interval=0.01)
+        self.assertTrue(listing.wait(5))
+        stopper = threading.Thread(target=listener.stop_all)
+        stopper.start()
+        time.sleep(0.05)
+        release.set()            # the pending pass now sees a Metric tab
+        stopper.join(10)
+        self.assertFalse(stopper.is_alive())
+        self.assertFalse(listener._thread.is_alive())   # poll drained
+        self.assertEqual(listener.attached_ids(), [])
+        self.assertTrue(all(tab.stopped or not tab.started for tab in world.tabs))
+        self.assertFalse(listener.poll())
+        listener.start()
+        self.assertFalse(listener._thread.is_alive())
+        self.assertIsNone(listener._attach(target('b', 'https://metric.vn/analytics')))
+
+    def test_an_attach_racing_stop_all_stops_its_own_connection(self):
+        world = World([])
+        listener = world.listener()
+        started = threading.Event()
+        proceed = threading.Event()
+
+        def factory(t):
+            tab = FakeTab(t)
+            original = tab.start
+
+            def start():
+                original()
+                started.set()
+                proceed.wait(5)      # stop_all runs while this connection is being opened
+            tab.start = start
+            world.tabs.append(tab)
+            return tab
+        listener._tab_factory = factory
+        attaching = threading.Thread(target=lambda: listener._attach(target('a', 'https://metric.vn/x')))
+        attaching.start()
+        self.assertTrue(started.wait(5))
+        listener.stop_all()
+        proceed.set()
+        attaching.join(5)
+        self.assertEqual(listener.attached_ids(), [])
+        self.assertTrue(world.tabs[0].stopped)
+        self.assertEqual(world.tabs[0].methods(), [])   # never Network.enable
+
+    def test_session_confirmed_drains_and_a_new_open_gets_a_new_listener(self):
+        world, listener, listing, release = self.blocked_world()
+        launcher = mock.Mock(is_alive=lambda port: True, saved_port=lambda: 9)
+        launcher.open_chrome.return_value = {'port': 9, 'browserName': 'Google Chrome', 'reused': True}
+        made = []
+
+        def factory(port):
+            made.append(mb.MetricListener(port, tab_factory=world.factory,
+                                          list_targets=lambda: [target('a', 'https://metric.vn/analytics')]))
+            return made[-1]
+        session = mb.MetricSession(tempfile.gettempdir(), launcher=launcher, listener_factory=factory)
+        session.listener = listener
+        listener.start(interval=0.01)
+        self.assertTrue(listing.wait(5))
+        stopper = threading.Thread(target=session.confirmed)
+        stopper.start()
+        time.sleep(0.05)
+        release.set()
+        stopper.join(10)
+        self.assertIsNone(session.listener)
+        self.assertTrue(listener.closed)
+        self.assertEqual(listener.attached_ids(), [])
+        session.open_metric()                       # «Mở Metric» again: a fresh listener
+        self.assertEqual(len(made), 1)
+        self.assertIs(session.listener, made[0])
+        self.assertEqual(made[0].attached_ids(), ['a'])
+        session.close()
+        self.assertEqual(made[0].attached_ids(), [])
+
+
 class DetachTest(unittest.TestCase):
     def setUp(self):
         self.world = World([target('a', 'https://metric.vn/analytics')])
@@ -246,11 +340,113 @@ class ProductsRequestTest(unittest.TestCase):
             self.a.emit(requestId='z', type='Fetch', frameId='a', request=request)
         self.assertIsNone(self.listener.latest())
 
-    def test_the_apps_own_top_100_request_is_ignored(self):
+    def top100_evaluate(self, tab, emit=True):
+        """A fake in-page call that (optionally) sends the app's own request on `tab`."""
+        def evaluate(expression, awaitPromise, returnByValue):
+            arg = json.loads(expression[expression.index(')({') + 2:-1])
+            if emit:
+                tab.products_request(arg['requestBody'], request_id='app-1')
+                return {'result': {'value': {'urlPath': arg['urlPath'], 'method': 'POST', 'status': 200,
+                                             'requestBody': arg['requestBody'],
+                                             'body': {'status': 'success', 'data': {'products': []}}}}}
+            return {'result': {'value': {'stop': 'CAPTURE_LOGIN_REQUIRED'}}}
+        tab.answers['Runtime.evaluate'] = evaluate
+
+    def test_the_apps_own_request_is_ignored_only_during_its_invocation(self):
         self.a.products_request(page_body())
-        self.listener._own.add(mb.canonical(mb.top_products_body(page_body())))
-        self.a.products_request(mb.top_products_body(page_body()))
+        frozen = self.listener.freeze()
+        self.top100_evaluate(self.a)
+        self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(self.listener.latest()['body'], page_body())   # own request not taken
+        self.assertEqual(self.listener._own, {})
+        # Afterwards the user views exactly that top-100 filter: it is recorded, on either tab.
+        top = mb.top_products_body(page_body())
+        self.b.products_request(top, request_id='user-b')
+        self.assertEqual((self.listener.latest()['targetId'], self.listener.latest()['body']), ('b', top))
+        self.a.products_request(top, request_id='user-a')
+        self.assertEqual(self.listener.latest()['targetId'], 'a')
+
+    def test_a_failed_capture_leaves_no_suppression_behind(self):
+        filter_a = page_body(start_date='20260901')
+        self.a.products_request(filter_a)
+        frozen = self.listener.freeze()
+        self.top100_evaluate(self.a, emit=False)
+        with self.assertRaises(mb.MetricFailure):
+            self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(self.listener._own, {})
+        self.b.products_request(page_body(start_date='20260801'))             # user views B
+        self.a.products_request(mb.top_products_body(filter_a), request_id='u')  # then A again, top-100 view
+        self.assertEqual(self.listener.latest()['body'], mb.top_products_body(filter_a))
+
+    def test_suppression_covers_only_the_invocation_tab(self):
+        self.a.products_request(page_body())
+        frozen = self.listener.freeze()
+        top = mb.top_products_body(page_body())
+
+        def evaluate(expression, awaitPromise, returnByValue):
+            self.b.products_request(top, request_id='user-b')       # user on tab b, same moment
+            return {'result': {'value': {'stop': 'CAPTURE_LOGIN_REQUIRED'}}}
+        self.a.answers['Runtime.evaluate'] = evaluate
+        with self.assertRaises(mb.MetricFailure):
+            self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(self.listener.latest()['targetId'], 'b')
+
+    def test_suppression_waits_for_queued_events_before_ending(self):
+        self.a.products_request(page_body())
+        frozen = self.listener.freeze()
+        top = mb.top_products_body(page_body())
+        queued = []
+
+        def evaluate(expression, awaitPromise, returnByValue):
+            queued.append(lambda: self.a.products_request(top, request_id='app-1'))  # still in the queue
+            return {'result': {'value': {'urlPath': PRODUCTS[len('https://apiv4.metric.vn'):], 'method': 'POST',
+                                         'status': 200, 'requestBody': top,
+                                         'body': {'status': 'success', 'data': {'products': []}}}}}
+        self.a.answers['Runtime.evaluate'] = evaluate
+        self.a.drain_events = lambda timeout: [event() for event in queued]
+        self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
         self.assertEqual(self.listener.latest()['body'], page_body())
+
+    def test_a_delayed_older_body_never_replaces_a_newer_request(self):
+        release = threading.Event()
+        entered = threading.Event()
+
+        def slow_body(requestId):
+            entered.set()
+            release.wait(5)
+            return {'postData': json.dumps(page_body(end_date='20261001'))}   # older filter, tab a
+        self.a.answers['Network.getRequestPostData'] = slow_body
+        older = threading.Thread(target=lambda: self.a.emit(
+            requestId='old', type='Fetch', frameId='a', timestamp=100.0,
+            request={'url': PRODUCTS, 'method': 'POST', 'hasPostData': True}))
+        older.start()
+        self.assertTrue(entered.wait(5))
+        self.b.emit(requestId='new', type='Fetch', frameId='b', timestamp=101.0,
+                    request={'url': PRODUCTS, 'method': 'POST', 'postData': json.dumps(page_body(end_date='20261031'))})
+        self.assertEqual(self.listener.latest()['targetId'], 'b')
+        release.set()
+        older.join(5)
+        latest = self.listener.latest()
+        self.assertEqual((latest['targetId'], latest['body']['end_date']), ('b', '20261031'))
+
+    def test_without_timestamps_the_order_is_the_order_received(self):
+        release = threading.Event()
+        self.a.answers['Network.getRequestPostData'] = lambda requestId: (
+            release.wait(5), {'postData': json.dumps(page_body(end_date='20261001'))})[1]
+        older = threading.Thread(target=lambda: self.a.products_request(None, request_id='old', inline=False))
+        older.start()
+        time.sleep(0.05)
+        self.b.products_request(page_body(end_date='20261031'), request_id='new')
+        release.set()
+        older.join(5)
+        self.assertEqual(self.listener.latest()['targetId'], 'b')
+
+    def test_an_older_event_on_the_same_tab_does_not_replace_a_newer_one(self):
+        self.a.emit(requestId='2', type='Fetch', frameId='a', timestamp=50.0,
+                    request={'url': PRODUCTS, 'method': 'POST', 'postData': json.dumps(page_body(end_date='20261031'))})
+        self.a.emit(requestId='1', type='Fetch', frameId='a', timestamp=40.0,
+                    request={'url': PRODUCTS, 'method': 'POST', 'postData': json.dumps(page_body(end_date='20261001'))})
+        self.assertEqual(self.listener.latest()['body']['end_date'], '20261031')
 
     def test_runtime_enable_is_never_sent(self):
         self.a.products_request(page_body())

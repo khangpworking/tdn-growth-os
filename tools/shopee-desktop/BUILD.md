@@ -6,7 +6,7 @@ Build from `tools/shopee-desktop` in a repository checkout: the build also bundl
 
 ```powershell
 py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install pywebview pyinstaller websocket-client
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 New-Item -ItemType Directory -Force "$env:APPDATA\tdn-shopee-flow"
 Copy-Item .\config.example.json "$env:APPDATA\tdn-shopee-flow\config.json"
 ```
@@ -39,7 +39,7 @@ The old preset form (product, period, Metric filters, **Tạo lượt**, **Bắt
 
 `vendor_pychrome/` is pychrome 0.2.4 (BSD, `LICENSE` and `SOURCE.md` kept). Its only dependency is `websocket-client`.
 
-Offline coverage: `python -m unittest discover -s tools/shopee-desktop/tests -p 'test_metric_browser*.py' -v`. `test_metric_browser_cdp.py` starts a headless local Chrome against local pages on 127.0.0.1 (test-only host override) and is skipped without Chrome or `websocket-client`. UI: `node --test tests/integration/shopee-desktop-step1-ui.test.ts`. Shared JS: `node --import tsx --test tests/unit/metric-request-in-page.test.ts`.
+Offline coverage: `python -m unittest discover -s tools/shopee-desktop/tests -p 'test_metric_browser*.py' -v`. `test_metric_browser_cdp.py` starts a headless local Chrome against local pages on 127.0.0.1 (test-only host override). It is skipped only where no Chrome/Edge is installed; with Chrome present a missing `websocket-client` fails the run (install `requirements.txt`). UI: `node --test tests/integration/shopee-desktop-step1-ui.test.ts`. Shared JS: `node --import tsx --test tests/unit/metric-request-in-page.test.ts`.
 
 ## Create a run and add a product (old runs)
 

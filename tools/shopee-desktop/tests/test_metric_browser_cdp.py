@@ -24,11 +24,24 @@ sys.path.insert(0, str(HERE.parent))
 import tdn_metric_browser as mb  # noqa: E402
 
 try:
+    BROWSER = mb.get_browser_info()
+except mb.MetricFailure:
+    BROWSER = None   # not a Windows machine with Chrome/Edge: nothing real to drive
+try:
     import websocket  # noqa: F401
     from vendor_pychrome import Tab
-    BROWSER = mb.get_browser_info()
-except (ImportError, mb.MetricFailure):
-    BROWSER = None
+    WEBSOCKET = True
+except ImportError:
+    WEBSOCKET = False
+
+
+class RequirementsTest(unittest.TestCase):
+    def test_websocket_client_is_installed_where_chrome_is(self):
+        """Not a silent skip: with Chrome present the real test needs websocket-client
+        (tools/shopee-desktop/requirements.txt)."""
+        if BROWSER is None:
+            self.skipTest('no Chrome or Edge on this machine')
+        self.assertTrue(WEBSOCKET, 'pip install -r tools/shopee-desktop/requirements.txt (websocket-client)')
 
 PAGE = '''<!doctype html><meta charset="utf-8"><title>local metric</title>
 <body style="background:#fff">local page
@@ -71,6 +84,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+class QuietServer(http.server.ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        pass   # Chrome being killed at the end resets its keep-alive sockets
+
+
 def wait_for(check, label, seconds=10):
     end = time.monotonic() + seconds
     while time.monotonic() < end:
@@ -81,11 +99,11 @@ def wait_for(check, label, seconds=10):
     raise AssertionError('timeout: ' + label)
 
 
-@unittest.skipIf(BROWSER is None, 'needs Chrome or Edge and websocket-client')
+@unittest.skipIf(BROWSER is None or not WEBSOCKET, 'needs Chrome or Edge and websocket-client')
 class RealChromeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        cls.server = QuietServer(('127.0.0.1', 0), Handler)
         cls.http_port = cls.server.server_address[1]
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.folder = tempfile.mkdtemp()
@@ -202,6 +220,14 @@ class RealChromeTest(unittest.TestCase):
         self.assertEqual(response['body']['status'], 'success')
         time.sleep(0.5)
         self.assertEqual(listener.latest()['seq'], before['seq'])
+
+        # Suppression ended with that call: the user sending the identical body is recorded.
+        top = json.dumps(mb.top_products_body(frozen['body']))
+        drive.call_method('Runtime.evaluate', awaitPromise=True, _timeout=10, expression=(
+            "fetch('/v2/market/analytics/products/', {method: 'POST', headers: {'Content-Type': "
+            "'application/json'}, body: JSON.stringify(" + top + ")}).then(r => r.status)"))
+        wait_for(lambda: listener.latest()['seq'] != before['seq'], 'identical user request recorded')
+        self.assertEqual(listener.latest()['body'], mb.top_products_body(frozen['body']))
 
         self.assertNotIn('Runtime.enable', sent_methods)
         self.assertIn('Network.enable', sent_methods)
