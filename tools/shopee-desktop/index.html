@@ -51,6 +51,7 @@ header.top .sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .dot.stop { background: var(--stop); }
 .ro { flex-basis: 100%; font-size: 13px; font-weight: 600; color: var(--need); background: var(--need-tint); border-radius: 6px; padding: 6px 10px; }
 
+.warnbar { background: var(--need-tint); color: var(--need); border: 1px solid var(--need); border-radius: 8px; padding: 10px 14px; font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
 .errbar { background: var(--stop-tint); color: var(--stop); border: 1px solid var(--stop); border-radius: 8px; padding: 10px 14px; font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -592,6 +593,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
             <span class="hint" id="metricTakeHint" hidden></span>
           </div>
           <p class="errbar" id="metricErr" role="alert" hidden></p>
+          <p class="warnbar" id="metricWarn" role="status" hidden></p>
           <p class="rs-block" id="metricNotice" role="status" hidden></p>
           <div class="btnrow" id="metricDone" hidden>
             <button class="abtn primary" id="btnTrackMetricRun" type="button">Xem lượt vừa tạo</button>
@@ -8316,6 +8318,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     el.hidden = !text;
   }
 
+  function showMetricWarning(text) {
+    var el = $('metricWarn');
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
+  // Too few Shopee products for step 2: a warning, not an error. Nothing was sent or kept.
+  function tooFewShopeeText(error) {
+    var n = error && error.detail && typeof error.detail.shopeeProducts === 'number' ? error.detail.shopeeProducts : 0;
+    return 'Bộ lọc chỉ có ' + n + ' sản phẩm Shopee, cần ít nhất 5. Mở rộng bộ lọc trên Metric rồi bấm lại.';
+  }
+
   function showMetricNotice(text) {
     var el = $('metricNotice');
     el.textContent = text || '';
@@ -8390,7 +8404,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function finishMetricImport(res) {
     if (!res.ok) {
-      showMetricError(metricErrorText(res.error));
+      if (errorCode(res.error) === 'METRIC_TOO_FEW_SHOPEE') showMetricWarning(tooFewShopeeText(res.error));
+      else showMetricError(metricErrorText(res.error));
       return;
     }
     var data = res.data;
@@ -8413,6 +8428,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.metricBusy) return;
     state.metricBusy = true;
     showMetricError('');
+    showMetricWarning('');
     showMetricNotice('');
     $('metricDone').hidden = true;
     renderMetricCard();

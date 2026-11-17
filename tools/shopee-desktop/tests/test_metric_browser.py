@@ -980,6 +980,7 @@ class FakeSession(mb.MetricSession):
     def __init__(self, folder):
         super().__init__(folder, launcher=mock.Mock(is_alive=lambda port: True, saved_port=lambda: 1))
         self.fetches = 0
+        self.rows = products(5)    # what Metric answers to the in-page top-100 request
         world = World([target('a', 'https://metric.vn/analytics')])
         self.listener = world.listener()
         self.listener.poll()
@@ -991,7 +992,7 @@ class FakeSession(mb.MetricSession):
             arg, _ = parse_call(expression)
             return {'result': {'value': {'urlPath': arg['urlPath'], 'method': 'POST', 'status': 200,
                                          'requestBody': arg['requestBody'],
-                                         'body': {'status': 'success', 'data': {'products': products(5)}}}}}
+                                         'body': {'status': 'success', 'data': {'products': self.rows}}}}}
         self.tab.answers['Runtime.evaluate'] = evaluate
 
 
@@ -1023,6 +1024,37 @@ class BridgeTest(unittest.TestCase):
     OK_IMPORT = {'ok': True, 'data': {'format': 'metric-user-page-import-result-v1', 'runId': 'a1b2c3d4',
                                       'reused': False, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}}
     OK_M2 = {'ok': True, 'data': {'format': 'detached-v1', 'runId': 'a1b2c3d4', 'pid': 1}}
+
+    def test_fewer_than_five_shopee_products_send_and_keep_nothing(self):
+        """| Metric answer (top 100)                 | click                                   |
+        |-----------------------------------------|-----------------------------------------|
+        | 4 Shopee                                | warning N=4; nothing sent or kept       |
+        | 0 products                              | warning N=0                             |
+        | 6 rows, 4 Shopee (2 other platforms)    | warning N=4                             |
+        | 6 rows, 4 distinct Shopee (1 repeated)  | warning N=4                             |
+        | 5 Shopee                                | imported, step 2 started (unchanged)    |"""
+        shopee = lambda i: {'product_base_id': f'1__{i}', 'revenue_custom': 100 - i}
+        other = lambda i: {'product_base_id': f'2__{i}', 'revenue_custom': 50 - i}
+        rows = [('4 Shopee', [shopee(i) for i in range(4)], 4),
+                ('0 products', [], 0),
+                ('6 rows, 4 Shopee', [shopee(0), other(0), shopee(1), shopee(2), other(1), shopee(3)], 4),
+                ('repeated Shopee id', [shopee(0), shopee(1), shopee(1), shopee(2), shopee(3), other(0)], 4)]
+        for label, answer, count in rows:
+            with self.subTest(label):
+                self.session.rows = answer
+                result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
+                self.assertEqual(result['error']['code'], 'METRIC_TOO_FEW_SHOPEE')
+                self.assertEqual(result['error']['detail'], {'shopeeProducts': count})
+                self.assertEqual(self.remote_calls, [])               # no m1-import, no run
+                self.assertIsNone(self.session.pending)               # nothing for «Gửi lại»
+                self.assertFalse(self.session.busy.locked())          # can click again at once
+                self.assertIsNotNone(self.session.listener)           # still listening on Metric
+        self.session.rows = [shopee(i) for i in range(5)]
+        self.answers = [self.OK_IMPORT, self.OK_M2]
+        result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
+        self.assertTrue(result['ok'])
+        self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'm2'])
+        self.assertEqual(len(self.remote_calls[0][2]['response']['body']['data']['products']), 5)
 
     def test_m1_import_plan_sends_the_payload_on_stdin(self):
         payload = {'format': 'metric-user-page-import-v1', 'keyword': 'cà phê'}
