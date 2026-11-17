@@ -45,7 +45,6 @@ EVALUATE_TIMEOUT = 60          # > the 45 s HTTP timeout inside requestV3InPage
 POLL_SECONDS = 2
 REATTACH_GRACE_SECONDS = 15
 BODY_WAIT_SECONDS = 5          # the click waits this long for the newest request's body
-PLATFORM_NAMES = {1: 'Shopee', 2: 'Lazada', 3: 'Tiki', 8: 'TikTok'}
 _JS_NAME = 'request-in-page.js'
 _JS_START = 'export async function requestV3InPage('
 
@@ -246,12 +245,16 @@ def top_products_body(body):
     return request
 
 
+KEYWORD_MAX = 120   # contract: the import keyword is 1-120 characters, trimmed
+
+
 def keyword_of(body):
+    """The page's search keyword (first query), trimmed and cut to 120 characters; None when empty."""
     query = body.get('include_query') if isinstance(body, dict) else None
     queries = query.get('queries') if isinstance(query, dict) else None
     if isinstance(queries, list) and queries and isinstance(queries[0], str):
-        keyword = queries[0].strip()
-        if 1 <= len(keyword) <= 120:
+        keyword = queries[0].strip()[:KEYWORD_MAX].strip()
+        if keyword:
             return keyword
     return None
 
@@ -262,20 +265,21 @@ def _date_text(value):
     return None
 
 
-def filter_summary(body):
-    """Plain view of the last filter: period, platforms, keyword."""
+def period_text(body):
     start, end = _date_text(body.get('start_date')), _date_text(body.get('end_date'))
-    query = body.get('include_query') if isinstance(body.get('include_query'), dict) else {}
-    platforms = query.get('platforms')
-    names = []
-    if isinstance(platforms, list):
-        for value in platforms:
-            name = PLATFORM_NAMES.get(value) if type(value) is int else None
-            if name and name not in names:
-                names.append(name)
-    return {'period': f'{start} – {end}' if start and end else None,
-            'platforms': ', '.join(names) if names else None,
-            'keyword': keyword_of(body)}
+    return f'{start} – {end}' if start and end else None
+
+
+def run_name(scope):
+    """The import keyword: the page's search keyword, else «Metric DD/MM–DD/MM/YYYY» from the period
+    («Metric DD/MM/YYYY–DD/MM/YYYY» when the two dates fall in different years). Scope dates are valid."""
+    keyword = keyword_of(scope)
+    if keyword is not None:
+        return keyword
+    start, end = _date_text(scope['start_date']), _date_text(scope['end_date'])
+    if start[6:] == end[6:]:
+        return f'Metric {start[:5]}–{end}'
+    return f'Metric {start}–{end}'
 
 
 def _valid_scope(scope):
@@ -820,19 +824,16 @@ class MetricSession:
     def view(self):
         listener = self.listener
         latest = listener.latest() if listener is not None else None
-        summary = filter_summary(latest['body']) if latest else None
         pending = self.pending
         return {
             'chromeOpen': self.chrome_open(),
             'listening': bool(listener is not None and listener.attached_ids()),
             'seen': latest is not None,
-            'filter': summary,
-            'needsKeyword': bool(latest) and not (summary and summary['keyword']),
             'busy': self.busy.locked(),
-            'pending': None if pending is None else {'keyword': pending['keyword'], 'period': filter_summary(pending['scope'])['period']},
+            'pending': None if pending is None else {'keyword': pending['keyword'], 'period': period_text(pending['scope'])},
         }
 
-    def capture(self, collection_policy, keyword_input=None, screenshot_dir=None):
+    def capture(self, collection_policy, screenshot_dir=None):
         """Freeze, ask Metric once, build the payload and keep it as pending. Caller holds ``busy``."""
         if self.pending is not None:
             raise MetricFailure('METRIC_IMPORT_PENDING')
@@ -841,13 +842,9 @@ class MetricSession:
             raise MetricFailure('METRIC_NOT_SEEN')
         frozen = listener.freeze()
         scope = scope_of(frozen['body'])
-        keyword = keyword_of(scope)
-        if keyword is None:
-            keyword = keyword_input.strip() if isinstance(keyword_input, str) else ''
-            if not 1 <= len(keyword) <= 120:
-                raise MetricFailure('METRIC_KEYWORD_REQUIRED')
         if not _valid_scope(scope):
             raise MetricFailure('METRIC_FILTER_INVALID')
+        keyword = run_name(scope)
         response = listener.fetch_top_products(frozen, request_in_page_source(self._js_path), screenshot_dir)
         payload = build_import_payload(import_id=str(uuid.uuid4()), keyword=keyword, captured_at=now_iso(),
                                        collection_policy=collection_policy, scope=scope, response=response)

@@ -832,13 +832,26 @@ class PayloadContractTest(unittest.TestCase):
     def test_zero_products_is_left_to_the_server(self):
         self.assertEqual(self.build(response=self.response(n=0))['response']['body']['data']['products'], [])
 
-    def test_keyword_and_summary(self):
-        self.assertEqual(mb.keyword_of(page_body()), 'canxi')
-        none = page_body()
-        none['include_query']['queries'] = []
-        self.assertIsNone(mb.keyword_of(none))
-        self.assertEqual(mb.filter_summary(page_body()),
-                         {'period': '01/10/2026 – 31/10/2026', 'platforms': 'Shopee, Lazada', 'keyword': 'canxi'})
+    def test_run_name_rows(self):
+        """| search keyword on Metric | import keyword                          |
+        |--------------------------|-----------------------------------------|
+        | present                  | the keyword, trimmed                    |
+        | missing / blank          | Metric DD/MM–DD/MM/YYYY (same year)      |
+        |                          | Metric DD/MM/YYYY–DD/MM/YYYY (two years) |
+        | longer than 120 chars    | cut to 120, trimmed                     |"""
+        def name(queries, start='20261014', end='20261112'):
+            body = page_body(start_date=start, end_date=end)
+            body['include_query']['queries'] = queries
+            return mb.run_name(mb.scope_of(body))
+        self.assertEqual(name(['  viên uống canxi ']), 'viên uống canxi')
+        self.assertEqual(name([]), 'Metric 14/10–12/11/2026')
+        self.assertEqual(name(['   ']), 'Metric 14/10–12/11/2026')
+        self.assertEqual(name([], start='20251201', end='20260115'), 'Metric 01/12/2025–15/01/2026')
+        long = name(['k' * 119 + ' ' + 'x' * 30])
+        self.assertEqual(long, 'k' * 119)
+        self.assertEqual(name(['y' * 300]), 'y' * 120)
+        for value in (name([]), long, name(['y' * 300])):
+            self.assertTrue(1 <= len(value) <= 120 and value == value.strip())
 
 
 class SharedScriptTest(unittest.TestCase):
@@ -1071,30 +1084,29 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(self.remote_calls, [])
         self.assertEqual(self.session.fetches, 0)
 
-    def test_no_keyword_needs_the_typed_name(self):
+    def test_no_search_keyword_never_blocks_the_capture(self):
         body = page_body()
         body['include_query']['queries'] = []
         self.session.tab.products_request(body)
-        self.assertTrue(self.api.metricBrowserState()['data']['needsKeyword'])
-        result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
-        self.assertEqual(result['error']['code'], 'METRIC_KEYWORD_REQUIRED')
-        self.assertEqual(self.session.fetches, 0)
         self.answers = [self.OK_IMPORT, self.OK_M2]
-        self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY, 'keyword': '  Tên lượt  '})['ok'])
-        self.assertEqual(self.remote_calls[0][2]['keyword'], 'Tên lượt')
+        self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+        self.assertEqual(self.remote_calls[0][2]['keyword'], 'Metric 01/10–31/10/2026')
+
+    def test_a_typed_name_is_no_longer_accepted(self):
+        result = self.api.takeMetricReviews({'collectionPolicy': POLICY, 'keyword': 'Tên lượt'})
+        self.assertEqual(result['error']['code'], 'ARG_INVALID')
+        self.assertEqual(self.session.fetches, 0)
 
     def test_invalid_policy_is_refused_before_metric(self):
         result = self.api.takeMetricReviews({'collectionPolicy': dict(POLICY, totalPerLink=0)})
         self.assertEqual(result['error']['code'], 'ARG_INVALID')
         self.assertEqual(self.session.fetches, 0)
 
-    def test_state_shows_the_last_filter_in_plain_words(self):
+    def test_state_has_only_what_the_card_shows(self):
         state = self.api.metricBrowserState()
-        self.assertEqual(state['data']['filter'], {'period': '01/10/2026 – 31/10/2026', 'platforms': 'Shopee, Lazada',
-                                                   'keyword': 'canxi'})
+        self.assertEqual(set(state['data']), {'chromeOpen', 'listening', 'seen', 'busy', 'pending'})
         self.assertTrue(state['data']['seen'])
         self.assertTrue(state['data']['chromeOpen'])
-        self.assertFalse(state['data']['needsKeyword'])
         self.assertNotIn('body', json.dumps(state))
 
 
