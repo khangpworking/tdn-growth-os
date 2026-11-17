@@ -17,11 +17,13 @@ Two parts:
 Request bodies stay in memory only. Nothing here logs or prints them.
 """
 import base64
+import collections
 import copy
 import datetime as dt
 import json
 import os
 from pathlib import Path
+import queue
 import re
 import socket
 import subprocess
@@ -336,8 +338,11 @@ def request_in_page_source(path=None):
     return text[start + len('export '):].strip()
 
 
-def evaluate_expression(source, request):
-    return '(' + source + ')(' + json.dumps(request, ensure_ascii=False, allow_nan=False) + ')'
+def evaluate_expression(source, request, script_url=None):
+    """`(function)(request)`; `script_url` names the evaluated script (`//# sourceURL`), so the
+    request it sends is recognisable by its CDP initiator stack."""
+    expression = '(' + source + ')(' + json.dumps(request, ensure_ascii=False, allow_nan=False) + ')'
+    return expression + ('\n//# sourceURL=' + script_url if script_url else '')
 
 
 # ---------------------------------------------------------------- tab listener
@@ -348,18 +353,37 @@ def _default_tab_factory(target):
 
 
 class _TabState:
-    __slots__ = ('target_id', 'tab', 'last', 'away_since', 'seen_away')
+    __slots__ = ('target_id', 'tab', 'phase', 'token', 'last', 'away_since', 'seen_away')
 
     def __init__(self, target_id):
         self.target_id = target_id
-        self.tab = None
+        self.tab = None           # the one live connection (phase 'attached')
+        self.phase = None         # None | 'attaching' | 'attached'
+        self.token = None         # owner of an 'attaching' reservation
         self.last = None          # {'body', 'seq', 'key', 'at'}
         self.away_since = None    # detached because the main frame left Metric
         self.seen_away = False
 
 
+_APP_SCRIPT = 'tdn-app-request-{}.js'
+
+
 class MetricListener:
-    """Listens to Metric tabs only. ``hosts`` / ``api_origin`` exist for tests on 127.0.0.1."""
+    """Listens to Metric tabs only. ``hosts`` / ``api_origin`` exist for tests on 127.0.0.1.
+
+    Single owner, one lock (``_lock``):
+    - discovery (``poll``, ``attach_blank_and_open``) runs one pass at a time
+      (``_discovery``) and reserves a target under ``_lock`` before opening its socket, so a
+      tab never gets two connections; a connection that loses its reservation, or opens
+      after ``stop_all()``, stops itself;
+    - CDP callbacks never block: navigation is handled and the tab detached on the spot,
+      a request's order is taken on arrival, and a missing body is fetched by the one
+      body worker thread;
+    - the app's own in-page request is recognised by its CDP initiator (the evaluated
+      script's unique ``sourceURL``), never by its body;
+    - ``stop_all()`` is final: it waits for attachments in progress, drains the poll
+      thread and the body worker, and stops every connection. Chrome and its tabs stay open.
+    """
 
     def __init__(self, port, *, hosts=METRIC_HOSTS, api_origin=API_ORIGIN, tab_factory=_default_tab_factory,
                  list_targets=None, clock=time.monotonic):
@@ -370,52 +394,76 @@ class MetricListener:
         self._list_targets = list_targets or self._json_list
         self._clock = clock
         self._lock = threading.RLock()
+        self._idle = threading.Condition(self._lock)   # attachments in progress reach zero
+        self._discovery = threading.Lock()             # one discovery pass at a time
         self._tabs = {}
+        self._attaching = 0
         self._seq = 0
         self._last_ts = None
-        # target id -> the app's own in-page request while that one invocation runs:
-        # {'body': canonical body, 'requestId': set once its network event is seen}
-        self._own = {}
-        self._closed = False      # stop_all() is final: nothing attaches afterwards
+        self._app_scripts = collections.deque(maxlen=64)   # sourceURLs of the app's own calls
+        self._closed = False
         self._frozen = None
         self._thread = None
         self._stop = threading.Event()
+        self._bodies = queue.Queue()
+        self._worker = None
         self.chrome_open = True
-
-    # -- discovery
-
-    def _json_list(self):
-        return _http_json(f'http://127.0.0.1:{self.port}/json/list', 2)
 
     @property
     def closed(self):
         return self._closed
 
-    def _attach(self, target, navigate=None):
-        """Listener first, then start, then Network.enable: nothing sent before we listen.
+    # -- discovery and connections
 
-        Registration and the closed check happen under the same lock as stop_all(), so a
-        connection is either registered before stop_all() collects the tabs (and is stopped
-        there) or sees the listener closed and stops itself. Returns None when closed."""
-        target_id = target['id']
-        if self._closed:
-            return None
-        tab = self._tab_factory(target)
-        tab.set_listener('Network.requestWillBeSent',
-                         lambda **event: self._on_request(target_id, tab, event))
-        tab.start()
+    def _json_list(self):
+        return _http_json(f'http://127.0.0.1:{self.port}/json/list', 2)
+
+    def _reserve(self, target_id):
+        """Under the lock: claim the target for one new connection, or None."""
         with self._lock:
-            closed = self._closed
-            if not closed:
-                entry = self._tabs.setdefault(target_id, _TabState(target_id))
-                entry.tab = tab
-                entry.away_since = None
-                entry.seen_away = False
-        if closed:
-            try:
-                tab.stop()
-            except Exception:
-                pass
+            if self._closed:
+                return None
+            entry = self._tabs.setdefault(target_id, _TabState(target_id))
+            if entry.phase is not None:
+                return None
+            entry.phase = 'attaching'
+            entry.token = object()
+            self._attaching += 1
+            return entry.token
+
+    def _attach(self, target, navigate=None):
+        """Reserve, open, then publish. Listener first, then start, then Network.enable."""
+        target_id = target['id']
+        token = self._reserve(target_id)
+        if token is None:
+            return None
+        tab = None
+        published = False
+        try:
+            tab = self._tab_factory(target)
+            tab.set_listener('Network.requestWillBeSent',
+                             lambda **event: self._on_request(target_id, tab, event))
+            tab.start()
+            with self._lock:
+                entry = self._tabs.get(target_id)
+                if not self._closed and entry is not None and entry.token is token:
+                    entry.tab = tab
+                    entry.phase = 'attached'
+                    entry.token = None
+                    entry.away_since = None
+                    entry.seen_away = False
+                    published = True
+        finally:
+            with self._lock:
+                entry = self._tabs.get(target_id)
+                if not published and entry is not None and entry.token is token:
+                    entry.phase = None
+                    entry.token = None
+                self._attaching -= 1
+                self._idle.notify_all()
+            if not published and tab is not None:
+                self._stop_tab(tab)
+        if not published:
             return None
         try:
             tab.call_method('Network.enable', _timeout=10)
@@ -426,70 +474,82 @@ class MetricListener:
             raise
         return tab
 
+    @staticmethod
+    def _stop_tab(tab):
+        try:
+            tab.stop()
+        except Exception:
+            pass
+
     def _detach(self, target_id, tab=None, away=False):
+        """Stop the target's connection (or the given stale one). Never blocks on CDP."""
         with self._lock:
             entry = self._tabs.get(target_id)
             if entry is None or (tab is not None and entry.tab is not tab):
                 tab_to_stop = tab
             else:
                 tab_to_stop = entry.tab
-                entry.tab = None
+                if entry.phase == 'attached':
+                    entry.tab = None
+                    entry.phase = None
                 if away:
                     entry.away_since = self._clock()
                     entry.seen_away = False
         if tab_to_stop is not None:
-            try:
-                tab_to_stop.stop()
-            except Exception:
-                pass
+            self._stop_tab(tab_to_stop)
 
     def attach_blank_and_open(self, start_url=START_URL):
         """Fresh Chrome: attach to its about:blank page, then navigate it to Metric."""
-        for target in self._list_targets():
-            if target.get('type') == 'page' and target.get('url') == 'about:blank' and target.get('webSocketDebuggerUrl'):
-                return self._attach(target, navigate=start_url) is not None
-        return False
+        with self._discovery:
+            for target in self._list_targets():
+                if (target.get('type') == 'page' and target.get('url') == 'about:blank' and
+                        target.get('webSocketDebuggerUrl')):
+                    return self._attach(target, navigate=start_url) is not None
+            return False
 
     def poll(self):
-        """One pass over /json/list. Returns False when Chrome no longer answers or listening stopped."""
-        if self._closed:
-            return False
-        try:
-            targets = self._list_targets()
-        except (OSError, ValueError):
-            self.chrome_open = False
-            self.stop_all()
-            return False
-        self.chrome_open = True
-        now = self._clock()
-        live = {}
-        for target in targets if isinstance(targets, list) else []:
-            if isinstance(target, dict) and target.get('type') == 'page' and isinstance(target.get('id'), str):
-                live[target['id']] = target
-        with self._lock:
-            gone = [tid for tid in self._tabs if tid not in live]
-        for target_id in gone:
-            self._detach(target_id)
+        """One discovery pass over /json/list. False when Chrome no longer answers or listening stopped."""
+        with self._discovery:
+            if self._closed:
+                return False
+            try:
+                targets = self._list_targets()
+            except (OSError, ValueError):
+                self.chrome_open = False
+                self.stop_all()
+                return False
+            self.chrome_open = True
+            now = self._clock()
+            live = {}
+            for target in targets if isinstance(targets, list) else []:
+                if isinstance(target, dict) and target.get('type') == 'page' and isinstance(target.get('id'), str):
+                    live[target['id']] = target
             with self._lock:
-                self._tabs.pop(target_id, None)
-        for target_id, target in live.items():
-            on_metric = is_metric_page(target.get('url'), self.hosts)
-            with self._lock:
-                entry = self._tabs.get(target_id)
-                attached = entry is not None and entry.tab is not None
-                if entry is not None and entry.away_since is not None:
-                    if not on_metric:
-                        entry.seen_away = True
-                    elif not entry.seen_away and now - entry.away_since < REATTACH_GRACE_SECONDS:
-                        continue   # the navigation away has not committed yet
-            if attached and not on_metric:
-                self._detach(target_id, away=True)
-            elif not attached and on_metric and target.get('webSocketDebuggerUrl'):
-                try:
-                    self._attach(target)
-                except Exception:
-                    pass
-        return not self._closed
+                gone = [tid for tid, entry in self._tabs.items() if tid not in live and entry.phase != 'attaching']
+            for target_id in gone:
+                self._detach(target_id)
+                with self._lock:
+                    entry = self._tabs.get(target_id)
+                    if entry is not None and entry.phase is None:
+                        del self._tabs[target_id]
+            for target_id, target in live.items():
+                on_metric = is_metric_page(target.get('url'), self.hosts)
+                with self._lock:
+                    entry = self._tabs.get(target_id)
+                    phase = entry.phase if entry is not None else None
+                    if entry is not None and entry.away_since is not None and phase is None:
+                        if not on_metric:
+                            entry.seen_away = True
+                        elif not entry.seen_away and now - entry.away_since < REATTACH_GRACE_SECONDS:
+                            continue   # the navigation away has not committed yet
+                if phase == 'attached' and not on_metric:
+                    self._detach(target_id, away=True)
+                elif phase is None and on_metric and target.get('webSocketDebuggerUrl'):
+                    try:
+                        self._attach(target)
+                    except Exception:
+                        pass
+            return not self._closed
 
     def start(self, interval=POLL_SECONDS):
         with self._lock:
@@ -504,28 +564,45 @@ class MetricListener:
                 return
             self._stop.wait(interval)
 
-    def stop_all(self, drain_seconds=5):
-        """Stop listening for good: no new attachment, the poll pass drained, every
-        connection stopped. Chrome and its tabs stay open."""
+    def stop_all(self, wait_seconds=10):
+        """Final: no new connection, attachments in progress finished, poll and body worker
+        drained, every connection stopped. Chrome and its tabs stay open."""
         self._stop.set()
         with self._lock:
             self._closed = True
-            entries = list(self._tabs.values())
-        for entry in entries:
-            self._detach(entry.target_id)
-        thread = self._thread
-        if thread is not None and thread is not threading.current_thread() and thread.is_alive():
-            thread.join(drain_seconds)
-        with self._lock:   # whatever a pass registered before it saw the flag
-            entries = [entry for entry in self._tabs.values() if entry.tab is not None]
-        for entry in entries:
-            self._detach(entry.target_id)
+            stopping = []
+            for entry in self._tabs.values():
+                if entry.phase == 'attached':
+                    stopping.append(entry.tab)
+                    entry.tab = None
+                    entry.phase = None
+        for tab in stopping:
+            self._stop_tab(tab)
+        deadline = time.monotonic() + wait_seconds
+        with self._lock:
+            while self._attaching and time.monotonic() < deadline:
+                self._idle.wait(deadline - time.monotonic())
+        current = threading.current_thread()
+        for thread in (self._thread, self._worker):
+            if thread is self._worker and thread is not None:
+                self._bodies.put(None)
+            if thread is not None and thread is not current and thread.is_alive():
+                thread.join(max(0.0, deadline - time.monotonic()))
 
     def attached_ids(self):
         with self._lock:
-            return sorted(tid for tid, entry in self._tabs.items() if entry.tab is not None)
+            return sorted(tid for tid, entry in self._tabs.items() if entry.phase == 'attached')
 
-    # -- events (pychrome runs each tab's callbacks on that tab's own thread)
+    # -- events: pychrome runs these on the tab's dispatch thread; nothing here may block
+
+    def _is_app_request(self, initiator):
+        stack = initiator.get('stack') if isinstance(initiator, dict) else None
+        while isinstance(stack, dict):
+            for frame in stack.get('callFrames') or []:
+                if isinstance(frame, dict) and frame.get('url') in self._app_scripts:
+                    return True
+            stack = stack.get('parent')
+        return False
 
     def _on_request(self, target_id, tab, event):
         request = event.get('request') if isinstance(event.get('request'), dict) else {}
@@ -535,27 +612,28 @@ class MetricListener:
             return
         if request.get('method') != 'POST' or request.get('url') != self.products_url:
             return
-        # Order is fixed when the event is received (CDP timestamp, then arrival), before the
-        # body lookup below can block: a slow older body never displaces a newer request.
         with self._lock:
-            if self._closed:
-                return
+            entry = self._tabs.get(target_id)
+            if self._closed or entry is None or entry.tab is not tab:
+                return   # a stopped or replaced connection
+            if self._is_app_request(event.get('initiator')):
+                return   # the app's own top-100 request
+            # Order is fixed on arrival (CDP timestamp, then arrival), before any body lookup.
             self._seq += 1
-            seq = self._seq
             stamp = event.get('timestamp')
             if isinstance(stamp, (int, float)) and not isinstance(stamp, bool):
                 self._last_ts = stamp if self._last_ts is None else max(self._last_ts, stamp)
             else:
                 stamp = self._last_ts if self._last_ts is not None else 0.0
-            key = (float(stamp), seq)
-        request_id = event.get('requestId')
+            key = (float(stamp), self._seq)
         post_data = request.get('postData')
-        if post_data is None and request.get('hasPostData'):
-            try:
-                post_data = tab.call_method('Network.getRequestPostData',
-                                            requestId=request_id, _timeout=5).get('postData')
-            except Exception:
-                return
+        if post_data is None:
+            if request.get('hasPostData'):
+                self._fetch_body_later(target_id, tab, event.get('requestId'), key)
+            return
+        self._publish(target_id, tab, post_data, key)
+
+    def _publish(self, target_id, tab, post_data, key):
         try:
             body = json.loads(post_data) if isinstance(post_data, str) else None
         except ValueError:
@@ -563,16 +641,37 @@ class MetricListener:
         if not isinstance(body, dict):
             return
         with self._lock:
-            own = self._own.get(target_id)
-            if own is not None and (own['requestId'] == request_id or
-                                    (own['requestId'] is None and own['body'] == canonical(body))):
-                own['requestId'] = request_id
-                return  # the app's own top-100 request of the invocation running on this tab
             entry = self._tabs.get(target_id)
-            if entry is None or entry.tab is not tab:
+            if self._closed or entry is None or entry.tab is not tab:
                 return
             if entry.last is None or key > entry.last['key']:
-                entry.last = {'body': body, 'seq': seq, 'key': key, 'at': now_iso()}
+                entry.last = {'body': body, 'seq': key[1], 'key': key, 'at': now_iso()}
+
+    def _fetch_body_later(self, target_id, tab, request_id, key):
+        with self._lock:
+            if self._closed:
+                return
+            if self._worker is None or not self._worker.is_alive():
+                self._worker = threading.Thread(target=self._body_loop, daemon=True)
+                self._worker.start()
+        self._bodies.put((target_id, tab, request_id, key))
+
+    def _body_loop(self):
+        while True:
+            item = self._bodies.get()
+            if item is None or self._closed:
+                return
+            target_id, tab, request_id, key = item
+            with self._lock:
+                entry = self._tabs.get(target_id)
+                current = entry is not None and entry.tab is tab
+            if not current:
+                continue
+            try:
+                answer = tab.call_method('Network.getRequestPostData', requestId=request_id, _timeout=5)
+            except Exception:
+                continue
+            self._publish(target_id, tab, answer.get('postData') if isinstance(answer, dict) else None, key)
 
     # -- the button
 
@@ -597,31 +696,17 @@ class MetricListener:
     def fetch_top_products(self, frozen, source, screenshot_dir=None):
         """One in-page request on the frozen tab. Returns the response dict or raises MetricFailure."""
         request = {'urlPath': PRODUCTS_PATH, 'requestBody': top_products_body(frozen['body'])}
-        target_id = frozen['targetId']
+        script = _APP_SCRIPT.format(uuid.uuid4().hex)
         with self._lock:
-            entry = self._tabs.get(target_id)
-            tab = entry.tab if entry else None
+            entry = self._tabs.get(frozen['targetId'])
+            tab = entry.tab if entry is not None and entry.phase == 'attached' else None
             if tab is None:
                 raise MetricFailure('METRIC_TAB_GONE')
-            # Suppress only this invocation's own request, on this tab.
-            self._own[target_id] = {'body': canonical(request['requestBody']), 'requestId': None}
+            # Unique per call and never reused, so it can stay listed: a late queued event of
+            # this call is still recognised, and no user request ever carries it.
+            self._app_scripts.append(script)
         try:
-            return self._evaluate(tab, source, request, screenshot_dir)
-        finally:
-            # Events received before the evaluate answer may still be queued: handle them
-            # first, then end the suppression, so a later identical user request counts.
-            drain = getattr(tab, 'drain_events', None)
-            if drain is not None:
-                try:
-                    drain(5)
-                except Exception:
-                    pass
-            with self._lock:
-                self._own.pop(target_id, None)
-
-    def _evaluate(self, tab, source, request, screenshot_dir):
-        try:
-            answer = tab.call_method('Runtime.evaluate', expression=evaluate_expression(source, request),
+            answer = tab.call_method('Runtime.evaluate', expression=evaluate_expression(source, request, script),
                                      awaitPromise=True, returnByValue=True, _timeout=EVALUATE_TIMEOUT)
         except Exception:
             raise self._failure(tab, screenshot_dir, 'METRIC_EVALUATE_FAILED') from None

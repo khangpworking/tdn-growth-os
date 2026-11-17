@@ -154,13 +154,6 @@ class Tab(object):
             except queue.Empty:
                 continue
 
-            # TDN change: drain_events() marker, queued behind every event received so far.
-            done = event.get('_tdn_drained')
-            if done is not None:
-                done.set()
-                self.event_queue.task_done()
-                continue
-
             if event['method'] in self.event_handlers:
                 try:
                     self.event_handlers[event['method']](**event['params'])
@@ -168,14 +161,6 @@ class Tab(object):
                     logger.error("callback %s exception" % event['method'], exc_info=True)
 
             self.event_queue.task_done()
-
-    def drain_events(self, timeout=5):
-        """TDN addition: wait until every event received before this call was handled."""
-        if self._stopped.is_set() or not self._handle_event_th.is_alive():
-            return False
-        done = threading.Event()
-        self.event_queue.put({'method': '', 'params': {}, '_tdn_drained': done})
-        return done.wait(timeout)
 
     def __getattr__(self, item):
         attr = GenericAttr(item, self)
