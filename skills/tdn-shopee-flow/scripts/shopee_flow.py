@@ -2556,7 +2556,7 @@ def flow_canonical(value):
     """Same member order and types on both sides of the import comparison."""
     try:
         return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True, allow_nan=False)
-    except RecursionError:
+    except (RecursionError, ValueError):
         raise ModuleFailure('IMPORT_INPUT_INVALID', 2) from None
 
 
@@ -2565,9 +2565,30 @@ def flow_json_text(value):
     return json.dumps(value, ensure_ascii=True) + '\n'
 
 
+def flow_metric_date_time(value):
+    """RFC 3339 date-time as the manifest schema (ajv-formats full mode) reads it.
+
+    Python's fromisoformat also accepts basic ISO (`20261117T150000+0700`), which the
+    generated window manifest then rejects, so the envelope must not admit it.
+    """
+    match = re.fullmatch(r'([0-9]{4}-[0-9]{2}-[0-9]{2})[Tt ]'
+                         r'([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]+)?'
+                         r'(?:[Zz]|([+-])([0-9]{2}):?([0-9]{2})?)', value) if isinstance(value, str) else None
+    if match is None or not gate_date(match.group(1)):
+        return False
+    hour, minute, second = (int(match.group(i)) for i in (2, 3, 4))
+    tz_hour, tz_minute = int(match.group(6) or 0), int(match.group(7) or 0)
+    offset = 0 if match.group(5) is None else (1 if match.group(5) == '+' else -1) * (tz_hour * 60 + tz_minute)
+    if hour > 23 or minute > 59 or second > 60 or tz_hour > 23 or tz_minute > 59:
+        return False
+    # ajv-formats admits a leap second only at 23:59 UTC.
+    return second < 60 or (hour * 60 + minute - offset) % (24 * 60) == 23 * 60 + 59
+
+
 def flow_import_payload():
     """Read and validate one user-page import; contract codes only, never a provider call."""
     import hashlib
+    import math
     limit = 8 * 1024 * 1024
     data = sys.stdin.buffer.read(limit + 1)
     if len(data) > limit:
@@ -2581,8 +2602,15 @@ def flow_import_payload():
             value[key] = item
         return value
 
+    def finite_float(text):
+        # `1e999` parses to infinity; the contract's import codes must still apply.
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError('non-finite number')
+        return value
+
     try:
-        payload = json.loads(data, object_pairs_hook=unique_object,
+        payload = json.loads(data, object_pairs_hook=unique_object, parse_float=finite_float,
                              parse_constant=lambda _: (_ for _ in ()).throw(ValueError('invalid constant')))
     except (ValueError, RecursionError):
         raise ModuleFailure('IMPORT_INPUT_INVALID', 2) from None
@@ -2600,11 +2628,8 @@ def flow_import_payload():
     if not isinstance(keyword, str) or not 1 <= len(keyword) <= 120 or keyword != keyword.strip():
         raise invalid()
     captured = payload['capturedAt']
-    try:
-        if not isinstance(captured, str) or dt.datetime.fromisoformat(captured.replace('Z', '+00:00')).tzinfo is None:
-            raise ValueError('capturedAt needs a timezone')
-    except ValueError:
-        raise invalid() from None
+    if not flow_metric_date_time(captured):
+        raise invalid()
     try:
         policy = flow_policy(payload['collectionPolicy'])
     except ModuleFailure:
@@ -2685,15 +2710,6 @@ def flow_find_import(root, import_id):
     return None, None
 
 
-def flow_import_finalized(run):
-    """Both gates passed once: from here the receipt may only reuse, never repair."""
-    for gate in ('entry', 'm1'):
-        slip = gate_read(gate_path(run, f'gates/{gate}.json'))
-        if not (isinstance(slip, dict) and slip.get('verdict') == 'PASS' and slip.get('runId') == run.name):
-            return False
-    return True
-
-
 def flow_import_gates_intact(run):
     """Reuse only a run whose published gates still match its request and m1 bytes."""
     entry = gate_read(gate_path(run, 'gates/entry.json'))
@@ -2703,6 +2719,15 @@ def flow_import_gates_intact(run):
             and isinstance(m1, dict) and m1.get('verdict') == 'PASS' and m1.get('runId') == run.name
             and m1.get('inputSha256') == gate_hash(run, 'request.json')
             and m1.get('outputSha256') == gate_hash(run, 'm1/'))
+
+
+def flow_import_receipt(import_id, payload_sha256, completed=False, run=None):
+    """The import's own completion record; a replaceable gate slip never says whether it finished."""
+    record = {'format': 'metric-user-page-import-v1', 'importId': import_id, 'payloadSha256': payload_sha256}
+    if completed:
+        record.update({'completed': True, 'requestSha256': gate_hash(run, 'request.json'),
+                       'm1Sha256': gate_hash(run, 'm1/')})
+    return record
 
 
 def flow_m1_import():
@@ -2724,21 +2749,24 @@ def flow_m1_import():
         existing, record = flow_find_import(root, fields['importId'])
         if existing is not None and record.get('payloadSha256') != fields['payloadSha256']:
             raise ModuleFailure('IMPORT_ID_CONFLICT', 20)
-        if existing is not None and flow_import_finalized(existing):
-            if not flow_import_gates_intact(existing):
+        if existing is not None and record.get('completed') is True:
+            # Completion is persisted in the receipt, so a gate recheck that went FAIL after
+            # tampering cannot make a finished import look interrupted and repairable.
+            if (record.get('requestSha256') != gate_hash(existing, 'request.json') or
+                    record.get('m1Sha256') != gate_hash(existing, 'm1/') or
+                    not flow_import_gates_intact(existing)):
                 raise ModuleFailure('GATE_NOT_PASSED', 20)
             return {'format': 'metric-user-page-import-result-v1', 'runId': existing.name,
                     'reused': True, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
-        # A matching receipt without both PASS gates is an interrupted import: the validated
+        # A receipt without the completed marker is an interrupted import: the validated
         # resend completes that same run instead of leaving it blocked behind GATE_NOT_PASSED.
         if existing is not None:
             run, reused = existing, True
             module_atomic_json(run, 'request.json', request)
         else:
             run, reused = flow_create_run(request, fields['keyword']), False
-        module_atomic_json(run, 'm1-import.json', {'format': 'metric-user-page-import-v1',
-                                                   'importId': fields['importId'],
-                                                   'payloadSha256': fields['payloadSha256']})
+        module_atomic_json(run, 'm1-import.json',
+                           flow_import_receipt(fields['importId'], fields['payloadSha256']))
         entry, _, _ = gate_evaluate_write(run, 'entry')
         if entry.get('verdict') != 'PASS':
             raise ModuleFailure('GATE_NOT_PASSED', 20)
@@ -2746,6 +2774,8 @@ def flow_m1_import():
         captured, _, _ = gate_evaluate_write(run, 'm1')
         if captured.get('verdict') != 'PASS':
             raise ModuleFailure('GATE_NOT_PASSED', 20)
+        module_atomic_json(run, 'm1-import.json',
+                           flow_import_receipt(fields['importId'], fields['payloadSha256'], True, run))
         return {'format': 'metric-user-page-import-result-v1', 'runId': run.name,
                 'reused': reused, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
 

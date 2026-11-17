@@ -137,6 +137,27 @@ class M1ImportTest(unittest.TestCase):
         self.assertEqual((rc, out['code']), (20, 'IMPORT_NO_SHOPEE_ROWS'))
         self.assertEqual(list(self.runs.iterdir()), [])
 
+    def test_a_non_finite_number_is_refused_without_a_run(self):
+        # `1e999` parses to infinity in Python; the import error vocabulary must still apply.
+        scope_json = json.dumps(SCOPE)
+        request_body = {**SCOPE, 'limit': 100, 'page': 0, 'sort_by': 'revenue_custom__desc'}
+        text = json.dumps(payload())
+        text = text.replace(scope_json, scope_json[:-1] + ',"x":1e999}', 1)
+        text = text.replace(json.dumps(request_body), json.dumps(request_body)[:-1] + ',"x":1e999}', 1)
+        self.assertEqual(text.count('1e999'), 2, 'both scope and requestBody carry the literal')
+        rc, out = self.command('m1-import', '--stdin', stdin=text)
+        self.assertEqual((rc, out), (2, {'format': 'error-v1', 'code': 'IMPORT_INPUT_INVALID',
+                                         'message': 'IMPORT_INPUT_INVALID'}))
+        self.assertEqual(list(self.runs.iterdir()), [], 'no run folder for refused input')
+
+    def test_a_captured_at_outside_the_manifest_date_time_is_refused_without_a_run(self):
+        # Python's fromisoformat accepts this basic ISO form; the manifest's RFC 3339 date-time does not.
+        value = payload(capturedAt='20261117T150000+0700')
+        rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(value))
+        self.assertEqual((rc, out), (2, {'format': 'error-v1', 'code': 'IMPORT_INPUT_INVALID',
+                                         'message': 'IMPORT_INPUT_INVALID'}))
+        self.assertEqual(list(self.runs.iterdir()), [], 'no run folder for refused input')
+
     def test_one_changed_m1_file_blocks_the_reuse(self):
         # The Python gate trusts the declared window digests; the offline TS reader hashes the raw
         # bytes (proved with the real reader outside this stub). Here the folder digest still moves.
@@ -160,6 +181,23 @@ class M1ImportTest(unittest.TestCase):
         (run / 'request.json').write_text(json.dumps(request))
         rc, slip = self.command('gate', 'm1', '--run', run.name)
         self.assertEqual((rc, slip['verdict'], slip['errorCode']), (23, 'FAIL', 'GATE_INPUT_CHANGED'))
+
+    def test_a_failed_recheck_does_not_let_a_resend_repair_a_completed_import(self):
+        # The receipt's completed marker, not the replaceable gate slips, says this import finished.
+        _, run = self.imported()
+        request = json.loads((run / 'request.json').read_text())
+        request['preset']['keywords'] = ['changed synthetic term']
+        (run / 'request.json').write_text(json.dumps(request))
+        rc, slip = self.command('gate', 'm1', '--run', run.name)
+        self.assertEqual((rc, slip['verdict'], slip['errorCode']), (23, 'FAIL', 'GATE_INPUT_CHANGED'))
+        raw_path = run / 'm1/selected/raw-responses.json'
+        raw_before = raw_path.read_bytes()
+        rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(payload()))
+        self.assertEqual((rc, out['code']), (20, 'GATE_NOT_PASSED'))
+        self.assertEqual(json.loads((run / 'request.json').read_text())['preset']['keywords'],
+                         ['changed synthetic term'], 'the resend repaired nothing')
+        self.assertEqual(raw_path.read_bytes(), raw_before)
+        self.assertEqual(json.loads((run / 'gates/m1.json').read_text())['verdict'], 'FAIL')
 
     def test_an_interrupted_import_is_completed_by_resending_the_same_package(self):
         node = self.bin / 'node'
