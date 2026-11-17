@@ -259,6 +259,22 @@ def keyword_of(body):
     return None
 
 
+MIN_SHOPEE_PRODUCTS = 5   # step 2 needs 5 distinct Shopee products (FEWER_THAN_FIVE_DISTINCT_PRODUCTS)
+
+
+def shopee_product_count(response):
+    """Distinct ``product_base_id`` values starting with ``1__`` (Shopee), the server's rule."""
+    body = response.get('body') if isinstance(response, dict) else None
+    data = body.get('data') if isinstance(body, dict) else None
+    products = data.get('products') if isinstance(data, dict) else None
+    ids = set()
+    for product in products if isinstance(products, list) else ():
+        value = product.get('product_base_id') if isinstance(product, dict) else None
+        if isinstance(value, str) and value.startswith('1__'):
+            ids.add(value)
+    return len(ids)
+
+
 def _date_text(value):
     if isinstance(value, str) and len(value) == 8 and value.isdigit():
         return f'{value[6:8]}/{value[4:6]}/{value[0:4]}'
@@ -848,6 +864,10 @@ class MetricSession:
         response = listener.fetch_top_products(frozen, request_in_page_source(self._js_path), screenshot_dir)
         payload = build_import_payload(import_id=str(uuid.uuid4()), keyword=keyword, captured_at=now_iso(),
                                        collection_policy=collection_policy, scope=scope, response=response)
+        count = shopee_product_count(response)
+        if count < MIN_SHOPEE_PRODUCTS:
+            # Step 2 would always fail: send nothing, keep nothing for «Gửi lại».
+            raise MetricFailure('METRIC_TOO_FEW_SHOPEE', detail={'shopeeProducts': count})
         self.pending = payload
         return payload
 

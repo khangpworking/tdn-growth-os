@@ -95,6 +95,31 @@ test('the open pill and one click send the frozen policy once, then step 2 is re
   }
 });
 
+test('fewer than 5 Shopee products is a yellow warning, nothing sent, and the button works again', async () => {
+  let answer: any = { ok: false, error: { code: 'METRIC_TOO_FEW_SHOPEE', message: 'METRIC_TOO_FEW_SHOPEE', detail: { shopeeProducts: 3 } } };
+  const p = page([SEEN], async () => answer);
+  try {
+    await waitFor(() => p.$('btnTakeReviews').disabled === false, 'take enabled');
+    p.$('btnTakeReviews').click();
+    await waitFor(() => !p.$('metricWarn').hidden, 'warning');
+    assert.equal(p.$('metricWarn').className, 'warnbar');
+    assert.equal(p.$('metricWarn').textContent, 'Bộ lọc chỉ có 3 sản phẩm Shopee, cần ít nhất 5. Mở rộng bộ lọc trên Metric rồi bấm lại.');
+    assert.equal(p.$('metricErr').hidden, true);
+    assert.equal(p.$('btnResendImport').hidden, true);
+    await waitFor(() => p.$('btnTakeReviews').disabled === false, 'can click again');
+    answer = { ok: false, error: { code: 'METRIC_TOO_FEW_SHOPEE', message: 'METRIC_TOO_FEW_SHOPEE', detail: { shopeeProducts: 0 } } };
+    p.$('btnTakeReviews').click();
+    await waitFor(() => /chỉ có 0 sản phẩm Shopee/.test(p.$('metricWarn').textContent!), 'N = 0');
+    answer = { ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } };
+    await waitFor(() => p.$('btnTakeReviews').disabled === false, 'enabled again');
+    p.$('btnTakeReviews').click();
+    await waitFor(() => !p.$('metricNotice').hidden, 'run created');
+    assert.equal(p.$('metricWarn').hidden, true);
+  } finally {
+    p.dom.window.close();
+  }
+});
+
 test('a payload not yet confirmed offers «Gửi lại» and the take button stays blocked', async () => {
   const pending = { ...SEEN, pending: { keyword: 'canxi', period: '01/10/2026 – 31/10/2026' } };
   const p = page([pending]);
