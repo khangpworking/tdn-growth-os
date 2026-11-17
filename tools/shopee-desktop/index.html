@@ -385,6 +385,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 .notice-go { display: inline-block; margin-top: 4px; color: var(--accent); text-decoration: underline; }
 .notice-close { border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .pill.t-run .d, .st-dot.t-run { animation: none; } }
+/* Step 1: the user's own Chrome on Metric (layout and wording from MetricA). */
+.metric-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.chrome-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--band); color: var(--muted); }
+.chrome-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chrome-pill.on { background: var(--ok-tint); color: var(--ok); }
+.chrome-pill.on i { background: var(--ok); }
+.metric-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.metric-step { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; align-content: start; }
+.metric-step .step-head { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.metric-step .num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--on-solid); font-size: 12.5px; }
+.metric-step .num.gray { background: var(--muted); }
+.metric-step ul { margin: 0; padding-left: 18px; font-size: 13.5px; display: grid; gap: 4px; }
 </style>
 </head>
 <body>
@@ -414,12 +426,44 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   <main>
     <section id="scr-new" aria-label="Lượt mới">
+      <section class="panel newrun" id="metricCard" aria-labelledby="metricCardTitle">
+        <div class="metric-head">
+          <div>
+            <h2 id="metricCardTitle">Tạo lượt mới</h2>
+            <p class="lead">Xem số liệu trên Metric như bình thường. Khi đã chọn xong kỳ, sàn và từ khóa, chọn cách lấy bình luận rồi bấm «Lấy bình luận Shopee».</p>
+          </div>
+          <span id="chromeState" class="chrome-pill off" role="status"><i></i><b>Chrome chưa mở</b></span>
+        </div>
+        <div class="metric-steps">
+          <div class="metric-step">
+            <div class="step-head"><span class="num">1</span><span>Mở Metric</span></div>
+            <button class="abtn primary" id="btnOpenMetric" type="button">Mở Metric</button>
+            <p class="hint" id="metricOpenMsg" hidden></p>
+          </div>
+          <div class="metric-step">
+            <div class="step-head"><span class="num gray">2</span><span>Bạn tự làm trên Chrome</span></div>
+            <ul>
+              <li>Đăng nhập Metric <em>(lần đầu)</em></li>
+              <li>Chọn kỳ, sàn và từ khóa (hoặc ngành) như bình thường</li>
+              <li>Xem danh sách sản phẩm cho đến khi đúng bộ lọc muốn lấy</li>
+            </ul>
+          </div>
+          <div class="metric-step">
+            <div class="step-head"><span class="num">3</span><span>Lấy bình luận</span></div>
+            <p class="lead" style="margin:0">Chọn cách lấy bình luận ở phần dưới, rồi bấm «Lấy bình luận Shopee». App lấy 100 sản phẩm doanh thu cao nhất theo bộ lọc lần xem cuối.</p>
+          </div>
+        </div>
+        <p class="windowline" id="metricFilterLine">Chưa thấy bộ lọc nào. Bấm «Mở Metric» rồi xem số liệu trên trang phân tích.</p>
+        <label class="field" id="metricKeywordField" hidden><span>Tên lượt / từ khóa</span><input type="text" id="metricKeyword" maxlength="120" autocomplete="off" placeholder="Ví dụ: viên uống canxi"></label>
+      </section>
+
       <form class="panel newrun" id="newRunForm" novalidate>
-        <div>
+        <div id="legacyNewHead" hidden>
           <h2>Tạo lượt mới</h2>
           <p class="lead">Chọn sản phẩm, khoảng thời gian và cách lấy bình luận. Bấm «Tạo lượt» mới chỉ lưu yêu cầu, chưa lấy dữ liệu.</p>
         </div>
 
+        <div id="legacyNewRun" hidden>
         <section class="newstep first" aria-labelledby="stepProduct">
           <div>
             <h3 id="stepProduct">Sản phẩm</h3>
@@ -505,7 +549,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           </div>
         </section>
 
-        <section class="newstep" aria-labelledby="stepPolicy">
+        </div>
+
+        <section class="newstep first" aria-labelledby="stepPolicy">
           <div>
             <h3 id="stepPolicy">Cách lấy bình luận</h3>
             <p class="lead">Thiết lập này đi theo lượt và không sửa được sau khi tạo.</p>
@@ -540,6 +586,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           <p class="policy-note">Số lượng tính chung cho mỗi link, không tính riêng từng mức sao. App chỉ lấy phần chữ, không tải ảnh và video. Bình luận trùng chỉ tính một lần.</p>
         </section>
 
+        <div class="metric-take" id="metricTake">
+          <div class="btnrow">
+            <button class="abtn primary" id="btnTakeReviews" type="button" disabled>Lấy bình luận Shopee</button>
+            <button class="abtn" id="btnResendImport" type="button" hidden>Gửi lại</button>
+            <button class="abtn" id="btnDiscardImport" type="button" hidden>Bỏ và lấy lại từ Metric</button>
+            <span class="hint" id="metricTakeHint" hidden></span>
+          </div>
+          <p class="errbar" id="metricErr" role="alert" hidden></p>
+          <p class="rs-block" id="metricNotice" role="status" hidden></p>
+          <div class="btnrow" id="metricDone" hidden>
+            <button class="abtn primary" id="btnTrackMetricRun" type="button">Xem lượt vừa tạo</button>
+          </div>
+        </div>
+
+        <div id="legacyNewCommit" hidden>
         <div class="commit">
           <section class="review-summary" aria-labelledby="reviewSummaryTitle">
             <h3 id="reviewSummaryTitle">Xem lại trước khi tạo</h3>
@@ -574,6 +635,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
             <button class="abtn primary" id="btnFlow" type="button" disabled>Bắt đầu lấy dữ liệu</button>
             <span class="hint" id="flowHint" hidden></span>
           </div>
+        </div>
         </div>
       </form>
     </section>
@@ -2799,7 +2861,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       },
       library: function () {
         return Promise.resolve(ok({ format: 'library-v1', modules: clone(MOCK_MODULES), skills: clone(MOCK_SKILLS) }));
-      }
+      },
+      metricBrowserState: function () {
+        return Promise.resolve(ok({ chromeOpen: false, listening: false, seen: false, filter: null,
+          needsKeyword: false, busy: false, pending: null }));
+      },
+      openMetric: function () { return Promise.resolve(err('CHROME_NOT_FOUND', 'Trang thử không mở Chrome.')); },
+      takeMetricReviews: function () { return Promise.resolve(err('METRIC_NOT_SEEN', 'METRIC_NOT_SEEN')); },
+      resendMetricImport: function () { return Promise.resolve(err('METRIC_NOTHING_PENDING', 'METRIC_NOTHING_PENDING')); },
+      discardMetricImport: function () { return Promise.resolve(ok({ pending: null })); }
     };
   }
 
@@ -2895,6 +2965,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       processReviewData: function (runId, sourceSha256) { return call('processReviewData', [runId, sourceSha256]); },
       runsProgress: function () { return call('runsProgress', []); },
       notify: function (title, body) { return call('notify', [title, body]); },
+      metricBrowserState: function () { return call('metricBrowserState', []); },
+      openMetric: function () { return call('openMetric', []); },
+      takeMetricReviews: function (input) { return call('takeMetricReviews', [input]); },
+      resendMetricImport: function () { return call('resendMetricImport', []); },
+      discardMetricImport: function () { return call('discardMetricImport', []); },
       library: function () { return call('library', []); }
     };
   })();
@@ -7077,6 +7152,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   function updateNewButton() {
+    renderMetricCard();   // same connection and read-only state gates the step 1 button
     var locked = !!state.newBinding;
     var create = $('btnNew');
     create.hidden = locked;
@@ -8191,7 +8267,226 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
   }
 
+  // ---- Step 1: the user's own Chrome on Metric ----------------------------------------
+  var METRIC_TEXT = {
+    METRIC_NOT_SEEN: 'Chưa thấy số liệu nào trên Metric. Mở trang phân tích trên Chrome, chọn bộ lọc rồi bấm lại.',
+    METRIC_FILTER_PENDING: 'Trang Metric chưa gửi xong bộ lọc mới. Bấm lại sau vài giây.',
+    METRIC_FILTER_UNAVAILABLE: 'App chưa đọc được bộ lọc mới nhất trên Metric. Chọn lại bộ lọc trên Metric rồi bấm lại.',
+    METRIC_TAB_GONE: 'Tab Metric lần xem cuối đã đóng hoặc đã sang trang khác. Mở lại trang Metric, xem lại rồi bấm lại.',
+    METRIC_KEYWORD_REQUIRED: 'Bộ lọc chưa có từ khóa. Nhập «Tên lượt / từ khóa» rồi bấm lại.',
+    METRIC_BUSY: 'App đang lấy bình luận. Chờ xong rồi bấm lại.',
+    METRIC_IMPORT_PENDING: 'Còn một gói số liệu chưa gửi xong. Bấm «Gửi lại» hoặc «Bỏ và lấy lại từ Metric».',
+    METRIC_NOTHING_PENDING: 'Không còn gói số liệu nào để gửi lại.',
+    METRIC_FILTER_INVALID: 'Bộ lọc trên Metric chưa có đủ ngày bắt đầu và ngày kết thúc. Chọn lại kỳ rồi bấm lại.',
+    METRIC_RESPONSE_INVALID: 'Metric trả về danh sách sản phẩm không đúng dạng. Thử lại sau ít phút.',
+    METRIC_EVALUATE_FAILED: 'Chưa lấy được danh sách sản phẩm từ trang Metric. Thử lại sau ít phút.',
+    METRIC_SCRIPT_MISSING: 'App thiếu một phần cài đặt. Hãy báo người quản trị.',
+    CAPTURE_LOGIN_REQUIRED: 'Metric chưa đăng nhập hoặc đã hết phiên. Đăng nhập lại trên Chrome rồi bấm lại.',
+    CAPTURE_ORIGIN_CHANGED: 'Tab Metric đã sang trang khác. Mở lại trang Metric rồi bấm lại.',
+    CAPTURE_PAGE_SESSION_UNAVAILABLE: 'Trang Metric vừa thay đổi nên app chưa lấy được số liệu. Hãy báo người quản trị.',
+    CAPTURE_ACCESS_RESTRICTED: 'Tài khoản Metric này không được xem số liệu đó.',
+    CAPTURE_PROVIDER_DATA_ERROR: 'Metric chưa trả được danh sách sản phẩm. Thử lại sau ít phút.',
+    CAPTURE_PAGE_REQUEST_FAILED: 'Metric chưa trả được danh sách sản phẩm. Thử lại sau ít phút.',
+    CAPTURE_RESPONSE_LIMIT: 'Danh sách sản phẩm quá lớn. Thu hẹp bộ lọc rồi bấm lại.',
+    CAPTURE_REQUEST_SCOPE_MISMATCH: 'App gửi sai loại yêu cầu tới Metric. Hãy báo người quản trị.',
+    IMPORT_INPUT_INVALID: 'Máy chủ không nhận gói số liệu này. Xem lại bộ lọc trên Metric rồi bấm lại.',
+    IMPORT_TOO_LARGE: 'Gói số liệu quá lớn. Thu hẹp bộ lọc trên Metric rồi bấm lại.',
+    IMPORT_ID_CONFLICT: 'Gói này trùng mã với một lượt khác. Bấm lại để lấy gói mới.',
+    IMPORT_NO_SHOPEE_ROWS: 'Bộ lọc này không có sản phẩm Shopee nào. Chọn sàn Shopee hoặc đổi bộ lọc rồi bấm lại.'
+  };
+  var METRIC_POLL_MS = 3000;   // main.js: Chrome open / closed every 3 seconds
+
+  function metricErrorText(error) {
+    var code = errorCode(error);
+    if ((code === 'CHROME_NOT_FOUND' || code === 'CHROME_START_FAILED') && error && error.message &&
+        error.message !== code) return String(error.message);
+    var text = METRIC_TEXT[code] || plainError(error);
+    if (error && error.detail && error.detail.screenshotSaved) {
+      text += ' App đã lưu ảnh trang Metric lúc lỗi để người quản trị xem.';
+    }
+    return text;
+  }
+
+  function metricPolicy() {
+    var checked = normalizePolicy(readPolicyRaw());
+    return checked.value ? { value: policyPayload(checked.value) }
+      : { error: checked.error || 'Cách lấy bình luận chưa hợp lệ.' };
+  }
+
+  function metricFilterText(view) {
+    if (!view || !view.seen || !view.filter) {
+      return 'Chưa thấy bộ lọc nào. Bấm «Mở Metric» rồi xem số liệu trên trang phân tích.';
+    }
+    var f = view.filter;
+    return 'Bộ lọc lần xem cuối: kỳ ' + (f.period || 'chưa rõ') + ', sàn ' + (f.platforms || 'chưa rõ') +
+      ', từ khóa ' + (f.keyword ? '“' + f.keyword + '”' : 'chưa có');
+  }
+
+  function showMetricError(text) {
+    var el = $('metricErr');
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
+  function showMetricNotice(text) {
+    var el = $('metricNotice');
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
+  function renderMetricCard() {
+    var view = state.metricView || {};
+    var pill = $('chromeState');
+    pill.className = 'chrome-pill ' + (view.chromeOpen ? 'on' : 'off');
+    pill.querySelector('b').textContent = view.chromeOpen ? 'Chrome đang mở' : 'Chrome chưa mở';
+    $('metricFilterLine').textContent = metricFilterText(view);
+    $('metricKeywordField').hidden = !view.needsKeyword;
+    var pending = view.pending || null;
+    var busy = !!state.metricBusy || !!view.busy;
+    $('btnOpenMetric').disabled = !!state.metricOpening || busy;
+    $('btnResendImport').hidden = !pending;
+    $('btnDiscardImport').hidden = !pending;
+    $('btnResendImport').disabled = busy || !state.connected || state.readonly;
+    $('btnDiscardImport').disabled = busy;
+    var policy = metricPolicy();
+    var keywordOk = !view.needsKeyword || $('metricKeyword').value.trim().length > 0;
+    $('btnTakeReviews').disabled = busy || !!pending || !view.seen || !state.connected || state.readonly ||
+      !!policy.error || !keywordOk;
+    var hint = '';
+    if (busy) hint = 'Đang lấy danh sách sản phẩm từ Metric và tạo lượt…';
+    else if (pending) hint = 'Gói số liệu “' + pending.keyword + '”' + (pending.period ? ' (kỳ ' + pending.period + ')' : '') +
+      ' chưa gửi xong lên máy chủ. Bấm «Gửi lại» để gửi đúng gói này, không cần xem lại Metric.';
+    else if (!state.connected) hint = 'Chưa kết nối máy chủ.';
+    else if (state.readonly) hint = 'Hệ thống đang tạm dừng lấy dữ liệu.';
+    else if (!view.seen) hint = 'Nút này bấm được sau khi app thấy bạn xem số liệu trên Metric.';
+    else if (policy.error) hint = policy.error;
+    else if (!keywordOk) hint = 'Nhập «Tên lượt / từ khóa» vì bộ lọc trên Metric chưa có từ khóa.';
+    $('metricTakeHint').textContent = hint;
+    $('metricTakeHint').hidden = !hint;
+  }
+
+  async function refreshMetricState() {
+    var res = await api.metricBrowserState();
+    // Silent on failure: the card then only shows Chrome as not open.
+    state.metricView = res.ok && res.data ? res.data : null;
+    renderMetricCard();
+  }
+
+  function scheduleMetricPoll() {
+    clearTimeout(state.metricTimer);
+    state.metricTimer = setTimeout(function () {
+      refreshMetricState().finally(scheduleMetricPoll);
+    }, METRIC_POLL_MS);
+  }
+
+  async function onOpenMetric() {
+    if (state.metricOpening) return;
+    state.metricOpening = true;
+    showMetricError('');
+    var msg = $('metricOpenMsg');
+    msg.textContent = 'Đang mở Chrome…';
+    msg.hidden = false;
+    renderMetricCard();
+    try {
+      var res = await api.openMetric();
+      if (!res.ok) {
+        msg.textContent = 'Không mở được Chrome.';
+        showMetricError(metricErrorText(res.error));
+        return;
+      }
+      msg.textContent = res.data.reused
+        ? 'Chrome của app đang mở sẵn. Hãy dùng cửa sổ đó (có thể đang nằm dưới các cửa sổ khác).'
+        : 'Đã mở ' + res.data.browserName + '. Đăng nhập Metric (lần đầu), chọn bộ lọc và xem danh sách sản phẩm. ' +
+          'Xong thì bấm «Lấy bình luận Shopee».';
+    } finally {
+      state.metricOpening = false;
+      await refreshMetricState();
+    }
+  }
+
+  async function finishMetricImport(res) {
+    if (!res.ok) {
+      showMetricError(metricErrorText(res.error));
+      return;
+    }
+    var data = res.data;
+    state.metricRunId = data.runId;
+    state.preferredRunId = data.runId;
+    var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
+      : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';
+    if (data.step2 && data.step2.ok) {
+      text += ' Bước 2 đang chọn 5 link Shopee. Mở lượt để theo dõi và bắt đầu lấy bình luận ở bước 3.';
+    } else {
+      text += ' Chưa bắt đầu được bước 2: ' + plainError(data.step2 && data.step2.error) + ' Mở lượt để xem.';
+    }
+    text += ' Muốn tạo lượt khác, bấm «Mở Metric» rồi xem lại trên Metric.';
+    showMetricNotice(text);
+    $('metricDone').hidden = false;
+    $('metricKeyword').value = '';
+    await refreshRuns();
+  }
+
+  async function runMetricAction(action) {
+    if (state.metricBusy) return;
+    state.metricBusy = true;
+    showMetricError('');
+    showMetricNotice('');
+    $('metricDone').hidden = true;
+    renderMetricCard();
+    try {
+      await finishMetricImport(await action());
+    } finally {
+      state.metricBusy = false;
+      await refreshMetricState();
+    }
+  }
+
+  function onTakeReviews() {
+    var policy = metricPolicy();
+    if (policy.error) { showMetricError(policy.error); return; }
+    var input = { collectionPolicy: policy.value };
+    var view = state.metricView || {};
+    if (view.needsKeyword) input.keyword = $('metricKeyword').value.trim();
+    return runMetricAction(function () { return api.takeMetricReviews(input); });
+  }
+
+  function onResendImport() {
+    return runMetricAction(function () { return api.resendMetricImport(); });
+  }
+
+  async function onDiscardImport() {
+    if (state.metricBusy) return;
+    var res = await api.discardMetricImport();
+    showMetricError(res.ok ? '' : metricErrorText(res.error));
+    await refreshMetricState();
+  }
+
+  async function onTrackMetricRun() {
+    if (!state.metricRunId) return;
+    state.preferredRunId = state.metricRunId;
+    showScreen('track');
+    await openTrack();
+  }
+
+  function bindMetricCard() {
+    $('btnOpenMetric').addEventListener('click', onOpenMetric);
+    $('btnTakeReviews').addEventListener('click', onTakeReviews);
+    $('btnResendImport').addEventListener('click', onResendImport);
+    $('btnDiscardImport').addEventListener('click', onDiscardImport);
+    $('btnTrackMetricRun').addEventListener('click', onTrackMetricRun);
+    $('metricKeyword').addEventListener('input', renderMetricCard);
+    $('newRunForm').addEventListener('change', renderMetricCard);
+    $('newRunForm').addEventListener('input', renderMetricCard);
+    // The old preset form is hidden: Enter in a policy field must not submit it.
+    $('newRunForm').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && $('legacyNewCommit').hidden && ev.target && ev.target.tagName === 'INPUT') {
+        ev.preventDefault();
+      }
+    });
+  }
+
   function bindEvents() {
+    bindMetricCard();
     Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (b) {
       b.addEventListener('click', function () {
         showScreen(b.dataset.screen);
@@ -8223,6 +8518,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       stopSamplingPoll();
       stopStep4Poll();
       stopProgressPoll();
+      clearTimeout(state.metricTimer);
     });
   }
 
@@ -8239,6 +8535,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     renderRunList();
     renderDetail();
     updateNewButton();
+    renderMetricCard();
+    refreshMetricState().finally(scheduleMetricPoll);
 
     await requestConnection();
   }

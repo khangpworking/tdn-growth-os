@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 
+import tdn_metric_browser
 import tdn_shopee_transport
 
 
@@ -39,6 +40,7 @@ _COMMANDS = {
     'new': ('new-run', '--stdin'),
     'metricDateAvailability': ('metric-date-availability', '--end-date'),
     'addProduct': ('add-product', '--stdin'),
+    'm1Import': ('m1-import', '--stdin'),
     'entry': ('gate', 'entry', '--run'),
     'flow': ('run', '--run'),
     'm1': ('m1', '--run'),
@@ -319,6 +321,8 @@ class Api:
         self._connection_failure = None
         self._connection_failure_at = 0.0
         self._connection_attempts = 0
+        self._metric = None
+        self._metric_lock = threading.Lock()
 
     def _connection_backoff(self):
         return min(15, 2 ** min(self._connection_attempts, 4))
@@ -410,7 +414,7 @@ class Api:
         if env_file is not None:
             lines.append(f'if [ -f "{env_file}" ]; then set -a; . "{env_file}"; set +a; fi')
         command = f'python3 "{config["remoteScript"]}" ' + ' '.join(words)
-        if action in ('new', 'addProduct', 'saveReviewPlan', 'saveReviewData', 'exportReviewData'):
+        if action in ('new', 'addProduct', 'm1Import', 'saveReviewPlan', 'saveReviewData', 'exportReviewData'):
             encoded = base64.b64encode(json.dumps(payload, ensure_ascii=False, allow_nan=False,
                                                   separators=(',', ':')).encode('utf-8')).decode('ascii')
             command = f"printf '%s' '{encoded}' | base64 -d | " + command
@@ -428,7 +432,7 @@ class Api:
     def _invoke(self, action, config, lines, argv, *, token=None, timeout=None):
         options = {'input': ('\n'.join(lines) + '\n').encode('utf-8'), 'capture_output': True,
                    'timeout': timeout if timeout is not None else (
-                       150 if action == 'metricDateAvailability' else config['timeoutSeconds'])}
+                       150 if action in ('metricDateAvailability', 'm1Import') else config['timeoutSeconds'])}
         if sys.platform == 'win32':
             options['creationflags'] = subprocess.CREATE_NO_WINDOW
         try:
@@ -1508,6 +1512,133 @@ class Api:
     def library(self):
         return self._safe(lambda: self._remote('library'))
 
+    # ---- Step 1: the user's own Chrome on Metric (tdn_metric_browser) ----
+
+    # Server answers that will never succeed with the same payload: drop it.
+    _IMPORT_FINAL_ERRORS = frozenset({'IMPORT_INPUT_INVALID', 'IMPORT_TOO_LARGE', 'IMPORT_ID_CONFLICT',
+                                      'IMPORT_NO_SHOPEE_ROWS'})
+
+    def _metric_session(self):
+        with self._metric_lock:
+            if self._metric is None:
+                base = _config_path().parent
+                try:
+                    base.mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    raise _BridgeFailure('CONFIG_INVALID') from None
+                self._metric = tdn_metric_browser.MetricSession(base)
+            return self._metric
+
+    def _metric_safe(self, operation):
+        def run():
+            try:
+                return operation()
+            except tdn_metric_browser.MetricFailure as failure:
+                result = _error(failure.code, failure.message)
+                if failure.detail:
+                    result['error']['detail'] = dict(failure.detail)
+                return result
+        return self._safe(run)
+
+    def metricBrowserState(self):
+        return self._metric_safe(lambda: {'ok': True, 'data': self._metric_session().view()})
+
+    def openMetric(self):
+        return self._metric_safe(self._open_metric)
+
+    def _open_metric(self):
+        opened = self._metric_session().open_metric()
+        return {'ok': True, 'data': {'reused': opened['reused'], 'browserName': opened['browserName'],
+                                     'navigated': opened['navigated']}}
+
+    def takeMetricReviews(self, input=None):
+        return self._metric_safe(lambda: self._take_metric_reviews(input))
+
+    def _take_metric_reviews(self, value):
+        if (not isinstance(value, dict) or 'collectionPolicy' not in value or
+                set(value) - {'collectionPolicy', 'keyword'}):
+            raise _BridgeFailure('ARG_INVALID')
+        self._validate_collection_policy(value['collectionPolicy'])
+        keyword = value.get('keyword')
+        if keyword is not None and not isinstance(keyword, str):
+            raise _BridgeFailure('ARG_INVALID')
+        session = self._metric_session()
+        if not session.busy.acquire(blocking=False):
+            raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
+        try:
+            config = _load_config()
+            try:
+                folder = _evidence_folder()
+            except _BridgeFailure:
+                folder = None
+            session.capture(value['collectionPolicy'], keyword, screenshot_dir=folder)
+            return self._send_metric_import(session, config)
+        finally:
+            session.busy.release()
+
+    def resendMetricImport(self):
+        return self._metric_safe(self._resend_metric_import)
+
+    def _resend_metric_import(self):
+        session = self._metric_session()
+        if not session.busy.acquire(blocking=False):
+            raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
+        try:
+            return self._send_metric_import(session, _load_config())
+        finally:
+            session.busy.release()
+
+    def discardMetricImport(self):
+        return self._metric_safe(self._discard_metric_import)
+
+    def _discard_metric_import(self):
+        session = self._metric_session()
+        if not session.busy.acquire(blocking=False):
+            raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
+        try:
+            session.pending = None
+            return {'ok': True, 'data': {'pending': None}}
+        finally:
+            session.busy.release()
+
+    def _send_metric_import(self, session, config):
+        """Send the kept payload (same importId every time). Metric is never asked again here."""
+        payload = session.pending
+        if payload is None:
+            raise tdn_metric_browser.MetricFailure('METRIC_NOTHING_PENDING')
+        try:
+            result = self._remote('m1Import', payload=payload, config=config)
+        except _BridgeFailure as failure:
+            return {'ok': False, 'error': {'code': failure.code, 'message': failure.code, 'detail': {'pending': True}}}
+        if not result['ok']:
+            code = result['error'].get('code')
+            if code in self._IMPORT_FINAL_ERRORS:
+                session.pending = None
+            result['error']['detail'] = {'pending': session.pending is not None}
+            return result
+        data = result['data']
+        if (set(data) != {'format', 'runId', 'reused', 'gates'} or
+                data['format'] != 'metric-user-page-import-result-v1' or
+                not isinstance(data['runId'], str) or not _RUN_ID.fullmatch(data['runId']) or
+                type(data['reused']) is not bool or data['gates'] != {'entry': 'PASS', 'm1': 'PASS'}):
+            return {'ok': False, 'error': {'code': 'REMOTE_OUTPUT_INVALID', 'message': 'REMOTE_OUTPUT_INVALID',
+                                           'detail': {'pending': True}}}
+        session.confirmed()
+        run_id = data['runId']
+        try:
+            step2 = self._remote('m2', run_id=run_id, config=config)
+        except _BridgeFailure as failure:
+            step2 = _error(failure.code)
+        step2 = {'ok': True} if step2['ok'] else {'ok': False, 'error': {'code': step2['error'].get('code'),
+                                                                          'message': step2['error'].get('code')}}
+        return {'ok': True, 'data': {'runId': run_id, 'reused': data['reused'], 'step2': step2}}
+
+    def _close_metric(self):
+        """App closing: stop listening on every tab. Chrome and its tabs stay open."""
+        session = self._metric
+        if session is not None:
+            session.close()
+
 
 def main():
     parser = argparse.ArgumentParser(description='TDN Shopee Flow desktop')
@@ -1519,8 +1650,12 @@ def main():
         return 0 if result['data']['connected'] else 1
     import webview
     folder = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
-    webview.create_window('TDN Shopee Flow', url=str(folder / 'index.html'), js_api=Api(), width=1280, height=820)
-    webview.start()
+    api = Api()
+    webview.create_window('TDN Shopee Flow', url=str(folder / 'index.html'), js_api=api, width=1280, height=820)
+    try:
+        webview.start()
+    finally:
+        api._close_metric()
     return 0
 
 
