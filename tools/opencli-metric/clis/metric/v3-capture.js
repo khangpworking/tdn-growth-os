@@ -7,6 +7,9 @@ import { createRequire } from 'node:module';
 import { sanitizeNetworkResponses } from './capture.js';
 import { writeV3EvidencePackage } from './v3-evidence.js';
 import { selectV3ProductsOrder } from './v3-products-panel.js';
+import { requestV3InPage } from './request-in-page.js';
+
+export { requestV3InPage };
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js');
@@ -1016,44 +1019,6 @@ async function requestV3TopProducts(page, spec, window, responseOrder) {
   const result = await page.evaluate(requestV3InPage, request);
   if (result.stop) stop(result.stop, { window: window.id, stage: 'top-products' });
   return sanitizeNetworkResponses([{ ...result, responseOrder }])[0];
-}
-
-/** Runs in the logged-in page. No credentials or headers cross the bridge. */
-export async function requestV3InPage({ urlPath, requestBody }) {
-  if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
-    return { stop: 'CAPTURE_ORIGIN_CHANGED' };
-  if (document.querySelector('input[type=password]') || /\/login|\/sign-in/.test(location.pathname))
-    return { stop: 'CAPTURE_LOGIN_REQUIRED' };
-  if (!/^\/v2\/market\/analytics\/(search-basic|insight|products|shops|groups)\/$/.test(urlPath))
-    return { stop: 'CAPTURE_REQUEST_SCOPE_MISMATCH' };
-  try {
-    // Reuse the page's read-only header builder. Do not use its HTTP client:
-    // that client's 401 handler clears credentials and reloads the page.
-    const script = [...document.scripts].map((s) => s.src).find((src) => {
-      const u = new URL(src, location.href);
-      return u.origin === location.origin && /^\/metric_nuxt\/[^/]+\.js$/.test(u.pathname);
-    });
-    if (!script) return { stop: 'CAPTURE_PAGE_SESSION_UNAVAILABLE' };
-    const module = await import(script);
-    const builders = Object.values(module).filter((value) => typeof value === 'function' &&
-      ['X-D-CR', 'PlatformId', 'VisitorId'].every((key) => value.toString().includes(key)));
-    if (builders.length !== 1) return { stop: 'CAPTURE_PAGE_SESSION_UNAVAILABLE' };
-    const headers = await builders[0]();
-    if (!headers.Token) return { stop: 'CAPTURE_LOGIN_REQUIRED' };
-    const response = await fetch(`https://apiv4.metric.vn${urlPath}`, {
-      method: 'POST', credentials: 'include',
-      headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(45000),
-    });
-    if (response.status === 401) return { stop: 'CAPTURE_LOGIN_REQUIRED' };
-    if (response.status === 403) return { stop: 'CAPTURE_ACCESS_RESTRICTED' };
-    const text = await response.text();
-    if (text.length > 12000000) return { stop: 'CAPTURE_RESPONSE_LIMIT' };
-    let body;
-    try { body = JSON.parse(text); } catch { return { stop: 'CAPTURE_PROVIDER_DATA_ERROR' }; }
-    if (response.status !== 200 || body?.status !== 'success') return { stop: 'CAPTURE_PROVIDER_DATA_ERROR' };
-    return { urlPath, method: 'POST', status: response.status, requestBody, body };
-  } catch { return { stop: 'CAPTURE_PAGE_REQUEST_FAILED' }; }
 }
 
 /** Taxonomy read independently of selectors so a missing form can use page requests. */

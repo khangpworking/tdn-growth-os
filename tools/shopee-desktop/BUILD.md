@@ -2,11 +2,11 @@
 
 Use Python 3.13, Windows OpenSSH Client, and Microsoft Edge WebView2 Runtime. WebView2 must be present on the machine running the app. The build commands below are for the coordinator's Windows machine; no packages are installed on the application host.
 
-Put `tdn_shopee_app.py`, `index.html` and `config.example.json` in one folder. Open PowerShell there:
+Build from `tools/shopee-desktop` in a repository checkout: the build also bundles `vendor_pychrome/` and the shared file `../opencli-metric/clis/metric/request-in-page.js`. Open PowerShell there:
 
 ```powershell
 py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install pywebview pyinstaller
+.\.venv\Scripts\python.exe -m pip install pywebview pyinstaller websocket-client
 New-Item -ItemType Directory -Force "$env:APPDATA\tdn-shopee-flow"
 Copy-Item .\config.example.json "$env:APPDATA\tdn-shopee-flow\config.json"
 ```
@@ -25,7 +25,23 @@ Check the connection without opening a window:
 
 This prints one JSON line and exits 0 when connected, 1 otherwise. A connected result with `readonly: true` means the guard is active; it is a valid connection. The check reads only the remote guard and runs-root setting.
 
-## Create a run and add a product
+## Step 1: Metric in the user's own Chrome
+
+The **Tạo lượt mới** screen starts with the step 1 card. It is a port of the coworker app MetricA (`src/browser.js`, `main.js`, renderer card), in `tdn_metric_browser.py`:
+
+1. **Mở Metric** opens the real Chrome (Chrome, then Edge; same five paths and flags as MetricA, 20 s wait, reuse of the app's Chrome when it is already open) with the app's own profile `%APPDATA%\tdn-shopee-flow\metric-chrome-profile` and a debug port on 127.0.0.1 only. The port and that Chrome's browser socket id are kept in `metric-debug-port.txt`; a saved port is reused only while it is still that same Chrome. Chrome opens `about:blank`; the app attaches to that tab, enables network events, then navigates it to `https://metric.vn/analytics`, so the first request is not missed.
+2. Every 2 s the app reads Chrome's tab list and attaches only to `page` tabs on `metric.vn` / `www.metric.vn` (vendored pychrome: one connection per tab, so a Google sign-in tab is never attached). A tab whose main frame starts loading another host is detached at once; it is attached again once it is back on Metric. The app never enables `Runtime`, never closes Chrome and never opens, focuses or closes a tab.
+3. For each `POST https://apiv4.metric.vn/v2/market/analytics/products/` the app keeps the newest request body per tab, in memory only (`Network.getRequestPostData` when the event has no body). The card shows **Bộ lọc lần xem cuối: kỳ …, sàn …, từ khóa …** and a Chrome open/closed pill (every 3 s). With no keyword on Metric it asks for **Tên lượt / từ khóa**.
+4. **Lấy bình luận Shopee** freezes the newest filter, blocks double clicks, changes only `limit` = 100, `page` = 0, `sort_by` = `revenue_custom__desc`, and runs the shared `requestV3InPage` (the same file `v3-capture.js` imports) in that tab with `Runtime.evaluate` (`awaitPromise`, `returnByValue`, 60 s). On failure a screenshot of the tab goes to the app's `evidence` folder. The answer is sent as `m1-import --stdin` (`metric-user-page-import-v1`, see the shared contract) with one UUID `importId` per click. The payload stays in memory until the server confirms it, so **Gửi lại** resends the same payload without asking Metric again; **Bỏ và lấy lại từ Metric** drops it.
+5. After the server returns the run, the app starts the existing step 2 (`m2 --run <id> --detach`) and the run continues in the existing step 3 and step 4 screens. It never sends `run`. Listening stops once the run exists; **Mở Metric** starts it again.
+
+The old preset form (product, period, Metric filters, **Tạo lượt**, **Bắt đầu lấy dữ liệu**) and the date check `metric-date-availability` are no longer shown for new runs. History, old runs, result cards and downloads are unchanged. The collection policy form is the one described below.
+
+`vendor_pychrome/` is pychrome 0.2.4 (BSD, `LICENSE` and `SOURCE.md` kept). Its only dependency is `websocket-client`.
+
+Offline coverage: `python -m unittest discover -s tools/shopee-desktop/tests -p 'test_metric_browser*.py' -v`. `test_metric_browser_cdp.py` starts a headless local Chrome against local pages on 127.0.0.1 (test-only host override) and is skipped without Chrome or `websocket-client`. UI: `node --test tests/integration/shopee-desktop-step1-ui.test.ts`. Shared JS: `node --import tsx --test tests/unit/metric-request-in-page.test.ts`.
+
+## Create a run and add a product (old runs)
 
 The **Tạo lượt mới** screen is one form: product, date period, collection policy, summary, then create. The primary button is **Tạo lượt** for an existing product and **Lưu sản phẩm và tạo lượt** when the inline new-product option is selected. Creating a run, including saving a new product first, never starts a lookup or review collection; only **Bắt đầu lấy dữ liệu** does. The confirmation states that starting uses one sales-data lookup for the run, then chooses links and collects comments, and gives no ETA.
 
@@ -82,10 +98,10 @@ A notification fires once per change seen between two polls (run started, step p
 
 Offline coverage: `python3 -m unittest discover -s tools/shopee-desktop/tests -p 'test_step4_bridge.py' -v` and `node --test tests/integration/shopee-desktop-ui.test.ts`. The demo page `index.html?mock=1&s4=<s1run|s3run|running|pass|fail|old>` shows each approved scenario; its first progress poll answers the state just before the scenario event, so the notification appears on the next poll.
 
-Build one windowed executable with the HTML bundled:
+Build one windowed executable with the spec in this folder. It bundles `index.html`, the shared `../opencli-metric/clis/metric/request-in-page.js`, `tdn_metric_browser`, `vendor_pychrome` and `websocket-client`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onefile --windowed --name TDN-Shopee-Flow --add-data "index.html;." tdn_shopee_app.py
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean TDN-Shopee-Flow.spec
 ```
 
 The executable is `dist\TDN-Shopee-Flow.exe`. It reads the same external config and loads the bundled page from PyInstaller's extraction directory. Use the Python `--check` command above for visible console diagnostics, since the windowed executable has no console. Closing the window does not stop a detached remote run.
