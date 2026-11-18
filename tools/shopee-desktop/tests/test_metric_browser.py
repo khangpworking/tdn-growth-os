@@ -1213,6 +1213,46 @@ class BridgeTest(unittest.TestCase):
                 self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
             self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'flow'])
 
+    def test_review_r2_rows(self):
+        """Terra r2 on PR #501, one row each:
+        | # | situation                                                   | expected                                        |
+        |---|-------------------------------------------------------------|-------------------------------------------------|
+        | 1 | a new products request (other filter) arrives during the shot | the import uses the click's request and filter |
+        | 2 | `evidence/metric` is a junction/symlink holding the run picture | no local picture found, nothing opened         |"""
+        with self.subTest('1 later request during the shot'):
+            click_answer = self.session.tab.answers['Page.captureScreenshot']
+
+            def shot_while_metric_moves(**params):
+                self.session.tab.products_request(page_body(start_date='20261015'), request_id='later')
+                return click_answer
+            self.session.tab.answers['Page.captureScreenshot'] = shot_while_metric_moves
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            sent = self.remote_calls[0][2]
+            self.assertEqual(sent['scope']['start_date'], '20261001')          # the click's filter
+            self.assertEqual(sent['response']['requestBody']['start_date'], '20261001')
+            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
+        with self.subTest('2 junction on metric'):
+            self.setUp_fresh()
+            elsewhere = pathlib.Path(self.tmp.name) / 'elsewhere'
+            elsewhere.mkdir()
+            (elsewhere / 'a1b2c3d4-metric-full-page.png').write_bytes(b'\x89PNG')
+            if self.shots.exists():
+                self.shots.rmdir()
+            made = subprocess.run(['cmd', '/c', 'mklink', '/J', str(self.shots), str(elsewhere)],
+                                  capture_output=True) if sys.platform == 'win32' else None
+            if made is None:
+                os.symlink(elsewhere, self.shots, target_is_directory=True)
+            elif made.returncode != 0:
+                self.skipTest('cannot make a junction here')
+            drop_link = os.rmdir if sys.platform == 'win32' else os.unlink
+            self.addCleanup(lambda: mb._is_link(self.shots) and drop_link(self.shots))
+            opened = []
+            with mock.patch.object(tdn_shopee_app, '_open_local_file', opened.append):
+                self.assertEqual(self.api.localMetricShot('a1b2c3d4')['data']['exists'], False)
+                self.assertEqual(self.api.openLocalMetricShot('a1b2c3d4')['error']['code'], 'EVIDENCE_LOCAL_MISSING')
+            self.assertEqual(opened, [])
+
     def setUp_fresh(self):
         """A new click world in the same test: new session, empty shot folder, no remote calls."""
         for path in self.shot_files():

@@ -182,10 +182,10 @@ def _prepare_metric_shot_folder():
     try:
         folder = _metric_shot_folder()
         for path in (folder.parent, folder):
-            path.mkdir(mode=0o700, exist_ok=True)
-            if not _real_directory(path):
+            if not tdn_metric_browser.plain_path(folder.parent, path):
                 return None
-        return folder
+            path.mkdir(mode=0o700, exist_ok=True)
+        return folder if tdn_metric_browser.plain_path(folder.parent, folder) else None
     except (OSError, _BridgeFailure):
         return None
 
@@ -654,9 +654,11 @@ class Api:
     # ---- The full-page Metric shot kept on this PC at the click (never sent to the server) ----
 
     def _local_metric_shot(self, run_id):
-        path = _metric_shot_folder() / tdn_metric_browser.run_shot_name(self._run_id(run_id))
+        """The run's local picture, or None: missing, or any part from evidence/ down is a link/junction."""
+        folder = _metric_shot_folder()
+        path = folder / tdn_metric_browser.run_shot_name(self._run_id(run_id))
         try:
-            return path if path.is_file() and not path.is_symlink() else None
+            return path if tdn_metric_browser.plain_path(folder.parent, path) and path.is_file() else None
         except OSError:
             return None
 
@@ -668,7 +670,7 @@ class Api:
         return self._safe(lambda: self._open_local_metric_shot(runId))
 
     def _open_local_metric_shot(self, run_id):
-        path = self._local_metric_shot(run_id)
+        path = self._local_metric_shot(run_id)      # checked again right before opening
         if path is None:
             raise _BridgeFailure('EVIDENCE_LOCAL_MISSING')
         try:

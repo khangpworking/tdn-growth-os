@@ -63,6 +63,23 @@ def _is_link(path):
         return False
 
 
+def plain_path(root, path):
+    """The one rule for the local Metric pictures: True only when no part from ``root`` (the evidence
+    folder) down to ``path`` is a symlink, junction or other reparse point. Parts that do not exist yet
+    are fine (to be created); ``path`` must be inside ``root``. Never raises."""
+    try:
+        root, path = Path(root), Path(path)
+        relative = path.relative_to(root)
+        part = root
+        for name in ('',) + relative.parts:
+            part = part / name if name else part
+            if _is_link(part):
+                return False
+        return True
+    except (ValueError, OSError):
+        return False
+
+
 def run_shot_name(run_id):
     """The local full-page Metric shot linked to a run (never sent to the server)."""
     return f'{run_id}-metric-full-page.png'
@@ -750,14 +767,21 @@ class MetricListener:
             return None if best is None else {'targetId': best.target_id, 'seq': best.last['seq'],
                                               'body': copy.deepcopy(best.last['body'])}
 
-    def freeze(self):
-        """At the click: freeze exactly the newest products request seen on any Metric tab.
+    def click_record(self):
+        """At the click, atomically: the newest products request seen on any Metric tab (its record,
+        with its tab). Everything after the click works on THIS record, never a later one."""
+        with self._lock:
+            return self._newest
+
+    def freeze(self, record=None):
+        """Freeze exactly the click's request (``record``; default: the newest one now).
 
         Its body may still be on the way (body worker): wait up to ``body_wait_seconds``
         (the caller's thread, never a CDP dispatch thread). Still pending, or the body could
-        not be read: refuse. Never fall back to an older request."""
+        not be read: refuse. Never fall back to another request."""
         with self._lock:
-            record = self._newest
+            if record is None:
+                record = self._newest
             if record is None:
                 raise MetricFailure('METRIC_NOT_SEEN')
             deadline = time.monotonic() + self.body_wait_seconds
@@ -807,14 +831,13 @@ class MetricListener:
     def _failure(screenshot_saved, code):
         return MetricFailure(code, detail={'screenshotSaved': True} if screenshot_saved else None)
 
-    def shot_target(self):
-        """The Metric tab to picture at the click, before the filter is frozen: the tab of the newest
-        products request, else the first attached Metric tab. None when no Metric tab is attached."""
+    def shot_target(self, record):
+        """The tab to picture: the click record's tab; with no request seen yet, the first attached
+        Metric tab. None when that tab is not attached."""
         with self._lock:
-            newest = self._newest['targetId'] if self._newest is not None else None
             attached = [tid for tid, entry in self._tabs.items() if entry.phase == 'attached']
-        if newest in attached:
-            return newest
+        if record is not None:
+            return record['targetId'] if record['targetId'] in attached else None
         return attached[0] if attached else None
 
     def full_page_shot(self, target_id, folder):
@@ -830,7 +853,8 @@ class MetricListener:
             return None
         try:
             folder = Path(folder)
-            if _is_link(folder.parent) or _is_link(folder):
+            root = folder.parent                     # the evidence folder
+            if not plain_path(root, folder):
                 return None
             # Full page only: the page size must be known, else it is a failed shot.
             metrics = tab.call_method('Page.getLayoutMetrics', _timeout=10)
@@ -843,11 +867,11 @@ class MetricListener:
                                    _timeout=SHOT_TIMEOUT)
             data = base64.b64decode(shot['data'], validate=True)
             folder.mkdir(exist_ok=True)
-            if _is_link(folder):
-                return None
             stamp = dt.datetime.now().strftime('%Y-%m-%d-%H%M%S')
             for number in range(100):
                 path = folder / (f'metric-{stamp}.png' if number == 0 else f'metric-{stamp}-{number}.png')
+                if not plain_path(root, path):
+                    return None
                 try:
                     with open(path, 'xb') as handle:
                         handle.write(data)
@@ -916,9 +940,14 @@ class MetricSession:
             raise MetricFailure('METRIC_NOT_SEEN')
         # Every click keeps one full-page shot on this PC, taken first: success, too few Shopee
         # products, and every refusal or failure after this point (filter still loading too).
-        shot = listener.full_page_shot(listener.shot_target(), screenshot_dir)
+        # The click's request is snapshotted ONCE; the picture is of its tab and the import is built
+        # from that same record, even if Metric sends a later request while the picture is taken.
+        record = listener.click_record()
+        shot = listener.full_page_shot(listener.shot_target(record), screenshot_dir)
         try:
-            frozen = listener.freeze()       # still never an older filter
+            if record is None:
+                raise MetricFailure('METRIC_NOT_SEEN')
+            frozen = listener.freeze(record)  # its body: pending / unavailable handling, 5 s wait
             scope = scope_of(frozen['body'])
             if not _valid_scope(scope):
                 raise MetricFailure('METRIC_FILTER_INVALID')
@@ -951,7 +980,8 @@ class MetricSession:
             return None
         target = shot.with_name(run_shot_name(run_id))
         try:
-            if _is_link(shot.parent) or _is_link(target):
+            root = shot.parent.parent
+            if not (plain_path(root, shot) and plain_path(root, target)):
                 return None
             os.replace(shot, target)
         except OSError:
