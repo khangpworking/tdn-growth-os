@@ -1,3 +1,4 @@
+import './lazy-validators-on.js';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, resolve } from 'node:path';

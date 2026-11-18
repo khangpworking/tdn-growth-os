@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
 import outputsSchema from '../skills/tdn-shopee-flow/chuan/module-outputs-v1.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
-import { compileAll, lazyValidator } from '../src/platform/lazy-validator.js';
+import { lazyValidator } from '../src/platform/lazy-validator.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
 import type { LinkCheckEntry } from './module-link-check.js';
 import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick,
@@ -396,7 +396,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   void (async () => {
     if (!run) throw new ModuleError('USAGE', 2);
     if (action === 'read') { process.stdout.write(await readModuleEvidence(run, kind ?? '', digest ?? '')); return; }
-    if (action !== 'view') compileAll();
     const result = action === 'view' ? await moduleOutputs(run) : action === 'verify-capture'
       ? await verifyModuleCapture(run).then(() => ({ valid: true })) : action === 'verify-selection'
         ? await verifyModuleSelection(run) : null;

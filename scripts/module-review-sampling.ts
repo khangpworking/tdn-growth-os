@@ -1,3 +1,4 @@
+import './lazy-validators-on.js';
 import { access, lstat, mkdir, open, readFile, readdir, link, rename, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';

@@ -1,9 +1,10 @@
 import type { ErrorObject, ValidateFunction } from 'ajv';
 
 /**
- * A module-level `ajv.compile(...)` costs its full compile at import even when the command never
- * validates that shape. This wrapper compiles on the first call, then delegates; the inner errors
- * are copied onto the wrapper so every `validator.errors` read keeps working.
+ * `lazyValidator` mirrors a module-level `ajv.compile(...)`: by default it compiles at creation, so
+ * a bad schema still throws during module evaluation. Read-view entry scripts switch lazy mode on
+ * before importing anything else; from then on validators compile on their first call instead, and
+ * `compileAll()` restores the fail-before-use check where a command needs it.
  */
 interface AjvCompiler {
   getSchema(id: string): ValidateFunction | undefined;
@@ -12,6 +13,13 @@ interface AjvCompiler {
 
 type AnyValidate<T> = ValidateFunction<T>;
 type DataCxt = Parameters<AnyValidate<unknown>>[1];
+
+let lazyMode = false;
+
+/** Compile-on-first-call for every validator created after this point; off by default. */
+export function enableLazyValidators(): void {
+  lazyMode = true;
+}
 
 const registry: (() => void)[] = [];
 
@@ -37,6 +45,8 @@ export function lazyValidator<T = unknown>(first: AjvCompiler | (() => AnyValida
     }
     return inner;
   };
+  // Eager unless lazy mode is on: exactly a bare `ajv.compile()`, so a bad schema throws here.
+  if (!lazyMode) inner = compile();
   let validate!: AnyValidate<T>;
   validate = Object.assign(
     (data: unknown, dataCxt?: DataCxt): data is T => {
@@ -51,7 +61,7 @@ export function lazyValidator<T = unknown>(first: AjvCompiler | (() => AnyValida
   return validate;
 }
 
-/** Compile every registered lazy validator now; a compile error is thrown here and on every later call. */
+/** Compile every registered validator now; a compile error is thrown here and on every later call. */
 export function compileAll(): void {
   for (const compile of registry) compile();
 }

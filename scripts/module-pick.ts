@@ -16,7 +16,7 @@ import specSchema from '../contracts/analysis/metric-v3-capture-spec.schema.json
 import selectedSpecSchema from '../contracts/analysis/metric-v3-capture-spec-v3.schema.json' with { type: 'json' };
 import selectedWindowSchema from '../contracts/analysis/metric-v3-window-capture-v3.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
-import { compileAll, lazyValidator } from '../src/platform/lazy-validator.js';
+import { lazyValidator } from '../src/platform/lazy-validator.js';
 import legacySpecSchema from '../contracts/analysis/metric-v3-capture-spec-v1.schema.json' with { type: 'json' };
 import requestV1Schema from '../skills/tdn-shopee-flow/chuan/request-v1.schema.json' with { type: 'json' };
 import samplingSchema from '../contracts/foundation/shopee-review-sampling.schema.json' with { type: 'json' };
@@ -271,7 +271,6 @@ export function auditMaskedRows(raw: unknown, links: readonly { revenue: number 
 /** `jev` gives the Jev client for a v2 run; only the command line below builds the real one. */
 export async function main(runDir: string, options: { jev?: () => PickJev; sleep?: (ms: number) => Promise<void>;
     linkCollector?: () => LinkCollector } = {}) {
-  compileAll();
   const run = resolve(runDir);
   const metricInputSha256 = await prerequisite(run, 'm1');
   const request = await readRequest(run);

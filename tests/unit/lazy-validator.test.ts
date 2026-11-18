@@ -1,68 +1,84 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { lazyValidator } from '../../src/platform/lazy-validator.js';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 
-const require = createRequire(import.meta.url);
-const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+/** A fresh process per row, so lazy mode from one row cannot leak into another. */
+function runModule(source: string): string {
+  return execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', source], {
+    cwd: root, stdio: 'pipe', encoding: 'utf8',
+  });
+}
 
-const schema = {
-  type: 'object',
-  properties: { name: { type: 'string' } },
-  required: ['name'],
-  additionalProperties: false,
-};
-
-test('lazyValidator answers like the eager validator and compiles once', () => {
-  const ajv = new Ajv2020({ strict: true, allErrors: true });
-  const eager = ajv.compile(schema);
-  let compiles = 0;
-  // A distinct schema object, so Ajv's per-object cache cannot hand back the eager validator.
-  const lazy = lazyValidator(() => { compiles++; return ajv.compile({ ...schema }); });
-  const valid = { name: 'ok' }, invalid = { name: 3 };
-
-  assert.equal(lazy(valid), eager(valid));
-  assert.equal(lazy.errors, eager.errors);
-  assert.equal(lazy(invalid), eager(invalid));
-  assert.deepEqual(lazy.errors, eager.errors);
-  assert.equal(lazy(valid), true);
-  assert.equal(lazy.errors, null);
-  assert.equal(compiles, 1);
+test('without lazy mode a validator compiles at creation', () => {
+  const output = runModule([
+    "import assert from 'node:assert/strict';",
+    "const { lazyValidator } = await import('./src/platform/lazy-validator.ts');",
+    'let compiles = 0;',
+    "const validate = lazyValidator(() => { compiles++; return (value) => typeof value === 'string'; });",
+    "assert.equal(compiles, 1, 'compiled at creation');",
+    "assert.equal(validate('x'), true);",
+    "assert.equal(compiles, 1, 'not compiled again on call');",
+    "console.log('ok');",
+  ].join('\n'));
+  assert.equal(output.trim(), 'ok');
 });
 
-test('lazyValidator uses a registered id instead of compiling it again', () => {
-  const ajv = new Ajv2020({ strict: true });
-  const registeredSchema = { $id: 'https://tdn.local/test/lazy-registered.schema.json', type: 'string' };
-  ajv.addSchema(registeredSchema);
-  const eager = ajv.getSchema(registeredSchema.$id)!;
-  let compiles = 0;
-  const spy = {
-    getSchema: (id: string) => ajv.getSchema(id),
-    compile: <T = unknown>(value: unknown) => { compiles++; return ajv.compile<T>(value as never); },
-  };
-  const lazy = lazyValidator(spy, registeredSchema);
-  assert.equal(lazy('value'), eager('value'));
-  assert.equal(compiles, 0);
+test('without lazy mode a bad schema throws at import (creation)', () => {
+  assert.throws(() => runModule([
+    "const { lazyValidator } = await import('./src/platform/lazy-validator.ts');",
+    "lazyValidator(() => { throw new Error('bad schema'); });",
+    "console.log('unreachable');",
+  ].join('\n')));
 });
 
-test('lazyValidator throws the same compile error on every call', () => {
-  const failure = new Error('compile failed');
-  const lazy = lazyValidator(() => { throw failure; });
-  assert.throws(() => lazy({}), (error) => error === failure);
-  assert.throws(() => lazy({}), (error) => error === failure);
+test('with lazy mode a validator compiles on first call', () => {
+  const output = runModule([
+    "import assert from 'node:assert/strict';",
+    "const { enableLazyValidators, lazyValidator } = await import('./src/platform/lazy-validator.ts');",
+    'enableLazyValidators();',
+    'let compiles = 0;',
+    "const validate = lazyValidator(() => { compiles++; return (value) => typeof value === 'string'; });",
+    "assert.equal(compiles, 0, 'not compiled at creation');",
+    "assert.equal(validate('x'), true);",
+    "assert.equal(compiles, 1, 'compiled on first call');",
+    "console.log('ok');",
+  ].join('\n'));
+  assert.equal(output.trim(), 'ok');
+});
+
+test('with lazy mode a bad schema throws the same error on first use', () => {
+  const output = runModule([
+    "import assert from 'node:assert/strict';",
+    "const { enableLazyValidators, lazyValidator } = await import('./src/platform/lazy-validator.ts');",
+    'enableLazyValidators();',
+    "const failure = new Error('bad schema');",
+    'const validate = lazyValidator(() => { throw failure; });',
+    'assert.throws(() => validate({}), (error) => error === failure);',
+    'assert.throws(() => validate({}), (error) => error === failure);',
+    "console.log('ok');",
+  ].join('\n'));
+  assert.equal(output.trim(), 'ok');
+});
+
+test('each read-view entry imports the lazy-mode module first', () => {
+  for (const file of ['scripts/module-run-view.ts', 'scripts/module-review-sampling.ts', 'scripts/module-review-data.ts']) {
+    const firstImport = readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8')
+      .split('\n').find(line => /^\s*import\s/.test(line));
+    assert.equal(firstImport?.trim(), "import './lazy-validators-on.js';", `${file} must import the lazy-mode module first`);
+  }
 });
 
 test('compileAll compiles every schema registered in the read-view import graph', () => {
-  // A fresh process: this file's own registry already holds a deliberately failing compile above.
-  execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', [
-    "const { compileAll } = await import('./src/platform/lazy-validator.ts');",
+  runModule([
+    "const { compileAll, enableLazyValidators } = await import('./src/platform/lazy-validator.ts');",
+    'enableLazyValidators();',
     "await import('./scripts/module-run-view.ts');",
     "await import('./scripts/module-review-sampling.ts');",
     "await import('./scripts/module-review-data.ts');",
     'compileAll();',
-  ].join(' ')], { cwd: root, stdio: 'pipe' });
+  ].join('\n'));
 });
