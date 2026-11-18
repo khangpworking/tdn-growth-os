@@ -35,6 +35,7 @@ function page(views: any[], take?: (input: any) => Promise<any>, lastSelection: 
     resendMetricImport: record('resendMetricImport', () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: true, step2: { ok: true } } })),
     discardMetricImport: record('discardMetricImport', () => ({ ok: true, data: { pending: null } })),
     lastProductSelection: record('lastProductSelection', () => ({ ok: true, data: { productSelection: lastSelection } })),
+    rememberProductSelection: record('rememberProductSelection', (value: any) => ({ ok: true, data: { productSelection: value } })),
     newRun: record('newRun', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
     runFlow: record('runFlow', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
     runModule: record('runModule', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
@@ -160,6 +161,7 @@ test('a Metric error is told in plain words; «Mở Metric» reports the browser
 // | opens with the last choice (top 8)    | {mode: top, count: 8}     | enabled     |
 // | Top 0 or 101                          | –                         | disabled    |
 // | «Tất cả»                              | {mode: all}               | enabled     |
+// Each valid change is kept at once (rememberProductSelection); Top 0/101 is not kept (Terra r1 #4).
 test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choice, and refuses Top outside 1–100', async () => {
   const p = page([SEEN], async () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } }),
     { mode: 'top', count: 8 });
@@ -172,16 +174,25 @@ test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choic
     await waitFor(() => p.calls.filter((c) => c.method === 'takeMetricReviews').length === 1, 'top 8 sent');
     assert.deepEqual(p.calls.find((c) => c.method === 'takeMetricReviews')!.args[0].productSelection, { mode: 'top', count: 8 });
     await waitFor(() => !p.$('metricNotice').hidden, 'done');
+    const kept = () => p.calls.filter((c) => c.method === 'rememberProductSelection').map((c) => c.args[0]);
+    p.$('newTopCount').value = '9';
+    p.$('newTopCount').dispatchEvent(new p.dom.window.Event('input', { bubbles: true }));
+    await waitFor(() => kept().length === 1, 'top 9 kept');
+    assert.deepEqual(kept(), [{ mode: 'top', count: 9 }]);
     for (const bad of ['0', '101']) {
       p.$('newTopCount').value = bad;
       p.$('newTopCount').dispatchEvent(new p.dom.window.Event('input', { bubbles: true }));
       assert.equal(p.$('btnTakeReviews').disabled, true, bad);
       assert.equal(p.$('metricTakeHint').textContent, 'Top từ 1 đến 100.', bad);
     }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(kept().length, 1, 'invalid Top not kept');
     const all = group.querySelector<HTMLInputElement>('input[value="all"]')!;
     all.checked = true;
     all.dispatchEvent(new p.dom.window.Event('change', { bubbles: true }));
     assert.equal(p.$('btnTakeReviews').disabled, false);
+    await waitFor(() => kept().length === 2, 'all kept');
+    assert.deepEqual(kept().at(-1), { mode: 'all' });
     p.$('btnTakeReviews').click();
     await waitFor(() => p.calls.filter((c) => c.method === 'takeMetricReviews').length === 2, 'all sent');
     assert.deepEqual(p.calls.filter((c) => c.method === 'takeMetricReviews')[1]!.args[0].productSelection, { mode: 'all' });

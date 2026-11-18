@@ -725,6 +725,7 @@ class Api:
             digest = self._sha256(digest)
             descriptor = self._evidence_descriptor(run_id, 'full-page', digest)
         name = re.sub(r'[\\/]', '_', name.strip()) if isinstance(name, str) else ''
+        name = name[:116 - len(run_id) - 1].rstrip('. ')     # the name is cut, never the run id
         stem = f'{name}-{run_id}' if name else run_id
         suggested = _safe_filename(stem, 'png')
         selected = _choose_save_path(suggested, _downloads_folder())
@@ -1710,9 +1711,15 @@ class Api:
             value = None
         return {'ok': True, 'data': {'productSelection': value}}
 
+    def rememberProductSelection(self, value=None):
+        return self._safe(lambda: self._remember_product_selection(value))
+
     @staticmethod
     def _remember_product_selection(value):
-        """Best effort: a failed write only means the form opens with Top 5 next time."""
+        """Kept when the form's choice changes. Best effort: a failed write only means the form opens
+        with Top 5 next time."""
+        if not tdn_metric_browser.valid_product_selection(value):
+            raise _BridgeFailure('ARG_INVALID')
         try:
             path = _choice_path()
             temp = path.with_name(path.name + '.part')
@@ -1720,6 +1727,7 @@ class Api:
             os.replace(temp, path)
         except (OSError, _BridgeFailure):
             pass
+        return {'ok': True, 'data': {'productSelection': value}}
 
     def metricBrowserState(self):
         return self._metric_safe(lambda: {'ok': True, 'data': self._metric_session().view()})
@@ -1744,7 +1752,6 @@ class Api:
         if 'productSelection' in value:
             if not tdn_metric_browser.valid_product_selection(selection):
                 raise _BridgeFailure('ARG_INVALID')
-            self._remember_product_selection(selection)
         session = self._metric_session()
         if not session.busy.acquire(blocking=False):
             raise tdn_metric_browser.MetricFailure('METRIC_BUSY')

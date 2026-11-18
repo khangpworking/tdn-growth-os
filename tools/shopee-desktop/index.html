@@ -2660,6 +2660,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         return Promise.resolve(err('EVIDENCE_LOCAL_MISSING', 'EVIDENCE_LOCAL_MISSING'));
       },
       lastProductSelection: function () { return Promise.resolve(ok({ productSelection: null })); },
+      rememberProductSelection: function (value) { return Promise.resolve(ok({ productSelection: value })); },
       deleteRun: function (runId) {
         if (!store.has(runId)) return Promise.resolve(err('RUN_NOT_FOUND', 'RUN_NOT_FOUND'));
         store.delete(runId);
@@ -3006,6 +3007,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       saveMetricShot: function (runId, name, sha256) { return call('saveMetricShot', [runId, name, sha256]); },
       deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
+      rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
       newRun: function (input) { return call('newRun', [input]); },
       addProduct: function (input) { return call('addProduct', [input]); },
       status: function (runId) { return call('status', [runId]); },
@@ -3440,8 +3442,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return value === true ? true : value === false ? false : null;
   }
 
-  function outputErrorBar(code) {
-    var bar = h('p', 'errbar local-error', outputErrorText({ code: code }));
+  function outputErrorBar(code, detail) {
+    var bar = h('p', 'errbar local-error', outputErrorText({ code: code, detail: detail }));
     bar.setAttribute('role', 'alert');
     bar.title = String(code);
     return bar;
@@ -3877,8 +3879,24 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return wrap;
   }
 
-  function moduleM2Output(m2, runId) {
+  // The run's frozen «Sản phẩm bán chạy» choice and step 2 target. Absent (old runs): top 5, old wording.
+  // The m2 gate check is `requested_distinct_products` (with `want`), on old runs `five_distinct_products`.
+  function m2Target(info) {
+    var selection = info && info.request && info.request.productSelection;
+    var all = !!selection && selection.mode === 'all';
+    var checks = info && info.gates && info.gates.m2 && Array.isArray(info.gates.m2.checks) ? info.gates.m2.checks : [];
+    var check = checks.find(function (c) {
+      return c && (c.id === 'requested_distinct_products' || c.id === 'five_distinct_products');
+    }) || null;
+    var want = check && typeof check.want === 'number' ? check.want
+      : all ? 1 : selection && typeof selection.count === 'number' ? selection.count : 5;
+    return { all: all, explicit: !!selection, want: want, ok: check && typeof check.ok === 'boolean' ? check.ok : null };
+  }
+
+  function moduleM2Output(m2, runId, info) {
     m2 = m2 || {};
+    var target = m2Target(info);
+    var distinctOk = target.ok !== null ? target.ok : m2.fiveDistinct;
     var card = h('article', 'mod');
     var head = h('div', 'mh');
     head.appendChild(h('h3', null, moduleTitle('M2')));
@@ -3893,10 +3911,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     } else if (unknownPolicy) {
       chipText = 'Chưa xác định quy tắc chọn';
       chipCls = 's-warn';
-    } else if (m2.linksMatchSourceOrder === true && m2.fiveDistinct === true && !m2.errorCode) {
+    } else if (m2.linksMatchSourceOrder === true && distinctOk === true && !m2.errorCode) {
       chipText = 'Đạt kiểm tra';
       chipCls = 's-pass';
-    } else if (m2.linksMatchSourceOrder === false || m2.fiveDistinct === false || m2.errorCode) {
+    } else if (m2.linksMatchSourceOrder === false || distinctOk === false || m2.errorCode) {
       chipText = 'Không đạt kiểm tra';
       chipCls = 's-fail';
     } else {
@@ -3916,31 +3934,41 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       sourceRow.id = 'moM2Source';
       var shopeeRow = outputResultRow(m2.linksMatchSourceOrder, 'Chỉ lấy sản phẩm bán trên Shopee');
       shopeeRow.id = 'moM2Shopee';
-      var sameRow = outputResultRow(m2.linksMatchSourceOrder, 'Không lấy các sản phẩm giống nhau');
-      sameRow.id = 'moM2Same';
-      var sameLabel = sameRow.querySelector('.cl');
-      sameLabel.appendChild(sameProductTip());
-      sameLabel.parentNode.insertBefore(
-        h('div', 'cs', 'Cùng thương hiệu, thành phần và hàm lượng thì tính là một sản phẩm.'), sameLabel.nextSibling);
+      var sameRow = null;
+      if (!target.all) {          // «Tất cả» keeps duplicates: no duplicate-filter line
+        sameRow = outputResultRow(m2.linksMatchSourceOrder, 'Không lấy các sản phẩm giống nhau');
+        sameRow.id = 'moM2Same';
+        var sameLabel = sameRow.querySelector('.cl');
+        sameLabel.appendChild(sameProductTip());
+        sameLabel.parentNode.insertBefore(
+          h('div', 'cs', 'Cùng thương hiệu, thành phần và hàm lượng thì tính là một sản phẩm.'), sameLabel.nextSibling);
+      }
       var count = m2.selectedCount;
       var distinctRow;
-      if (typeof count === 'number' && count < 5) {
+      if (typeof count === 'number' && count < target.want) {
         distinctRow = h('li', 'ck c-warn');
         distinctRow.appendChild(h('span', 'ci', '!'));
-        distinctRow.appendChild(h('div', 'cl', 'Chỉ chọn được ' + fmtInt(count) + '/5 sản phẩm: ' +
+        distinctRow.appendChild(h('div', 'cl', 'Chỉ chọn được ' + fmtInt(count) + '/' + fmtInt(target.want) + ' sản phẩm: ' +
           (M2_SHORTAGE_TEXT[m2.shortageReason] || 'chưa rõ lý do')));
+      } else if (target.all) {
+        distinctRow = outputResultRow(distinctOk, 'Đã chọn ' + (typeof count === 'number' ? fmtInt(count) + ' ' : '') + 'sản phẩm');
+      } else if (target.explicit) {
+        distinctRow = outputResultRow(distinctOk,
+          'Đã chọn đủ ' + fmtInt(target.want) + '/' + fmtInt(target.want) + ' sản phẩm khác nhau');
       } else {
-        distinctRow = outputResultRow(m2.fiveDistinct, 'Đã chọn đủ 5 sản phẩm khác nhau');
+        distinctRow = outputResultRow(distinctOk, 'Đã chọn đủ 5 sản phẩm khác nhau');
       }
       distinctRow.id = 'moM2Distinct';
-      [sourceRow, shopeeRow, sameRow, distinctRow].forEach(function (row) { rows.appendChild(row); });
+      [sourceRow, shopeeRow, sameRow, distinctRow].forEach(function (row) { if (row) rows.appendChild(row); });
       card.appendChild(rows);
     } else if (legacy) {
       card.appendChild(h('p', 'rs-note',
         'Lượt này dùng quy tắc chọn cũ; không áp dụng cách chọn 5 sản phẩm khác nhau mới.'));
     }
 
-    if (m2.errorCode && m2.errorCode !== m2.shortageReason) card.appendChild(outputErrorBar(m2.errorCode));
+    if (m2.errorCode && m2.errorCode !== m2.shortageReason) {
+      card.appendChild(outputErrorBar(m2.errorCode, m2.errorDetail || { requested: target.want }));
+    }
 
     var links = Array.isArray(m2.links) ? m2.links : [];
     if (links.length) {
@@ -4011,7 +4039,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
 
     if (m1Started) panel.appendChild(moduleM1Output(data.m1, runId));
-    if (m2Started) panel.appendChild(moduleM2Output(data.m2, runId));
+    if (m2Started) panel.appendChild(moduleM2Output(data.m2, runId, info));
     return panel;
   }
 
@@ -8653,7 +8681,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return { value: { mode: 'top', count: count } };
   }
 
-  // The last choice sent from this PC (the bridge keeps it): the form opens with it.
+  // A valid change of Top/All or N is kept on this PC at once (the bridge keeps it).
+  function rememberSelection() {
+    var choice = productSelection();
+    if (choice.value) api.rememberProductSelection(choice.value);
+  }
+
+  // The last choice made on this PC: the form opens with it.
   async function restoreSelection() {
     var res = await api.lastProductSelection();
     var saved = res.ok && res.data ? res.data.productSelection : null;
@@ -8813,6 +8847,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnDiscardImport').addEventListener('click', onDiscardImport);
     $('btnTrackMetricRun').addEventListener('click', onTrackMetricRun);
     restoreSelection();
+    $('newSelectionGroup').addEventListener('change', rememberSelection);
+    $('newSelectionGroup').addEventListener('input', rememberSelection);
     $('newRunForm').addEventListener('change', renderMetricCard);
     $('newRunForm').addEventListener('input', renderMetricCard);
     // The old preset form is hidden: Enter in a policy field must not submit it.

@@ -3532,3 +3532,50 @@ test('«Xóa lượt» asks first, explains a running run, and leaves the delete
     assert.equal(element(run.doc, 'toast').hidden, false);
   } finally { run.dom.window.close(); }
 });
+
+// Step 2 card from the run's frozen productSelection (F644, Terra r1 #1 and #2), one row each:
+// | run                                   | m2 gate check (want)            | picked | same-product line | count line                                    | error bar                                           |
+// |---------------------------------------|---------------------------------|--------|-------------------|-----------------------------------------------|-----------------------------------------------------|
+// | old run, no productSelection          | five_distinct_products          | 5      | yes               | Đã chọn đủ 5 sản phẩm khác nhau               | –                                                   |
+// | top 8                                 | requested_distinct_products (8) | 8      | yes               | Đã chọn đủ 8/8 sản phẩm khác nhau             | –                                                   |
+// | all                                   | requested_distinct_products (1) | 3      | no                | Đã chọn 3 sản phẩm                            | –                                                   |
+// | top 8, FEWER_PRODUCTS_THAN_REQUESTED  | requested_distinct_products (8) | 6      | yes               | Chỉ chọn được 6/8 sản phẩm: nguồn không đủ …  | Không đủ 8 sản phẩm khác nhau. Giảm số Top hoặc …   |
+test('the step 2 card follows the run\'s Top N or all choice', async () => {
+  const slip = (id: string, want: number, ok: boolean) => ({ ...passSlip('M2'), verdict: ok ? 'PASS' : 'FAIL',
+    checks: [{ id, ok, want }] });
+  const v2 = (count: number, extra: any = {}) => ({ policy: 'metric-products-unique-v2', selectedCount: count,
+    fiveDistinct: null, links: moduleOutputView('x').m2.links.slice(0, Math.min(count, 5)), ...extra });
+  const rows = [
+    { label: 'old', selection: undefined, gate: slip('five_distinct_products', 5, true), m2: { fiveDistinct: true },
+      same: true, line: '✓Đã chọn đủ 5 sản phẩm khác nhau', bar: null },
+    { label: 'top 8', selection: { mode: 'top', count: 8 }, gate: slip('requested_distinct_products', 8, true), m2: v2(8),
+      same: true, line: '✓Đã chọn đủ 8/8 sản phẩm khác nhau', bar: null },
+    { label: 'all', selection: { mode: 'all' }, gate: slip('requested_distinct_products', 1, true), m2: v2(3),
+      same: false, line: '✓Đã chọn 3 sản phẩm', bar: null },
+    { label: 'top 8 short', selection: { mode: 'top', count: 8 }, gate: slip('requested_distinct_products', 8, false),
+      m2: v2(6, { shortageReason: 'FEWER_PRODUCTS_THAN_REQUESTED', errorCode: 'FEWER_PRODUCTS_THAN_REQUESTED' }),
+      same: true, line: '!Chỉ chọn được 6/8 sản phẩm: nguồn không đủ sản phẩm khác nhau', bar: null },
+    { label: 'top 8 error', selection: { mode: 'top', count: 8 }, gate: slip('requested_distinct_products', 8, false),
+      m2: v2(6, { errorCode: 'FEWER_PRODUCTS_THAN_REQUESTED' }),
+      same: true, line: '!Chỉ chọn được 6/8 sản phẩm: chưa rõ lý do',
+      bar: 'Không đủ 8 sản phẩm khác nhau. Giảm số Top hoặc mở rộng bộ lọc.' },
+  ];
+  for (const row of rows) {
+    const info: any = syntheticRunInfo();
+    if (row.selection) info.request.productSelection = row.selection;
+    info.gates.m2 = row.gate;
+    const run = harness({
+      runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }], runInfo: info,
+      moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId, {}, row.m2) }),
+    });
+    try {
+      await waitFor(() => run.doc.querySelectorAll('#runList button').length === 1, row.label + ': list');
+      runListButton(run.doc, 'run-synthetic').click();
+      await waitFor(() => run.doc.getElementById('moM2Distinct') !== null, row.label + ': card');
+      assert.equal(run.doc.getElementById('moM2Same') !== null, row.same, row.label + ': same line');
+      assert.equal(element(run.doc, 'moM2Distinct').textContent, row.line, row.label + ': count line');
+      const bar = run.doc.querySelector('.errbar.local-error[title="FEWER_PRODUCTS_THAN_REQUESTED"]');
+      assert.equal(bar ? bar.textContent : null, row.bar, row.label + ': error bar');
+    } finally { run.dom.window.close(); }
+  }
+});

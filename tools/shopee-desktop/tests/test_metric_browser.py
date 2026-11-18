@@ -1090,7 +1090,7 @@ class BridgeTest(unittest.TestCase):
         | all                      | 0               | METRIC_TOO_FEW_SHOPEE {0, needed 1}; nothing sent       |
         | all                      | 1               | m1-import has productSelection all                      |
         | top 0, 101, "5", True, all+count, other mode | – | ARG_INVALID; Metric not asked            |
-        The last valid choice sent is remembered on this PC (`lastProductSelection`)."""
+        A valid choice is remembered when the form changes (Terra r1 #4); an invalid one is refused, not kept."""
         shopee = lambda n: [{'product_base_id': f'1__{i}', 'revenue_custom': 100 - i} for i in range(n)]
         top8, every = {'mode': 'top', 'count': 8}, {'mode': 'all'}
         for label, choice, count in (('top 8, 7', top8, 7), ('all, 0', every, 0)):
@@ -1110,13 +1110,16 @@ class BridgeTest(unittest.TestCase):
             self.assertTrue(self.api.resendMetricImport()['ok'])
             self.assertEqual(self.remote_calls[0][2]['productSelection'], top8)
             self.assertEqual(self.remote_calls[1][2], self.remote_calls[0][2])    # the same payload, same importId
-            self.assertEqual(self.api.lastProductSelection()['data'], {'productSelection': top8})   # remembered
         with self.subTest('all, 1'):
             self.setUp_fresh()
             self.session.rows = shopee(1)
             self.answers = [self.OK_IMPORT, self.OK_FLOW]
             self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY, 'productSelection': every})['ok'])
             self.assertEqual(self.remote_calls[0][2]['productSelection'], every)
+        with self.subTest('remembered on change'):
+            self.assertEqual(self.api.rememberProductSelection(top8)['ok'], True)
+            self.assertEqual(self.api.rememberProductSelection({'mode': 'top', 'count': 0})['error']['code'], 'ARG_INVALID')
+            self.assertEqual(self.api.lastProductSelection()['data'], {'productSelection': top8})
         for bad in ({'mode': 'top', 'count': 0}, {'mode': 'top', 'count': 101}, {'mode': 'top', 'count': '5'},
                     {'mode': 'top', 'count': True}, {'mode': 'all', 'count': 5}, {'mode': 'best'}, None):
             with self.subTest(bad=bad):
@@ -1163,7 +1166,8 @@ class BridgeTest(unittest.TestCase):
         | local picture                  | a path | a copy there; the original stays; name «<run name>-<id>.png» |
         | local picture                  | cancel | nothing written                                             |
         | none here, server full page    | a path | the server picture (full-page, its sha256) written there    |
-        | none here, no server picture   | –      | EVIDENCE_LOCAL_MISSING, no dialog                           |"""
+        | none here, no server picture   | –      | EVIDENCE_LOCAL_MISSING, no dialog                           |
+        | local, 120-character run name  | a path | the name is cut, «-<runId>.png» kept (Terra r1 #3)          |"""
         out = pathlib.Path(self.tmp.name) / 'out'
         out.mkdir()
         self.shots.mkdir()
@@ -1202,6 +1206,13 @@ class BridgeTest(unittest.TestCase):
                 self.assertEqual(self.api.saveMetricShot('a1b2c3d4', 'Canxi', None)['error']['code'],
                                  'EVIDENCE_LOCAL_MISSING')
                 dialog.assert_not_called()
+            with self.subTest('long name'):
+                original.write_bytes(b'\x89PNG local')
+                dialog.return_value = None
+                self.api.saveMetricShot('a1b2c3d4', 'x' * 120, None)
+                suggested = dialog.call_args[0][0]
+                self.assertTrue(suggested.endswith('x-a1b2c3d4.png'), suggested)
+                self.assertLessEqual(len(suggested), 120)
 
     def shot_files(self):
         return sorted(path.name for path in self.shots.glob('*.png')) if self.shots.exists() else []
