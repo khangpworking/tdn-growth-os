@@ -1597,15 +1597,19 @@ class SamplingViewServer:
             process.stdout.close()
 
 
-def flow_execution_view(run, config, view=None):
+_SAMPLING_UNSET = object()
+
+
+def flow_execution_view(run, config, view=None, sampling=_SAMPLING_UNSET):
     records = flow_execution_records(run)
-    sampling = None
-    if gate_path(run, 'm3-custom').exists():
-        if view is None:
-            repo, _ = module_config()
-            sampling = review_sampling_script(repo, config, 'view', run)
-        else:
-            sampling = view(run)
+    if sampling is _SAMPLING_UNSET:
+        sampling = None
+        if gate_path(run, 'm3-custom').exists():
+            if view is None:
+                repo, _ = module_config()
+                sampling = review_sampling_script(repo, config, 'view', run)
+            else:
+                sampling = view(run)
     attempts = sampling.get('attempts', []) if sampling else []
     state = gate_read(gate_path(run, 'state.json')) or {}
     modules, revision = {}, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
@@ -2029,14 +2033,21 @@ def cmd_review_data(ns):
         command = shlex.split(command) if isinstance(command, str) else command
         if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
             raise ModuleFailure('NODE_COMMAND_INVALID', 2)
-        action = {'review-data': 'view', 'review-stats': 'stats', 'review-insights': 'insights', 'save-review-data': 'save', 'export-review-data': 'export',
+        action = {'review-data': 'view', 'review-stats': 'stats', 'review-insights': 'insights', 'review-insight-comments': 'insight-comments',
+                  'save-review-data': 'save', 'export-review-data': 'export',
                   'read-review-export': 'read', 'review-process': 'process-view'}[ns.cmd]
+        if ns.cmd == 'review-insights' and ns.summary:
+            action = 'insights-summary'
         payload = None
         if ns.cmd in ('save-review-data', 'export-review-data'):
             payload = sys.stdin.buffer.read(65537)
             if len(payload) > 65536:
                 raise ModuleFailure('REVIEW_DATA_INVALID', 2)
         args = [*command, str(repo / 'scripts/module-review-data.ts'), action, str(run)]
+        if ns.cmd == 'review-insight-comments':
+            args.append(ns.bucket)
+            if ns.theme is not None:
+                args.append(ns.theme)
         if binary:
             if not re.fullmatch(r'[a-f0-9]{64}', ns.export_sha256):
                 raise ModuleFailure('REVIEW_DATA_INVALID', 2)
@@ -2056,7 +2067,8 @@ def cmd_review_data(ns):
             code = value.get('code') if isinstance(value, dict) else None
             raise ModuleFailure(code if isinstance(code, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'REVIEW_DATA_FAILED',
                                 result.returncode if result.returncode in (2, 20, 23, 24) else 20)
-        print(json.dumps(value, ensure_ascii=True))
+        utf8 = ns.cmd == 'review-insight-comments' or (ns.cmd == 'review-insights' and ns.summary)
+        print(json.dumps(value, ensure_ascii=not utf8))
     except (ModuleFailure, OSError, ValueError, TypeError, KeyError) as error:
         code = error.code if isinstance(error, ModuleFailure) else 'REVIEW_DATA_FAILED'
         if binary:
@@ -3206,9 +3218,9 @@ def cmd_delete_run(ns):
         sys.exit(20)
 
 
-def flow_run_info(run, config):
+def flow_run_info(run, config, sampling=_SAMPLING_UNSET):
     request = gate_read(gate_path(run, 'request.json'))
-    execution = flow_execution_view(run, config)
+    execution = flow_execution_view(run, config, sampling=sampling)
     modules = []
     for m in config['modules']:
         module = m['id'].lower()
@@ -3225,6 +3237,9 @@ def flow_run_info(run, config):
             'selection': gate_read(gate_path(run, 'm2/selection.json'))}
 
 
+MODULE_OUTPUT_TIMEOUT_SECONDS = 30       # the outputs bound, counted from the node launch
+
+
 def metric_output_script(run, action, *args, stream=False):
     """Canonical offline TS reader/replay; never starts a source or writes artifacts."""
     import shlex
@@ -3235,7 +3250,7 @@ def metric_output_script(run, action, *args, stream=False):
         raise ModuleFailure('NODE_COMMAND_INVALID')
     try:
         result = subprocess.run([*command, str(repo / 'scripts/module-metric-output.ts'), action, str(run), *args],
-                                cwd=repo, capture_output=True, timeout=30)
+                                cwd=repo, capture_output=True, timeout=MODULE_OUTPUT_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         raise ModuleFailure('MODULE_OUTPUT_TIMEOUT') from None
     if stream:
@@ -3267,6 +3282,138 @@ def cmd_metric_evidence(ns):
     except (OSError, ValueError, TypeError):
         print('EVIDENCE_READ_FAILED', file=sys.stderr)
         sys.exit(20)
+
+
+_RUN_VIEW_MISSING = {                                   # the single command's error when node exits without a part
+    'sampling': ('REVIEW_COMMAND_FAILED', 20),
+    'reviewData': ('REVIEW_DATA_FAILED', 20),
+    'process': ('REVIEW_DATA_FAILED', 20),
+    'stats': ('REVIEW_DATA_FAILED', 20),
+    'insights': ('REVIEW_DATA_FAILED', 20),
+    'outputs': ('MODULE_OUTPUT_INVALID', 20),
+}
+_RUN_VIEW_UNAVAILABLE = {                               # node cannot be started at all
+    'sampling': ('REVIEW_INPUT_INVALID', 'REVIEW_INPUT_INVALID', 2),
+    'reviewData': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'process': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'stats': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'insights': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'outputs': ('FLOW_INPUT_INVALID', 'Invalid or unreadable flow input.', 2),
+}
+
+
+def review_run_view_script(repo, config, run, result, on_sampling):
+    """One node process streams one JSON line per finished part; a slow part never discards the
+    parts already received. `outputs` keeps the bound its single command has: it is counted from
+    the node launch, a missing line by launch + MODULE_OUTPUT_TIMEOUT_SECONDS is the timeout error
+    the single command gives, and a line that arrives later is ignored. Every other part stays
+    unbounded, as its single command is. Node exits once every line is flushed, but a stalled file
+    read can hold its exit in the threadpool; the reader therefore stops once every other part line
+    has arrived and outputs is decided, releases the child, and a part missing at exit gets the
+    error its single command would give."""
+    import selectors, shlex
+    command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+    command = shlex.split(command) if isinstance(command, str) else command
+    names = ('sampling', 'reviewData', 'process') + (('stats', 'insights') if result else ()) + ('outputs',)
+    parts, errors = {}, {}
+    if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+        return parts, {name: {'code': 'NODE_COMMAND_INVALID', 'message': 'NODE_COMMAND_INVALID',
+                              'exitCode': 2 if name in ('reviewData', 'process', 'stats', 'insights') else 20}
+                       for name in names}
+    args = [*command, str(repo / 'scripts/module-run-view.ts'), str(run), *(['--result'] if result else [])]
+    launched = time.monotonic()
+    try:
+        child = subprocess.Popen(args, cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError:
+        return parts, {name: {'code': code, 'message': message, 'exitCode': exit_code, 'startFailed': True}
+                       for name, (code, message, exit_code) in _RUN_VIEW_UNAVAILABLE.items() if name in names}
+    deadline = launched + MODULE_OUTPUT_TIMEOUT_SECONDS
+    selector = selectors.DefaultSelector()
+    selector.register(child.stdout, selectors.EVENT_READ)
+    buffer = b''
+    try:
+        while True:
+            decided = 'outputs' in parts or 'outputs' in errors
+            if not decided and time.monotonic() >= deadline:
+                # The same error object and exit code the single outputs command gives on timeout.
+                errors['outputs'] = {'code': 'MODULE_OUTPUT_TIMEOUT', 'message': 'MODULE_OUTPUT_TIMEOUT',
+                                     'exitCode': 20}
+                decided = True
+            if decided and all(name in parts or name in errors for name in names):
+                break  # never wait on a read the child abandoned after its bound.
+            # The select timeout lets the outputs deadline fire while node prints nothing.
+            if not selector.select(None if decided else max(0.0, deadline - time.monotonic())):
+                continue
+            chunk = os.read(child.stdout.fileno(), 65536)
+            if not chunk:
+                break
+            buffer += chunk
+            while b'\n' in buffer:
+                line, buffer = buffer.split(b'\n', 1)
+                try:
+                    value = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(value, dict) or value.get('part') not in names:
+                    continue
+                name = value['part']
+                if name in parts or name in errors:
+                    continue
+                if value.get('ok') is True:
+                    parts[name] = value.get('value')
+                    if name == 'sampling':
+                        on_sampling(value.get('value'))
+                elif value.get('ok') is False and isinstance(value.get('error'), dict):
+                    error = value['error']
+                    if isinstance(error.get('code'), str) and isinstance(error.get('message'), str):
+                        exit_code = value.get('exitCode')
+                        errors[name] = {'code': error['code'], 'message': error['message'],
+                                        'exitCode': exit_code if type(exit_code) is int else 20}
+    finally:
+        selector.close()
+        if child.poll() is None:
+            child.kill()
+        child.wait()
+        child.stdout.close()
+    for name in names:
+        if name in parts or name in errors:
+            continue
+        code, exit_code = _RUN_VIEW_MISSING[name]
+        errors[name] = {'code': code, 'message': code, 'exitCode': exit_code}
+    return parts, errors
+
+
+def cmd_run_view(ns):
+    """Streaming per-run read view: a slow or failing part never hides the others."""
+    try:
+        run = module_run_folder(ns.run_id)
+        repo, config = module_config()
+        held = {}
+
+        def on_sampling(sampling):
+            if 'info' not in held:
+                held['info'] = flow_run_info(run, config, sampling)
+
+        if not gate_path(run, 'm3-custom').exists():
+            held['info'] = flow_run_info(run, config)
+        parts, errors = review_run_view_script(repo, config, run, ns.result, on_sampling)
+        info = held.get('info')
+        if info is None:
+            error = errors.get('sampling') or {}
+            if error.get('startFailed'):
+                raise OSError('node start failed')  # run-info raises the same OSError: FLOW_INPUT_INVALID, exit 2
+            exit_code = error.get('exitCode')
+            raise ModuleFailure(error.get('code') or 'REVIEW_COMMAND_FAILED',
+                                exit_code if exit_code in (2, 20, 21, 22, 23, 24) else 20)
+        print(json.dumps({'format': 'run-view-v1', 'runId': run.name, 'parts': {'info': info, **parts},
+                          'errors': {name: {'code': e['code'], 'message': e['message']} for name, e in errors.items()}},
+                         ensure_ascii=False))
+    except ModuleFailure as failure:
+        print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
+        sys.exit(failure.exit_code)
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
+        print(json.dumps({'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID', 'message': 'Invalid or unreadable flow input.'}))
+        sys.exit(2)
 
 
 def cmd_flow_query(ns):
@@ -3352,7 +3499,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'run-view', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'review-insight-comments', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -3375,7 +3522,14 @@ def main():
             x.add_argument('--stdin', action='store_true', required=True)
         if name == 'read-review-export':
             x.add_argument('--export-sha256', required=True)
+        if name == 'review-insights':
+            x.add_argument('--summary', action='store_true')
         x.set_defaults(f=cmd_review_data)
+    x = sp.add_parser('review-insight-comments'); x.add_argument('--run', dest='run_id', required=True)
+    x.add_argument('--bucket', required=True); x.add_argument('--theme')
+    x.set_defaults(f=cmd_review_data)
+    x = sp.add_parser('run-view'); x.add_argument('--run', dest='run_id', required=True); x.add_argument('--result', action='store_true')
+    x.set_defaults(f=cmd_run_view)
     for module in ('m1', 'm2', 'm3', 'run'):
         x = sp.add_parser(module); x.add_argument('--run', dest='run_id', required=True)
         if module == 'm2': x.add_argument('--manual')

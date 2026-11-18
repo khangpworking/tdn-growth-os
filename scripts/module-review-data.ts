@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import BetterSqlite3 from 'better-sqlite3';
 import { ModuleError, validateModuleValue } from './module-pick.js';
 import { discoverModuleReviewSources, prepareReviewExport, publishLabelledReviewExport, readReviewExportBytes, validateReviewData,
-  type ModuleReviewRow } from '../src/modules/foundation/shopee-module-review-data.js';
+  type ModuleReviewRow, type VerifiedModuleReviewCollection } from '../src/modules/foundation/shopee-module-review-data.js';
 import { reviewDataView, saveModuleReviewData } from '../src/modules/raw-db/module-shopee-reviews.js';
 import { reviewProcessJevClient, reviewProcessLabelCoverage, reviewProcessSettings, reviewProcessStart, reviewProcessStartable, reviewProcessView, runReviewProcess,
   runReviewProcessAfterM3 } from '../src/modules/raw-db/module-review-process.js';
@@ -27,8 +27,8 @@ function reviewNumbers(rows:ModuleReviewRow[]) {
     firstCommentAt:times[0]??null,lastCommentAt:times.at(-1)??null};
 }
 /** Comment numbers per verified step-3 result (the same sources step 3 offers), for all links and per link. */
-export async function reviewStatsView(run:string):Promise<unknown> {
-  const sources=(await discoverModuleReviewSources(run)).map(source=>({sourceSha256:source.sourceSha256,kind:source.kind,
+export async function reviewStatsView(run:string, discovered?:VerifiedModuleReviewCollection[]):Promise<unknown> {
+  const sources=(discovered ?? await discoverModuleReviewSources(run)).map(source=>({sourceSha256:source.sourceSha256,kind:source.kind,
     status:source.status,completedAt:source.completedAt,all:reviewNumbers(source.rows),
     links:source.links.map(link=>({shopId:link.shopId,itemId:link.itemId,url:link.url,
       ...reviewNumbers(source.rows.filter(row=>row.shopId===link.shopId&&row.itemId===link.itemId))}))}));
@@ -326,17 +326,29 @@ function validateInsightView(value:unknown): asserts value is { format:'review-i
   }
 }
 
+function validateInsightSummaryView(value:unknown): asserts value is { format:'review-insights-v2'; runId:string; codebookVersion:string; sources:unknown[] } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ModuleError('REVIEW_INSIGHTS_INVALID');
+  const view = value as Record<string,unknown>;
+  if (view.format !== 'review-insights-v2' || typeof view.runId !== 'string' || typeof view.codebookVersion !== 'string' || !Array.isArray(view.sources)) {
+    throw new ModuleError('REVIEW_INSIGHTS_INVALID');
+  }
+}
+
 /** One label store per run, built from the rows of every step-3 result (result tab and download share it). */
 function runInsightLabels(sources:{ rows:ModuleReviewRow[] }[], book:LabelCodebook) {
   return readInsightLabels(sources.flatMap(source => source.rows),book);
 }
 
-/** Read the verified M3 rows and the current Jev codebook labels for the result-tab drilldown. */
-export async function reviewInsightsView(run:string):Promise<unknown> {
+type InsightSourceView = { sourceSha256:string; kind:VerifiedModuleReviewCollection['kind'];
+  status:VerifiedModuleReviewCollection['status']; completedAt:string|null; all:InsightBucket;
+  links:{ shopId:string; itemId:string; url:string; insights:InsightBucket }[] };
+
+/** Discover once and build every bucket; callers that already verified the sources pass them in. */
+async function insightSources(run:string, discovered?:VerifiedModuleReviewCollection[]) {
   const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
-  const sources = await discoverModuleReviewSources(run);
+  const sources = discovered ?? await discoverModuleReviewSources(run);
   const labelStore = runInsightLabels(sources,book);
-  const sourceViews = [];
+  const sourceViews:InsightSourceView[] = [];
   for (const source of sources) {
     const coverage = await reviewProcessLabelCoverage(run,source);
     const links = source.links.map(link => {
@@ -347,9 +359,57 @@ export async function reviewInsightsView(run:string):Promise<unknown> {
     sourceViews.push({ sourceSha256:source.sourceSha256, kind:source.kind, status:source.status, completedAt:source.completedAt,
       all:insightBucket(source.rows,source.sourceSha256,book.core,labelStore,source.completedAt,coverage), links });
   }
+  return { book, sourceViews };
+}
+
+/** Read the verified M3 rows and the current Jev codebook labels for the result-tab drilldown. */
+export async function reviewInsightsView(run:string, discovered?:VerifiedModuleReviewCollection[]):Promise<unknown> {
+  const { book, sourceViews } = await insightSources(run,discovered);
   const view = { format:'review-insights-v1', runId:basename(run), codebookVersion:book.version, sources:sourceViews };
   validateInsightView(view);
   return view;
+}
+
+/** Bucket and theme ids travel in a CLI argument, so they are restricted to a conservative charset. */
+const INSIGHT_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+export function insightBucketKey(sourceSha256:string, link:{ shopId:string; itemId:string }|null, index = 0):string {
+  if (!link) return `${sourceSha256}:all`;
+  const natural = `${sourceSha256}:${link.shopId}.${link.itemId}`;
+  return INSIGHT_ID.test(natural) ? natural : `${sourceSha256}:link${index}`;
+}
+
+/** v2 keeps every number of v1 and replaces each comment list with its size; `key` is how the UI asks for that list. */
+export function reviewInsightsSummaryView(run:string, discovered?:VerifiedModuleReviewCollection[]):Promise<unknown> {
+  return insightSources(run,discovered).then(({ book, sourceViews }) => {
+    const bucket = (value:InsightBucket, key:string) => ({ key, summary:value.summary,
+      themes:value.themes.map(({ comments, ...theme }) => ({ ...theme, commentCount:comments.length })),
+      commentCount:value.comments.length });
+    const view = { format:'review-insights-v2', runId:basename(run), codebookVersion:book.version,
+      sources:sourceViews.map(source => ({ sourceSha256:source.sourceSha256, kind:source.kind, status:source.status,
+        completedAt:source.completedAt, all:bucket(source.all,insightBucketKey(source.sourceSha256,null)),
+        links:source.links.map((link,index) => ({ shopId:link.shopId, itemId:link.itemId, url:link.url,
+          insights:bucket(link.insights,insightBucketKey(source.sourceSha256,link,index)) })) })) };
+    validateInsightSummaryView(view);
+    return view;
+  });
+}
+
+/** One list of v1 at the place `bucket` (and optional `theme`) names, capped exactly as v1 caps it. */
+export async function reviewInsightCommentsView(run:string, bucket:string, theme:string|null = null,
+  discovered?:VerifiedModuleReviewCollection[]):Promise<unknown> {
+  if (!INSIGHT_ID.test(bucket) || theme !== null && !INSIGHT_ID.test(theme)) throw new ModuleError('REVIEW_DATA_INVALID',2);
+  const { sourceViews } = await insightSources(run,discovered);
+  for (const source of sourceViews) {
+    const buckets = [{ key:insightBucketKey(source.sourceSha256,null), value:source.all },
+      ...source.links.map((link,index) => ({ key:insightBucketKey(source.sourceSha256,link,index), value:link.insights }))];
+    const found = buckets.find(item => item.key === bucket);
+    if (!found) continue;
+    if (theme === null) return { format:'review-insight-comments-v1', bucket, theme:null, comments:found.value.comments };
+    const selected = found.value.themes.find(item => item.code === theme);
+    if (!selected) throw new ModuleError('REVIEW_DATA_INVALID',2);
+    return { format:'review-insight-comments-v1', bucket, theme, comments:selected.comments };
+  }
+  throw new ModuleError('REVIEW_DATA_INVALID',2);
 }
 
 /**
@@ -383,6 +443,8 @@ export async function reviewDataCommand(args:string[]):Promise<unknown> {
   if(action==='view'&&!extra.length)return reviewDataView(run);
   if(action==='stats'&&!extra.length)return reviewStatsView(run);
   if(action==='insights'&&!extra.length)return reviewInsightsView(run);
+  if(action==='insights-summary'&&!extra.length)return reviewInsightsSummaryView(run);
+  if(action==='insight-comments'&&(extra.length===1||extra.length===2))return reviewInsightCommentsView(run,extra[0]!,extra[1]??null);
   if(action==='save'&&!extra.length){const value=validateReviewData<ReviewDataSaveInput>('saveInput',await input());return saveModuleReviewData(run,value.sourceSha256);}
   if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());
     return value.format==='labelled-json'?prepareLabelledReviewExport(run,value.sourceSha256):prepareReviewExport(run,value.sourceSha256,value.format);}

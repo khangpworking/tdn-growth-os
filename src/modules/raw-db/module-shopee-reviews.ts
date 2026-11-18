@@ -60,7 +60,7 @@ export async function moduleProductNames(run: string, source: VerifiedModuleRevi
 function blocked(error: unknown): {code:string} {
   return {code:error instanceof ModuleError ? error.code : 'REVIEW_DATA_UNAVAILABLE'};
 }
-export async function reviewDataView(run: string): Promise<ReviewDataView> {
+export async function reviewDataView(run: string, discovered?: VerifiedModuleReviewCollection[]): Promise<ReviewDataView> {
   const readonly = await reviewDataReadonly(), config = configuration();
   let db: BetterSqlite3.Database | undefined, databaseError: {code:string}|null = null;
   try {
@@ -69,7 +69,7 @@ export async function reviewDataView(run: string): Promise<ReviewDataView> {
   } catch(error) { databaseError = error instanceof ModuleError ? blocked(error) : {code:'APP_DB_NOT_CONFIGURED'}; }
   try {
     const sources:ReviewDataSource[] = [];
-    for (const source of await discoverModuleReviewSources(run)) {
+    for (const source of discovered ?? await discoverModuleReviewSources(run)) {
       let importReceipt: ReviewDataSaved|null = null, dbBlockedBy = databaseError;
       if (db) try {
         importReceipt = moduleImportReceipt(db,source);
