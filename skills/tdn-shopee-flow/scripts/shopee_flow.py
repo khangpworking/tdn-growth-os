@@ -3183,69 +3183,115 @@ def cmd_metric_evidence(ns):
         sys.exit(20)
 
 
-def review_run_view_script(repo, config, run, result):
-    """One bounded node process for the per-run parts; never relay subprocess diagnostics."""
-    import shlex
+_RUN_VIEW_BOUND = 30                                    # the view's own bound
+_RUN_VIEW_OUTPUT_BOUND = 30                             # the outputs bound, enforced inside the node process
+_RUN_VIEW_DEADLINE = _RUN_VIEW_BOUND + _RUN_VIEW_OUTPUT_BOUND
+_RUN_VIEW_MISSING = {                                   # the single command's error when no line arrives
+    'sampling': ('REVIEW_COMMAND_FAILED', 20),
+    'reviewData': ('REVIEW_DATA_FAILED', 20),
+    'process': ('REVIEW_DATA_FAILED', 20),
+    'stats': ('REVIEW_DATA_FAILED', 20),
+    'insights': ('REVIEW_DATA_FAILED', 20),
+    'outputs': ('MODULE_OUTPUT_TIMEOUT', 20),
+}
+_RUN_VIEW_UNAVAILABLE = {                               # node cannot be started at all
+    'sampling': ('REVIEW_INPUT_INVALID', 'REVIEW_INPUT_INVALID', 2),
+    'reviewData': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'process': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'stats': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'insights': ('REVIEW_DATA_FAILED', 'REVIEW_DATA_FAILED', 20),
+    'outputs': ('FLOW_INPUT_INVALID', 'Invalid or unreadable flow input.', 2),
+}
+
+
+def review_run_view_script(repo, config, run, result, on_sampling):
+    """One node process streams one JSON line per finished part; a stalled part never discards the
+    parts already received. Every missing part gets the error its single command would give."""
+    import selectors, shlex
     command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
     command = shlex.split(command) if isinstance(command, str) else command
+    names = ('sampling', 'reviewData', 'process') + (('stats', 'insights') if result else ()) + ('outputs',)
+    parts, errors = {}, {}
     if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
-        raise ModuleFailure('NODE_COMMAND_INVALID', 2)
+        return parts, {name: {'code': 'NODE_COMMAND_INVALID', 'message': 'NODE_COMMAND_INVALID',
+                              'exitCode': 2 if name in ('reviewData', 'process', 'stats', 'insights') else 20}
+                       for name in names}
     args = [*command, str(repo / 'scripts/module-run-view.ts'), str(run), *(['--result'] if result else [])]
     try:
-        completed = subprocess.run(args, cwd=repo, capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired:
-        raise ModuleFailure('REVIEW_COMMAND_FAILED') from None
+        child = subprocess.Popen(args, cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError:
+        return parts, {name: {'code': code, 'message': message, 'exitCode': exit_code}
+                       for name, (code, message, exit_code) in _RUN_VIEW_UNAVAILABLE.items() if name in names}
+    selector = selectors.DefaultSelector()
+    selector.register(child.stdout, selectors.EVENT_READ)
+    buffer, deadline, stalled = b'', time.monotonic() + _RUN_VIEW_DEADLINE, False
     try:
-        value = json.loads(completed.stdout)
-    except ValueError:
-        raise ModuleFailure('REVIEW_COMMAND_FAILED') from None
-    if completed.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
-        code = value.get('code') if isinstance(value, dict) else None
-        if not isinstance(code, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code):
-            code = 'REVIEW_COMMAND_FAILED'
-        raise ModuleFailure(code, completed.returncode if completed.returncode in (2, 20) else 20)
-    parts, errors = value.get('parts'), value.get('errors')
-    if not isinstance(parts, dict) or not isinstance(errors, dict):
-        raise ModuleFailure('REVIEW_COMMAND_FAILED')
-    for error in errors.values():
-        if not isinstance(error, dict) or not isinstance(error.get('code'), str) or not isinstance(error.get('message'), str):
-            raise ModuleFailure('REVIEW_COMMAND_FAILED')
-    return value
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not selector.select(remaining):
+                stalled = True
+                break
+            chunk = os.read(child.stdout.fileno(), 65536)
+            if not chunk:
+                break
+            buffer += chunk
+            while b'\n' in buffer:
+                line, buffer = buffer.split(b'\n', 1)
+                try:
+                    value = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(value, dict) or value.get('part') not in names:
+                    continue
+                name = value['part']
+                if name in parts or name in errors:
+                    continue
+                if value.get('ok') is True:
+                    parts[name] = value.get('value')
+                    if name == 'sampling':
+                        on_sampling(value.get('value'))
+                elif value.get('ok') is False and isinstance(value.get('error'), dict):
+                    error = value['error']
+                    if isinstance(error.get('code'), str) and isinstance(error.get('message'), str):
+                        exit_code = value.get('exitCode')
+                        errors[name] = {'code': error['code'], 'message': error['message'],
+                                        'exitCode': exit_code if type(exit_code) is int else 20}
+    finally:
+        selector.close()
+        if child.poll() is None:
+            child.kill()
+        child.wait()
+        child.stdout.close()
+    for name in names:
+        if name in parts or name in errors:
+            continue
+        code, exit_code = _RUN_VIEW_MISSING[name]
+        if name == 'outputs' and not stalled:
+            code = 'MODULE_OUTPUT_INVALID'
+        errors[name] = {'code': code, 'message': code, 'exitCode': exit_code}
+    return parts, errors
 
 
 def cmd_run_view(ns):
-    """Bounded per-run read view: a failing part never hides the others."""
+    """Streaming per-run read view: a slow or failing part never hides the others."""
     try:
         run = module_run_folder(ns.run_id)
         repo, config = module_config()
-        info = None if gate_path(run, 'm3-custom').exists() else flow_run_info(run, config)
-        names = ('sampling', 'reviewData', 'process') + (('stats', 'insights') if ns.result else ())
-        parts, errors = {}, {}
-        try:
-            value = review_run_view_script(repo, config, run, ns.result)
-            parts, errors = value['parts'], value['errors']
-        except ModuleFailure as failure:
-            errors = {name: {'code': failure.code, 'message': failure.code, 'exitCode': failure.exit_code}
-                      for name in names}
-        except OSError:
-            unavailable = (('sampling', 'REVIEW_INPUT_INVALID', 2), ('reviewData', 'REVIEW_DATA_FAILED', 20),
-                           ('process', 'REVIEW_DATA_FAILED', 20), ('stats', 'REVIEW_DATA_FAILED', 20),
-                           ('insights', 'REVIEW_DATA_FAILED', 20))
-            errors = {name: {'code': code, 'message': code, 'exitCode': exit_code}
-                      for name, code, exit_code in unavailable if name in names}
+        held = {}
+
+        def on_sampling(sampling):
+            if 'info' not in held:
+                held['info'] = flow_run_info(run, config, sampling)
+
+        if not gate_path(run, 'm3-custom').exists():
+            held['info'] = flow_run_info(run, config)
+        parts, errors = review_run_view_script(repo, config, run, ns.result, on_sampling)
+        info = held.get('info')
         if info is None:
-            if 'sampling' not in parts:
-                error = errors.get('sampling') or {}
-                exit_code = error.get('exitCode')
-                raise ModuleFailure(error.get('code') or 'REVIEW_COMMAND_FAILED',
-                                    exit_code if exit_code in (2, 20, 21, 22, 23, 24) else 20)
-            info = flow_run_info(run, config, parts['sampling'])
-        try:
-            parts['outputs'] = metric_output_script(run, 'view')
-        except ModuleFailure as failure:
-            errors['outputs'] = {'code': failure.code, 'message': failure.code, 'exitCode': failure.exit_code}
-        except OSError:
-            errors['outputs'] = {'code': 'FLOW_INPUT_INVALID', 'message': 'FLOW_INPUT_INVALID', 'exitCode': 2}
+            error = errors.get('sampling') or {}
+            exit_code = error.get('exitCode')
+            raise ModuleFailure(error.get('code') or 'REVIEW_COMMAND_FAILED',
+                                exit_code if exit_code in (2, 20, 21, 22, 23, 24) else 20)
         print(json.dumps({'format': 'run-view-v1', 'runId': run.name, 'parts': {'info': info, **parts},
                           'errors': {name: {'code': e['code'], 'message': e['message']} for name, e in errors.items()}},
                          ensure_ascii=False))

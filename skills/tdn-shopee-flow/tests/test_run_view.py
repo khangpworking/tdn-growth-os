@@ -1,17 +1,21 @@
-"""`run-view` rows of shopee_flow.py: the view node call plus the bounded outputs call, every part
-equal to the single command, and a failing part that never hides the others. A fake `node` serves
-canned parts and logs each call."""
+"""`run-view` rows of shopee_flow.py: one streaming node process for every part (outputs included),
+each part equal to the single command, a slow part that never discards info or finished parts, and
+the exit code and error object each single command gives. A fake `node` serves canned parts and logs
+each call."""
+import argparse
+import contextlib
+import io
 import json
-import os
 import pathlib
 import stat
 import subprocess
 import sys
+from unittest import mock
 
-from test_flow import RUN_ID, SCRIPT, FlowTest, request_payload
+from test_flow import RUN_ID, ROOT, SCRIPT, FlowTest, load_flow_script, request_payload
 
 RUNVIEW_NODE = '''#!/usr/bin/env python3
-import json, os, pathlib, sys
+import json, os, pathlib, sys, time
 
 args = sys.argv[1:]
 script = pathlib.Path(next(a for a in args if a.endswith('.ts'))).name
@@ -24,46 +28,53 @@ def sampling():
     return {'format': 'review-sampling-view-v1', 'runId': name, 'readonly': True, 'm2Digest': None, 'links': [],
             'defaultInput': {}, 'plans': [], 'counts': [], 'countRefresh': None, 'attempts': [], 'blockedBy': None}
 
+def views():
+    return {'sampling': sampling(),
+            'reviewData': {'format': 'review-data-view-v1', 'runId': name, 'readonly': True, 'tracking': {},
+                           'db': {'configured': False, 'schemaReady': False, 'blockedBy': None}, 'sources': []},
+            'process': {'format': 'review-process-view-v1', 'runId': name, 'autoRun': False,
+                        'labelUnresolved': False, 'sources': []},
+            'stats': {'format': 'review-stats-v1', 'runId': name, 'sources': []},
+            'insights': {'format': 'review-insights-v2', 'runId': name, 'codebookVersion': 'synthetic-v1', 'sources': []},
+            'outputs': {'format': 'module-outputs-v1', 'runId': name}}
+
+def emit(part, value=None, error=None, exit_code=20):
+    line = {'part': part, 'ok': error is None}
+    if error is None:
+        line['value'] = value
+    else:
+        line.update(error=error, exitCode=exit_code)
+    print(json.dumps(line), flush=True)
+
 if script == 'module-run-view.ts':
-    parts = {'sampling': sampling(),
-             'reviewData': {'format': 'review-data-view-v1', 'runId': name, 'readonly': True, 'tracking': {},
-                            'db': {'configured': False, 'schemaReady': False, 'blockedBy': None}, 'sources': []},
-             'process': {'format': 'review-process-view-v1', 'runId': name, 'autoRun': False, 'labelUnresolved': False, 'sources': []}}
+    parts = ['sampling', 'reviewData', 'process']
     if '--result' in args[index + 2:]:
-        parts['stats'] = {'format': 'review-stats-v1', 'runId': name, 'sources': []}
-        parts['insights'] = {'format': 'review-insights-v2', 'runId': name, 'codebookVersion': 'synthetic-v1', 'sources': []}
-    failed = os.environ.get('RUNVIEW_FAIL')
-    errors = {}
-    if failed:
-        error = {'code': os.environ.get('RUNVIEW_CODE') or 'REVIEW_DATA_FAILED'}
-        error['message'] = error['code']
-        if os.environ.get('RUNVIEW_EXIT'):
-            error['exitCode'] = int(os.environ['RUNVIEW_EXIT'])
-        errors[failed] = error
-        parts.pop(failed, None)
-    print(json.dumps({'format': 'review-run-view-node-v1', 'runId': name, 'parts': parts, 'errors': errors}))
+        parts += ['stats', 'insights']
+    parts += ['outputs']
+    for part in parts:
+        if part == os.environ.get('RUNVIEW_STALL'):
+            time.sleep(90)
+        if part == os.environ.get('RUNVIEW_FAIL'):
+            code = os.environ.get('RUNVIEW_CODE') or 'REVIEW_DATA_FAILED'
+            emit(part, error={'code': code, 'message': code}, exit_code=int(os.environ.get('RUNVIEW_EXIT') or 20))
+        else:
+            emit(part, views()[part])
 elif script == 'module-review-sampling.ts':
     print(json.dumps(sampling()))
 elif script == 'module-metric-output.ts':
     if os.environ.get('RUNVIEW_OUTPUT_FAIL'):
         sys.exit(3)
-    if os.environ.get('RUNVIEW_OUTPUT_SLOW'):
-        import time
-        time.sleep(60)
-    print(json.dumps({'format': 'module-outputs-v1', 'runId': name}))
+    print(json.dumps(views()['outputs']))
 elif script == 'module-review-data.ts':
     action = args[index + 1]
     if action == 'insight-comments':
         value = {'format': 'review-insight-comments-v1', 'bucket': args[index + 3],
                  'theme': args[index + 4] if len(args) > index + 4 else None, 'comments': []}
     else:
-        value = {'view': {'format': 'review-data-view-v1', 'runId': name, 'readonly': True, 'tracking': {},
-                          'db': {'configured': False, 'schemaReady': False, 'blockedBy': None}, 'sources': []},
-                 'stats': {'format': 'review-stats-v1', 'runId': name, 'sources': []},
-                 'insights-summary': {'format': 'review-insights-v2', 'runId': name, 'codebookVersion': 'synthetic-v1', 'sources': []},
+        value = {'view': views()['reviewData'], 'stats': views()['stats'],
+                 'insights-summary': views()['insights'],
                  'insights': {'format': 'review-insights-v1', 'runId': name, 'codebookVersion': 'synthetic-v1', 'sources': []},
-                 'process-view': {'format': 'review-process-view-v1', 'runId': name, 'autoRun': False,
-                                  'labelUnresolved': False, 'sources': []}}[action]
+                 'process-view': views()['process']}[action]
     print(json.dumps(value))
 else:
     sys.exit(3)
@@ -92,15 +103,15 @@ class RunViewTest(FlowTest):
     def run_view(self, *flags, extra_env=None):
         return self.command('run-view', '--run', RUN_ID, *flags, extra_env=extra_env)
 
-    def test_each_part_equals_the_single_command_and_run_view_uses_two_calls(self):
+    def test_each_part_equals_the_single_command_and_run_view_starts_one_node(self):
         run = self.make_run(request=request_payload(cap=5))
         (run / 'm3-custom').mkdir()
         rc, view, stderr = self.run_view('--result')
         self.assertEqual(rc, 0, (view, stderr))
         self.assertEqual(set(view), {'format', 'runId', 'parts', 'errors'})
         self.assertEqual((view['format'], view['runId'], view['errors']), ('run-view-v1', RUN_ID, {}))
-        self.assertEqual(self.calls(), [['module-run-view.ts', RUN_ID, '--result'],
-                                        ['module-metric-output.ts', 'view', RUN_ID]])
+        self.assertEqual(self.calls(), [['module-run-view.ts', RUN_ID, '--result']],
+                         'one node start for every part, outputs included')
         expected = {
             'info': self.command('run-info', '--run', RUN_ID)[1],
             'sampling': self.command('review-sampling', '--run', RUN_ID)[1],
@@ -120,31 +131,55 @@ class RunViewTest(FlowTest):
         rc, view, stderr = self.run_view()
         self.assertEqual(rc, 0, (view, stderr))
         self.assertEqual(set(view['parts']), {'info', 'sampling', 'reviewData', 'outputs', 'process'})
-        self.assertEqual(self.calls(), [['module-run-view.ts', RUN_ID],
-                                        ['module-metric-output.ts', 'view', RUN_ID]],
-                         'no --result, no second source of stats/insights')
+        self.assertEqual(self.calls(), [['module-run-view.ts', RUN_ID]],
+                         'no --result, no source of stats/insights')
 
     def test_a_failed_part_stays_an_error_and_the_other_parts_still_return(self):
         run = self.make_run(request=request_payload(cap=5))
         (run / 'm3-custom').mkdir()
-        rc, view, stderr = self.run_view('--result', extra_env={'RUNVIEW_OUTPUT_FAIL': '1'})
+        rc, view, stderr = self.run_view('--result', extra_env={'RUNVIEW_FAIL': 'outputs',
+                                                                'RUNVIEW_CODE': 'MODULE_OUTPUT_INVALID'})
         self.assertEqual(rc, 0, (view, stderr))
         self.assertNotIn('outputs', view['parts'])
         self.assertEqual(view['errors'], {'outputs': {'code': 'MODULE_OUTPUT_INVALID', 'message': 'MODULE_OUTPUT_INVALID'}})
         for name in ('info', 'sampling', 'reviewData', 'process', 'stats', 'insights'):
             self.assertIn(name, view['parts'])
 
-    def test_a_stalled_outputs_call_times_out_and_the_other_parts_return(self):
+    def test_a_stalled_part_keeps_info_and_every_finished_part(self):
         run = self.make_run(request=request_payload(cap=5))
         (run / 'm3-custom').mkdir()
-        rc, view, stderr = self.run_view('--result', extra_env={'RUNVIEW_OUTPUT_SLOW': '1'})
+        rc, view, stderr = self.run_view('--result', extra_env={'RUNVIEW_STALL': 'stats'})
         self.assertEqual(rc, 0, (view, stderr))
-        self.assertNotIn('outputs', view['parts'])
-        self.assertEqual(view['errors'], {'outputs': {'code': 'MODULE_OUTPUT_TIMEOUT', 'message': 'MODULE_OUTPUT_TIMEOUT'}})
-        for name in ('info', 'sampling', 'reviewData', 'process', 'stats', 'insights'):
-            self.assertIn(name, view['parts'])
+        self.assertEqual(set(view['parts']), {'info', 'sampling', 'reviewData', 'process'})
+        self.assertEqual(view['parts']['info'], self.command('run-info', '--run', RUN_ID)[1])
+        self.assertEqual(view['errors'], {
+            'stats': {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'},
+            'insights': {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'},
+            'outputs': {'code': 'MODULE_OUTPUT_TIMEOUT', 'message': 'MODULE_OUTPUT_TIMEOUT'}})
 
-    def test_a_node_start_failure_keeps_info_and_reports_each_part(self):
+    def test_an_invalid_node_command_keeps_the_exit_code_and_error_run_info_gives(self):
+        run = self.make_run(request=request_payload(cap=5))
+        (run / 'm3-custom').mkdir()
+        flow = load_flow_script()
+        config = json.loads((ROOT / 'skills/tdn-shopee-flow/modules.json').read_text())
+        config['params']['nodeCommand'] = []
+        outputs = []
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            with mock.patch.object(flow, 'module_config', return_value=(ROOT, config)), \
+                 mock.patch.object(flow, 'module_run_folder', return_value=run):
+                for command, namespace in (('run-info', argparse.Namespace(cmd='run-info', run_id=RUN_ID)),
+                                           ('run-view', argparse.Namespace(run_id=RUN_ID, result=False))):
+                    try:
+                        (flow.cmd_flow_query if command == 'run-info' else flow.cmd_run_view)(namespace)
+                    except SystemExit as exit_signal:
+                        outputs.append((exit_signal.code, json.loads(out.getvalue())))
+                    out.seek(0)
+                    out.truncate()
+        self.assertEqual(outputs[0], outputs[1], 'run-view reports the info error run-info gives')
+        self.assertEqual(outputs[1], (20, {'format': 'error-v1', 'code': 'NODE_COMMAND_INVALID',
+                                           'message': 'NODE_COMMAND_INVALID'}))
+
+    def test_a_node_start_failure_reports_the_same_error_objects_as_the_single_commands(self):
         run = self.make_run()
         empty = pathlib.Path(self._tmp.name) / 'empty-bin'
         empty.mkdir()
@@ -155,7 +190,10 @@ class RunViewTest(FlowTest):
             'sampling': {'code': 'REVIEW_INPUT_INVALID', 'message': 'REVIEW_INPUT_INVALID'},
             'reviewData': {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'},
             'process': {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'},
-            'outputs': {'code': 'FLOW_INPUT_INVALID', 'message': 'FLOW_INPUT_INVALID'}})
+            'outputs': {'code': 'FLOW_INPUT_INVALID', 'message': 'Invalid or unreadable flow input.'}})
+        rc, outputs, stderr = self.command('outputs', '--run', RUN_ID, extra_env={'PATH': str(empty)})
+        self.assertEqual((rc, outputs), (2, {'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID',
+                                             'message': 'Invalid or unreadable flow input.'}), stderr)
 
     def test_a_sampling_failure_keeps_the_exit_code_the_sampling_command_gives(self):
         run = self.make_run(request=request_payload(cap=5))
