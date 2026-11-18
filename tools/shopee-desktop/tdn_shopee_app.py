@@ -724,10 +724,12 @@ class Api:
                 raise _BridgeFailure('EVIDENCE_LOCAL_MISSING')
             digest = self._sha256(digest)
             descriptor = self._evidence_descriptor(run_id, 'full-page', digest)
+        # Clean the name first, then cut it so the whole «-<runId>.png» always fits in 120 characters.
+        suffix = f'-{run_id}.png'
         name = re.sub(r'[\\/]', '_', name.strip()) if isinstance(name, str) else ''
-        name = name[:116 - len(run_id) - 1].rstrip('. ')     # the name is cut, never the run id
-        stem = f'{name}-{run_id}' if name else run_id
-        suggested = _safe_filename(stem, 'png')
+        stem = os.path.splitext(_safe_filename(name, 'png'))[0] if name else ''
+        stem = stem[:120 - len(suffix)].rstrip('. ')
+        suggested = stem + suffix if stem else _safe_filename(run_id, 'png')
         selected = _choose_save_path(suggested, _downloads_folder())
         if selected is None:
             return {'ok': True, 'data': {'format': 'metric-shot-save-v1', 'runId': run_id,
@@ -1720,13 +1722,22 @@ class Api:
         with Top 5 next time."""
         if not tdn_metric_browser.valid_product_selection(value):
             raise _BridgeFailure('ARG_INVALID')
+        temp = None
         try:
             path = _choice_path()
-            temp = path.with_name(path.name + '.part')
-            temp.write_text(json.dumps(value), encoding='utf-8')
+            handle, temp = tempfile.mkstemp(prefix='.product-selection-', suffix='.part', dir=str(path.parent))
+            with os.fdopen(handle, 'w', encoding='utf-8') as out:
+                out.write(json.dumps(value))
             os.replace(temp, path)
+            temp = None
         except (OSError, _BridgeFailure):
             pass
+        finally:
+            if temp is not None:
+                try:
+                    os.unlink(temp)
+                except OSError:
+                    pass
         return {'ok': True, 'data': {'productSelection': value}}
 
     def metricBrowserState(self):

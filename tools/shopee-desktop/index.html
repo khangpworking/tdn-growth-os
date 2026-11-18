@@ -3503,15 +3503,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       wrap.appendChild(saveShotButton(runId, descriptor.sha256));
       return wrap;
     }
-    if (descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
-      return outputEvidenceAction('moM1FullPage', label, runId, descriptor);
-    }
     var off = h('button', 'abtn', label);
     off.type = 'button';
     off.id = 'moM1FullPage';
     off.disabled = true;
     wrap.appendChild(off);
     wrap.appendChild(saveShotButton(runId, undefined));
+    if (descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
+      wrap.appendChild(outputEvidenceAction('moM1FullPage', label, runId, descriptor));   // the error note
+      return wrap;
+    }
     var hint = h('span', 'rs-note', 'Ảnh chỉ lưu trên máy đã lấy dữ liệu');
     hint.id = 'moM1FullPageHint';
     wrap.appendChild(hint);
@@ -3966,7 +3967,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         'Lượt này dùng quy tắc chọn cũ; không áp dụng cách chọn 5 sản phẩm khác nhau mới.'));
     }
 
-    if (m2.errorCode && m2.errorCode !== m2.shortageReason) {
+    // FEWER_PRODUCTS_THAN_REQUESTED is also the shortage reason, but its own text (with N) is always shown.
+    if (m2.errorCode && (m2.errorCode !== m2.shortageReason || m2.errorCode === 'FEWER_PRODUCTS_THAN_REQUESTED')) {
       card.appendChild(outputErrorBar(m2.errorCode, m2.errorDetail || { requested: target.want }));
     }
 
@@ -8684,7 +8686,24 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // A valid change of Top/All or N is kept on this PC at once (the bridge keeps it).
   function rememberSelection() {
     var choice = productSelection();
-    if (choice.value) api.rememberProductSelection(choice.value);
+    if (!choice.value) return;
+    state.selectionToSave = choice.value;
+    clearTimeout(state.selectionTimer);
+    state.selectionTimer = setTimeout(saveSelection, 300);
+  }
+
+  // One save in flight; the latest valid choice is saved last.
+  async function saveSelection() {
+    if (state.selectionSaving || !state.selectionToSave) return;
+    var value = state.selectionToSave;
+    state.selectionToSave = null;
+    state.selectionSaving = true;
+    try {
+      await api.rememberProductSelection(value);
+    } finally {
+      state.selectionSaving = false;
+    }
+    if (state.selectionToSave) saveSelection();
   }
 
   // The last choice made on this PC: the form opens with it.
