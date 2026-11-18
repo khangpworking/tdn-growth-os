@@ -1024,6 +1024,8 @@ class BridgeTest(unittest.TestCase):
                    mock.patch.object(tdn_shopee_app, '_metric_shot_folder', lambda: self.shots),
                    mock.patch.object(tdn_shopee_app, '_choice_path',
                                      lambda: pathlib.Path(self.tmp.name) / 'product-selection.json'),
+                   mock.patch.object(tdn_shopee_app, '_run_sort_path',
+                                     lambda: pathlib.Path(self.tmp.name) / 'run-sort.json'),
                    mock.patch.object(self.api, '_remote', self.fake_remote)]
         for patch in patches:
             patch.start()
@@ -1080,6 +1082,20 @@ class BridgeTest(unittest.TestCase):
                 data = {'format': 'module-outputs-v1', 'runId': 'a1b2c3d4', 'm1': {}, 'm2': {}, **extra}
                 self.answers = [{'ok': True, 'data': json.loads(json.dumps(data))}]
                 self.assertEqual(self.api.moduleOutputs('a1b2c3d4'), {'ok': True, 'data': data})
+
+    def test_run_sort_is_kept_on_this_pc(self):
+        """F648: the run list order, one row each:
+        | step                          | lastRunSort              |
+        |-------------------------------|--------------------------|
+        | nothing kept yet              | None                     |
+        | remember «Cũ nhất trước»      | oldest                   |
+        | remember anything else        | ARG_INVALID, oldest kept |
+        """
+        self.assertEqual(self.api.lastRunSort()['data'], {'runSort': None})
+        self.assertTrue(self.api.rememberRunSort('oldest')['ok'])
+        self.assertEqual(self.api.lastRunSort()['data'], {'runSort': 'oldest'})
+        self.assertEqual(self.api.rememberRunSort('price')['error']['code'], 'ARG_INVALID')
+        self.assertEqual(self.api.lastRunSort()['data'], {'runSort': 'oldest'})
 
     def test_product_selection_rows(self):
         """CONTRACT-F644 §5, one row each:

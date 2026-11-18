@@ -356,6 +356,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .run-meta dt { font-size: 11.5px; color: var(--muted); }
 .run-meta dd { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .run-filter { margin-bottom: 2px; }
+.run-sort { display: flex; flex-wrap: wrap; gap: 8px; }
+.sort-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--band); color: var(--fg); font-size: 13px; font-weight: 600; cursor: pointer; }
+.sort-pill svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sort-pill[aria-pressed="true"] { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); }
 .fixed-value { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--band); font-weight: 600; }
 dialog { border: 0; border-radius: 12px; padding: 0; max-width: min(560px, calc(100vw - 32px)); background: var(--panel); color: var(--fg); box-shadow: 0 18px 48px var(--shadow); }
 dialog::backdrop { background: rgba(15, 24, 28, .5); }
@@ -672,6 +677,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
               <option value="unfinished">Chưa xong</option>
             </select>
           </label>
+          <div class="run-sort" role="group" aria-label="Sắp xếp">
+            <button type="button" class="sort-pill" data-run-sort="newest" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h7M2 8h5M2 12.5h3M12.5 3v10M10 10.5l2.5 2.5 2.5-2.5"/></svg>Mới tạo trước</button>
+            <button type="button" class="sort-pill" data-run-sort="oldest" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h3M2 8h5M2 12.5h7M12.5 3v10M10 5.5L12.5 3 15 5.5"/></svg>Cũ nhất trước</button>
+          </div>
           <ol id="runList" class="run-list"></ol>
           <p class="muted" id="runsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
@@ -685,6 +694,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       <div class="track">
         <aside class="runs">
           <h2>Các lượt đã tạo<span class="refresh-mark" hidden>Đang cập nhật…</span></h2>
+          <div class="run-sort" role="group" aria-label="Sắp xếp">
+            <button type="button" class="sort-pill" data-run-sort="newest" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h7M2 8h5M2 12.5h3M12.5 3v10M10 10.5l2.5 2.5 2.5-2.5"/></svg>Mới tạo trước</button>
+            <button type="button" class="sort-pill" data-run-sort="oldest" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h3M2 8h5M2 12.5h7M12.5 3v10M10 5.5L12.5 3 15 5.5"/></svg>Cũ nhất trước</button>
+          </div>
           <ol id="resultRunList" class="run-list"></ol>
           <p class="muted" id="resultRunsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
@@ -2658,6 +2671,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       },
       lastProductSelection: function () { return Promise.resolve(ok({ productSelection: null })); },
       rememberProductSelection: function (value) { return Promise.resolve(ok({ productSelection: value })); },
+      lastRunSort: function () { return Promise.resolve(ok({ runSort: null })); },
+      rememberRunSort: function (value) { return Promise.resolve(ok({ runSort: value })); },
       deleteRun: function (runId) {
         if (!store.has(runId)) return Promise.resolve(err('RUN_NOT_FOUND', 'RUN_NOT_FOUND'));
         store.delete(runId);
@@ -3005,6 +3020,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
       rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
+      lastRunSort: function () { return call('lastRunSort', []); },
+      rememberRunSort: function (value) { return call('rememberRunSort', [value]); },
       newRun: function (input) { return call('newRun', [input]); },
       addProduct: function (input) { return call('addProduct', [input]); },
       status: function (runId) { return call('status', [runId]); },
@@ -3077,6 +3094,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     preferredRunId: null,
     flowDialogBinding: null,
     runFilter: 'all',
+    runSort: 'newest',      // «Mới tạo trước» | «Cũ nhất trước», one choice for both run lists
+    runSortChosen: false,   // a click before the saved choice is read wins
     savedProduct: null,
     connected: false,
     connectionState: 'connecting',
@@ -7072,7 +7091,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var allowed = state.screen === 'result' ? null : RUN_FILTERS[state.runFilter] || null;
     var shown = state.runs.filter(function (run) {
       return !allowed || allowed.indexOf(effectiveStatus(run.runId, run.status)) !== -1;
-    });
+    }).sort(compareRuns);
     // «Kết quả chạy» shows the same run list as «Chi tiết lịch sử lượt chạy»; only the visible tab holds it.
     clear($(state.screen === 'result' ? 'runList' : 'resultRunList'));
     [state.screen === 'result' ? ['resultRunList', 'resultRunsEmpty'] : ['runList', 'runsEmpty']].forEach(function (ids) {
@@ -7100,6 +7119,38 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       }
       $(ids[1]).hidden = state.runs.length > 0;
     });
+  }
+
+  // By createdAt, then runId; «Cũ nhất trước» is the exact reverse of «Mới tạo trước».
+  function compareRuns(a, b) {
+    var ka = String(a.createdAt || '') + '\u0000' + a.runId;
+    var kb = String(b.createdAt || '') + '\u0000' + b.runId;
+    var order = ka < kb ? 1 : (ka > kb ? -1 : 0);
+    return state.runSort === 'oldest' ? -order : order;
+  }
+
+  function renderRunSort() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-run-sort]'), function (btn) {
+      btn.setAttribute('aria-pressed', String(btn.dataset.runSort === state.runSort));
+    });
+  }
+
+  function chooseRunSort(value) {
+    state.runSortChosen = true;
+    state.runSort = value;
+    renderRunSort();
+    renderRunList();
+    api.rememberRunSort(value);      // best effort: kept on this PC by the bridge
+  }
+
+  // The last choice made on this PC.
+  async function restoreRunSort() {
+    var res = await api.lastRunSort();
+    var saved = res.ok && res.data ? res.data.runSort : null;
+    if (state.runSortChosen || (saved !== 'newest' && saved !== 'oldest')) return;
+    state.runSort = saved;
+    renderRunSort();
+    renderRunList();
   }
 
   // The listing (null on a list error). A listing overtaken by a newer one answers with the newer one's result.
@@ -9055,6 +9106,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnDiscardImport').addEventListener('click', onDiscardImport);
     $('btnTrackMetricRun').addEventListener('click', onTrackMetricRun);
     restoreSelection();
+    restoreRunSort();
     $('newSelectionGroup').addEventListener('change', rememberSelection);
     $('newSelectionGroup').addEventListener('input', rememberSelection);
     $('newRunForm').addEventListener('change', renderMetricCard);
@@ -9094,6 +9146,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('flowDialog').addEventListener('cancel', function (ev) {
       ev.preventDefault();
       onFlowCancel();
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-run-sort]'), function (btn) {
+      btn.addEventListener('click', function () { chooseRunSort(btn.dataset.runSort); });
     });
     $('runFilter').addEventListener('change', function () {
       state.runFilter = $('runFilter').value || 'all';
