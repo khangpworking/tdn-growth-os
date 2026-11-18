@@ -3874,3 +3874,53 @@ test('a run seen only in progress is gone when a later list does not have it', a
     assert.ok(run.doc.querySelector('#noticeBox .notice') !== null, '2: its notice stays');
   } finally { run.dom.window.close(); }
 });
+
+// Delete and step 4 «Chạy tiếp» against a run that is going away (F645, Terra r4 on #508), one row each:
+// | # | situation                                                          | expected                                            |
+// |---|--------------------------------------------------------------------|-----------------------------------------------------|
+// | 1 | «Xóa» answers RUN_NOT_FOUND (a coworker deleted it first)          | box closed, run gone from both lists, told once     |
+// | 2 | «Chạy tiếp» is still on its way when the run is deleted             | its late reply loads nothing for the deleted run    |
+// (Every other per-run request is checked the same way right after it returns; one row is not kept per request.)
+test('delete and step 4 resume replies for a run that is going away', async () => {
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+
+  // 1
+  let run = step4Harness({ deleteRunResult: () => ({ ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } }) });
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList button').length === 4, '1: list');
+    runListButton(run.doc, 'run-pass').click();
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, '1: open');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Lượt này đã bị xóa.', '1: told');
+    const dialog = element<HTMLDialogElement>(run.doc, 'deleteDialog');
+    assert.ok(!(dialog.open || dialog.hasAttribute('open')), '1: box closed');
+    assert.equal(element(run.doc, 'deleteErr').hidden, true, '1: no error in the box');
+    assert.doesNotMatch(listed(run.doc, 'runList'), /run-pass/, '1: track list');
+    assert.doesNotMatch(listed(run.doc, 'resultRunList'), /run-pass/, '1: result list');
+    assert.equal(run.doc.getElementById('btnDeleteRun'), null, '1: detail left');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  const resume = deferred<void>();
+  run = step4Harness({
+    processReviewDataResult: (runId, sourceSha256) => resume.promise.then(() =>
+      ({ ok: true, data: { format: 'review-process-start-v1', runId, sourceSha256, status: 'RUNNING', pid: 4321 } })),
+  });
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList button').length === 4, '2: list');
+    runListButton(run.doc, 'run-fail').click();
+    await waitFor(() => run.doc.getElementById('s4Resume') !== null, '2: «Chạy tiếp»');
+    element<HTMLButtonElement>(run.doc, 's4Resume').click();
+    await waitFor(() => run.state.processReviewDataCalls.length === 1, '2: resume sent');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', '2: deleted');
+    const loads = run.state.reviewProcessCalls.length;
+    resume.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.deepEqual(run.state.reviewProcessCalls.slice(loads).filter((id) => id === 'run-fail'), [],
+      '2: nothing loaded for the deleted run');
+  } finally { run.dom.window.close(); }
+});
