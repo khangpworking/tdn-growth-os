@@ -72,6 +72,26 @@ test('each read-view entry imports the lazy-mode module first', () => {
   }
 });
 
+/** Lazy mode as seen by a validator created after the lazy-mode module ran, with `entry` as the started path. */
+function lazyFor(entry: string): boolean {
+  const output = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', [
+    "await import('./scripts/lazy-validators-on.ts');",
+    "const { lazyValidator } = await import('./src/platform/lazy-validator.ts');",
+    'let compiles = 0;',
+    'lazyValidator(() => { compiles++; return () => true; });',
+    "console.log(compiles === 0 ? 'lazy' : 'eager');",
+  ].join('\n'), entry], { cwd: root, stdio: 'pipe', encoding: 'utf8' });
+  return output.trim() === 'lazy';
+}
+
+test('lazy mode is on only for the exact read-view entry files', () => {
+  for (const name of ['module-run-view.ts', 'module-review-sampling.ts', 'module-review-data.ts']) {
+    assert.equal(lazyFor(`${root}scripts/${name}`), true, `${name} in scripts/ is a read-view entry`);
+    assert.equal(lazyFor(`${root}other/${name}`), false, `a same-named ${name} in another folder stays eager`);
+  }
+  assert.equal(lazyFor(`${root}scripts/module-pick.ts`), false, 'any other entry stays eager');
+});
+
 test('compileAll compiles every schema registered in the read-view import graph', () => {
   runModule([
     "const { compileAll, enableLazyValidators } = await import('./src/platform/lazy-validator.ts');",
