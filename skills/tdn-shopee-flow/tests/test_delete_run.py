@@ -234,6 +234,65 @@ class DeleteRunTest(unittest.TestCase):
                          'the reservation must stay in place')
         self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
 
+    @unittest.skipIf(os.geteuid() == 0, 'file permissions do not bind root')
+    def test_unreadable_import_record_renames_the_run_back(self):
+        run = self.make_run('run-l3')
+        import_id = uuid.uuid4().hex
+        record = self.runs / '.imports' / f'{import_id}.json'
+        write_json(record, {'format': 'metric-user-page-import-reservation-v1',
+                            'importId': import_id, 'payloadSha256': 'f' * 64, 'runId': 'run-l3'})
+        inode = run.stat().st_ino
+        os.chmod(record, 0o000)
+        self.addCleanup(os.chmod, record, 0o600)
+        rc, out = self.command('delete-run', '--run', 'run-l3')
+        self.assertEqual(rc, 20, out)
+        self.assertEqual(out.get('code'), 'RUN_DELETE_FAILED')
+        self.assertTrue(run.is_dir())
+        self.assertEqual(run.stat().st_ino, inode, 'the same folder must be renamed back')
+        self.assertTrue(record.is_file(), 'an unreadable reservation must not be dropped')
+        self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
+
+    @unittest.skipIf(os.geteuid() == 0, 'directory permissions do not bind root')
+    def test_failed_cleanup_reports_a_leftover_folder(self):
+        run = self.make_run('run-m4')
+        locked = run / 'nested'
+        locked.mkdir()
+        (locked / 'data.txt').write_text('x', encoding='utf8')
+        os.chmod(locked, 0o500)
+
+        def restore():
+            for parent, folders, _ in os.walk(self.runs):
+                for name in folders:
+                    try:
+                        os.chmod(os.path.join(parent, name), 0o700)
+                    except OSError:
+                        pass
+        self.addCleanup(restore)
+
+        rc, out = self.command('delete-run', '--run', 'run-m4')
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out, {'format': 'run-delete-v1', 'runId': 'run-m4', 'deleted': True,
+                               'leftover': True})
+        self.assertFalse(run.exists())
+        self.assertTrue(any(name.startswith('.deleted-') for name in os.listdir(self.runs)),
+                        'the folder that could not be removed must stay as a leftover')
+
+    def test_delete_removes_a_previous_leftover_folder(self):
+        write_json(self.runs / '.deleted-run-old-1' / 'request.json', request_payload())
+        write_json(self.runs / '.imports' / f'{uuid.uuid4().hex}.json',
+                   {'format': 'metric-user-page-import-reservation-v1',
+                    'payloadSha256': 'a' * 64, 'runId': 'run-old'})
+        self.make_run('run-n5')
+        self.make_run('run-o6')
+
+        rc, out = self.command('delete-run', '--run', 'run-n5')
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out.get('leftover'), None, 'a clean delete reports no leftover')
+        self.assertFalse((self.runs / '.deleted-run-old-1').exists(),
+                         'every delete-run call first removes leftover folders')
+        self.assertTrue((self.runs / 'run-o6').is_dir(), 'other runs must stay untouched')
+        self.assertTrue((self.runs / '.imports').is_dir(), 'the .imports folder must stay')
+
 
 if __name__ == '__main__':
     unittest.main()

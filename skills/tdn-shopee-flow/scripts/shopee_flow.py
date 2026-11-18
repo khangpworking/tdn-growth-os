@@ -2937,6 +2937,21 @@ def flow_run_active(run):
     return False
 
 
+def flow_delete_leftovers(root):
+    """Best effort: remove .deleted-* folders earlier deletes could not remove. Other names are
+    never touched, and every error is ignored."""
+    try:
+        entries = list(os.scandir(root))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.name.startswith('.deleted-') and entry.is_dir(follow_symlinks=False):
+                shutil.rmtree(entry.path, ignore_errors=True)
+        except OSError:
+            continue
+
+
 def cmd_delete_run(ns):
     """Delete one run folder and the .imports records that point at it, under the imports lock.
     The run's own module admission lock is taken non-blockingly, so no module, count refresh or
@@ -2957,6 +2972,9 @@ def cmd_delete_run(ns):
         run = run.resolve()
         with open(root / '.imports.lock', 'a') as imports_lock:
             fcntl.flock(imports_lock.fileno(), fcntl.LOCK_EX)
+            # Serialized with every other delete-run: a folder another caller is renaming back is
+            # never swept half-way.
+            flow_delete_leftovers(root)
             # Same admission lock every module, count refresh and step 4 take: a live owner keeps
             # it, and holding it here keeps a new owner out until the run is renamed away.
             module_lock = os.open(gate_path(run, '.module.lock'),
@@ -2982,10 +3000,7 @@ def cmd_delete_run(ns):
                             for entry in records:
                                 if not entry.name.endswith('.json'):
                                     continue
-                                try:
-                                    fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=imports_fd)
-                                except OSError:
-                                    continue
+                                fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=imports_fd)
                                 try:
                                     info = os.fstat(fd)
                                     if not stat.S_ISREG(info.st_mode):
@@ -2993,8 +3008,6 @@ def cmd_delete_run(ns):
                                     with os.fdopen(fd, 'rb') as handle:
                                         fd = None
                                         record = json.loads(handle.read())
-                                except (OSError, ValueError):
-                                    continue
                                 finally:
                                     if fd is not None:
                                         os.close(fd)
@@ -3004,8 +3017,9 @@ def cmd_delete_run(ns):
                                 if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
                                     raise OSError('import record replaced during delete')
                                 os.unlink(entry.name, dir_fd=imports_fd)
-                except OSError:
-                    # Put the run back exactly as it was; the reservation still points at it.
+                except (OSError, ValueError):
+                    # A record that cannot be opened or read may be this run's reservation, so the
+                    # deletion fails and the run goes back; the reservation still points at it.
                     try:
                         os.rename(deleted, run)
                     except OSError:
@@ -3015,11 +3029,15 @@ def cmd_delete_run(ns):
                 os.close(module_lock)
                 if imports_fd is not None:
                     os.close(imports_fd)
+        leftover = False
         try:
             shutil.rmtree(deleted)
         except OSError:
-            pass  # The dot folder is no longer a run; leaving it only costs disk space.
-        print(json.dumps({'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}))
+            leftover = True  # Hidden and unlisted, with its reservation gone; it may be retried.
+        output = {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}
+        if leftover:
+            output['leftover'] = True
+        print(json.dumps(output))
     except ModuleFailure as failure:
         print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
         sys.exit(failure.exit_code)

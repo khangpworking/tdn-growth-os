@@ -131,3 +131,36 @@ recovery were added.
 Suites (same as above): delete-run 11 tests OK; full shopee-flow discover 170 tests OK
 (skipped=4); `node scripts/typecheck.mjs` exit 0.
 
+
+## Round-3 fix
+
+Exactly the three rules in the contract's Update 18/11, round 3 block.
+
+- An `.imports/*.json` record that cannot be opened or read is now a failure: the open and read
+  errors are no longer skipped, so the run folder is renamed back (best effort) and the command
+  returns 20 `RUN_DELETE_FAILED`; the record and the run stay in place. This supersedes the earlier
+  "a symlink or non-regular entry is skipped" wording for unreadable candidates; a regular record
+  that is readable and points at another run is still left untouched.
+- `rmtree` of the dot folder is still best effort but no longer silent: the run counts as deleted
+  (it is hidden and its reservation is gone), and the success output adds `"leftover":true`. The
+  next `delete-run` call removes the leftover.
+- Every `delete-run` call first removes `.deleted-*` folders under the runs root, best effort
+  (`shutil.rmtree(..., ignore_errors=True)`, under the `.imports` lock so two callers never sweep
+  each other's half-done rename); only directories whose name starts with `.deleted-` are
+  considered, other names and errors are ignored. A read-only refusal writes nothing.
+
+### Round-3 tests
+
+- `test_unreadable_import_record_renames_the_run_back`: the matching reservation is chmod `000`;
+  `delete-run` returns 20 `RUN_DELETE_FAILED`, the same inode is back at the run path, the record
+  is intact and no `.deleted-*` folder remains.
+- `test_failed_cleanup_reports_a_leftover_folder`: a nested run directory is not writable, so
+  `rmtree` fails; `delete-run` returns 0 with
+  `{"format":"run-delete-v1","runId":"run-m4","deleted":true,"leftover":true}` and the hidden
+  `.deleted-*` folder stays.
+- `test_delete_removes_a_previous_leftover_folder`: a pre-existing `.deleted-run-old-1` folder is
+  removed by the next `delete-run`, while another run and the `.imports` folder stay untouched;
+  a clean delete reports no `leftover` key.
+
+Suites (same as above): delete-run 14 tests OK; full shopee-flow discover 173 tests OK
+(skipped=4); `node scripts/typecheck.mjs` exit 0.
