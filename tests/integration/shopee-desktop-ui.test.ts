@@ -4361,7 +4361,7 @@ test('the sort save keeps the last click and the refresh mark follows only the l
     const asked = run.state.reviewDataCallsByRun['run-a'] || 0;
     runListButton(run.doc, 'run-a').click();
     await waitFor(() => (run.state.reviewDataCallsByRun['run-a'] || 0) > asked, '3: its own review data, not held');
-    const own = run.state.reviewDataCallsByRun['run-a'];
+    const own = run.state.reviewDataCallsByRun['run-a'] || 0;
     holdData = true;                                      // the poll's are held
     await waitFor(() => (run.state.reviewDataCallsByRun['run-a'] || 0) > own, '3: the poll asks review data');
     await new Promise((resolve) => setTimeout(resolve, 60));
