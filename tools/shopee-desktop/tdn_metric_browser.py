@@ -952,11 +952,12 @@ class MetricSession:
         # from that same record, even if Metric sends a later request while the picture is taken.
         record = listener.click_record()
         target = listener.shot_target(record)
-        before = listener.tab_newest_key(target) if target is not None else None
         shot = listener.full_page_shot(target, screenshot_dir)
-        # The page may have changed during the picture (the user picked another filter on that tab):
-        # the picture then stays an unlinked metric-<time>.png and this run gets no local picture.
-        linkable = shot is not None and listener.tab_newest_key(target) == before
+        # The page may have changed since the click (the user picked another filter on that tab, even
+        # right after the click record was taken): unless the tab's newest request is still the click's
+        # own request, the picture stays an unlinked metric-<time>.png and this run gets no local picture.
+        linkable = (shot is not None and record is not None and
+                    listener.tab_newest_key(target) == record['key'])
         try:
             if record is None:
                 raise MetricFailure('METRIC_NOT_SEEN')

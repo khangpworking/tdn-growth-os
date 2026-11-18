@@ -1219,6 +1219,7 @@ class BridgeTest(unittest.TestCase):
         |---|-------------------------------------------------------------|-------------------------------------------------|
         | 1 | a new products request (other filter) arrives during the shot | the import uses the click's request and filter |
         |   | on the same tab (r3: the page may show the new filter)        | the picture stays unlinked: no run picture     |
+        |   | same tab, right after the click record, before the shot (r4)  | the picture stays unlinked: no run picture     |
         | 2 | `evidence/metric` is a junction/symlink holding the run picture | no local picture found, nothing opened         |"""
         with self.subTest('1 later request during the shot'):
             click_answer = self.session.tab.answers['Page.captureScreenshot']
@@ -1237,6 +1238,22 @@ class BridgeTest(unittest.TestCase):
             self.assertEqual(len(files), 1)
             self.assertRegex(files[0], r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$')
             self.assertEqual(self.api.localMetricShot('a1b2c3d4')['data']['exists'], False)
+        with self.subTest('1b later request between the click record and the shot'):
+            self.setUp_fresh()
+            listener = self.session.listener
+            take_record = listener.click_record
+
+            def record_then_metric_moves():
+                record = take_record()
+                self.session.tab.products_request(page_body(start_date='20261020'), request_id='between')
+                return record
+            with mock.patch.object(listener, 'click_record', record_then_metric_moves):
+                self.answers = [self.OK_IMPORT, self.OK_FLOW]
+                self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertEqual(self.remote_calls[0][2]['scope']['start_date'], '20261001')
+            files = self.shot_files()
+            self.assertEqual(len(files), 1)
+            self.assertNotIn('a1b2c3d4-metric-full-page.png', files)
         with self.subTest('2 junction on metric'):
             self.setUp_fresh()
             elsewhere = pathlib.Path(self.tmp.name) / 'elsewhere'
