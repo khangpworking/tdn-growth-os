@@ -107,7 +107,9 @@ test('a selected source rank outside the pictured panel hides the picture but M2
     { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
   const slip = JSON.parse(gate.stdout);
   assert.deepEqual([gate.status, slip.verdict, slip.errorCode], [0, 'PASS', null], gate.stderr);
-  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok]), [['links_match_source_order', true], ['five_distinct_products', true]]);
+  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok, 'want' in c]),
+    [['links_match_source_order', true, false], ['five_distinct_products', true, false]],
+    'a request without productSelection keeps the historical gate check name and shape');
 });
 
 test('a panel without both native sorting controls cannot certify the selected ranks', async t => {
@@ -456,4 +458,119 @@ test('a stopped step-2 attempt with an unbound log still projects its rejections
   assert.equal(output.m2.errorCode, 'SELECTION_MISSING');
   assert.deepEqual(output.linkIssues.map((issue: any) => [issue.stage, issue.reason, issue.replacedBy]),
     [['m2', 'PRODUCT_UNAVAILABLE', rows[2]!.product_base_id]]);
+});
+
+test('F644 all mode rejects a dead link without naming a replacement', async t => {
+  const rows = Array.from({ length: 3 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = linkUrl(rows[1]);
+  const { collector } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', productSelection: { mode: 'all' }, linkCollector: collector });
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual(output.linkIssues.map((issue: any) => [issue.productBaseId, issue.reason, issue.replacedBy]),
+    [[rows[1]!.product_base_id, 'PRODUCT_UNAVAILABLE', null]], 'all mode accepts the same dead link without replacement');
+  assert.equal(output.m2.selectedCount, 2);
+});
+
+test('F644 replay reproduces top 8 and all from the saved proof, and the gate asks for the requested count', async t => {
+  const items = distinct(9);
+  const top = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 8 },
+    jev: fakeJev(Array.from({ length: 7 }, (_, i) => answer(i + 1, 'MOI', 0.9))).jev });
+  const topProof = await verifyModuleSelection(top.run) as any;
+  assert.deepEqual([topProof.requested, topProof.requestedDistinct, topProof.selectedCount], [8, true, 8]);
+  const state = await mkdtemp(join(tmpdir(), 'shopee-flow-state-'));
+  t.after(() => rm(state, { recursive: true, force: true }));
+  const gate = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+    ['skills/tdn-shopee-flow/scripts/shopee_flow.py', 'gate', 'm2', '--run', basename(top.run)],
+    { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(top.run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
+  const slip = JSON.parse(gate.stdout);
+  assert.deepEqual([gate.status, slip.verdict], [0, 'PASS'], gate.stderr);
+  const requested = slip.checks.find((c: any) => c.id === 'requested_distinct_products');
+  assert.deepEqual([requested.ok, requested.want, requested.got], [true, 8, { requested: 8, found: 8 }]);
+
+  const all = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'all' } });
+  const allProof = await verifyModuleSelection(all.run) as any;
+  assert.deepEqual([allProof.requested, allProof.requestedDistinct, allProof.selectedCount], [1, true, 9],
+    'all links every Shopee row, repeated titles included');
+  const allGate = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+    ['skills/tdn-shopee-flow/scripts/shopee_flow.py', 'gate', 'm2', '--run', basename(all.run)],
+    { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(all.run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
+  const allSlip = JSON.parse(allGate.stdout);
+  assert.deepEqual([allGate.status, allSlip.verdict], [0, 'PASS'], allGate.stderr);
+  const allRequested = allSlip.checks.find((c: any) => c.id === 'requested_distinct_products');
+  assert.deepEqual([allRequested.ok, allRequested.want, allRequested.got], [true, 1, { requested: 1, found: 9 }],
+    'all mode asks for one accepted product');
+  const output = await moduleOutputs(all.run) as any;
+  assert.deepEqual([output.m2.requested, output.m2.requestedDistinct, output.m2.fiveDistinct], [1, true, true]);
+});
+
+test('F644 round-3: all mode treats a repeated Shopee listing id as one link, live and on replay', async t => {
+  const rows = distinct(3);
+  const repeated = [rows[0]!, rows[1]!, { ...rows[1]! }, rows[2]!];
+  const url = (row: Record<string, unknown>) => {
+    const [, itemId, shopId] = String(row.product_base_id).split('__');
+    return `https://shopee.vn/product/${shopId}/${itemId}`;
+  };
+  const collector = fakeLinkCollector();
+  const { run } = await buildRun(t, { rows: repeated, pictured: [0, 1, 3], policy: 'metric-products-unique-v2',
+    productSelection: { mode: 'all' }, linkCollector: collector.collector });
+  assert.deepEqual(collector.asked, rows.map(url), 'the repeated listing is checked once');
+  const proof = await verifyModuleSelection(run) as any;
+  assert.deepEqual(proof.links.map((link: any) => link.productBaseId), rows.map(row => row.product_base_id),
+    'the first occurrence is kept and replay skips the repeat the same way');
+  assert.deepEqual([proof.selectedCount, proof.shortageReason], [3, null]);
+  const saved = JSON.parse(await readFile(join(run, 'm2/selection.json'), 'utf8'));
+  assert.deepEqual([saved.links.length, saved.selectionProof.skipped], [3, []]);
+});
+
+test('F644 an explicit top count below five and above five report their own shortage counts', async t => {
+  const items = distinct(5);
+  const short = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 8 },
+    jev: fakeJev(Array.from({ length: 4 }, (_, i) => answer(i + 1, 'MOI', 0.9))).jev });
+  const proof = await verifyModuleSelection(short.run) as any;
+  assert.deepEqual([proof.requested, proof.requestedDistinct, proof.selectedCount, proof.shortageReason, proof.shortageDetail],
+    [8, false, 5, 'FEWER_PRODUCTS_THAN_REQUESTED', { requested: 8, found: 5 }]);
+  const one = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 1 },
+    jev: fakeJev([]).jev });
+  const oneProof = await verifyModuleSelection(one.run) as any;
+  assert.deepEqual([oneProof.requested, oneProof.requestedDistinct, oneProof.selectedCount], [1, true, 1]);
+});
+
+test('F644 a saved productSelection that disagrees with the request is PICK_PROOF_MISMATCH', async t => {
+  const { run } = await buildRun(t, { rows: distinct(7), policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 8 },
+    jev: fakeJev(Array.from({ length: 6 }, (_, i) => answer(i + 1, 'MOI', 0.9))).jev });
+  const selection = JSON.parse(await readFile(join(run, 'm2/selection.json'), 'utf8'));
+  selection.selectionProof.productSelection = { mode: 'all' };
+  await writeFile(join(run, 'm2/selection.json'), jsonBytes(selection));
+  await assert.rejects(verifyModuleSelection(run), (error: any) => error?.code === 'PICK_PROOF_MISMATCH');
+});
+
+test('F644 round-2: a selection with productSelection requires the link log and its saved digest', async t => {
+  const { run } = await buildRun(t, { rows: distinct(9), policy: 'metric-products-unique-v2', productSelection: { mode: 'all' } });
+  const selectionPath = join(run, 'm2/selection.json'), logPath = join(run, 'm2/link-checks.json');
+  const selectionText = await readFile(selectionPath, 'utf8'), logText = await readFile(logPath, 'utf8');
+  const fail = (message: string) => assert.rejects(verifyModuleSelection(run),
+    (error: any) => error?.code === 'PICK_PROOF_MISMATCH', message);
+  assert.equal((await verifyModuleSelection(run) as any).selectedCount, 9);
+  await rm(logPath);
+  await fail('all mode without the link log fails instead of replaying unchecked links');
+  await writeFile(logPath, logText);
+  const withoutDigest = JSON.parse(selectionText);
+  delete withoutDigest.selectionProof.linkChecksSha256;
+  await writeFile(selectionPath, jsonBytes(withoutDigest));
+  await fail('all mode without the saved digest fails');
+  await rm(logPath);
+  await fail('all mode without both the log and its digest fails');
+  await writeFile(selectionPath, selectionText);
+  await writeFile(logPath, logText);
+  assert.equal((await verifyModuleSelection(run) as any).selectedCount, 9, 'the saved evidence passes again when restored');
+  // A v2 request without productSelection keeps the historical path: an absent log is not an error.
+  const { run: old } = await buildRun(t, { rows: distinct(9), policy: 'metric-products-unique-v2',
+    jev: fakeJev([1, 2, 3, 4].map(picked => answer(picked, 'MOI', 0.9))).jev });
+  const oldSelectionPath = join(old, 'm2/selection.json');
+  const oldSelection = JSON.parse(await readFile(oldSelectionPath, 'utf8'));
+  delete oldSelection.selectionProof.linkChecksSha256;
+  await writeFile(oldSelectionPath, jsonBytes(oldSelection));
+  await rm(join(old, 'm2/link-checks.json'));
+  const oldProof = await verifyModuleSelection(old) as any;
+  assert.deepEqual([oldProof.requested, oldProof.requestedDistinct, oldProof.selectedCount], [5, true, 5]);
 });

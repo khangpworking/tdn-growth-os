@@ -8,6 +8,11 @@ import { validateReviewCounts, type ReviewCounts, type ReviewLink } from '../src
 
 /** Owner decision: one clock for all count work of one M2 attempt, reconciliation and waits included. */
 export const LINK_CHECK_BUDGET_MS = 10 * 60_000;
+export const LINK_CHECK_PER_LINK_MS = 15_000;
+export const LINK_CHECK_BUDGET_MAX_MS = 30 * 60_000;
+/** Contract F644: max(10 minutes, linksToCheck × 15 s), capped at 30 minutes; one shared deadline. */
+export const linkCheckBudgetMs = (linksToCheck: number): number =>
+  Math.min(LINK_CHECK_BUDGET_MAX_MS, Math.max(LINK_CHECK_BUDGET_MS, linksToCheck * LINK_CHECK_PER_LINK_MS));
 
 /** Contract names (owner F640): one closed list shared by steps 2 and 3. */
 export const PRODUCT_LEVEL_CODES = ['PRODUCT_UNAVAILABLE', 'RATINGS_MISSING'] as const;

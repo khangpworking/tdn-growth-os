@@ -126,7 +126,7 @@ test('v2 picks the first Shopee row without a question and skips other platforms
   assert.equal(picked.links[1]!.reason, 'Hạng nguồn 5; khác các sản phẩm đã chọn.');
   assert.equal(fake.asked.length, 1, 'only the second Shopee row is asked about');
   assert.deepEqual(picked.selectionProof.skipped, [], 'other platforms leave no skip record');
-  assert.deepEqual(picked.selectionProof.decisions.map(d => d.sourceRank), [5]);
+  assert.deepEqual(picked.selectionProof.decisions!.map(d => d.sourceRank), [5]);
 });
 
 test('v2 walks rows whose shop is `1__<shopId>` or bare, and skips a row that names another shop', async () => {
@@ -146,7 +146,7 @@ test('v2 decides by the chosen option and the 0.70 threshold, at and just below 
   const { result } = pickV2(rows, [answer(1, 'MOI', 0.7), answer(2, 'SP1', 0.7), answer(2, 'MOI', 0.6999), answer(2, 'SP2', 0.69)]);
   const picked = await result;
   assert.deepEqual(picked.links.map(l => l.sourceRank), [1, 2]);
-  assert.deepEqual(picked.selectionProof.decisions.map(d => [d.sourceRank, d.choice, d.outcome]),
+  assert.deepEqual(picked.selectionProof.decisions!.map(d => [d.sourceRank, d.choice, d.outcome]),
     [[2, 'MOI', 'PICKED'], [3, 'SP1', 'DUPLICATE'], [4, 'MOI', 'UNSURE'], [5, 'SP2', 'UNSURE']]);
   assert.deepEqual(picked.selectionProof.skipped, [
     { sourceRank: 3, productBaseId: rows[2]!.product_base_id, reason: 'SAME_PRODUCT', duplicateOfRank: 1 },
@@ -228,9 +228,9 @@ test('v2 replay applies the checks of a live answer to every saved decision', as
   for (const [name, change] of cases)
     await assert.rejects(replay(change), (error: unknown) => error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH', name);
   const withinTolerance = await replay(d => { d[0].probabilities = { SP1: 0.1, MOI: 0.92 }; });
-  assert.equal(withinTolerance.selectionProof.decisions[0]!.outcome, 'PICKED', 'a sum of 1.02 is a valid answer, as live');
+  assert.equal(withinTolerance.selectionProof.decisions![0]!.outcome, 'PICKED', 'a sum of 1.02 is a valid answer, as live');
   const recomputed = await replay(d => { d[1].outcome = 'PICKED'; });
-  assert.equal(recomputed.selectionProof.decisions[1]!.outcome, 'DUPLICATE', 'the saved outcome is never taken over');
+  assert.equal(recomputed.selectionProof.decisions![1]!.outcome, 'DUPLICATE', 'the saved outcome is never taken over');
 });
 
 test('v2 retries a failed question and gives up after three attempts; a malformed answer is a failure', async () => {

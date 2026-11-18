@@ -117,6 +117,40 @@ class M1ImportTest(unittest.TestCase):
             slip = json.loads((run / f'gates/{gate}.json').read_text())
             self.assertEqual([slip['format'], slip['verdict'], slip['runId']], ['handoff-v1', 'PASS', run.name])
 
+    def test_product_selection_is_written_to_the_request(self):
+        # F644: top N and all are part of the request; an absent field stays absent (top 5).
+        for selection in ({'mode': 'top', 'count': 1}, {'mode': 'top', 'count': 8}, {'mode': 'all'}):
+            with self.subTest(selection):
+                self.reset()
+                _, run = self.imported(payload(productSelection=selection))
+                self.assertEqual(json.loads((run / 'request.json').read_text())['productSelection'], selection)
+
+    def test_a_changed_product_selection_conflicts_like_any_other_payload_change(self):
+        self.imported()
+        rc, out = self.command('m1-import', '--stdin', stdin=json.dumps(payload(productSelection={'mode': 'all'})))
+        self.assertEqual((rc, out['code']), (20, 'IMPORT_ID_CONFLICT'),
+                         'the payload hash covers productSelection')
+
+    def test_invalid_product_selection_is_refused_before_any_run(self):
+        cases = [
+            ('not an object', 'top', 'IMPORT_INPUT_INVALID'),
+            ('explicit null', None, 'IMPORT_INPUT_INVALID'),
+            ('zero count', {'mode': 'top', 'count': 0}, 'IMPORT_INPUT_INVALID'),
+            ('count above 100', {'mode': 'top', 'count': 101}, 'IMPORT_INPUT_INVALID'),
+            ('fractional count', {'mode': 'top', 'count': 2.5}, 'IMPORT_INPUT_INVALID'),
+            ('boolean count', {'mode': 'top', 'count': True}, 'IMPORT_INPUT_INVALID'),
+            ('missing count', {'mode': 'top'}, 'IMPORT_INPUT_INVALID'),
+            ('unknown mode', {'mode': 'some'}, 'IMPORT_INPUT_INVALID'),
+            ('all with a count', {'mode': 'all', 'count': 5}, 'IMPORT_INPUT_INVALID'),
+            ('extra key', {'mode': 'top', 'count': 5, 'x': 1}, 'IMPORT_INPUT_INVALID'),
+        ]
+        for name, selection, code in cases:
+            with self.subTest(name):
+                rc, out = self.command('m1-import', '--stdin',
+                                       stdin=json.dumps(payload(productSelection=selection)))
+                self.assertEqual((rc, out['code']), (2, code), name)
+        self.assertEqual(list(self.runs.iterdir()), [], 'no run folder for refused input')
+
     def test_a_user_page_import_passes_entry_without_capture_spec_checks(self):
         _, run = self.imported()
         entry = json.loads((run / 'gates/entry.json').read_text())

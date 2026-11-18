@@ -518,21 +518,62 @@
             "null"
           ]
         },
+        "requested": {
+          "description": "Optional. The distinct-product count M2 asked for; 5 when the run predates productSelection.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestedDistinct": {
+          "description": "Optional. True when the selection holds at least `requested` links.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "selectedCount": {
           "type": [
             "integer",
             "null"
           ],
           "minimum": 0,
-          "maximum": 5
+          "maximum": 100
         },
         "shortageReason": {
           "enum": [
             null,
             "PICK_TITLE_GROUP_UNRESOLVED",
             "FEWER_THAN_FIVE_DISTINCT_PRODUCTS",
-            "PICK_PRODUCT_UNRESOLVED"
+            "PICK_PRODUCT_UNRESOLVED",
+            "FEWER_PRODUCTS_THAN_REQUESTED"
           ]
+        },
+        "shortageDetail": {
+          "description": "Optional. {requested, found} with FEWER_PRODUCTS_THAN_REQUESTED.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "requested",
+            "found"
+          ],
+          "properties": {
+            "requested": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "found": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
         },
         "errorCode": {
           "type": [
@@ -543,7 +584,7 @@
         },
         "links": {
           "type": "array",
-          "maxItems": 5,
+          "maxItems": 100,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -566,7 +607,7 @@
               "rank": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 5
+                "maximum": 100
               },
               "productBaseId": {
                 "type": "string",
@@ -684,7 +725,7 @@
                   "null"
                 ],
                 "minimum": 1,
-                "maximum": 5
+                "maximum": 100
               }
             }
           }

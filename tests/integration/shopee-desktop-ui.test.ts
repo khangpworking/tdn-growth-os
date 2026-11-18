@@ -3252,7 +3252,7 @@ test('the technical-docs tab shows the 4-step guide from modules.json first, the
     assert.equal(cards[0]!.querySelector('pre')!.textContent, skills[0]!.text);
     const m2 = cards[1 + modules.modules.findIndex((m: any) => m.id === 'M2')]!;
     assert.deepEqual([...m2.querySelectorAll('.chklist code')].map((c) => c.textContent).slice(0, 2),
-      ['links_match_source_order', 'five_distinct_products']);
+      ['links_match_source_order', 'requested_distinct_products']);
   } finally { dom.window.close(); }
 });
 

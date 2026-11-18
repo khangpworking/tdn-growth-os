@@ -9,7 +9,7 @@ Xem đầy đủ: `tdn-shopee-4-buoc`.
 
 - Đầu vào: `m2/selection.json` đã qua cổng m2.
 - Lệnh: `shopee-cli.py m3 --run <runId> --detach`.
-- Việc: lấy bình luận của các link bước 2 (5 link ở đường 1 kỳ, 1–5 link ở đường cũ) qua dịch vụ lấy bình luận, theo cách lấy đã chốt khi tạo lượt (số bình luận/link hoặc số trang/link, theo số sao hay chỉ bình luận có chữ). Mặc định: bình luận có chữ, 300/link.
+- Việc: lấy bình luận của các link bước 2 (1–100 link theo `productSelection` ở đường 1 kỳ, tối đa 5 ở đường cũ) qua dịch vụ lấy bình luận, theo cách lấy đã chốt khi tạo lượt (số bình luận/link hoặc số trang/link, theo số sao hay chỉ bình luận có chữ). Mặc định: bình luận có chữ, 300/link.
 - Đầu ra (lượt mới `request-v2`): `m3-custom/attempts/<attemptId>/`.
 - Kết luận: `review-data --run <runId>` → `sources[].gateVerdict`. Chỉ đi tiếp khi `PASS`.
 - `gate m3` không dùng cho lượt `request-v2`: lệnh từ chối với mã `GATE_M3_REQUEST_V2` (exit 2) và không đổi `gates/m3.json`. Dùng `review-data` → `sources[].gateVerdict`.

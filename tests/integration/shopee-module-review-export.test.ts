@@ -149,3 +149,20 @@ test('the 64 MiB export ceiling refuses an oversized render', async t => {
   };
   assert.throws(() => renderReviewExport(source, 'json'), rejection('REVIEW_EXPORT_TOO_LARGE'));
 });
+
+test('a multi-link export beyond 10,000 rows stays within the aggregate row limit', async () => {
+  const links = Array.from({ length: 34 }, (_, index) => ({
+    shopId: String(900 + index), itemId: String(9000 + index), url: `https://shopee.vn/product/${900 + index}/${9000 + index}`,
+    requested: 300, actual: 300, shortfall: 0, complete: true, status: 'SUCCEEDED',
+  })) as VerifiedModuleReviewCollection['links'];
+  const rows = links.flatMap((link, linkIndex) => Array.from({ length: 300 }, (_, row) =>
+    moduleRow(link, `bulk-${linkIndex}-${row}`))) as VerifiedModuleReviewCollection['rows'];
+  const source: VerifiedModuleReviewCollection = {
+    runId: 'run-bulk-export', sourceSha256: 'a'.repeat(64), kind: 'custom', attemptId: null, planSha256: null,
+    status: 'SUCCEEDED', gateVerdict: 'PASS', completedAt: null, rowBasis: 'published',
+    rows, links, collectedAt: new Map(), proof: [],
+    requestSha256: 'b'.repeat(64), m2Digest: 'c'.repeat(64),
+  };
+  const archive = JSON.parse(renderReviewExport(source, 'json').toString('utf8'));
+  assert.deepEqual([archive.links.length, archive.rows.length], [34, 10_200]);
+});

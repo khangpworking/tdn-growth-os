@@ -80,14 +80,31 @@ export function derivePeriodProductPick(raw: unknown, part: Row, rawSha256: stri
 
 /** Rule v2 (work package C1, section 3): walk the same rows; one Jev question per row once a product is picked. */
 export const MODULE_PICK_POLICY_V2 = 'metric-products-unique-v2';
+export type ProductSelection = { mode: 'top'; count: number } | { mode: 'all' };
+/** Contract F644: "all" links every Shopee product in M1 order, at most this many. */
+export const PRODUCT_SELECTION_ALL_MAX = 100;
+const selectionLimit = (selection: ProductSelection | undefined) =>
+  selection === undefined ? 5 : selection.mode === 'top' ? selection.count : PRODUCT_SELECTION_ALL_MAX;
+/** The gate's `want`: the requested distinct count, or 1 for "all" because a pass needs at least one link. */
+export const selectionRequested = (selection: ProductSelection | undefined) =>
+  selection?.mode === 'all' ? 1 : selection?.count ?? 5;
+/** How many link checks the attempt may run: N for top N, the Shopee product count (at most 100) for "all". */
+export function linksToCheckCount(raw: unknown, part: Row, selection: ProductSelection | undefined): number {
+  if (selection?.mode !== 'all') return selectionLimit(selection);
+  const ids = new Set(rankedMetricProducts(raw, part).rows.flatMap(row =>
+    typeof row.product_base_id === 'string' && row.product_base_id.startsWith('1__') ? [row.product_base_id] : []));
+  return Math.min(ids.size, PRODUCT_SELECTION_ALL_MAX);
+}
 export type PickDecision = { sourceRank: number; productBaseId: string; choice: string; probabilities: Record<string, number>;
   outcome: 'PICKED' | 'DUPLICATE' | 'UNSURE' };
 /** Gives the answer for one row. The live pick asks Jev; the replay reads the saved decisions. */
 export type PickClassifier = (input: { sourceRank: number; productBaseId: string; row: Row; picked: readonly Row[] }) =>
   Promise<{ choice: string; probabilities: Record<string, number> }>;
 
-export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: string, model: string, classify: PickClassifier,
-    check?: LinkCheck) {
+export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: string, model: string | null,
+    classify: PickClassifier | null, check?: LinkCheck, selection?: ProductSelection) {
+  const all = selection?.mode === 'all';
+  const limit = selectionLimit(selection);
   const { rows, sourceMap } = rankedMetricProducts(raw, part);
   const links: { rank: number; sourceRank: number; productBaseId: string; shopId: string; itemId: string; url: string;
     productName: string; shopName: string | null; brand: string | null; revenue: number; reason: string }[] = [];
@@ -95,9 +112,9 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
   const decisions: PickDecision[] = [];
   const pickedRows: Row[] = [];
   const listingIds = new Set<string>();
-  let unresolvedCount = 0;
+  let unresolvedCount = 0, shopeeConsidered = 0;
   for (const [i, row] of rows.entries()) {
-    if (links.length === 5) break;
+    if (!all && links.length === limit) break;
     const sourceRank = i + 1, id = typeof row.product_base_id === 'string' ? row.product_base_id : null;
     if (id && /^[238]__/.test(id)) continue;
     const match = id && /^1__([1-9][0-9]{0,19})__([1-9][0-9]{0,19})$/.exec(id);
@@ -107,10 +124,17 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
         (row.shop_base_id != null && String(row.shop_base_id) !== `1__${match[2]}` && String(row.shop_base_id) !== match[2])) {
       unresolvedCount++; skip('PICK_LISTING_ID_UNRESOLVED'); continue;
     }
-    if (listingIds.has(id!)) throw new ProductPickError('PICK_DUPLICATE_SOURCE_ID');
+    // Contract F644 round 3: the same listing id twice is one link; "all" keeps the first and skips repeats silently.
+    if (listingIds.has(id!)) {
+      if (!all) throw new ProductPickError('PICK_DUPLICATE_SOURCE_ID');
+      continue;
+    }
+    // "All" links every Shopee product it walked, dead links included in the count of worked rows.
+    if (all && shopeeConsidered >= limit) break;
+    shopeeConsidered++;
     listingIds.add(id!);
     if (typeof row.product_name !== 'string' || !row.product_name.trim()) throw new ProductPickError('PICK_CANDIDATE_INVALID');
-    if (pickedRows.length) {
+    if (!all && pickedRows.length && classify) {
       const { choice, probabilities } = await classify({ sourceRank, productBaseId: id!, row, picked: [...pickedRows] });
       const sure = (probabilities[choice] ?? 0) >= PICK_JEV_THRESHOLD;
       const outcome = !sure ? 'UNSURE' : choice === 'MOI' ? 'PICKED' : 'DUPLICATE';
@@ -119,7 +143,7 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
       if (outcome === 'DUPLICATE') { skip('SAME_PRODUCT', Number(choice.slice(2))); continue; }
     }
     const url = `https://shopee.vn/product/${match[2]}/${match[1]}`;
-    // Owner F640: an accepted candidate counts toward the five only after its link check passes.
+    // Owner F640: an accepted candidate counts toward the list only after its link check passes.
     if (check) {
       const decision = await check({ productBaseId: id!, shopId: match[2]!, itemId: match[1]!, url });
       if (decision.result === 'rejected') { skip(decision.reason); continue; }
@@ -130,36 +154,49 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
       url, productName: row.product_name,
       shopName: typeof row.shop_name === 'string' ? row.shop_name : null,
       brand: typeof brand === 'string' ? brand : null, revenue: Number(row.revenue_custom),
-      reason: links.length ? `Hạng nguồn ${sourceRank}; khác các sản phẩm đã chọn.` : `Hạng nguồn ${sourceRank}; sản phẩm đầu tiên bán trên Shopee.` });
+      reason: all ? `Hạng nguồn ${sourceRank}; mọi sản phẩm Shopee đã chụp, không lọc trùng.`
+        : links.length ? `Hạng nguồn ${sourceRank}; khác các sản phẩm đã chọn.` : `Hạng nguồn ${sourceRank}; sản phẩm đầu tiên bán trên Shopee.` });
   }
+  const shortageReason = all ? (links.length ? null : 'FEWER_PRODUCTS_THAN_REQUESTED')
+    : selection === undefined ? (links.length === 5 ? null : unresolvedCount ? 'PICK_PRODUCT_UNRESOLVED' : 'FEWER_THAN_FIVE_DISTINCT_PRODUCTS')
+    : links.length === limit ? null : 'FEWER_PRODUCTS_THAN_REQUESTED';
   return { links, pickRuleVersion: MODULE_PICK_POLICY_V2,
     counts: { walked: rows.length, eligible: rows.filter(r => typeof r.product_base_id === 'string' && r.product_base_id.startsWith('1__')).length,
       picked: links.length, deleted: 0, notIncluded: 0, tokenGuardRejected: 0, maskedRows: 0, maskedAboveLowestPick: 0 },
     selectionProof: { sourceMap, rawSha256, windowId: (part.window as Row).id, sortBy: 'revenue_custom__desc',
-      candidateCount: rows.length, distinctCount: links.length, unresolvedCount,
-      shortageReason: links.length === 5 ? null : unresolvedCount ? 'PICK_PRODUCT_UNRESOLVED' : 'FEWER_THAN_FIVE_DISTINCT_PRODUCTS', skipped,
-      matcher: { provider: PICK_JEV_PROVIDER, model, questionVersion: PICK_JEV_QUESTION_VERSION, threshold: PICK_JEV_THRESHOLD },
-      decisions } };
+      candidateCount: rows.length, distinctCount: links.length, unresolvedCount, shortageReason, skipped,
+      ...(shortageReason === 'FEWER_PRODUCTS_THAN_REQUESTED' ? { shortageDetail: { requested: selectionRequested(selection), found: links.length } } : {}),
+      ...(selection ? { productSelection: selection } : {}),
+      ...(all ? {} : { matcher: { provider: PICK_JEV_PROVIDER, model, questionVersion: PICK_JEV_QUESTION_VERSION, threshold: PICK_JEV_THRESHOLD },
+        decisions }) } };
 }
 
 /** The live v2 pick: one Jev question per row, asked with retries; a failed question throws PICK_JEV_UNAVAILABLE. */
 export function pickProductsWithJev(raw: unknown, part: Row, rawSha256: string, jev: PickJev, sleep?: (ms: number) => Promise<void>,
-    check?: LinkCheck) {
+    check?: LinkCheck, selection?: ProductSelection) {
   return deriveJevProductPick(raw, part, rawSha256, jev.model, async ({ row, picked }) => {
     try { return await askPickJev(jev, pickQuestion(row, picked), sleep); }
     catch { throw new ProductPickError('PICK_JEV_UNAVAILABLE'); }
-  }, check);
+  }, check, selection);
+}
+
+/** The "all" pick: no Jev call and no duplicate filtering; link checks only reject a dead link. */
+export function pickAllShopeeProducts(raw: unknown, part: Row, rawSha256: string, check: LinkCheck | undefined,
+    selection: ProductSelection) {
+  return deriveJevProductPick(raw, part, rawSha256, null, null, check, selection);
 }
 
 /**
  * Re-runs the v2 walk on the saved step-1 rows with the saved answers, never asking Jev. Each saved decision must be
  * the next question of the walk (same row, options SP1..SPn + MOI) and the list must be used up; otherwise
  * PICK_PROOF_MISMATCH. Outcomes, links and skips are recomputed, so the caller compares the result with the file.
+ * "All" saves no decisions; saved link verdicts are replayed for both modes.
  */
 export async function replayJevProductPick(raw: unknown, part: Row, rawSha256: string, model: string, saved: unknown,
-    checks?: readonly LinkCheckEntry[]) {
+    checks?: readonly LinkCheckEntry[], selection?: ProductSelection) {
+  const all = selection?.mode === 'all';
   const mismatch = () => new ProductPickError('PICK_PROOF_MISMATCH');
-  if (!Array.isArray(saved)) throw mismatch();
+  if (all ? saved !== undefined && (!Array.isArray(saved) || saved.length !== 0) : !Array.isArray(saved)) throw mismatch();
   let next = 0, nextCheck = 0;
   // Replay reads the saved link verdicts; it never calls the collector (owner F640).
   const check = checks && (async ({ productBaseId, url }: { productBaseId: string; url: string }): Promise<LinkCheckDecision> => {
@@ -169,14 +206,17 @@ export async function replayJevProductPick(raw: unknown, part: Row, rawSha256: s
     return entry.result === 'ok' ? { result: 'ok', starCounts: entry.starCounts }
       : { result: 'rejected', reason: entry.reason as LinkRejectCode };
   });
-  const replay = await deriveJevProductPick(raw, part, rawSha256, model, async ({ sourceRank, productBaseId, picked }) => {
-    const decision = saved[next++] as Row | undefined;
-    const options = [...picked.map((_, i) => `SP${i + 1}`), 'MOI'];
-    if (!decision || decision.sourceRank !== sourceRank || decision.productBaseId !== productBaseId ||
-        typeof decision.choice !== 'string' || !options.includes(decision.choice) || !validPickProbabilities(decision.probabilities, options))
-      throw mismatch();
-    return { choice: decision.choice, probabilities: decision.probabilities };
-  }, check);
-  if (next !== saved.length || nextCheck !== (checks?.length ?? 0)) throw mismatch();
+  const decisions = all ? undefined : saved as Row[];
+  const replay = await deriveJevProductPick(raw, part, rawSha256, all ? null : model,
+    all ? null : async ({ sourceRank, productBaseId, picked }) => {
+      const decision = decisions![next++] as Row | undefined;
+      const options = [...picked.map((_, i) => `SP${i + 1}`), 'MOI'];
+      if (!decision || decision.sourceRank !== sourceRank || decision.productBaseId !== productBaseId ||
+          typeof decision.choice !== 'string' || !options.includes(decision.choice) || !validPickProbabilities(decision.probabilities, options))
+        throw mismatch();
+      return { choice: decision.choice, probabilities: decision.probabilities };
+    }, check, selection);
+  if ((all ? saved !== undefined && (saved as unknown[]).length !== 0 : next !== decisions!.length) ||
+      nextCheck !== (checks?.length ?? 0)) throw mismatch();
   return replay;
 }

@@ -62,7 +62,7 @@ export interface ShopeeReviewPlan {
   targets: StarTarget[];
   /**
    * @minItems 1
-   * @maxItems 5
+   * @maxItems 100
    */
   links: ReviewLink[];
 }
@@ -165,7 +165,7 @@ export interface ShopeeReviewPlan1 {
   targets: StarTarget[];
   /**
    * @minItems 1
-   * @maxItems 5
+   * @maxItems 100
    */
   links: ReviewLink[];
 }
@@ -336,7 +336,7 @@ export interface ReviewSamplingAttempt {
   planSha256: string | null;
   /**
    * @minItems 1
-   * @maxItems 5
+   * @maxItems 100
    */
   links: ReviewLink[];
   executionId?: string;

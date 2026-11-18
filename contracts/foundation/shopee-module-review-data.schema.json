@@ -543,7 +543,7 @@
           "items": {
             "$ref": "#/$defs/link"
           },
-          "maxItems": 5
+          "maxItems": 100
         },
         "canExport": {
           "type": "boolean"
@@ -814,7 +814,7 @@
         },
         "rows": {
           "type": "array",
-          "maxItems": 10000,
+          "maxItems": 200000,
           "items": {
             "type": "object"
           }

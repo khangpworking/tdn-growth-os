@@ -29,12 +29,13 @@ export const distinctRows = (count: number, extra: (i: number) => Row = () => ({
 };
 
 /** `withPolicy`: true for the v1 rule, a rule name for another, false for none. */
-export function requestBytes(withPolicy: boolean | string) {
+export function requestBytes(withPolicy: boolean | string, productSelection?: { mode: 'top'; count: number } | { mode: 'all' }) {
   const value = {
     format: 'request-v2', preset: { keywords: [...preset.keywords] }, windows: [structuredClone(window)],
     collectionPolicy: policy, captureSpec: structuredClone(spec),
     metricInput: { format: 'shopee-metric-input-v1', preset: structuredClone(preset), window: structuredClone(window) },
     principalTitles: [], ...(withPolicy ? { selectionPolicy: withPolicy === true ? 'metric-products-unique-v1' : withPolicy } : {}),
+    ...(productSelection ? { productSelection } : {}),
   };
   return jsonBytes(value);
 }
@@ -49,11 +50,12 @@ function captureResponses(rows: Row[]) {
 
 /** Builds a real retained run: capture manifest, raw bytes, evidence v2 and the flow's own gate/selection. */
 export async function buildModuleRun(t: TestContext, options: { rows?: Row[]; pictured?: number[]; controls?: boolean; policy?: boolean | string;
+  productSelection?: { mode: 'top'; count: number } | { mode: 'all' };
   evidence?: boolean; legacyGate?: boolean; jev?: PickJev; linkCollector?: LinkCollector } = {}) {
   const run = await mkdtemp(join(tmpdir(), 'shopee-module-output-'));
   t.after(() => rm(run, { recursive: true, force: true }));
   const rows = options.rows ?? distinctRows(5);
-  const req = requestBytes(options.policy ?? true);
+  const req = requestBytes(options.policy ?? true, options.productSelection);
   await mkdir(join(run, 'm1/selected'), { recursive: true });
   await writeFile(join(run, 'request.json'), req);
   const responses = captureResponses(rows);

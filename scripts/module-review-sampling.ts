@@ -33,12 +33,6 @@ export async function samplingContext(run:string) {
   if(tracking!==null&&object(tracking).requestSha256!==await hashFile(run,'request.json'))throw new ModuleError('RUN_TRACKING_CHANGED',23);
   const selection=object(await readJson(run,'m2/selection.json'));await validateModuleValue('selection-v1',selection);
   if(selection.runId!==basename(run))throw new ModuleError('MODULE_INPUT_INVALID');
-  // A selection that bound its step-2 link log stays bound to the same bytes; older selections have no field.
-  if(selection.selectionProof!==undefined){
-    const proof=object(selection.selectionProof);
-    if(proof.linkChecksSha256!==undefined&&(typeof proof.linkChecksSha256!=='string'||!hex.test(proof.linkChecksSha256)||
-      await hashFile(run,'m2/link-checks.json').catch(()=>null)!==proof.linkChecksSha256))throw new ModuleError('GATE_INPUT_CHANGED',23);
-  }
   const links:ReviewLink[]=(selection.links as unknown[]).map(value=>{const link=object(value);if(link.url!==`https://shopee.vn/product/${link.shopId}/${link.itemId}` || link.productBaseId!==`1__${link.itemId}__${link.shopId}`)throw new ModuleError('MODULE_INPUT_INVALID');return {shopId:link.shopId as string,itemId:link.itemId as string,url:link.url as string};});
   return {m2Digest,requestSha256:await hashFile(run,'request.json'),links};
 }

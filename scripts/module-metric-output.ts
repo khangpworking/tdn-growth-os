@@ -7,7 +7,8 @@ import outputsSchema from '../skills/tdn-shopee-flow/chuan/module-outputs-v1.sch
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
 import type { LinkCheckEntry } from './module-link-check.js';
-import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick } from './module-product-pick.js';
+import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick,
+  selectionRequested, type ProductSelection } from './module-product-pick.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -143,14 +144,22 @@ export async function verifyModuleSelection(run: string) {
   const metricInputSha256 = await prerequisite(run, 'm1');
   const selection = object(await readJson(run, 'm2/selection.json'));
   await validateModuleValue('selection-v1', selection);
-  let expected, linkChecksSha256: string | null = null;
+  let expected, linkChecksSha256: string | null = null, productSelection: ProductSelection | undefined;
   if (v2) {
     // Replay with the saved answers and link verdicts only; neither Jev nor the collector is called here.
     const checks = await savedLinkChecks(run);
     linkChecksSha256 = checks?.sha256 ?? null;
-    const proof = object(selection.selectionProof), matcher = object(proof.matcher);
-    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), String(matcher.model),
-      proof.decisions, checks?.entries); }
+    const proof = object(selection.selectionProof), matcher = proof.matcher === undefined ? null : object(proof.matcher);
+    productSelection = proof.productSelection as ProductSelection | undefined;
+    if (canonicalJson(request.productSelection ?? null) !== canonicalJson(productSelection ?? null))
+      throw new ModuleError('PICK_PROOF_MISMATCH');
+    // F644 round-2: a declared selection was link-checked, so its log and saved digest are required evidence.
+    // Requests without productSelection keep the historical path where an absent log is not an error.
+    if (request.productSelection !== undefined &&
+        (!checks || typeof proof.linkChecksSha256 !== 'string' || proof.linkChecksSha256 !== checks.sha256))
+      throw new ModuleError('PICK_PROOF_MISMATCH');
+    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), matcher ? String(matcher.model) : '',
+      proof.decisions, checks?.entries, productSelection); }
     catch (error) { throw error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH' ? new ModuleError('PICK_PROOF_MISMATCH') : error; }
   } else expected = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
   const exact = { format: 'selection-v1', runId: basename(run), source: 'auto', pickRuleVersion: request.selectionPolicy,
@@ -158,11 +167,16 @@ export async function verifyModuleSelection(run: string) {
     selectionProof: linkChecksSha256 === null ? expected.selectionProof : { ...expected.selectionProof, linkChecksSha256 } };
   if (canonicalJson(selection) !== canonicalJson(exact)) throw new ModuleError('PICK_PROOF_MISMATCH');
   const files = await evidenceFiles(run, source, request);
-  const fiveDistinct = v2 ? expected.links.length === 5 : expected.links.length === 5 && expected.selectionProof.unresolvedCount === 0;
+  // F644: v2 asks for N linked products (1 for "all"); a run created without productSelection still asks for 5.
+  const requested = v2 ? selectionRequested(productSelection) : 5;
+  const requestedDistinct = v2 ? expected.links.length >= requested
+    : expected.links.length === 5 && expected.selectionProof.unresolvedCount === 0;
   const panelCovered = files.topProducts.descriptor.available && expected.links.every(l =>
     files.topProducts.coverage.some(c => c.sourceRank === l.sourceRank && c.productBaseId === l.productBaseId));
-  return { linksMatchSourceOrder: true, fiveDistinct, selectedCount: expected.links.length,
+  return { linksMatchSourceOrder: true, requestedDistinct, requested, fiveDistinct: requestedDistinct,
+    selectedCount: expected.links.length,
     shortageReason: expected.selectionProof.shortageReason,
+    shortageDetail: (expected.selectionProof as Row).shortageDetail ?? null,
     // The Top Products picture is shown only when it covers the chosen ranks; it never fails M2.
     errorCode: expected.selectionProof.shortageReason ?? null,
     links: expected.links, skipped: expected.selectionProof.skipped, panelCovered };
@@ -228,14 +242,16 @@ type LinkIssue = { stage: 'm2' | 'm3'; productBaseId: string; url: string; reaso
   replacedBy: string | null; attemptId: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Step-2 deaths: each rejected candidate, replaced by the next accepted pick when one followed.
+ *  `all` mode rejects dead links without replacing them, so it never reports a replacement.
  *  A display list only: the saved log is read as it is, never compared with the selection proof. */
-async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
+async function m2LinkIssues(run: string, productSelection: ProductSelection | undefined): Promise<LinkIssue[]> {
   const entries = (await savedLinkChecks(run))?.entries ?? [];
+  const replace = productSelection?.mode !== 'all';
   const issues: LinkIssue[] = [];
   entries.forEach((entry, index) => {
     if (entry.result !== 'rejected') return;
     const issue: LinkIssue = { stage: 'm2', productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string,
-      at: entry.checkedAt, replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null };
+      at: entry.checkedAt, replacedBy: replace ? entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null : null, attemptId: null };
     // One invalid entry is dropped alone; the rest of the saved log still shows.
     if (validateLinkIssue(issue)) issues.push(issue);
   });
@@ -351,7 +367,7 @@ export async function moduleOutputs(runArg: string) {
   // panelCovered is a gate-only result, not an undocumented desktop field.
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
   // `linkIssues` is a display list: a malformed log or attempt contributes no items, never an error.
-  const m2Issues = await m2LinkIssues(run).catch(() => [] as LinkIssue[]);
+  const m2Issues = await m2LinkIssues(run, request.productSelection).catch(() => [] as LinkIssue[]);
   const m3Issues = await m3LinkIssues(run).catch(() => [] as LinkIssue[]);
   const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...m3Issues] };
   await validateModuleValue('module-outputs-v1', wire);

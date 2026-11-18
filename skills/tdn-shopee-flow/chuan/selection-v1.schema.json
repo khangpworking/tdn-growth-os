@@ -44,7 +44,7 @@
     "links": {
       "type": "array",
       "minItems": 0,
-      "maxItems": 5,
+      "maxItems": 100,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -62,7 +62,7 @@
           "rank": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 5
+            "maximum": 100
           },
           "productBaseId": {
             "type": "string",
@@ -208,7 +208,7 @@
         "distinctCount": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 5
+          "maximum": 100
         },
         "unresolvedCount": {
           "type": "integer",
@@ -220,7 +220,64 @@
             null,
             "PICK_TITLE_GROUP_UNRESOLVED",
             "FEWER_THAN_FIVE_DISTINCT_PRODUCTS",
-            "PICK_PRODUCT_UNRESOLVED"
+            "PICK_PRODUCT_UNRESOLVED",
+            "FEWER_PRODUCTS_THAN_REQUESTED"
+          ]
+        },
+        "shortageDetail": {
+          "description": "Only with FEWER_PRODUCTS_THAN_REQUESTED.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requested",
+            "found"
+          ],
+          "properties": {
+            "requested": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "found": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        },
+        "productSelection": {
+          "description": "The request's productSelection; absent on runs created before it existed (top 5).",
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mode",
+                "count"
+              ],
+              "properties": {
+                "mode": {
+                  "const": "top"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mode"
+              ],
+              "properties": {
+                "mode": {
+                  "const": "all"
+                }
+              }
+            }
           ]
         },
         "skipped": {
@@ -257,7 +314,7 @@
                   "null"
                 ],
                 "minimum": 1,
-                "maximum": 5
+                "maximum": 100
               }
             }
           }
@@ -321,14 +378,14 @@
               },
               "choice": {
                 "type": "string",
-                "pattern": "^(SP[1-4]|MOI)$"
+                "pattern": "^(SP[1-9][0-9]?|MOI)$"
               },
               "probabilities": {
                 "type": "object",
                 "minProperties": 2,
-                "maxProperties": 5,
+                "maxProperties": 100,
                 "propertyNames": {
-                  "pattern": "^(SP[1-4]|MOI)$"
+                  "pattern": "^(SP[1-9][0-9]?|MOI)$"
                 },
                 "additionalProperties": {
                   "type": "number",
@@ -464,10 +521,37 @@
         "properties": {
           "selectionProof": {
             "type": "object",
-            "required": [
-              "matcher",
-              "decisions"
-            ],
+            "if": {
+              "not": {
+                "type": "object",
+                "properties": {
+                  "productSelection": {
+                    "type": "object",
+                    "required": [
+                      "mode"
+                    ],
+                    "properties": {
+                      "mode": {
+                        "const": "all"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "productSelection"
+                ]
+              }
+            },
+            "then": {
+              "required": [
+                "matcher",
+                "decisions"
+              ],
+              "properties": {
+                "matcher": {},
+                "decisions": {}
+              }
+            },
             "properties": {
               "matcher": {},
               "decisions": {}

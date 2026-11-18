@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
 import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pickRaw, readPickSource, readRequest, sha256 } from '../../scripts/module-pick.js';
-import { createM2LinkCheck, LINK_CHECK_BUDGET_MS, LinkCheckStop, reconcileLinkJournals } from '../../scripts/module-link-check.js';
+import { createM2LinkCheck, LINK_CHECK_BUDGET_MS, linkCheckBudgetMs, LinkCheckStop, reconcileLinkJournals } from '../../scripts/module-link-check.js';
 import { readSamplingJournal, ShopeeReviewSamplingCollector } from '../../src/platform/collectors/shopee-review-sampling.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
@@ -337,8 +337,8 @@ const rowUrl = (row: Record<string, unknown>) => {
   const [, itemId] = String(row.product_base_id).split('__');
   return `https://shopee.vn/product/801/${itemId}`;
 };
-async function writeV2Run(dir: string, rows: unknown[]) {
-  await writeJson(dir, 'request.json', v2Request());
+async function writeV2Run(dir: string, rows: unknown[], productSelection?: Record<string, unknown>) {
+  await writeJson(dir, 'request.json', { ...v2Request(), ...(productSelection ? { productSelection } : {}) });
   await writeSelectedCapture(dir, { responses: uniqueCapture(rows) });
   await writePassingM1Gate(dir);
 }
@@ -589,6 +589,8 @@ test('the step-2 link-check budget stops with LINK_CHECK_FAILED before another c
   const dir = await runDir();
   try {
     assert.equal(LINK_CHECK_BUDGET_MS, 600_000, 'owner decision: 10 minutes for all count work of one attempt');
+    // F644: max(10 min, links × 15 s), capped at 30 min.
+    assert.deepEqual([5, 8, 40, 41, 100].map(linkCheckBudgetMs), [600_000, 600_000, 600_000, 615_000, 1_500_000]);
     const start = Date.parse('2026-11-18T03:00:00.000Z');
     let clock = start;
     const { collector, asked } = fakeLinkCollector();
@@ -623,7 +625,92 @@ test('a new v2 request is read with its rule, like v1', async () => {
   const dir = await runDir();
   try {
     await writeJson(dir, 'request.json', v2Request());
-    assert.equal((await readRequest(dir)).selectionPolicy, 'metric-products-unique-v2');
+    const read = await readRequest(dir);
+    assert.equal(read.selectionPolicy, 'metric-products-unique-v2');
+    assert.equal(read.productSelection, undefined, 'an old request keeps the top-five default');
+    await writeJson(dir, 'request.json', { ...v2Request(), productSelection: { mode: 'all' } });
+    assert.deepEqual((await readRequest(dir)).productSelection, { mode: 'all' });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('F644 top N links exactly N products: one asks no Jev question, eight walks to eight', async () => {
+  const run = async (selection: Record<string, unknown>, items: string[], answers: number) => {
+    const dir = await runDir();
+    try {
+      const rows = v2Rows(items);
+      await writeV2Run(dir, rows, selection);
+      const fake = fakeJev(v2Answers(answers));
+      const { collector, asked } = fakeLinkCollector();
+      const result = await main(dir, { jev: () => fake.jev, sleep: noWait, linkCollector: () => collector });
+      const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+      return { result, saved, asked, questions: fake.asked.length, rows };
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  };
+  const one = await run({ mode: 'top', count: 1 }, ['8801', '8802', '8803'], 0);
+  assert.deepEqual([one.result.verdict, one.result.pickedIds], ['PASS', ['1__8801__801']]);
+  assert.deepEqual([one.questions, one.asked], [0, [rowUrl(one.rows[0]!)]], 'one check, no Jev question');
+  assert.deepEqual(one.saved.selectionProof.productSelection, { mode: 'top', count: 1 });
+  const eight = await run({ mode: 'top', count: 8 }, ['8811', '8812', '8813', '8814', '8815', '8816', '8817', '8818', '8819'], 7);
+  assert.equal(eight.result.pickedIds.length, 8);
+  assert.deepEqual(eight.result.pickedIds, eight.rows.slice(0, 8).map(row => row.product_base_id));
+  assert.deepEqual([eight.questions, eight.asked.length], [7, 8], 'seven questions and eight checks');
+});
+
+test('F644 top N reports FEWER_PRODUCTS_THAN_REQUESTED with the requested and found counts', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['8821', '8822', '8823', '8824', '8825']);
+    await writeV2Run(dir, rows, { mode: 'top', count: 8 });
+    const { collector } = fakeLinkCollector();
+    const result = await main(dir, { jev: () => fakeJev(v2Answers(4)).jev, sleep: noWait, linkCollector: () => collector });
+    assert.deepEqual([result.verdict, result.errorCode], ['FAIL', 'FEWER_PRODUCTS_THAN_REQUESTED']);
+    assert.equal(result.pickedIds.length, 5);
+    const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+    assert.deepEqual(saved.selectionProof.shortageDetail, { requested: 8, found: 5 });
+    assert.equal(saved.selectionProof.distinctCount, 5);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('F644 all links every Shopee product in order without Jev or duplicate filtering, rejecting but not replacing dead links', async () => {
+  const dead = async (titles: readonly [string, string][], deadAt: number) => {
+    const dir = await runDir();
+    try {
+      const rows = uniqueRows(titles).map(row => ({ ...row, shop_base_id: '1__801' }));
+      await writeV2Run(dir, rows, { mode: 'all' });
+      const deadUrl = deadAt >= 0 ? rowUrl(rows[deadAt]!) : null;
+      const { collector, asked } = fakeLinkCollector(url => url === deadUrl ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+      let jevCalls = 0;
+      const result = await main(dir, { jev: () => { jevCalls++; throw new Error('Jev must not run in all mode'); }, linkCollector: () => collector });
+      const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+      return { result, saved, asked, jevCalls, rows };
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  };
+  const kept = await dead([['Synthetic one', '8901'], ['Synthetic two', '8902'], ['Synthetic three', '8903'],
+    ['Synthetic four', '8904'], ['Synthetic five', '8905'], ['Synthetic six', '8906']], 1);
+  assert.equal(kept.jevCalls, 0);
+  assert.equal(kept.result.verdict, 'PASS');
+  assert.deepEqual(kept.result.pickedIds, ['1__8901__801', '1__8903__801', '1__8904__801', '1__8905__801', '1__8906__801']);
+  assert.deepEqual(kept.asked, kept.rows.map(rowUrl), 'every Shopee row is checked once, the dead one included');
+  assert.deepEqual(kept.saved.selectionProof.productSelection, { mode: 'all' });
+  assert.equal(kept.saved.selectionProof.matcher, undefined);
+  assert.equal(kept.saved.selectionProof.decisions, undefined);
+  assert.deepEqual(kept.saved.selectionProof.skipped,
+    [{ sourceRank: 2, productBaseId: '1__8902__801', reason: 'PRODUCT_UNAVAILABLE', duplicateOfRank: null }]);
+  const sameName = await dead([['Same synthetic listing', '8911'], ['Same synthetic listing', '8912'], ['Same synthetic listing', '8913']], -1);
+  assert.equal(sameName.result.verdict, 'PASS');
+  assert.deepEqual(sameName.result.pickedIds, ['1__8911__801', '1__8912__801', '1__8913__801'], 'no duplicate filtering');
+});
+
+test('F644 all with no accepted link fails as a one-product shortage', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['8931', '8932']);
+    await writeV2Run(dir, rows, { mode: 'all' });
+    const { collector } = fakeLinkCollector(() => ({ errorCode: 'RATINGS_MISSING' }));
+    const result = await main(dir, { linkCollector: () => collector });
+    assert.deepEqual([result.verdict, result.errorCode, result.pickedIds], ['FAIL', 'FEWER_PRODUCTS_THAN_REQUESTED', []]);
+    const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+    assert.deepEqual(saved.selectionProof.shortageDetail, { requested: 1, found: 0 });
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

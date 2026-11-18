@@ -1070,7 +1070,8 @@ if script == 'module-metric-output.ts':
     if action == 'verify-capture':
         print(json.dumps({'valid': True}))
     elif action == 'verify-selection':
-        print(json.dumps({'linksMatchSourceOrder': True, 'fiveDistinct': True, 'selectedCount': 5}))
+        print(json.dumps({'linksMatchSourceOrder': True, 'requestedDistinct': True, 'requested': 5,
+                          'fiveDistinct': True, 'selectedCount': 5}))
     else:
         raise SystemExit('unexpected metric action')
 elif script == 'module-pick.ts':

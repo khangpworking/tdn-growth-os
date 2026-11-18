@@ -57,7 +57,7 @@ App luôn chạy `m1`, `m2`, `m3`, `process-review-data` kèm `--detach`. Làm g
 | 0 | `new-run`, `gate entry` | không có | vài giây |
 | 1 | `m1` | nên dùng | chưa đo (lần chạy thử chạy tiền cảnh, xong) |
 | 2 | `m2` | nên dùng | chưa đo |
-| 3 | `m3` | bắt buộc | khoảng 4 phút cho 5 link × 50 bình luận |
+| 3 | `m3` | bắt buộc | khoảng 4 phút cho 5 link × 50 bình luận; tăng theo số link |
 | 4 | tự chạy sau bước 3; `process-review-data` | bắt buộc | chưa đo |
 
 Xem tiến độ bước 1–3: `run-info --run <runId>` → `execution.modules.<M1|M2|M3>.status`. Giá trị: `RUNNING`, `SUCCEEDED`, `FAILED`, `WAIT_OWNER`, `UNCERTAIN`. Chờ đến khi hết `RUNNING`.
@@ -77,7 +77,7 @@ shopee-cli.py gate entry --run <runId>
 
   | Input | Đường | Bước 1 | Bước 2 |
   |---|---|---|---|
-  | Có cả `startDate` và `metricOptions` | 1 kỳ (đường của app) | 1 kỳ `selected` = `startDate`→`endDate`, spec `metric-v3-capture-spec-v3`, thêm gói 100 sản phẩm | Jev chọn, luật `metric-products-unique-v2`, đúng 5 link |
+  | Có cả `startDate` và `metricOptions` | 1 kỳ (đường của app) | 1 kỳ `selected` = `startDate`→`endDate`, spec `metric-v3-capture-spec-v3`, thêm gói 100 sản phẩm | Jev chọn, luật `metric-products-unique-v2`, số link theo `productSelection` (top N, mặc định 5; hoặc `all`, tối đa 100) |
   | Không có cả hai | cũ | 2 kỳ `30d` và `12m` kết thúc ở `endDate` (theo `params.windows`), spec của preset, không có gói 100 sản phẩm | luật cũ `autorun-pick-v3` (không Jev), 1–5 link |
 
   Chỉ có một trong hai khóa `startDate`, `metricOptions`: lỗi `NEW_RUN_INPUT_INVALID`.
@@ -121,11 +121,11 @@ shopee-cli.py run-info --run <runId>        # chờ M2 hết RUNNING
 shopee-cli.py gate m2 --run <runId>
 ```
 
-- Đường 1 kỳ (lượt có `selectionPolicy` = `metric-products-unique-v2`): đi theo thứ tự doanh thu trong 100 dòng, bỏ dòng không phải Shopee. Dòng Shopee đầu tiên được chọn ngay. Với mỗi dòng sau, Jev xét: dòng đó trùng một sản phẩm đã chọn, hay là sản phẩm mới. Jev không chắc thì bỏ dòng đó. Đầu ra: `m2/selection.json`, đúng 5 link khác nhau. Cổng kiểm: `links_match_source_order` (link đúng thứ tự nguồn), `five_distinct_products` (đủ 5 sản phẩm khác nhau).
+- Đường 1 kỳ (lượt có `selectionPolicy` = `metric-products-unique-v2`): đi theo thứ tự doanh thu trong 100 dòng, bỏ dòng không phải Shopee. Dòng Shopee đầu tiên được chọn ngay. Với mỗi dòng sau, Jev xét: dòng đó trùng một sản phẩm đã chọn, hay là sản phẩm mới. Jev không chắc thì bỏ dòng đó. Số link lấy theo `productSelection` (khai báo lúc `m1-import`, ghi vào `request.json`): top N, mặc định 5 khi vắng; hoặc `all` lấy mọi sản phẩm Shopee, tối đa 100, không gọi Jev và không lọc trùng. Đầu ra: `m2/selection.json`. Cổng kiểm: `links_match_source_order` (link đúng thứ tự nguồn), `requested_distinct_products` (đủ N sản phẩm khác nhau, 1 khi `all`).
 - Đường cũ (lượt không có `selectionPolicy`): luật `autorun-pick-v3`, không Jev, kỳ `30d`. Đầu ra 1–5 link. Cổng kiểm: `links_1_to_5`, `ids_numeric`, `no_duplicate_shop`, `no_masked_above_lowest_pick`, `links_in_m1`, `pick_rule_version`, `pick_reason_present`.
-- Đường 1 kỳ gọi Jev (có phí): 1 câu hỏi cho mỗi dòng Shopee đã xét sau dòng đầu, đến khi đủ 5 link (nhiều nhất số dòng trong gói 100). Mỗi câu gửi tối đa 3 lần. Code không ghi phí của bước này; phí nhỏ. Số câu đã hỏi nằm ở `m2/selection.json` → `selectionProof.decisions`. Đường cũ không gọi Jev.
+- Đường 1 kỳ gọi Jev (có phí): 1 câu hỏi cho mỗi dòng Shopee đã xét sau dòng đầu, đến khi đủ N link (nhiều nhất số dòng trong gói 100). Mỗi câu gửi tối đa 3 lần. Code không ghi phí của bước này; phí nhỏ. Số câu đã hỏi nằm ở `m2/selection.json` → `selectionProof.decisions`. Đường cũ và `productSelection` `all` không gọi Jev.
 - Đường 1 kỳ: đã đạt thì không chạy lại (`M2_ALREADY_PASSED`). Muốn chọn lại: tạo lượt mới.
-- Đường 1 kỳ không đủ 5 link (`FEWER_THAN_FIVE_DISTINCT_PRODUCTS`, `PICK_PRODUCT_UNRESOLVED`): dừng, báo chủ.
+- Đường 1 kỳ không đủ số link yêu cầu (`FEWER_PRODUCTS_THAN_REQUESTED` với `shortageDetail` `{requested, found}`, hoặc `FEWER_THAN_FIVE_DISTINCT_PRODUCTS`, `PICK_PRODUCT_UNRESOLVED` khi không có `productSelection`): dừng, báo chủ.
 
 ## Bước 3. Lấy bình luận
 
@@ -142,7 +142,7 @@ shopee-cli.py review-data --run <runId>     # kết luận bước 3
 - Lượt tạo bằng `new-run` (`request-v2`) ghi bình luận vào `m3-custom/attempts/<attemptId>/`, không vào `m3/`.
 - `gate m3` không dùng cho lượt `request-v2`: lệnh từ chối với mã `GATE_M3_REQUEST_V2` (exit 2) và không đổi `gates/m3.json`. Dùng `review-data` → `sources[].gateVerdict`.
 - Kết luận bước 3: `review-data` → `sources[]`. Mỗi nguồn có `kind`, `rowCount`, `gateVerdict`, `canSaveDb`, `sourceSha256`. Chỉ đi tiếp khi nguồn đó có `gateVerdict` = `PASS`. `run-info` → `execution.modules.M3.currentGate` là cùng cổng đó.
-- Cổng của nguồn kiểm: lấy xong mọi link, mỗi link có ít nhất 1 bình luận, không vượt số bình luận (hoặc số trang) cho phép, không trùng mã bình luận, đúng các link của bước 2 (5 link ở đường 1 kỳ, 1–5 link ở đường cũ). `links_below_cap` chỉ là cảnh báo.
+- Cổng của nguồn kiểm: lấy xong mọi link, mỗi link có ít nhất 1 bình luận, không vượt số bình luận (hoặc số trang) cho phép, không trùng mã bình luận, đúng các link của bước 2 (số link bước 2 đã chọn). `links_below_cap` chỉ là cảnh báo.
 - Lấy thêm theo cách khác: `echo '<plan JSON>' | shopee-cli.py save-review-plan --run <runId> --stdin` → lấy `planSha256` → `shopee-cli.py m3 --run <runId> --plan-sha256 <sha> --detach`. Xem các lần lấy bằng `review-sampling --run <runId>`. Lần lấy thêm hỏng không làm hỏng bước 3 đã đạt.
 - Dừng một lần lấy giữa chừng: `stop-review-attempt --run <runId> --kind custom --attempt <attemptId>`.
 - Lỗi phải dừng: `HUMAN_LOGIN_REQUIRED`, `HUMAN_VERIFICATION_REQUIRED` (báo chủ), `SUBMISSION_UNCERTAIN` (không gửi lại, báo chủ).

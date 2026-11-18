@@ -13,7 +13,7 @@ Phiếu cổng là biên bản của một bước trong luồng module Shopee. 
 | `verdict` | `"PASS"`, `"FAIL"` hoặc `"WAIT_OWNER"`. |
 | `inputSha256` | Mã băm đầu vào bước đó đã đọc. `null` khi không có đầu vào (cổng vào), hoặc khi chọn link kiểu `manual`. |
 | `outputSha256` | Mã băm đầu ra bước đó. Bước sau so đầu vào của mình với mã này. |
-| `checks[]` | Danh sách phép kiểm: `{ "id", "ok", "got", "level"? }`. `level` = `"warn"` là cảnh báo; cảnh báo không đổi `verdict`. |
+| `checks[]` | Danh sách phép kiểm: `{ "id", "ok", "got", "level"?, "want"? }`. `level` = `"warn"` là cảnh báo; cảnh báo không đổi `verdict`. `want` là số yêu cầu của phép kiểm khi có (ví dụ `requested_distinct_products`: N khi chọn top N, 1 khi chọn `all`); phiếu cũ không có trường này. |
 | `errorCode` | Mã lỗi app khi đầu ra của module có mã (ví dụ `PROVIDER_BLOCKED`). `GATE_NOT_PASSED` hoặc `GATE_INPUT_CHANGED` khi luật chặn bắt lỗi. Không có thì `null`; các phép kiểm không đạt nói lý do. |
 | `next` | Bước kế tiếp: `"M1"`, `"M2"`, `"M3"` khi `PASS`; `null` khi không `PASS`, và `null` sau cổng M3. |
 
