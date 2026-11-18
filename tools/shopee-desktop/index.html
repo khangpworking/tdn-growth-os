@@ -252,8 +252,6 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .policy-stars { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .policy-stars label { display: flex; gap: 5px; align-items: center; font-size: 13.5px; font-weight: 600; }
 .policy-stars input { width: auto; flex: none; }
-.policy-summary { font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-tint); border-radius: 8px; padding: 7px 11px; }
-.policy-note { font-size: 12.5px; color: var(--muted); }
 .commit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 20px; align-items: end; padding-top: 16px; border-top: 1px solid var(--line); }
 @media (max-width: 720px) { .commit { grid-template-columns: minmax(0, 1fr); } }
 .review-summary { display: grid; gap: 5px; min-width: 0; }
@@ -599,8 +597,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
             <label class="field" id="newTotalField"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
             <label class="field" id="newPagesField" hidden><span>Số trang tối đa cho mỗi link sản phẩm</span><input type="number" id="newPages" min="1" max="100" step="1" value="10"></label>
           </div>
-          <p class="policy-summary" id="newPolicySummary" aria-live="polite"></p>
-          <p class="policy-note">Số bình luận là tổng cho mỗi link, không chia theo mức sao, trừ khi chọn «Chia đều».</p>
         </section>
 
         <div class="metric-take" id="metricTake">
@@ -7827,10 +7823,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function renderNewSummary() {
     var raw = readPolicyRaw();
     var checked = normalizePolicy(raw);
-    var summary = $('newPolicySummary');
-    summary.textContent = checked.value ? policyText(checked.value) : (checked.error || '');
-    summary.dataset.invalid = checked.error ? '1' : '0';
-
     var dl = $('reviewSummary');
     clear(dl);
     function row(label, value) {
