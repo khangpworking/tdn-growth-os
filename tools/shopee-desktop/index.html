@@ -317,6 +317,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .link-issues h4 { margin: 0; font-size: 13.5px; color: var(--need); }
 .link-issues ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .link-issues li { display: grid; gap: 2px; }
+.link-issue-group { display: grid; gap: 4px; }
+.link-issue-when { margin: 0; font-size: 12.5px; color: var(--muted); }
 .link-issue-reason { font-size: 12.5px; font-weight: 600; color: var(--need); }
 .rs-url { display: block; max-width: 280px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .rs-why { color: var(--muted); font-weight: 400; }
@@ -3502,16 +3504,35 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   };
   var OUTCOME_VERDICT_TEXT = { PARTIAL_LINKS: 'Xong, có link bị bỏ' };
 
-  // Step 3 issues belong to one collection attempt: only those whose `attemptId` is the
-  // displayed source's attempt are shown with it (never another attempt's, never a guess).
-  function linkIssuesFor(runId, stage, attemptId) {
+  function linkIssuesFor(runId, stage) {
     var outputs = state.moduleOutputs[runId];
     var items = outputs && Array.isArray(outputs.linkIssues) ? outputs.linkIssues : [];
     return items.filter(function (item) {
       return !!item && typeof item === 'object' && item.stage === stage &&
-        typeof item.url === 'string' && typeof item.reason === 'string' &&
-        (stage !== 'm3' || (typeof attemptId === 'string' && item.attemptId === attemptId));
+        typeof item.url === 'string' && typeof item.reason === 'string';
     });
+  }
+
+  // Step 3: every attempt's skipped links, one group per attemptId, newest attempt first,
+  // labelled with the attempt end time. Not tied to the review source on display.
+  function linkIssueGroups(items) {
+    var groups = [];
+    items.forEach(function (item) {
+      var key = typeof item.attemptId === 'string' ? item.attemptId : '';
+      var group = groups.find(function (g) { return g.key === key; });
+      if (!group) { group = { key: key, at: null, items: [] }; groups.push(group); }
+      var at = Date.parse(item.at);
+      if (!isNaN(at) && (group.at === null || at > group.at)) group.at = at;
+      group.items.push(item);
+    });
+    return groups.sort(function (a, b) { return (b.at === null ? -Infinity : b.at) - (a.at === null ? -Infinity : a.at); });
+  }
+
+  function linkIssueGroupLabel(group) {
+    var stamp = group.at === null ? '' : vnStamp(new Date(group.at).toISOString());
+    if (!stamp) return 'Lần thu chưa rõ thời điểm';
+    var parts = stamp.split(' ');
+    return 'Lần thu lúc ' + parts[1] + ' ngày ' + parts[0];
   }
 
   function linkIssueText(item) {
@@ -3520,12 +3541,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return text;
   }
 
-  function linkIssuesNode(runId, stage, attemptId) {
-    var items = linkIssuesFor(runId, stage, attemptId);
-    if (!items.length) return null;
-    var box = h('section', 'link-issues');
-    box.id = 'linkIssues-' + stage;
-    box.appendChild(h('h4', null, 'Link bị bỏ'));
+  function linkIssueList(items, runId) {
     var list = h('ul');
     items.forEach(function (item) {
       var li = h('li');
@@ -3533,7 +3549,25 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       li.appendChild(h('span', 'link-issue-reason', linkIssueText(item)));
       list.appendChild(li);
     });
-    box.appendChild(list);
+    return list;
+  }
+
+  function linkIssuesNode(runId, stage) {
+    var items = linkIssuesFor(runId, stage);
+    if (!items.length) return null;
+    var box = h('section', 'link-issues');
+    box.id = 'linkIssues-' + stage;
+    box.appendChild(h('h4', null, 'Link bị bỏ'));
+    if (stage !== 'm3') {
+      box.appendChild(linkIssueList(items, runId));
+      return box;
+    }
+    linkIssueGroups(items).forEach(function (group) {
+      var section = h('div', 'link-issue-group');
+      section.appendChild(h('p', 'link-issue-when', linkIssueGroupLabel(group)));
+      section.appendChild(linkIssueList(group.items, runId));
+      box.appendChild(section);
+    });
     return box;
   }
 
@@ -5080,6 +5114,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     chip.id = 'rdChip';
     head.appendChild(chip);
     panel.appendChild(head);
+    var m3Issues = linkIssuesNode(runId, 'm3');
+    if (m3Issues) panel.appendChild(m3Issues);
 
     if (state.reviewDataErrors[runId]) {
       var loadError = h('p', 'errbar local-error', plainError(state.reviewDataErrors[runId]));
@@ -5108,16 +5144,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       panel.appendChild(h('p', 'muted', readOnly
         ? 'Chưa có kết quả bình luận nào.'
         : 'Chưa có kết quả bình luận nào dùng được để lưu hoặc tải file.'));
-      // No source yet (e.g. a dead link was skipped, then the attempt stopped): the current
-      // step 3 execution names the attempt whose skipped links are shown.
-      var m3View = moduleExecution(info, 'M3');
-      var stoppedIssues = linkIssuesNode(runId, 'm3', m3View ? m3View.attemptId : null);
-      if (stoppedIssues) {
-        var stoppedBox = h('div');
-        stoppedBox.id = 'rdIssues';
-        stoppedBox.appendChild(stoppedIssues);
-        panel.appendChild(stoppedBox);
-      }
       return panel;
     }
 
@@ -5149,10 +5175,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var links = h('div');
     links.id = 'rdLinks';
     panel.appendChild(links);
-
-    var issues = h('div');
-    issues.id = 'rdIssues';
-    panel.appendChild(issues);
 
     var blocks = h('div');
     blocks.id = 'rdBlocks';
@@ -5224,10 +5246,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       clear(summary);
       if (source) {
         var validated = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS';
-        var partial = validated && linkIssuesFor(runId, 'm3', source.attemptId).length > 0;
-        chip.textContent = partial ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS
-          : validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
-        chip.className = 'chip ' + (partial ? 's-warn' : validated ? 's-pass' : 's-fail');
+        chip.textContent = validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
+        chip.className = 'chip ' + (validated ? 's-pass' : 's-fail');
         summary.appendChild(rdChecks(source));
       } else {
         chip.textContent = 'Chưa chọn kết quả';
@@ -5242,10 +5262,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         var table = rdLinksTable(source.links);
         if (table) links.appendChild(table);
       }
-
-      clear(issues);
-      var sourceIssues = source ? linkIssuesNode(runId, 'm3', source.attemptId) : null;
-      if (sourceIssues) issues.appendChild(sourceIssues);
 
       clear(blocks);
       if (!readOnly) {
