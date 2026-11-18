@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { Readable } from 'node:stream';
 import test from 'node:test';
 import { ModuleError } from '../../scripts/module-pick.js';
-import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingView, samplingContext, saveReviewPlan } from '../../scripts/module-review-sampling.js';
+import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingCommand, reviewSamplingView, samplingContext, saveReviewPlan } from '../../scripts/module-review-sampling.js';
 import { reviewPolicy, samplingDigest, validateSamplingResult, ReviewSamplingError, type ShopeeReviewPlan } from '../../src/modules/foundation/shopee-review-sampling.js';
 import type { SamplingJobInput, SamplingJournal, SamplingResult, ReviewLink } from '../../contracts/foundation/shopee-review-sampling.generated.js';
 import { moduleRow } from '../fixtures/shopee-module-review-data.js';
@@ -360,3 +361,64 @@ test('a count-mode run keeps v1, sends no max_pages and keeps its comment-cap ga
   assert.deepEqual(gate.checks.map((check: { id: string }) => check.id), ['verdict_ok', 'min_reviews_per_link', 'cap_not_exceeded',
     'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_below_cap', 'links_skipped']);
 }, { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' }));
+
+async function withStdin<T>(text: string, run: () => Promise<T>): Promise<T> {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'stdin')!;
+  Object.defineProperty(process, 'stdin', { value: Readable.from([Buffer.from(text)]), configurable: true });
+  try { return await run(); } finally { Object.defineProperty(process, 'stdin', descriptor); }
+}
+
+async function withStdout<T>(run: (lines: string[]) => Promise<T>): Promise<T> {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'stdout')!;
+  const lines: string[] = [];
+  Object.defineProperty(process, 'stdout', { value: { write: (chunk: string) => { lines.push(String(chunk)); return true; } }, configurable: true });
+  try { return await run(lines); } finally { Object.defineProperty(process, 'stdout', descriptor); }
+}
+
+test('the serve-views action answers one line per run in input order', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'shopee-serve-views-'));
+  const state = join(dir, 'state'), first = join(dir, 'run-a'), second = join(dir, 'run-b');
+  await mkdir(state);
+  await mkdir(first);
+  await mkdir(second);
+  const previous = process.env.SHOPEE_FLOW_STATE;
+  process.env.SHOPEE_FLOW_STATE = state;
+  try {
+    const lines = await withStdout(lines => withStdin(`${JSON.stringify(first)}\n${JSON.stringify(second)}\n`, async () => {
+      await reviewSamplingCommand(['serve-views']);
+      return lines;
+    }));
+    assert.deepEqual(lines.map(line => JSON.parse(line)), [
+      { exitCode: 0, stdout: `${JSON.stringify(await reviewSamplingView(first))}\n` },
+      { exitCode: 0, stdout: `${JSON.stringify(await reviewSamplingView(second))}\n` }]);
+  } finally {
+    if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;
+    else process.env.SHOPEE_FLOW_STATE = previous;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('the serve-views action answers a failing run and keeps serving the others', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'shopee-serve-views-'));
+  const state = join(dir, 'state'), good = join(dir, 'run-a'), bad = join(dir, 'run-b');
+  await mkdir(state);
+  await mkdir(good);
+  await mkdir(join(bad, 'm3-custom', 'plans'), { recursive: true });
+  await writeJson(join(bad, 'm3-custom', 'plans', 'not-a-plan.json'), {});
+  const previous = process.env.SHOPEE_FLOW_STATE;
+  process.env.SHOPEE_FLOW_STATE = state;
+  try {
+    const lines = await withStdout(lines => withStdin(`${JSON.stringify(bad)}\n${JSON.stringify(good)}\n`, async () => {
+      await reviewSamplingCommand(['serve-views']);
+      return lines;
+    }));
+    const [failed, kept] = lines.map(line => JSON.parse(line)) as { exitCode: number, stdout: string }[];
+    assert.equal(failed?.exitCode, 20);
+    assert.deepEqual(JSON.parse(failed!.stdout), { format: 'error-v1', code: 'REVIEW_PLAN_INVALID', message: 'REVIEW_PLAN_INVALID' });
+    assert.deepEqual(kept, { exitCode: 0, stdout: `${JSON.stringify(await reviewSamplingView(good))}\n` });
+  } finally {
+    if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;
+    else process.env.SHOPEE_FLOW_STATE = previous;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

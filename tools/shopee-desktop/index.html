@@ -96,6 +96,7 @@ select, input { font: inherit; color: var(--fg); background: var(--panel); borde
 @media (max-width: 880px) { .track { grid-template-columns: minmax(0, 1fr); } }
 .runs { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; align-content: start; }
 .runs h2 { margin: 0; font-size: 15px; }
+.refresh-mark { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--muted); }
 .run-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .runbtn { width: 100%; text-align: left; display: grid; gap: 3px; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; cursor: pointer; }
 .runbtn:hover { border-color: var(--accent); }
@@ -252,8 +253,6 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .policy-stars { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .policy-stars label { display: flex; gap: 5px; align-items: center; font-size: 13.5px; font-weight: 600; }
 .policy-stars input { width: auto; flex: none; }
-.policy-summary { font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-tint); border-radius: 8px; padding: 7px 11px; }
-.policy-note { font-size: 12.5px; color: var(--muted); }
 .commit { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 20px; align-items: end; padding-top: 16px; border-top: 1px solid var(--line); }
 @media (max-width: 720px) { .commit { grid-template-columns: minmax(0, 1fr); } }
 .review-summary { display: grid; gap: 5px; min-width: 0; }
@@ -357,6 +356,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .run-meta dt { font-size: 11.5px; color: var(--muted); }
 .run-meta dd { margin: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .run-filter { margin-bottom: 2px; }
+.run-sort { display: flex; flex-wrap: wrap; gap: 8px; }
+.sort-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--band); color: var(--fg); font-size: 13px; font-weight: 600; cursor: pointer; }
+.sort-pill svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sort-pill[aria-pressed="true"] { background: var(--accent-tint); border-color: var(--accent); color: var(--accent); }
 .fixed-value { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--band); font-weight: 600; }
 dialog { border: 0; border-radius: 12px; padding: 0; max-width: min(560px, calc(100vw - 32px)); background: var(--panel); color: var(--fg); box-shadow: 0 18px 48px var(--shadow); }
 dialog::backdrop { background: rgba(15, 24, 28, .5); }
@@ -599,8 +603,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
             <label class="field" id="newTotalField"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
             <label class="field" id="newPagesField" hidden><span>Số trang tối đa cho mỗi link sản phẩm</span><input type="number" id="newPages" min="1" max="100" step="1" value="10"></label>
           </div>
-          <p class="policy-summary" id="newPolicySummary" aria-live="polite"></p>
-          <p class="policy-note">Số bình luận là tổng cho mỗi link, không chia theo mức sao, trừ khi chọn «Chia đều».</p>
         </section>
 
         <div class="metric-take" id="metricTake">
@@ -661,7 +663,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     <section id="scr-track" aria-label="Chi tiết lịch sử lượt chạy" hidden>
       <div class="track">
         <aside class="runs">
-          <h2>Các lượt đã tạo</h2>
+          <h2>Các lượt đã tạo<span class="refresh-mark" hidden>Đang cập nhật…</span></h2>
           <label class="field run-filter"><span>Lọc theo trạng thái</span>
             <select id="runFilter">
               <option value="all">Tất cả trạng thái</option>
@@ -675,6 +677,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
               <option value="unfinished">Chưa xong</option>
             </select>
           </label>
+          <div class="run-sort" role="group" aria-label="Sắp xếp">
+            <button type="button" class="sort-pill" data-run-sort="newest" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h7M2 8h5M2 12.5h3M12.5 3v10M10 10.5l2.5 2.5 2.5-2.5"/></svg>Mới tạo trước</button>
+            <button type="button" class="sort-pill" data-run-sort="oldest" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h3M2 8h5M2 12.5h7M12.5 3v10M10 5.5L12.5 3 15 5.5"/></svg>Cũ nhất trước</button>
+          </div>
           <ol id="runList" class="run-list"></ol>
           <p class="muted" id="runsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
@@ -687,7 +693,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     <section id="scr-result" aria-label="Kết quả chạy" hidden>
       <div class="track">
         <aside class="runs">
-          <h2>Các lượt đã tạo</h2>
+          <h2>Các lượt đã tạo<span class="refresh-mark" hidden>Đang cập nhật…</span></h2>
+          <div class="run-sort" role="group" aria-label="Sắp xếp">
+            <button type="button" class="sort-pill" data-run-sort="newest" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h7M2 8h5M2 12.5h3M12.5 3v10M10 10.5l2.5 2.5 2.5-2.5"/></svg>Mới tạo trước</button>
+            <button type="button" class="sort-pill" data-run-sort="oldest" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5h3M2 8h5M2 12.5h7M12.5 3v10M10 5.5L12.5 3 15 5.5"/></svg>Cũ nhất trước</button>
+          </div>
           <ol id="resultRunList" class="run-list"></ol>
           <p class="muted" id="resultRunsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
@@ -2661,6 +2671,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       },
       lastProductSelection: function () { return Promise.resolve(ok({ productSelection: null })); },
       rememberProductSelection: function (value) { return Promise.resolve(ok({ productSelection: value })); },
+      lastRunSort: function () { return Promise.resolve(ok({ runSort: null })); },
+      rememberRunSort: function (value) { return Promise.resolve(ok({ runSort: value })); },
       deleteRun: function (runId) {
         if (!store.has(runId)) return Promise.resolve(err('RUN_NOT_FOUND', 'RUN_NOT_FOUND'));
         store.delete(runId);
@@ -3008,6 +3020,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
       rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
+      lastRunSort: function () { return call('lastRunSort', []); },
+      rememberRunSort: function (value) { return call('rememberRunSort', [value]); },
       newRun: function (input) { return call('newRun', [input]); },
       addProduct: function (input) { return call('addProduct', [input]); },
       status: function (runId) { return call('status', [runId]); },
@@ -3064,7 +3078,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     navSeq: 0,
     screen: 'new',
     info: null,
+    infoByRun: {},       // the last run-info per run, shown at once while the fresh one loads
     loadingRunId: null,
+    listPending: 0,      // listings on their way («Đang cập nhật…»)
+    refreshRunId: null,  // the open run whose refresh is tracked for «Đang cập nhật…»
+    refreshTasks: {},    // kind -> sequence of its latest request (run-info, sampling, outputs + picture, …)
+    runSortSaving: false,
+    runSortToSave: null,
     moduleRunBusy: {},
     newRunId: null,
     newEntry: null,
@@ -3078,6 +3098,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     preferredRunId: null,
     flowDialogBinding: null,
     runFilter: 'all',
+    runSort: 'newest',      // «Mới tạo trước» | «Cũ nhất trước», one choice for both run lists
+    runSortChosen: false,   // a click before the saved choice is read wins
     savedProduct: null,
     connected: false,
     connectionState: 'connecting',
@@ -4319,8 +4341,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId === runId) renderDetail();
   }
 
+  // The outputs view and the local Metric picture lookup run together; the call ends when both have answered.
   async function loadModuleOutputs(runId) {
-    loadLocalShot(runId);
+    var shot = loadLocalShot(runId);
+    await loadModuleOutputsView(runId);
+    await shot;
+  }
+
+  async function loadModuleOutputsView(runId) {
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
     var res = await api.moduleOutputs(runId);
@@ -6936,7 +6964,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     root.appendChild(reviewInsightsPanel(insights, runId));
   }
 
+  function renderRefreshMark() {
+    var busy = state.listPending > 0 ||
+      (state.refreshRunId === state.selectedRunId && Object.keys(state.refreshTasks).length > 0);
+    Array.prototype.forEach.call(document.querySelectorAll('.refresh-mark'), function (mark) { mark.hidden = !busy; });
+  }
+
   function renderDetail() {
+    renderRefreshMark();
     renderResult();
     var root = $('runDetail');
     clear(root);
@@ -7067,7 +7102,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var allowed = state.screen === 'result' ? null : RUN_FILTERS[state.runFilter] || null;
     var shown = state.runs.filter(function (run) {
       return !allowed || allowed.indexOf(effectiveStatus(run.runId, run.status)) !== -1;
-    });
+    }).sort(compareRuns);
     // «Kết quả chạy» shows the same run list as «Chi tiết lịch sử lượt chạy»; only the visible tab holds it.
     clear($(state.screen === 'result' ? 'runList' : 'resultRunList'));
     [state.screen === 'result' ? ['resultRunList', 'resultRunsEmpty'] : ['runList', 'runsEmpty']].forEach(function (ids) {
@@ -7097,12 +7132,66 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
   }
 
+  // By createdAt, then runId; «Cũ nhất trước» is the exact reverse of «Mới tạo trước».
+  function compareRuns(a, b) {
+    var ka = String(a.createdAt || '') + '\u0000' + a.runId;
+    var kb = String(b.createdAt || '') + '\u0000' + b.runId;
+    var order = ka < kb ? 1 : (ka > kb ? -1 : 0);
+    return state.runSort === 'oldest' ? -order : order;
+  }
+
+  function renderRunSort() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-run-sort]'), function (btn) {
+      btn.setAttribute('aria-pressed', String(btn.dataset.runSort === state.runSort));
+    });
+  }
+
+  function chooseRunSort(value) {
+    state.runSortChosen = true;
+    state.runSort = value;
+    renderRunSort();
+    renderRunList();
+    state.runSortToSave = value;
+    saveRunSort();
+  }
+
+  // One save in flight; the latest click is saved last (best effort, kept on this PC by the bridge).
+  async function saveRunSort() {
+    if (state.runSortSaving || !state.runSortToSave) return;
+    var value = state.runSortToSave;
+    state.runSortToSave = null;
+    state.runSortSaving = true;
+    try {
+      await api.rememberRunSort(value);
+    } finally {
+      state.runSortSaving = false;
+    }
+    if (state.runSortToSave) saveRunSort();
+  }
+
+  // The last choice made on this PC.
+  async function restoreRunSort() {
+    var res = await api.lastRunSort();
+    var saved = res.ok && res.data ? res.data.runSort : null;
+    if (state.runSortChosen || (saved !== 'newest' && saved !== 'oldest')) return;
+    state.runSort = saved;
+    renderRunSort();
+    renderRunList();
+  }
+
   // The listing (null on a list error). A listing overtaken by a newer one answers with the newer one's result.
   // Every success newer than the one applied is applied, even while a newer request is pending or later fails.
   function fetchRuns() {
     var seq = ++state.runsSeq;
-    state.runsPromise = listRunsOnce(seq);
-    return state.runsPromise;
+    state.listPending += 1;
+    renderRefreshMark();
+    var listing = listRunsOnce(seq);
+    state.runsPromise = listing;
+    listing.then(function () {
+      state.listPending -= 1;
+      renderRefreshMark();
+    });
+    return listing;
   }
 
   async function listRunsOnce(seq) {
@@ -7127,6 +7216,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The empty detail: no run open, its polls stopped.
   function closeDetail() {
+    dropRefresh();
     state.selectedRunId = null;
     state.loadingRunId = null;
     state.info = null;
@@ -7158,6 +7248,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.samplingPollRunId === runId) stopSamplingPoll();
     if (state.step4PollRunId === runId) stopStep4Poll();
     if (state.selectedRunId === runId) {
+      dropRefresh();
       state.selectedRunId = null;
       state.loadingRunId = null;
       state.info = null;
@@ -7215,10 +7306,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return fetchRuns();
   }
 
+  // run-info and every other per-run call start together: they need only the runId. Each loader drops a
+  // late reply itself (isGone, its own sequence, the selection).
   async function loadInfo(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await runStatus(runId);
+    var status = trackLoad('info', runId, state.infoSeq, runStatus);
+    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
+    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
+    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
+    trackLoad('process', runId, state.reviewProcessSeq, loadReviewProcess);
+    if (state.screen === 'result') {
+      trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
+      trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
+    }
+    var res = await status;
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     state.loadingRunId = null;
@@ -7229,18 +7331,36 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return;
     }
     state.info = res.data;
+    if (res.data) state.infoByRun[runId] = res.data;
     renderDetail();
     managePoll();
-    if (res.data) {
-      loadSampling(runId);
-      loadReviewData(runId);
-      loadModuleOutputs(runId);
-      loadReviewProcess(runId);
-      if (state.screen === 'result') {
-        loadReviewStats(runId);
-        loadReviewInsights(runId);
-      }
+  }
+
+  // «Đang cập nhật…» follows the LATEST request of each kind for the open run (open and 10 s poll alike): a
+  // request replaced by a newer one of its kind is retired, not waited for. Another selection drops them all.
+  function trackLoad(kind, runId, seqMap, start) {
+    var promise = start(runId);
+    if (runId !== state.selectedRunId) return promise;
+    if (state.refreshRunId !== runId) {
+      state.refreshRunId = runId;
+      state.refreshTasks = {};
     }
+    var seq = seqMap[runId];
+    state.refreshTasks[kind] = seq;
+    renderRefreshMark();
+    var done = function () {
+      if (state.refreshRunId !== runId || state.refreshTasks[kind] !== seq) return;
+      delete state.refreshTasks[kind];
+      renderRefreshMark();
+    };
+    promise.then(done, done);
+    return promise;
+  }
+
+  function dropRefresh() {
+    state.refreshRunId = null;
+    state.refreshTasks = {};
+    renderRefreshMark();
   }
 
   async function selectRun(runId) {
@@ -7249,7 +7369,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.selectionSeq += 1;
     state.selectedRunId = runId;
     state.loadingRunId = runId;
-    state.info = null;
+    state.info = state.infoByRun[runId] || null;   // the last copy at once; the fresh one replaces it
     renderRunList();
     renderDetail();
     await loadInfo(runId);
@@ -7275,9 +7395,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId !== runId) return;
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await runStatus(runId);
+    var res = await trackLoad('info', runId, state.infoSeq, runStatus);
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
+    if (state.loadingRunId === runId) state.loadingRunId = null;
     if (!res.ok) {
       showError(res.error);
       stopPoll();
@@ -7287,14 +7408,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var running = !!(data.execution && data.execution.status === 'RUNNING') ||
       !!(data.state && data.state.status === 'RUNNING');
     state.info = data;
+    if (data) state.infoByRun[runId] = data;
     renderDetail();
-    loadSampling(runId);
-    loadReviewData(runId);
-    loadModuleOutputs(runId);
+    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
+    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
+    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
     if (!running) {
       if (state.screen === 'result') {
-        loadReviewStats(runId);
-        loadReviewInsights(runId);
+        trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
+        trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
       }
       stopPoll();
       await refreshRuns();
@@ -7432,7 +7554,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function hydrateAfterConnect(epoch, first) {
-    var pres = await api.presets();
+    var presAsked = api.presets();
+    var runsAsked = fetchRuns();
+    var pres = await presAsked;
     if (epoch !== state.connectionEpoch) return false;
     if (pres.ok) {
       state.presets = (pres.data && pres.data.presets) || [];
@@ -7441,7 +7565,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       showError(pres.error);
       if (epoch !== state.connectionEpoch) return false;
     }
-    var runs = await fetchRuns();
+    var runs = await runsAsked;
     if (epoch !== state.connectionEpoch) return false;
     if (!runs) return false;
     if (state.newBinding) {
@@ -7827,10 +7951,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function renderNewSummary() {
     var raw = readPolicyRaw();
     var checked = normalizePolicy(raw);
-    var summary = $('newPolicySummary');
-    summary.textContent = checked.value ? policyText(checked.value) : (checked.error || '');
-    summary.dataset.invalid = checked.error ? '1' : '0';
-
     var dl = $('reviewSummary');
     clear(dl);
     function row(label, value) {
@@ -8764,7 +8884,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     clearError();
     var preferred = state.preferredRunId;      // read before the refresh, which may forget it
     state.preferredRunId = null;
-    await refreshRuns();
+    var listing = refreshRuns();
+    // A tab click with a list on screen starts the selection at once; the fresh list follows and closes a run
+    // it no longer has. A run asked for by name (notice, status bar, «Xem lượt») waits for the fresh list.
+    if (preferred || !state.runs.length) await listing;
     if (preferred && isGone(preferred)) {
       await runGone(preferred);                 // told once, never another run instead
     } else if (preferred && isListed(preferred)) {
@@ -9039,6 +9162,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnDiscardImport').addEventListener('click', onDiscardImport);
     $('btnTrackMetricRun').addEventListener('click', onTrackMetricRun);
     restoreSelection();
+    restoreRunSort();
     $('newSelectionGroup').addEventListener('change', rememberSelection);
     $('newSelectionGroup').addEventListener('input', rememberSelection);
     $('newRunForm').addEventListener('change', renderMetricCard);
@@ -9078,6 +9202,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('flowDialog').addEventListener('cancel', function (ev) {
       ev.preventDefault();
       onFlowCancel();
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-run-sort]'), function (btn) {
+      btn.addEventListener('click', function () { chooseRunSort(btn.dataset.runSort); });
     });
     $('runFilter').addEventListener('change', function () {
       state.runFilter = $('runFilter').value || 'all';

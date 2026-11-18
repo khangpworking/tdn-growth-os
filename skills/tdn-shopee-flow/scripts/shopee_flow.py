@@ -30,7 +30,7 @@ Read-only switch: env TDN_SHOPEE_FLOW_READONLY=1 or the file ~/.local/state/tdn-
 refuses and logs every write. Use the FILE for evals: some agent shells (codex) do not pass pane env vars.
 Never prints tokens, keys or review text.
 """
-import argparse, datetime as dt, json, os, pathlib, re, shutil, sqlite3, stat, subprocess, sys, time, urllib.error, urllib.request, uuid
+import argparse, datetime as dt, json, os, pathlib, re, shutil, sqlite3, stat, subprocess, sys, threading, time, urllib.error, urllib.request, uuid
 
 PORT = int(os.environ.get('SHOPEE_FLOW_PORT', '8787'))
 ORIGIN = f'http://127.0.0.1:{PORT}'
@@ -1507,16 +1507,109 @@ def flow_passed_before_extra(attempts):
     return best if extras else None
 
 
+SAMPLING_VIEW_ANSWER_TIMEOUT = 120.0  # the per-run view call has no timeout; bound an unresponsive server at this
+
+
+class SamplingViewServer:
+    """One long-lived sampling process for the run list: each run's path goes in as one JSON line and an answer line
+    comes back at the same point in the loop as the per-run call it replaces. An answer is accepted only as an
+    `{exitCode, stdout}` object with exit code 0 whose stdout parses to this run's `review-sampling-view-v1` dict;
+    every other answer is decided by the per-run view call. A malformed answer, an answer wait timeout, or a
+    spawn/pipe error closes it and sends that run and all later runs to the per-run call."""
+
+    def __init__(self, repo, config):
+        self.repo, self.config, self.process, self.usable = repo, config, None, True
+
+    def view(self, run):
+        if self.usable:
+            try:
+                if self.process is None:
+                    self._spawn()
+                accepted = self._ask(run)
+            except (OSError, ValueError):
+                self.close()
+            else:
+                if accepted is not None:
+                    return accepted
+        return review_sampling_script(self.repo, self.config, 'view', run)
+
+    def _spawn(self):
+        import shlex
+        command = self.config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+        command = shlex.split(command) if isinstance(command, str) else command
+        if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+            raise ValueError('invalid node command')
+        self.process = subprocess.Popen(
+            [*command, str(self.repo / 'scripts/module-review-sampling.ts'), 'serve-views'],
+            cwd=self.repo, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, bufsize=1)
+
+    def _ask(self, run):
+        self.process.stdin.write(json.dumps(str(run)) + '\n')
+        self.process.stdin.flush()
+        answer = json.loads(self._read_answer_line())
+        # The server is a speed path only: its answer stands in for the per-run view call only in this exact form.
+        if (not isinstance(answer, dict) or set(answer) != {'exitCode', 'stdout'}
+                or type(answer['exitCode']) is not int or not isinstance(answer['stdout'], str)):
+            raise ValueError('invalid sampling answer')
+        if answer['exitCode'] != 0:
+            return None  # a run-level answer, not a view: the per-run call decides, and the server stays open
+        try:
+            view = json.loads(answer['stdout'])
+        except ValueError:
+            raise ValueError('invalid sampling stdout') from None
+        if not isinstance(view, dict) or view.get('format') != 'review-sampling-view-v1' or view.get('runId') != run.name:
+            raise ValueError('not this run\'s sampling view')
+        return view
+
+    def _read_answer_line(self):
+        line, reading = {}, {}
+
+        def read():
+            try:
+                line['value'] = self.process.stdout.readline()
+            except (OSError, ValueError) as error:
+                reading['error'] = error
+
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        reader.join(SAMPLING_VIEW_ANSWER_TIMEOUT)
+        if reader.is_alive():
+            raise TimeoutError('sampling answer timeout')
+        if 'error' in reading:
+            raise reading['error']
+        return line.get('value', '')
+
+    def close(self):
+        process, self.process, self.usable = self.process, None, False
+        if process is None:
+            return
+        try:
+            process.stdin.close()
+            process.wait(timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            process.kill()
+            try:
+                process.wait(timeout=5)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        finally:
+            process.stdout.close()
+
+
 _SAMPLING_UNSET = object()
 
 
-def flow_execution_view(run, config, sampling=_SAMPLING_UNSET):
+def flow_execution_view(run, config, view=None, sampling=_SAMPLING_UNSET):
     records = flow_execution_records(run)
     if sampling is _SAMPLING_UNSET:
         sampling = None
         if gate_path(run, 'm3-custom').exists():
-            repo, _ = module_config()
-            sampling = review_sampling_script(repo, config, 'view', run)
+            if view is None:
+                repo, _ = module_config()
+                sampling = review_sampling_script(repo, config, 'view', run)
+            else:
+                sampling = view(run)
     attempts = sampling.get('attempts', []) if sampling else []
     state = gate_read(gate_path(run, 'state.json')) or {}
     modules, revision = {}, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
@@ -1796,15 +1889,20 @@ def review_sampling_script(repo, config, action, run, *args, input_text=None):
         raise ModuleFailure('NODE_COMMAND_INVALID')
     result = subprocess.run([*command, str(repo / 'scripts/module-review-sampling.ts'), action, str(run), *args],
                             cwd=repo, input=input_text, capture_output=True, text=True)
+    return review_sampling_result(result.returncode, result.stdout)
+
+
+def review_sampling_result(returncode, stdout):
+    """One per-run sampling command's stdout and exit status to a view or ModuleFailure."""
     try:
-        value = json.loads(result.stdout)
+        value = json.loads(stdout)
     except ValueError:
         raise ModuleFailure('REVIEW_COMMAND_FAILED')
-    if result.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
+    if returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
         code = value.get('code') if isinstance(value, dict) else None
         if not isinstance(code, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code):
             code = 'REVIEW_COMMAND_FAILED'
-        raise ModuleFailure(code, result.returncode if result.returncode in (2, 20, 21, 22, 23, 24) else 20)
+        raise ModuleFailure(code, returncode if returncode in (2, 20, 21, 22, 23, 24) else 20)
     return value
 
 
@@ -3122,7 +3220,7 @@ def cmd_delete_run(ns):
 
 def flow_run_info(run, config, sampling=_SAMPLING_UNSET):
     request = gate_read(gate_path(run, 'request.json'))
-    execution = flow_execution_view(run, config, sampling)
+    execution = flow_execution_view(run, config, sampling=sampling)
     modules = []
     for m in config['modules']:
         module = m['id'].lower()
@@ -3356,24 +3454,28 @@ def cmd_flow_query(ns):
             result = flow_runs_progress()
         elif ns.cmd == 'runs':
             root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser()
-            values = []
-            for path in root.iterdir() if root.is_dir() else []:
-                if path.is_symlink() or not path.is_dir() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', path.name):
-                    continue
-                request_path = gate_path(path, 'request.json')
-                request = gate_read(request_path)
-                if not isinstance(request, dict):
-                    continue
-                execution = flow_execution_view(path, config)
-                current = execution['modules'].get(execution['currentModule'], {})
-                last = current.get('currentGate') or {}
-                created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
-                values.append({'runId': path.name, 'createdAt': created, 'product': ' / '.join(request.get('preset', {}).get('keywords', [])),
-                               'tracking': flow_tracking(path),
-                               'request': {k: v for k, v in request.items() if k != 'captureSpec'},
-                               'execution': execution, 'status': execution['status'],
-                               'lastGate': execution['currentModule'].lower() if execution['currentModule'] else None,
-                               'lastVerdict': last.get('verdict'), 'errorCode': current.get('errorCode') or last.get('errorCode')})
+            server = SamplingViewServer(repo, config)
+            try:
+                values = []
+                for path in root.iterdir() if root.is_dir() else []:
+                    if path.is_symlink() or not path.is_dir() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', path.name):
+                        continue
+                    request_path = gate_path(path, 'request.json')
+                    request = gate_read(request_path)
+                    if not isinstance(request, dict):
+                        continue
+                    execution = flow_execution_view(path, config, view=server.view)
+                    current = execution['modules'].get(execution['currentModule'], {})
+                    last = current.get('currentGate') or {}
+                    created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
+                    values.append({'runId': path.name, 'createdAt': created, 'product': ' / '.join(request.get('preset', {}).get('keywords', [])),
+                                   'tracking': flow_tracking(path),
+                                   'request': {k: v for k, v in request.items() if k != 'captureSpec'},
+                                   'execution': execution, 'status': execution['status'],
+                                   'lastGate': execution['currentModule'].lower() if execution['currentModule'] else None,
+                                   'lastVerdict': last.get('verdict'), 'errorCode': current.get('errorCode') or last.get('errorCode')})
+            finally:
+                server.close()
             result = {'format': 'runs-v1', 'runs': sorted(values, key=lambda v: (v['createdAt'], v['runId']), reverse=True)}
         else:
             skills = []

@@ -34,6 +34,7 @@ function harness(options: {
   saveReviewPlanResult?: ((runId: string, input: any, sha: string, plan: any) => any) | undefined;
   runModuleResult?: ((runId: string, module: string, sha?: string) => any) | undefined;
   reviewData?: any; reviewDataByRun?: Record<string, any>;
+  reviewDataHold?: (runId: string) => Promise<void> | undefined;
   saveReviewDataResult?: (runId: string, input: any) => any;
   exportReviewResult?: (runId: string, input: any) => any;
   newRunGate?: Deferred<any> | undefined;
@@ -64,6 +65,8 @@ function harness(options: {
   listRunsReply?: (call: number) => any | Promise<any> | undefined;
   libraryResult?: any;
   hasFocus?: boolean;
+  runSortSaved?: string;
+  rememberRunSortHold?: (value: string) => Promise<void> | undefined;
   fastProgress?: boolean;
   fastPoll?: boolean;
   bridge?: 'complete' | 'partial';
@@ -107,6 +110,8 @@ function harness(options: {
     processReviewDataCalls: { runId: string; sourceSha256: string }[];
     runsProgressCalls: number;
     notifyCalls: { title: string; body: string }[];
+    runSortSaved: string | null;
+    runSortCalls: string[];
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
@@ -140,6 +145,8 @@ function harness(options: {
     processReviewDataCalls: [],
     runsProgressCalls: 0,
     notifyCalls: [],
+    runSortSaved: options.runSortSaved || null,
+    runSortCalls: [],
   };
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
@@ -151,6 +158,14 @@ function harness(options: {
         return clone(options.connectionResults[index]);
       }
       return options.connectionResult || ({ ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } });
+    },
+    lastRunSort: async () => ({ ok: true, data: { runSort: state.runSortSaved } }),
+    rememberRunSort: async (value: string) => {
+      state.runSortCalls.push(value);
+      const held = options.rememberRunSortHold && options.rememberRunSortHold(value);
+      if (held) await held;
+      state.runSortSaved = value;
+      return { ok: true, data: { runSort: value } };
     },
     presets: async () => {
       state.presetsCalls++;
@@ -265,6 +280,8 @@ function harness(options: {
     reviewData: async (runId: string) => {
       state.reviewDataCalls++;
       state.reviewDataCallsByRun[runId] = (state.reviewDataCallsByRun[runId] || 0) + 1;
+      const held = options.reviewDataHold && options.reviewDataHold(runId);
+      if (held) await held;
       const view = state.reviewDataByRun[runId] || state.reviewDataView;
       if (view) return { ok: true, data: clone(view) };
       return { ok: true, data: {
@@ -2824,7 +2841,7 @@ test('C2: limiting by Shopee review pages swaps the count field for a page field
     assert.deepEqual(shown(), [false, false, true], 'pages mode hides the count and the equal split');
     element<HTMLInputElement>(doc, 'newPages').value = '12';
     fire(dom.window, element(doc, 'newPages'), 'input');
-    assert.equal(element<HTMLElement>(doc, 'newPolicySummary').textContent, 'Đánh giá 2 và 3 sao · tối đa 12 trang mỗi link');
+    assert.match(element<HTMLElement>(doc, 'reviewSummary').textContent!, /Đánh giá 2 và 3 sao · tối đa 12 trang mỗi link/);
 
     element<HTMLInputElement>(doc, 'newPages').value = '101';
     create(doc);
@@ -2846,7 +2863,7 @@ test('C2: limiting by Shopee review pages swaps the count field for a page field
     limitBy(back.doc, 'count');
     assert.equal(element(back.doc, 'newTotalField').hidden, false);
     assert.equal(element(back.doc, 'newPagesField').hidden, true);
-    assert.equal(element<HTMLElement>(back.doc, 'newPolicySummary').textContent, 'Lấy tất cả bình luận · tối đa 300 mỗi link');
+    assert.match(element<HTMLElement>(back.doc, 'reviewSummary').textContent!, /Lấy tất cả bình luận · tối đa 300 mỗi link/);
   } finally { back.dom.window.close(); }
 });
 
@@ -3651,7 +3668,7 @@ test('a deleted run leaves the status bar, both run lists and both tabs', async 
     await waitFor(() => bar(run.doc).includes('Sản phẩm A') && listed(run.doc, 'runList').includes('Sản phẩm A'), 'b: shown');
     run.state.runsView = run.state.runsView.filter((item: any) => item.runId !== 'run-a');     // deleted elsewhere
     [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();               // «Kết quả chạy»
-    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm A'), 'b: list refreshed');
+    await waitFor(() => !listed(run.doc, 'resultRunList').includes('Sản phẩm A'), 'b: list refreshed');
     assert.equal(bar(run.doc), idle, 'b: status bar pruned');
     assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, 'b: result list');
   } finally { run.dom.window.close(); }
@@ -4124,5 +4141,251 @@ test('opening a run and overlapping lists follow the latest successful list', as
     held.resolve();
     await waitFor(() => listed(run.doc, 'resultRunList').includes('Sản phẩm Y') &&
       !listed(run.doc, 'resultRunList').includes('Sản phẩm X'), '2: X gone from the shown list');
+  } finally { run.dom.window.close(); }
+});
+
+// The run list order (F648), one row each:
+// | # | situation                                                     | expected order (newest = C)               |
+// |---|---------------------------------------------------------------|-------------------------------------------|
+// | 1 | first open                                                    | «Mới tạo trước» pressed: C, B, A          |
+// | 2 | «Cũ nhất trước»                                               | A, B, C on both tabs; kept on this PC     |
+// | 3 | «Cũ nhất trước» with «Lọc theo trạng thái» = done             | A, C                                      |
+// | 4 | the app opened again                                          | «Cũ nhất trước» pressed: A, B, C          |
+test('the run lists sort newest or oldest first, with the status filter, and keep the choice', async () => {
+  const runs = [
+    { runId: 'run-b', product: 'Sản phẩm B', status: 'RUNNING', createdAt: '2026-11-02T03:00:00.000Z' },
+    { runId: 'run-a', product: 'Sản phẩm A', status: 'DONE', createdAt: '2026-11-01T03:00:00.000Z' },
+    { runId: 'run-c', product: 'Sản phẩm C', status: 'DONE', createdAt: '2026-11-03T03:00:00.000Z' },
+  ];
+  const infos = { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b'), 'run-c': syntheticRunInfo('run-c') };
+  const order = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => (b.title.match(/run-(\w)/) || [])[1]).join('');
+  const pressed = (doc: Document, screen: string) => doc.querySelector('#scr-' + screen + ' [data-run-sort][aria-pressed="true"]')!
+    .getAttribute('data-run-sort');
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  let run = harness({ runs, runInfoByRun: infos });
+  try {
+    tab(run.doc, 1);
+    // 1
+    await waitFor(() => order(run.doc, 'runList') === 'cba', '1: newest first');
+    assert.equal(pressed(run.doc, 'track'), 'newest');
+    // 2
+    run.doc.querySelector<HTMLButtonElement>('#scr-track [data-run-sort="oldest"]')!.click();
+    assert.equal(order(run.doc, 'runList'), 'abc', '2: oldest first');
+    assert.equal(pressed(run.doc, 'track'), 'oldest');
+    await waitFor(() => run.state.runSortSaved === 'oldest', '2: kept on this PC');
+    tab(run.doc, 2);
+    await waitFor(() => order(run.doc, 'resultRunList') === 'abc', '2: the result tab too');
+    assert.equal(pressed(run.doc, 'result'), 'oldest');
+    // 3
+    tab(run.doc, 1);
+    const filter = element<HTMLSelectElement>(run.doc, 'runFilter');
+    filter.value = 'done';
+    filter.dispatchEvent(new (run.dom.window as any).Event('change', { bubbles: true }));
+    await waitFor(() => order(run.doc, 'runList') === 'ac', '3: filter and order together');
+  } finally { run.dom.window.close(); }
+
+  // 4
+  run = harness({ runs, runInfoByRun: infos, runSortSaved: 'oldest' });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => order(run.doc, 'runList') === 'abc' && pressed(run.doc, 'track') === 'oldest', '4: restored');
+  } finally { run.dom.window.close(); }
+});
+
+// Opening the track and result tabs fast (F647 change 1), one row each:
+// | # | situation                                              | expected before the slow reply comes                     |
+// |---|--------------------------------------------------------|-----------------------------------------------------------|
+// | 1 | open run A again while its run-info is slow            | A's last detail is shown, with «Đang cập nhật…»           |
+// | 2 | open run A while its run-info is slow                  | sampling, review data, outputs and step 4 are asked       |
+// | 3 | click «Chi tiết lịch sử lượt chạy» while the list is slow | the open run's run-info is asked; «Đang cập nhật…» shown |
+test('the run tabs show what they have at once and ask everything together', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'DONE' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  let statusHold: Deferred<void> | null = null;
+  let listHold: Deferred<void> | null = null;
+  const run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    statusGate: (runId) => (runId === 'run-a' && statusHold ? statusHold : undefined),
+    listRunsHold: () => listHold?.promise });
+  const tab = (index: number) => [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const heading = () => run.doc.querySelector('#runDetail h2')?.textContent || '';
+  const marked = () => [...run.doc.querySelectorAll<HTMLElement>('.refresh-mark')].some((mark) => !mark.hidden);
+  try {
+    tab(1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(), 'run-a open');
+    const headA = heading();
+    runListButton(run.doc, 'run-b').click();
+    await waitFor(() => heading() !== headA && !marked(), 'run-b open');
+
+    // 1 and 2
+    statusHold = deferred<void>();
+    const asked = {
+      sampling: run.state.reviewSamplingCallsByRun['run-a'] || 0,
+      data: run.state.reviewDataCallsByRun['run-a'] || 0,
+      outputs: run.state.moduleOutputsCalls.filter((id) => id === 'run-a').length,
+      process: run.state.reviewProcessCalls.filter((id) => id === 'run-a').length,
+    };
+    runListButton(run.doc, 'run-a').click();
+    assert.equal(heading(), headA, '1: the last detail at once');
+    assert.equal(marked(), true, '1: «Đang cập nhật…»');
+    await waitFor(() => (run.state.reviewSamplingCallsByRun['run-a'] || 0) > asked.sampling &&
+      (run.state.reviewDataCallsByRun['run-a'] || 0) > asked.data &&
+      run.state.moduleOutputsCalls.filter((id) => id === 'run-a').length > asked.outputs &&
+      run.state.reviewProcessCalls.filter((id) => id === 'run-a').length > asked.process, '2: all asked with run-info');
+    assert.equal(heading(), headA, '1: still shown while run-info is slow');
+    statusHold.resolve();
+    statusHold = null;
+    await waitFor(() => !marked(), 'run-a fresh');
+
+    // 3
+    tab(2);
+    listHold = deferred<void>();
+    const statusAsked = run.state.statusCalls.length;
+    tab(1);
+    await waitFor(() => run.state.statusCalls.length > statusAsked, '3: run-info asked while the list is slow');
+    assert.equal(run.state.statusCalls.at(-1), 'run-a');
+    assert.equal(marked(), true, '3: «Đang cập nhật…»');
+    listHold.resolve();
+    await waitFor(() => !marked(), '3: mark gone after the list');
+  } finally { run.dom.window.close(); }
+});
+
+// «Đang cập nhật…» follows the whole refresh of the open run (F647, Terra r1 minor on #510), one row each:
+// | # | situation                                                                  | expected                          |
+// |---|----------------------------------------------------------------------------|-----------------------------------|
+// | 1 | run-info and the list answered, review data still on its way              | the mark stays until it answers   |
+// | 2 | a running run reopened; its 10 s poll asks run-info again while the first is slow | the mark goes once both answer |
+test('the refresh mark follows every call of the open run and never sticks', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const running: any = syntheticRunInfo('run-a');
+  running.state = { status: 'RUNNING', module: 'M3', errorCode: null };
+  const marked = (doc: Document) => [...doc.querySelectorAll<HTMLElement>('.refresh-mark')].some((mark) => !mark.hidden);
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  // 1
+  let dataHold: Deferred<void> | null = null;
+  let run = harness({ runs: [runB, runA], runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    reviewDataHold: (runId) => (runId === 'run-a' && dataHold ? dataHold.promise : undefined) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '1: run-b open');
+    dataHold = deferred<void>();
+    const statusAsked = run.state.statusCalls.length;
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => run.state.statusCalls.length > statusAsked && run.state.listRunsCalls > 0, '1: run-info asked');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(marked(run.doc), true, '1: review data still on its way');
+    dataHold.resolve();
+    await waitFor(() => !marked(run.doc), '1: gone once it answers');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let statusHold: Deferred<void> | null = null;
+  run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') }, fastPoll: true,
+    statusGate: (runId) => (runId === 'run-a' && statusHold ? statusHold : undefined) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '2: run-a open, polled');
+    statusHold = deferred<void>();
+    const asked = run.state.statusCalls.filter((id) => id === 'run-a').length;
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => run.state.statusCalls.filter((id) => id === 'run-a').length >= asked + 2, '2: the poll asks again');
+    const hold = statusHold;
+    statusHold = null;
+    hold.resolve();
+    await waitFor(() => !marked(run.doc), '2: the mark goes');
+  } finally { run.dom.window.close(); }
+});
+
+// Follow-ups of #512 and #513 (Terra minors), one row each:
+// | # | situation                                                                     | expected                              |
+// |---|-------------------------------------------------------------------------------|---------------------------------------|
+// | 1 | «Cũ nhất trước» then «Mới tạo trước» while the first save is slow             | saved in click order; newest kept     |
+// | 2 | a running run reopened: its run-info is slow, the 10 s poll's answers come    | the mark goes; the slow one is retired|
+// | 3 | a running run reopened: its own calls answered, the poll's review data is slow | the mark stays until that answers     |
+// | 4 | the open run is deleted while its review data is on its way                   | the mark goes at once                 |
+test('the sort save keeps the last click and the refresh mark follows only the latest calls', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const running: any = syntheticRunInfo('run-a');
+  running.state = { status: 'RUNNING', module: 'M3', errorCode: null };
+  const marked = (doc: Document) => [...doc.querySelectorAll<HTMLElement>('.refresh-mark')].some((mark) => !mark.hidden);
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  // 1
+  const firstSave = deferred<void>();
+  let run = harness({ runs: [runB, runA], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') },
+    rememberRunSortHold: (value) => (value === 'oldest' ? firstSave.promise : undefined) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.querySelector('#scr-track [data-run-sort="oldest"]') !== null, '1: buttons');
+    run.doc.querySelector<HTMLButtonElement>('#scr-track [data-run-sort="oldest"]')!.click();
+    run.doc.querySelector<HTMLButtonElement>('#scr-track [data-run-sort="newest"]')!.click();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    firstSave.resolve();
+    await waitFor(() => run.state.runSortCalls.length === 2, '1: both saved');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.deepEqual(run.state.runSortCalls, ['oldest', 'newest'], '1: in click order');
+    assert.equal(run.state.runSortSaved, 'newest', '1: the last click is kept');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let holdInfo = false;
+  const slowInfo = deferred<void>();
+  run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') }, fastPoll: true,
+    statusGate: (runId) => {
+      if (runId !== 'run-a' || !holdInfo) return undefined;
+      holdInfo = false;
+      return slowInfo;
+    } });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '2: run-a open, polled');
+    holdInfo = true;
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => !holdInfo, '2: the reopen run-info is held');
+    await waitFor(() => !marked(run.doc), '2: the poll answered, the mark goes');
+    slowInfo.resolve();
+  } finally { run.dom.window.close(); }
+
+  // 3
+  let holdData = false;
+  let slowData = deferred<void>();
+  run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') }, fastPoll: true,
+    reviewDataHold: (runId) => (runId === 'run-a' && holdData ? slowData.promise : undefined) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '3: run-a open, polled');
+    const asked = run.state.reviewDataCallsByRun['run-a'] || 0;
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => (run.state.reviewDataCallsByRun['run-a'] || 0) > asked, '3: its own review data, not held');
+    const own = run.state.reviewDataCallsByRun['run-a'] || 0;
+    holdData = true;                                      // the poll's are held
+    await waitFor(() => (run.state.reviewDataCallsByRun['run-a'] || 0) > own, '3: the poll asks review data');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(marked(run.doc), true, '3: the poll\'s review data is on its way');
+    holdData = false;
+    slowData.resolve();
+    await waitFor(() => !marked(run.doc), '3: the mark goes once it answers');
+  } finally { run.dom.window.close(); }
+
+  // 4
+  holdData = false;
+  slowData = deferred<void>();
+  run = harness({ runs: [runB, runA], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') },
+    reviewDataHold: (runId) => (runId === 'run-b' && holdData ? slowData.promise : undefined) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '4: run-b open');
+    holdData = true;
+    runListButton(run.doc, 'run-b').click();
+    await waitFor(() => marked(run.doc), '4: review data on its way');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', '4: deleted');
+    await waitFor(() => !marked(run.doc), '4: the mark goes at once');
+    slowData.resolve();
   } finally { run.dom.window.close(); }
 });
