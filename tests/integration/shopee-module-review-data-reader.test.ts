@@ -142,6 +142,23 @@ test('custom pass with a skipped dead link offers only the collected rows', asyn
   assert.deepEqual(source.links.map(link => [link.actual, link.status]), [[null, 'failed'], [1, 'exhausted']]);
 });
 
+test('custom pass with a no-text review link skips it and offers the collected link', async t => {
+  const base = await fixture(t);
+  const run = await createModuleRun(base, { runId: 'run-custom-no-text' });
+  const attempt = await addCustomAttempt(run, {
+    rowsByLink: [[], [moduleRow(LINKS[1]!, 'kept-b')]],
+    noTextLinks: [0],
+  });
+
+  const [source] = await discoverModuleReviewSources(run.runDir);
+  assert.ok(source);
+  assert.equal(source.sourceSha256, attempt.sourceSha256);
+  assert.equal(source.status, 'SUCCEEDED');
+  assert.equal(source.gateVerdict, 'PASS');
+  assert.deepEqual(source.rows.map(row => row.reviewId), ['kept-b'], 'the no-text link contributes no rows');
+  assert.deepEqual(source.links.map(link => [link.actual, link.status]), [[0, 'exhausted'], [1, 'exhausted']]);
+});
+
 test('custom terminal partial keeps retained rows, not the empty publication', async t => {
   const base = await fixture(t);
   const run = await createModuleRun(base, { runId: 'run-custom-partial' });

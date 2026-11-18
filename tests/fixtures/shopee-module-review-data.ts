@@ -250,6 +250,8 @@ export async function addCustomAttempt(run: ModuleRun, options: {
   errorCode?: string;
   /** Link indexes step 3 skipped with PRODUCT_UNAVAILABLE in a passing attempt. */
   skippedLinks?: readonly number[];
+  /** Link indexes step 3 skipped as NO_TEXT_REVIEWS: collection ended with no error and saved no review. */
+  noTextLinks?: readonly number[];
 }): Promise<CustomAttempt> {
   const verdict = options.verdict ?? 'PASS';
   const status = options.status ?? (verdict === 'PASS' ? 'SUCCEEDED' : 'FAILED');
@@ -274,8 +276,9 @@ export async function addCustomAttempt(run: ModuleRun, options: {
   const jobUpdatedAt = options.jobUpdatedAt ?? '2026-11-10T00:05:00.000Z';
   const journals: Record<string, any>[] = [];
   for (const [index, link] of run.links.entries()) {
-    const rows = options.rowsByLink[index] ?? [];
     const skipped = options.skippedLinks?.includes(index) ?? false;
+    const noText = options.noTextLinks?.includes(index) ?? false;
+    const rows = noText ? [] : options.rowsByLink[index] ?? [];
     const journalPass = verdict === 'PASS' && !skipped;
     const input = {
       url: link.url, max_comments: policy.totalPerLink,
@@ -309,11 +312,12 @@ export async function addCustomAttempt(run: ModuleRun, options: {
   await writeCanonical(path.join(runDir, base, 'output', 'reviews.json'), published);
   await writeCanonical(path.join(runDir, base, 'output', 'outcome.json'), {
     format: 'shopee-sampling-outcome-v1', planSha256,
-    verdict: verdict === 'PASS' ? (options.skippedLinks?.length ? 'PARTIAL_LINKS' : 'OK') : 'FAILED',
+    verdict: verdict === 'PASS' ? (options.skippedLinks?.length || options.noTextLinks?.length ? 'PARTIAL_LINKS' : 'OK') : 'FAILED',
     errorCode: verdict === 'PASS' ? null : options.errorCode ?? 'SOURCE_JOB_FAILED',
     links: run.links.map((link, index) => ({ shopId: link.shopId, itemId: link.itemId, url: link.url,
-      stopReason: journals[index]!.result?.stopReason ?? journals[index]!.errorCode ?? 'not_started',
-      skipped: options.skippedLinks?.includes(index) ?? false })),
+      stopReason: options.noTextLinks?.includes(index) ? 'NO_TEXT_REVIEWS'
+        : journals[index]!.result?.stopReason ?? journals[index]!.errorCode ?? 'not_started',
+      skipped: (options.skippedLinks?.includes(index) ?? false) || (options.noTextLinks?.includes(index) ?? false) })),
   });
   const outputSha256 = await hashFolder(runDir, `${base}/output`);
   await writeCanonical(path.join(runDir, base, 'state.json'), {

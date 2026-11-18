@@ -435,6 +435,14 @@ test('link issues name step-2 replacements and every step-3 attempt with a final
   const badDate = await moduleOutputs(run) as any;
   assert.deepEqual(badDate.linkIssues.map((issue: any) => issue.attemptId).filter(Boolean), [attemptC, attemptA],
     'an end time outside RFC3339 drops the attempt; the others stay and outputs still builds');
+  // A custom link whose collection ended with no saved review is skipped with its own reason and still projects.
+  const last = selection.links.length - 1;
+  await writeAttempt(attemptA, { 0: ['PRODUCT_UNAVAILABLE', true], [last]: ['NO_TEXT_REVIEWS', true] }, endedA);
+  const withNoText = await moduleOutputs(run) as any;
+  assert.deepEqual(withNoText.linkIssues.find((issue: any) =>
+    issue.attemptId === attemptA && issue.productBaseId === selection.links[last].productBaseId),
+  { stage: 'm3', productBaseId: selection.links[last].productBaseId, url: selection.links[last].url,
+    reason: 'NO_TEXT_REVIEWS', at: endedA, replacedBy: null, attemptId: attemptA });
 });
 
 test('a stopped step-2 attempt with an unbound log still projects its rejections', async t => {

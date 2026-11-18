@@ -3239,6 +3239,7 @@ test('the technical-docs tab shows the 4-step guide from modules.json first, the
 // | c. stopped attempt, no source for it   | first (clean) | stopped       | 13:00: link 6                     | FAILED on session, FAIL gate| Đạt kiểm tra dữ liệu | Không đạt            |
 // | old run                                | first, second | absent        | none                              | PASS, links_skipped 0       | Đạt kiểm tra dữ liệu | Đạt kiểm tra dữ liệu |
 // | d. partial source shown, new attempt   | first, second | second        | 12:00: link 5                     | RUNNING, no gate yet        | Xong, có link bị bỏ  | Chưa kiểm tra        |
+// | e. no-text link skipped                 | no-text       | no-text       | 14:00: link 7                     | PASS, links_skipped 1       | Xong, có link bị bỏ  | Xong, có link bị bỏ  |
 // The visible chip follows the displayed source's own attempt (second = latest completed), never the current gate.
 // Every case with linkIssues also has the 3 m2 items (3 reasons; «đã thay bằng link khác» only with replacedBy).
 const DEAD = (n: number) => `https://shopee.vn/product/900/${n}`;
@@ -3261,6 +3262,8 @@ const STOPPED_ISSUE = linkIssue(6, 'm3', 'PRODUCT_UNAVAILABLE', { attemptId: 'at
 const FIRST_GROUP = { label: 'Lần thu lúc 11:00 ngày 18/11/2026', lines: [{ url: DEAD(4), text: 'Sản phẩm không còn trên Shopee' }] };
 const SECOND_GROUP = { label: 'Lần thu lúc 12:00 ngày 18/11/2026', lines: [{ url: DEAD(5), text: 'Trang sản phẩm không có phần đánh giá' }] };
 const STOPPED_GROUP = { label: 'Lần thu lúc 13:00 ngày 18/11/2026', lines: [{ url: DEAD(6), text: 'Sản phẩm không còn trên Shopee' }] };
+const NO_TEXT_ISSUE = linkIssue(7, 'm3', 'NO_TEXT_REVIEWS', { attemptId: 'attempt-no-text', at: '2026-11-18T07:00:00Z' });
+const NO_TEXT_GROUP = { label: 'Lần thu lúc 14:00 ngày 18/11/2026', lines: [{ url: DEAD(7), text: 'Không có bình luận có chữ trong phạm vi thu' }] };
 
 const lineOf = (li: Element) => ({
   url: li.querySelector('a')?.getAttribute('href') ?? null,
@@ -3303,6 +3306,9 @@ test('dead links: «Link bị bỏ» for step 2 and every step 3 attempt, newest
       chipCls: 's-pass', verdict: 'Đạt kiểm tra dữ liệu' },
     { label: 'd. partial source shown while a new attempt runs', sources: [first, second], m3: [SECOND_ISSUE], skipped: 0,
       running: true, groups: [SECOND_GROUP], chip: 'Xong, có link bị bỏ', chipCls: 's-warn', verdict: 'Chưa kiểm tra' },
+    { label: 'e. no-text link skipped', sources: [source('attempt-no-text', 'f', '2026-11-18T07:00:00.000Z', 5)],
+      m3: [NO_TEXT_ISSUE], skipped: 1, groups: [NO_TEXT_GROUP], chip: 'Xong, có link bị bỏ', chipCls: 's-warn',
+      verdict: 'Xong, có link bị bỏ' },
   ];
   for (const row of rows) {
     const run = harness({

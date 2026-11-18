@@ -263,6 +263,48 @@ test('a run where every link is dead cannot pass without a collected link', () =
   assert.equal(result.errorCode, 'M3_GATE_FAILED');
 }, COUNT_INPUT, 2));
 
+test('a custom link with no text review is skipped and the other link still passes', () => withFixture(async ({ run }) => {
+  const empty = 'https://shopee.vn/product/100/200';
+  const { result, gate, outcome } = await runLinks(run, (request, link, plan) =>
+    terminalJournal(request, link, plan!, link.url === empty ? 0 : 1, 'exhausted'));
+  assert.equal(result.status, 'SUCCEEDED');
+  assert.equal(gate.verdict, 'PASS');
+  const check = gate.checks.find((value: { id: string }) => value.id === 'links_skipped');
+  assert.deepEqual([check.level, check.ok, check.got], ['warn', false, 1]);
+  assert.equal(outcome.verdict, 'PARTIAL_LINKS');
+  assert.deepEqual([outcome.links[0].skipped, outcome.links[0].stopReason], [true, 'NO_TEXT_REVIEWS']);
+  assert.deepEqual([outcome.links[1].skipped, outcome.links[1].stopReason], [false, 'exhausted']);
+}, COUNT_INPUT, 2));
+
+test('every custom link ending with no text review still fails the gate', () => withFixture(async ({ run }) => {
+  const { result, gate, outcome } = await runLinks(run, (request, link, plan) => terminalJournal(request, link, plan!, 0, 'exhausted'));
+  assert.equal(gate.verdict, 'FAIL');
+  assert.equal(gate.checks.find((value: { id: string }) => value.id === 'min_reviews_per_link').ok, false);
+  const check = gate.checks.find((value: { id: string }) => value.id === 'links_skipped');
+  assert.deepEqual([check.level, check.ok, check.got], ['warn', false, 2]);
+  assert.equal(outcome.verdict, 'FAILED');
+  assert.equal(result.errorCode, 'M3_GATE_FAILED');
+  assert.deepEqual(outcome.links.map((link: { skipped: boolean; stopReason: string }) => [link.skipped, link.stopReason]),
+    [[true, 'NO_TEXT_REVIEWS'], [true, 'NO_TEXT_REVIEWS']]);
+}, COUNT_INPUT, 2));
+
+test('a zero-row result that fails validation is refused, never skipped as no-text', () => withFixture(async ({ run }) => {
+  const started = await reserveConfiguredAttempt(run, { executionId: EXECUTION, sequence: 1 });
+  const tampered = (request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan) => {
+    const journal = terminalJournal(request, link, plan, 0, 'exhausted');
+    const result = { ...(journal.result as SamplingResult), planSha256: 'c'.repeat(64) };
+    return { ...journal, result, resultSha256: samplingDigest(result) };
+  };
+  await assert.rejects(executeSamplingAttempt({ runDir: run, kind: 'custom', attemptId: started.attemptId, collector: {
+    run: async (_file, request, link, plan) => link.url === 'https://shopee.vn/product/100/200'
+      ? tampered(request, link, plan!) : terminalJournal(request, link, plan!, 1, 'exhausted'),
+  } }), (error: unknown) => error instanceof ReviewSamplingError && error.code === 'REVIEW_RESULT_CHANGED');
+  const base = join(run, 'm3-custom/attempts', started.attemptId);
+  // Nothing is published, so the attempt neither passes nor records NO_TEXT_REVIEWS for the invalid link.
+  await assert.rejects(readFile(join(base, 'gate.json')));
+  await assert.rejects(readFile(join(base, 'output/outcome.json')));
+}, COUNT_INPUT, 2));
+
 test('a counts attempt stops on a dead first link with its reason and starts no later job', () => withFixture(async ({ run }) => {
   const started = await reserveAttempt(run, 'counts');
   const requests: SamplingJobInput[] = [];
@@ -293,10 +335,11 @@ test('a pages-mode run saves policy v2, asks the service for max_pages and gates
   assert.deepEqual(outcome.links.map((link: { requested: unknown; shortfall: unknown; actual: unknown }) => [link.requested, link.actual, link.shortfall]), [[null, 10, null]]);
 }, PAGES_INPUT));
 
-test('a pages-mode link without any saved review fails min_reviews_per_link', () => withFixture(async ({ run }) => {
+test('a pages-mode link without any saved review is skipped as no-text and still fails min_reviews_per_link', () => withFixture(async ({ run }) => {
   const { gate } = await runAutomatic(run, 0, 'exhausted');
   assert.equal(gate.verdict, 'FAIL');
-  assert.deepEqual(gate.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { id: string }) => check.id), ['min_reviews_per_link']);
+  assert.deepEqual(gate.checks.filter((check: { ok: boolean }) => !check.ok).map((check: { id: string }) => check.id),
+    ['min_reviews_per_link', 'links_skipped']);
 }, PAGES_INPUT));
 
 test('a source result with more pages than pagesPerLink is refused', () => withFixture(async ({ run, saved }) => {
