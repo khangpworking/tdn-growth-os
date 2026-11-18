@@ -74,6 +74,10 @@ select, input { font: inherit; color: var(--fg); background: var(--panel); borde
 .abtn { font-size: 13.5px; font-weight: 600; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--band); color: var(--fg); cursor: pointer; }
 .abtn:hover:not(:disabled) { border-color: var(--accent); }
 .abtn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-solid); }
+.abtn.danger { background: var(--stop); border-color: var(--stop); color: var(--on-solid); }
+.dhead .abtn.danger { margin-left: auto; }
+.toast { position: fixed; right: 16px; bottom: 16px; z-index: 60; background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--ok); border-radius: 10px; padding: 10px 14px; box-shadow: 0 6px 20px var(--shadow); font-size: 14px; font-weight: 600; }
+.top-count { width: 5.5em; }
 .abtn:disabled { opacity: .5; cursor: not-allowed; }
 .hint { font-size: 12.5px; font-weight: 600; color: var(--need); }
 .muted { color: var(--muted); font-size: 13.5px; }
@@ -584,6 +588,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
               <label class="rs-opt"><input type="radio" name="newLimitBy" value="count" checked> Số bình luận</label>
               <label class="rs-opt"><input type="radio" name="newLimitBy" value="pages"> Số trang bình luận trên Shopee</label>
             </fieldset>
+            <fieldset class="policy-group" id="newSelectionGroup">
+              <legend>Sản phẩm bán chạy</legend>
+              <div class="rs-opt"><label><input type="radio" name="newSelection" value="top" checked> Top</label>
+                <input type="number" class="top-count" id="newTopCount" min="1" max="100" step="1" value="5" aria-label="Top">
+                <span class="chip s-ready">Lọc trùng</span></div>
+              <div class="rs-opt"><label><input type="radio" name="newSelection" value="all"> Tất cả</label>
+                <span class="chip s-idle">Không lọc trùng</span></div>
+            </fieldset>
             <label class="field" id="newTotalField"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
             <label class="field" id="newPagesField" hidden><span>Số trang tối đa cho mỗi link sản phẩm</span><input type="number" id="newPages" min="1" max="100" step="1" value="10"></label>
           </div>
@@ -708,7 +720,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   </div>
 </dialog>
 
+<dialog id="deleteDialog" aria-labelledby="deleteDialogTitle">
+  <div class="dialog-body">
+    <h2 id="deleteDialogTitle">Xóa lượt này?</h2>
+    <p class="lead">Xóa cả bình luận. Không khôi phục được.</p>
+    <p class="errbar" id="deleteErr" role="alert" hidden></p>
+    <div class="btnrow">
+      <button class="abtn danger" id="deleteConfirmBtn" type="button">Xóa</button>
+      <button class="abtn" id="deleteCancelBtn" type="button">Hủy</button>
+    </div>
+  </div>
+</dialog>
+
 <div class="notice-box" id="noticeBox"></div>
+<div class="toast" id="toast" role="status" hidden></div>
 
 <script>
 (function () {
@@ -757,6 +782,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     saved_capture_source_verified: 'File số liệu đã lưu khớp nguồn',
     links_match_source_order: 'Link đúng thứ tự doanh thu của nguồn',
     five_distinct_products: 'Đủ 5 sản phẩm khác nhau',
+    requested_distinct_products: 'Đủ số sản phẩm khác nhau đã chọn',
     links_1_to_5: 'Chọn được từ 1 đến 5 link sản phẩm',
     ids_numeric: 'Mã shop và mã sản phẩm hợp lệ',
     no_duplicate_shop: 'Mỗi shop chỉ có 1 link',
@@ -842,6 +868,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     M2_ALREADY_PASSED: 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.',
     AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».',
     PICK_PRODUCT_UNRESOLVED: 'Có sản phẩm chưa xác định được là trùng hay khác nên chưa chọn đủ 5 sản phẩm.',
+    RUN_ACTIVE: 'Lượt đang chạy. Dừng trước khi xóa.',
     LINK_CHECK_FAILED: 'Không kiểm được link Shopee. Thử lại sau ít phút.',
     PICK_JEV_UNAVAILABLE: 'Chưa kiểm tra được sản phẩm trùng vì dịch vụ kiểm tra chưa phản hồi. Hãy chạy lại bước 2.',
     BRIDGE_MISSING: 'App chưa khởi động xong. Hãy đóng app rồi mở lại.',
@@ -879,7 +906,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   function outputErrorText(error) {
     var code = errorCode(error);
+    if (code === 'FEWER_PRODUCTS_THAN_REQUESTED') return fewerProductsText(error);
     return OUTPUT_ERROR_TEXT[code] || 'Có lỗi kỹ thuật chưa xác định.';
+  }
+
+  // FEWER_PRODUCTS_THAN_REQUESTED, detail {requested: N, found: k}.
+  function fewerProductsText(error) {
+    var n = error && error.detail && typeof error.detail.requested === 'number' ? error.detail.requested : null;
+    return 'Không đủ ' + (n === null ? '' : fmtInt(n) + ' ') +
+      'sản phẩm khác nhau. Giảm số Top hoặc mở rộng bộ lọc.';
   }
 
   function blockText(blockedBy) {
@@ -909,6 +944,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var code = errorCode(error);
     if (code && ERROR_TEXT[code]) return ERROR_TEXT[code];
     if (code === 'GATE_FAILED') return gateFailedText(error);
+    if (code === 'FEWER_PRODUCTS_THAN_REQUESTED') return fewerProductsText(error);
     if (!code) {
       var message = error && error.message !== null && error.message !== undefined ? String(error.message) : '';
       if (message) return message;
@@ -2620,6 +2656,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       openLocalMetricShot: function () {
         return Promise.resolve(err('EVIDENCE_LOCAL_MISSING', 'EVIDENCE_LOCAL_MISSING'));
       },
+      saveMetricShot: function () {
+        return Promise.resolve(err('EVIDENCE_LOCAL_MISSING', 'EVIDENCE_LOCAL_MISSING'));
+      },
+      lastProductSelection: function () { return Promise.resolve(ok({ productSelection: null })); },
+      deleteRun: function (runId) {
+        if (!store.has(runId)) return Promise.resolve(err('RUN_NOT_FOUND', 'RUN_NOT_FOUND'));
+        store.delete(runId);
+        return Promise.resolve(ok({ format: 'run-delete-v1', runId: runId, deleted: true, localShotDeleted: true }));
+      },
       openShopeeLink: function (url) {
         if (typeof url !== 'string' || !/^https:\/\/shopee\.vn\//.test(url)) {
           return Promise.resolve(err('LINK_NOT_ALLOWED', 'LINK_NOT_ALLOWED'));
@@ -2958,6 +3003,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       openShopeeLink: function (url) { return call('openShopeeLink', [url]); },
       localMetricShot: function (runId) { return call('localMetricShot', [runId]); },
       openLocalMetricShot: function (runId) { return call('openLocalMetricShot', [runId]); },
+      saveMetricShot: function (runId, name, sha256) { return call('saveMetricShot', [runId, name, sha256]); },
+      deleteRun: function (runId) { return call('deleteRun', [runId]); },
+      lastProductSelection: function () { return call('lastProductSelection', []); },
       newRun: function (input) { return call('newRun', [input]); },
       addProduct: function (input) { return call('addProduct', [input]); },
       status: function (runId) { return call('status', [runId]); },
@@ -3433,32 +3481,72 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return btn;
   }
 
-  // «Xem ảnh toàn trang Metric»: the shot this PC took at «Lấy bình luận Shopee» first, else the
-  // server's saved picture, else a disabled button with where the picture is.
+  // «Xem ảnh Metric» and «Tải ảnh»: the shot this PC took at «Lấy bình luận Shopee» first, else the
+  // server's saved picture, else disabled buttons with where the picture is.
   function metricFullPageAction(runId, descriptor) {
-    var label = 'Xem ảnh toàn trang Metric';
+    var label = 'Xem ảnh Metric';
+    var wrap = h('span', 'rs-actions');
     if (state.localShots[runId] === true) {
       var btn = h('button', 'abtn', state.moduleEvidenceBusy[runId] ? 'Đang mở…' : label);
       btn.type = 'button';
       btn.id = 'moM1FullPage';
       btn.disabled = !!state.moduleEvidenceBusy[runId];
       btn.addEventListener('click', function () { openLocalShot(runId); });
-      return btn;
+      wrap.appendChild(btn);
+      wrap.appendChild(saveShotButton(runId, null));
+      return wrap;
     }
-    if (outputEvidenceAvailable(descriptor)) return outputEvidenceButton('moM1FullPage', label, runId, descriptor);
+    if (outputEvidenceAvailable(descriptor)) {
+      wrap.appendChild(outputEvidenceButton('moM1FullPage', label, runId, descriptor));
+      wrap.appendChild(saveShotButton(runId, descriptor.sha256));
+      return wrap;
+    }
     if (descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
       return outputEvidenceAction('moM1FullPage', label, runId, descriptor);
     }
-    var wrap = h('span', 'rs-actions');
     var off = h('button', 'abtn', label);
     off.type = 'button';
     off.id = 'moM1FullPage';
     off.disabled = true;
     wrap.appendChild(off);
+    wrap.appendChild(saveShotButton(runId, undefined));
     var hint = h('span', 'rs-note', 'Ảnh chỉ lưu trên máy đã lấy dữ liệu');
     hint.id = 'moM1FullPageHint';
     wrap.appendChild(hint);
     return wrap;
+  }
+
+  // «Tải ảnh»: sha256 null = the picture on this PC, a digest = the server's picture, undefined = none.
+  function saveShotButton(runId, sha256) {
+    var btn = h('button', 'abtn', 'Tải ảnh');
+    btn.type = 'button';
+    btn.id = 'moM1SaveShot';
+    btn.disabled = sha256 === undefined || !!state.moduleEvidenceBusy[runId] || (sha256 !== null && !state.connected);
+    btn.addEventListener('click', function () { saveShot(runId, sha256); });
+    return btn;
+  }
+
+  async function saveShot(runId, sha256) {
+    if (state.moduleEvidenceBusy[runId]) return;
+    state.moduleEvidenceBusy[runId] = true;
+    delete state.moduleEvidenceErrors[runId];
+    delete state.moduleEvidenceNotice[runId];
+    if (state.selectedRunId === runId) renderDetail();
+    var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
+    var name = runDisplayName(item.tracking || null, item.product || '');
+    var res = await api.saveMetricShot(runId, name, sha256);
+    delete state.moduleEvidenceBusy[runId];
+    if (!res.ok) state.moduleEvidenceErrors[runId] = res.error;
+    else if (res.data && res.data.saved) showToast('Đã lưu ảnh');
+    if (state.selectedRunId === runId) renderDetail();
+  }
+
+  function showToast(text) {
+    var el = $('toast');
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(function () { el.hidden = true; }, 2500);
   }
 
   // The picture on this PC does not depend on the server's step results: shown even when they fail.
@@ -3754,7 +3842,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   var M2_SHORTAGE_TEXT = {
     PICK_TITLE_GROUP_UNRESOLVED: 'có sản phẩm chưa xác định được từ tên',
     PICK_PRODUCT_UNRESOLVED: 'có sản phẩm chưa xác định được là trùng hay khác',
-    FEWER_THAN_FIVE_DISTINCT_PRODUCTS: 'nguồn không đủ 5 sản phẩm khác nhau'
+    FEWER_THAN_FIVE_DISTINCT_PRODUCTS: 'nguồn không đủ 5 sản phẩm khác nhau',
+    FEWER_PRODUCTS_THAN_REQUESTED: 'nguồn không đủ sản phẩm khác nhau'
   };
 
   function sameProductTip() {
@@ -6788,6 +6877,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var note = trackingNote(tracking);
     if (note) head.appendChild(h('span', 'muted', note));
     if (status === 'RUNNING') head.appendChild(h('span', 'muted', 'tự cập nhật mỗi 10 giây'));
+    var del = h('button', 'abtn danger', 'Xóa lượt');
+    del.type = 'button';
+    del.id = 'btnDeleteRun';
+    del.disabled = !state.connected || !!info.readonly;
+    del.addEventListener('click', function () { onDeleteRun(info.runId); });
+    head.appendChild(del);
     root.appendChild(head);
 
     if (info.readonly) root.appendChild(h('p', 'roline', 'Hệ thống đang tạm dừng lấy dữ liệu.'));
@@ -8222,6 +8317,44 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
   }
 
+  function onDeleteRun(runId) {
+    state.deleteRunId = runId;
+    $('deleteErr').hidden = true;
+    $('deleteConfirmBtn').disabled = false;
+    showDialog($('deleteDialog'));
+    $('deleteCancelBtn').focus();
+  }
+
+  async function onDeleteConfirm() {
+    var runId = state.deleteRunId;
+    if (!runId || $('deleteConfirmBtn').disabled) return;
+    $('deleteConfirmBtn').disabled = true;
+    var res = await api.deleteRun(runId);
+    if (!res.ok) {
+      $('deleteErr').textContent = plainError(res.error);
+      $('deleteErr').hidden = false;
+      $('deleteConfirmBtn').disabled = false;
+      return;
+    }
+    state.deleteRunId = null;
+    closeDialog($('deleteDialog'));
+    delete state.localShots[runId];
+    if (state.selectedRunId === runId) {
+      state.selectedRunId = null;
+      state.loadingRunId = null;
+      state.info = null;
+      stopPoll();
+    }
+    await refreshRuns();
+    renderDetail();
+    showToast('Đã xóa lượt');
+  }
+
+  function onDeleteCancel() {
+    state.deleteRunId = null;
+    closeDialog($('deleteDialog'));
+  }
+
   function showDialog(dialog) {
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', '');
@@ -8503,10 +8636,35 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     el.hidden = !text;
   }
 
-  // Too few Shopee products for step 2: a warning, not an error. Nothing was sent or kept.
+  // Too few Shopee products for the choice (top N: N, all: 1): a warning, not an error. Nothing was sent or kept.
   function tooFewShopeeText(error) {
-    var n = error && error.detail && typeof error.detail.shopeeProducts === 'number' ? error.detail.shopeeProducts : 0;
-    return 'Bộ lọc chỉ có ' + n + ' sản phẩm Shopee, cần ít nhất 5. Mở rộng bộ lọc trên Metric rồi bấm lại.';
+    var detail = (error && error.detail) || {};
+    var k = typeof detail.shopeeProducts === 'number' ? detail.shopeeProducts : 0;
+    var n = typeof detail.needed === 'number' ? detail.needed : 5;
+    return 'Bộ lọc chỉ có ' + k + ' sản phẩm Shopee, cần ít nhất ' + n + '.';
+  }
+
+  // «Sản phẩm bán chạy»: {mode: 'top', count: N} (1–100) or {mode: 'all'}.
+  function productSelection() {
+    var modeEl = document.querySelector('input[name="newSelection"]:checked');
+    if (modeEl && modeEl.value === 'all') return { value: { mode: 'all' } };
+    var count = Number($('newTopCount').value);
+    if (!Number.isInteger(count) || count < 1 || count > 100) return { error: 'Top từ 1 đến 100.' };
+    return { value: { mode: 'top', count: count } };
+  }
+
+  // The last choice sent from this PC (the bridge keeps it): the form opens with it.
+  async function restoreSelection() {
+    var res = await api.lastProductSelection();
+    var saved = res.ok && res.data ? res.data.productSelection : null;
+    if (!saved || typeof saved !== 'object') return;
+    if (saved.mode === 'all') {
+      document.querySelector('input[name="newSelection"][value="all"]').checked = true;
+    } else if (saved.mode === 'top' && Number.isInteger(saved.count) && saved.count >= 1 && saved.count <= 100) {
+      document.querySelector('input[name="newSelection"][value="top"]').checked = true;
+      $('newTopCount').value = String(saved.count);
+    }
+    renderMetricCard();
   }
 
   function showMetricNotice(text) {
@@ -8528,8 +8686,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnResendImport').disabled = busy || !state.connected || state.readonly;
     $('btnDiscardImport').disabled = busy;
     var policy = metricPolicy();
+    var selection = productSelection();
     $('btnTakeReviews').disabled = busy || !!pending || !view.seen || !state.connected || state.readonly ||
-      !!policy.error;
+      !!policy.error || !!selection.error;
     var hint = '';
     if (busy) hint = 'Đang lấy danh sách sản phẩm từ Metric và tạo lượt…';
     else if (pending) hint = 'Gói số liệu “' + pending.keyword + '”' + (pending.period ? ' (kỳ ' + pending.period + ')' : '') +
@@ -8538,6 +8697,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     else if (state.readonly) hint = 'Hệ thống đang tạm dừng lấy dữ liệu.';
     else if (!view.seen) hint = 'Nút này bấm được sau khi app thấy bạn xem số liệu trên Metric.';
     else if (policy.error) hint = policy.error;
+    else if (selection.error) hint = selection.error;
     $('metricTakeHint').textContent = hint;
     $('metricTakeHint').hidden = !hint;
   }
@@ -8593,7 +8753,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
       : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';
     if (data.step2 && data.step2.ok) {
-      text += ' App đang chạy bước 2 (chọn 5 link Shopee), rồi tự chạy bước 3 và bước 4. Mở lượt để theo dõi.';
+      text += ' App đang chạy bước 2 (chọn link Shopee), rồi tự chạy bước 3 và bước 4. Mở lượt để theo dõi.';
     } else {
       text += ' Chưa bắt đầu được bước 2: ' + plainError(data.step2 && data.step2.error) + ' Mở lượt để xem.';
     }
@@ -8622,7 +8782,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function onTakeReviews() {
     var policy = metricPolicy();
     if (policy.error) { showMetricError(policy.error); return; }
-    var input = { collectionPolicy: policy.value };
+    var selection = productSelection();
+    if (selection.error) { showMetricError(selection.error); return; }
+    var input = { collectionPolicy: policy.value, productSelection: selection.value };
     return runMetricAction(function () { return api.takeMetricReviews(input); });
   }
 
@@ -8650,6 +8812,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnResendImport').addEventListener('click', onResendImport);
     $('btnDiscardImport').addEventListener('click', onDiscardImport);
     $('btnTrackMetricRun').addEventListener('click', onTrackMetricRun);
+    restoreSelection();
     $('newRunForm').addEventListener('change', renderMetricCard);
     $('newRunForm').addEventListener('input', renderMetricCard);
     // The old preset form is hidden: Enter in a policy field must not submit it.
@@ -8678,6 +8841,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     $('btnFlow').addEventListener('click', onRunFlow);
     $('flowConfirmBtn').addEventListener('click', onFlowConfirm);
     $('flowCancelBtn').addEventListener('click', onFlowCancel);
+    $('deleteConfirmBtn').addEventListener('click', onDeleteConfirm);
+    $('deleteCancelBtn').addEventListener('click', onDeleteCancel);
+    $('deleteDialog').addEventListener('cancel', function (ev) {
+      ev.preventDefault();
+      onDeleteCancel();
+    });
     $('flowDialog').addEventListener('cancel', function (ev) {
       ev.preventDefault();
       onFlowCancel();

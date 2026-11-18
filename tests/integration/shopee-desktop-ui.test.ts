@@ -63,6 +63,8 @@ function harness(options: {
   fastPoll?: boolean;
   bridge?: 'complete' | 'partial';
   localShots?: Record<string, boolean>;
+  saveShotResult?: (runId: string) => any;
+  deleteRunResult?: (runId: string) => any;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -93,6 +95,8 @@ function harness(options: {
     moduleOutputsCalls: string[];
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
     openLocalShotCalls: string[];
+    saveShotCalls: any[][];
+    deleteRunCalls: string[];
     openLinkCalls: string[];
     reviewProcessCalls: string[];
     processReviewDataCalls: { runId: string; sourceSha256: string }[];
@@ -124,6 +128,8 @@ function harness(options: {
     moduleOutputsCalls: [],
     openEvidenceCalls: [],
     openLocalShotCalls: [],
+    saveShotCalls: [],
+    deleteRunCalls: [],
     openLinkCalls: [],
     reviewProcessCalls: [],
     processReviewDataCalls: [],
@@ -191,6 +197,19 @@ function harness(options: {
     openLocalMetricShot: async (runId: string) => {
       state.openLocalShotCalls.push(runId);
       return { ok: true, data: { format: 'local-metric-shot-open-v1', runId, opened: true } };
+    },
+    saveMetricShot: async (runId: string, name: string, sha256: string | null) => {
+      state.saveShotCalls.push([runId, name, sha256]);
+      if (options.saveShotResult) return options.saveShotResult(runId);
+      return { ok: true, data: { format: 'metric-shot-save-v1', runId, saved: true, cancelled: false, fileName: 'a.png' } };
+    },
+    deleteRun: async (runId: string) => {
+      state.deleteRunCalls.push(runId);
+      const res = options.deleteRunResult
+        ? options.deleteRunResult(runId)
+        : { ok: true, data: { format: 'run-delete-v1', runId, deleted: true, localShotDeleted: true } };
+      if (res.ok) state.runsView = state.runsView.filter((run: any) => run.runId !== runId);
+      return res;
     },
     openShopeeLink: async (url: string) => {
       state.openLinkCalls.push(url);
@@ -2294,7 +2313,7 @@ test('a new-policy run shows both M1 results, the five picks and opens only the 
     assert.match(m1.textContent!, /01\/10\/2026/);
     assert.match(m1.textContent!, /31\/10\/2026/);
     assert.match(m1.textContent!, /12/);
-    assert.equal(element(doc, 'moM1FullPage').textContent, 'Xem ảnh toàn trang Metric');
+    assert.equal(element(doc, 'moM1FullPage').textContent, 'Xem ảnh Metric');
     for (const id of ['moM1Specs', 'moM1Raw']) assert.equal(doc.getElementById(id), null, id);
     assert.equal(element(doc, 'moM2Chip').textContent, 'Đạt kiểm tra');
     for (const id of ['moM2Source', 'moM2Shopee', 'moM2Same', 'moM2Distinct']) {
@@ -3392,12 +3411,12 @@ test('dead links: an attempt that finishes while the run is open shows its group
   } finally { run.dom.window.close(); }
 });
 
-// «Xem ảnh toàn trang Metric» (F642): the shot this PC took at «Lấy bình luận Shopee» comes first.
-// | local shot for the run | server picture (m1.evidence.fullPage) | button                          | click opens             |
-// |------------------------|---------------------------------------|---------------------------------|-------------------------|
-// | yes                    | missing (user-page run)               | enabled                         | the local file          |
-// | no                     | available                             | enabled                         | the server picture      |
-// | no                     | missing                               | disabled + «Ảnh chỉ lưu trên máy đã lấy dữ liệu» | nothing |
+// «Xem ảnh Metric» (F642) and «Tải ảnh» (F644 §3): the shot this PC took at «Lấy bình luận Shopee» comes first.
+// | local shot for the run | server picture (m1.evidence.fullPage) | buttons                         | view opens         | «Tải ảnh» saves      |
+// |------------------------|---------------------------------------|---------------------------------|--------------------|----------------------|
+// | yes                    | missing (user-page run)               | enabled                         | the local file     | the local file (null)|
+// | no                     | available                             | enabled                         | the server picture | its sha256           |
+// | no                     | missing                               | disabled + «Ảnh chỉ lưu trên máy đã lấy dữ liệu» | nothing | nothing   |
 test('the full-page Metric picture: local shot first, then the server picture, else a hint', async () => {
   const missing = { available: false, kind: 'full-page', sha256: null, byteSize: null, mediaType: 'image/png',
     fileName: 'full-page.png', errorCode: 'EVIDENCE_FILES_MISSING' };
@@ -3418,8 +3437,20 @@ test('the full-page Metric picture: local shot first, then the server picture, e
       await waitFor(() => run.doc.getElementById('moM1FullPage') !== null, row.label);
       if (row.local) await waitFor(() => !(run.doc.getElementById('moM1FullPage') as HTMLButtonElement).disabled, 'local shot found');
       const button = element<HTMLButtonElement>(run.doc, 'moM1FullPage');
-      assert.equal(button.textContent, 'Xem ảnh toàn trang Metric', row.label);
+      assert.equal(button.textContent, 'Xem ảnh Metric', row.label);
       assert.equal(button.disabled, !row.enabled, row.label + ': enabled');
+      const save = element<HTMLButtonElement>(run.doc, 'moM1SaveShot');
+      assert.equal(save.textContent, 'Tải ảnh', row.label);
+      assert.equal(save.disabled, !row.enabled, row.label + ': save enabled');
+      save.click();
+      if (row.opens) {
+        await waitFor(() => run.state.saveShotCalls.length === 1 && !run.doc.getElementById('toast')!.hidden, row.label + ': saved');
+        assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp',
+          row.opens === 'local' ? null : row.fullPage.sha256]], row.label + ': save source');
+        assert.equal(run.doc.getElementById('toast')!.textContent, 'Đã lưu ảnh');
+      } else {
+        assert.equal(run.state.saveShotCalls.length, 0, row.label + ': nothing saved');
+      }
       assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent ?? null,
         row.enabled ? null : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu', row.label + ': hint');
       button.click();
@@ -3444,11 +3475,60 @@ test('the local Metric picture stays reachable when the step results fail to loa
     await waitFor(() => run.doc.getElementById('moduleOutputsErr') !== null &&
       run.doc.getElementById('moM1FullPage') !== null, 'outputs error with the local picture');
     const button = element<HTMLButtonElement>(run.doc, 'moM1FullPage');
-    assert.equal(button.textContent, 'Xem ảnh toàn trang Metric');
+    assert.equal(button.textContent, 'Xem ảnh Metric');
     assert.equal(button.disabled, false);
     button.click();
     await waitFor(() => run.state.openLocalShotCalls.length === 1, 'local picture opened');
     assert.deepEqual(run.state.openLocalShotCalls, ['run-synthetic']);
     assert.equal(run.state.openEvidenceCalls.length, 0);
+  } finally { run.dom.window.close(); }
+});
+
+// «Xóa lượt» (F644 §4), one row each:
+// | step                       | bridge                  | page                                                  |
+// |----------------------------|-------------------------|-------------------------------------------------------|
+// | «Xóa lượt», then «Hủy»     | nothing                 | the run stays open                                    |
+// | «Xóa», server RUN_ACTIVE   | deleteRun once          | «Lượt đang chạy. Dừng trước khi xóa.» in the box      |
+// | «Xóa», deleted             | deleteRun again         | run left, list refreshed without it, «Đã xóa lượt»    |
+test('«Xóa lượt» asks first, explains a running run, and leaves the deleted run', async () => {
+  let active = true;
+  const run = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(),
+    deleteRunResult: () => (active ? { ok: false, error: { code: 'RUN_ACTIVE', message: 'RUN_ACTIVE' } }
+      : { ok: true, data: { format: 'run-delete-v1', runId: 'run-synthetic', deleted: true, localShotDeleted: true } }),
+  });
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList button').length === 1, 'run list');
+    runListButton(run.doc, 'run-synthetic').click();
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, 'run open');
+    const del = element<HTMLButtonElement>(run.doc, 'btnDeleteRun');
+    assert.equal(del.textContent, 'Xóa lượt');
+    assert.match(del.className, /danger/);
+    const dialog = element<HTMLDialogElement>(run.doc, 'deleteDialog');
+    assert.equal(element(run.doc, 'deleteDialogTitle').textContent, 'Xóa lượt này?');
+    assert.match(dialog.textContent!, /Xóa cả bình luận\. Không khôi phục được\./);
+    del.click();
+    assert.ok(dialog.open || dialog.hasAttribute('open'));
+    element<HTMLButtonElement>(run.doc, 'deleteCancelBtn').click();
+    assert.ok(!(dialog.open || dialog.hasAttribute('open')));
+    assert.deepEqual(run.state.deleteRunCalls, []);
+
+    del.click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => !element(run.doc, 'deleteErr').hidden, 'running refusal');
+    assert.equal(element(run.doc, 'deleteErr').textContent, 'Lượt đang chạy. Dừng trước khi xóa.');
+    assert.ok(run.doc.getElementById('btnDeleteRun') !== null);
+
+    active = false;
+    const listed = run.state.listRunsCalls;
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') === null, 'run left');
+    assert.deepEqual(run.state.deleteRunCalls, ['run-synthetic', 'run-synthetic']);
+    assert.ok(run.state.listRunsCalls > listed);
+    assert.equal(run.doc.querySelectorAll('#runList button.runbtn').length, 0);
+    assert.ok(!(dialog.open || dialog.hasAttribute('open')));
+    assert.equal(element(run.doc, 'toast').textContent, 'Đã xóa lượt');
+    assert.equal(element(run.doc, 'toast').hidden, false);
   } finally { run.dom.window.close(); }
 });
