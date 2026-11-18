@@ -3140,6 +3140,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     progressByRun: {},
     progressRuns: [],
     progressAt: null,
+    goneRuns: [],
     scrollTarget: null,
     noticeChain: Promise.resolve()
   };
@@ -6688,6 +6689,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var box = $('noticeBox');
     var item = h('div', 'notice t-' + notice.tone);
     item.setAttribute('role', 'alert');
+    item.dataset.runId = notice.runId;
     var body = h('div', 'notice-body');
     body.appendChild(h('b', null, notice.title));
     body.appendChild(h('div', null, notice.body));
@@ -6744,7 +6746,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The most recently changed active run; with none active, a run that finished or stopped recently.
   function progressSubject() {
-    var runs = (state.progressRuns || []).slice().sort(function (a, b) { return changedTime(b) - changedTime(a); });
+    // Only runs in the run list: a run deleted here or elsewhere never stays on the bar.
+    var runs = (state.progressRuns || []).filter(function (run) {
+      return state.runs.some(function (item) { return item.runId === run.runId; });
+    }).sort(function (a, b) { return changedTime(b) - changedTime(a); });
     var active = runs.filter(function (run) { return !!run.active; });
     if (active.length) return { run: active[0], others: active.length - 1 };
     var now = Date.parse(state.progressAt);
@@ -7050,14 +7055,67 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var res = await api.listRuns();
     if (seq !== state.runsSeq) return null;
     if (!res.ok) { showError(res.error); return null; }
+    var listedBefore = state.runs.map(function (run) { return run.runId; });
     state.runs = (res.data && res.data.runs) || [];
     if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
       state.selectedRunId = null;
       state.loadingRunId = null;
+      state.info = null;
       stopPoll();
+      renderDetail();
     }
+    // A run that was listed and is no longer (deleted here or by a coworker) leaves the progress bar
+    // and every cache too. A run progress shows before the list does (just created) is kept.
+    listedBefore.filter(function (runId) {
+      return !state.runs.some(function (item) { return item.runId === runId; });
+    }).forEach(forgetRun);
     renderRunList();
+    renderRunStatus();
     return res;
+  }
+
+  // The one place that forgets a deleted run: every per-run cache (any state object keyed by runId),
+  // progress, selection, pending opens, the step 1 «Xem lượt vừa tạo» and open notices.
+  function forgetRun(runId) {
+    Object.keys(state).forEach(function (key) {
+      var value = state[key];
+      if (value && typeof value === 'object' && !Array.isArray(value) &&
+          Object.prototype.hasOwnProperty.call(value, runId)) delete value[runId];
+    });
+    state.progressRuns = state.progressRuns.filter(function (run) { return run.runId !== runId; });
+    if (state.selectedRunId === runId) {
+      state.selectedRunId = null;
+      state.loadingRunId = null;
+      state.info = null;
+      stopPoll();
+      stopSamplingPoll();
+      stopStep4Poll();
+    }
+    if (state.preferredRunId === runId) state.preferredRunId = null;
+    if (state.scrollTarget && state.scrollTarget.runId === runId) state.scrollTarget = null;
+    if (state.metricRunId === runId) {
+      state.metricRunId = null;
+      $('metricDone').hidden = true;
+    }
+    if (state.newRunId === runId) {
+      state.newRunId = null;
+      state.newBinding = null;
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#noticeBox .notice'), function (item) {
+      if (item.dataset.runId === runId) item.remove();
+    });
+  }
+
+  // A run that is gone (deleted elsewhere, RUN_NOT_FOUND): leave it quietly, tell once, never open another.
+  async function runGone(runId) {
+    forgetRun(runId);
+    renderDetail();
+    renderRunStatus();
+    if (state.goneRuns.indexOf(runId) === -1) {
+      state.goneRuns.push(runId);
+      showToast('Lượt này đã bị xóa.');
+    }
+    await refreshRuns();
   }
 
   async function refreshRuns() {
@@ -7075,6 +7133,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var res = await api.status(runId);
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     state.loadingRunId = null;
+    if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND') { await runGone(runId); return; }
     if (!res.ok) {
       showError(res.error);
       state.info = null;
@@ -7122,6 +7181,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.infoSeq[runId] = seq;
     var res = await api.status(runId);
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
+    if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND') { await runGone(runId); return; }
     if (!res.ok) {
       showError(res.error);
       stopPoll();
@@ -8368,16 +8428,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     state.deleteRunId = null;
     closeDialog($('deleteDialog'));
-    delete state.localShots[runId];
-    if (state.selectedRunId === runId) {
-      state.selectedRunId = null;
-      state.loadingRunId = null;
-      state.info = null;
-      stopPoll();
-    }
-    await refreshRuns();
+    state.goneRuns.push(runId);          // deleted here: no «Lượt này đã bị xóa.» later
+    forgetRun(runId);
     renderDetail();
+    renderRunStatus();
     showToast('Đã xóa lượt');
+    await refreshRuns();
+    pollProgress();
   }
 
   function onDeleteCancel() {
@@ -8600,6 +8657,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.preferredRunId = null;
     if (preferred && state.runs.some(function (run) { return run.runId === preferred; })) {
       await selectRun(preferred);
+    } else if (preferred) {
+      await runGone(preferred);
     } else if (state.selectedRunId) {
       await selectRun(state.selectedRunId);
     } else if (state.runs.length) {
