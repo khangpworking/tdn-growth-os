@@ -461,6 +461,7 @@ class MetricListener:
         # {'targetId', 'key', 'requestId', 'state': 'pending'|'resolved'|'failed', 'body'}.
         # The click freezes exactly this one; it never falls back to an older request.
         self._newest = None
+        self._tab_newest = {}      # targetId -> order key of that tab's newest user products request
         self._body_state = threading.Condition(self._lock)
         self.body_wait_seconds = BODY_WAIT_SECONDS
         self._app_scripts = collections.deque(maxlen=64)   # sourceURLs of the app's own calls
@@ -693,6 +694,8 @@ class MetricListener:
                       'state': 'pending', 'body': None}
             if self._newest is None or key > self._newest['key']:
                 self._newest = record
+            if target_id not in self._tab_newest or key > self._tab_newest[target_id]:
+                self._tab_newest[target_id] = key
         post_data = request.get('postData')
         if post_data is None and request.get('hasPostData'):
             self._fetch_body_later(target_id, tab, record)
@@ -831,6 +834,11 @@ class MetricListener:
     def _failure(screenshot_saved, code):
         return MetricFailure(code, detail={'screenshotSaved': True} if screenshot_saved else None)
 
+    def tab_newest_key(self, target_id):
+        """Order key of the newest user products request seen on that tab (None: none yet)."""
+        with self._lock:
+            return self._tab_newest.get(target_id)
+
     def shot_target(self, record):
         """The tab to picture: the click record's tab; with no request seen yet, the first attached
         Metric tab. None when that tab is not attached."""
@@ -943,7 +951,12 @@ class MetricSession:
         # The click's request is snapshotted ONCE; the picture is of its tab and the import is built
         # from that same record, even if Metric sends a later request while the picture is taken.
         record = listener.click_record()
-        shot = listener.full_page_shot(listener.shot_target(record), screenshot_dir)
+        target = listener.shot_target(record)
+        before = listener.tab_newest_key(target) if target is not None else None
+        shot = listener.full_page_shot(target, screenshot_dir)
+        # The page may have changed during the picture (the user picked another filter on that tab):
+        # the picture then stays an unlinked metric-<time>.png and this run gets no local picture.
+        linkable = shot is not None and listener.tab_newest_key(target) == before
         try:
             if record is None:
                 raise MetricFailure('METRIC_NOT_SEEN')
@@ -965,7 +978,7 @@ class MetricSession:
             # Step 2 would always fail: send nothing, keep nothing for «Gửi lại».
             raise MetricFailure('METRIC_TOO_FEW_SHOPEE', detail={'shopeeProducts': count})
         self.pending = payload
-        self.pending_shot = shot
+        self.pending_shot = shot if linkable else None
         return payload
 
     def drop_pending(self):

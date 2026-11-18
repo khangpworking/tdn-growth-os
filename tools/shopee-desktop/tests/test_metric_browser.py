@@ -1218,6 +1218,7 @@ class BridgeTest(unittest.TestCase):
         | # | situation                                                   | expected                                        |
         |---|-------------------------------------------------------------|-------------------------------------------------|
         | 1 | a new products request (other filter) arrives during the shot | the import uses the click's request and filter |
+        |   | on the same tab (r3: the page may show the new filter)        | the picture stays unlinked: no run picture     |
         | 2 | `evidence/metric` is a junction/symlink holding the run picture | no local picture found, nothing opened         |"""
         with self.subTest('1 later request during the shot'):
             click_answer = self.session.tab.answers['Page.captureScreenshot']
@@ -1231,7 +1232,11 @@ class BridgeTest(unittest.TestCase):
             sent = self.remote_calls[0][2]
             self.assertEqual(sent['scope']['start_date'], '20261001')          # the click's filter
             self.assertEqual(sent['response']['requestBody']['start_date'], '20261001')
-            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
+            files = self.shot_files()
+            self.assertNotIn('a1b2c3d4-metric-full-page.png', files)       # never linked to this run
+            self.assertEqual(len(files), 1)
+            self.assertRegex(files[0], r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$')
+            self.assertEqual(self.api.localMetricShot('a1b2c3d4')['data']['exists'], False)
         with self.subTest('2 junction on metric'):
             self.setUp_fresh()
             elsewhere = pathlib.Path(self.tmp.name) / 'elsewhere'
