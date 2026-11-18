@@ -146,6 +146,7 @@ function harness(options: {
     runSortSaved: string | null;
     runSortCalls: string[];
     runViewCalls: { runId: string; result: boolean }[];
+    runViewMaxOut: number;    // the most run-view calls out at once
     insightCommentCalls: { runId: string; bucket: string; theme: string | null }[];
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
@@ -183,8 +184,10 @@ function harness(options: {
     runSortSaved: options.runSortSaved || null,
     runSortCalls: [],
     runViewCalls: [],
+    runViewMaxOut: 0,
     insightCommentCalls: [],
   };
+  let runViewOut = 0;
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
     connection: async () => {
@@ -333,7 +336,10 @@ function harness(options: {
         process: api.reviewProcess, stats: api.reviewStats, insights: api.reviewInsightsSummary,
       };
       const names = ['info', 'sampling', 'reviewData', 'outputs', 'process', ...(result ? ['stats', 'insights'] : [])];
-      const replies = await Promise.all(names.map((name) => single[name]!(runId)));
+      runViewOut += 1;
+      state.runViewMaxOut = Math.max(state.runViewMaxOut, runViewOut);
+      const replies = await Promise.all(names.map((name) => single[name]!(runId)))
+        .finally(() => { runViewOut -= 1; });
       if (!replies[0].ok) return replies[0];
       const parts: Record<string, any> = {};
       names.forEach((name, index) => { parts[name] = replies[index]; });
@@ -4328,7 +4334,7 @@ test('the run tabs show what they have at once and ask everything together', asy
 // | # | situation                                                                  | expected                          |
 // |---|----------------------------------------------------------------------------|-----------------------------------|
 // | 1 | run-info and the list answered, review data still on its way              | the mark stays until it answers   |
-// | 2 | a running run reopened; its 10 s poll asks run-info again while the first is slow | the mark goes once both answer |
+// | 2 | single calls: a running run reopened; the poll asks run-info again while the first is slow | the mark goes once both answer |
 test('the refresh mark follows every call of the open run and never sticks', async () => {
   const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
   const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
@@ -4357,7 +4363,7 @@ test('the refresh mark follows every call of the open run and never sticks', asy
   // 2
   let statusHold: Deferred<void> | null = null;
   run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') }, fastPoll: true,
-    statusGate: (runId) => (runId === 'run-a' && statusHold ? statusHold : undefined) });
+    oldServer: true, statusGate: (runId) => (runId === 'run-a' && statusHold ? statusHold : undefined) });
   try {
     tab(run.doc, 1);
     await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '2: run-a open, polled');
@@ -4376,7 +4382,7 @@ test('the refresh mark follows every call of the open run and never sticks', asy
 // | # | situation                                                                     | expected                              |
 // |---|-------------------------------------------------------------------------------|---------------------------------------|
 // | 1 | «Cũ nhất trước» then «Mới tạo trước» while the first save is slow             | saved in click order; newest kept     |
-// | 2 | a running run reopened: its run-info is slow, the 10 s poll's answers come    | the mark goes; the slow one is retired|
+// | 2 | single calls: a running run reopened, its run-info slow, the poll's answers come | the mark goes; the slow one retired |
 // | 3 | a running run reopened: its own calls answered, the poll's review data is slow | the mark stays until that answers     |
 // | 4 | the open run is deleted while its review data is on its way                   | the mark goes at once                 |
 test('the sort save keeps the last click and the refresh mark follows only the latest calls', async () => {
@@ -4408,7 +4414,7 @@ test('the sort save keeps the last click and the refresh mark follows only the l
   let holdInfo = false;
   const slowInfo = deferred<void>();
   run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') }, fastPoll: true,
-    statusGate: (runId) => {
+    oldServer: true, statusGate: (runId) => {
       if (runId !== 'run-a' || !holdInfo) return undefined;
       holdInfo = false;
       return slowInfo;
@@ -4681,5 +4687,65 @@ test('theme comments load on a click only, follow the latest summary, and a chan
     assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, views, '3: review data only inside run-view');
     assert.equal(run.state.moduleOutputsCalls.length - before.outputs, views, '3: outputs only inside run-view');
     assert.equal(statsCalls - before.stats, views, '3: stats only inside run-view');
+  } finally { run.dom.window.close(); }
+});
+
+// #516 Terra r2, one row each:
+// | # | situation                                                                        | expected                                    |
+// |---|----------------------------------------------------------------------------------|---------------------------------------------|
+// | 1 | older server: a reopen's sampling answer shows the attempt finished, after the   | the review data is read again               |
+// |   | other single calls answered                                                      |                                             |
+// | 2 | run-view: step 2 of the open run passes (a progress change and its notice)       | ONE run-view, no other command, never 2 out |
+test('single calls keep their completion refresh and a progress change asks one run-view', async () => {
+  const runId = 'run-r2';
+  const attempt = {
+    attemptId: 'attempt-r2', planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  // 1
+  let run = harness({ runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) }, oldServer: true,
+    samplingByRun: { [runId]: syntheticSampling({ runId, attempts: [attempt] }) } });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && (run.state.reviewDataCallsByRun[runId] || 0) >= 1,
+      '1: open with the attempt running');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const data = run.state.reviewDataCallsByRun[runId] || 0;
+    const gate = deferred<void>();
+    run.state.reviewGates = { [runId]: gate };
+    run.state.samplingByRun![runId].attempts[0].status = 'SUCCEEDED';
+    runListButton(run.doc, runId).click();                 // reopen: the single calls
+    await waitFor(() => (run.state.reviewDataCallsByRun[runId] || 0) === data + 1, '1: review data asked');
+    await new Promise((resolve) => setTimeout(resolve, 30));   // it answered; sampling still held
+    run.state.reviewGates = undefined;
+    gate.resolve();
+    await waitFor(() => (run.state.reviewDataCallsByRun[runId] || 0) === data + 2, '1: read again after the finished attempt');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let phase = 'before';
+  run = harness({ runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) }, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply([progressRun(runId, phase === 'before' ? ['PASS', 'RUNNING', 'IDLE', 'IDLE']
+      : ['PASS', 'PASS', 'RUNNING', 'IDLE'], { active: phase === 'before' ? { step: 2, stage: null, done: null, total: null }
+      : { step: 3, stage: null, done: 1, total: 9 } })]) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && run.state.runsProgressCalls >= 2, '2: open, polled');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const before = { views: run.state.runViewCalls.length, status: run.state.statusCalls.length,
+      process: run.state.reviewProcessCalls.length, data: run.state.reviewDataCallsByRun[runId] || 0 };
+    phase = 'after';
+    await waitFor(() => run.doc.querySelector('#noticeBox .notice-go') !== null, '2: notice');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(run.state.runViewCalls.length - before.views, 1, '2: one run-view');
+    assert.equal(run.state.statusCalls.length - before.status, 1, '2: run-info only inside it');
+    assert.equal(run.state.reviewProcessCalls.length - before.process, 1, '2: step 4 state only inside it');
+    assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, 1, '2: review data only inside it');
+    assert.equal(run.state.runViewMaxOut, 1, '2: never two at once');
   } finally { run.dom.window.close(); }
 });
