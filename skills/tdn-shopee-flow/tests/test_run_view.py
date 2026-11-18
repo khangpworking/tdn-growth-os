@@ -239,6 +239,17 @@ class RunViewTest(FlowTest):
         self.assertEqual((rc, outputs), (2, {'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID',
                                              'message': 'Invalid or unreadable flow input.'}), stderr)
 
+    def test_a_node_start_failure_on_a_sampled_run_gives_the_run_info_error(self):
+        run = self.make_run(request=request_payload(cap=5))
+        (run / 'm3-custom').mkdir()
+        empty = pathlib.Path(self._tmp.name) / 'empty-bin'
+        empty.mkdir()
+        info = self.command('run-info', '--run', RUN_ID, extra_env={'PATH': str(empty)})[:2]
+        view = self.run_view(extra_env={'PATH': str(empty)})[:2]
+        self.assertEqual(view, info, 'run-view gives the error and exit code run-info gives')
+        self.assertEqual(info, (2, {'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID',
+                                    'message': 'Invalid or unreadable flow input.'}))
+
     def test_a_sampling_failure_keeps_the_exit_code_the_sampling_command_gives(self):
         run = self.make_run(request=request_payload(cap=5))
         (run / 'm3-custom').mkdir()

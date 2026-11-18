@@ -3325,7 +3325,7 @@ def review_run_view_script(repo, config, run, result, on_sampling):
     try:
         child = subprocess.Popen(args, cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     except OSError:
-        return parts, {name: {'code': code, 'message': message, 'exitCode': exit_code}
+        return parts, {name: {'code': code, 'message': message, 'exitCode': exit_code, 'startFailed': True}
                        for name, (code, message, exit_code) in _RUN_VIEW_UNAVAILABLE.items() if name in names}
     deadline = launched + MODULE_OUTPUT_TIMEOUT_SECONDS
     selector = selectors.DefaultSelector()
@@ -3400,6 +3400,8 @@ def cmd_run_view(ns):
         info = held.get('info')
         if info is None:
             error = errors.get('sampling') or {}
+            if error.get('startFailed'):
+                raise OSError('node start failed')  # run-info raises the same OSError: FLOW_INPUT_INVALID, exit 2
             exit_code = error.get('exitCode')
             raise ModuleFailure(error.get('code') or 'REVIEW_COMMAND_FAILED',
                                 exit_code if exit_code in (2, 20, 21, 22, 23, 24) else 20)
