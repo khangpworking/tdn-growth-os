@@ -735,6 +735,8 @@ if action == 'serve-views':
         print('not json', flush=True)
         raise SystemExit(0)
     served, hung = 0, False
+    with open(os.environ['NODE_MARKER'] + '.serverpid', 'a', encoding='utf8') as log:
+        log.write(str(os.getpid()) + '\n')
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -792,7 +794,7 @@ class RunsSamplingStreamTests(FlowTest):
             flow.cmd_flow_query(argparse.Namespace(cmd='runs'))
         return output.getvalue()
 
-    def command_in_process(self, flow, order):
+    def command_in_process(self, flow, order, raw=False):
         real_iterdir = pathlib.Path.iterdir
 
         def iterdir(path):
@@ -807,8 +809,8 @@ class RunsSamplingStreamTests(FlowTest):
             try:
                 flow.cmd_flow_query(argparse.Namespace(cmd='runs'))
             except SystemExit as error:
-                return error.code, json.loads(output.getvalue())
-        return 0, json.loads(output.getvalue())
+                return error.code, output.getvalue() if raw else json.loads(output.getvalue())
+        return 0, output.getvalue() if raw else json.loads(output.getvalue())
 
     def test_runs_starts_node_once_and_matches_the_per_run_view_output(self):
         first, second = self.sampled_run('aaaaaaaa'), self.sampled_run('bbbbbbbb')
@@ -965,15 +967,18 @@ class RunsSamplingStreamTests(FlowTest):
         flow = load_flow_script()
         order = ['hang', 'aaaaaaaa']  # the hung run first, so a later run must also use its own process
         with mock.patch.object(flow, 'SAMPLING_VIEW_ANSWER_TIMEOUT', 0.2):
-            hung = self.command_in_process(flow, order=order)
+            hung = self.command_in_process(flow, order=order, raw=True)
         self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
                          'a server that stops answering is closed after the bound, then every run uses its own process')
+        server_pid = int(self.marker.with_name(self.marker.name + '.serverpid').read_text().split()[0])
+        with self.assertRaises(ProcessLookupError, msg='the hung server process is ended, not left running'):
+            os.kill(server_pid, 0)
         self.marker.unlink()
         per_run = mock.patch.object(flow.SamplingViewServer, 'view', lambda server, run: flow.review_sampling_script(
             server.repo, server.config, 'view', run))
         with per_run:
-            old = self.command_in_process(flow, order=order)
-        self.assertEqual(hung, old)
+            old = self.command_in_process(flow, order=order, raw=True)
+        self.assertEqual(hung, old, 'same exit code and the same stdout bytes as the per-run path')
 
     def test_gate_hash_reads_the_evidence_again(self):
         flow = load_flow_script()
