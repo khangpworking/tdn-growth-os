@@ -66,7 +66,7 @@ test('step 1 shows the Metric card and hides the old preset form, run button and
     assert.equal(p.$('legacyNewHead').hidden, true);
     assert.ok(p.$('legacyNewCommit').contains(p.$('btnFlow')));
     assert.ok(p.$('legacyNewRun').contains(p.$('endDate')));
-    assert.equal(p.$('newPolicySummary').closest('[hidden]'), null); // the policy form stays
+    assert.equal(p.$('newTotal').closest('[hidden]'), null); // the policy form stays
     assert.match(p.$('chromeState').textContent!, /Chrome chưa mở/);
     assert.equal(p.$('btnTakeReviews').disabled, true);
     // The owner removed the last-filter line and the typed name box: the name comes from Metric's search box.

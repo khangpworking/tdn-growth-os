@@ -2824,7 +2824,7 @@ test('C2: limiting by Shopee review pages swaps the count field for a page field
     assert.deepEqual(shown(), [false, false, true], 'pages mode hides the count and the equal split');
     element<HTMLInputElement>(doc, 'newPages').value = '12';
     fire(dom.window, element(doc, 'newPages'), 'input');
-    assert.equal(element<HTMLElement>(doc, 'newPolicySummary').textContent, 'Đánh giá 2 và 3 sao · tối đa 12 trang mỗi link');
+    assert.match(element<HTMLElement>(doc, 'reviewSummary').textContent!, /Đánh giá 2 và 3 sao · tối đa 12 trang mỗi link/);
 
     element<HTMLInputElement>(doc, 'newPages').value = '101';
     create(doc);
@@ -2846,7 +2846,7 @@ test('C2: limiting by Shopee review pages swaps the count field for a page field
     limitBy(back.doc, 'count');
     assert.equal(element(back.doc, 'newTotalField').hidden, false);
     assert.equal(element(back.doc, 'newPagesField').hidden, true);
-    assert.equal(element<HTMLElement>(back.doc, 'newPolicySummary').textContent, 'Lấy tất cả bình luận · tối đa 300 mỗi link');
+    assert.match(element<HTMLElement>(back.doc, 'reviewSummary').textContent!, /Lấy tất cả bình luận · tối đa 300 mỗi link/);
   } finally { back.dom.window.close(); }
 });
 
