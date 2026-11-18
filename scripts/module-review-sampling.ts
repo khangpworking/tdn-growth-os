@@ -16,6 +16,9 @@ const hex = /^[a-f0-9]{64}$/;
 /** Product-level reason codes: this link is dead for the run, so step 3 skips it and keeps collecting. */
 const PRODUCT_LEVEL_CODES = new Set(['PRODUCT_UNAVAILABLE','RATINGS_MISSING']);
 const skippedJournal = (journal:SamplingJournal|null):boolean => journal !== null && PRODUCT_LEVEL_CODES.has(journal.errorCode ?? '');
+/** F641: a link whose collection ended without an error code but saved no review is dead for the run too. */
+const noTextJournal = (journal:SamplingJournal|null):boolean => journal !== null && journal.terminal && !journal.errorCode &&
+  journal.result?.format === 'shopee-sampled-result-v1' && journal.result.rows.length === 0;
 type Kind = 'counts'|'custom';
 const attemptRoot = (kind:Kind) => kind === 'counts' ? 'review-counts' : 'm3-custom/attempts';
 function attemptPath(kind:Kind,id:string):string {if(!uuid.test(id))throw new ModuleError('REVIEW_ATTEMPT_INVALID',2);return `${attemptRoot(kind)}/${id}`;}
@@ -212,12 +215,12 @@ export async function stopReviewAttempt(run:string,kind:Kind,id:string){
   try{await exclusive(run,name,{format:'shopee-review-attempt-stop-v1',attemptId:id});}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;}
   return {format:'review-attempt-control-v1',runId:basename(run),kind,attemptId:id,status:'STOP_REQUESTED',pid:null,errorCode:null};
 }
-function summarizeLink(link:ReviewLink,plan:ShopeeReviewPlan|null,journal:SamplingJournal|null){
-  const result=journal?.result?.format==='shopee-sampled-result-v1'?journal.result:null;
+function summarizeLink(link:ReviewLink,plan:ShopeeReviewPlan|null,journal:SamplingJournal|null,custom=false){
+  const result=journal?.result?.format==='shopee-sampled-result-v1'?journal.result:null,noText=custom&&noTextJournal(journal);
   // Pages mode has no comment target, so requested/shortfall stay null.
   const actual=result&&result.pages.length>0?result.rows.length:null,requested=plan&&pagesPerLink(plan.policy)!==null?null:plan?.policy.totalPerLink??0;
-  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null||requested===null?null:requested-actual,skipped:skippedJournal(journal),
-    stopReason:result?.stopReason??(journal?.errorCode??'not_started'),
+  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null||requested===null?null:requested-actual,skipped:skippedJournal(journal)||noText,
+    stopReason:noText?'NO_TEXT_REVIEWS':result?.stopReason??(journal?.errorCode??'not_started'),
     stars:plan?.policy.mode==='stars'?plan.policy.stars.map(star=>{const target=plan.targets.find(q=>q.star===star)?.target??null;
       const groupObserved=result?.pages.some(page=>page.filter===String(star))??false;
       const got=groupObserved?result!.rows.filter(row=>row.ratingStar===star).length:null;
@@ -251,7 +254,7 @@ export async function reviewSamplingView(run:string){
     const read=await readAttempt(run,kind,id,attempt),{state:stored,journals:js,plan,unresolved,live,status,stopRequested}=read;
     if(unresolved)blockedBy??={code:status==='RUNNING'?'RUN_BUSY':'SUBMISSION_UNCERTAIN'};
     const summary={attemptId:id,automatic:binding!==null,executionId:attempt.executionId??null,sequence:attempt.sequence??null,requestSha256:attempt.requestSha256,m2Digest:attempt.m2Digest,receiptMatchesCurrentInputs:!unresolved&&stored.outputSha256!==null&&context!==null&&context.requestSha256===attempt.requestSha256&&context.m2Digest===attempt.m2Digest,planSha256:attempt.planSha256,createdAt:attempt.createdAt,status,errorCode:stored.errorCode,stopRequested,reconcilable:!live,
-      gate:await optional(run,`${attemptPath(kind,id)}/gate.json`),links:attempt.links.map((link,index)=>summarizeLink(link,plan,js[index]??null))};
+      gate:await optional(run,`${attemptPath(kind,id)}/gate.json`),links:attempt.links.map((link,index)=>summarizeLink(link,plan,js[index]??null,kind==='custom'))};
     if(context&&attempt.m2Digest===context.m2Digest)for(const j of js){const count=j?.result?.format==='shopee-review-counts-v1'?j.result:j?.result?.sourceCounts;if(count){validateReviewCounts(count);if(!counts.has(count.url)||counts.get(count.url)!.observedAt<count.observedAt)counts.set(count.url,count);}}
     (kind==='custom'?attempts:countAttempts).push(summary);
   }
@@ -301,7 +304,7 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   // Include prior terminal journals on exact-attempt reconciliation; never synthesize missing observations.
   for(let index=0;index<attempt.links.length;index++)journals[index]??=await readSamplingJournal(await safePath(run,`${base}/journal/${samplingDigest(attempt.links[index]!)}.json`));
   const unresolved=journals.some(j=>j!==null&&(!j.terminal||j.job&&['queued','running','needs_login','needs_verification'].includes(j.job.state)));
-  const summaries=attempt.links.map((link,index)=>summarizeLink(link,plan,journals[index]??null));
+  const summaries=attempt.links.map((link,index)=>summarizeLink(link,plan,journals[index]??null,deps.kind==='custom'));
   // Cleanup remains possible after upstream drift, but changed inputs never publish.
   inputsChanged ||= !await currentInputsMatch(run,attempt);
   if(inputsChanged)errorCode='REVIEW_PLAN_CHANGED';

@@ -166,10 +166,14 @@ async function customSource(run: string, id: string): Promise<VerifiedModuleRevi
   const paths = [`${base}/attempt.json`,`${base}/state.json`,`${base}/gate.json`,`${base}/output/reviews.json`,`${base}/output/outcome.json`, `m3-custom/plans/${attempt.planSha256}.json`];
   const results: SamplingResult[] = [];
   const collectedAt = new Map<string,string>();
+  // A link is skipped on a product-level failure, or (F641) when its collection ended without an error code and saved no review.
+  const skipped = journals.map(journal => journal !== null && (journal.errorCode === 'PRODUCT_UNAVAILABLE' || journal.errorCode === 'RATINGS_MISSING' ||
+    (!journal.errorCode && journal.terminal && journal.result?.format === 'shopee-sampled-result-v1' && journal.result.rows.length === 0)));
   const links = attempt.links.map((link,index): ReviewDataLink => {
     const j = journals[index], result = j?.result?.format === 'shopee-sampled-result-v1' ? j.result : null;
     if (j) paths.push(`${base}/journal/${samplingDigest(link)}.json`);
-    if (result) { validateSamplingResult(result, plan, attempt.planSha256!, link, j!.inputSha256); results.push(result); }
+    // A skipped link's result is still validated, but it never counts as a collected result.
+    if (result) { validateSamplingResult(result, plan, attempt.planSha256!, link, j!.inputSha256); if (!skipped[index]) results.push(result); }
     // Provider terminal time is retained with its explicit basis, never inferred from file/import time.
     if (result && date(j?.job?.updated_at)) collectedAt.set(link.url, j!.job!.updated_at);
     // Pages mode sets no comment target: its 2000 safety cap is not a requested count.
@@ -185,8 +189,6 @@ async function customSource(run: string, id: string): Promise<VerifiedModuleRevi
   const retained = results.flatMap(result => result.rows), outcome = parsed(proof.find(p => p.path === `${base}/output/outcome.json`)!.bytes);
   if (!Array.isArray(published) || published.length && canonicalJson(published) !== canonicalJson(retained)) throw new ModuleError('REVIEW_SOURCE_CHANGED');
   const pass = gate.verdict === 'PASS';
-  // Product-level codes mark a link step 3 skipped; it is excluded from the pass checks, never a failure.
-  const skipped = journals.map(journal => journal !== null && (journal.errorCode === 'PRODUCT_UNAVAILABLE' || journal.errorCode === 'RATINGS_MISSING'));
   const collected = links.filter((_, index) => !skipped[index]);
   if (pass && (gate.errorCode !== null || state.status !== 'SUCCEEDED' || state.errorCode !== null || outcome.planSha256 !== attempt.planSha256 || outcome.errorCode !== null ||
       !['OK','PARTIAL_LISTINGS','PARTIAL_LINKS'].includes(String(outcome.verdict)) || skipped.some(Boolean) !== (outcome.verdict === 'PARTIAL_LINKS') ||
