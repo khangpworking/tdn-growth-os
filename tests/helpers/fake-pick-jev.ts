@@ -26,4 +26,8 @@ export function answer(picked: number, choice: string, p: number): Scripted {
   return [choice, Object.fromEntries(options.map(option => [option, option === choice ? p : rest]))];
 }
 
+/** A walk whose second row is rejected: that row never joins the pick list, so later questions offer fewer options. */
+export const answersAfterRejection = (): Scripted[] =>
+  [1, 1, 2, 3, 4].map(picked => answer(picked, 'MOI', 0.9));
+
 export const noWait = async () => {};

@@ -7,7 +7,8 @@ import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pi
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
 import { pickJevFromEnvironment } from '../../scripts/module-product-pick-jev.js';
-import { fakeJev, noWait } from '../helpers/fake-pick-jev.js';
+import { answer, answersAfterRejection, fakeJev, noWait } from '../helpers/fake-pick-jev.js';
+import { fakeLinkCollector } from '../helpers/fake-link-collector.js';
 import { buildUserPageRun, jsonBytes } from '../helpers/user-page-run-fixture.js';
 
 const { buildV3WindowManifest } = await import(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
@@ -326,6 +327,106 @@ test('main reports a captured-product shortage without padding the list', async 
 });
 
 const v2Request = () => ({ ...selectedRequest(), selectionPolicy: 'metric-products-unique-v2' });
+/** Six synthetic Shopee candidates the v2 walk can pick in source order. */
+const v2Rows = (items: readonly string[]) => uniqueRows(items.map((item, i) => [`Synthetic candidate ${i + 1}`, item]))
+  .map(row => ({ ...row, shop_base_id: '1__801' }));
+const rowUrl = (row: Record<string, unknown>) => {
+  const [, itemId] = String(row.product_base_id).split('__');
+  return `https://shopee.vn/product/801/${itemId}`;
+};
+async function writeV2Run(dir: string, rows: unknown[]) {
+  await writeJson(dir, 'request.json', v2Request());
+  await writeSelectedCapture(dir, { responses: uniqueCapture(rows) });
+  await writePassingM1Gate(dir);
+}
+const v2Answers = (count: number) => Array.from({ length: count }, (_, i) => answer(i + 1, 'MOI', 0.9));
+
+test('a v2 walk replaces a link whose count job reports a dead product and logs every check', async () => {
+  for (const errorCode of ['PRODUCT_UNAVAILABLE', 'RATINGS_MISSING'] as const) {
+    const dir = await runDir();
+    try {
+      const rows = v2Rows(['8501', '8502', '8503', '8504', '8505', '8506']);
+      await writeV2Run(dir, rows);
+      const fake = fakeJev(answersAfterRejection());
+      const dead = rowUrl(rows[1]!);
+      const { collector, asked } = fakeLinkCollector(url => url === dead ? { errorCode } : {});
+      const result = await main(dir, { jev: () => fake.jev, sleep: noWait, linkCollector: () => collector });
+      assert.equal(result.verdict, 'PASS', errorCode);
+      assert.deepEqual(result.pickedIds,
+        ['1__8501__801', '1__8503__801', '1__8504__801', '1__8505__801', '1__8506__801'], errorCode);
+      assert.deepEqual(asked, rows.map(rowUrl), 'each accepted candidate is checked once, in walk order');
+      assert.deepEqual(Object.keys(fake.asked[1]![0]!.criteria), ['SP1', 'MOI'], 'the dead link never becomes a pick or a Jev option');
+      const log = JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8'));
+      assert.deepEqual([log.format, log.runId], ['link-check-log-v1', basename(dir)]);
+      assert.deepEqual(log.entries.map((entry: any) => [entry.productBaseId, entry.stage, entry.result, entry.reason]), [
+        ['1__8501__801', 'm2', 'ok', null], ['1__8502__801', 'm2', 'rejected', errorCode],
+        ['1__8503__801', 'm2', 'ok', null], ['1__8504__801', 'm2', 'ok', null],
+        ['1__8505__801', 'm2', 'ok', null], ['1__8506__801', 'm2', 'ok', null],
+      ]);
+      assert.equal(log.entries[1].starCounts, null);
+      assert.deepEqual(log.entries[0].starCounts, { 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 });
+      for (const entry of log.entries) assert.ok(!Number.isNaN(Date.parse(entry.checkedAt)));
+      const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+      assert.equal(saved.selectionProof.linkChecksSha256, sha256(await readFile(join(dir, 'm2/link-checks.json'))));
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }
+});
+
+test('a v2 walk rejects a link whose requested stars all have zero reviews, and keeps one with any target star', async () => {
+  const runWithStars = async (stars: Record<string, number>, script: ReturnType<typeof answersAfterRejection>) => {
+    const dir = await runDir();
+    try {
+      const rows = v2Rows(['8511', '8512', '8513', '8514', '8515', '8516']);
+      await writeV2Run(dir, rows);
+      const fake = fakeJev(script);
+      const target = rowUrl(rows[1]!);
+      const { collector } = fakeLinkCollector(url => url === target ? { stars } : {});
+      const result = await main(dir, { jev: () => fake.jev, sleep: noWait, linkCollector: () => collector });
+      const log = JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8'));
+      return { result, entry: log.entries[1] };
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  };
+  const zero = await runWithStars({ '2': 0, '3': 0 }, answersAfterRejection());
+  assert.deepEqual(zero.result.pickedIds, ['1__8511__801', '1__8513__801', '1__8514__801', '1__8515__801', '1__8516__801']);
+  assert.deepEqual([zero.entry.result, zero.entry.reason, zero.entry.starCounts],
+    ['rejected', 'NO_TARGET_STAR_REVIEWS', { 1: 3, 2: 0, 3: 0, 4: 3, 5: 3 }]);
+  const positive = await runWithStars({ '2': 0, '3': 1 }, v2Answers(4));
+  assert.deepEqual([positive.result.pickedIds[1], positive.entry.result, positive.entry.reason],
+    ['1__8512__801', 'ok', null], 'one requested star with reviews is enough');
+});
+
+test('a count job that cannot answer stops step 2 with the session code or LINK_CHECK_FAILED', async () => {
+  const cases = [['HUMAN_LOGIN_REQUIRED', 'HUMAN_LOGIN_REQUIRED'], ['HUMAN_VERIFICATION_REQUIRED', 'HUMAN_VERIFICATION_REQUIRED'],
+    ['SOURCE_ACTION_FAILED', 'LINK_CHECK_FAILED']] as const;
+  for (const [errorCode, expected] of cases) {
+    const dir = await runDir();
+    try {
+      const rows = v2Rows(['8601', '8602']);
+      await writeV2Run(dir, rows);
+      const { collector } = fakeLinkCollector(url => url === rowUrl(rows[0]!) ? { errorCode } : {});
+      await assert.rejects(main(dir, { jev: () => fakeJev([]).jev, sleep: noWait, linkCollector: () => collector }),
+        (error: unknown) => error instanceof ModuleError && error.code === expected, errorCode);
+      await assert.rejects(readFile(join(dir, 'm2/selection.json')), { code: 'ENOENT' }, errorCode);
+      await assert.rejects(readFile(join(dir, 'm2/link-checks.json')), { code: 'ENOENT' }, errorCode);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }
+});
+
+test('a rejected link with no later candidate leaves the existing four-pick shortage', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['8701', '8702', '8703', '8704', '8705']);
+    await writeV2Run(dir, rows);
+    const dead = rowUrl(rows[1]!);
+    const { collector } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+    const result = await main(dir, { jev: () => fakeJev(answersAfterRejection()).jev, sleep: noWait, linkCollector: () => collector });
+    assert.deepEqual([result.verdict, result.errorCode], ['FAIL', 'FEWER_THAN_FIVE_DISTINCT_PRODUCTS']);
+    assert.deepEqual(result.pickedIds, ['1__8701__801', '1__8703__801', '1__8704__801', '1__8705__801']);
+    const saved = JSON.parse(await readFile(join(dir, 'm2/selection.json'), 'utf8'));
+    assert.equal(saved.links.length, 4);
+    assert.equal(saved.selectionProof.shortageReason, 'FEWER_THAN_FIVE_DISTINCT_PRODUCTS');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 
 test('a new v2 request is read with its rule, like v1', async () => {
   const dir = await runDir();
@@ -343,10 +444,11 @@ test('main stops a v2 run with PICK_JEV_UNAVAILABLE and writes no selection when
     await writePassingM1Gate(dir);
     const unavailable = (error: unknown) => error instanceof ModuleError && error.code === 'PICK_JEV_UNAVAILABLE';
     const failing = fakeJev(['http-error', 'malformed', 'throws']);
-    await assert.rejects(main(dir, { jev: () => failing.jev, sleep: noWait }), unavailable);
+    const { collector } = fakeLinkCollector();
+    await assert.rejects(main(dir, { jev: () => failing.jev, sleep: noWait, linkCollector: () => collector }), unavailable);
     assert.equal(failing.asked.length, 3);
     for (const environment of [{}, { TDN_RESEARCH_JEV_ENABLED: 'true' }])
-      await assert.rejects(main(dir, { jev: () => pickJevFromEnvironment(environment) }), unavailable, 'disabled or no key');
+      await assert.rejects(main(dir, { jev: () => pickJevFromEnvironment(environment), linkCollector: () => collector }), unavailable, 'disabled or no key');
     await assert.rejects(readFile(join(dir, 'm2/selection.json')), { code: 'ENOENT' });
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

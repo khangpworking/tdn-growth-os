@@ -291,6 +291,11 @@
             }
           }
         },
+        "linkChecksSha256": {
+          "description": "Optional. sha256 of m2/link-checks.json when step 2 checked every accepted v2 candidate.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "decisions": {
           "type": "array",
           "maxItems": 200,

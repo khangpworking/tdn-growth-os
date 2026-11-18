@@ -1,10 +1,11 @@
 import { createRequire } from 'node:module';
-import { lstat, readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { lstat, readFile, readdir } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
+import type { LinkCheckEntry } from './module-link-check.js';
 import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick } from './module-product-pick.js';
 
 const require = createRequire(import.meta.url);
@@ -120,6 +121,17 @@ export async function verifyModuleCapture(run: string) {
   return { request, source };
 }
 
+/** The step-2 link log that belongs to this run, if any; replay and the app projection read it, never the collector. */
+async function savedLinkChecks(run: string) {
+  let log: unknown;
+  try { log = await readJson(run, 'm2/link-checks.json'); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; }
+  await validateModuleValue('link-check-log-v1', log);
+  const value = object(log);
+  if (value.runId !== basename(run) || !Array.isArray(value.entries)) throw new ModuleError('MODULE_INPUT_INVALID');
+  return { entries: value.entries as LinkCheckEntry[], sha256: await hashFile(run, 'm2/link-checks.json') };
+}
+
 export async function verifyModuleSelection(run: string) {
   const { request, source } = await verifyModuleCapture(run);
   const v2 = request.selectionPolicy === MODULE_PICK_POLICY_V2;
@@ -127,15 +139,19 @@ export async function verifyModuleSelection(run: string) {
   const metricInputSha256 = await prerequisite(run, 'm1');
   const selection = object(await readJson(run, 'm2/selection.json'));
   await validateModuleValue('selection-v1', selection);
-  let expected;
+  let expected, linkChecksSha256: string | null = null;
   if (v2) {
-    // Replay with the saved answers only; Jev is never asked here (work package C1, section 3.5).
+    // Replay with the saved answers and link verdicts only; neither Jev nor the collector is called here.
+    const checks = await savedLinkChecks(run);
+    linkChecksSha256 = checks?.sha256 ?? null;
     const proof = object(selection.selectionProof), matcher = object(proof.matcher);
-    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), String(matcher.model), proof.decisions); }
+    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), String(matcher.model),
+      proof.decisions, checks?.entries); }
     catch (error) { throw error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH' ? new ModuleError('PICK_PROOF_MISMATCH') : error; }
   } else expected = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
   const exact = { format: 'selection-v1', runId: basename(run), source: 'auto', pickRuleVersion: request.selectionPolicy,
-    metricInputSha256, links: expected.links, counts: expected.counts, selectionProof: expected.selectionProof };
+    metricInputSha256, links: expected.links, counts: expected.counts,
+    selectionProof: linkChecksSha256 === null ? expected.selectionProof : { ...expected.selectionProof, linkChecksSha256 } };
   if (canonicalJson(selection) !== canonicalJson(exact)) throw new ModuleError('PICK_PROOF_MISMATCH');
   const files = await evidenceFiles(run, source, request);
   const fiveDistinct = v2 ? expected.links.length === 5 : expected.links.length === 5 && expected.selectionProof.unresolvedCount === 0;
@@ -204,6 +220,44 @@ function countShopeeRows(raw: unknown): number {
   }
   return ids.size;
 }
+type LinkIssue = { stage: 'm2' | 'm3'; productBaseId: string; url: string; reason: string; at: string;
+  replacedBy: string | null; attemptId: string | null };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** Step-2 deaths: each rejected candidate, replaced by the next accepted pick when one followed. */
+async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
+  const entries = (await savedLinkChecks(run))?.entries ?? [];
+  return entries.flatMap((entry, index) => entry.result !== 'rejected' ? [] : [{
+    stage: 'm2' as const, productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string, at: entry.checkedAt,
+    replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null }]);
+}
+/** Step-3 deaths: every attempt's outcome, each issue keeping its own attemptId. */
+async function m3LinkIssues(run: string): Promise<LinkIssue[]> {
+  let names: string[];
+  try { names = await readdir(await safePath(run, 'm3-custom/attempts')); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
+  const issues: LinkIssue[] = [];
+  for (const attemptId of names.filter(name => UUID.test(name)).sort()) {
+    const base = `m3-custom/attempts/${attemptId}`;
+    let attempt: Row, outcome: Row, endedAt: Date;
+    try {
+      attempt = object(await readJson(run, `${base}/attempt.json`));
+      outcome = object(await readJson(run, `${base}/output/outcome.json`));
+      endedAt = (await lstat(await safePath(run, `${base}/output/outcome.json`))).mtime;
+    } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
+    // `skipped` arrives with step-3 skip; outcomes without it leave no issue.
+    if (outcome.format !== 'm3-custom-outcome-v1' || !Array.isArray(outcome.links) || !Array.isArray(attempt.links) ||
+        attempt.links.length !== outcome.links.length) continue;
+    for (const [index, rawSummary] of outcome.links.entries()) {
+      const summary = rawSummary, link = attempt.links[index];
+      if (!isRow(summary) || summary.skipped !== true || typeof summary.stopReason !== 'string' ||
+          !isRow(link) || typeof link.shopId !== 'string' || typeof link.itemId !== 'string' || typeof link.url !== 'string') continue;
+      issues.push({ stage: 'm3', productBaseId: `1__${link.itemId}__${link.shopId}`, url: link.url, reason: summary.stopReason,
+        at: endedAt.toISOString(), replacedBy: null, attemptId });
+    }
+  }
+  return issues;
+}
+
 export async function moduleOutputs(runArg: string) {
   const run = resolve(runArg), runId = basename(run);
   const request = await frozenRequest(run);
@@ -275,7 +329,9 @@ export async function moduleOutputs(runArg: string) {
   m2.links = m2.links.map(link => ({ ...link, metricProduct: metricProduct(productRows, link.productBaseId) }));
   // panelCovered is a gate-only result, not an undocumented desktop field.
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
-  const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2 };
+  // A damaged step-2 log already shows in m2.errorCode; it does not break the whole projection.
+  const m2Issues = await m2LinkIssues(run).catch(() => [] as LinkIssue[]);
+  const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...await m3LinkIssues(run)] };
   await validateModuleValue('module-outputs-v1', wire);
   return wire;
 }

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { hashFolder, main, ModuleError, sha256 } from '../../scripts/module-pick.js';
 import { moduleOutputs, readModuleEvidence, verifyModuleCapture, verifyModuleSelection } from '../../scripts/module-metric-output.js';
-import { answer, fakeJev, noWait } from '../helpers/fake-pick-jev.js';
+import { answer, answersAfterRejection, fakeJev, noWait } from '../helpers/fake-pick-jev.js';
+import { fakeLinkCollector } from '../helpers/fake-link-collector.js';
 import { buildModuleRun as buildRun, distinctRows as distinct, preset, product, requestBytes, window } from '../helpers/module-run-fixture.js';
 import { buildUserPageRun, jsonBytes, USER_PAGE_WINDOW } from '../helpers/user-page-run-fixture.js';
 
@@ -48,6 +49,7 @@ test('module outputs keep legacy predicate fields null and label the saved gate 
   assert.equal(output.m2.policy, 'legacy');
   assert.equal(output.m2.legacyVerdict, 'PASS');
   assert.deepEqual([output.m2.linksMatchSourceOrder, output.m2.fiveDistinct, output.m2.shortageReason], [null, null, null]);
+  assert.deepEqual(output.linkIssues, [], 'a legacy run has no link issues');
   assert.deepEqual([output.m1.evidence.fullPage.available, output.m1.evidence.raw.available], [false, false]);
   assert.deepEqual([output.m1.evidence.fullPage.errorCode, output.m1.evidence.raw.errorCode],
     ['LEGACY_EVIDENCE_UNBOUND', 'LEGACY_EVIDENCE_UNBOUND']);
@@ -254,7 +256,8 @@ test('B0: a user-page run projects its selected window and picks without logic c
     [true, true, true, 5]);
   assert.deepEqual([output.m2.links, output.m2.errorCode], [[], 'SELECTION_MISSING']);
   const fake = fakeJev([answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9), answer(4, 'MOI', 0.9)]);
-  const result = await main(run, { jev: () => fake.jev, sleep: noWait });
+  const { collector } = fakeLinkCollector();
+  const result = await main(run, { jev: () => fake.jev, sleep: noWait, linkCollector: () => collector });
   assert.deepEqual([result.verdict, result.exitCode, result.pickedIds.length], ['PASS', 0, 5]);
   const proof = await verifyModuleSelection(run);
   assert.deepEqual([proof.fiveDistinct, proof.selectedCount, proof.errorCode], [true, 5, null]);
@@ -311,4 +314,66 @@ test('v2: an edited, removed, reordered or added decision, a changed link or thr
   await writeFile(join(run, 'm2/selection.json'),
     `${JSON.stringify(tamper(s => { s.selectionProof.decisions[0].probabilities = { SP1: -0.1, MOI: 1.1 }; }), null, 2)}\n`);
   await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'MODULE_INPUT_INVALID');
+});
+
+const linkUrl = (row: any) => `https://shopee.vn/product/801/${String(row.product_base_id).split('__')[1]}`;
+
+test('v2: replay reads the saved link verdicts, so an edited or missing log is PICK_PROOF_MISMATCH', async t => {
+  const rows = Array.from({ length: 6 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = linkUrl(rows[1]);
+  const fake = fakeJev(answersAfterRejection());
+  const { collector, asked } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fake.jev, linkCollector: collector });
+  const proof = await verifyModuleSelection(run);
+  assert.deepEqual([proof.fiveDistinct, proof.selectedCount], [true, 5]);
+  assert.equal(asked.length, 6, 'the live run checked each accepted candidate once');
+  const logPath = join(run, 'm2/link-checks.json'), logText = await readFile(logPath, 'utf8');
+  const tampered = JSON.parse(logText);
+  tampered.entries[1].reason = 'RATINGS_MISSING';
+  await writeFile(logPath, `${JSON.stringify(tampered, null, 2)}\n`);
+  await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'PICK_PROOF_MISMATCH');
+  await writeFile(logPath, logText);
+  await rm(logPath);
+  await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'PICK_PROOF_MISMATCH',
+    'without the log, the replay accepts the dead link again and disagrees with the saved selection');
+});
+
+test('link issues name step-2 replacements and every step-3 attempt that skipped a link', async t => {
+  const rows = Array.from({ length: 5 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = [linkUrl(rows[1]), linkUrl(rows[4])];
+  const fake = fakeJev([answer(1, 'MOI', 0.9), answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9)]);
+  const { collector } = fakeLinkCollector(url => dead.includes(url) ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fake.jev, linkCollector: collector });
+  const selection = JSON.parse(await readFile(join(run, 'm2/selection.json'), 'utf8'));
+  const log = JSON.parse(await readFile(join(run, 'm2/link-checks.json'), 'utf8'));
+  const checkedAt = (productBaseId: string) => log.entries.find((entry: any) => entry.productBaseId === productBaseId).checkedAt;
+  const attemptA = '11111111-1111-4111-8111-111111111111', attemptB = '22222222-2222-4222-8222-222222222222';
+  const attemptLink = (link: any) => ({ shopId: link.shopId, itemId: link.itemId, url: link.url });
+  const summary = (link: any, stopReason: string, skipped: boolean) =>
+    ({ shopId: link.shopId, itemId: link.itemId, requested: null, actual: skipped ? null : 10, shortfall: null, stopReason, stars: [], skipped });
+  const writeAttempt = async (attemptId: string, links: any[], summaries: any[]) => {
+    const base = join(run, 'm3-custom/attempts', attemptId);
+    await mkdir(join(base, 'output'), { recursive: true });
+    await writeFile(join(base, 'attempt.json'), jsonBytes({ format: 'shopee-review-attempt-v1', kind: 'custom', attemptId,
+      runId: basename(run), createdAt: '2026-11-18T03:00:00.000Z', m2Digest: sha256(await readFile(join(run, 'm2/selection.json'))),
+      requestSha256: sha256(await readFile(join(run, 'request.json'))), planSha256: 'a'.repeat(64), links: links.map(attemptLink) }));
+    await writeFile(join(base, 'output/outcome.json'), jsonBytes({ format: 'm3-custom-outcome-v1', planSha256: 'a'.repeat(64),
+      verdict: 'PARTIAL_LINKS', errorCode: null, links: summaries }));
+    return (await lstat(join(base, 'output/outcome.json'))).mtime.toISOString();
+  };
+  const atA = await writeAttempt(attemptA, [selection.links[0]], [summary(selection.links[0], 'PRODUCT_UNAVAILABLE', true)]);
+  const atB = await writeAttempt(attemptB, [selection.links[1], selection.links[2]],
+    [summary(selection.links[1], 'exhausted', false), summary(selection.links[2], 'RATINGS_MISSING', true)]);
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual(output.linkIssues, [
+    { stage: 'm2', productBaseId: rows[1]!.product_base_id, url: dead[0], reason: 'PRODUCT_UNAVAILABLE',
+      at: checkedAt(rows[1]!.product_base_id as string), replacedBy: rows[2]!.product_base_id, attemptId: null },
+    { stage: 'm2', productBaseId: rows[4]!.product_base_id, url: dead[1], reason: 'PRODUCT_UNAVAILABLE',
+      at: checkedAt(rows[4]!.product_base_id as string), replacedBy: null, attemptId: null },
+    { stage: 'm3', productBaseId: selection.links[0].productBaseId, url: selection.links[0].url,
+      reason: 'PRODUCT_UNAVAILABLE', at: atA, replacedBy: null, attemptId: attemptA },
+    { stage: 'm3', productBaseId: selection.links[2].productBaseId, url: selection.links[2].url,
+      reason: 'RATINGS_MISSING', at: atB, replacedBy: null, attemptId: attemptB },
+  ]);
+  for (const issue of output.linkIssues) assert.match(issue.at, /^\d{4}-\d{2}-\d{2}T/);
 });
