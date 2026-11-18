@@ -624,10 +624,6 @@ def gate_prerequisite(run, previous, input_sha):
     return None, 0
 
 
-def gate_passed(run, gate):
-    return gate_slip_passed(gate_read(gate_path(run, f'gates/{gate}.json')), run, gate)
-
-
 def flow_user_page(request):
     """The request shape m1-import writes: Metric captured on the desktop, so no capture spec or metric input."""
     source = request.get('metricSource') if isinstance(request, dict) else None
@@ -638,71 +634,6 @@ def flow_user_page(request):
 
 def flow_user_page_run(run):
     return flow_user_page(gate_read(gate_path(run, 'request.json')))
-
-
-def flow_passed_automatic_attempt(run):
-    """The automatic configured M3 attempt that is complete for the current inputs, or None.
-
-    Canonical evidence is the attempt's own binding, receipt, state and output plus its
-    execution record; gates/m3.json is the legacy receipt and never describes this attempt.
-    Caller holds the run flock."""
-    automatic = gate_read(gate_path(run, 'm3-custom/automatic.json'))
-    attempt_id = automatic.get('attemptId') if isinstance(automatic, dict) else None
-    if not isinstance(attempt_id, str) or not re.fullmatch(r'[a-f0-9-]{36}', attempt_id):
-        return None
-    base = f'm3-custom/attempts/{attempt_id}'
-    attempt = gate_read(gate_path(run, f'{base}/attempt.json'))
-    state = gate_read(gate_path(run, f'{base}/state.json'))
-    slip = gate_read(gate_path(run, f'{base}/gate.json'))
-    hex64 = lambda value: isinstance(value, str) and re.fullmatch(r'[a-f0-9]{64}', value)
-    if not (isinstance(attempt, dict) and isinstance(state, dict) and isinstance(slip, dict)
-            and automatic.get('format') == 'shopee-automatic-review-binding-v1'
-            and automatic.get('runId') == run.name and attempt.get('attemptId') == attempt_id
-            and attempt.get('format') == 'shopee-review-attempt-v1'
-            and state.get('format') == 'shopee-review-attempt-state-v1'
-            and attempt.get('runId') == run.name
-            and automatic.get('planSha256') == attempt.get('planSha256')
-            and attempt.get('requestSha256') == gate_hash(run, 'request.json')
-            and attempt.get('m2Digest') == gate_hash(run, 'm2/selection.json')
-            and automatic.get('requestSha256') == attempt.get('requestSha256')
-            and automatic.get('m2Digest') == attempt.get('m2Digest')):
-        return None
-    if not (state.get('status') == 'SUCCEEDED' and state.get('errorCode') is None and hex64(state.get('outputSha256'))
-            and slip.get('format') == 'handoff-v1' and slip.get('module') == 'M3' and slip.get('runId') == run.name
-            and slip.get('verdict') == 'PASS' and slip.get('errorCode') is None
-            and slip.get('inputSha256') == attempt.get('planSha256')
-            and slip.get('outputSha256') == state.get('outputSha256')
-            and gate_hash(run, f'{base}/output') == state.get('outputSha256')):
-        return None
-    record = next((r for r in flow_execution_records(run) if r.get('attemptId') == attempt_id), None)
-    if not (record and record.get('module') == 'M3' and record.get('status') == 'SUCCEEDED'
-            and record.get('executionId') == attempt.get('executionId')
-            and record.get('sequence') == attempt.get('sequence')):
-        return None
-    return attempt_id
-
-
-def flow_step4_complete(run, attempt_id):
-    """Step 4 is done for this M3 source when its worker state says PASS; a missing link or a
-    recorded stop means the automatic start still has to continue."""
-    link = gate_read(gate_path(run, f'm4/m3/{attempt_id}.json'))
-    source = link.get('sourceSha256') if isinstance(link, dict) and link.get('errorCode') is None else None
-    if not isinstance(source, str) or not re.fullmatch(r'[a-f0-9]{64}', source):
-        return False
-    state = gate_read(gate_path(run, f'm4/{source}/state.json'))
-    return (isinstance(state, dict) and state.get('format') == 'review-process-state-v1'
-            and state.get('runId') == run.name and state.get('sourceSha256') == source
-            and state.get('status') == 'PASS')
-
-
-def flow_user_page_pending(run):
-    """Modules a user-page run still has to run, plus the completed automatic M3 attempt when
-    only step 4 is left. Caller holds the run flock."""
-    pending = [] if gate_passed(run, 'm2') else ['m2']
-    attempt = flow_passed_automatic_attempt(run)
-    if attempt is None:
-        pending.append('m3')
-    return pending, attempt
 
 
 def gate_date(value):
@@ -1710,7 +1641,7 @@ def cmd_module(ns):
     run, lock, slip, code, error, execution, last_execution = None, None, None, 0, None, None, None
     owns_lock = False
     mode, module = ('flow' if ns.cmd == 'run' else 'single'), ('m1' if ns.cmd == 'run' else ns.cmd)
-    pending, user_page, m3_continuation = [], False, None
+    pending, user_page = [], False
     try:
         run = module_run_folder(ns.run_id)
         repo, config = module_config()
@@ -1764,11 +1695,11 @@ def cmd_module(ns):
                 # Selected only after the lock and the live-state check, so another command that
                 # just finished a module is seen instead of being attempted again.
                 if user_page:
-                    pending, attempt = flow_user_page_pending(run)
-                    if pending:
-                        module = pending[0]
-                    elif attempt is not None and not flow_step4_complete(run, attempt):
-                        module, m3_continuation = 'm3', attempt
+                    # Same prerequisite the M3 barrier applies: a passed M2 with a matching
+                    # selection means M2 is done; otherwise M2 is the first admitted module.
+                    m2_error, _ = gate_prerequisite(run, 'm2', gate_hash(run, 'm2/selection.json'))
+                    pending = ['m3'] if m2_error is None else ['m2', 'm3']
+                    module = pending[0]
                 else:
                     pending = ['m1', 'm2', 'm3'] if ns.cmd == 'run' else [ns.cmd]
             if code == 0 and pending and getattr(ns, 'detach', False):
@@ -1793,11 +1724,9 @@ def cmd_module(ns):
                     execution = None
                     break
                 if ns.cmd == 'run':
-                    rest = flow_user_page_pending(run)[0] if user_page else ['m1', 'm2', 'm3']
+                    rest = ['m2', 'm3'] if user_page else ['m1', 'm2', 'm3']
                     pending.extend(name for name in rest if name not in pending)
                 execution = None
-            if code == 0 and m3_continuation:
-                review_process_after_m3(run, repo, config, m3_continuation)
     except ModuleFailure as failure:
         error, code = failure.code, failure.exit_code
         if owns_lock and code not in (2, 24):

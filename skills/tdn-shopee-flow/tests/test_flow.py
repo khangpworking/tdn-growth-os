@@ -1050,7 +1050,7 @@ class PartialOutcomeFlowTests(FlowTest):
 
 USER_PAGE_NODE = '''#!/usr/bin/env python3
 """Fake TS boundary for a user-page run: M2 pick, M3 attempt, step 4."""
-import json, os, pathlib, sys, uuid
+import hashlib, json, os, pathlib, sys, uuid
 
 args = sys.argv[1:]
 script_path = pathlib.Path(next(a for a in args if a.endswith('.ts')))
@@ -1098,11 +1098,18 @@ elif script == 'module-review-sampling.ts':
         attempt = str(uuid.uuid4())
         write(run / 'm3-custom' / 'attempts' / attempt / 'attempt.json',
               {'format': 'shopee-review-attempt-v1', 'runId': run.name, 'attemptId': attempt, 'kind': 'automatic'})
+        sha = lambda rel: hashlib.sha256((run / rel).read_bytes()).hexdigest()
+        write(run / 'm3-custom' / 'automatic.json', {
+            'format': 'shopee-automatic-review-binding-v1', 'runId': run.name,
+            'requestSha256': sha('request.json'), 'm2Digest': sha('m2/selection.json'), 'attemptId': attempt})
         print(json.dumps({'format': 'review-attempt-reserve-v1', 'attemptId': attempt}))
     elif action == 'execute':
         attempt = args[index + 4]
         write(run / 'm3-custom' / 'attempts' / attempt / 'gate.json',
               {'format': 'handoff-v1', 'module': 'M3', 'runId': run.name, 'verdict': 'PASS', 'checks': [],
+               'errorCode': None})
+        write(run / 'm3-custom' / 'attempts' / attempt / 'state.json',
+              {'format': 'shopee-review-attempt-state-v1', 'runId': run.name, 'status': 'SUCCEEDED',
                'errorCode': None})
         print(json.dumps({'format': 'review-attempt-result-v1', 'attemptId': attempt, 'status': 'SUCCEEDED',
                           'errorCode': None}))
@@ -1115,17 +1122,6 @@ elif script == 'module-review-data.ts':
 else:
     raise SystemExit('unexpected module script')
 '''
-
-# The production automatic M3 binding and step 4 run through the real TS boundary; only
-# the Metric/pick scripts stay synthetic so the run keeps the user-page shape.
-USER_PAGE_REAL_NODE = USER_PAGE_NODE.replace(
-    "elif script == 'module-review-sampling.ts':",
-    "elif script in ('module-review-sampling.ts', 'module-review-data.ts'):\n"
-    "    real = os.environ.get('TDN_REAL_NODE')\n"
-    "    if not real:\n"
-    "        raise SystemExit('real node is required for the production M3 binding')\n"
-    "    os.execv(real, [real, *sys.argv[1:]])\n"
-    "elif script == 'module-review-sampling.ts':", 1)
 
 USER_PAGE_IMPORT_ID = '3f6c2a1e-8b9d-4c1e-9f00-1234567890ab'
 
@@ -1287,74 +1283,28 @@ class UserPageRunTests(FlowTest):
                 self.assertFalse((run / 'm2' / 'selection.json').exists(), 'M2 did not run')
                 self.assertFalse(self.pick_marker.exists(), 'no module subprocess started')
 
-
-class UserPageConfiguredFlowTests(FlowTest):
-    """A user-page run continues through the real production automatic M3 binding and step 4."""
-
-    def setUp(self):
-        super().setUp()
-        self.real_node = shutil.which('node')
-        if not self.real_node or not (ROOT / 'node_modules' / 'tsx').is_dir():
-            self.skipTest('real node with tsx is unavailable for the TS sampling boundary')
-        node = self.bin / 'node'
-        node.write_text(USER_PAGE_REAL_NODE, encoding='utf8')
-        node.chmod(node.stat().st_mode | stat.S_IXUSR)
-        try:
-            self.transport = _SamplingTransport()
-        except OSError:
-            try:
-                self.transport = _SamplingTransport(host='::1')
-            except OSError:
-                self.skipTest('the local collector port is unavailable on both loopback families')
-        self.addCleanup(self.transport.close)
-        self.pick_marker = pathlib.Path(self._tmp.name) / 'pick-called'
-        self.step4_marker = pathlib.Path(self._tmp.name) / 'step4-called'
-
-    def env(self, extra=None):
-        env = super().env(extra)
-        env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
-        env['TDN_REAL_NODE'] = self.real_node
-        env['REAL_TS_SAMPLING'] = '1'
-        env['TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED'] = '1'
-        env['TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN'] = 'synthetic-token'
-        env['TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL'] = self.transport.url
-        env['USER_PAGE_PICK_MARKER'] = str(self.pick_marker)
-        env['USER_PAGE_STEP4_MARKER'] = str(self.step4_marker)
-        return env
-
-    def imported(self, import_id=USER_PAGE_IMPORT_ID):
-        payload = user_page_payload(import_id)
-        payload['collectionPolicy'] = {'mode': 'stars', 'stars': [3, 2], 'totalPerLink': 50, 'allocation': 'pooled'}
-        rc, result, stderr = self.command('m1-import', '--stdin', stdin=json.dumps(payload))
-        self.assertEqual(rc, 0, (result, stderr))
-        return result['runId']
-
-    def test_run_continues_step4_from_a_passed_automatic_m3_attempt(self):
-        run_id = self.imported()
+    def test_run_after_m3_was_collected_refuses_with_the_existing_error(self):
+        run_id = self.imported('7a1b2c3d-0000-4000-8000-000000000005')
         run = self.runs / run_id
-        auto = run / 'm4' / 'auto.json'
-        auto_bytes = auto.read_bytes()
-        auto.unlink()  # an interruption between M3 completion and the step-4 dispatch
         rc, payload, stderr = self.command('run', '--run', run_id)
         self.assertEqual(rc, 0, (payload, stderr))
-        self.assertEqual(payload['status'], 'DONE', payload)
-        attempts = sorted((run / 'm3-custom' / 'attempts').iterdir())
-        self.assertEqual(len(attempts), 1, attempts)
-        attempt_id = attempts[0].name
         binding = run / 'm3-custom' / 'automatic.json'
         binding_bytes = binding.read_bytes()
-        self.assertEqual(json.loads(binding_bytes)['attemptId'], attempt_id)
-        self.assertFalse((run / 'm4' / 'm3' / f'{attempt_id}.json').exists(), 'step 4 did not start')
+        attempts = sorted((run / 'm3-custom' / 'attempts').iterdir())
+        self.step4_marker.unlink()
 
-        auto.write_bytes(auto_bytes)
         rc, payload, stderr = self.command('run', '--run', run_id)
-        self.assertEqual(rc, 0, (payload, stderr))
-        self.assertEqual((payload['status'], payload['errorCode']), ('DONE', None), payload)
-        self.assertEqual([path.name for path in (run / 'm3-custom' / 'attempts').iterdir()], [attempt_id],
-                         'M3 was not collected again')
+
+        self.assertEqual(rc, 20, (payload, stderr))
+        self.assertEqual((payload['status'], payload['stoppedAt'], payload['errorCode']),
+                         ('STOPPED', 'm3', 'AUTOMATIC_COLLECTION_EXISTS'))
+        self.assertEqual([record['module'] for record in self.executions(run_id)], ['M2', 'M3'],
+                         'no new execution was admitted')
         self.assertEqual(binding.read_bytes(), binding_bytes, 'the automatic binding is unchanged')
-        self.assertTrue((run / 'm4' / 'm3' / f'{attempt_id}.json').is_file(),
-                        'step 4 continued with the passed attempt')
+        self.assertEqual(sorted((run / 'm3-custom' / 'attempts').iterdir()), attempts,
+                         'M3 was not collected again')
+        self.assertFalse((run / 'gates' / 'm3.json').exists(), 'no new M3 receipt was written')
+        self.assertFalse(self.step4_marker.exists(), 'step 4 did not start again')
 
 
 class _SamplingState:
