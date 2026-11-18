@@ -3203,8 +3203,10 @@ _RUN_VIEW_UNAVAILABLE = {                               # node cannot be started
 
 def review_run_view_script(repo, config, run, result, on_sampling):
     """One node process streams one JSON line per finished part; a slow part never discards the
-    parts already received. Only `outputs` has a bound (inside node), so the reader waits until node
-    exits; a part missing then gets the error its single command would give."""
+    parts already received. Only `outputs` has a bound (inside node). Node exits once every line is
+    flushed, but a stalled file read can hold its exit in the threadpool; the reader therefore stops
+    at the last expected part and releases the child, and a part missing at exit gets the error its
+    single command would give."""
     import selectors, shlex
     command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
     command = shlex.split(command) if isinstance(command, str) else command
@@ -3252,6 +3254,8 @@ def review_run_view_script(repo, config, run, result, on_sampling):
                         exit_code = value.get('exitCode')
                         errors[name] = {'code': error['code'], 'message': error['message'],
                                         'exitCode': exit_code if type(exit_code) is int else 20}
+            if all(name in parts or name in errors for name in names):
+                break  # every part is in: never wait on a read the child abandoned after its bound.
     finally:
         selector.close()
         if child.poll() is None:

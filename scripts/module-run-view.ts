@@ -70,13 +70,24 @@ export async function reviewRunView(runArg:string, result:boolean, emit:(line:Ru
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [runArg, ...flags] = process.argv.slice(2);
   const unknown = flags.filter(flag => flag !== '--result');
-  const write = (line:RunViewLine) => { process.stdout.write(`${JSON.stringify(line)}\n`); };
-  void (!runArg || unknown.length
-    ? Promise.reject(new ModuleError('USAGE', 2))
-    : reviewRunView(runArg, flags.includes('--result'), write))
-    .catch(error => {
+  let flushed:Promise<void> = Promise.resolve();
+  const write = (line:unknown) => {
+    flushed = flushed.then(() => new Promise<void>((resolveWrite, rejectWrite) => {
+      process.stdout.write(`${JSON.stringify(line)}\n`, error => error ? rejectWrite(error) : resolveWrite());
+    }));
+  };
+  void (async () => {
+    try {
+      if (!runArg || unknown.length) throw new ModuleError('USAGE', 2);
+      await reviewRunView(runArg, flags.includes('--result'), write);
+    } catch (error) {
       const code = error instanceof ModuleError ? error.code : 'REVIEW_VIEW_FAILED';
-      process.stdout.write(`${JSON.stringify({ format:'error-v1', code, message:code })}\n`);
       process.exitCode = error instanceof ModuleError ? error.exitCode : 20;
-    });
+      write({ format:'error-v1', code, message:code });
+    }
+    // An abandoned part read (a stalled outputs file) can keep the event loop alive after every line
+    // is out; exit once the printed lines are flushed so the reader never waits for that read.
+    await flushed.catch(() => {});
+    process.exit(process.exitCode ?? 0);
+  })();
 }

@@ -86,40 +86,33 @@ test('a part that cannot be read stays an error and never hides the others', asy
     { sampling: false, reviewData: true, process: true, stats: true, insights: true, outputs: true });
 });
 
-test('the outputs bound is its own at the command boundary: a stalled outputs read times out alone', async t => {
+test('the outputs bound is its own at the command boundary: the full command returns after a stalled outputs read',
+  { timeout: 90_000 }, async t => {
   const run = await fixture(t);
-  // gates/m1.json is read by the outputs part only, so a FIFO without a writer stalls just that part.
-  const gate = path.join(run.runDir, 'gates', 'm1.json');
-  await fs.rm(gate, { force: true });
+  // m2/link-checks.json is read by the outputs part only, so a FIFO without a writer stalls just that part.
+  const fifo = path.join(run.runDir, 'm2', 'link-checks.json');
   await new Promise<void>((resolveMkfifo, reject) => {
-    const mkfifo = spawn('mkfifo', [gate], { stdio: 'ignore' });
+    const mkfifo = spawn('mkfifo', [fifo], { stdio: 'ignore' });
     mkfifo.on('error', reject);
     mkfifo.on('close', code => code === 0 ? resolveMkfifo() : reject(new Error(`mkfifo exited ${code}`)));
   });
-  const child = spawn(process.execPath, ['--import', 'tsx', path.join(ROOT, 'scripts/module-run-view.ts'), run.runDir, '--result'],
-    { cwd: ROOT, env: commandEnv(), stdio: ['ignore', 'pipe', 'ignore'] });
-  t.after(() => child.kill('SIGKILL'));
-  const lines: RunViewLine[] = [];
-  await new Promise<void>((resolveClose, reject) => {
-    let pending = '';
-    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-      pending += chunk;
-      let newline: number;
-      while ((newline = pending.indexOf('\n')) >= 0) {
-        const line = JSON.parse(pending.slice(0, newline)) as RunViewLine;
-        pending = pending.slice(newline + 1);
-        lines.push(line);
-        // The abandoned read is still open; stop the process once its timeout line has arrived.
-        if (line.part === 'outputs') child.kill('SIGKILL');
-      }
-    });
+  const started = Date.now();
+  const child = spawn(process.env.PYTHON ?? 'python3',
+    [path.join(ROOT, 'skills', 'tdn-shopee-flow', 'scripts', 'shopee_flow.py'), 'run-view', '--run', run.runId, '--result'],
+    { cwd: ROOT, env: { ...commandEnv(), SHOPEE_FLOW_RUNS: path.dirname(run.runDir) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '', stderr = '';
+  child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
+  child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
+  const code: number | null = await new Promise((resolveClose, reject) => {
     child.on('error', reject);
-    child.on('close', () => resolveClose());
+    child.on('close', resolveClose);
   });
-  const outputs = lines.find(line => line.part === 'outputs');
-  if (!outputs || outputs.ok) assert.fail('outputs did not time out');
-  assert.equal(outputs.error.code, 'MODULE_OUTPUT_TIMEOUT');
-  assert.equal(outputs.exitCode, 20);
+  const elapsed = Date.now() - started;
+  assert.equal(code, 0, stderr);
+  assert.ok(elapsed < 35_000, `run-view returned after ${elapsed} ms; the abandoned outputs read kept node alive`);
+  const view = JSON.parse(stdout);
+  assert.equal(view.format, 'run-view-v1');
+  assert.deepEqual(view.errors, { outputs: { code: 'MODULE_OUTPUT_TIMEOUT', message: 'MODULE_OUTPUT_TIMEOUT' } });
   const expected: Record<string, { script: string; args: string[] }> = {
     sampling: { script: 'scripts/module-review-sampling.ts', args: ['view', run.runDir] },
     reviewData: { script: 'scripts/module-review-data.ts', args: ['view', run.runDir] },
@@ -128,11 +121,9 @@ test('the outputs bound is its own at the command boundary: a stalled outputs re
     insights: { script: 'scripts/module-review-data.ts', args: ['insights-summary', run.runDir] },
   };
   for (const [name, call] of Object.entries(expected)) {
-    const { code, value, stderr } = await single(call.script, call.args);
-    assert.equal(code, 0, `${name}: ${stderr}`);
-    const line = lines.find(candidate => candidate.part === name);
-    if (!line || !line.ok) assert.fail(`${name} did not settle while outputs stalled`);
-    assert.deepEqual(line.value, value, name);
+    const result = await single(call.script, call.args);
+    assert.equal(result.code, 0, `${name}: ${result.stderr}`);
+    assert.deepEqual(view.parts[name], result.value, name);
   }
 });
 
