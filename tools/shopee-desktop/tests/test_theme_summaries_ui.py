@@ -81,10 +81,15 @@ class ThemeSummaryRenderTest(unittest.TestCase):
 
     def test_supporting_comment_evidence_stays_expandable(self):
         body = function_body(self.source, 'insightThemeCard')
+        # The count comes from the summary's commentCount (an older server: the inline list); the comments
+        # are read when the user clicks to open the section.
+        self.assertIn('var sampleCount = onDemand ? theme.commentCount : examples.length;', body)
         self.assertIn(
-            "toggle.textContent = examples.length ? 'Xem ' + fmtInt(examples.length) + ' bình luận mẫu' : 'Chưa có bình luận mẫu';",
+            "toggle.textContent = sampleCount ? 'Xem ' + fmtInt(sampleCount) + ' bình luận mẫu' : 'Chưa có bình luận mẫu';",
             body,
         )
+        self.assertIn("toggle.addEventListener('click', function (ev) {", body)
+        self.assertIn('loadInsightComments(runId, bucket.key, theme.code);', body)
         self.assertIn('body.appendChild(commentList(examples, 8));', body)
         self.assertIn('details.appendChild(body);', body)
         self.assertIn('article.appendChild(details);', body)
@@ -114,7 +119,7 @@ class ThemeSummaryRenderTest(unittest.TestCase):
         self.assertIn("card.id = 'resultAiSummary'", body)
         panel = function_body(self.source, 'reviewInsightsPanel')
         self.assertIn('insightSummaryCard(bucket)', panel)
-        self.assertIn('insightThemeCard(bucket)', panel)
+        self.assertIn('insightThemeCard(bucket, runId)', panel)
 
     def test_theme_summary_css_is_visible_and_comments_use_a_details_toggle(self):
         self.assertIn('.insight-summary { border-left: 4px solid var(--accent);', self.source)
