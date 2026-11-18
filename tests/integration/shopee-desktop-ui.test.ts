@@ -108,6 +108,7 @@ function harness(options: {
     processReviewDataCalls: { runId: string; sourceSha256: string }[];
     runsProgressCalls: number;
     notifyCalls: { title: string; body: string }[];
+    runSortSaved: string | null;
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
