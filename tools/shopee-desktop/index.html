@@ -565,9 +565,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           <div class="policy-grid">
             <fieldset class="policy-group">
               <legend>Lấy những đánh giá nào</legend>
-              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="with-comments" checked> Chỉ đánh giá có viết bình luận (mặc định)</label>
-              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="all"> Mọi mức sao, chỉ lấy phần chữ</label>
-              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="stars"> Chọn theo số sao</label>
+              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="with-comments" checked> Lấy tất cả bình luận</label>
+              <label class="rs-opt"><input type="radio" name="newPolicyMode" value="stars"> Lấy bình luận theo số sao</label>
             </fieldset>
             <fieldset class="policy-group" id="newStarsGroup" hidden>
               <legend>Lấy đánh giá mấy sao</legend>
@@ -982,9 +981,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   var POLICY_MODES = ['with-comments', 'all', 'stars'];
   var POLICY_MODE_LABEL = {
-    'with-comments': 'Đánh giá có bình luận',
-    all: 'Mọi mức sao, chỉ phần chữ',
-    stars: 'Chọn theo số sao'
+    'with-comments': 'Lấy tất cả bình luận',
+    all: 'Mọi mức sao, chỉ phần chữ (cách cũ)',
+    stars: 'Lấy bình luận theo số sao'
   };
 
   function normalizePolicy(raw) {
@@ -1007,9 +1006,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     stars = Array.from(new Set(stars)).sort(function (a, b) { return a - b; });
     if (mode === 'stars' && !stars.length) return { error: 'Chọn ít nhất một mức sao.' };
-    if (mode !== 'stars' && stars.length) return { error: 'Chỉ chọn mức sao khi nguồn là “Chọn sao”.' };
+    if (mode !== 'stars' && stars.length) return { error: 'Chỉ chọn mức sao khi nguồn là “Lấy bình luận theo số sao”.' };
     if (allocation === 'equal-stars' && mode !== 'stars') {
-      return { error: 'Chỉ chia đều khi nguồn là “Chọn sao”.' };
+      return { error: 'Chỉ chia đều khi nguồn là “Lấy bình luận theo số sao”.' };
     }
     if (pages) return { value: { mode: mode, stars: stars, limitBy: 'pages', pagesPerLink: raw.pagesPerLink, allocation: 'pooled' } };
     return { value: { mode: mode, stars: stars, totalPerLink: total, allocation: allocation } };
@@ -3876,9 +3875,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   var RS_MODE_LABEL = {
-    'with-comments': 'Đánh giá có bình luận',
-    all: 'Mọi mức sao, chỉ phần chữ',
-    stars: 'Chọn theo số sao'
+    'with-comments': 'Lấy tất cả bình luận',
+    all: 'Mọi mức sao, chỉ phần chữ (cách cũ)',
+    stars: 'Lấy bình luận theo số sao'
   };
   var RS_BLOCK_TEXT = {
     READONLY_ON: 'Hệ thống đang tạm dừng lấy dữ liệu.',
@@ -4464,8 +4463,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     var modes = h('fieldset', 'rs-group');
     modes.appendChild(h('legend', null, 'Lấy những đánh giá nào'));
-    [['with-comments', 'Chỉ đánh giá có viết bình luận (mặc định)'],
-      ['all', 'Mọi mức sao, chỉ lấy phần chữ'], ['stars', 'Chọn theo số sao']].forEach(function (entry) {
+    [['with-comments', 'Lấy tất cả bình luận'], ['stars', 'Lấy bình luận theo số sao']].forEach(function (entry) {
       var label = h('label', 'rs-opt');
       var input = document.createElement('input');
       input.type = 'radio';

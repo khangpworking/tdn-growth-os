@@ -2800,7 +2800,7 @@ test('C2: limiting by Shopee review pages swaps the count field for a page field
     limitBy(back.doc, 'count');
     assert.equal(element(back.doc, 'newTotalField').hidden, false);
     assert.equal(element(back.doc, 'newPagesField').hidden, true);
-    assert.equal(element<HTMLElement>(back.doc, 'newPolicySummary').textContent, 'Đánh giá có bình luận · tối đa 300 mỗi link');
+    assert.equal(element<HTMLElement>(back.doc, 'newPolicySummary').textContent, 'Lấy tất cả bình luận · tối đa 300 mỗi link');
   } finally { back.dom.window.close(); }
 });
 
@@ -2820,7 +2820,7 @@ test('C2: a pages-mode run shows its page limit in the run list and the run meta
       .map((row) => [row.querySelector('dt')!.textContent, row.querySelector('dd')!.textContent]);
     assert.deepEqual(meta.find(([label]) => label === 'Số lượng mỗi link'), ['Số lượng mỗi link', 'Tối đa 10 trang mỗi link']);
     assert.deepEqual(meta.find(([label]) => label === 'Cách lấy bình luận'),
-      ['Cách lấy bình luận', 'Đánh giá có bình luận · tối đa 10 trang mỗi link']);
+      ['Cách lấy bình luận', 'Lấy tất cả bình luận · tối đa 10 trang mỗi link']);
   } finally { dom.window.close(); }
 });
 
