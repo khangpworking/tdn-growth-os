@@ -3238,6 +3238,8 @@ test('the technical-docs tab shows the 4-step guide from modules.json first, the
 // | b. two partial attempts                | first, second | first, second | 12:00: link 5; then 11:00: link 4 | PASS, links_skipped 1       | Xong, có link bị bỏ  | Xong, có link bị bỏ  |
 // | c. stopped attempt, no source for it   | first (clean) | stopped       | 13:00: link 6                     | FAILED on session, FAIL gate| Đạt kiểm tra dữ liệu | Không đạt            |
 // | old run                                | first, second | absent        | none                              | PASS, links_skipped 0       | Đạt kiểm tra dữ liệu | Đạt kiểm tra dữ liệu |
+// | d. partial source shown, new attempt   | first, second | second        | 12:00: link 5                     | RUNNING, no gate yet        | Xong, có link bị bỏ  | Chưa kiểm tra        |
+// The visible chip follows the displayed source's own attempt (second = latest completed), never the current gate.
 // Every case with linkIssues also has the 3 m2 items (3 reasons; «đã thay bằng link khác» only with replacedBy).
 const DEAD = (n: number) => `https://shopee.vn/product/900/${n}`;
 const linkIssue = (n: number, stage: string, reason: string, extra: any = {}) =>
@@ -3270,13 +3272,14 @@ const m3Groups = (doc: Document) => [...doc.querySelectorAll('#linkIssues-m3 .li
   lines: [...group.querySelectorAll('li')].map(lineOf),
 }));
 
-function withM3Gate(info: any, skipped: number, stopped = false) {
+function withM3Gate(info: any, skipped: number, stopped = false, running = false) {
   const errorCode = stopped ? 'HUMAN_LOGIN_REQUIRED' : null;
-  const gate = { ...passSlip('M3'), verdict: stopped ? 'FAIL' : 'PASS', errorCode,
+  const gate = running ? null : { ...passSlip('M3'), verdict: stopped ? 'FAIL' : 'PASS', errorCode,
     checks: [{ id: 'links_skipped', ok: skipped === 0, level: 'warn', got: skipped }] };
   info.modules = info.modules.map((module: any) => module.id === 'M3' ? { ...module, execution: {
-    status: stopped ? 'FAILED' : 'SUCCEEDED', executionId: 'exec-3', sequence: 2, attemptId: null, startedAt: null,
-    endedAt: null, basis: 'none', currentGate: gate, historicalGate: null, errorCode,
+    status: running ? 'RUNNING' : stopped ? 'FAILED' : 'SUCCEEDED', executionId: 'exec-3', sequence: 3,
+    attemptId: running ? 'attempt-third' : null, startedAt: null, endedAt: null, basis: 'none',
+    currentGate: gate, historicalGate: null, errorCode,
   } } : module);
   return info;
 }
@@ -3286,7 +3289,7 @@ test('dead links: «Link bị bỏ» for step 2 and every step 3 attempt, newest
     syntheticReviewSource({ attemptId, sourceSha256: sha.repeat(64), completedAt, rowCount });
   const first = source('attempt-first', 'd', '2026-11-18T04:00:00.000Z', 7);
   const second = source('attempt-second', 'e', '2026-11-18T05:00:00.000Z', 9);
-  const rows: { label: string; sources: any[]; m3?: any[]; skipped: number; stopped?: boolean; groups: any[];
+  const rows: { label: string; sources: any[]; m3?: any[]; skipped: number; stopped?: boolean; running?: boolean; groups: any[];
     chip: string; chipCls: string; verdict: string }[] = [
     { label: 'a. latest attempt partial', sources: [first, second], m3: [SECOND_ISSUE], skipped: 1,
       groups: [SECOND_GROUP], chip: 'Xong, có link bị bỏ', chipCls: 's-warn', verdict: 'Xong, có link bị bỏ' },
@@ -3298,11 +3301,13 @@ test('dead links: «Link bị bỏ» for step 2 and every step 3 attempt, newest
       groups: [STOPPED_GROUP], chip: 'Đạt kiểm tra dữ liệu', chipCls: 's-pass', verdict: 'Không đạt' },
     { label: 'old run', sources: [first, second], skipped: 0, groups: [], chip: 'Đạt kiểm tra dữ liệu',
       chipCls: 's-pass', verdict: 'Đạt kiểm tra dữ liệu' },
+    { label: 'd. partial source shown while a new attempt runs', sources: [first, second], m3: [SECOND_ISSUE], skipped: 0,
+      running: true, groups: [SECOND_GROUP], chip: 'Xong, có link bị bỏ', chipCls: 's-warn', verdict: 'Chưa kiểm tra' },
   ];
   for (const row of rows) {
     const run = harness({
       runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-      runInfo: withM3Gate(collectedRunInfo(), row.skipped, row.stopped), sampling: syntheticSampling(),
+      runInfo: withM3Gate(collectedRunInfo(), row.skipped, row.stopped, row.running), sampling: syntheticSampling(),
       reviewData: syntheticReviewData({ sources: row.sources }),
       moduleOutputsResult: (runId) => ({ ok: true, data: row.m3
         ? { ...moduleOutputView(runId), linkIssues: [...M2_ISSUES, ...row.m3] } : moduleOutputView(runId) }),

@@ -5250,9 +5250,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       clear(summary);
       if (source) {
         var validated = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS';
-        // The current (latest) M3 attempt passed but skipped dead links: say so on the visible card.
-        var m3Now = moduleExecution(info, 'M3');
-        var partial = validated && !!m3Now && slipHasSkippedLinks(m3Now.currentGate);
+        // The displayed source's own attempt skipped dead links (m3 linkIssues with its attemptId).
+        var partial = validated && typeof source.attemptId === 'string' &&
+          linkIssuesFor(runId, 'm3').some(function (item) { return item.attemptId === source.attemptId; });
         chip.textContent = partial ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS
           : validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
         chip.className = 'chip ' + (partial ? 's-warn' : validated ? 's-pass' : 's-fail');
