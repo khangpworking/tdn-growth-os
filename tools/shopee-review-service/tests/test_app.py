@@ -60,6 +60,8 @@ class FakeLocator:
 
     async def wait_for(self, **_):
         if self.page and self.selector == '.product-ratings' and self.page.wait_error:
+            if self.page.after_timeout is not None:
+                self.page.body_text, self.page.url = self.page.after_timeout
             raise self.page.wait_error
         return None
 
@@ -72,13 +74,18 @@ class FakeLocator:
     async def inner_text(self):
         return self.page.body_text if self.page else ''
 
+    async def all_inner_texts(self):
+        return list(self.page.headings) if self.page else []
+
 
 class FakePage:
     """Records the crawler config; the crawler script returns `result`."""
 
-    def __init__(self, result, h1=1, body_text='', wait_error=None):
+    def __init__(self, result, h1=1, body_text='', wait_error=None, headings=(), after_timeout=None):
         self.result, self.config, self.crawls = result, None, 0
         self.h1, self.body_text, self.wait_error = h1, body_text, wait_error
+        self.headings, self.after_timeout = list(headings), after_timeout
+        self.url = URL
 
     def locator(self, selector):
         return FakeLocator(self, selector)
@@ -222,12 +229,19 @@ class ServiceTests(unittest.TestCase):
                 self.assertEqual((job['state'], job['error']), ('failed', 'PRODUCT_UNAVAILABLE'))
                 self.assertEqual(page.crawls, 0, 'a dead product is never crawled')
 
-    def test_an_unavailable_page_text_also_reports_product_unavailable(self):
+    def test_a_page_level_unavailable_message_also_reports_product_unavailable(self):
         payload = {'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())}
-        page = FakePage({}, h1=1, body_text='Sorry, this product is no longer available.')
+        page = FakePage({}, h1=1, headings=['Sorry, this product is no longer available.'])
         job = self.run_job_with_page(payload, page)
         self.assertEqual((job['state'], job['error']), ('failed', 'PRODUCT_UNAVAILABLE'))
         self.assertEqual(page.crawls, 0)
+
+    def test_product_title_and_content_with_the_unavailable_phrase_is_still_a_product(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        page = FakePage({}, h1=1, body_text='Mô tả: sản phẩm không tồn tại trong hình. Đánh giá: hàng như sản phẩm không tồn tại.')
+        job = self.run_job_with_page(payload, page)
+        self.assertEqual(job['state'], 'succeeded')
+        self.assertEqual(page.crawls, 1, 'a valid product is collected, not skipped')
 
     def test_a_ratings_wait_timeout_reports_ratings_missing(self):
         payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
@@ -235,6 +249,16 @@ class ServiceTests(unittest.TestCase):
         job = self.run_job_with_page(payload, page)
         self.assertEqual((job['state'], job['error']), ('failed', 'RATINGS_MISSING'))
         self.assertEqual(page.crawls, 0)
+
+    def test_a_session_that_changes_during_the_ratings_wait_stops_for_the_human(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        for body, state in (('Log in to continue', 'needs_login'), ('Please verify you are human', 'needs_verification')):
+            with self.subTest(state=state):
+                page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'), after_timeout=(body, URL))
+                job = self.run_job_with_page(payload, page)
+                self.assertEqual(job['state'], state)
+                self.assertNotEqual(job['error'], 'RATINGS_MISSING')
+                self.assertEqual(page.crawls, 0)
 
     def test_other_sampling_failures_stay_source_action_failed(self):
         payload = {'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())}
