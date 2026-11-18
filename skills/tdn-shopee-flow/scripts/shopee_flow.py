@@ -610,14 +610,31 @@ def gate_prerequisite(run, previous, input_sha):
     """Shared B1/B2 barrier. Returns (errorCode, exitCode), or (None, 0)."""
     if previous is None:
         return None, 0
-    slip = gate_read(gate_path(run, f'gates/{previous}.json'))
-    if (not isinstance(slip, dict) or slip.get('format') != 'handoff-v1'
-            or slip.get('runId') != run.name or slip.get('module') != previous.upper()
-            or slip.get('verdict') != 'PASS'):
+    if not gate_passed(run, previous):
         return 'GATE_NOT_PASSED', 22
+    slip = gate_read(gate_path(run, f'gates/{previous}.json'))
     if input_sha is None or slip.get('outputSha256') != input_sha:
         return 'GATE_INPUT_CHANGED', 23
     return None, 0
+
+
+def gate_passed(run, gate):
+    slip = gate_read(gate_path(run, f'gates/{gate}.json'))
+    return (isinstance(slip, dict) and slip.get('format') == 'handoff-v1'
+            and slip.get('runId') == run.name and slip.get('module') == gate.upper()
+            and slip.get('verdict') == 'PASS')
+
+
+def flow_user_page(request):
+    """The request shape m1-import writes: Metric captured on the desktop, so no capture spec or metric input."""
+    source = request.get('metricSource') if isinstance(request, dict) else None
+    return (isinstance(request, dict) and request.get('format') == 'request-v2' and isinstance(source, dict)
+            and source.get('format') == 'user-page-v1'
+            and 'captureSpec' not in request and 'metricInput' not in request)
+
+
+def flow_user_page_run(run):
+    return flow_user_page(gate_read(gate_path(run, 'request.json')))
 
 
 def gate_date(value):
@@ -811,11 +828,7 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         # A user-page run has no capture spec by design: m1-import validates the
         # input and gate m1 / verify-capture check the source. This holds only for
         # the request m1-import writes, not for a request carrying other sources.
-        source = request.get('metricSource')
-        user_page = (request.get('format') == 'request-v2' and isinstance(source, dict)
-                     and source.get('format') == 'user-page-v1'
-                     and 'captureSpec' not in request and 'metricInput' not in request)
-        if not user_page:
+        if not flow_user_page(request):
             spec_checks = flow_capture_checks(request)
             # Historical no-spec entry/manual M2/M3 reading remains possible. A fresh
             # M1 always requires all checks below, irrespective of this legacy warning.
@@ -1632,6 +1645,17 @@ def cmd_module(ns):
     try:
         run = module_run_folder(ns.run_id)
         repo, config = module_config()
+        pending = ('m1', 'm2', 'm3') if ns.cmd == 'run' else (ns.cmd,)
+        if ns.cmd == 'run' and flow_user_page_run(run):
+            # m1-import already gated this run's M1 on the desktop capture, so the flow
+            # never starts (or re-runs) M1 here: it continues at the first module without
+            # a PASS gate. A missing/changed M1 gate is the existing barrier refusal.
+            m1_error, m1_exit = gate_prerequisite(run, 'm1', gate_hash(run, 'm1/'))
+            if m1_error:
+                raise ModuleFailure(m1_error, m1_exit)
+            pending = tuple(name for name in ('m2', 'm3') if not gate_passed(run, name))
+            if pending:
+                module = pending[0]
         worker_fd, ready_fd = getattr(ns, 'worker_lock_fd', None), getattr(ns, 'worker_ready_fd', None)
         if worker_fd is not None:
             if ready_fd is None or worker_fd < 3 or ready_fd < 3 or ready_fd == worker_fd:
@@ -1666,12 +1690,12 @@ def cmd_module(ns):
                 slip, code = evaluate_gate(run, 'entry')
                 if code == 0 or not gate_path(run, 'gates/entry.json').exists():
                     module_atomic_json(run, 'gates/entry.json', slip)
-            if code == 0 and getattr(ns, 'detach', False):
+            if code == 0 and pending and getattr(ns, 'detach', False):
                 execution, _ = module_admit(run, module, ns, repo, config, mode)
                 print(json.dumps(flow_detach(run, ns, lock, execution)))
                 return
         if code == 0:
-            for module in (('m1', 'm2', 'm3') if ns.cmd == 'run' else (ns.cmd,)):
+            for module in pending:
                 admission = None
                 if execution is None:
                     execution, admission = module_admit(run, module, ns, repo, config, mode)
