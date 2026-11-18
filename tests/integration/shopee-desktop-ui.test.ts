@@ -54,9 +54,14 @@ function harness(options: {
   reviewStatsResult?: (runId: string) => any;
   reviewInsightsResult?: (runId: string) => any;
   statusGate?: (runId: string) => Deferred<void> | undefined;
+  statusError?: (runId: string) => any;
   reviewProcessResult?: (runId: string) => any;
   processReviewDataResult?: (runId: string, sourceSha256: string) => any;
   runsProgressResults?: any[];
+  runsProgressFor?: (call: number) => any | Promise<any>;
+  listRunsHold?: () => Promise<void> | undefined;
+  listRunsError?: () => any;
+  listRunsReply?: (call: number) => any | Promise<any> | undefined;
   libraryResult?: any;
   hasFocus?: boolean;
   fastProgress?: boolean;
@@ -154,6 +159,12 @@ function harness(options: {
     listRuns: async () => {
       state.listRunsCalls++;
       if (options.listRunsGate && state.flowCalls.length > 0) await options.listRunsGate.promise;
+      const hold = options.listRunsHold && options.listRunsHold();
+      if (hold) await hold;
+      const failure = options.listRunsError && options.listRunsError();
+      if (failure) return clone(failure);
+      const own = options.listRunsReply && await options.listRunsReply(state.listRunsCalls);
+      if (own) return clone(own);
       return { ok: true, data: { format: 'runs-v1', runs: state.runsView.slice() } };
     },
     library: async () => clone(options.libraryResult || ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } })),
@@ -176,6 +187,8 @@ function harness(options: {
       state.statusCalls.push(runId);
       const gate = options.statusGate && options.statusGate(runId);
       if (gate) await gate.promise;
+      const failure = options.statusError && options.statusError(runId);
+      if (failure) return clone(failure);
       const info = (options.runInfoByRun && options.runInfoByRun[runId]) || options.runInfo;
       if (info) return { ok: true, data: clone(info) };
       return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
@@ -227,9 +240,12 @@ function harness(options: {
     },
     runsProgress: async () => {
       state.runsProgressCalls++;
+      if (options.runsProgressFor) return clone(await options.runsProgressFor(state.runsProgressCalls));
       const replies = options.runsProgressResults;
       if (!replies) return { ok: true, data: { format: 'runs-progress-v1', generatedAt: '2026-11-16T09:00:00Z', runs: [] } };
-      return clone(replies[Math.min(state.runsProgressCalls - 1, replies.length - 1)]);
+      const reply = clone(replies[Math.min(state.runsProgressCalls - 1, replies.length - 1)]);
+      if (reply.ok) reply.data.runs = reply.data.runs.filter((run: any) => !state.deleteRunCalls.includes(run.runId));
+      return reply;
     },
     notify: async (title: string, body: string) => {
       state.notifyCalls.push({ title, body });
@@ -822,7 +838,9 @@ test('a created run with unverified entry stays bound and locked when status can
       const label = entryCase.label + ' + ' + statusCase.label;
       const { dom, doc, state } = harness({
         newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId, ...entryCase.data } }),
-        ...(info ? { runInfoByRun: { [runId]: info } } : {}),
+        // A status failure that is not RUN_NOT_FOUND (that one means the run is gone).
+        ...(info ? { runInfoByRun: { [runId]: info } }
+          : { statusError: () => ({ ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } }) }),
       });
       try {
         await booted(doc);
@@ -3183,20 +3201,23 @@ test('a progress transition notifies once: never on the first poll, a Windows to
     progressRun('run-new', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'], { active: { step: 1, stage: null, done: null, total: null } }),
   ], '2026-11-16T09:00:15Z');
   const replies = [before, before, after];
+  // The server lists every run its progress has (a run missing from a later list counts as deleted).
+  const runs = ['run-running', 'run-pass', 'run-fail', 'run-old', 'run-new']
+    .map((runId) => ({ runId, product: 'Sản phẩm ' + runId, status: 'DONE' }));
 
-  const background = step4Harness({ runsProgressResults: replies, hasFocus: false, fastProgress: true });
+  const background = step4Harness({ runs, runsProgressResults: replies, hasFocus: false, fastProgress: true });
   try {
     await waitFor(() => background.state.runsProgressCalls >= 2, 'first two polls');
     assert.deepEqual(background.state.notifyCalls, [], 'nothing for the state seen at start');
     await waitFor(() => background.state.runsProgressCalls >= 6 && background.state.notifyCalls.length >= 2, 'later polls');
     assert.deepEqual(background.state.notifyCalls, [
       { title: 'Bước 4 dừng vì lỗi', body: 'Sản phẩm run-fail: Jev không trả lời sau 3 lần thử lại. Phần đã xong được giữ lại. Mở lượt để bấm «Chạy tiếp».' },
-      { title: 'Lượt bắt đầu chạy', body: 'Lượt run-new: bước 1 Lấy số liệu bán hàng đã bắt đầu.' },
+      { title: 'Lượt bắt đầu chạy', body: 'Sản phẩm run-new: bước 1 Lấy số liệu bán hàng đã bắt đầu.' },
     ]);
     assert.equal(element(background.doc, 'noticeBox').children.length, 0, 'no in-app notice behind other windows');
   } finally { background.dom.window.close(); }
 
-  const front = step4Harness({ runsProgressResults: replies, hasFocus: true, fastProgress: true });
+  const front = step4Harness({ runs, runsProgressResults: replies, hasFocus: true, fastProgress: true });
   try {
     await waitFor(() => front.state.runsProgressCalls >= 6 && element(front.doc, 'noticeBox').children.length === 2, 'notices');
     assert.deepEqual(front.state.notifyCalls, [], 'no Windows toast while the window is in front');
@@ -3581,4 +3602,527 @@ test('the step 2 card follows the run\'s Top N or all choice', async () => {
       assert.equal(bar ? bar.textContent : null, row.bar, row.label + ': error bar');
     } finally { run.dom.window.close(); }
   }
+});
+
+// A deleted run shows nowhere (F645), one row each:
+// | case                                                      | status bar                 | both run lists | detail / result | message                 |
+// |-----------------------------------------------------------|----------------------------|----------------|-----------------|-------------------------|
+// | a. «Xóa lượt» on the running run shown on the status bar  | the run is gone at once    | without it     | empty           | «Đã xóa lượt»           |
+// | b. a coworker deleted it: list without it, progress stale | the run is gone            | without it     | empty           | –                       |
+// | c. opening a run whose info says RUN_NOT_FOUND            | –                          | –              | empty, no other | «Lượt này đã bị xóa.», no red bar |
+test('a deleted run leaves the status bar, both run lists and both tabs', async () => {
+  const running = progressRun('run-a', ['PASS', 'PASS', 'RUNNING', 'IDLE'],
+    { active: { step: 3, stage: null, done: 10, total: 100 } });
+  const bar = (doc: Document) => element<HTMLElement>(doc, 'runStatus').textContent!;
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const setup = (gone = false) => harness({
+    runs: gone ? [runB, runA] : [runA, runB],     // c: the first run (opened at start) is the live one
+    runInfoByRun: gone ? { 'run-b': syntheticRunInfo('run-b') }
+      : { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    runsProgressResults: [progressReply([running])],
+  });
+  const idle = 'Không có lượt nào đang chạy';
+
+  // a
+  let run = setup();
+  try {
+    await waitFor(() => bar(run.doc).includes('Sản phẩm A'), 'a: bar shows run-a');
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, 'a: run open');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    const polls = run.state.runsProgressCalls;
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', 'a: deleted');
+    assert.equal(bar(run.doc), idle, 'a: status bar at once');
+    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm A'), 'a: track list');
+    assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, 'a: result list');
+    assert.equal(run.doc.getElementById('btnDeleteRun'), null, 'a: detail left');
+    assert.doesNotMatch(element(run.doc, 'resultDetail').textContent!, /Sản phẩm A/, 'a: result tab');
+    await waitFor(() => run.state.runsProgressCalls > polls, 'a: progress polled at once');
+    assert.equal(bar(run.doc), idle, 'a: still gone after the poll');
+  } finally { run.dom.window.close(); }
+
+  // b
+  run = setup();
+  try {
+    await waitFor(() => bar(run.doc).includes('Sản phẩm A') && listed(run.doc, 'runList').includes('Sản phẩm A'), 'b: shown');
+    run.state.runsView = run.state.runsView.filter((item: any) => item.runId !== 'run-a');     // deleted elsewhere
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();               // «Kết quả chạy»
+    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm A'), 'b: list refreshed');
+    assert.equal(bar(run.doc), idle, 'b: status bar pruned');
+    assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, 'b: result list');
+  } finally { run.dom.window.close(); }
+
+  // c
+  run = setup(true);
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList button.runbtn').length === 2, 'c: list');
+    run.state.runsView = run.state.runsView.filter((item: any) => item.runId !== 'run-a');
+    runListButton(run.doc, 'run-a').click();     // the list still shows it; the server no longer has it
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Lượt này đã bị xóa.', 'c: told');
+    assert.equal(element(run.doc, 'errbar').hidden, true, 'c: no red bar');
+    assert.equal(run.doc.getElementById('btnDeleteRun'), null, 'c: no run open, not another one');
+    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm A'), 'c: list refreshed');
+  } finally { run.dom.window.close(); }
+});
+
+// Late replies never bring a deleted run back (F645, Terra r1 on #508), one row each:
+// | # | situation                                                              | expected                                              |
+// |---|------------------------------------------------------------------------|-------------------------------------------------------|
+// | 1 | «Xem lượt» on a notice of a run a coworker deleted                     | «Lượt này đã bị xóa.», empty detail, no other run     |
+// | 2 | a progress reply sent before «Xóa lượt» arrives after it               | status bar stays idle, no notice                      |
+// | 2 | a step 2 event waiting for the run's status when it is deleted         | no notice                                             |
+// | 4 | «Xóa lượt» succeeds, the list refresh is slow                          | both lists without the run at once                    |
+// (#3 is in shopee-desktop-step1-ui.test.ts; #5 in test_metric_browser.py; #6, the local picture reply, uses the
+// same isGone check as #2 and is not visible on the page.)
+test('late replies never bring a deleted run back', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const infos = { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') };
+  const idleA = progressRun('run-a', ['PASS', 'RUNNING', 'IDLE', 'IDLE'], { active: { step: 2, stage: null, done: null, total: null } });
+  const passA = progressRun('run-a', ['PASS', 'PASS', 'RUNNING', 'IDLE'], { active: { step: 3, stage: null, done: 1, total: 9 } });
+  const bar = (doc: Document) => element<HTMLElement>(doc, 'runStatus').textContent!;
+  const idle = 'Không có lượt nào đang chạy';
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const deleteOpenRun = async (run: ReturnType<typeof harness>) => {
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, 'run-a open');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+  };
+
+  // 1
+  let phase = 'before';
+  const infos1: Record<string, any> = { ...infos };
+  let run = harness({ runs: [runA, runB], runInfoByRun: infos1, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply([phase === 'before' ? idleA : passA]) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '1: first polls');
+    phase = 'after';
+    await waitFor(() => run.doc.querySelector('#noticeBox .notice-go') !== null, '1: notice');
+    delete infos1['run-a'];                                                                   // deleted elsewhere
+    run.doc.querySelector<HTMLAnchorElement>('#noticeBox .notice-go')!.click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Lượt này đã bị xóa.', '1: told');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(run.doc.getElementById('btnDeleteRun'), null, '1: no other run opened');
+    assert.equal(element(run.doc, 'runDetail').textContent, 'Chọn một lượt bên trái.');
+    assert.equal(element(run.doc, 'errbar').hidden, true);
+  } finally { run.dom.window.close(); }
+
+  // 2: a progress reply in flight across the delete
+  let held: Deferred<void> | null = null;
+  run = harness({ runs: [runA, runB], runInfoByRun: infos, hasFocus: true,
+    runsProgressFor: async (call) => {
+      if (held) await held.promise;
+      return progressReply([call < 3 ? idleA : passA]);
+    } });
+  try {
+    await waitFor(() => bar(run.doc).includes('Sản phẩm A'), '2: bar shows run-a');
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm A'), '2: list');
+    held = deferred<void>();
+    await deleteOpenRun(run);
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', '2: deleted');
+    held.resolve();                                     // the replies captured with run-a arrive now
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(bar(run.doc), idle, '2: stale progress dropped');
+    assert.equal(element(run.doc, 'noticeBox').children.length, 0, '2: no notice from stale progress');
+  } finally { run.dom.window.close(); }
+
+  // 2: a queued event waiting for the deleted run's status
+  let statusHold: Deferred<void> | null = null;
+  let progressPhase = 'before';
+  run = harness({ runs: [runA, runB], runInfoByRun: infos, hasFocus: true, fastProgress: true,
+    statusGate: (runId) => (runId === 'run-a' && statusHold ? statusHold : undefined),
+    runsProgressFor: () => progressReply([progressPhase === 'before' ? idleA : passA]) });
+  try {
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm A'), '2b: list');
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, '2b: run-a open');
+    statusHold = deferred<void>();
+    const asked = run.state.statusCalls.length;
+    progressPhase = 'after';                            // step 2 PASS: the event asks run-a's status, held
+    await waitFor(() => run.state.statusCalls.length > asked, '2b: event waits for the status');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', '2b: deleted');
+    statusHold.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(element(run.doc, 'noticeBox').children.length, 0, '2b: no notice for the deleted run');
+  } finally { run.dom.window.close(); }
+
+  // 4
+  let listHold: Deferred<void> | null = null;
+  run = harness({ runs: [runA, runB], runInfoByRun: infos, listRunsHold: () => listHold?.promise });
+  try {
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm A'), '4: list');
+    listHold = deferred<void>();
+    await deleteOpenRun(run);
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', '4: deleted');
+    assert.doesNotMatch(listed(run.doc, 'runList'), /Sản phẩm A/, '4: track list at once');
+    assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, '4: result list at once');
+    listHold.resolve();
+  } finally { run.dom.window.close(); }
+});
+
+// When a run counts as gone (F645, Terra r2 on #508), one row each:
+// | # | situation                                                           | expected                                                    |
+// |---|---------------------------------------------------------------------|-------------------------------------------------------------|
+// | 1 | info says RUN_NOT_FOUND, the list refresh is slow                   | both lists without the run at once, «Lượt này đã bị xóa.»   |
+// | 2 | a new run in progress while the run list fails                      | no notice, not «đã bị xóa»; listed once the list works      |
+// (#3 is in shopee-desktop-step1-ui.test.ts. #4, a late local-picture open or save after the delete, writes no
+// per-run state; nothing of it is visible on the page.)
+test('a run is gone only on delete, RUN_NOT_FOUND or a successful list without it', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'DONE' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const runC = { runId: 'run-c', product: 'Sản phẩm C', status: 'RUNNING' };
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+
+  // 1
+  let listHold: Deferred<void> | null = null;
+  let run = harness({ runs: [runB, runA], runInfoByRun: { 'run-b': syntheticRunInfo('run-b') },
+    listRunsHold: () => listHold?.promise });
+  try {
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm A'), '1: list');
+    listHold = deferred<void>();
+    runListButton(run.doc, 'run-a').click();      // the server no longer has it
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Lượt này đã bị xóa.', '1: told');
+    assert.doesNotMatch(listed(run.doc, 'runList'), /Sản phẩm A/, '1: track list at once');
+    assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, '1: result list at once');
+    listHold.resolve();
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let phase = 'before';
+  let listFails = false;
+  run = harness({ runs: [runB], runInfoByRun: { 'run-b': syntheticRunInfo('run-b'), 'run-c': syntheticRunInfo('run-c') },
+    hasFocus: true, fastProgress: true,
+    listRunsError: () => (listFails ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } } : undefined),
+    runsProgressFor: () => progressReply(phase === 'before' ? []
+      : [progressRun('run-c', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'], { active: { step: 1, stage: null, done: null, total: null } })]) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '2: first polls');
+    listFails = true;                              // run-c is new: not in any successful list yet
+    phase = 'after';
+    await waitFor(() => !element(run.doc, 'errbar').hidden, '2: list error shown');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(run.doc.querySelectorAll('#noticeBox .notice').length, 0, '2: no notice for an unlisted run');
+    assert.notEqual(element(run.doc, 'toast').textContent, 'Lượt này đã bị xóa.', '2: not told gone');
+    listFails = false;
+    run.state.runsView = [runC, runB];
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm C'), '2: run-c shows once listed');
+  } finally { run.dom.window.close(); }
+});
+
+// The screen shows only runs in the latest successful list (F645, Terra r6 on #508), one row each:
+// | # | situation                                                                     | expected                              |
+// |---|-------------------------------------------------------------------------------|---------------------------------------|
+// | 1 | run A only in progress, the latest list does not have it                      | no notice, bar idle, not listed       |
+// | 2 | a list asked before A was seen answers late without it; a newer list has A    | A kept: listed, its notice stays      |
+// | 3 | A missing from one successful list, back in the next                          | A listed and on the bar again         |
+test('the screen shows only runs in the latest successful list, and a run back in a list shows again', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const startA = progressRun('run-a', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'], { active: { step: 1, stage: null, done: null, total: null } });
+  const bar = (doc: Document) => element<HTMLElement>(doc, 'runStatus').textContent!;
+  const listed = (doc: Document) => [...doc.querySelectorAll<HTMLButtonElement>('#runList button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const runsReply = (runs: any[]) => ({ ok: true, data: { format: 'runs-v1', runs } });
+
+  // 1
+  let phase = 'before';
+  let run = harness({ runs: [runB], runInfoByRun: { 'run-b': syntheticRunInfo('run-b') }, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply(phase === 'before' ? [] : [startA]) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '1: first polls');
+    const lists = run.state.listRunsCalls;
+    phase = 'after';
+    await waitFor(() => run.state.listRunsCalls > lists, '1: a list asked after A was seen');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    assert.equal(element(run.doc, 'noticeBox').children.length, 0, '1: no notice');
+    assert.equal(bar(run.doc), 'Không có lượt nào đang chạy', '1: bar idle');
+    assert.doesNotMatch(listed(run.doc), /Sản phẩm A/, '1: not listed');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  phase = 'before';
+  let early: Deferred<void> | null = null;
+  let earlyCall = 0;
+  run = harness({ runs: [runB], runInfoByRun: { 'run-b': syntheticRunInfo('run-b') }, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply(phase === 'before' ? [] : [startA]),
+    listRunsReply: async (call) => {
+      if (call === earlyCall && early) { await early.promise; return runsReply([runB]); }   // asked before A existed
+      return phase === 'after' ? runsReply([runA, runB]) : undefined;
+    } });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '2: first polls');
+    early = deferred<void>();
+    earlyCall = run.state.listRunsCalls + 1;
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();     // the early list, held
+    await waitFor(() => run.state.listRunsCalls >= earlyCall, '2: early list asked');
+    phase = 'after';
+    await waitFor(() => listed(run.doc).includes('Sản phẩm A'), '2: newer list has A');
+    early.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    assert.match(listed(run.doc), /Sản phẩm A/, '2: A kept in the list');
+    assert.ok(run.doc.querySelector('#noticeBox .notice') !== null, '2: its notice stays');
+  } finally { run.dom.window.close(); }
+
+  // 3
+  let hideA = false;
+  run = harness({ runs: [runB, runA], runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    hasFocus: true, runsProgressFor: () => progressReply([startA]),
+    listRunsReply: async () => (hideA ? runsReply([runB]) : undefined) });
+  try {
+    const tab = (index: number) => [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+    tab(1);
+    await waitFor(() => listed(run.doc).includes('Sản phẩm A') && bar(run.doc).includes('Sản phẩm A'), '3: A shown');
+    hideA = true;
+    tab(2);
+    tab(1);
+    await waitFor(() => !listed(run.doc).includes('Sản phẩm A') && !bar(run.doc).includes('Sản phẩm A'), '3: A not shown');
+    hideA = false;
+    tab(2);
+    tab(1);
+    await waitFor(() => listed(run.doc).includes('Sản phẩm A') && bar(run.doc).includes('Sản phẩm A'), '3: A shown again');
+  } finally { run.dom.window.close(); }
+});
+
+// Delete and step 4 «Chạy tiếp» against a run that is going away (F645, Terra r4 on #508), one row each:
+// | # | situation                                                          | expected                                            |
+// |---|--------------------------------------------------------------------|-----------------------------------------------------|
+// | 1 | «Xóa» answers RUN_NOT_FOUND (a coworker deleted it first)          | box closed, run gone from both lists, told once     |
+// | 2 | «Chạy tiếp» is still on its way when the run is deleted             | its late reply loads nothing for the deleted run    |
+// (Every other per-run request is checked the same way right after it returns; one row is not kept per request.)
+test('delete and step 4 resume replies for a run that is going away', async () => {
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+
+  // 1
+  let run = step4Harness({ deleteRunResult: () => ({ ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } }) });
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList button').length === 4, '1: list');
+    runListButton(run.doc, 'run-pass').click();
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, '1: open');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Lượt này đã bị xóa.', '1: told');
+    const dialog = element<HTMLDialogElement>(run.doc, 'deleteDialog');
+    assert.ok(!(dialog.open || dialog.hasAttribute('open')), '1: box closed');
+    assert.equal(element(run.doc, 'deleteErr').hidden, true, '1: no error in the box');
+    assert.doesNotMatch(listed(run.doc, 'runList'), /run-pass/, '1: track list');
+    assert.doesNotMatch(listed(run.doc, 'resultRunList'), /run-pass/, '1: result list');
+    assert.equal(run.doc.getElementById('btnDeleteRun'), null, '1: detail left');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  const resume = deferred<void>();
+  run = step4Harness({
+    processReviewDataResult: (runId, sourceSha256) => resume.promise.then(() =>
+      ({ ok: true, data: { format: 'review-process-start-v1', runId, sourceSha256, status: 'RUNNING', pid: 4321 } })),
+  });
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList button').length === 4, '2: list');
+    runListButton(run.doc, 'run-fail').click();
+    await waitFor(() => run.doc.getElementById('s4Resume') !== null, '2: «Chạy tiếp»');
+    element<HTMLButtonElement>(run.doc, 's4Resume').click();
+    await waitFor(() => run.state.processReviewDataCalls.length === 1, '2: resume sent');
+    element<HTMLButtonElement>(run.doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', '2: deleted');
+    const loads = run.state.reviewProcessCalls.length;
+    resume.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.deepEqual(run.state.reviewProcessCalls.slice(loads).filter((id) => id === 'run-fail'), [],
+      '2: nothing loaded for the deleted run');
+  } finally { run.dom.window.close(); }
+});
+
+// Gone-run evidence and cleanup (F645, Terra r5 on #508), one row each:
+// | # | situation                                                                      | expected                                  |
+// |---|--------------------------------------------------------------------------------|-------------------------------------------|
+// | 2 | a step 2 completion event asks X's status and gets RUN_NOT_FOUND               | no notice; X gone from the lists          |
+// | 3 | X, open with a sampling poll running, drops out of a successful list           | the sampling poll for X stops             |
+test('gone-run evidence from a status, and the polls of a run no longer listed stop', async () => {
+  const runX = { runId: 'run-x', product: 'Sản phẩm X', status: 'DONE' };
+  const runY = { runId: 'run-y', product: 'Sản phẩm Y', status: 'DONE' };
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  // 2
+  let phase = 'before';
+  let run = harness({ runs: [runY, runX], runInfoByRun: { 'run-y': syntheticRunInfo('run-y') }, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply([progressRun('run-x', phase === 'before' ? ['PASS', 'RUNNING', 'IDLE', 'IDLE']
+      : ['PASS', 'PASS', 'RUNNING', 'IDLE'], { active: phase === 'before' ? { step: 2, stage: null, done: null, total: null }
+      : { step: 3, stage: null, done: 1, total: 9 } })]) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2 && listed(run.doc, 'runList').includes('Sản phẩm X'), '2: first polls');
+    phase = 'after';                                   // step 2 PASS: the event asks X's status -> RUN_NOT_FOUND
+    await waitFor(() => run.state.statusCalls.includes('run-x'), '2: status asked');
+    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm X'), '2: X gone');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(run.doc.querySelectorAll('#noticeBox .notice').length, 0, '2: no notice');
+  } finally { run.dom.window.close(); }
+
+  // 3
+  const attempt = {
+    attemptId: 'attempt-x', planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  let newRun = false;
+  run = harness({ runs: [runX, runY], runInfoByRun: { 'run-x': syntheticRunInfo('run-x'), 'run-y': syntheticRunInfo('run-y') },
+    samplingByRun: { 'run-x': syntheticSampling({ runId: 'run-x', attempts: [attempt] }) }, fastPoll: true, fastProgress: true,
+    // A run the list does not have yet makes the app list again by itself (no tab switch, no new selection).
+    runsProgressFor: () => progressReply(newRun ? [progressRun('run-z', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'])] : []) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => (run.state.reviewSamplingCallsByRun['run-x'] || 0) >= 3, '3: sampling poll runs for X');
+    run.state.runsView = [runY];                       // deleted elsewhere
+    const lists = run.state.listRunsCalls;
+    newRun = true;
+    await waitFor(() => run.state.listRunsCalls > lists && !listed(run.doc, 'runList').includes('Sản phẩm X'), '3: X gone');
+    const calls = run.state.reviewSamplingCallsByRun['run-x'] || 0;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(run.state.reviewSamplingCallsByRun['run-x'] || 0, calls, '3: no more sampling calls for X');
+  } finally { run.dom.window.close(); }
+});
+
+// Our own «Xóa lượt» on the run just created in «Tạo lượt mới» (F645, Terra r6 #3 on #508):
+// | situation                                          | expected                                                  |
+// |----------------------------------------------------|-----------------------------------------------------------|
+// | create run-bound, open it in «Theo dõi», delete it | the new-run panel names no run and its form is editable   |
+test('deleting the run just created frees the new-run panel', async () => {
+  const { dom, doc } = harness({
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-bound' } }),
+    runInfoByRun: { 'run-bound': createdRunInfo('run-bound') },
+  });
+  try {
+    await booted(doc);
+    chooseStars(doc, [2, 3], 500);
+    create(doc);
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === false, 'binding shown');
+    assertDraftFrozen(doc);
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => [...doc.querySelectorAll<HTMLButtonElement>('#runList button')].some((b) => (b.title || '').includes('Mã lượt run-bound')), 'listed');
+    runListButton(doc, 'run-bound').click();
+    await waitFor(() => doc.getElementById('btnDeleteRun') !== null, 'open');
+    element<HTMLButtonElement>(doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(doc, 'toast').textContent === 'Đã xóa lượt', 'deleted');
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][0]!.click();
+    await waitFor(() => element<HTMLElement>(doc, 'newResult').hidden === true, 'the panel names no run');
+    assertDraftEditable(doc);
+  } finally { dom.window.close(); }
+});
+
+// A create reply for a run deleted before it came (F645, Terra r7 #3 on #508):
+// | situation                                                              | expected                              |
+// |------------------------------------------------------------------------|---------------------------------------|
+// | form changed, the new run listed and deleted, then the create reply    | no notice names the deleted run       |
+test('a create reply for a run already deleted names nothing', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, state } = harness({
+    newRunGate: gate,
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-late' } }),
+    runInfoByRun: { 'run-late': createdRunInfo('run-late') },
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'new-run in flight');
+    element<HTMLInputElement>(doc, 'newTotal').value = '501';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new (doc.defaultView as any).Event('input', { bubbles: true }));
+    state.runsView = [{ runId: 'run-late', product: 'Sản phẩm mới', status: 'IDLE' }, ...state.runsView];
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => [...doc.querySelectorAll<HTMLButtonElement>('#runList button')]
+      .some((b) => (b.title || '').includes('Mã lượt run-late')), 'listed');
+    runListButton(doc, 'run-late').click();
+    await waitFor(() => doc.getElementById('btnDeleteRun') !== null, 'open');
+    element<HTMLButtonElement>(doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(doc, 'toast').textContent === 'Đã xóa lượt', 'deleted');
+    gate.resolve({ ok: true, data: { format: 'new-run-v1', runId: 'run-late' } });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.doesNotMatch(element<HTMLElement>(doc, 'newNotice').textContent || '', /run-late/, 'no notice names it');
+  } finally { dom.window.close(); }
+});
+
+// Opening a run and overlapping lists follow the latest successful list (F645, Terra r8 on #508), one row each:
+// | # | situation                                                                  | expected                                      |
+// |---|----------------------------------------------------------------------------|-----------------------------------------------|
+// | 1 | «Xem lượt» on A's notice; the list it asks omits A, A's status still works | empty detail; A opens once a later list has it |
+// | 2 | list 1 answers without X after list 2 (asked later) failed                 | X gone from the shown list all the same        |
+test('opening a run and overlapping lists follow the latest successful list', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const runX = { runId: 'run-x', product: 'Sản phẩm X', status: 'DONE' };
+  const runY = { runId: 'run-y', product: 'Sản phẩm Y', status: 'DONE' };
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const runsReply = (runs: any[]) => ({ ok: true, data: { format: 'runs-v1', runs } });
+
+  // 1
+  let phase = 'before';
+  let hideA = false;
+  let run = harness({ runs: [runB, runA], runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply([progressRun('run-a', phase === 'before' ? ['PASS', 'RUNNING', 'IDLE', 'IDLE']
+      : ['PASS', 'PASS', 'RUNNING', 'IDLE'], { active: phase === 'before' ? { step: 2, stage: null, done: null, total: null }
+      : { step: 3, stage: null, done: 1, total: 9 } })]),
+    listRunsReply: async () => (hideA ? runsReply([runB]) : undefined) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '1: first polls');
+    phase = 'after';
+    await waitFor(() => run.doc.querySelector('#noticeBox .notice-go') !== null, '1: notice');
+    hideA = true;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const asked = run.state.statusCalls.filter((id) => id === 'run-a').length;
+    run.doc.querySelector<HTMLAnchorElement>('#noticeBox .notice-go')!.click();
+    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm A'), '1: list without A');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(run.state.statusCalls.filter((id) => id === 'run-a').length, asked, '1: A not opened');
+    assert.equal(element(run.doc, 'runDetail').textContent, 'Chọn một lượt bên trái.', '1: empty detail');
+    hideA = false;
+    tab(run.doc, 2);
+    tab(run.doc, 1);
+    await waitFor(() => (run.doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-a') &&
+      run.doc.getElementById('btnDeleteRun') !== null, '1: A opens once listed');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  const held = deferred<void>();
+  let aCall = 0;
+  let bCall = 0;
+  run = harness({ runs: [runX, runY], runInfoByRun: { 'run-x': syntheticRunInfo('run-x'), 'run-y': syntheticRunInfo('run-y') },
+    listRunsError: () => (run && run.state.listRunsCalls === bCall
+      ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } } : undefined),
+    listRunsReply: async (call) => {
+      if (call !== aCall) return undefined;
+      await held.promise;
+      return runsReply([runY]);
+    } });
+  try {
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm X'), '2: X listed');
+    aCall = run.state.listRunsCalls + 1;
+    tab(run.doc, 1);                                   // list 1, held
+    await waitFor(() => run.state.listRunsCalls >= aCall, '2: list 1 asked');
+    bCall = run.state.listRunsCalls + 1;
+    tab(run.doc, 2);                                   // list 2, fails
+    await waitFor(() => !element(run.doc, 'errbar').hidden, '2: list 2 failed');
+    held.resolve();
+    await waitFor(() => listed(run.doc, 'resultRunList').includes('Sản phẩm Y') &&
+      !listed(run.doc, 'resultRunList').includes('Sản phẩm X'), '2: X gone from the shown list');
+  } finally { run.dom.window.close(); }
 });

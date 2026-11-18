@@ -1139,12 +1139,17 @@ class BridgeTest(unittest.TestCase):
         | run-delete-v1, deleted                | ok                                       | deleted            |
         | RUN_ACTIVE                            | RUN_ACTIVE                               | stays              |
         | another shape                         | REMOTE_OUTPUT_INVALID                    | stays              |
+        | run-delete-v1, deleted, leftover true | ok (F644 §2 round 3)                     | deleted            |
+        | leftover false or not a boolean       | REMOTE_OUTPUT_INVALID                    | stays              |
         The command is `delete-run --run <id>`, not detached."""
         picture = self.shots / 'a1b2c3d4-metric-full-page.png'
         deleted = {'format': 'run-delete-v1', 'runId': 'a1b2c3d4', 'deleted': True}
         for label, answer, code in (
                 ('RUN_ACTIVE', {'ok': False, 'error': {'code': 'RUN_ACTIVE', 'message': 'RUN_ACTIVE'}}, 'RUN_ACTIVE'),
                 ('shape', {'ok': True, 'data': dict(deleted, deleted=False)}, 'REMOTE_OUTPUT_INVALID'),
+                ('leftover false', {'ok': True, 'data': dict(deleted, leftover=False)}, 'REMOTE_OUTPUT_INVALID'),
+                ('leftover text', {'ok': True, 'data': dict(deleted, leftover='yes')}, 'REMOTE_OUTPUT_INVALID'),
+                ('leftover', {'ok': True, 'data': dict(deleted, leftover=True)}, None),
                 ('deleted', {'ok': True, 'data': dict(deleted)}, None)):
             with self.subTest(label):
                 self.shots.mkdir(exist_ok=True)
@@ -1154,7 +1159,7 @@ class BridgeTest(unittest.TestCase):
                 result = self.api.deleteRun('a1b2c3d4')
                 self.assertEqual(self.remote_calls, [('deleteRun', 'a1b2c3d4', None)])
                 if code is None:
-                    self.assertEqual(result, {'ok': True, 'data': dict(deleted, localShotDeleted=True)})
+                    self.assertEqual(result, {'ok': True, 'data': dict(answer['data'], localShotDeleted=True)})
                     self.assertFalse(picture.exists())
                 else:
                     self.assertEqual(result['error']['code'], code)

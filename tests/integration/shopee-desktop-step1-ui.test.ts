@@ -17,17 +17,24 @@ async function waitFor(check: () => boolean, label: string, ms = 3000): Promise<
   }
 }
 
-function page(views: any[], take?: (input: any) => Promise<any>, lastSelection: any = null) {
+function page(views: any[], take?: (input: any) => Promise<any>, lastSelection: any = null,
+  runs?: () => any[]) {
   const calls: { method: string; args: any[] }[] = [];
   let view = 0;
+  // Like the server, the run list has every run an import created (unless the row passes its own list).
+  const created: any[] = [];
   const record = (method: string, answer: (...args: any[]) => any) => async (...args: any[]) => {
     calls.push({ method, args: JSON.parse(JSON.stringify(args)) });
-    return answer(...args);
+    const reply = await answer(...args);
+    const runId = reply && reply.ok && reply.data && reply.data.runId;
+    if ((method === 'takeMetricReviews' || method === 'resendMetricImport') && runId &&
+        !created.some((run) => run.runId === runId)) created.push({ runId, product: 'canxi', status: 'RUNNING' });
+    return reply;
   };
   const api = {
     connection: record('connection', () => ({ ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } })),
     presets: record('presets', () => ({ ok: true, data: { format: 'presets-v1', presets: [] } })),
-    listRuns: record('listRuns', () => ({ ok: true, data: { format: 'runs-v1', runs: [] } })),
+    listRuns: record('listRuns', () => ({ ok: true, data: { format: 'runs-v1', runs: runs ? runs() : created } })),
     runsProgress: record('runsProgress', () => ({ ok: true, data: { format: 'runs-progress-v1', runs: [] } })),
     metricBrowserState: record('metricBrowserState', () => ({ ok: true, data: views[Math.min(view++, views.length - 1)] })),
     openMetric: record('openMetric', () => ({ ok: true, data: { reused: false, browserName: 'Google Chrome', navigated: true } })),

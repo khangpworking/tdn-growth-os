@@ -3093,6 +3093,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     poll: null,
     pollRunId: null,
     runsSeq: 0,
+    appliedListSeq: 0,   // the newest successful listing applied; an older success never overwrites it
     infoSeq: {},
     lib: null,
     reviewDrafts: {},
@@ -3140,6 +3141,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     progressByRun: {},
     progressRuns: [],
     progressAt: null,
+    // A run is PERMANENTLY gone (goneRuns + forgetRun) ONLY on (a) our delete-run success or a delete-run
+    // RUN_NOT_FOUND, and (b) RUN_NOT_FOUND from any status/info call. Every late reply drops gone runs.
+    // Nothing is inferred from a list: the screen shows only runs in the latest successful listing (the
+    // status bar and notices too); a run missing from one list is just not shown, and shows again when a
+    // later list has it. A transport or list error never marks anything gone.
+    // Out of scope: a run deleted elsewhere just after we created it may still be named by the creation panel,
+    // its notice or the tracking button until it is used; using it gets RUN_NOT_FOUND, which makes it gone (b).
+    goneRuns: [],
+    goneTold: [],      // runs already told «Lượt này đã bị xóa.» (or deleted here)
+    runsPromise: null,
     scrollTarget: null,
     noticeChain: Promise.resolve()
   };
@@ -3538,6 +3549,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
     var name = runDisplayName(item.tracking || null, item.product || '');
     var res = await api.saveMetricShot(runId, name, sha256);
+    if (isGone(runId)) {
+      if (res.ok && res.data && res.data.saved) showToast('Đã lưu ảnh');   // the file was saved all the same
+      return;
+    }
     delete state.moduleEvidenceBusy[runId];
     if (!res.ok) state.moduleEvidenceErrors[runId] = res.error;
     else if (res.data && res.data.saved) showToast('Đã lưu ảnh');
@@ -3567,6 +3582,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     delete state.moduleEvidenceNotice[runId];
     if (state.selectedRunId === runId) renderDetail();
     var res = await api.openLocalMetricShot(runId);
+    if (isGone(runId)) return;
     delete state.moduleEvidenceBusy[runId];
     if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
@@ -3579,6 +3595,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function loadLocalShot(runId) {
     var res = await api.localMetricShot(runId);
+    if (isGone(runId)) return;
     var exists = !!(res.ok && res.data && res.data.runId === runId && res.data.exists === true);
     if (state.localShots[runId] === exists) return;
     state.localShots[runId] = exists;
@@ -3648,6 +3665,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     link.addEventListener('click', async function (event) {
       event.preventDefault();
       var res = await api.openShopeeLink(url);
+      if (isGone(runId)) return;   // a late reply for a deleted run
       if (state.selectedRunId !== runId) return;
       if (res.ok) {
         if (!state.moduleEvidenceErrors[runId]) return;
@@ -4055,6 +4073,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     button.disabled = true;
     try {
       var res = await api.runModule(runId, String(moduleId).toLowerCase());
+      if (isGone(runId)) return;   // a late reply for a deleted run
       if (state.selectedRunId !== runId) {
         await refreshRuns();
         return;
@@ -4256,6 +4275,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.samplingSeq[runId] = seq;
     var previous = state.sampling[runId];
     var res = await api.reviewSampling(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.samplingSeq[runId]) return;
     if (res.ok) {
       state.sampling[runId] = res.data;
@@ -4286,6 +4306,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var seq = (state.reviewDataSeq[runId] || 0) + 1;
     state.reviewDataSeq[runId] = seq;
     var res = await api.reviewData(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewDataSeq[runId]) return;
     var work = state.reviewBusy[runId];
     if (work && (work.save || work.exporting)) return;
@@ -4303,6 +4324,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
     var res = await api.moduleOutputs(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.moduleOutputsSeq[runId] || state.selectedRunId !== runId) return;
     if (!res.ok) {
       state.moduleOutputsErrors[runId] = res.error;
@@ -4320,6 +4342,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var seq = (state.reviewStatsSeq[runId] || 0) + 1;
     state.reviewStatsSeq[runId] = seq;
     var res = await api.reviewStats(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewStatsSeq[runId] || state.selectedRunId !== runId) return;
     if (!res.ok) {
       state.reviewStatsErrors[runId] = res.error;
@@ -4337,6 +4360,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var seq = (state.reviewInsightsSeq[runId] || 0) + 1;
     state.reviewInsightsSeq[runId] = seq;
     var res = await api.reviewInsights(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewInsightsSeq[runId] || state.selectedRunId !== runId) return;
     if (!res.ok) {
       state.reviewInsightsErrors[runId] = res.error;
@@ -4359,6 +4383,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     delete state.moduleEvidenceNotice[runId];
     if (state.selectedRunId === runId) renderDetail();
     var res = await api.openModuleEvidence(runId, kind, descriptor.sha256);
+    if (isGone(runId)) return;
     delete state.moduleEvidenceBusy[runId];
     if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
@@ -4785,6 +4810,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var res = action === 'stop'
         ? await api.stopReviewAttempt(run, kind, attemptId)
         : await api.reconcileReviewAttempt(run, kind, attemptId);
+      if (isGone(run)) return;   // a late reply for a deleted run
       if (token !== state.samplingTokens[run]) { work.control = false; return; }
       work.control = false;
       if (state.selectedRunId !== run) return;
@@ -4961,6 +4987,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       work.action = 'original';
       updateActions();
       var launched = await api.runModule(run, 'm3');
+      if (isGone(run)) return;   // a late reply for a deleted run
       releaseWork(work);
       if (!samePlanContext(run, token, selectionSeq)) { refreshPlanActions(run); return; }
       if (!launched.ok) {
@@ -4969,6 +4996,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         delete state.samplingActionErrors[run];
       }
       await loadInfo(run);
+      if (isGone(run)) return;
       await loadSampling(run);
       await refreshRuns();
     }
@@ -5000,6 +5028,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       work.action = action;
       updateActions();
       var saved = await api.saveReviewPlan(run, exactPolicy);
+      if (isGone(run)) return;   // a late reply for a deleted run
       if (!samePlanContext(run, token, selectionSeq)) { releaseWork(work); refreshPlanActions(run); return; }
       if (!saved.ok) {
         releaseWork(work);
@@ -5028,6 +5057,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       work.phase = 'dispatch';
       updateActions();
       var launched = await api.runModule(run, 'm3', data.planSha256);
+      if (isGone(run)) return;   // a late reply for a deleted run
       releaseWork(work);
       if (!samePlanContext(run, token, selectionSeq)) { refreshPlanActions(run); return; }
       if (!launched.ok) {
@@ -5036,6 +5066,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         delete state.samplingActionErrors[run];
       }
       await loadInfo(run);
+      if (isGone(run)) return;
       await loadSampling(run);
       await refreshRuns();
     }
@@ -5056,6 +5087,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       work.refresh = true;
       updateActions();
       var res = await api.refreshReviewCounts(run);
+      if (isGone(run)) return;   // a late reply for a deleted run
       if (token !== state.samplingTokens[run]) { work.refresh = false; return; }
       work.refresh = false;
       if (state.selectedRunId !== run) return;
@@ -5561,6 +5593,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var res = kind === 'save'
         ? await api.saveReviewData(runId, { sourceSha256: source.sourceSha256 })
         : await api.exportReviewFiles(runId, { sourceSha256: source.sourceSha256, formats: exportFormats(source) });
+      if (isGone(runId)) return;   // a late reply for a deleted run
       if (kind === 'save') w.save = false; else w.exporting = false;
       if (state.selectedRunId !== runId) return;
       if (!res.ok) {
@@ -6086,6 +6119,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       button.disabled = true;
       note.textContent = 'Đang chuẩn bị file…';
       var res = await api.exportReviewFiles(runId, { sourceSha256: source.sourceSha256, formats: ['labelled-json'] });
+      if (isGone(runId)) return;   // a late reply for a deleted run
       button.disabled = false;
       var file = res.ok && res.data && Array.isArray(res.data.files) ? res.data.files[0] : null;
       note.textContent = !res.ok ? 'Chưa tải được file (' + plainError(res.error) + ').'
@@ -6378,6 +6412,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     delete state.reviewProcessActionErrors[runId];
     if (state.selectedRunId === runId) renderDetail();
     var res = await api.processReviewData(runId, sha);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     delete state.reviewProcessBusy[runId];
     if (!res.ok) {
       state.reviewProcessActionErrors[runId] = res.error;
@@ -6508,6 +6543,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.reviewProcessSeq[runId] = seq;
     var before = step4Kind(runId);
     var res = await api.reviewProcess(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewProcessSeq[runId]) return;
     if (res.ok && res.data && res.data.format === 'review-process-view-v1' && res.data.runId === runId &&
         Array.isArray(res.data.sources)) {
@@ -6531,14 +6567,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.step4Poll) {
       clearTimeout(state.step4Poll);
       state.step4Poll = null;
+      state.step4PollRunId = null;
     }
   }
 
   function manageStep4Poll(runId) {
     stopStep4Poll();
     if (state.selectedRunId !== runId || !state.connected || step4Kind(runId) !== 'running') return;
+    state.step4PollRunId = runId;
     state.step4Poll = setTimeout(function () {
       state.step4Poll = null;
+      state.step4PollRunId = null;
       if (state.selectedRunId === runId) loadReviewProcess(runId);
     }, STEP4_POLL_MS);
   }
@@ -6580,6 +6619,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var res = await api.runsProgress();
     if (epoch !== state.connectionEpoch) return;
     if (res.ok && res.data && res.data.format === 'runs-progress-v1' && Array.isArray(res.data.runs)) {
+      res.data.runs = res.data.runs.filter(function (run) { return !isGone(run.runId); });
       applyProgress(res.data);
     }
     scheduleProgressPoll();
@@ -6633,12 +6673,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function deliverEvent(event) {
+    if (isGone(event.runId)) return;
     if (event.kind === 'finished' || (event.kind === 'fail' && event.step === 4)) await loadReviewProcess(event.runId);
+    if (isGone(event.runId)) return;
     if (event.kind === 'pass' && event.step === 2) {
       // runs-progress carries no link count; the run status has the selection.
-      var info = await api.status(event.runId);
+      var info = await runStatus(event.runId);
+      if (isGone(event.runId)) return;   // a late reply for a deleted run
       var picked = info.ok && info.data && info.data.selection && info.data.selection.links;
       event.links = Array.isArray(picked) && picked.length ? picked.length : null;
+    }
+    if (isGone(event.runId)) return;
+    if (!isListed(event.runId)) {
+      await state.runsPromise;               // the list a new run triggers
+      if (isGone(event.runId) || !isListed(event.runId)) return;
     }
     var notice = eventNotice(event);
     if (document.hasFocus() && document.visibilityState !== 'hidden') showNotice(notice);
@@ -6688,6 +6736,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var box = $('noticeBox');
     var item = h('div', 'notice t-' + notice.tone);
     item.setAttribute('role', 'alert');
+    item.dataset.runId = notice.runId;
     var body = h('div', 'notice-body');
     body.appendChild(h('b', null, notice.title));
     body.appendChild(h('div', null, notice.body));
@@ -6744,7 +6793,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The most recently changed active run; with none active, a run that finished or stopped recently.
   function progressSubject() {
-    var runs = (state.progressRuns || []).slice().sort(function (a, b) { return changedTime(b) - changedTime(a); });
+    // Only runs in the run list: a run deleted here or elsewhere never stays on the bar.
+    var runs = (state.progressRuns || []).filter(function (run) {
+      return state.runs.some(function (item) { return item.runId === run.runId; });
+    }).sort(function (a, b) { return changedTime(b) - changedTime(a); });
     var active = runs.filter(function (run) { return !!run.active; });
     if (active.length) return { run: active[0], others: active.length - 1 };
     var now = Date.parse(state.progressAt);
@@ -7045,34 +7097,129 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
   }
 
-  async function fetchRuns() {
+  // The listing (null on a list error). A listing overtaken by a newer one answers with the newer one's result.
+  // Every success newer than the one applied is applied, even while a newer request is pending or later fails.
+  function fetchRuns() {
     var seq = ++state.runsSeq;
+    state.runsPromise = listRunsOnce(seq);
+    return state.runsPromise;
+  }
+
+  async function listRunsOnce(seq) {
     var res = await api.listRuns();
-    if (seq !== state.runsSeq) return null;
+    if (res.ok && seq > state.appliedListSeq) applyListing(res, seq);
+    if (seq !== state.runsSeq) return state.runsPromise;      // the newest request answers for all
     if (!res.ok) { showError(res.error); return null; }
-    state.runs = (res.data && res.data.runs) || [];
-    if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
+    return res;
+  }
+
+  function applyListing(res, seq) {
+    state.appliedListSeq = seq;
+    state.runs = ((res.data && res.data.runs) || []).filter(function (run) { return !isGone(run.runId); });
+    // Not listed now: not shown (not forgotten). The open run is closed and its polls stop.
+    if (state.selectedRunId && !isListed(state.selectedRunId)) closeDetail();
+    Array.prototype.forEach.call(document.querySelectorAll('#noticeBox .notice'), function (item) {
+      if (!isListed(item.dataset.runId)) item.remove();
+    });
+    renderRunList();
+    renderRunStatus();
+  }
+
+  // The empty detail: no run open, its polls stopped.
+  function closeDetail() {
+    state.selectedRunId = null;
+    state.loadingRunId = null;
+    state.info = null;
+    stopPoll();
+    stopSamplingPoll();
+    stopStep4Poll();
+    renderDetail();
+  }
+
+  function isListed(runId) {
+    return state.runs.some(function (run) { return run.runId === runId; });
+  }
+
+  // The one place that forgets a deleted run: every per-run cache (any state object keyed by runId),
+  // progress, selection, pending opens, the step 1 «Xem lượt vừa tạo» and open notices.
+  function isGone(runId) {
+    return state.goneRuns.indexOf(runId) !== -1;
+  }
+
+  function forgetRun(runId) {
+    if (!isGone(runId)) state.goneRuns.push(runId);
+    Object.keys(state).forEach(function (key) {
+      var value = state[key];
+      if (value && typeof value === 'object' && !Array.isArray(value) &&
+          Object.prototype.hasOwnProperty.call(value, runId)) delete value[runId];
+    });
+    state.progressRuns = state.progressRuns.filter(function (run) { return run.runId !== runId; });
+    if (state.pollRunId === runId) stopPoll();
+    if (state.samplingPollRunId === runId) stopSamplingPoll();
+    if (state.step4PollRunId === runId) stopStep4Poll();
+    if (state.selectedRunId === runId) {
       state.selectedRunId = null;
       state.loadingRunId = null;
+      state.info = null;
       stopPoll();
+      stopSamplingPoll();
+      stopStep4Poll();
     }
+    if (state.preferredRunId === runId) state.preferredRunId = null;
+    if (state.scrollTarget && state.scrollTarget.runId === runId) state.scrollTarget = null;
+    if (state.metricRunId === runId) {
+      state.metricRunId = null;
+      $('metricDone').hidden = true;
+      showMetricNotice('');
+    }
+    if (state.newRunId === runId || state.newStaleRunId === runId ||
+        (state.newBinding && state.newBinding.runId === runId)) {
+      state.newBinding = null;
+      state.newRunId = null;
+      state.newEntry = null;
+      state.flowDialogBinding = null;
+      if (state.newStaleRunId === runId) state.newStaleRunId = null;
+      state.newFormSeq += 1;
+      clearNewError();
+      clearNewNotice();
+      resetCaptureSpecReview();
+      setNewFormLocked(false);
+      renderNewSummary();
+      renderNewResult();
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('#noticeBox .notice'), function (item) {
+      if (item.dataset.runId === runId) item.remove();
+    });
+  }
+
+  // A run that is gone (deleted elsewhere, RUN_NOT_FOUND): leave it quietly, tell once, never open another.
+  async function runGone(runId) {
+    forgetRun(runId);
+    state.runs = state.runs.filter(function (run) { return run.runId !== runId; });
     renderRunList();
-    return res;
+    renderDetail();
+    renderRunStatus();
+    if (state.goneTold.indexOf(runId) === -1) {
+      state.goneTold.push(runId);
+      showToast('Lượt này đã bị xóa.');
+    }
+    await refreshRuns();
   }
 
   async function refreshRuns() {
     if (!state.connected) {
       state.runs = [];
       renderRunList();
-      return;
+      return null;
     }
-    await fetchRuns();
+    return fetchRuns();
   }
 
   async function loadInfo(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await api.status(runId);
+    var res = await runStatus(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     state.loadingRunId = null;
     if (!res.ok) {
@@ -7108,6 +7255,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     await loadInfo(runId);
   }
 
+  // Every status/info call goes through here: RUN_NOT_FOUND makes the run gone FIRST (rule b), before any
+  // selection or sequence check of the caller; the caller's isGone check then drops the reply.
+  async function runStatus(runId) {
+    var res = await api.status(runId);
+    if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND' && !isGone(runId)) runGone(runId);
+    return res;
+  }
+
   function stopPoll() {
     if (state.poll) {
       clearInterval(state.poll);
@@ -7120,7 +7275,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId !== runId) return;
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await api.status(runId);
+    var res = await runStatus(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     if (!res.ok) {
       showError(res.error);
@@ -7290,9 +7446,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (!runs) return false;
     if (state.newBinding) {
       var bindingRunId = state.newBinding.runId;
-      var status = await api.status(bindingRunId);
+      var status = await runStatus(bindingRunId);
       if (epoch !== state.connectionEpoch) return false;
-      if (status.ok && status.data) {
+      if (isGone(bindingRunId)) {
+        // a late reply for a deleted run: write nothing for it, the rest of the reconnect goes on
+      } else if (status.ok && status.data) {
         var gates = status.data.gates;
         state.newEntry = gates && typeof gates === 'object' ? gates.entry || null : null;
         state.newRunId = bindingRunId;
@@ -7979,6 +8137,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     ctx.loading = true;
     renderCaptureSpecInto(details, body, ctx);
     var res = await api.captureSpecs(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (token !== ctx.seq) return;
     if (ctx.epochGetter() !== epoch) return;
     if (ctx.runIdGetter() !== runId) return;
@@ -8278,6 +8437,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         collectionPolicy: form.value.policy
       };
       var res = await api.newRun(payload);
+      if (res.ok && res.data && res.data.runId && isGone(res.data.runId)) return;   // deleted before the reply came
       if (generation !== state.newFormSeq) {
         if (res.ok && res.data && res.data.runId) {
           state.newStaleRunId = res.data.runId;
@@ -8309,7 +8469,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       }
       var runId = res.data.runId;
       var entryError = res.data.entryError && typeof res.data.entryError === 'object' ? res.data.entryError : null;
-      var status = await api.status(runId);
+      var status = await runStatus(runId);
+      if (isGone(runId)) return;   // a late reply for a deleted run
       if (generation !== state.newFormSeq) {
         state.newStaleRunId = runId;
         state.newRunId = null;
@@ -8360,6 +8521,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (!runId || $('deleteConfirmBtn').disabled) return;
     $('deleteConfirmBtn').disabled = true;
     var res = await api.deleteRun(runId);
+    if (isGone(runId) || (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND')) {
+      state.deleteRunId = null;
+      closeDialog($('deleteDialog'));
+      await runGone(runId);              // deleted elsewhere first (rule b)
+      return;
+    }
     if (!res.ok) {
       $('deleteErr').textContent = plainError(res.error);
       $('deleteErr').hidden = false;
@@ -8368,16 +8535,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     state.deleteRunId = null;
     closeDialog($('deleteDialog'));
-    delete state.localShots[runId];
-    if (state.selectedRunId === runId) {
-      state.selectedRunId = null;
-      state.loadingRunId = null;
-      state.info = null;
-      stopPoll();
-    }
-    await refreshRuns();
+    state.goneTold.push(runId);          // deleted here: no «Lượt này đã bị xóa.» later
+    forgetRun(runId);
+    state.runs = state.runs.filter(function (run) { return run.runId !== runId; });
+    renderRunList();
     renderDetail();
+    renderRunStatus();
     showToast('Đã xóa lượt');
+    await refreshRuns();
+    pollProgress();
   }
 
   function onDeleteCancel() {
@@ -8466,6 +8632,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var btn = $('btnFlow');
     btn.disabled = true;
     var res = await api.runFlow(runId);
+    if (isGone(runId)) return;   // a late reply for a deleted run
     if (!res.ok) {
       if (sameFlowContext()) {
         hint.textContent = plainError(res.error);
@@ -8595,11 +8762,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function openTrack() {
     clearError();
-    await refreshRuns();
-    var preferred = state.preferredRunId;
+    var preferred = state.preferredRunId;      // read before the refresh, which may forget it
     state.preferredRunId = null;
-    if (preferred && state.runs.some(function (run) { return run.runId === preferred; })) {
-      await selectRun(preferred);
+    await refreshRuns();
+    if (preferred && isGone(preferred)) {
+      await runGone(preferred);                 // told once, never another run instead
+    } else if (preferred && isListed(preferred)) {
+      await selectRun(preferred);               // its status decides: RUN_NOT_FOUND makes it gone (rule b)
+    } else if (preferred) {
+      state.preferredRunId = preferred;         // not in the latest list: not shown, kept for a later open
+      closeDetail();
     } else if (state.selectedRunId) {
       await selectRun(state.selectedRunId);
     } else if (state.runs.length) {
@@ -8801,6 +8973,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return;
     }
     var data = res.data;
+    if (isGone(data.runId)) return;
     state.metricRunId = data.runId;
     state.preferredRunId = data.runId;
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
