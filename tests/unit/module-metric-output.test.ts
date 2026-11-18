@@ -107,8 +107,9 @@ test('a selected source rank outside the pictured panel hides the picture but M2
     { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
   const slip = JSON.parse(gate.stdout);
   assert.deepEqual([gate.status, slip.verdict, slip.errorCode], [0, 'PASS', null], gate.stderr);
-  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok]), [['links_match_source_order', true], ['five_distinct_products', true]],
-    'a request without productSelection keeps the historical gate check name');
+  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok, 'want' in c]),
+    [['links_match_source_order', true, false], ['five_distinct_products', true, false]],
+    'a request without productSelection keeps the historical gate check name and shape');
 });
 
 test('a panel without both native sorting controls cannot certify the selected ranks', async t => {
@@ -484,12 +485,20 @@ test('F644 replay reproduces top 8 and all from the saved proof, and the gate as
   const slip = JSON.parse(gate.stdout);
   assert.deepEqual([gate.status, slip.verdict], [0, 'PASS'], gate.stderr);
   const requested = slip.checks.find((c: any) => c.id === 'requested_distinct_products');
-  assert.deepEqual([requested.ok, requested.got], [true, { requested: 8, found: 8 }]);
+  assert.deepEqual([requested.ok, requested.want, requested.got], [true, 8, { requested: 8, found: 8 }]);
 
   const all = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'all' } });
   const allProof = await verifyModuleSelection(all.run) as any;
   assert.deepEqual([allProof.requested, allProof.requestedDistinct, allProof.selectedCount], [1, true, 9],
     'all links every Shopee row, repeated titles included');
+  const allGate = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+    ['skills/tdn-shopee-flow/scripts/shopee_flow.py', 'gate', 'm2', '--run', basename(all.run)],
+    { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(all.run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
+  const allSlip = JSON.parse(allGate.stdout);
+  assert.deepEqual([allGate.status, allSlip.verdict], [0, 'PASS'], allGate.stderr);
+  const allRequested = allSlip.checks.find((c: any) => c.id === 'requested_distinct_products');
+  assert.deepEqual([allRequested.ok, allRequested.want, allRequested.got], [true, 1, { requested: 1, found: 9 }],
+    'all mode asks for one accepted product');
   const output = await moduleOutputs(all.run) as any;
   assert.deepEqual([output.m2.requested, output.m2.requestedDistinct, output.m2.fiveDistinct], [1, true, true]);
 });

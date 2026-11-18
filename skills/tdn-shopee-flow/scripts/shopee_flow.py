@@ -788,8 +788,10 @@ def evaluate_gate(run, gate, *, readonly_file=None):
     input_sha = gate_hash(run, inp) if inp else None
     code, exit_code = gate_prerequisite(run, previous, input_sha)
     checks = []
-    def check(identifier, ok, got, warn=False):
+    def check(identifier, ok, got, warn=False, want=None):
         item = {'id': identifier, 'ok': bool(ok), 'got': got}
+        if want is not None:
+            item['want'] = want
         if warn:
             item['level'] = 'warn'
         checks.append(item)
@@ -872,20 +874,23 @@ def evaluate_gate(run, gate, *, readonly_file=None):
                 code = failure.code
     elif not code and gate == 'm2':
         if request.get('selectionPolicy') in MODULE_PICK_POLICIES:
+            choice = request.get('productSelection')
+            # F644: the check's want is N for top N and 1 for "all"; absent on historical checks.
+            want = (1 if choice.get('mode') == 'all' else choice.get('count')) if isinstance(choice, dict) else None
             try:
                 proof = metric_output_script(run, 'verify-selection')
                 check('links_match_source_order', proof.get('linksMatchSourceOrder') is True, proof.get('selectedCount'))
                 # A request created without productSelection keeps the historical check name and shape.
                 if 'productSelection' in request:
                     check('requested_distinct_products', proof.get('requestedDistinct') is True,
-                          {'requested': proof.get('requested'), 'found': proof.get('selectedCount')})
+                          {'requested': proof.get('requested'), 'found': proof.get('selectedCount')}, want=want)
                 else:
                     check('five_distinct_products', proof.get('fiveDistinct') is True, proof.get('shortageReason'))
                 code = proof.get('errorCode')
             except ModuleFailure as failure:
                 check('links_match_source_order', False, failure.code)
                 if 'productSelection' in request:
-                    check('requested_distinct_products', False, 'UNVERIFIED')
+                    check('requested_distinct_products', False, 'UNVERIFIED', want=want)
                 else:
                     check('five_distinct_products', False, 'UNVERIFIED')
                 code = failure.code

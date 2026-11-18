@@ -189,3 +189,41 @@ python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py'
 
 No collector, Shopee, Jev, Metric or provider call; no live lane, service or run directory
 touched. Python `__pycache__` created by the test run was removed.
+
+## Round-4 fix (review `review-505-r4.md`)
+
+Merge of `origin/main` (merge commit `31a867a7`): main brought the app side of F644 (PR #504
+and #507), including `tools/shopee-desktop/index.html` reading `request.productSelection` and
+the m2 `check.want`, plus new test rows in `tests/integration/shopee-desktop-ui.test.ts`.
+The merge was clean; no conflict needed resolving. No push, no PR, no deploy.
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 (major) | The M2 result screen described a top-8/all selection with the old five-product evidence, because the output aliased `requestedDistinct` to `fiveDistinct` without the selected mode. | Verified against the merged app: `m2Target` reads the run's frozen `request.productSelection` (mode) and the m2 gate check's `want`, renders top 8 as `Đã chọn đủ 8/8 sản phẩm khác nhau` with the duplicate-filter line, `all` as `Đã chọn N sản phẩm` without that line, a short top 8 as `Chỉ chọn được 6/8 …` with the `FEWER_PRODUCTS_THAN_REQUESTED` bar, and an old run as the historical five-product wording. `tests/integration/shopee-desktop-ui.test.ts` already has one row for each case (merged from main) and all pass; `index.html` was correct and is unchanged. |
+| 2 (minor) | `requested_distinct_products` emitted `got: {requested, found}` without the contracted `want`. | `skills/tdn-shopee-flow/scripts/shopee_flow.py`: the gate `check` helper takes an optional `want`; the m2 check emits `want` = N for top N and 1 for `all`, on both the verified and the `UNVERIFIED` path. `skills/tdn-shopee-flow/chuan/handoff-v1.schema.json` allows the optional integer `want` (≥1) with `additionalProperties: false` kept; `handoff-v1.md` documents it. Historical `five_distinct_products` checks and old slips keep their exact shape (no `want`), and old records still validate because the field is optional. |
+
+Tests: `tests/unit/module-metric-output.test.ts` now asserts `want: 8` and `want` absent on the
+legacy check, and adds a real Python m2 gate run for `all` asserting `want: 1` with
+`got: {requested: 1, found: 9}`. The new `want` assertions failed before the change.
+
+Checks after the fix (same suites as the report):
+
+```
+node scripts/typecheck.mjs
+  clean (no output)
+
+node --import tsx --test tests/unit/module-pick.test.ts \
+  tests/unit/module-product-pick.test.ts tests/unit/module-metric-output.test.ts \
+  tests/integration/shopee-desktop-ui.test.ts
+  150 tests, 150 pass, 0 fail (was 148; +2 app rows merged from main)
+
+node --import tsx --test tests/unit/module-review-sampling.test.ts \
+  tests/unit/module-collect-public.test.ts tests/integration/shopee-module-review-export.test.ts
+  32 tests, 32 pass, 0 fail
+
+python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py'
+  Ran 162 tests, OK (4 skipped)
+```
+
+No collector, Shopee, Jev, Metric or provider call; no live lane, service or run directory
+touched. Python `__pycache__` created by the test run was removed.

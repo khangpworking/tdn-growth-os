@@ -106,6 +106,10 @@
           },
           "level": {
             "const": "warn"
+          },
+          "want": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       }
