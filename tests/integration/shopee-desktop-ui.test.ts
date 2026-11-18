@@ -97,6 +97,8 @@ function harness(options: {
   runSortSaved?: string;
   oldServer?: boolean;      // run-view and the insights summary answer USAGE (a server before F647 wave 2)
   insightCommentsHold?: () => Promise<void> | undefined;
+  insightCommentsError?: boolean;   // every comment read fails
+  fastStep4?: boolean;              // the 10 s step 4 poll (a setTimeout) fires at once
   rememberRunSortHold?: (value: string) => Promise<void> | undefined;
   fastProgress?: boolean;
   fastPoll?: boolean;
@@ -317,6 +319,7 @@ function harness(options: {
       state.insightCommentCalls.push({ runId, bucket, theme });
       const held = options.insightCommentsHold && options.insightCommentsHold();
       if (held) await held;
+      if (options.insightCommentsError) return { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } };
       const v1: any = await api.reviewInsights(runId);
       const comments = v1.ok ? insightCommentsOf(v1.data, bucket, theme) : null;
       return comments ? { ok: true, data: { format: 'review-insight-comments-v1', bucket, theme, comments } }
@@ -487,6 +490,11 @@ function harness(options: {
         const nativeSetTimeout = window.setTimeout.bind(window);
         (window as any).setTimeout = (handler: any, delay?: number, ...args: any[]) =>
           nativeSetTimeout(handler, delay === 15000 ? 20 : delay, ...args);
+      }
+      if (options.fastStep4) {
+        const innerSetTimeout = window.setTimeout.bind(window);
+        (window as any).setTimeout = (handler: any, delay?: number, ...args: any[]) =>
+          innerSetTimeout(handler, delay === 10000 ? 25 : delay, ...args);
       }
       if (options.fastReconnect) {
         const nativeSetTimeout = window.setTimeout.bind(window);
@@ -4502,17 +4510,15 @@ test('a run opens with one run-view, insights summary first and theme comments o
     assert.equal(run.state.runViewCalls.length, 2);
     assert.deepEqual(run.state.insightCommentCalls, [], '2: no comment list yet');
     // 3
-    const details = themeDetails(run.doc)!;
-    assert.equal(details.querySelector('summary')!.textContent, 'Xem 2 bình luận mẫu');
-    details.open = true;
-    details.dispatchEvent(new (run.dom.window as any).Event('toggle'));
+    const summaryOf = () => themeDetails(run.doc)!.querySelector<HTMLElement>('summary')!;
+    assert.equal(summaryOf().textContent, 'Xem 2 bình luận mẫu');
+    summaryOf().click();
     await waitFor(() => themeDetails(run.doc)!.querySelectorAll('.comment-row').length === 2, '3: comments shown');
     assert.deepEqual(run.state.insightCommentCalls, [{ runId, bucket: sha + ':all', theme: 'T-CONGDUNG' }]);
     assert.equal(themeDetails(run.doc)!.open, true, '3: stays open after the redraw');
-    themeDetails(run.doc)!.open = false;
-    themeDetails(run.doc)!.dispatchEvent(new (run.dom.window as any).Event('toggle'));
-    themeDetails(run.doc)!.open = true;
-    themeDetails(run.doc)!.dispatchEvent(new (run.dom.window as any).Event('toggle'));
+    summaryOf().click();
+    assert.equal(themeDetails(run.doc)!.open, false);
+    summaryOf().click();
     await new Promise((resolve) => setTimeout(resolve, 30));
     assert.equal(run.state.insightCommentCalls.length, 1, '3: kept for this run');
     assert.equal(themeDetails(run.doc)!.querySelectorAll('.comment-row').length, 2);
@@ -4553,5 +4559,127 @@ test('a run opens with one run-view, insights summary first and theme comments o
   try {
     tab(run.doc, 1);
     await waitFor(() => run.state.runViewCalls.filter((call) => call.runId === runId).length >= 3, '6: the poll uses run-view');
+  } finally { run.dom.window.close(); }
+});
+
+// #516 Terra r1, one row each:
+// | # | situation                                                                   | expected                                        |
+// |---|-----------------------------------------------------------------------------|-------------------------------------------------|
+// | 1 | a theme's comments fail to load                                             | one read per opening click, never a retry loop  |
+// | 2 | a new insights summary (run-view --result) after the comments were read     | comments emptied, section closed, new count;    |
+// |   | … and a read asked before it answers after it                               | that late answer is dropped                     |
+// | 3 | sampling and step 4 finish, seen by their own polls, while a refresh is out | ONE run-view at a time, no separate part calls  |
+test('theme comments load on a click only, follow the latest summary, and a change asks one run-view', async () => {
+  const runId = 'run-r1';
+  const sha = 'd'.repeat(64);
+  const comment = (id: string) => ({ id, text: 'Bình luận ' + id, rating: 5, date: null, productName: null,
+    url: 'https://shopee.vn/product/801/100', tags: [] });
+  let themeComments = [comment('r1'), comment('r2')];
+  const insights = () => ({ format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [{
+    sourceSha256: sha, kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z',
+    all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null },
+      themes: [{ code: 'T-CONGDUNG', name: 'Công dụng', count: 2, unclearCount: 0, share: 1,
+        polarityCounts: { khen: 2, che: 0, ke: 0, khong_ro_huong: 0 },
+        summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, comments: themeComments }],
+      comments: themeComments }, links: [] }] });
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const details = (doc: Document) =>
+    doc.querySelector<HTMLDetailsElement>('#resultThemeTags [data-theme-code="T-CONGDUNG"] details.theme-comments');
+  const summaryOf = (doc: Document) => details(doc)!.querySelector<HTMLElement>('summary')!;
+  const base = (extra: Record<string, any> = {}) => harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 2) }),
+    reviewInsightsResult: () => ({ ok: true, data: insights() }),
+    ...extra,
+  });
+
+  // 1
+  let run = base({ insightCommentsError: true });
+  try {
+    tab(run.doc, 2);
+    await waitFor(() => details(run.doc) !== null, '1: themes');
+    summaryOf(run.doc).click();
+    await waitFor(() => /Chưa tải được bình luận mẫu/.test(details(run.doc)!.textContent || ''), '1: error shown');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(run.state.insightCommentCalls.length, 1, '1: no retry by itself');
+    assert.equal(details(run.doc)!.open, true);
+    summaryOf(run.doc).click();                          // close: nothing read
+    summaryOf(run.doc).click();                          // open again: one more read
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(run.state.insightCommentCalls.length, 2, '1: one read per opening click');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let hold: Deferred<void> | null = null;
+  themeComments = [comment('r1'), comment('r2')];
+  run = base({ insightCommentsHold: () => hold?.promise });
+  try {
+    tab(run.doc, 2);
+    await waitFor(() => details(run.doc) !== null, '2: themes');
+    summaryOf(run.doc).click();
+    await waitFor(() => details(run.doc)!.querySelectorAll('.comment-row').length === 2, '2: comments read');
+    themeComments = [comment('r3')];                     // the labels changed on the server
+    tab(run.doc, 1);
+    tab(run.doc, 2);                                     // a new run-view --result: a new summary
+    await waitFor(() => summaryOf(run.doc).textContent === 'Xem 1 bình luận mẫu', '2: the new count');
+    assert.equal(details(run.doc)!.open, false, '2: closed until the next click');
+    assert.equal(run.state.insightCommentCalls.length, 1, '2: nothing read by itself');
+    hold = deferred<void>();
+    summaryOf(run.doc).click();                          // a read for this summary, held
+    await waitFor(() => run.state.insightCommentCalls.length === 2, '2: read asked');
+    themeComments = [comment('r4'), comment('r5')];
+    tab(run.doc, 1);
+    tab(run.doc, 2);                                     // another summary while the read is out
+    await waitFor(() => summaryOf(run.doc).textContent === 'Xem 2 bình luận mẫu', '2: newer count');
+    hold.resolve();
+    hold = null;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(details(run.doc)!.querySelectorAll('.comment-row').length, 0, '2: the late answer is dropped');
+    summaryOf(run.doc).click();
+    await waitFor(() => details(run.doc)!.querySelectorAll('.comment-row').length === 2, '2: read again on click');
+    assert.match(details(run.doc)!.textContent || '', /Bình luận r4/);
+  } finally { run.dom.window.close(); }
+
+  // 3
+  const attempt = {
+    attemptId: 'attempt-r1', planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  let step4 = 'RUNNING' as 'RUNNING' | 'PASS';
+  let statsCalls = 0;
+  let statusHold: Deferred<void> | null = null;
+  run = base({
+    samplingByRun: { [runId]: syntheticSampling({ runId, attempts: [attempt] }) },
+    reviewProcessResult: (id: string) => reviewProcessReply(id, step4),
+    reviewStatsResult: () => { statsCalls += 1; return { ok: true, data: syntheticReviewStats(runId, 2) }; },
+    statusGate: () => statusHold || undefined,
+    fastPoll: true, fastStep4: true,
+  });
+  try {
+    await booted(run.doc);                               // connected: the step 4 poll starts on the next open
+    tab(run.doc, 2);
+    await waitFor(() => details(run.doc) !== null && (run.state.reviewSamplingCallsByRun[runId] || 0) >= 3 &&
+      run.state.reviewProcessCalls.length >= 3, '3: open, sampling and step 4 polls running');
+    const before = { views: run.state.runViewCalls.length, data: run.state.reviewDataCallsByRun[runId] || 0,
+      outputs: run.state.moduleOutputsCalls.length, stats: statsCalls };
+    statusHold = deferred<void>();                       // every run-view now waits
+    run.state.samplingByRun![runId].attempts[0].status = 'SUCCEEDED';
+    step4 = 'PASS';
+    await waitFor(() => run.state.runViewCalls.length === before.views + 1, '3: one refresh asked');
+    await new Promise((resolve) => setTimeout(resolve, 150));   // the step 4 poll sees its change too
+    assert.equal(run.state.runViewCalls.length, before.views + 1, '3: never two at once');
+    const hold3 = statusHold;
+    statusHold = null;
+    hold3.resolve();
+    await waitFor(() => run.state.runViewCalls.length === before.views + 2, '3: the queued one after it');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const views = run.state.runViewCalls.length - before.views;
+    assert.equal(views, 2);
+    assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, views, '3: review data only inside run-view');
+    assert.equal(run.state.moduleOutputsCalls.length - before.outputs, views, '3: outputs only inside run-view');
+    assert.equal(statsCalls - before.stats, views, '3: stats only inside run-view');
   } finally { run.dom.window.close(); }
 });
