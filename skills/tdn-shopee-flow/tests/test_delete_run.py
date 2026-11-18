@@ -212,7 +212,7 @@ class DeleteRunTest(unittest.TestCase):
         self.assertFalse(run.exists(), 'a starter holding a stale lock must not recreate the run folder')
 
     @unittest.skipIf(os.geteuid() == 0, 'directory permissions do not bind root')
-    def test_failed_record_unlink_renames_the_run_back(self):
+    def test_failed_record_move_renames_the_run_back(self):
         run = self.make_run('run-k2')
         import_id = uuid.uuid4().hex
         record = self.runs / '.imports' / f'{import_id}.json'
@@ -252,7 +252,7 @@ class DeleteRunTest(unittest.TestCase):
         self.assertTrue(record.is_file(), 'an unreadable reservation must not be dropped')
         self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
 
-    def test_unlink_failure_after_one_record_restores_every_removed_record(self):
+    def test_move_failure_after_one_record_puts_every_record_back(self):
         run = self.make_run('run-p7')
         records = {}
         for index in range(2):
@@ -260,20 +260,21 @@ class DeleteRunTest(unittest.TestCase):
             path = self.runs / '.imports' / f'{import_id}.json'
             write_json(path, {'format': 'metric-user-page-import-reservation-v1', 'importId': import_id,
                               'payloadSha256': str(index) * 64, 'runId': 'run-p7'})
-            records[path.name] = path.read_bytes()
+            records[path.name] = (path.read_bytes(), path.stat().st_ino)
         inode = run.stat().st_ino
         driver = (
             "import importlib.util, os, sys, types\n"
             "spec = importlib.util.spec_from_file_location('shopee_flow', sys.argv[1])\n"
             "module = importlib.util.module_from_spec(spec)\n"
             "spec.loader.exec_module(module)\n"
-            "real, calls = os.unlink, []\n"
-            "def unlink(path, *args, **kwargs):\n"
-            "    calls.append(path)\n"
-            "    if len(calls) == 2:\n"
-            "        raise PermissionError('synthetic unlink failure')\n"
-            "    return real(path, *args, **kwargs)\n"
-            "os.unlink = unlink\n"
+            "real, moves = os.rename, []\n"
+            "def rename(src, dst, *args, **kwargs):\n"
+            "    if kwargs.get('src_dir_fd') is not None and kwargs.get('dst_dir_fd') is not None:\n"
+            "        moves.append(src)\n"
+            "        if len(moves) == 2:\n"
+            "            raise PermissionError('synthetic move failure')\n"
+            "    return real(src, dst, *args, **kwargs)\n"
+            "os.rename = rename\n"
             "module.cmd_delete_run(types.SimpleNamespace(run_id='run-p7'))\n"
         )
         proc = subprocess.run([sys.executable, '-c', driver, str(SCRIPT)], capture_output=True,
@@ -283,9 +284,9 @@ class DeleteRunTest(unittest.TestCase):
         self.assertEqual(out.get('code'), 'RUN_DELETE_FAILED')
         self.assertTrue(run.is_dir())
         self.assertEqual(run.stat().st_ino, inode, 'the same folder must be renamed back')
-        self.assertEqual({path.name: path.read_bytes()
+        self.assertEqual({path.name: (path.read_bytes(), path.stat().st_ino)
                           for path in (self.runs / '.imports').iterdir()}, records,
-                         'the record unlinked before the failure must be written back')
+                         'both records must be back under their names with their inodes')
         self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
 
     def test_delete_sweeps_a_leftover_even_when_the_run_is_unknown(self):

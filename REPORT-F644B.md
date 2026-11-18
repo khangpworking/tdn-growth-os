@@ -201,3 +201,37 @@ Suites (same as above): delete-run 16 tests OK; full shopee-flow discover 175 te
 Notes: no Linux permission or `fcntl` behaviour was changed, and the round-4 review noted its
 conclusions came from code inspection; the new unlink-failure test drives the real command line in
 a subprocess instead of relying on host permissions.
+
+## Round-5 fix
+
+Exactly the round-5 finding: rollback no longer recreates a record by writing data.
+
+- After the run folder is renamed to `<runsRoot>/.deleted-<runId>-<unix time>`, the matching
+  `.imports` records are moved into that renamed folder with `os.rename` through the pinned
+  directory fds (`src_dir_fd` = the `.imports` fd, `dst_dir_fd` = a `O_NOFOLLOW` fd on the renamed
+  folder; same filesystem). No unlink and no rewrite: each record leaves `.imports` with its inode
+  and bytes untouched. The round-2 `dev/ino` re-check before each move is unchanged.
+- If a move fails, the records already moved are renamed back into `.imports` from the renamed
+  folder, the run folder is renamed back to its original path, and the command returns 20
+  `RUN_DELETE_FAILED`. Even a rollback that is itself interrupted cannot lose or corrupt a record:
+  every step is a rename of an existing inode, so no data write (and therefore no quota, I/O or
+  partial-file failure) is involved. A failed rollback rename is still best effort, as before.
+- On success the moved records are removed together with the renamed folder by `rmtree`; a failed
+  `rmtree` leaves them inside the hidden `.deleted-*` leftover, which the next `delete-run` sweep
+  removes. They are already gone from `.imports`, so a resend cannot reuse them.
+- The now unused in-memory restore helper `flow_delete_restore_import` is removed. The record scan
+  no longer keeps record bytes, only name plus `dev/ino`.
+
+### Round-5 tests
+
+- `test_move_failure_after_one_record_puts_every_record_back`: two matching records; a driver
+  subprocess patches `os.rename` so the second record move fails. `delete-run` returns 20
+  `RUN_DELETE_FAILED`, the same folder inode is back at the run path, both records are back under
+  their names in `.imports` with their original bytes and inodes, and no `.deleted-*` folder
+  remains.
+- The round-4 permission row was renamed `test_failed_record_move_renames_the_run_back` (a
+  read-only `.imports` now blocks the move); its assertions are unchanged. The unreadable-record
+  row is unchanged (it fails during the scan, before any move).
+
+Suites (same as above): delete-run 16 tests OK; full shopee-flow discover 175 tests OK
+(skipped=4); `node scripts/typecheck.mjs` exit 0.

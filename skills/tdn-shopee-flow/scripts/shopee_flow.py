@@ -2952,28 +2952,6 @@ def flow_delete_leftovers(root):
             continue
 
 
-def flow_delete_restore_import(imports_fd, name, data):
-    """Put one removed .imports record back from memory: write a temp file in the same directory,
-    then rename it over the name, so no reader ever sees a partial record."""
-    temp = f'.{name}.{uuid.uuid4().hex}.tmp'
-    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666, dir_fd=imports_fd)
-    try:
-        with os.fdopen(fd, 'wb') as handle:
-            fd = None
-            handle.write(data)
-        os.rename(temp, name, src_dir_fd=imports_fd, dst_dir_fd=imports_fd)
-        os.fsync(imports_fd)
-    except OSError:
-        try:
-            os.unlink(temp, dir_fd=imports_fd)
-        except OSError:
-            pass
-        raise
-    finally:
-        if fd is not None:
-            os.close(fd)
-
-
 def cmd_delete_run(ns):
     """Delete one run folder and the .imports records that point at it, under the imports lock.
     The run's own module admission lock is taken non-blockingly, so no module, count refresh or
@@ -3019,8 +2997,8 @@ def cmd_delete_run(ns):
                     imports_fd = os.open(imports, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
                 records = []
                 if imports_fd is not None:
-                    # Read every record before anything is removed: an unreadable record may be
-                    # this run's reservation, and it must fail the delete before any unlink.
+                    # Read every record before anything is moved: an unreadable record may be
+                    # this run's reservation, and it must fail the delete before any move.
                     with os.scandir(imports_fd) as entries:
                         for entry in entries:
                             if not entry.name.endswith('.json'):
@@ -3038,23 +3016,27 @@ def cmd_delete_run(ns):
                                 if fd is not None:
                                     os.close(fd)
                             if isinstance(record, dict) and record.get('runId') == run_id:
-                                records.append((entry.name, data, info.st_dev, info.st_ino))
+                                records.append((entry.name, info.st_dev, info.st_ino))
                 deleted = root / f'.deleted-{run_id}-{int(time.time())}'
                 os.rename(run, deleted)
-                removed = []
+                moved, deleted_fd = [], None
                 try:
-                    for name, data, device, inode in records:
+                    # Move the reservations into the renamed folder (same filesystem, through the
+                    # pinned fds): they leave .imports with their inodes intact and go away with
+                    # the folder, so a rollback only ever renames them back, never rewrites them.
+                    deleted_fd = os.open(deleted, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                    for name, device, inode in records:
                         current = os.stat(name, dir_fd=imports_fd, follow_symlinks=False)
                         if (current.st_dev, current.st_ino) != (device, inode):
                             raise OSError('import record replaced during delete')
-                        os.unlink(name, dir_fd=imports_fd)
-                        removed.append((name, data))
+                        os.rename(name, name, src_dir_fd=imports_fd, dst_dir_fd=deleted_fd)
+                        moved.append(name)
                 except (OSError, ValueError):
-                    # A failed unlink may be this run's reservation: put every record already
-                    # removed back from memory, then the run, so the resend can still resume it.
-                    for name, data in removed:
+                    # A failed move may be this run's reservation: put every record already moved
+                    # back into .imports, then the run, so the resend can still resume it.
+                    for name in moved:
                         try:
-                            flow_delete_restore_import(imports_fd, name, data)
+                            os.rename(name, name, src_dir_fd=deleted_fd, dst_dir_fd=imports_fd)
                         except OSError:
                             pass
                     try:
@@ -3062,6 +3044,9 @@ def cmd_delete_run(ns):
                     except OSError:
                         pass
                     raise ModuleFailure('RUN_DELETE_FAILED', 20)
+                finally:
+                    if deleted_fd is not None:
+                        os.close(deleted_fd)
             finally:
                 os.close(module_lock)
                 if imports_fd is not None:
