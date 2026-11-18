@@ -587,37 +587,53 @@ def gate_path(run, relative):
 def gate_hash(run, relative):
     import hashlib
     try:
-        if relative in ('m1/', 'm3/'):
-            folder = gate_path(run, relative)
-            if not folder.is_dir():
-                return None
+        path = gate_path(run, relative)
+        if path.is_dir():
             files = []
-            for path in folder.rglob('*'):
-                gate_path(run, path.relative_to(run).as_posix())
-                if path.is_file():
-                    files.append(path.relative_to(folder).as_posix())
-                elif not path.is_dir():
+            for item in path.rglob('*'):
+                gate_path(run, item.relative_to(run).as_posix())
+                if item.is_file():
+                    files.append(item)
+                elif not item.is_dir():
                     raise ValueError('unsupported evidence file')
-            lines = ''.join(f'{name}\t{hashlib.sha256(gate_path(run, relative + name).read_bytes()).hexdigest()}\n'
-                            for name in sorted(files))
+            lines = ''.join(f'{item.relative_to(path).as_posix()}\t{hashlib.sha256(item.read_bytes()).hexdigest()}\n'
+                            for item in sorted(files, key=lambda p: p.relative_to(path).as_posix()))
             return hashlib.sha256(lines.encode('utf8')).hexdigest()
-        return hashlib.sha256(gate_path(run, relative).read_bytes()).hexdigest()
+        return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
 
 
+def gate_slip_passed(slip, run, gate):
+    return (isinstance(slip, dict) and slip.get('format') == 'handoff-v1'
+            and slip.get('runId') == run.name and slip.get('module') == gate.upper()
+            and slip.get('verdict') == 'PASS')
+
+
 def gate_prerequisite(run, previous, input_sha):
-    """Shared B1/B2 barrier. Returns (errorCode, exitCode), or (None, 0)."""
+    """Shared B1/B2 barrier. Returns (errorCode, exitCode), or (None, 0).
+    Identity, verdict and the input binding all come from one receipt read, so a gate that
+    changes between two reads cannot mix a PASS verdict with another receipt's hash."""
     if previous is None:
         return None, 0
     slip = gate_read(gate_path(run, f'gates/{previous}.json'))
-    if (not isinstance(slip, dict) or slip.get('format') != 'handoff-v1'
-            or slip.get('runId') != run.name or slip.get('module') != previous.upper()
-            or slip.get('verdict') != 'PASS'):
+    if not gate_slip_passed(slip, run, previous):
         return 'GATE_NOT_PASSED', 22
     if input_sha is None or slip.get('outputSha256') != input_sha:
         return 'GATE_INPUT_CHANGED', 23
     return None, 0
+
+
+def flow_user_page(request):
+    """The request shape m1-import writes: Metric captured on the desktop, so no capture spec or metric input."""
+    source = request.get('metricSource') if isinstance(request, dict) else None
+    return (isinstance(request, dict) and request.get('format') == 'request-v2' and isinstance(source, dict)
+            and source.get('format') == 'user-page-v1'
+            and 'captureSpec' not in request and 'metricInput' not in request)
+
+
+def flow_user_page_run(run):
+    return flow_user_page(gate_read(gate_path(run, 'request.json')))
 
 
 def gate_date(value):
@@ -811,11 +827,7 @@ def evaluate_gate(run, gate, *, readonly_file=None):
         # A user-page run has no capture spec by design: m1-import validates the
         # input and gate m1 / verify-capture check the source. This holds only for
         # the request m1-import writes, not for a request carrying other sources.
-        source = request.get('metricSource')
-        user_page = (request.get('format') == 'request-v2' and isinstance(source, dict)
-                     and source.get('format') == 'user-page-v1'
-                     and 'captureSpec' not in request and 'metricInput' not in request)
-        if not user_page:
+        if not flow_user_page(request):
             spec_checks = flow_capture_checks(request)
             # Historical no-spec entry/manual M2/M3 reading remains possible. A fresh
             # M1 always requires all checks below, irrespective of this legacy warning.
@@ -1629,9 +1641,18 @@ def cmd_module(ns):
     run, lock, slip, code, error, execution, last_execution = None, None, None, 0, None, None, None
     owns_lock = False
     mode, module = ('flow' if ns.cmd == 'run' else 'single'), ('m1' if ns.cmd == 'run' else ns.cmd)
+    pending, user_page = [], False
     try:
         run = module_run_folder(ns.run_id)
         repo, config = module_config()
+        if ns.cmd == 'run' and flow_user_page_run(run):
+            # m1-import already gated this run's M1 on the desktop capture, so the flow
+            # never starts (or re-runs) M1 here. A missing/changed M1 gate is the existing
+            # barrier refusal; which modules are left is decided under the run lock below.
+            m1_error, m1_exit = gate_prerequisite(run, 'm1', gate_hash(run, 'm1/'))
+            if m1_error:
+                raise ModuleFailure(m1_error, m1_exit)
+            user_page = True
         worker_fd, ready_fd = getattr(ns, 'worker_lock_fd', None), getattr(ns, 'worker_ready_fd', None)
         if worker_fd is not None:
             if ready_fd is None or worker_fd < 3 or ready_fd < 3 or ready_fd == worker_fd:
@@ -1649,8 +1670,12 @@ def cmd_module(ns):
             if not isinstance(state, dict) or state.get('pid') != os.getpid() or state.get('status') != 'RUNNING':
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
             execution = next((r for r in flow_execution_records(run) if r['executionId'] == state.get('executionId')), None)
-            if not execution or execution['module'] != module.upper() or execution['pid'] != os.getpid():
+            allowed = ('M2', 'M3') if user_page else ('M1',) if ns.cmd == 'run' else (ns.cmd.upper(),)
+            if not execution or execution['module'] not in allowed or execution['pid'] != os.getpid():
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+            # Resume the execution the parent admitted before selecting any later module.
+            module = execution['module'].lower()
+            pending = [module]
         else:
             if ready_fd is not None:
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
@@ -1666,12 +1691,23 @@ def cmd_module(ns):
                 slip, code = evaluate_gate(run, 'entry')
                 if code == 0 or not gate_path(run, 'gates/entry.json').exists():
                     module_atomic_json(run, 'gates/entry.json', slip)
-            if code == 0 and getattr(ns, 'detach', False):
+            if code == 0:
+                # Selected only after the lock and the live-state check, so another command that
+                # just finished a module is seen instead of being attempted again.
+                if user_page:
+                    # Same prerequisite the M3 barrier applies: a passed M2 with a matching
+                    # selection means M2 is done; otherwise M2 is the first admitted module.
+                    m2_error, _ = gate_prerequisite(run, 'm2', gate_hash(run, 'm2/selection.json'))
+                    pending = ['m3'] if m2_error is None else ['m2', 'm3']
+                    module = pending[0]
+                else:
+                    pending = ['m1', 'm2', 'm3'] if ns.cmd == 'run' else [ns.cmd]
+            if code == 0 and pending and getattr(ns, 'detach', False):
                 execution, _ = module_admit(run, module, ns, repo, config, mode)
                 print(json.dumps(flow_detach(run, ns, lock, execution)))
                 return
         if code == 0:
-            for module in (('m1', 'm2', 'm3') if ns.cmd == 'run' else (ns.cmd,)):
+            for module in pending:
                 admission = None
                 if execution is None:
                     execution, admission = module_admit(run, module, ns, repo, config, mode)
@@ -1685,6 +1721,11 @@ def cmd_module(ns):
                     break
                 if module == 'm3':
                     review_process_after_m3(run, repo, config, execution['attemptId'])
+                    execution = None
+                    break
+                if ns.cmd == 'run':
+                    rest = ['m2', 'm3'] if user_page else ['m1', 'm2', 'm3']
+                    pending.extend(name for name in rest if name not in pending)
                 execution = None
     except ModuleFailure as failure:
         error, code = failure.code, failure.exit_code

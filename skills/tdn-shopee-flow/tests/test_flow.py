@@ -4,21 +4,29 @@ Each test owns temp runs, state and presets roots. The `run` command is only
 called on a run whose first verdict is not PASS, or while a run is busy, so no
 module subprocess starts. A fake `node` on PATH records any start.
 """
+import argparse
+import contextlib
+import fcntl
 import hashlib
 import http.server
+import importlib.util
+import io
 import json
 import os
 import pathlib
 import re
 import shutil
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 import uuid
+from unittest import mock
 import datetime as dt
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -245,6 +253,34 @@ class FlowTest(unittest.TestCase):
         for name, slip in gates:
             write_json(run / 'gates' / f'{name}.json', slip)
         return run
+
+
+def load_flow_script():
+    spec = importlib.util.spec_from_file_location('shopee_flow_contract', SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class PrerequisiteBarrierTests(FlowTest):
+    """The shared B1/B2 barrier reads one receipt for identity, verdict and output hash."""
+
+    def test_one_receipt_read_cannot_mix_a_pass_verdict_with_another_hash(self):
+        flow = load_flow_script()
+        run = self.runs / RUN_ID
+        passed = {'format': 'handoff-v1', 'runId': RUN_ID, 'module': 'M1', 'verdict': 'PASS',
+                  'outputSha256': 'a' * 64}
+        failed = {**passed, 'verdict': 'FAIL'}
+        receipts = []
+
+        def changing(path):
+            receipts.append(path)
+            return passed if len(receipts) == 1 else failed
+
+        with mock.patch.object(flow, 'gate_read', changing):
+            result = flow.gate_prerequisite(run, 'm1', 'a' * 64)
+        self.assertEqual(result, (None, 0))
+        self.assertEqual(len(receipts), 1, 'the verdict and the output hash must come from the same receipt')
 
 
 class MetricDateAvailabilityTests(FlowTest):
@@ -1012,6 +1048,265 @@ class PartialOutcomeFlowTests(FlowTest):
         self.assertEqual(len(rows), 7)
 
 
+USER_PAGE_NODE = '''#!/usr/bin/env python3
+"""Fake TS boundary for a user-page run: M2 pick, M3 attempt, step 4."""
+import hashlib, json, os, pathlib, sys, uuid
+
+args = sys.argv[1:]
+script_path = pathlib.Path(next(a for a in args if a.endswith('.ts')))
+script = script_path.name
+index = args.index(str(script_path))
+
+
+def write(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value), encoding='utf8')
+
+
+if script == 'capture-metric-preset.ts':
+    raise SystemExit('M1 must not run for a user-page run')
+if script == 'module-metric-output.ts':
+    action = args[index + 1]
+    if action == 'verify-capture':
+        print(json.dumps({'valid': True}))
+    elif action == 'verify-selection':
+        print(json.dumps({'linksMatchSourceOrder': True, 'fiveDistinct': True, 'selectedCount': 5}))
+    else:
+        raise SystemExit('unexpected metric action')
+elif script == 'module-pick.ts':
+    run = pathlib.Path(args[index + 1])
+    config = json.loads((script_path.parents[1] / 'skills/tdn-shopee-flow/modules.json').read_text())
+    rule = next(m['ruleVersion'] for m in config['modules'] if m['id'] == 'M2')
+    raw = json.loads((run / 'm1/selected/raw-responses.json').read_text())
+    links = []
+    for rank, product in enumerate(raw[0]['body']['data']['products'][:5], 1):
+        _, item, shop = product['product_base_id'].split('__')
+        links.append({'rank': rank, 'productBaseId': product['product_base_id'], 'shopId': shop, 'itemId': item,
+                      'url': f'https://shopee.vn/product/{shop}/{item}', 'brand': 'Synthetic brand',
+                      'revenue': 1000 - rank, 'reason': f'Hạng {rank}'})
+    write(run / 'm2' / 'selection.json', {
+        'format': 'selection-v1', 'runId': run.name, 'source': 'auto', 'pickRuleVersion': rule,
+        'metricInputSha256': json.loads((run / 'gates' / 'm1.json').read_text())['outputSha256'],
+        'links': links, 'counts': {'walked': 5, 'deleted': 0, 'notIncluded': 0, 'tokenGuardRejected': 0,
+                                   'eligible': 5, 'picked': 5, 'maskedRows': 0, 'maskedAboveLowestPick': 0}})
+    pathlib.Path(os.environ['USER_PAGE_PICK_MARKER']).touch()
+elif script == 'module-review-sampling.ts':
+    action, run = args[index + 1], pathlib.Path(args[index + 2])
+    if action == 'idle':
+        print(json.dumps({'format': 'review-idle-v1'}))
+    elif action == 'configured-reserve':
+        attempt = str(uuid.uuid4())
+        write(run / 'm3-custom' / 'attempts' / attempt / 'attempt.json',
+              {'format': 'shopee-review-attempt-v1', 'runId': run.name, 'attemptId': attempt, 'kind': 'automatic'})
+        sha = lambda rel: hashlib.sha256((run / rel).read_bytes()).hexdigest()
+        write(run / 'm3-custom' / 'automatic.json', {
+            'format': 'shopee-automatic-review-binding-v1', 'runId': run.name,
+            'requestSha256': sha('request.json'), 'm2Digest': sha('m2/selection.json'), 'attemptId': attempt})
+        print(json.dumps({'format': 'review-attempt-reserve-v1', 'attemptId': attempt}))
+    elif action == 'execute':
+        attempt = args[index + 4]
+        write(run / 'm3-custom' / 'attempts' / attempt / 'gate.json',
+              {'format': 'handoff-v1', 'module': 'M3', 'runId': run.name, 'verdict': 'PASS', 'checks': [],
+               'errorCode': None})
+        write(run / 'm3-custom' / 'attempts' / attempt / 'state.json',
+              {'format': 'shopee-review-attempt-state-v1', 'runId': run.name, 'status': 'SUCCEEDED',
+               'errorCode': None})
+        print(json.dumps({'format': 'review-attempt-result-v1', 'attemptId': attempt, 'status': 'SUCCEEDED',
+                          'errorCode': None}))
+    else:
+        raise SystemExit('unexpected sampling action')
+elif script == 'module-review-data.ts':
+    run = pathlib.Path(args[index + 2])
+    pathlib.Path(os.environ['USER_PAGE_STEP4_MARKER']).touch()
+    print(json.dumps({'format': 'review-process-auto-result-v1', 'runId': run.name, 'status': 'DONE'}))
+else:
+    raise SystemExit('unexpected module script')
+'''
+
+USER_PAGE_IMPORT_ID = '3f6c2a1e-8b9d-4c1e-9f00-1234567890ab'
+
+
+def user_page_payload(import_id=USER_PAGE_IMPORT_ID):
+    scope = {'start_date': '20261014', 'end_date': '20261112',
+             'include_query': {'queries': ['synthetic term']}, 'platforms': [1, 2]}
+    products = [{'product_base_id': f'1__{7100 + i}__{71 + i}', 'product_name': f'Synthetic product {i + 1}',
+                 'shop_base_id': str(71 + i), 'platform_id': 1, 'revenue_custom': 1000 - i * 10,
+                 'brand': 'Synthetic Brand', 'final_brand': 'Synthetic Brand'} for i in range(5)]
+    return {'format': 'metric-user-page-import-v1', 'importId': import_id, 'keyword': 'synthetic term',
+            'capturedAt': '2026-11-17T15:00:00+07:00',
+            'collectionPolicy': {'mode': 'with-comments', 'stars': [], 'totalPerLink': 50, 'allocation': 'pooled'},
+            'scope': scope,
+            'response': {'urlPath': '/v2/market/analytics/products/', 'method': 'POST', 'status': 200,
+                         'requestBody': {**scope, 'limit': 100, 'page': 0, 'sort_by': 'revenue_custom__desc'},
+                         'body': {'status': 'success', 'code': 0, 'data': {'products': products}}}}
+
+
+class UserPageRunTests(FlowTest):
+    """A run created by m1-import: `run` continues M2 -> M3 -> step 4 and never starts M1."""
+
+    def setUp(self):
+        super().setUp()
+        node = self.bin / 'node'
+        node.write_text(USER_PAGE_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+        self.pick_marker = pathlib.Path(self._tmp.name) / 'pick-called'
+        self.step4_marker = pathlib.Path(self._tmp.name) / 'step4-called'
+
+    def env(self, extra=None):
+        env = super().env(extra)
+        env['USER_PAGE_PICK_MARKER'] = str(self.pick_marker)
+        env['USER_PAGE_STEP4_MARKER'] = str(self.step4_marker)
+        return env
+
+    def imported(self, import_id=USER_PAGE_IMPORT_ID):
+        rc, payload, stderr = self.command('m1-import', '--stdin', stdin=json.dumps(user_page_payload(import_id)))
+        self.assertEqual(rc, 0, (payload, stderr))
+        return payload['runId']
+
+    def executions(self, run_id):
+        folder = self.runs / run_id / 'executions'
+        records = [json.loads(path.read_text()) for path in folder.glob('*.json')
+                   if re.fullmatch(r'[a-f0-9-]{36}\.json', path.name)]
+        return sorted(records, key=lambda record: record['sequence'])
+
+    def test_run_starts_at_m3_when_the_import_run_already_passed_m2(self):
+        run_id = self.imported('7a1b2c3d-0000-4000-8000-000000000003')
+        rc, payload, stderr = self.command('m2', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.pick_marker.unlink()
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload['status'], 'DONE')
+        self.assertFalse(self.pick_marker.exists(), 'M2 was not re-run')
+        self.assertEqual([record['module'] for record in self.executions(run_id)], ['M2', 'M3'])
+        self.assertTrue(self.step4_marker.exists(), 'step 4 still runs after M3')
+
+    def test_detached_run_continuation_starts_at_m2(self):
+        run_id = self.imported('7a1b2c3d-0000-4000-8000-000000000002')
+        run = self.runs / run_id
+        rc, payload, stderr = self.command('run', '--run', run_id, '--detach')
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual((payload['format'], payload['runId']), ('detached-v1', run_id))
+        state = json.loads((run / 'state.json').read_text())
+        self.assertEqual((state['status'], state['mode'], state['module']), ('RUNNING', 'flow', 'M2'))
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and not self.step4_marker.exists():
+            time.sleep(0.05)
+        self.assertTrue(self.step4_marker.exists(), 'step 4 ran in the detached worker')
+        state = json.loads((run / 'state.json').read_text())
+        self.assertEqual(state['status'], 'DONE', state)
+        self.assertEqual([record['module'] for record in self.executions(run_id)], ['M2', 'M3'])
+
+    def test_run_continues_m2_then_m3_then_step4_and_never_starts_m1(self):
+        run_id = self.imported()
+        run = self.runs / run_id
+        m1_bytes = (run / 'gates' / 'm1.json').read_bytes()
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual((payload['format'], payload['runId'], payload['status'], payload['stoppedAt'],
+                          payload['errorCode'], payload['failedCheck']),
+                         ('run-result-v1', run_id, 'DONE', None, None, None))
+        self.assertEqual([record['module'] for record in self.executions(run_id)], ['M2', 'M3'])
+        self.assertFalse((run / 'm1' / 'capture-spec.json').exists(), 'M1 was not re-run')
+        self.assertEqual((run / 'gates' / 'm1.json').read_bytes(), m1_bytes, 'the import m1 gate is untouched')
+        self.assertTrue(self.pick_marker.exists(), 'M2 ran')
+        self.assertTrue(self.step4_marker.exists(), 'step 4 ran after M3')
+        state = json.loads((run / 'state.json').read_text())
+        self.assertEqual((state['status'], state['module'], state['mode']), ('DONE', 'M3', 'flow'))
+        self.assertEqual(json.loads((run / 'gates' / 'm2.json').read_text())['verdict'], 'PASS')
+
+    def test_pending_modules_are_selected_after_the_run_lock(self):
+        """Another command finishes M2 while this run waits for the lock: the continuation must start at M3."""
+        run_id = self.imported('7a1b2c3d-0000-4000-8000-000000000004')
+        run = self.runs / run_id
+        selection = {
+            'format': 'selection-v1', 'runId': run_id, 'source': 'auto',
+            'pickRuleVersion': next(m['ruleVersion'] for m in MODULES['modules'] if m['id'] == 'M2'),
+            'metricInputSha256': None,
+            'links': [{'rank': rank, 'productBaseId': f'1__{7200 + rank}__{72 + rank}',
+                       'shopId': str(72 + rank), 'itemId': str(7200 + rank),
+                       'url': f'https://shopee.vn/product/{72 + rank}/{7200 + rank}',
+                       'brand': 'Synthetic Brand', 'revenue': 1000 - rank, 'reason': f'Hạng {rank}'}
+                      for rank in range(1, 6)],
+            'counts': {'walked': 5, 'deleted': 0, 'notIncluded': 0, 'tokenGuardRejected': 0,
+                       'eligible': 5, 'picked': 5, 'maskedRows': 0, 'maskedAboveLowestPick': 0},
+        }
+        published, real_flock = [], fcntl.flock
+
+        def finish_m2_then_lock(fd, operation):
+            if not published:
+                published.append(True)
+                selection['metricInputSha256'] = sha_folder(run / 'm1')
+                (run / 'm2').mkdir(mode=0o700, exist_ok=True)
+                (run / 'm2' / 'selection.json').write_bytes(json.dumps(selection).encode('utf8'))
+                write_json(run / 'gates' / 'm2.json', {
+                    'format': 'handoff-v1', 'module': 'M2', 'runId': run_id, 'skillVersion': 'test',
+                    'verdict': 'PASS', 'inputSha256': sha_folder(run / 'm1'),
+                    'outputSha256': hashlib.sha256((run / 'm2' / 'selection.json').read_bytes()).hexdigest(),
+                    'checks': [], 'errorCode': None, 'next': None})
+            return real_flock(fd, operation)
+
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, self.env(), clear=False):
+            flow = load_flow_script()
+            ns = types.SimpleNamespace(cmd='run', run_id=run_id, detach=False, manual=None, plan_sha256=None,
+                                       worker_lock_fd=None, worker_ready_fd=None)
+            with mock.patch('fcntl.flock', finish_m2_then_lock):
+                try:
+                    with contextlib.redirect_stdout(out):
+                        flow.cmd_module(ns)
+                except SystemExit as exited:
+                    code = exited.code
+        self.assertEqual(code, 0, out.getvalue())
+        result = json.loads(out.getvalue())
+        self.assertEqual((result['status'], result['errorCode']), ('DONE', None), result)
+        self.assertFalse(self.pick_marker.exists(), 'the M2 that finished under the lock was not attempted again')
+        self.assertEqual([record['module'] for record in self.executions(run_id)], ['M3'])
+        self.assertTrue(self.step4_marker.exists(), 'the continuation reached step 4')
+
+    def test_run_refuses_when_the_m1_gate_is_not_pass_and_executes_nothing(self):
+        for import_id, break_gate in ((USER_PAGE_IMPORT_ID, 'unlink'),
+                                      ('7a1b2c3d-0000-4000-8000-000000000001', 'fail')):
+            with self.subTest(m1=break_gate):
+                run_id = self.imported(import_id)
+                run = self.runs / run_id
+                if break_gate == 'unlink':
+                    (run / 'gates' / 'm1.json').unlink()
+                else:
+                    slip = json.loads((run / 'gates' / 'm1.json').read_text())
+                    write_json(run / 'gates' / 'm1.json', {**slip, 'verdict': 'FAIL'})
+                rc, payload, stderr = self.command('run', '--run', run_id)
+                self.assertEqual(rc, 22, (payload, stderr))
+                self.assertEqual(payload['stoppedAt'], 'entry')
+                self.assertEqual(payload['errorCode'], 'GATE_NOT_PASSED')
+                self.assertEqual(self.executions(run_id), [], 'nothing was admitted')
+                self.assertFalse((run / 'm2' / 'selection.json').exists(), 'M2 did not run')
+                self.assertFalse(self.pick_marker.exists(), 'no module subprocess started')
+
+    def test_run_after_m3_was_collected_refuses_with_the_existing_error(self):
+        run_id = self.imported('7a1b2c3d-0000-4000-8000-000000000005')
+        run = self.runs / run_id
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        binding = run / 'm3-custom' / 'automatic.json'
+        binding_bytes = binding.read_bytes()
+        attempts = sorted((run / 'm3-custom' / 'attempts').iterdir())
+        self.step4_marker.unlink()
+
+        rc, payload, stderr = self.command('run', '--run', run_id)
+
+        self.assertEqual(rc, 20, (payload, stderr))
+        self.assertEqual((payload['status'], payload['stoppedAt'], payload['errorCode']),
+                         ('STOPPED', 'm3', 'AUTOMATIC_COLLECTION_EXISTS'))
+        self.assertEqual([record['module'] for record in self.executions(run_id)], ['M2', 'M3'],
+                         'no new execution was admitted')
+        self.assertEqual(binding.read_bytes(), binding_bytes, 'the automatic binding is unchanged')
+        self.assertEqual(sorted((run / 'm3-custom' / 'attempts').iterdir()), attempts,
+                         'M3 was not collected again')
+        self.assertFalse((run / 'gates' / 'm3.json').exists(), 'no new M3 receipt was written')
+        self.assertFalse(self.step4_marker.exists(), 'step 4 did not start again')
+
+
 class _SamplingState:
     """A local collector transport serving synthetic, schema-valid sample results."""
 
@@ -1103,10 +1398,16 @@ class _SamplingHandler(http.server.BaseHTTPRequestHandler):
 
 
 class _SamplingTransport:
-    def __init__(self):
+    """Serves the fixed collector port on IPv4 or IPv6 loopback; the provider accepts both."""
+
+    def __init__(self, port=8877, host='127.0.0.1'):
         self.sampling = _SamplingState()
-        self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 8877), _SamplingHandler)
+        server_class = type('_SamplingServer', (http.server.ThreadingHTTPServer,),
+                            {'address_family': socket.AF_INET6 if ':' in host else socket.AF_INET})
+        self.server = server_class((host, port), _SamplingHandler)
         self.server.sampling = self.sampling
+        self.port = self.server.server_address[1]
+        self.url = f'http://{f"[{host}]" if ":" in host else host}:{self.port}'
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 
