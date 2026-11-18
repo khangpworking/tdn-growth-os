@@ -1023,7 +1023,7 @@ class BridgeTest(unittest.TestCase):
 
     OK_IMPORT = {'ok': True, 'data': {'format': 'metric-user-page-import-result-v1', 'runId': 'a1b2c3d4',
                                       'reused': False, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}}
-    OK_M2 = {'ok': True, 'data': {'format': 'detached-v1', 'runId': 'a1b2c3d4', 'pid': 1}}
+    OK_FLOW = {'ok': True, 'data': {'format': 'detached-v1', 'runId': 'a1b2c3d4', 'pid': 1}}
 
     def test_fewer_than_five_shopee_products_send_and_keep_nothing(self):
         """| Metric answer (top 100)                 | click                                   |
@@ -1050,10 +1050,10 @@ class BridgeTest(unittest.TestCase):
                 self.assertFalse(self.session.busy.locked())          # can click again at once
                 self.assertIsNotNone(self.session.listener)           # still listening on Metric
         self.session.rows = [shopee(i) for i in range(5)]
-        self.answers = [self.OK_IMPORT, self.OK_M2]
+        self.answers = [self.OK_IMPORT, self.OK_FLOW]
         result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
         self.assertTrue(result['ok'])
-        self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'm2'])
+        self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'flow'])
         self.assertEqual(len(self.remote_calls[0][2]['response']['body']['data']['products']), 5)
 
     def test_m1_import_plan_sends_the_payload_on_stdin(self):
@@ -1065,12 +1065,14 @@ class BridgeTest(unittest.TestCase):
         encoded = re.match(r"printf '%s' '([A-Za-z0-9+/=]+)'", command).group(1)
         self.assertEqual(json.loads(base64.b64decode(encoded).decode('utf-8')), payload)
 
-    def test_click_imports_then_starts_step_2_and_never_run(self):
-        self.answers = [self.OK_IMPORT, self.OK_M2]
+    def test_click_imports_then_starts_the_whole_flow_not_m2(self):
+        self.answers = [self.OK_IMPORT, self.OK_FLOW]
         result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
         self.assertEqual(result, {'ok': True, 'data': {'runId': 'a1b2c3d4', 'reused': False, 'step2': {'ok': True}}})
-        self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'm2'])
+        self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'flow'])   # `run --run <id> --detach`
         self.assertEqual(self.remote_calls[1][1], 'a1b2c3d4')
+        _, lines = tdn_shopee_app.Api._remote_plan(self.api, 'flow', run_id='a1b2c3d4', config=dict(self.CONFIG))
+        self.assertTrue(lines[-1].endswith('shopee_flow.py" run --run a1b2c3d4 --detach'))
         sent = self.remote_calls[0][2]
         self.assertEqual(sent['keyword'], 'canxi')
         self.assertEqual(sent['collectionPolicy'], POLICY)
@@ -1087,7 +1089,7 @@ class BridgeTest(unittest.TestCase):
         self.assertIsNotNone(kept)
         again = self.api.takeMetricReviews({'collectionPolicy': POLICY})
         self.assertEqual(again['error']['code'], 'METRIC_IMPORT_PENDING')
-        self.answers = [self.OK_IMPORT, self.OK_M2]
+        self.answers = [self.OK_IMPORT, self.OK_FLOW]
         self.assertTrue(self.api.resendMetricImport()['ok'])
         self.assertEqual(self.session.fetches, 1)
         self.assertIs(self.remote_calls[1][2], kept)
@@ -1120,7 +1122,7 @@ class BridgeTest(unittest.TestCase):
         body = page_body()
         body['include_query']['queries'] = []
         self.session.tab.products_request(body)
-        self.answers = [self.OK_IMPORT, self.OK_M2]
+        self.answers = [self.OK_IMPORT, self.OK_FLOW]
         self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
         self.assertEqual(self.remote_calls[0][2]['keyword'], 'Metric 01/10–31/10/2026')
 

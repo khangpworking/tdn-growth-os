@@ -87,7 +87,7 @@ test('the open pill and one click send the frozen policy once, then step 2 is re
     const takes = p.calls.filter((c) => c.method === 'takeMetricReviews');
     assert.equal(takes.length, 1);
     assert.deepEqual(takes[0]!.args, [{ collectionPolicy: { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' } }]);
-    assert.match(p.$('metricNotice').textContent!, /Đã tạo lượt a1b2c3d4 từ số liệu Metric\. Bước 2 đang chọn 5 link Shopee/);
+    assert.match(p.$('metricNotice').textContent!, /Đã tạo lượt a1b2c3d4 từ số liệu Metric\. App đang chạy bước 2 \(chọn 5 link Shopee\), rồi tự chạy bước 3 và bước 4/);
     assert.equal(p.$('metricDone').hidden, false);
     for (const name of ['newRun', 'runFlow', 'runModule']) assert.ok(!p.names().includes(name), name);
   } finally {
