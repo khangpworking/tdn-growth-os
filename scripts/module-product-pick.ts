@@ -91,9 +91,9 @@ export const selectionRequested = (selection: ProductSelection | undefined) =>
 /** How many link checks the attempt may run: N for top N, the Shopee product count (at most 100) for "all". */
 export function linksToCheckCount(raw: unknown, part: Row, selection: ProductSelection | undefined): number {
   if (selection?.mode !== 'all') return selectionLimit(selection);
-  const shopee = rankedMetricProducts(raw, part).rows
-    .filter(row => typeof row.product_base_id === 'string' && row.product_base_id.startsWith('1__')).length;
-  return Math.min(shopee, PRODUCT_SELECTION_ALL_MAX);
+  const ids = new Set(rankedMetricProducts(raw, part).rows.flatMap(row =>
+    typeof row.product_base_id === 'string' && row.product_base_id.startsWith('1__') ? [row.product_base_id] : []));
+  return Math.min(ids.size, PRODUCT_SELECTION_ALL_MAX);
 }
 export type PickDecision = { sourceRank: number; productBaseId: string; choice: string; probabilities: Record<string, number>;
   outcome: 'PICKED' | 'DUPLICATE' | 'UNSURE' };
@@ -124,10 +124,14 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
         (row.shop_base_id != null && String(row.shop_base_id) !== `1__${match[2]}` && String(row.shop_base_id) !== match[2])) {
       unresolvedCount++; skip('PICK_LISTING_ID_UNRESOLVED'); continue;
     }
+    // Contract F644 round 3: the same listing id twice is one link; "all" keeps the first and skips repeats silently.
+    if (listingIds.has(id!)) {
+      if (!all) throw new ProductPickError('PICK_DUPLICATE_SOURCE_ID');
+      continue;
+    }
     // "All" links every Shopee product it walked, dead links included in the count of worked rows.
     if (all && shopeeConsidered >= limit) break;
     shopeeConsidered++;
-    if (listingIds.has(id!)) throw new ProductPickError('PICK_DUPLICATE_SOURCE_ID');
     listingIds.add(id!);
     if (typeof row.product_name !== 'string' || !row.product_name.trim()) throw new ProductPickError('PICK_CANDIDATE_INVALID');
     if (!all && pickedRows.length && classify) {

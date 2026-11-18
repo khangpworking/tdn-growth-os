@@ -198,6 +198,40 @@ test('a missing M2 slip is refused before any collection', async () => {
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('a selection bound to its step-2 link log is refused when the log is missing or changed, and an old selection is admitted', async () => {
+  const { dir, runId, sha } = await runDir();
+  const selectionPath = join(dir, 'm2/selection.json'), gatePath = join(dir, 'gates/m2.json'), logPath = join(dir, 'm2/link-checks.json');
+  const originalSelection = await readFile(selectionPath);
+  let calls = 0;
+  const probe = { collect: async () => { calls++; throw new Error('collector must not run'); } };
+  const refused = (error: unknown) => error instanceof ModuleError && error.code === 'GATE_INPUT_CHANGED' && error.exitCode === 23;
+  try {
+    const logBytes = Buffer.from(`${JSON.stringify({ format: 'link-check-log-v1', runId, entries: [] }, null, 2)}\n`);
+    await writeFile(logPath, logBytes);
+    const bound = JSON.parse(await readFile(selectionPath, 'utf8'));
+    bound.selectionProof = { linkChecksSha256: sha256(logBytes) };
+    const boundBytes = Buffer.from(`${JSON.stringify(bound, null, 2)}\n`);
+    await writeFile(selectionPath, boundBytes);
+    const gate = JSON.parse(await readFile(gatePath, 'utf8'));
+    await writeFile(gatePath, `${JSON.stringify({ ...gate, outputSha256: sha256(boundBytes) }, null, 2)}\n`);
+    await writeFile(logPath, Buffer.concat([logBytes, Buffer.from('\n')]));
+    await assert.rejects(main({ runDir: dir, collector: probe }), refused, 'a changed bound log refuses M3 admission');
+    await rm(logPath);
+    await assert.rejects(main({ runDir: dir, collector: probe }), refused, 'a missing bound log refuses M3 admission');
+    assert.equal(calls, 0, 'no collection starts without the bound evidence');
+    // A selection without the field keeps today's behaviour: M3 reads it and collects.
+    await writeFile(selectionPath, originalSelection);
+    await writeFile(gatePath, `${JSON.stringify({ ...gate, outputSha256: sha }, null, 2)}\n`);
+    const rows = [reviewRow('r-1')];
+    const result = await main({ runDir: dir, collector: collector({
+      mode: 'fixture', providerId: 'shopee-public-review', mappingRevision: 'shopee-public-review-row-v1',
+      maxReviewsPerProduct: 1, usageTotalUsd: 0, warnings: [], pages: [{ bytes: Buffer.from(JSON.stringify(rows)), offset: 0 }],
+      envelopes: [envelope(rows, 1)], listings: [receipt()], attemptedAt: AT, reused: false,
+    }, sha) });
+    assert.equal(result.verdict, 'PASS');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('a direct legacy collector entry refuses request-v2 before dispatch', async () => {
   const { dir } = await runDir(500);
   let calls = 0;

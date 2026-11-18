@@ -74,7 +74,22 @@ export async function prerequisite(run: string, gate: 'm1' | 'm2'): Promise<stri
   try { digest = gate === 'm1' ? await hashFolder(run, 'm1') : await hashFile(run, 'm2/selection.json'); }
   catch { throw new ModuleError('GATE_INPUT_CHANGED', 23); }
   if (digest !== slip.outputSha256) throw new ModuleError('GATE_INPUT_CHANGED', 23);
+  if (gate === 'm2') await requireBoundLinkLog(run);
   return digest;
+}
+/** Contract F644 round 3: a selection that bound its step-2 link log is admitted to M3 only while that exact log is present. */
+async function requireBoundLinkLog(run: string): Promise<void> {
+  let selection: unknown;
+  try { selection = await readJson(run, 'm2/selection.json'); }
+  catch { throw new ModuleError('GATE_INPUT_CHANGED', 23); }
+  const record = selection !== null && typeof selection === 'object' && !Array.isArray(selection) ? selection as Record<string, unknown> : null;
+  const value = record?.selectionProof;
+  const proof = value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  const bound = proof?.linkChecksSha256;
+  if (bound === undefined) return;
+  const actual = await hashFile(run, 'm2/link-checks.json').catch(() => null);
+  if (typeof bound !== 'string' || !/^[a-f0-9]{64}$/.test(bound) || actual !== bound)
+    throw new ModuleError('GATE_INPUT_CHANGED', 23);
 }
 export async function atomicJson(run: string, name: string, data: unknown): Promise<void> {
   const path = await safePath(run, name);

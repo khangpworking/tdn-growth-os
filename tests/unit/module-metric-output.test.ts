@@ -494,6 +494,25 @@ test('F644 replay reproduces top 8 and all from the saved proof, and the gate as
   assert.deepEqual([output.m2.requested, output.m2.requestedDistinct, output.m2.fiveDistinct], [1, true, true]);
 });
 
+test('F644 round-3: all mode treats a repeated Shopee listing id as one link, live and on replay', async t => {
+  const rows = distinct(3);
+  const repeated = [rows[0]!, rows[1]!, { ...rows[1]! }, rows[2]!];
+  const url = (row: Record<string, unknown>) => {
+    const [, itemId, shopId] = String(row.product_base_id).split('__');
+    return `https://shopee.vn/product/${shopId}/${itemId}`;
+  };
+  const collector = fakeLinkCollector();
+  const { run } = await buildRun(t, { rows: repeated, pictured: [0, 1, 3], policy: 'metric-products-unique-v2',
+    productSelection: { mode: 'all' }, linkCollector: collector.collector });
+  assert.deepEqual(collector.asked, rows.map(url), 'the repeated listing is checked once');
+  const proof = await verifyModuleSelection(run) as any;
+  assert.deepEqual(proof.links.map((link: any) => link.productBaseId), rows.map(row => row.product_base_id),
+    'the first occurrence is kept and replay skips the repeat the same way');
+  assert.deepEqual([proof.selectedCount, proof.shortageReason], [3, null]);
+  const saved = JSON.parse(await readFile(join(run, 'm2/selection.json'), 'utf8'));
+  assert.deepEqual([saved.links.length, saved.selectionProof.skipped], [3, []]);
+});
+
 test('F644 an explicit top count below five and above five report their own shortage counts', async t => {
   const items = distinct(5);
   const short = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 8 },

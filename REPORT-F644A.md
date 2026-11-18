@@ -153,3 +153,39 @@ node --import tsx --test tests/integration/shopee-module-review-export.test.ts
 python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py'
   Ran 162 tests, OK (4 skipped)
 ```
+
+## Round-3 fix (review `review-505-r3.md`, contract update 18/11 round 3)
+
+Both coordinator decisions built; nothing else in section 1 changed. No push, no PR, no deploy.
+
+| # | Decision | Fix |
+|---|---|---|
+| 1 | `all`: the same Shopee listing id twice in M1 is one link. | `scripts/module-product-pick.ts`: the walk keeps the first occurrence and skips repeats silently in `all` (`continue`, no `skipped` entry, no `unresolvedCount`). Top N still raises `PICK_DUPLICATE_SOURCE_ID` as before. Replay runs the same walk, so it reproduces the saved selection exactly. `linksToCheckCount` for `all` now counts distinct listing ids, so the shared budget treats a repeat as one check. |
+| 2 | M3 admission must verify the link log the passed M2 selection bound. | The binding check moved to the shared `prerequisite(run, 'm2')` in `scripts/module-pick.ts`, the M2 barrier every M3 consumer reads: when `m2/selection.json` has `selectionProof.linkChecksSha256`, `m2/link-checks.json` must exist and hash to that value, else `GATE_INPUT_CHANGED` (23). This is the existing M3 admission mismatch code already returned by Python `module_blocking` for the same condition, so TS and Python agree. Selections without the field are unchanged. The now-duplicate guard in `samplingContext` (`scripts/module-review-sampling.ts`) was removed; its test still passes through the shared prerequisite. |
+
+Tests (each new row was run against the old code first and failed):
+
+- `tests/unit/module-metric-output.test.ts` — `F644 round-3: all mode treats a repeated Shopee listing id as one link, live and on replay`: a four-row `all` source with row 3 repeating row 2 yields 3 links, 3 link checks, `skipped: []`; `verifyModuleSelection` (replay) returns the same 3 links and no shortage. Failed on the old walk with `PICK_DUPLICATE_SOURCE_ID`.
+- `tests/unit/module-collect-public.test.ts` — `a selection bound to its step-2 link log is refused when the log is missing or changed, and an old selection is admitted`: an M3 consumer (`scripts/module-collect-public.ts`) refuses `GATE_INPUT_CHANGED` before any collection when the bound log is edited or deleted, and collects `PASS` for a selection without the field. Failed on the old prerequisite (no log binding).
+
+Checks after the fix (same suites as the report):
+
+```
+node scripts/typecheck.mjs
+  clean (no output)
+
+node --import tsx --test tests/unit/module-pick.test.ts \
+  tests/unit/module-product-pick.test.ts tests/unit/module-metric-output.test.ts \
+  tests/integration/shopee-desktop-ui.test.ts
+  148 tests, 148 pass, 0 fail (was 147; +1 round-3 all-mode row)
+
+node --import tsx --test tests/unit/module-review-sampling.test.ts \
+  tests/unit/module-collect-public.test.ts tests/integration/shopee-module-review-export.test.ts
+  32 tests, 32 pass, 0 fail (was 31; +1 round-3 M3 admission row)
+
+python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py'
+  Ran 162 tests, OK (4 skipped)
+```
+
+No collector, Shopee, Jev, Metric or provider call; no live lane, service or run directory
+touched. Python `__pycache__` created by the test run was removed.
