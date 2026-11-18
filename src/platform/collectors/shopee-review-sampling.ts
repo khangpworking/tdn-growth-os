@@ -16,6 +16,15 @@ const object = (value: unknown): Record<string, unknown> => {
 };
 const active = (state: string) => ['queued','running'].includes(state);
 const pending = (state: string) => active(state) || ['needs_login','needs_verification'].includes(state);
+/** A failed job with this error means the link is dead for this run; every other failure stays SOURCE_JOB_FAILED. */
+const terminalErrorCode = (state: SamplingJob['state'], error: unknown): string | null => {
+  if (state === 'succeeded' || state === 'partial') return null;
+  if (state === 'needs_login') return 'HUMAN_LOGIN_REQUIRED';
+  if (state === 'needs_verification') return 'HUMAN_VERIFICATION_REQUIRED';
+  if (state === 'cancelled') return 'OWNER_ABORTED';
+  if (state === 'failed' && (error === 'PRODUCT_UNAVAILABLE' || error === 'RATINGS_MISSING')) return error;
+  return 'SOURCE_JOB_FAILED';
+};
 const utc = (value: unknown): string => {
   if (typeof value !== 'string' || !/(?:Z|\+00:00)$/.test(value) || !Number.isFinite(Date.parse(value))) throw new ReviewSamplingError('REVIEW_SOURCE_INVALID');
   return new Date(value).toISOString();
@@ -204,10 +213,10 @@ export class ShopeeReviewSamplingCollector {
       }
       while(true) {
         if(signal?.aborted)throw new ReviewSamplingError('OWNER_ABORTED');
-        const job=parseJob(await call('GET',`/jobs/${j.job!.id}`));j.job=job;await save();
+        const raw=await call('GET',`/jobs/${j.job!.id}`),job=parseJob(raw);j.job=job;await save();
         await retainResult(job);
         if(!active(job.state)) {
-          j.terminal=!pending(job.state);j.errorCode=['succeeded','partial'].includes(job.state)?null:job.state==='needs_login'?'HUMAN_LOGIN_REQUIRED':job.state==='needs_verification'?'HUMAN_VERIFICATION_REQUIRED':job.state==='cancelled'?'OWNER_ABORTED':'SOURCE_JOB_FAILED';
+          j.terminal=!pending(job.state);j.errorCode=terminalErrorCode(job.state,object(raw).error);
           if(job.state==='succeeded'&&!j.result)j.errorCode='REVIEW_SOURCE_INVALID';
           await save();return j;
         }

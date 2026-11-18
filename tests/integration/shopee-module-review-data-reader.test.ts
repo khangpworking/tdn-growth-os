@@ -125,6 +125,23 @@ test('custom attempt: discovery, per-link actual counts and provider terminal ti
   assert.equal(source.completedAt, '2026-11-10T00:05:00.000Z');
 });
 
+test('custom pass with a skipped dead link offers only the collected rows', async t => {
+  const base = await fixture(t);
+  const run = await createModuleRun(base, { runId: 'run-custom-skipped' });
+  const attempt = await addCustomAttempt(run, {
+    rowsByLink: [[moduleRow(LINKS[0]!, 'dead-a')], [moduleRow(LINKS[1]!, 'kept-b')]],
+    skippedLinks: [0],
+  });
+
+  const [source] = await discoverModuleReviewSources(run.runDir);
+  assert.ok(source);
+  assert.equal(source.sourceSha256, attempt.sourceSha256);
+  assert.equal(source.status, 'SUCCEEDED');
+  assert.equal(source.gateVerdict, 'PASS');
+  assert.deepEqual(source.rows.map(row => row.reviewId), ['kept-b'], 'the dead link contributes no rows');
+  assert.deepEqual(source.links.map(link => [link.actual, link.status]), [[null, 'failed'], [1, 'exhausted']]);
+});
+
 test('custom terminal partial keeps retained rows, not the empty publication', async t => {
   const base = await fixture(t);
   const run = await createModuleRun(base, { runId: 'run-custom-partial' });

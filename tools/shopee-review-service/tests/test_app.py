@@ -15,6 +15,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+import uuid
 import warnings
 from unittest import mock
 
@@ -54,21 +55,51 @@ def sampling(policy):
 class FakeLocator:
     first = property(lambda self: self)
 
+    def __init__(self, page=None, selector=''):
+        self.page, self.selector = page, selector
+
     async def wait_for(self, **_):
+        if self.page and self.selector == '.product-ratings' and self.page.wait_error:
+            if self.page.during_wait is not None:
+                self.page.during_wait()
+            if self.page.after_timeout is not None:
+                self.page.body_text, self.page.url = self.page.after_timeout
+            raise self.page.wait_error
         return None
 
     async def scroll_into_view_if_needed(self):
         return None
 
+    async def count(self):
+        if self.page and self.page.during_title_check is not None:
+            check, self.page.during_title_check = self.page.during_title_check, None
+            check()
+        return self.page.h1 if self.page else 1
+
+    async def inner_text(self):
+        if self.page and self.page.during_observe is not None:
+            observe, self.page.during_observe = self.page.during_observe, None
+            observe()
+        return self.page.body_text if self.page else ''
+
+    async def all_inner_texts(self):
+        return list(self.page.headings) if self.page else []
+
 
 class FakePage:
     """Records the crawler config; the crawler script returns `result`."""
 
-    def __init__(self, result):
+    def __init__(self, result, h1=1, body_text='', wait_error=None, headings=(), after_timeout=None, during_wait=None,
+                 during_observe=None):
         self.result, self.config, self.crawls = result, None, 0
+        self.h1, self.body_text, self.wait_error = h1, body_text, wait_error
+        self.headings, self.after_timeout = list(headings), after_timeout
+        self.during_wait, self.during_observe = during_wait, during_observe
+        self.during_title_check = None
+        self.url = URL
 
-    def locator(self, _):
-        return FakeLocator()
+    def locator(self, selector):
+        return FakeLocator(self, selector)
 
     async def evaluate(self, expression, arg=None):
         if arg is not None:
@@ -185,6 +216,106 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual((config['maxPages'], config['limit'], state), (7, 20, 'succeeded'))
         config, state = self.run_job({'url': URL, 'max_comments': 20}, result)
         self.assertEqual((config['maxPages'], state), (500, 'partial'), 'existing callers keep 500 pages and partial')
+
+    def run_job_with_page(self, payload, page, during_wait=None, during_observe=None, during_title_check=None):
+        app, job_id = self.app, str(uuid.uuid4())
+        with app.db() as connection:
+            connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
+                               (job_id, json.dumps(payload), 'queued', app.now(), app.now()))
+        if during_wait is not None:
+            page.during_wait = lambda: during_wait(job_id)
+        if during_observe is not None:
+            page.during_observe = lambda: during_observe(job_id)
+        if during_title_check is not None:
+            page.during_title_check = lambda: during_title_check(job_id)
+        worker = app.BrowserWorker()
+        worker.page = page
+
+        async def ready(_url):
+            return {'state': 'ready'}
+        worker.navigate_product = ready
+        asyncio.run(worker.run_job(job_id))
+        return app.get_job(job_id)
+
+    def test_sampling_and_count_jobs_report_a_missing_product_as_product_unavailable(self):
+        for payload in ({'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())},
+                        {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}):
+            with self.subTest(kind=payload.get('kind', 'sampling')):
+                page = FakePage({'stop_reason': 'exhausted', 'error': None}, h1=0)
+                job = self.run_job_with_page(payload, page)
+                self.assertEqual((job['state'], job['error']), ('failed', 'PRODUCT_UNAVAILABLE'))
+                self.assertEqual(page.crawls, 0, 'a dead product is never crawled')
+
+    def test_a_stop_during_the_product_title_check_wins_over_product_unavailable(self):
+        payload = {'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())}
+        for stop, expected in (('cancel', ('cancelled', None)), ('readonly', ('cancelled', 'READONLY_ON'))):
+            with self.subTest(stop=stop):
+                page, flags = FakePage({}, h1=0), {'readonly': False}
+
+                def stop_during_title_check(job_id):
+                    if stop == 'cancel':
+                        self.app.update_job(job_id, cancel_requested=1)
+                    else:
+                        flags['readonly'] = True
+
+                with mock.patch.object(self.app, 'sampling_readonly', lambda: flags['readonly']):
+                    job = self.run_job_with_page(payload, page, during_title_check=stop_during_title_check)
+                self.assertEqual((job['state'], job['error']), expected,
+                                 'a stop that arrived during the title check is not a dead link')
+                self.assertEqual(page.crawls, 0)
+
+    def test_product_content_with_the_unavailable_phrase_is_still_a_product(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        page = FakePage({}, h1=1, headings=['Sản phẩm không tồn tại trong hình'],
+                        body_text='Mô tả: sản phẩm không tồn tại trong hình. Hỏi đáp: không tìm thấy sản phẩm nào tốt hơn.')
+        job = self.run_job_with_page(payload, page)
+        self.assertEqual(job['state'], 'succeeded')
+        self.assertEqual(page.crawls, 1, 'a valid product is collected, not skipped')
+
+    def test_a_ratings_wait_timeout_reports_ratings_missing(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'))
+        job = self.run_job_with_page(payload, page)
+        self.assertEqual((job['state'], job['error']), ('failed', 'RATINGS_MISSING'))
+        self.assertEqual(page.crawls, 0)
+
+    def test_a_session_that_changes_during_the_ratings_wait_stops_for_the_human(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        for body, state in (('Log in to continue', 'needs_login'), ('Please verify you are human', 'needs_verification')):
+            with self.subTest(state=state):
+                page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'), after_timeout=(body, URL))
+                job = self.run_job_with_page(payload, page)
+                self.assertEqual(job['state'], state)
+                self.assertNotEqual(job['error'], 'RATINGS_MISSING')
+                self.assertEqual(page.crawls, 0)
+
+    def test_a_cancelled_ratings_wait_keeps_the_cancellation_state(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'))
+        job = self.run_job_with_page(payload, page,
+                                     during_wait=lambda job_id: self.app.update_job(job_id, cancel_requested=1))
+        self.assertEqual((job['state'], job['error']), ('cancelled', None))
+        self.assertEqual(page.crawls, 0)
+
+    def test_cancellation_during_session_observation_wins_over_the_timeout_classification(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'))
+        job = self.run_job_with_page(payload, page,
+                                     during_observe=lambda job_id: self.app.update_job(job_id, cancel_requested=1))
+        self.assertEqual((job['state'], job['error']), ('cancelled', None))
+        self.assertEqual(page.crawls, 0)
+
+    def test_other_sampling_failures_stay_source_action_failed(self):
+        payload = {'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())}
+        page = FakePage({}, wait_error=RuntimeError('synthetic failure'))
+        job = self.run_job_with_page(payload, page)
+        self.assertEqual((job['state'], job['error']), ('failed', 'SOURCE_ACTION_FAILED'))
+
+    def test_a_plain_job_keeps_todays_error_text_when_the_ratings_block_never_appears(self):
+        page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'))
+        job = self.run_job_with_page({'url': URL, 'max_comments': 20}, page)
+        self.assertEqual(job['state'], 'failed')
+        self.assertTrue(job['error'].startswith('TimeoutError:'), job['error'])
 
     def test_cancel_then_resume_executes_the_job_once_after_draining_stale_queue_items(self):
         app = self.app

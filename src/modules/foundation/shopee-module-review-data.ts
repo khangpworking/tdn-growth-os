@@ -185,10 +185,14 @@ async function customSource(run: string, id: string): Promise<VerifiedModuleRevi
   const retained = results.flatMap(result => result.rows), outcome = parsed(proof.find(p => p.path === `${base}/output/outcome.json`)!.bytes);
   if (!Array.isArray(published) || published.length && canonicalJson(published) !== canonicalJson(retained)) throw new ModuleError('REVIEW_SOURCE_CHANGED');
   const pass = gate.verdict === 'PASS';
+  // Product-level codes mark a link step 3 skipped; it is excluded from the pass checks, never a failure.
+  const skipped = journals.map(journal => journal !== null && (journal.errorCode === 'PRODUCT_UNAVAILABLE' || journal.errorCode === 'RATINGS_MISSING'));
+  const collected = links.filter((_, index) => !skipped[index]);
   if (pass && (gate.errorCode !== null || state.status !== 'SUCCEEDED' || state.errorCode !== null || outcome.planSha256 !== attempt.planSha256 || outcome.errorCode !== null ||
-      !['OK','PARTIAL_LISTINGS'].includes(String(outcome.verdict)) || results.length !== attempt.links.length ||
+      !['OK','PARTIAL_LISTINGS','PARTIAL_LINKS'].includes(String(outcome.verdict)) || skipped.some(Boolean) !== (outcome.verdict === 'PARTIAL_LINKS') ||
+      results.length !== collected.length ||
       results.some(r => r.phase !== 'terminal' || !['record_limit','exhausted','page_limit'].includes(r.stopReason)) ||
-      links.some(l => l.actual === null || l.actual < 1) || canonicalJson(published) !== canonicalJson(retained) ||
+      collected.some(l => l.actual === null || l.actual < 1) || canonicalJson(published) !== canonicalJson(retained) ||
       new Set(published.map(r => r.reviewId)).size !== published.length)) throw new ModuleError('REVIEW_SOURCE_INVALID');
   await assertProofUnchanged(run, proof);
   return identity({ runId: basename(run), kind: 'custom', attemptId: id, planSha256: attempt.planSha256, status: pass ? 'SUCCEEDED' : 'FAILED',
