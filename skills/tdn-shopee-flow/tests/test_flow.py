@@ -692,6 +692,313 @@ class ReadOnlyCommandTests(FlowTest):
         self.assertEqual(skills[flow['skill']]['version'], flow['skillVersion'])
 
 
+SAMPLING_SERVE_NODE = '''#!/usr/bin/env python3
+import json, os, pathlib, sys
+
+args = sys.argv[1:]
+script = next(a for a in args if a.endswith('.ts'))
+action, rest = args[args.index(script) + 1], args[args.index(script) + 2:]
+with open(os.environ['NODE_MARKER'], 'a', encoding='utf8') as log:
+    log.write(action + '\\n')
+
+
+def view_bytes(target):
+    """What the single `view` command prints and exits with for one target."""
+    run = pathlib.Path(target)
+    if run.name == 'badrun':
+        return 2, json.dumps({'format': 'error-v1', 'code': 'REVIEW_PLAN_INVALID',
+                              'message': 'REVIEW_PLAN_INVALID'}) + '\\n'
+    return 0, json.dumps({
+        'format': 'review-sampling-view-v1', 'runId': run.name, 'readonly': False,
+        'm2Digest': None, 'links': [], 'plans': [], 'counts': [], 'countRefresh': None,
+        'blockedBy': None,
+        'attempts': [{
+            'attemptId': f'{run.name}-attempt', 'sequence': 1, 'createdAt': '2026-11-01T00:00:00Z',
+            'status': 'SUCCEEDED', 'executionId': None, 'receiptMatchesCurrentInputs': False,
+            'gate': None, 'errorCode': None, 'automatic': True,
+        }],
+    }) + '\\n'
+
+
+SERVE_ONLY_ANSWERS = {
+    'nanstdout': {'exitCode': 0, 'stdout': 'not json\\n'},
+    'emptystdout': {'exitCode': 0, 'stdout': '{}\\n'},
+    'errshape': {'exitCode': 20, 'stdout': json.dumps(
+        {'format': 'error-v1', 'code': 'REVIEW_COMMAND_FAILED', 'message': 'REVIEW_COMMAND_FAILED'}) + '\\n'},
+    'wrongrun': {'exitCode': 0, 'stdout': json.dumps(
+        {'format': 'review-sampling-view-v1', 'runId': 'someoneelse', 'attempts': []}) + '\\n'},
+}
+
+
+if action == 'serve-views':
+    if os.environ.get('SERVE_BROKEN') == '1':
+        print('not json', flush=True)
+        raise SystemExit(0)
+    served, hung = 0, False
+    with open(os.environ['NODE_MARKER'] + '.serverpid', 'a', encoding='utf8') as log:
+        log.write(str(os.getpid()) + '\\n')
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        if os.environ.get('SERVE_DIES') == '1' and served:
+            raise SystemExit(1)
+        with open(os.environ['NODE_MARKER'] + '.stdin', 'a', encoding='utf8') as log:
+            log.write(line + '\\n')
+        target = json.loads(line)
+        if hung or pathlib.Path(target).name == 'hang':
+            hung = True  # alive but never answers again; the client must bound its wait
+            continue
+        name = pathlib.Path(target).name
+        answer = SERVE_ONLY_ANSWERS.get(name)
+        if answer is None:
+            exit_code, stdout = view_bytes(target)
+            answer = {'exitCode': exit_code, 'stdout': stdout}
+        print(json.dumps(answer), flush=True)
+        served += 1
+elif action == 'view':
+    pid_log = pathlib.Path(os.environ['NODE_MARKER'] + '.serverpid')
+    for pid in (pid_log.read_text().split() if pid_log.exists() else []):
+        try:
+            os.kill(int(pid), 0)
+            state = 'alive'
+        except ProcessLookupError:
+            state = 'gone'
+        with open(os.environ['NODE_MARKER'] + '.serverstate', 'a', encoding='utf8') as log:
+            log.write(state + '\\n')
+    exit_code, stdout = view_bytes(rest[0])
+    sys.stdout.write(stdout)
+    raise SystemExit(exit_code)
+else:
+    raise SystemExit('unexpected sampling action')
+'''
+
+
+class RunsSamplingStreamTests(FlowTest):
+    """F647 round 2: the run list streams each run's sampling view through one long-lived node process."""
+
+    def setUp(self):
+        super().setUp()
+        node = self.bin / 'node'
+        node.write_text(SAMPLING_SERVE_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+
+    def sampled_run(self, run_id):
+        run = self.make_run(run_id)
+        (run / 'm3-custom').mkdir()
+        return run
+
+    def starts(self):
+        return self.marker.read_text().splitlines() if self.marker.exists() else []
+
+    def asked_paths(self):
+        log = self.marker.with_name(self.marker.name + '.stdin')
+        return [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+
+    def runs_in_process(self, flow, per_run_views=False, extra_env=None):
+        output = io.StringIO()
+        patcher = (mock.patch.object(flow.SamplingViewServer, 'view', lambda server, run: flow.review_sampling_script(
+            server.repo, server.config, 'view', run)) if per_run_views else contextlib.nullcontext())
+        with mock.patch.dict(os.environ, self.env(extra_env), clear=True), patcher, contextlib.redirect_stdout(output):
+            flow.cmd_flow_query(argparse.Namespace(cmd='runs'))
+        return output.getvalue()
+
+    def command_in_process(self, flow, order, raw=False):
+        real_iterdir = pathlib.Path.iterdir
+
+        def iterdir(path):
+            items = list(real_iterdir(path))
+            if path == self.runs:
+                items.sort(key=lambda item: order.index(item.name) if item.name in order else len(order))
+            return iter(items)
+
+        output = io.StringIO()
+        with mock.patch.dict(os.environ, self.env(), clear=True), \
+                mock.patch.object(pathlib.Path, 'iterdir', iterdir), contextlib.redirect_stdout(output):
+            try:
+                flow.cmd_flow_query(argparse.Namespace(cmd='runs'))
+            except SystemExit as error:
+                return error.code, output.getvalue() if raw else json.loads(output.getvalue())
+        return 0, output.getvalue() if raw else json.loads(output.getvalue())
+
+    def test_runs_starts_node_once_and_matches_the_per_run_view_output(self):
+        first, second = self.sampled_run('aaaaaaaa'), self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        new_bytes = self.runs_in_process(flow)
+        self.assertEqual(self.starts(), ['serve-views'], 'one node start serves every run')
+        self.assertEqual(sorted(self.asked_paths()), sorted([str(first), str(second)]))
+        self.marker.unlink()
+        old_bytes = self.runs_in_process(flow, per_run_views=True)
+        self.assertEqual(len(self.starts()), 2, 'the old path starts node per run')
+        self.assertEqual(new_bytes, old_bytes, 'streaming the views changes no byte of the runs answer')
+        payload = json.loads(new_bytes)
+        self.assertEqual(payload['format'], 'runs-v1')
+        attempts = {item['runId']: item['execution']['modules']['M3']['attemptId'] for item in payload['runs']}
+        self.assertEqual(attempts, {'aaaaaaaa': 'aaaaaaaa-attempt', 'bbbbbbbb': 'bbbbbbbb-attempt'})
+
+    def test_each_view_is_asked_at_the_run_s_place_in_the_listing(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        rc, payload = self.command_in_process(flow, order=['bbbbbbbb', 'aaaaaaaa'])
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual([pathlib.Path(path).name for path in self.asked_paths()], ['bbbbbbbb', 'aaaaaaaa'])
+
+    def test_one_failing_view_still_fails_the_runs_command(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('badrun')
+        rc, payload, stderr = self.command('runs')
+        self.assertEqual(rc, 2, (payload, stderr))
+        self.assertEqual(payload.get('code'), 'REVIEW_PLAN_INVALID', payload)
+
+    def test_an_earlier_receipt_error_still_wins_over_a_later_sampling_error(self):
+        receipt_id = '11111111-1111-4111-8111-111111111111'
+        run = self.make_run('receipt')
+        write_json(run / 'executions' / f'{receipt_id}.json', {
+            'format': 'shopee-module-execution-v1', 'runId': 'receipt', 'executionId': receipt_id,
+            'sequence': 1, 'module': 'M1', 'kind': 'module', 'attemptId': None,
+            'requestSha256': None, 'inputSha256': None, 'startedAt': '2026-11-01T00:00:00Z',
+            'endedAt': None, 'status': 'FAILED', 'pid': None, 'gateSha256': None, 'errorCode': None,
+            'previousGateSha256': 'a' * 64,
+        })
+        self.sampled_run('badrun')
+        flow = load_flow_script()
+        expected = (20, {'format': 'error-v1', 'code': 'EXECUTION_RECEIPT_CHANGED',
+                         'message': 'EXECUTION_RECEIPT_CHANGED'})
+        self.assertEqual(self.command_in_process(flow, order=['receipt', 'badrun']), expected)
+
+    def test_an_earlier_receipt_error_still_wins_over_a_later_symlinked_request(self):
+        receipt_id = '11111111-1111-4111-8111-111111111111'
+        receipt = self.make_run('receipt')
+        write_json(receipt / 'executions' / f'{receipt_id}.json', {
+            'format': 'shopee-module-execution-v1', 'runId': 'receipt', 'executionId': receipt_id,
+            'sequence': 1, 'module': 'M1', 'kind': 'module', 'attemptId': None,
+            'requestSha256': None, 'inputSha256': None, 'startedAt': '2026-11-01T00:00:00Z',
+            'endedAt': None, 'status': 'FAILED', 'pid': None, 'gateSha256': None, 'errorCode': None,
+            'previousGateSha256': 'a' * 64,
+        })
+        linked = self.make_run('symrun')
+        (linked / 'request.json').unlink()
+        os.symlink(receipt / 'request.json', linked / 'request.json')
+        flow = load_flow_script()
+        expected = (20, {'format': 'error-v1', 'code': 'EXECUTION_RECEIPT_CHANGED',
+                         'message': 'EXECUTION_RECEIPT_CHANGED'})
+        self.assertEqual(self.command_in_process(flow, order=['receipt', 'symrun']), expected,
+                         'the earlier run keeps its error even though a later run has a symlinked request')
+        self.assertEqual(self.command_in_process(flow, order=['symrun', 'receipt']),
+                         (2, {'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID',
+                              'message': 'Invalid or unreadable flow input.'}))
+
+    def test_a_server_spawn_error_falls_back_to_the_per_run_views(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        new_bytes = self.runs_in_process(flow)
+        self.marker.unlink()
+        with mock.patch.object(flow.SamplingViewServer, '_spawn', side_effect=OSError('no process')):
+            fallback_bytes = self.runs_in_process(flow)
+        self.assertEqual(self.starts(), ['view', 'view'], 'the spawn failure falls back for this and later runs')
+        self.assertEqual(fallback_bytes, new_bytes)
+
+    def test_a_server_that_dies_midway_falls_back_to_the_per_run_views(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        new_bytes = self.runs_in_process(flow)
+        self.marker.unlink()
+        died_bytes = self.runs_in_process(flow, extra_env={'SERVE_DIES': '1'})
+        starts = self.starts()
+        self.assertEqual(starts.count('serve-views'), 1)
+        self.assertEqual(starts.count('view'), 1, 'only the unanswered run goes back to its own process')
+        self.assertEqual(died_bytes, new_bytes)
+
+    def test_a_broken_server_falls_back_to_per_run_views(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        new_bytes = self.runs_in_process(flow)
+        self.marker.unlink()
+        broken_bytes = self.runs_in_process(flow, extra_env={'SERVE_BROKEN': '1'})
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'one broken server, then one view per run')
+        self.assertEqual(broken_bytes, new_bytes)
+
+    def attempt_ids(self, payload):
+        return {item['runId']: item['execution']['modules']['M3'].get('attemptId') for item in payload['runs']}
+
+    def test_a_server_stdout_that_is_not_json_falls_back_to_the_per_run_views(self):
+        self.sampled_run('nanstdout')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        rc, payload = self.command_in_process(flow, order=['nanstdout', 'bbbbbbbb'])
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'a non-JSON stdout is a malformed answer; this and later runs use their own process')
+        self.assertEqual(self.attempt_ids(payload), {'nanstdout': 'nanstdout-attempt', 'bbbbbbbb': 'bbbbbbbb-attempt'},
+                         'the per-run result is used, not the server answer')
+
+    def test_a_server_stdout_with_an_empty_object_falls_back_to_the_per_run_views(self):
+        self.sampled_run('emptystdout')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        rc, payload = self.command_in_process(flow, order=['emptystdout', 'bbbbbbbb'])
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'a {} stdout is not a view; this and later runs use their own process')
+        self.assertEqual(self.attempt_ids(payload), {'emptystdout': 'emptystdout-attempt', 'bbbbbbbb': 'bbbbbbbb-attempt'},
+                         'the per-run result is used, not the server answer')
+
+    def test_a_nonzero_exit_answer_uses_the_per_run_view_and_keeps_the_server(self):
+        self.sampled_run('errshape')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        rc, payload = self.command_in_process(flow, order=['errshape', 'bbbbbbbb'])
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(self.starts(), ['serve-views', 'view'],
+                         'only the nonzero-exit run goes to its own process; the server serves the next run')
+        self.assertEqual(self.attempt_ids(payload), {'errshape': 'errshape-attempt', 'bbbbbbbb': 'bbbbbbbb-attempt'},
+                         'the per-run result decides, and the error envelope is not propagated')
+
+    def test_a_server_answer_for_another_run_falls_back_to_the_per_run_views(self):
+        self.sampled_run('wrongrun')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        rc, payload = self.command_in_process(flow, order=['wrongrun', 'bbbbbbbb'])
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'a view for another run is malformed; this and later runs use their own process')
+        self.assertEqual(self.attempt_ids(payload), {'wrongrun': 'wrongrun-attempt', 'bbbbbbbb': 'bbbbbbbb-attempt'},
+                         'the per-run result is used, not the server answer')
+
+    def test_an_unresponsive_server_falls_back_after_the_answer_wait_bound(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('hang')
+        flow = load_flow_script()
+        order = ['hang', 'aaaaaaaa']  # the hung run first, so a later run must also use its own process
+        with mock.patch.object(flow, 'SAMPLING_VIEW_ANSWER_TIMEOUT', 0.2):
+            hung = self.command_in_process(flow, order=order, raw=True)
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'a server that stops answering is closed after the bound, then every run uses its own process')
+        self.assertEqual(self.marker.with_name(self.marker.name + '.serverstate').read_text().split(), ['gone', 'gone'],
+                         'the hung server process has ended before each per-run view starts')
+        self.marker.unlink()
+        per_run = mock.patch.object(flow.SamplingViewServer, 'view', lambda server, run: flow.review_sampling_script(
+            server.repo, server.config, 'view', run))
+        with per_run:
+            old = self.command_in_process(flow, order=order, raw=True)
+        self.assertEqual(hung, old, 'same exit code and the same stdout bytes as the per-run path')
+
+    def test_gate_hash_reads_the_evidence_again(self):
+        flow = load_flow_script()
+        self.assertFalse(hasattr(flow, '_GATE_HASH_MEMO'))
+        run = self.make_run()
+        evidence = run / 'evidence.txt'
+        evidence.write_text('one', encoding='utf8')
+        first = flow.gate_hash(run, 'evidence.txt')
+        evidence.write_text('two', encoding='utf8')
+        self.assertNotEqual(first, flow.gate_hash(run, 'evidence.txt'))
+
+
 class CaptureSpecReviewTests(FlowTest):
     """Read-only review of the actual saved spec member and its independent digests."""
 
