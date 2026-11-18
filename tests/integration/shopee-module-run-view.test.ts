@@ -1,6 +1,7 @@
 /**
  * run-view-v1 contract: every node part is exactly what the single command prints, one node process
- * builds them all, and insights v2 rebuilds v1 from the summary plus the on-demand comment lists.
+ * builds the source parts (output verification keeps its own bounded call), and insights v2
+ * rebuilds v1 from the summary plus the on-demand comment lists.
  * Synthetic M3 evidence only; no provider, collector or network.
  */
 import assert from 'node:assert/strict';
@@ -54,11 +55,10 @@ test('each run-view part equals the single command output', async t => {
   const view = await reviewRunView(run.runDir, true);
   assert.equal(view.format, 'review-run-view-node-v1');
   assert.deepEqual(view.errors, {});
-  assert.deepEqual(Object.keys(view.parts), ['sampling', 'reviewData', 'outputs', 'process', 'stats', 'insights']);
+  assert.deepEqual(Object.keys(view.parts), ['sampling', 'reviewData', 'process', 'stats', 'insights']);
   const expected: Record<string, { script: string; args: string[] }> = {
     sampling: { script: 'scripts/module-review-sampling.ts', args: ['view', run.runDir] },
     reviewData: { script: 'scripts/module-review-data.ts', args: ['view', run.runDir] },
-    outputs: { script: 'scripts/module-metric-output.ts', args: ['view', run.runDir] },
     process: { script: 'scripts/module-review-data.ts', args: ['process-view', run.runDir] },
     stats: { script: 'scripts/module-review-data.ts', args: ['stats', run.runDir] },
     insights: { script: 'scripts/module-review-data.ts', args: ['insights-summary', run.runDir] },
@@ -74,8 +74,8 @@ test('a part that cannot be read stays an error and never hides the others', asy
   const run = await fixture(t);
   await fs.writeFile(path.join(run.runDir, 'm3-custom', 'plans', 'bad.json'), '{}');
   const view = await reviewRunView(run.runDir, true);
-  assert.deepEqual(view.errors, { sampling: { code: 'REVIEW_PLAN_INVALID', message: 'REVIEW_PLAN_INVALID' } });
-  for (const name of ['reviewData', 'outputs', 'process', 'stats', 'insights']) assert.ok(view.parts[name], name);
+  assert.deepEqual(view.errors, { sampling: { code: 'REVIEW_PLAN_INVALID', message: 'REVIEW_PLAN_INVALID', exitCode: 20 } });
+  for (const name of ['reviewData', 'process', 'stats', 'insights']) assert.ok(view.parts[name], name);
 });
 
 test('insights v2 rebuilds v1 from the summary and one comment list per bucket and theme', async t => {
