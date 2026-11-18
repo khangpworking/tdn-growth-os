@@ -654,6 +654,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
               <option value="needs_owner">Cần bạn xử lý</option>
               <option value="uncertain">Chưa xác định được</option>
               <option value="idle">Chưa chạy</option>
+              <option value="unfinished">Chưa xong</option>
             </select>
           </label>
           <ol id="runList" class="run-list"></ol>
@@ -785,6 +786,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   var STATUS = {
     IDLE: { label: 'Chưa chạy', cls: 's-idle' },
     RUNNING: { label: 'Đang chạy', cls: 's-run' },
+    UNFINISHED: { label: 'Chưa xong', cls: 's-idle' },
     STOPPED: { label: 'Đã dừng', cls: 's-fail' },
     DONE: { label: 'Hoàn tất', cls: 's-pass' },
     SUCCEEDED: { label: 'Hoàn tất', cls: 's-pass' },
@@ -6251,9 +6253,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function effectiveStatus(runId, status) {
     var progress = state.progressByRun[runId];
     if (!progress) return status;
-    if (progress.steps.indexOf('RUNNING') !== -1) return 'RUNNING';
+    // «Đang chạy» only while a step really runs; a run that stopped part-way is «Chưa xong».
+    if (progress.steps.indexOf('RUNNING') !== -1 || progress.active) return 'RUNNING';
     if (progress.steps[3] === 'FAIL') return 'FAILED';
-    if ((status === 'DONE' || status === 'SUCCEEDED') && !progress.finished) return 'RUNNING';
+    if ((status === 'DONE' || status === 'SUCCEEDED') && !progress.finished) return 'UNFINISHED';
     return status;
   }
 
@@ -6703,7 +6706,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     stopped: ['STOPPED'],
     needs_owner: ['WAIT_OWNER'],
     uncertain: ['UNCERTAIN', 'UNKNOWN'],
-    idle: ['IDLE']
+    idle: ['IDLE'],
+    unfinished: ['UNFINISHED']
   };
 
   function renderRunList() {
@@ -8414,7 +8418,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
       : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';
     if (data.step2 && data.step2.ok) {
-      text += ' Bước 2 đang chọn 5 link Shopee. Mở lượt để theo dõi và bắt đầu lấy bình luận ở bước 3.';
+      text += ' App đang chạy bước 2 (chọn 5 link Shopee), rồi tự chạy bước 3 và bước 4. Mở lượt để theo dõi.';
     } else {
       text += ' Chưa bắt đầu được bước 2: ' + plainError(data.step2 && data.step2.error) + ' Mở lượt để xem.';
     }

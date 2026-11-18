@@ -3076,23 +3076,46 @@ test('the results tab says in one line when step 4 is not done', async () => {
   } finally { dom.window.close(); }
 });
 
-test('run status chips: step 4 running or stopped wins over a DONE state, and «Hoàn tất» needs finished', async () => {
-  const { dom, doc } = step4Harness({
-    runsProgressResults: [progressReply([
-      progressRun('run-running', ['PASS', 'PASS', 'PASS', 'RUNNING'], { active: { step: 4, stage: 'filter', done: 240, total: 531 } }),
-      progressRun('run-fail', ['PASS', 'PASS', 'PASS', 'FAIL']),
-      progressRun('run-pass', ['PASS', 'PASS', 'PASS', 'IDLE']),
-      progressRun('run-old', ['PASS', 'PASS', 'PASS', 'NOT_APPLICABLE'], { finished: true }),
-    ])],
-  });
-  try {
-    const chip = (runId: string) => runListButton(doc, runId).querySelector('.chip')!.textContent;
-    await waitFor(() => doc.querySelectorAll('#runList button').length === 4 && chip('run-fail') === 'Bị lỗi', 'progress applied');
-    assert.deepEqual(['run-running', 'run-fail', 'run-pass', 'run-old'].map(chip),
-      ['Đang chạy', 'Bị lỗi', 'Đang chạy', 'Hoàn tất']);
-    runListButton(doc, 'run-fail').click();
-    await waitFor(() => doc.querySelector('#runDetail .dhead .chip')?.textContent === 'Bị lỗi', 'detail chip');
-  } finally { dom.window.close(); }
+// | progress (run state DONE)                         | chip        |
+// |---------------------------------------------------|-------------|
+// | step 3 RUNNING                                    | Đang chạy   |
+// | step 4 RUNNING                                    | Đang chạy   |
+// | step 4 IDLE but an active step (M3 -> 4 handoff)  | Đang chạy   |
+// | finished                                          | Hoàn tất    |
+// | step 4 FAIL                                       | Bị lỗi      |
+// | M1, M2 PASS, nothing active, not finished         | Chưa xong   |
+// | M1-M3 PASS, step 4 IDLE, nothing active           | Chưa xong   |
+const CHIP_ROWS: [string, string[], any, string][] = [
+  ['step 3 running', ['PASS', 'PASS', 'RUNNING', 'IDLE'], { active: { step: 3, stage: null, done: 320, total: 1500 } }, 'Đang chạy'],
+  ['step 4 running', ['PASS', 'PASS', 'PASS', 'RUNNING'], { active: { step: 4, stage: 'filter', done: 240, total: 531 } }, 'Đang chạy'],
+  ['step 4 handoff', ['PASS', 'PASS', 'PASS', 'IDLE'], { active: { step: 4, stage: null, done: null, total: null } }, 'Đang chạy'],
+  ['finished', ['PASS', 'PASS', 'PASS', 'PASS'], { finished: true }, 'Hoàn tất'],
+  ['step 4 failed', ['PASS', 'PASS', 'PASS', 'FAIL'], {}, 'Bị lỗi'],
+  ['stopped after step 2', ['PASS', 'PASS', 'IDLE', 'IDLE'], {}, 'Chưa xong'],
+  ['stopped after step 3', ['PASS', 'PASS', 'PASS', 'IDLE'], {}, 'Chưa xong'],
+];
+
+test('run status chips: «Đang chạy» only while a step runs; a run stopped part-way is «Chưa xong» and has its filter', async () => {
+  const ids = Object.keys(STEP4_RUN_KINDS);
+  for (let start = 0; start < CHIP_ROWS.length; start += ids.length) {
+    const rows = CHIP_ROWS.slice(start, start + ids.length);
+    const { dom, doc, window } = step4Harness({
+      runsProgressResults: [progressReply(rows.map(([, steps, extra], k) => progressRun(ids[k]!, steps, extra)))],
+    });
+    try {
+      const chip = (runId: string) => runListButton(doc, runId).querySelector('.chip')!.textContent;
+      const first = rows[0]!;
+      await waitFor(() => doc.querySelectorAll('#runList button').length === 4 && chip(ids[0]!) === first[3], 'progress applied');
+      rows.forEach(([label, , , expected], k) => assert.equal(chip(ids[k]!), expected, label));
+      const unfinished = rows.map(([, , , expected], k) => expected === 'Chưa xong' ? ids[k] : null).filter(Boolean);
+      const filter = element<HTMLSelectElement>(doc, 'runFilter');
+      assert.ok([...filter.options].some((option) => option.value === 'unfinished' && option.textContent === 'Chưa xong'));
+      filter.value = 'unfinished';
+      fire(window, filter, 'change');
+      await waitFor(() => doc.querySelectorAll('#runList .runbtn').length === unfinished.length, 'unfinished filter');
+      for (const runId of unfinished) assert.ok(runListButton(doc, runId!), runId + ' found by «Chưa xong»');
+    } finally { dom.window.close(); }
+  }
 });
 
 test('the header status line shows the most recently changed active run, its pills and how many others run; click opens it', async () => {

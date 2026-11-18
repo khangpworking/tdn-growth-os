@@ -1623,7 +1623,8 @@ class Api:
         session.confirmed()
         run_id = data['runId']
         try:
-            step2 = self._remote('m2', run_id=run_id, config=config)
+            # The whole flow (`run --run <id> --detach`): on a user-page run the server runs M2 -> M3 -> step 4.
+            step2 = self._remote('flow', run_id=run_id, config=config)
         except _BridgeFailure as failure:
             step2 = _error(failure.code)
         step2 = {'ok': True} if step2['ok'] else {'ok': False, 'error': {'code': step2['error'].get('code'),
