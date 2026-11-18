@@ -3145,6 +3145,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     // Nothing is inferred from a list: the screen shows only runs in the latest successful listing (the
     // status bar and notices too); a run missing from one list is just not shown, and shows again when a
     // later list has it. A transport or list error never marks anything gone.
+    // Out of scope: a run deleted elsewhere just after we created it may still be named by the creation panel,
+    // its notice or the tracking button until it is used; using it gets RUN_NOT_FOUND, which makes it gone (b).
     goneRuns: [],
     goneTold: [],      // runs already told «Lượt này đã bị xóa.» (or deleted here)
     runsPromise: null,
@@ -8425,6 +8427,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         collectionPolicy: form.value.policy
       };
       var res = await api.newRun(payload);
+      if (res.ok && res.data && res.data.runId && isGone(res.data.runId)) return;   // deleted before the reply came
       if (generation !== state.newFormSeq) {
         if (res.ok && res.data && res.data.runId) {
           state.newStaleRunId = res.data.runId;

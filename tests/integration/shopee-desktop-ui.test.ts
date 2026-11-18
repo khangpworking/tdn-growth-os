@@ -4025,3 +4025,35 @@ test('deleting the run just created frees the new-run panel', async () => {
     assertDraftEditable(doc);
   } finally { dom.window.close(); }
 });
+
+// A create reply for a run deleted before it came (F645, Terra r7 #3 on #508):
+// | situation                                                              | expected                              |
+// |------------------------------------------------------------------------|---------------------------------------|
+// | form changed, the new run listed and deleted, then the create reply    | no notice names the deleted run       |
+test('a create reply for a run already deleted names nothing', async () => {
+  const gate = deferred<any>();
+  const { dom, doc, state } = harness({
+    newRunGate: gate,
+    newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId: 'run-late' } }),
+    runInfoByRun: { 'run-late': createdRunInfo('run-late') },
+  });
+  try {
+    await booted(doc);
+    create(doc);
+    await waitFor(() => state.newRunCalls === 1, 'new-run in flight');
+    element<HTMLInputElement>(doc, 'newTotal').value = '501';
+    element<HTMLInputElement>(doc, 'newTotal').dispatchEvent(new (doc.defaultView as any).Event('input', { bubbles: true }));
+    state.runsView = [{ runId: 'run-late', product: 'Sản phẩm mới', status: 'IDLE' }, ...state.runsView];
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => [...doc.querySelectorAll<HTMLButtonElement>('#runList button')]
+      .some((b) => (b.title || '').includes('Mã lượt run-late')), 'listed');
+    runListButton(doc, 'run-late').click();
+    await waitFor(() => doc.getElementById('btnDeleteRun') !== null, 'open');
+    element<HTMLButtonElement>(doc, 'btnDeleteRun').click();
+    element<HTMLButtonElement>(doc, 'deleteConfirmBtn').click();
+    await waitFor(() => element(doc, 'toast').textContent === 'Đã xóa lượt', 'deleted');
+    gate.resolve({ ok: true, data: { format: 'new-run-v1', runId: 'run-late' } });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.doesNotMatch(element<HTMLElement>(doc, 'newNotice').textContent || '', /run-late/, 'no notice names it');
+  } finally { dom.window.close(); }
+});
