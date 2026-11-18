@@ -1,3 +1,4 @@
+import './lazy-validators-on.js';
 import { access, lstat, mkdir, open, readFile, readdir, link, rename, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -10,6 +11,7 @@ import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ShopeeReviewSamplingCollector, readSamplingJournal } from '../src/platform/collectors/shopee-review-sampling.js';
 import { shopeePublicReviewConfigFromEnv } from '../src/modules/analysis/research-automation/providers.js';
 import { atomicJson, hashFile, hashFolder, ModuleError, object, prerequisite, readJson, readRequest, safePath, validateModuleValue } from './module-pick.js';
+import { compileAll } from '../src/platform/lazy-validator.js';
 
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
 const hex = /^[a-f0-9]{64}$/;
@@ -358,6 +360,7 @@ async function serveViews(){
 export async function reviewSamplingCommand(args:string[]){
   const [action,runArg,...rest]=args;
   if(action==='serve-views'){await serveViews();return;}
+  if(action!=='view')compileAll();
   if(!runArg)throw new ModuleError('USAGE',2);const run=resolve(runArg);
   if(action==='view')return reviewSamplingView(run);
   if(action==='configured-reserve')return reserveConfiguredAttempt(run,{executionId:rest[0]??'',sequence:Number(rest[1])});

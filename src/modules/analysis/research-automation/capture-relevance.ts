@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import schema from '../../../../contracts/analysis/capture-relevance.schema.json' with { type: 'json' };
 import type { CaptureRelevanceConfiguration, CaptureRelevanceDecision, CaptureRelevanceRecord } from '../../../../contracts/analysis/capture-relevance.generated.js';
+import { lazyValidator } from '../../../platform/lazy-validator.js';
 export type { CaptureRelevanceConfiguration, CaptureRelevanceRecord } from '../../../../contracts/analysis/capture-relevance.generated.js';
 
 export const CAPTURE_RELEVANCE_PROMPT_VERSION = 'capture-relevance-prompt-v1';
@@ -28,9 +29,9 @@ type TitleRow = { readonly title: string; readonly categoryText?: string | null 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true }); ajv.addSchema(schema);
-export const validateCaptureRelevanceConfiguration = ajv.compile<CaptureRelevanceConfiguration>({ $ref: `${schema.$id}#/$defs/configuration` });
-const validateRecord = ajv.compile<CaptureRelevanceRecord>(schema);
-const validateResponse = ajv.compile<Awaited<ReturnType<CaptureRelevanceClassifier['classify']>>>({ $ref: `${schema.$id}#/$defs/response` });
+export const validateCaptureRelevanceConfiguration = lazyValidator<CaptureRelevanceConfiguration>(ajv, { $ref: `${schema.$id}#/$defs/configuration` });
+const validateRecord = lazyValidator<CaptureRelevanceRecord>(ajv, schema);
+const validateResponse = lazyValidator<Awaited<ReturnType<CaptureRelevanceClassifier['classify']>>>(ajv, { $ref: `${schema.$id}#/$defs/response` });
 export const captureTitleSha256 = (title: string): string => createHash('sha256').update(title, 'utf8').digest('hex');
 export const captureRelevanceKeyword = (keyword: string): string => keyword.normalize('NFC').toLowerCase().split(/[^\p{L}\p{N}\p{M}]+/u).filter(Boolean).join(' ');
 const keywordsOf = (keywords: readonly string[]) => [...new Set(keywords.map(captureRelevanceKeyword).filter(Boolean))];

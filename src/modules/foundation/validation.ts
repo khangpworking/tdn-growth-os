@@ -17,6 +17,7 @@ import exportSchema from '../../../contracts/foundation/json-export.schema.json'
 import type { JsonExportInput } from '../../../contracts/foundation/json-export.generated.js';
 import manualSchema from '../../../contracts/foundation/manual-observation.schema.json' with { type: 'json' };
 import type { ManualObservationInput } from '../../../contracts/foundation/manual-observation.generated.js';
+import { lazyValidator } from '../../platform/lazy-validator.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -24,15 +25,15 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 ajv.addSchema(sourcePackageRequestSchema);
-const validateSourcePackageRequestContract = ajv.getSchema<SourcePackageIntakeRequest>(sourcePackageRequestSchema.$id)!;
-const validateSourcePackageManifestContract = ajv.compile(sourcePackageManifestSchema);
-const validateManual = ajv.compile(manualSchema);
-const validateExport = ajv.compile(exportSchema);
-const validatePackRequest = ajv.compile(requestSchema);
-const validatePackManifest = ajv.compile(manifestSchema);
-const validateResearchDocumentImportContract = ajv.compile(researchDocumentImportSchema);
-const validateResearchPackRequestContract = ajv.compile(researchPackRequestSchema);
-const validateResearchPackManifestContract = ajv.compile(researchPackManifestSchema);
+const validateSourcePackageRequestContract = lazyValidator<SourcePackageIntakeRequest>(ajv, sourcePackageRequestSchema);
+const validateSourcePackageManifestContract = lazyValidator(ajv, sourcePackageManifestSchema);
+const validateManual = lazyValidator(ajv, manualSchema);
+const validateExport = lazyValidator(ajv, exportSchema);
+const validatePackRequest = lazyValidator(ajv, requestSchema);
+const validatePackManifest = lazyValidator(ajv, manifestSchema);
+const validateResearchDocumentImportContract = lazyValidator(ajv, researchDocumentImportSchema);
+const validateResearchPackRequestContract = lazyValidator(ajv, researchPackRequestSchema);
+const validateResearchPackManifestContract = lazyValidator(ajv, researchPackManifestSchema);
 
 export class FoundationValidationError extends Error {
   readonly details: string;

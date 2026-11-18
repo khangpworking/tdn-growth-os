@@ -5,6 +5,7 @@
  * the `outputs` bound, counted from this process's launch as its single command counts it; the race
  * kept here on the same 30 s is only a backstop, so a stalled read never outlives the reader.
  */
+import './lazy-validators-on.js';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ModuleError } from './module-pick.js';

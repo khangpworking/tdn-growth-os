@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { lazyValidator } from '../../../platform/lazy-validator.js';
 import schema from '../../../../contracts/analysis/metric-v3-capture-spec.schema.json' with { type: 'json' };
 import selectedSchema from '../../../../contracts/analysis/metric-v3-capture-spec-v3.schema.json' with { type: 'json' };
 import type { MetricV3CaptureSpecV3 } from '../../../../contracts/analysis/metric-v3-capture-spec-v3.generated.js';
@@ -15,10 +16,10 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
-const validateV2 = ajv.compile<MetricV3CaptureSpecV2>(schema);
-const validateV3 = ajv.compile<MetricV3CaptureSpecV3>(selectedSchema);
-const validateInput = ajv.compile({ $ref: `${selectedSchema.$id}#/$defs/confirmedInput` });
-const validateV1 = ajv.compile<MetricV3CaptureSpecV1>(legacySchema);
+const validateV2 = lazyValidator<MetricV3CaptureSpecV2>(ajv, schema);
+const validateV3 = lazyValidator<MetricV3CaptureSpecV3>(ajv, selectedSchema);
+const validateInput = lazyValidator(ajv, { $ref: `${selectedSchema.$id}#/$defs/confirmedInput` });
+const validateV1 = lazyValidator<MetricV3CaptureSpecV1>(ajv, legacySchema);
 
 /** This mode takes a complete owner-supplied preset; it never derives terms or categories. */
 export function validateMetricV3CaptureSpec(value: unknown): MetricV3CaptureSpec {

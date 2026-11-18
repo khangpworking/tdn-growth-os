@@ -4,13 +4,14 @@ import schema from '../../../contracts/analysis/research-chart-spec.schema.json'
 import type { ResearchChartSpec } from '../../../contracts/analysis/research-chart-spec.generated.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import type { ResearchReportChartData } from './research-report-charts.js';
+import { lazyValidator } from '../../platform/lazy-validator.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
-const validate = ajv.compile<ResearchChartSpec>(schema);
+const validate = lazyValidator<ResearchChartSpec>(ajv, schema);
 const sha256 = (value: Uint8Array | string): string => createHash('sha256').update(value).digest('hex');
 const canonicalBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
 const scopeOrder = ['all', 'wide', 'core'] as const;

@@ -16,6 +16,7 @@ import specSchema from '../contracts/analysis/metric-v3-capture-spec.schema.json
 import selectedSpecSchema from '../contracts/analysis/metric-v3-capture-spec-v3.schema.json' with { type: 'json' };
 import selectedWindowSchema from '../contracts/analysis/metric-v3-window-capture-v3.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
+import { lazyValidator } from '../src/platform/lazy-validator.js';
 import legacySpecSchema from '../contracts/analysis/metric-v3-capture-spec-v1.schema.json' with { type: 'json' };
 import requestV1Schema from '../skills/tdn-shopee-flow/chuan/request-v1.schema.json' with { type: 'json' };
 import samplingSchema from '../contracts/foundation/shopee-review-sampling.schema.json' with { type: 'json' };
@@ -103,7 +104,7 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
 ajv.addSchema(selectedSpecSchema); ajv.addSchema(specSchema); ajv.addSchema(legacySpecSchema); ajv.addSchema(requestV1Schema); ajv.addSchema(samplingSchema);
-const validateSelectedWindow = ajv.compile(selectedWindowSchema);
+const validateSelectedWindow = lazyValidator(ajv, selectedWindowSchema);
 const validators = new Map<string, ReturnType<typeof ajv.compile>>();
 export async function validateModuleValue(name: string, value: unknown): Promise<void> {
   let validate = validators.get(name);

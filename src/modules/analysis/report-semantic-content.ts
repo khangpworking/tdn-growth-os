@@ -7,6 +7,7 @@ import type { ReportSemanticContent } from '../../../contracts/analysis/report-s
 import { canonicalJson } from '../foundation/canonical-json.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
 import { verifyResearchChartSpec } from './research-chart-spec.js';
+import { lazyValidator } from '../../platform/lazy-validator.js';
 
 type SemanticPayload = Omit<ReportSemanticContent, 'semanticVersionId'>;
 
@@ -15,8 +16,8 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
-const validateContent = ajv.compile<ReportSemanticContent>(contentSchema);
-const validateReview = ajv.compile<ReportReviewState>(reviewSchema);
+const validateContent = lazyValidator<ReportSemanticContent>(ajv, contentSchema);
+const validateReview = lazyValidator<ReportReviewState>(ajv, reviewSchema);
 
 const digest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const artifactBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');

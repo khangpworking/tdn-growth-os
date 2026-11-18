@@ -12,6 +12,7 @@ import type { ShopeePublicJournal } from '../../../contracts/foundation/shopee-p
 import type { ShopeePublicRows } from '../../../contracts/foundation/shopee-public-rows.generated.js';
 import type { ShopeeCollector, ShopeeTransportListing } from './apify-shopee.js';
 import { canonicalJson } from '../../modules/foundation/canonical-json.js';
+import { lazyValidator } from '../lazy-validator.js';
 
 export const PUBLIC_REVIEW_PROVIDER = 'shopee-public-review' as const;
 export const PUBLIC_REVIEW_MAPPING = 'shopee-public-review-row-v1' as const;
@@ -37,15 +38,15 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
 for (const [name, schema] of [['shopee-collection', legacySchema], ['shopee-public-rows', rowsSchema], ['shopee-public-collection', collectionSchema], ['shopee-public-journal', journalSchema]] as const) ajv.addSchema(schema, name + '.schema.json');
 ajv.addSchema(legacySchema, 'https://tdn.local/contracts/foundation/shopee-collection.schema.json');
-const validUtc = ajv.compile<string>({ type: 'string', format: 'date-time', pattern: 'Z$' });
-const validRows = ajv.compile<ShopeePublicRows>({ $ref: 'shopee-public-rows.schema.json' });
-const validJournal = ajv.compile<ShopeePublicJournal>({ $ref: 'shopee-public-journal.schema.json' });
-const validJob = ajv.compile<NonNullable<ShopeePublicJournal['job']>>({ $ref: 'shopee-public-collection.schema.json#/$defs/job' });
-const validJobId = ajv.compile<string>({ type: 'string', format: 'uuid' });
-const validEnvelope = ajv.compile<PublicReviewEnvelope>({ $ref: 'shopee-public-collection.schema.json#/$defs/envelope' });
-const validCollection = ajv.compile<ShopeePublicCollection>({ $ref: 'shopee-public-collection.schema.json' });
-const validSource = ajv.compile<import('../../../contracts/foundation/shopee-public-collection.generated.js').PublicReviewSource>({ $ref: 'shopee-public-collection.schema.json#/$defs/publicReviewSource' });
-const validStage = ajv.compile<PublicReviewStage>({ $ref: 'shopee-public-collection.schema.json#/$defs/stage' });
+const validUtc = lazyValidator<string>(ajv, { type: 'string', format: 'date-time', pattern: 'Z$' });
+const validRows = lazyValidator<ShopeePublicRows>(ajv, { $ref: 'shopee-public-rows.schema.json' });
+const validJournal = lazyValidator<ShopeePublicJournal>(ajv, { $ref: 'shopee-public-journal.schema.json' });
+const validJob = lazyValidator<NonNullable<ShopeePublicJournal['job']>>(ajv, { $ref: 'shopee-public-collection.schema.json#/$defs/job' });
+const validJobId = lazyValidator<string>(ajv, { type: 'string', format: 'uuid' });
+const validEnvelope = lazyValidator<PublicReviewEnvelope>(ajv, { $ref: 'shopee-public-collection.schema.json#/$defs/envelope' });
+const validCollection = lazyValidator<ShopeePublicCollection>(ajv, { $ref: 'shopee-public-collection.schema.json' });
+const validSource = lazyValidator<import('../../../contracts/foundation/shopee-public-collection.generated.js').PublicReviewSource>(ajv, { $ref: 'shopee-public-collection.schema.json#/$defs/publicReviewSource' });
+const validStage = lazyValidator<PublicReviewStage>(ajv, { $ref: 'shopee-public-collection.schema.json#/$defs/stage' });
 export function validatePublicCollection(value: unknown): ShopeePublicCollection { if (!validCollection(value)) throw new ShopeePublicReviewError('SHOPEE_REVIEW_INVALID_RESPONSE'); return value; }
 export function validatePublicEnvelope(value: unknown): PublicReviewEnvelope { if (!validEnvelope(value) || Buffer.byteLength(canonicalJson(value)) > PUBLIC_REVIEW_MAX_BYTES) throw new ShopeePublicReviewError('SHOPEE_REVIEW_INVALID_RESPONSE'); return value; }
 export function validatePublicReviewStage(value: unknown): PublicReviewStage { if (!validStage(value)) throw new ShopeePublicReviewError('SHOPEE_REVIEW_INVALID_RESPONSE'); return value; }
@@ -60,7 +61,7 @@ const object = (v: unknown): Record<string, unknown> => typeof v === 'object' &&
 const integer = (v: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): v is number => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max;
 const reviewIdentity = (v: unknown): string | null => typeof v === 'string' && v.length > 0 && v.length <= 2000 ? v : null;
 const utc = (v: unknown): v is string => validUtc(v) && Number.isFinite(Date.parse(v));
-const validZeroOffset = ajv.compile<string>({ type: 'string', format: 'date-time', pattern: '\\+00:00$' });
+const validZeroOffset = lazyValidator<string>(ajv, { type: 'string', format: 'date-time', pattern: '\\+00:00$' });
 /** Service timestamps may carry an explicit zero offset (Python isoformat). Read as UTC and stored as canonical Z; anything else passes through for the normal check. */
 const serviceUtc = (v: unknown): unknown => validZeroOffset(v) && Number.isFinite(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : v;
 const active = (v: string) => v === 'queued' || v === 'running';

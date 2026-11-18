@@ -7,6 +7,7 @@ import legacySchema from '../../../contracts/foundation/shopee-collection.schema
 import type { ShopeePrivateCollection } from '../../../contracts/foundation/shopee-private-collection.generated.js';
 import type { ShopeePrivateRows } from '../../../contracts/foundation/shopee-private-rows.generated.js';
 import type { ShopeePrivateProjection } from '../../../contracts/foundation/shopee-private-projection.generated.js';
+import { lazyValidator } from '../../platform/lazy-validator.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -16,10 +17,10 @@ ajv.addSchema(legacySchema, 'shopee-collection.schema.json');
 ajv.addSchema(exactSchema, 'shopee-exact-collection.schema.json');
 ajv.addSchema(collectionSchema, 'shopee-private-collection.schema.json');
 ajv.addSchema(rowsSchema, 'shopee-private-rows.schema.json');
-const collection = ajv.compile<ShopeePrivateCollection>({ $ref: 'shopee-private-collection.schema.json' });
-const rows = ajv.compile<ShopeePrivateRows>({ $ref: 'shopee-private-rows.schema.json' });
-const projection = ajv.compile<ShopeePrivateProjection>(projectionSchema);
-const profile = ajv.compile<ShopeePrivateCollection['privacy']>({ $ref: 'shopee-private-collection.schema.json#/properties/privacy' });
+const collection = lazyValidator<ShopeePrivateCollection>(ajv, { $ref: 'shopee-private-collection.schema.json' });
+const rows = lazyValidator<ShopeePrivateRows>(ajv, { $ref: 'shopee-private-rows.schema.json' });
+const projection = lazyValidator<ShopeePrivateProjection>(ajv, projectionSchema);
+const profile = lazyValidator<ShopeePrivateCollection['privacy']>(ajv, { $ref: 'shopee-private-collection.schema.json#/properties/privacy' });
 export function validatePrivateCollection(value: unknown): ShopeePrivateCollection {
   if (!collection(value)) throw new TypeError('Invalid private Shopee collection'); return value;
 }

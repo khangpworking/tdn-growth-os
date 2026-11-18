@@ -1,9 +1,11 @@
+import './lazy-validators-on.js';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import BetterSqlite3 from 'better-sqlite3';
 import { ModuleError, validateModuleValue } from './module-pick.js';
+import { compileAll } from '../src/platform/lazy-validator.js';
 import { discoverModuleReviewSources, prepareReviewExport, publishLabelledReviewExport, readReviewExportBytes, validateReviewData,
   type ModuleReviewRow, type VerifiedModuleReviewCollection } from '../src/modules/foundation/shopee-module-review-data.js';
 import { reviewDataView, saveModuleReviewData } from '../src/modules/raw-db/module-shopee-reviews.js';
@@ -440,6 +442,7 @@ export async function prepareLabelledReviewExport(run:string, sourceSha256:strin
 
 export async function reviewDataCommand(args:string[]):Promise<unknown> {
   const [action,runArg,...extra]=args;if(!runArg)throw new ModuleError('USAGE',2);const run=resolve(runArg);
+  if(action==='save'||action==='export'||action==='process'||action==='process-auto')compileAll();
   if(action==='view'&&!extra.length)return reviewDataView(run);
   if(action==='stats'&&!extra.length)return reviewStatsView(run);
   if(action==='insights'&&!extra.length)return reviewInsightsView(run);
