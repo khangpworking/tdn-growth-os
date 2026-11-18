@@ -1615,8 +1615,10 @@ class Api:
         if not session.busy.acquire(blocking=False):
             raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
         try:
-            config = _load_config()
+            # The click's picture comes first, before the server config is read: a missing or invalid
+            # config still leaves the picture (and the kept payload for «Gửi lại») on this PC.
             session.capture(value['collectionPolicy'], screenshot_dir=_prepare_metric_shot_folder())
+            config = _load_config()
             return self._send_metric_import(session, config)
         finally:
             session.busy.release()

@@ -3433,3 +3433,22 @@ test('the full-page Metric picture: local shot first, then the server picture, e
     } finally { run.dom.window.close(); }
   }
 });
+
+test('the local Metric picture stays reachable when the step results fail to load', async () => {
+  const run = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(), localShots: { 'run-synthetic': true },
+    moduleOutputsResult: () => ({ ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } }),
+  });
+  try {
+    await waitFor(() => run.doc.getElementById('moduleOutputsErr') !== null &&
+      run.doc.getElementById('moM1FullPage') !== null, 'outputs error with the local picture');
+    const button = element<HTMLButtonElement>(run.doc, 'moM1FullPage');
+    assert.equal(button.textContent, 'Xem ảnh toàn trang Metric');
+    assert.equal(button.disabled, false);
+    button.click();
+    await waitFor(() => run.state.openLocalShotCalls.length === 1, 'local picture opened');
+    assert.deepEqual(run.state.openLocalShotCalls, ['run-synthetic']);
+    assert.equal(run.state.openEvidenceCalls.length, 0);
+  } finally { run.dom.window.close(); }
+});

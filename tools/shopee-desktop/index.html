@@ -3461,6 +3461,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return wrap;
   }
 
+  // The picture on this PC does not depend on the server's step results: shown even when they fail.
+  function localShotRow(runId) {
+    if (state.localShots[runId] !== true) return null;
+    var row = h('div', 'rs-actions');
+    row.appendChild(metricFullPageAction(runId, null));
+    return row;
+  }
+
   async function openLocalShot(runId) {
     if (state.moduleEvidenceBusy[runId]) return;
     state.moduleEvidenceBusy[runId] = true;
@@ -3890,12 +3898,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       retry.addEventListener('click', function () { loadModuleOutputs(runId); });
       retryRow.appendChild(retry);
       panel.appendChild(retryRow);
+      var errorShot = localShotRow(runId);
+      if (errorShot) panel.appendChild(errorShot);
       return panel;
     }
 
     var data = state.moduleOutputs[runId];
     if (!data) {
       panel.appendChild(h('p', 'muted', 'Đang tải kết quả các bước…'));
+      var loadingShot = localShotRow(runId);
+      if (loadingShot) panel.appendChild(loadingShot);
       return panel;
     }
 

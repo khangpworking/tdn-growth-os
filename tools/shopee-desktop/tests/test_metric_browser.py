@@ -1275,6 +1275,20 @@ class BridgeTest(unittest.TestCase):
                 self.assertEqual(self.api.openLocalMetricShot('a1b2c3d4')['error']['code'], 'EVIDENCE_LOCAL_MISSING')
             self.assertEqual(opened, [])
 
+    def test_a_missing_server_config_still_keeps_the_click_picture(self):
+        """Terra r5 on PR #501: | config cannot be read | CONFIG_INVALID, 1 picture kept, payload kept for «Gửi lại» |"""
+        with mock.patch.object(tdn_shopee_app, '_load_config',
+                               mock.Mock(side_effect=tdn_shopee_app._BridgeFailure('CONFIG_INVALID'))):
+            result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
+        self.assertEqual(result['error']['code'], 'CONFIG_INVALID')
+        self.assertEqual(len(self.shot_files()), 1)
+        self.assertRegex(self.shot_files()[0], r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$')
+        self.assertEqual(self.remote_calls, [])
+        self.assertIsNotNone(self.session.pending)
+        self.answers = [self.OK_IMPORT, self.OK_FLOW]
+        self.assertTrue(self.api.resendMetricImport()['ok'])
+        self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
+
     def setUp_fresh(self):
         """A new click world in the same test: new session, empty shot folder, no remote calls."""
         for path in self.shot_files():
