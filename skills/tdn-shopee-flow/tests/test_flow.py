@@ -732,7 +732,11 @@ if action == 'serve-views':
             raise SystemExit(1)
         with open(os.environ['NODE_MARKER'] + '.stdin', 'a', encoding='utf8') as log:
             log.write(line + '\\n')
-        print(json.dumps(answer(json.loads(line))), flush=True)
+        target = json.loads(line)
+        if pathlib.Path(target).name == 'noerror':
+            print(json.dumps({'ok': False}), flush=True)
+        else:
+            print(json.dumps(answer(target)), flush=True)
         served += 1
 elif action == 'view':
     entry = answer(rest[0])
@@ -894,6 +898,16 @@ class RunsSamplingStreamTests(FlowTest):
         self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
                          'one broken server, then one view per run')
         self.assertEqual(broken_bytes, new_bytes)
+
+    def test_a_reply_without_an_error_falls_back_to_the_per_run_views(self):
+        self.sampled_run('noerror')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        rc, payload = self.command_in_process(flow, order=['noerror', 'bbbbbbbb'])
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'an answer without a valid error closes the server, then this and later runs use their own process')
+        self.assertEqual(sorted(item['runId'] for item in payload['runs']), ['bbbbbbbb', 'noerror'])
 
     def test_gate_hash_reads_the_evidence_again(self):
         flow = load_flow_script()

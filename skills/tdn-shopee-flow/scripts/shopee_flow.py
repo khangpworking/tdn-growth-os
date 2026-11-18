@@ -1542,19 +1542,23 @@ class SamplingViewServer:
         self.process.stdin.write(json.dumps(str(run)) + '\n')
         self.process.stdin.flush()
         answer = json.loads(self.process.stdout.readline())
+        # Only {ok:true, view:<object>} or {ok:false, error:{code:<non-empty string>, message:<string>}}
+        # are protocol answers; anything else is a server failure, never a per-run sampling failure.
         if not isinstance(answer, dict) or type(answer.get('ok')) is not bool:
             raise ValueError('invalid sampling answer')
-        if not answer['ok']:
-            error = answer.get('error') if isinstance(answer.get('error'), dict) else {}
-            code = error.get('code')
-            if not isinstance(code, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code):
-                code = 'REVIEW_COMMAND_FAILED'
-            exit_code = error.get('exitCode')
-            raise ModuleFailure(code, exit_code if exit_code in (2, 20, 21, 22, 23, 24) else 20)
-        view = answer.get('view')
-        if not isinstance(view, dict):
+        if answer['ok']:
+            if set(answer) != {'ok', 'view'} or not isinstance(answer['view'], dict):
+                raise ValueError('invalid sampling answer')
+            return answer['view']
+        error = answer.get('error')
+        if (set(answer) != {'ok', 'error'} or not isinstance(error, dict)
+                or not set(error) <= {'code', 'message', 'exitCode'}
+                or not isinstance(error.get('code'), str) or not error['code']
+                or not isinstance(error.get('message'), str)
+                or 'exitCode' in error and type(error['exitCode']) is not int):
             raise ValueError('invalid sampling answer')
-        return view
+        exit_code = error.get('exitCode')
+        raise ModuleFailure(error['code'], exit_code if exit_code in (2, 20, 21, 22, 23, 24) else 20)
 
     def close(self):
         process, self.process, self.usable = self.process, None, False
