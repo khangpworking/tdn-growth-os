@@ -3140,15 +3140,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     progressByRun: {},
     progressRuns: [],
     progressAt: null,
-    // A run becomes gone ONLY on (a) our delete-run success, (b) RUN_NOT_FOUND from the server, or
-    // (c) a SUCCESSFUL runs listing that does not contain a run whose creation had finished when that
-    // listing was asked. A transport or list error never marks anything gone. Every late reply drops
-    // gone runs.
+    // A run is PERMANENTLY gone (goneRuns + forgetRun) ONLY on (a) our delete-run success or a delete-run
+    // RUN_NOT_FOUND, and (b) RUN_NOT_FOUND from any status/info call. Every late reply drops gone runs.
+    // Nothing is inferred from a list: the screen shows only runs in the latest successful listing (the
+    // status bar and notices too); a run missing from one list is just not shown, and shows again when a
+    // later list has it. A transport or list error never marks anything gone.
     goneRuns: [],
     goneTold: [],      // runs already told «Lượt này đã bị xóa.» (or deleted here)
-    // runId -> the list number (runsSeq) when the app first saw it from any source: a list, progress
-    // (and so its notices and events) or a Metric import. Lists asked after that must contain it (c).
-    knownSince: {},
     runsPromise: null,
     scrollTarget: null,
     noticeChain: Promise.resolve()
@@ -6632,7 +6630,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var first = !state.progressSeen;
     var previous = state.progressByRun;
     var next = {};
-    data.runs.forEach(function (run) { next[run.runId] = run; knowRun(run.runId); });
+    data.runs.forEach(function (run) { next[run.runId] = run; });
     state.progressByRun = next;
     state.progressRuns = data.runs;
     state.progressAt = data.generatedAt;
@@ -6683,6 +6681,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       event.links = Array.isArray(picked) && picked.length ? picked.length : null;
     }
     if (isGone(event.runId)) return;
+    if (!isListed(event.runId)) {
+      await state.runsPromise;               // the list a new run triggers
+      if (isGone(event.runId) || !isListed(event.runId)) return;
+    }
     var notice = eventNotice(event);
     if (document.hasFocus() && document.visibilityState !== 'hidden') showNotice(notice);
     else api.notify(notice.title, notice.body);
@@ -7101,44 +7103,33 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function listRunsOnce(seq) {
     var res = await api.listRuns();
-    // Rule (c) from EVERY successful listing, newest or not; a list error changes nothing here.
-    if (res.ok) applyListing(((res.data && res.data.runs) || []).map(function (run) { return run.runId; }), seq);
     if (seq !== state.runsSeq) return state.runsPromise;      // only the newest listing replaces the list
     if (!res.ok) { showError(res.error); return null; }
     state.runs = ((res.data && res.data.runs) || []).filter(function (run) { return !isGone(run.runId); });
-    if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
-      forgetRun(state.selectedRunId);
+    // Not listed now: not shown (not forgotten). The open run is closed and its polls stop.
+    if (state.selectedRunId && !isListed(state.selectedRunId)) {
+      state.selectedRunId = null;
+      state.loadingRunId = null;
+      state.info = null;
+      stopPoll();
+      stopSamplingPoll();
+      stopStep4Poll();
       renderDetail();
     }
+    Array.prototype.forEach.call(document.querySelectorAll('#noticeBox .notice'), function (item) {
+      if (!isListed(item.dataset.runId)) item.remove();
+    });
     renderRunList();
     renderRunStatus();
     return res;
   }
 
-  // Rule (c): a run known before this listing was asked and not in it is gone (deleted here or elsewhere).
-  // A run first seen while the listing was on its way (just created) is kept.
-  function applyListing(listedIds, seq) {
-    var gone = Object.keys(state.knownSince).filter(function (runId) {
-      return seq > state.knownSince[runId] && listedIds.indexOf(runId) === -1;
-    });
-    gone.forEach(forgetRun);
-    listedIds.forEach(function (runId) { knowRun(runId, seq); });
-    if (gone.length) {
-      state.runs = state.runs.filter(function (run) { return !isGone(run.runId); });
-      renderRunList();
-      renderDetail();
-      renderRunStatus();
-    }
+  function isListed(runId) {
+    return state.runs.some(function (run) { return run.runId === runId; });
   }
 
   // The one place that forgets a deleted run: every per-run cache (any state object keyed by runId),
   // progress, selection, pending opens, the step 1 «Xem lượt vừa tạo» and open notices.
-  function knowRun(runId, seq) {
-    if (!isGone(runId) && !Object.prototype.hasOwnProperty.call(state.knownSince, runId)) {
-      state.knownSince[runId] = seq === undefined ? state.runsSeq : seq;
-    }
-  }
-
   function isGone(runId) {
     return state.goneRuns.indexOf(runId) !== -1;
   }
@@ -7169,9 +7160,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       $('metricDone').hidden = true;
       showMetricNotice('');
     }
-    if (state.newRunId === runId) {
-      state.newRunId = null;
+    if (state.newRunId === runId || state.newStaleRunId === runId ||
+        (state.newBinding && state.newBinding.runId === runId)) {
       state.newBinding = null;
+      state.newRunId = null;
+      state.newEntry = null;
+      state.flowDialogBinding = null;
+      if (state.newStaleRunId === runId) state.newStaleRunId = null;
+      state.newFormSeq += 1;
+      clearNewError();
+      clearNewNotice();
+      resetCaptureSpecReview();
+      setNewFormLocked(false);
+      renderNewSummary();
+      renderNewResult();
     }
     Array.prototype.forEach.call(document.querySelectorAll('#noticeBox .notice'), function (item) {
       if (item.dataset.runId === runId) item.remove();
@@ -8749,14 +8751,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     clearError();
     var preferred = state.preferredRunId;      // read before the refresh, which may forget it
     state.preferredRunId = null;
-    var listed = await refreshRuns();
-    if (preferred && !listed && !isGone(preferred)) {
-      state.preferredRunId = preferred;         // list error: keep it for the next open, normal error shown
-      renderDetail();
-    } else if (preferred && !isGone(preferred) && state.runs.some(function (run) { return run.runId === preferred; })) {
-      await selectRun(preferred);
+    await refreshRuns();
+    if (preferred && isGone(preferred)) {
+      await runGone(preferred);                 // told once, never another run instead
     } else if (preferred) {
-      await runGone(preferred);                 // gone, or missing from a successful list (rule c)
+      await selectRun(preferred);               // its status decides: RUN_NOT_FOUND makes it gone (rule b)
     } else if (state.selectedRunId) {
       await selectRun(state.selectedRunId);
     } else if (state.runs.length) {
@@ -8960,7 +8959,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var data = res.data;
     if (isGone(data.runId)) return;
     state.metricRunId = data.runId;
-    knowRun(data.runId);                      // lists asked from now on must contain it
     state.preferredRunId = data.runId;
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
       : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';

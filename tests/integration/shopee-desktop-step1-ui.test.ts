@@ -211,37 +211,3 @@ test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choic
     p.dom.window.close();
   }
 });
-
-// A run made here and then deleted elsewhere: the step 1 card no longer names it (F645, Terra r1 #3 on #508).
-// | step                                                  | step 1 card                                   |
-// |-------------------------------------------------------|-----------------------------------------------|
-// | «Lấy bình luận Shopee» makes run a1b2c3d4             | «Đã tạo lượt a1b2c3d4…» and «Xem lượt vừa tạo» |
-// | the run list no longer has it (deleted elsewhere)     | both gone                                     |
-// | deleted before it was ever listed (Terra r2 #3)       | both gone after the first list asked later    |
-test('the step 1 card forgets a created run once it is deleted', async () => {
-  let listed = [{ runId: 'a1b2c3d4', product: 'canxi', status: 'RUNNING' }];
-  const p = page([SEEN], async () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } }),
-    null, () => listed);
-  try {
-    await waitFor(() => p.$('btnTakeReviews').disabled === false, 'take enabled');
-    p.$('btnTakeReviews').click();
-    await waitFor(() => !p.$('metricNotice').hidden && !p.$('metricDone').hidden, 'created');
-    assert.match(p.$('metricNotice').textContent!, /a1b2c3d4/);
-    listed = [];
-    (p.doc.querySelector('.tabs button[data-screen="track"]') as HTMLButtonElement).click();
-    await waitFor(() => p.$('metricDone').hidden, 'forgotten');
-    assert.equal(p.$('metricNotice').hidden, true);
-  } finally {
-    p.dom.window.close();
-  }
-  const never = page([SEEN], async () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } }),
-    null, () => []);
-  try {
-    await waitFor(() => never.$('btnTakeReviews').disabled === false, 'never: take enabled');
-    never.$('btnTakeReviews').click();
-    await waitFor(() => never.calls.filter((c) => c.method === 'listRuns').length >= 2 && never.$('metricDone').hidden &&
-      never.$('metricNotice').hidden && never.$('btnTakeReviews').disabled === false, 'never: forgotten');
-  } finally {
-    never.dom.window.close();
-  }
-});
