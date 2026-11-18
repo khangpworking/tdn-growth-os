@@ -11,6 +11,7 @@ import type { SamplingJobInput, SamplingJournal, SamplingResult, ReviewLink } fr
 import { moduleRow } from '../fixtures/shopee-module-review-data.js';
 
 const POLICY_INPUT = { mode: 'stars' as const, stars: [2, 3], totalPerLink: 500, allocation: 'pooled' as const };
+const COUNT_INPUT = { mode: 'with-comments' as const, stars: [], totalPerLink: 300, allocation: 'pooled' as const };
 const PAGES_INPUT = { mode: 'with-comments' as const, stars: [], limitBy: 'pages' as const, pagesPerLink: 10, allocation: 'pooled' as const };
 const ATTEMPT = '11111111-1111-4111-8111-111111111111';
 const EXECUTION = '22222222-2222-4222-8222-222222222222';
@@ -21,7 +22,7 @@ const writeJson = async (path: string, value: unknown) => {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 };
 
-async function fixture(policyInput: unknown = POLICY_INPUT) {
+async function fixture(policyInput: unknown = POLICY_INPUT, linkCount = 1) {
   const dir = await mkdtemp(join(tmpdir(), 'shopee-automatic-'));
   const run = join(dir, 'run-1');
   const state = join(dir, 'state');
@@ -31,8 +32,11 @@ async function fixture(policyInput: unknown = POLICY_INPUT) {
     windows: [{ id: '30d', period: { startDate: '2026-10-12', endDate: '2026-11-11' }, intervalDays: 7 }],
     principalTitles: [], collectionPolicy: policy,
   };
-  const links = [{ rank: 1, productBaseId: '1__200__100', shopId: '100', itemId: '200',
-    url: 'https://shopee.vn/product/100/200', brand: null, revenue: 1, reason: 'Synthetic link' }];
+  const links = Array.from({ length: linkCount }, (_, index) => {
+    const shopId = String(100 + index), itemId = String(200 + index);
+    return { rank: index + 1, productBaseId: `1__${itemId}__${shopId}`, shopId, itemId,
+      url: `https://shopee.vn/product/${shopId}/${itemId}`, brand: null, revenue: 1, reason: 'Synthetic link' };
+  });
   const selection = {
     format: 'selection-v1', runId: basename(run), source: 'manual', pickRuleVersion: 'manual',
     metricInputSha256: null, links,
@@ -58,8 +62,8 @@ async function fixture(policyInput: unknown = POLICY_INPUT) {
   return { dir, run, state, requestBytes, selectionBytes, saved };
 }
 
-async function withFixture<T>(work: (value: Awaited<ReturnType<typeof fixture>>) => Promise<T>, policyInput?: unknown) {
-  const value = await fixture(policyInput);
+async function withFixture<T>(work: (value: Awaited<ReturnType<typeof fixture>>) => Promise<T>, policyInput?: unknown, linkCount = 1) {
+  const value = await fixture(policyInput, linkCount);
   const previous = process.env.SHOPEE_FLOW_STATE;
   process.env.SHOPEE_FLOW_STATE = value.state;
   try { return await work(value); }
@@ -163,6 +167,68 @@ async function runAutomatic(run: string, pageCount: number, stopReason: 'page_li
     outcome: JSON.parse(await readFile(join(base, 'output/outcome.json'), 'utf8')) };
 }
 
+function failedJournal(request: SamplingJobInput, link: ReviewLink, errorCode: string): SamplingJournal {
+  return { format: 'shopee-sampling-journal-v1', inputSha256: samplingDigest(request), request, intentAt: AT,
+    deadline: '2026-11-11T03:40:00.000Z', baselineIds: [],
+    job: { id: `90000000-0000-4000-8000-${link.itemId.padStart(12, '0')}`, request, state: 'failed',
+      created_at: AT, updated_at: AT, result_available: false },
+    result: null, resultSha256: null, terminal: true, errorCode, requestCount: 2, requestCountUncertain: false, cancelIntent: false };
+}
+
+async function runLinks(run: string, respond: (request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan | null) => SamplingJournal) {
+  const started = await reserveConfiguredAttempt(run, { executionId: EXECUTION, sequence: 1 });
+  const requests: SamplingJobInput[] = [];
+  const result = await executeSamplingAttempt({ runDir: run, kind: 'custom', attemptId: started.attemptId, collector: {
+    run: async (_file, request, link, plan) => { requests.push(request); return respond(request, link, plan); },
+  } });
+  const base = join(run, 'm3-custom/attempts', started.attemptId);
+  return { result, requests, gate: JSON.parse(await readFile(join(base, 'gate.json'), 'utf8')),
+    outcome: JSON.parse(await readFile(join(base, 'output/outcome.json'), 'utf8')) };
+}
+
+for (const code of ['PRODUCT_UNAVAILABLE', 'RATINGS_MISSING'] as const) {
+  test(`a ${code} link is skipped and the next link is still collected`, () => withFixture(async ({ run }) => {
+    const dead = 'https://shopee.vn/product/100/200';
+    const { result, requests, gate, outcome } = await runLinks(run, (request, link, plan) =>
+      link.url === dead ? failedJournal(request, link, code) : terminalJournal(request, link, plan!, 1, 'exhausted'));
+    assert.equal(requests.length, 2, 'the loop continues with the next link');
+    assert.equal(result.status, 'SUCCEEDED');
+    assert.equal(gate.verdict, 'PASS');
+    const check = gate.checks.find((value: { id: string }) => value.id === 'links_skipped');
+    assert.deepEqual([check.level, check.ok, check.got], ['warn', false, 1]);
+    assert.equal(outcome.verdict, 'PARTIAL_LINKS');
+    assert.deepEqual([outcome.links[0].skipped, outcome.links[0].stopReason], [true, code]);
+    assert.deepEqual([outcome.links[1].skipped, outcome.links[1].stopReason], [false, 'exhausted']);
+  }, COUNT_INPUT, 2));
+}
+
+test('a session code still stops the attempt and leaves later links unstarted', () => withFixture(async ({ run }) => {
+  const { result, requests, gate, outcome } = await runLinks(run, (request, link, plan) =>
+    link.url === 'https://shopee.vn/product/100/200' ? failedJournal(request, link, 'PRODUCT_UNAVAILABLE')
+      : link.url === 'https://shopee.vn/product/101/201' ? failedJournal(request, link, 'HUMAN_LOGIN_REQUIRED')
+        : terminalJournal(request, link, plan!, 1, 'exhausted'));
+  assert.equal(requests.length, 2, 'the third link is never started');
+  assert.equal(result.status, 'FAILED');
+  assert.equal(result.errorCode, 'HUMAN_LOGIN_REQUIRED');
+  assert.equal(gate.verdict, 'WAIT_OWNER');
+  assert.equal(outcome.verdict, 'FAILED');
+  assert.deepEqual([outcome.links[0].skipped, outcome.links[0].stopReason], [true, 'PRODUCT_UNAVAILABLE']);
+  assert.deepEqual([outcome.links[1].skipped, outcome.links[1].stopReason], [false, 'HUMAN_LOGIN_REQUIRED']);
+  assert.deepEqual([outcome.links[2].skipped, outcome.links[2].stopReason], [false, 'not_started']);
+}, COUNT_INPUT, 3));
+
+test('a run where every link is dead cannot pass without a collected link', () => withFixture(async ({ run }) => {
+  const { result, requests, gate, outcome } = await runLinks(run, (request, link) =>
+    failedJournal(request, link, 'PRODUCT_UNAVAILABLE'));
+  assert.equal(requests.length, 2, 'both links are tried');
+  assert.equal(gate.verdict, 'FAIL');
+  assert.equal(gate.checks.find((value: { id: string }) => value.id === 'min_reviews_per_link').ok, false);
+  const check = gate.checks.find((value: { id: string }) => value.id === 'links_skipped');
+  assert.deepEqual([check.level, check.ok, check.got], ['warn', false, 2]);
+  assert.equal(outcome.verdict, 'FAILED');
+  assert.equal(result.errorCode, 'M3_GATE_FAILED');
+}, COUNT_INPUT, 2));
+
 test('a pages-mode run saves policy v2, asks the service for max_pages and gates on saved pages', () => withFixture(async ({ run }) => {
   const request = JSON.parse(await readFile(join(run, 'request.json'), 'utf8'));
   assert.deepEqual(request.collectionPolicy, { format: 'shopee-review-policy-v2', limitBy: 'pages', mode: 'with-comments', stars: [],
@@ -177,7 +243,7 @@ test('a pages-mode run saves policy v2, asks the service for max_pages and gates
   assert.equal(result.status, 'SUCCEEDED');
   assert.equal(gate.verdict, 'PASS');
   assert.deepEqual(gate.checks.map((check: { id: string }) => check.id), ['verdict_ok', 'min_reviews_per_link', 'pages_not_exceeded',
-    'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows']);
+    'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_skipped']);
   assert.equal(outcome.verdict, 'OK');
   assert.deepEqual(outcome.links.map((link: { requested: unknown; shortfall: unknown; actual: unknown }) => [link.requested, link.actual, link.shortfall]), [[null, 10, null]]);
 }, PAGES_INPUT));
@@ -204,5 +270,5 @@ test('a count-mode run keeps v1, sends no max_pages and keeps its comment-cap ga
   assert.equal('max_pages' in sent, false);
   assert.equal(sent.sampling.policy.format, 'shopee-review-policy-v1');
   assert.deepEqual(gate.checks.map((check: { id: string }) => check.id), ['verdict_ok', 'min_reviews_per_link', 'cap_not_exceeded',
-    'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_below_cap']);
+    'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_below_cap', 'links_skipped']);
 }, { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' }));

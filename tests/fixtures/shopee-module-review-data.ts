@@ -248,6 +248,8 @@ export async function addCustomAttempt(run: ModuleRun, options: {
   published?: readonly NativeRow[];
   jobUpdatedAt?: string;
   errorCode?: string;
+  /** Link indexes step 3 skipped with PRODUCT_UNAVAILABLE in a passing attempt. */
+  skippedLinks?: readonly number[];
 }): Promise<CustomAttempt> {
   const verdict = options.verdict ?? 'PASS';
   const status = options.status ?? (verdict === 'PASS' ? 'SUCCEEDED' : 'FAILED');
@@ -273,6 +275,8 @@ export async function addCustomAttempt(run: ModuleRun, options: {
   const journals: Record<string, any>[] = [];
   for (const [index, link] of run.links.entries()) {
     const rows = options.rowsByLink[index] ?? [];
+    const skipped = options.skippedLinks?.includes(index) ?? false;
+    const journalPass = verdict === 'PASS' && !skipped;
     const input = {
       url: link.url, max_comments: policy.totalPerLink,
       sampling: { attemptId, planSha256, policySha256, policy },
@@ -291,21 +295,25 @@ export async function addCustomAttempt(run: ModuleRun, options: {
     const journal = {
       format: 'shopee-sampling-journal-v1', inputSha256, request: input, intentAt: INTENT_AT,
       deadline: '2026-11-10T00:40:00.000Z', baselineIds: [],
-      job: { id: jobId, request: input, state: verdict === 'PASS' ? 'succeeded' : 'failed',
-        created_at: INTENT_AT, updated_at: jobUpdatedAt, result_available: true, collected: rows.length },
-      result, terminal: true, errorCode: verdict === 'PASS' ? null : options.errorCode ?? 'SOURCE_JOB_FAILED',
-      requestCount: 2, requestCountUncertain: false, cancelIntent: false, resultSha256: samplingDigest(result),
+      job: { id: jobId, request: input, state: journalPass ? 'succeeded' : 'failed',
+        created_at: INTENT_AT, updated_at: jobUpdatedAt, result_available: !skipped, collected: skipped ? 0 : rows.length },
+      result: skipped ? null : result, terminal: true,
+      errorCode: journalPass ? null : skipped ? 'PRODUCT_UNAVAILABLE' : options.errorCode ?? 'SOURCE_JOB_FAILED',
+      requestCount: 2, requestCountUncertain: false, cancelIntent: false, resultSha256: skipped ? null : samplingDigest(result),
     };
     await writeCanonical(path.join(runDir, base, 'journal', `${samplingDigest(link)}.json`), journal, 0o600);
     journals.push(journal);
   }
-  const retained = journals.flatMap(journal => journal.result.rows as NativeRow[]);
+  const retained = journals.flatMap(journal => journal.result ? journal.result.rows as NativeRow[] : []);
   const published = options.published ?? (verdict === 'PASS' ? retained : []);
   await writeCanonical(path.join(runDir, base, 'output', 'reviews.json'), published);
   await writeCanonical(path.join(runDir, base, 'output', 'outcome.json'), {
     format: 'shopee-sampling-outcome-v1', planSha256,
-    verdict: verdict === 'PASS' ? 'OK' : 'FAILED',
+    verdict: verdict === 'PASS' ? (options.skippedLinks?.length ? 'PARTIAL_LINKS' : 'OK') : 'FAILED',
     errorCode: verdict === 'PASS' ? null : options.errorCode ?? 'SOURCE_JOB_FAILED',
+    links: run.links.map((link, index) => ({ shopId: link.shopId, itemId: link.itemId, url: link.url,
+      stopReason: journals[index]!.result?.stopReason ?? journals[index]!.errorCode ?? 'not_started',
+      skipped: options.skippedLinks?.includes(index) ?? false })),
   });
   const outputSha256 = await hashFolder(runDir, `${base}/output`);
   await writeCanonical(path.join(runDir, base, 'state.json'), {

@@ -31,6 +31,10 @@ os.environ.setdefault('CLOAKBROWSER_AUTO_UPDATE', 'false')
 DEFAULT_PRODUCT = os.environ.get('SHOPEE_SESSION_CHECK_URL', 'https://shopee.vn/')
 TERMINAL = {'succeeded', 'partial', 'failed', 'cancelled', 'interrupted'}
 WAITING = {'needs_login', 'needs_verification'}
+# Sampling and count jobs report a dead product with one of these codes; everything else stays SOURCE_ACTION_FAILED.
+PRODUCT_UNAVAILABLE_TEXT = re.compile(
+    r'product does not exist|product is no longer available|this product is unavailable|product not found'
+    r'|sản phẩm không tồn tại|sản phẩm không còn bán|không tìm thấy sản phẩm', re.I)
 bearer = HTTPBearer(auto_error=False)
 
 
@@ -296,6 +300,13 @@ class BrowserWorker:
         await self.page.wait_for_timeout(2500)
         return await self.observe_session()
 
+    async def product_missing(self):
+        """A ready session whose page shows no product: no title h1, or Shopee's unavailable text."""
+        if await self.page.locator('h1').count() == 0:
+            return True
+        body = (await self.page.locator('body').inner_text())[:10000]
+        return bool(PRODUCT_UNAVAILABLE_TEXT.search(body))
+
     async def control(self, kind):
         if self.active_job or not self.queue.empty():
             raise HTTPException(409, 'Browser is busy. Wait for the active/queued jobs first.')
@@ -324,7 +335,17 @@ class BrowserWorker:
             if status['state'] in WAITING:
                 update_job(job_id, state=status['state'], error='Open the Fedora browser and finish login/verification, then resume this job.')
                 return
-            await self.page.locator('.product-ratings').wait_for(state='attached', timeout=20000)
+            if custom and await self.product_missing():
+                update_job(job_id, state='failed', error='PRODUCT_UNAVAILABLE')
+                return
+            try:
+                await self.page.locator('.product-ratings').wait_for(state='attached', timeout=20000)
+            except Exception as error:
+                # Only the ratings wait timing out means the product has no ratings block; other failures stay generic.
+                if custom and type(error).__name__ == 'TimeoutError':
+                    update_job(job_id, state='failed', error='RATINGS_MISSING')
+                    return
+                raise
             await self.page.locator('.product-ratings').scroll_into_view_if_needed()
             if job['request'].get('kind') != 'counts' and not job['request'].get('sampling'):
                 await self.page.locator('.product-ratings [data-cmtid]').first.wait_for(state='attached', timeout=20000)

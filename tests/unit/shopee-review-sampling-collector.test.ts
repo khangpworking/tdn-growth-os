@@ -390,3 +390,48 @@ test('reconcile binds a page-limited job only when max_pages also matches', asyn
     assert.ok(!routes.some((route) => route.includes(decoyId)), 'a job with another page limit is never bound');
   });
 });
+
+const FAILED_JOB_ID = '00000000-0000-4000-8000-000000000031';
+
+/** One job that reaches `error` on the collector side; nothing else is served. */
+function failedService(error: string) {
+  const created = AT.toISOString();
+  let job: Record<string, unknown> | null = null;
+  return (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const route = url.pathname + url.search;
+    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: created });
+    if (route === '/jobs?limit=100') return response(job ? [job] : []);
+    if ((route === '/jobs' || route === '/count-jobs') && init?.method === 'POST') {
+      job = { id: FAILED_JOB_ID, request: JSON.parse(String(init.body)), state: 'running',
+        created_at: created, updated_at: created, result_available: false };
+      return response(job, 202);
+    }
+    if (route === `/jobs/${FAILED_JOB_ID}`) return response({ ...job, state: 'failed', error });
+    throw new Error('unexpected synthetic route ' + route);
+  }) as typeof fetch;
+}
+
+test('a failed sampling or count job keeps PRODUCT_UNAVAILABLE and RATINGS_MISSING as its journal code', async () => {
+  const { plan, planSha256 } = planFixture();
+  const cases: [string, any, any][] = [
+    ['sampling', requestFixture(planSha256), plan],
+    ['counts', { kind: 'counts', url: LINK.url, request_key: ATTEMPT }, null],
+  ];
+  for (const [name, request, requestPlan] of cases) {
+    for (const code of ['PRODUCT_UNAVAILABLE', 'RATINGS_MISSING']) {
+      await withDir(async (dir) => {
+        const journal = await collector(failedService(code)).run(path.join(dir, 'journal.json'), request, LINK, requestPlan);
+        assert.deepEqual([journal.errorCode, journal.terminal], [code, true], `${name} job: ${code}`);
+      });
+    }
+  }
+});
+
+test('any other failed job keeps the SOURCE_JOB_FAILED mapping', async () => {
+  const { plan, planSha256 } = planFixture();
+  await withDir(async (dir) => {
+    const journal = await collector(failedService('SERVICE_RESTARTED')).run(path.join(dir, 'journal.json'), requestFixture(planSha256), LINK, plan);
+    assert.deepEqual([journal.errorCode, journal.terminal], ['SOURCE_JOB_FAILED', true]);
+  });
+});

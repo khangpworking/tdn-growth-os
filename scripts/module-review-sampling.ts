@@ -13,6 +13,9 @@ import { atomicJson, hashFile, hashFolder, ModuleError, object, prerequisite, re
 
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
 const hex = /^[a-f0-9]{64}$/;
+/** Product-level reason codes: this link is dead for the run, so step 3 skips it and keeps collecting. */
+const PRODUCT_LEVEL_CODES = new Set(['PRODUCT_UNAVAILABLE','RATINGS_MISSING']);
+const skippedJournal = (journal:SamplingJournal|null):boolean => journal !== null && PRODUCT_LEVEL_CODES.has(journal.errorCode ?? '');
 type Kind = 'counts'|'custom';
 const attemptRoot = (kind:Kind) => kind === 'counts' ? 'review-counts' : 'm3-custom/attempts';
 function attemptPath(kind:Kind,id:string):string {if(!uuid.test(id))throw new ModuleError('REVIEW_ATTEMPT_INVALID',2);return `${attemptRoot(kind)}/${id}`;}
@@ -181,7 +184,8 @@ function summarizeLink(link:ReviewLink,plan:ShopeeReviewPlan|null,journal:Sampli
   const result=journal?.result?.format==='shopee-sampled-result-v1'?journal.result:null;
   // Pages mode has no comment target, so requested/shortfall stay null.
   const actual=result&&result.pages.length>0?result.rows.length:null,requested=plan&&pagesPerLink(plan.policy)!==null?null:plan?.policy.totalPerLink??0;
-  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null||requested===null?null:requested-actual,stopReason:result?.stopReason??(journal?.errorCode??'not_started'),
+  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null||requested===null?null:requested-actual,skipped:skippedJournal(journal),
+    stopReason:result?.stopReason??(journal?.errorCode??'not_started'),
     stars:plan?.policy.mode==='stars'?plan.policy.stars.map(star=>{const target=plan.targets.find(q=>q.star===star)?.target??null;
       const groupObserved=result?.pages.some(page=>page.filter===String(star))??false;
       const got=groupObserved?result!.rows.filter(row=>row.ratingStar===star).length:null;
@@ -277,7 +281,8 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
       if(deps.reconcileOnly&&await readSamplingJournal(file)===null)continue;
       const request=jobRequest(link,attempt,plan);
       journals[index]=await collector.run(file,request,link,plan,deps.reconcileOnly,controller.signal);
-      if(journals[index]!.errorCode){errorCode=journals[index]!.errorCode;break;}
+      // A dead product skips its link and the run keeps collecting; session and other codes stop it as today.
+      if(journals[index]!.errorCode&&!PRODUCT_LEVEL_CODES.has(journals[index]!.errorCode!)){errorCode=journals[index]!.errorCode;break;}
     }
   }catch(error){errorCode=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_ATTEMPT_FAILED';}
   finally{clearInterval(timer);process.removeListener('SIGTERM',onStop);process.removeListener('SIGINT',onStop);}
@@ -290,16 +295,19 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   if(inputsChanged)errorCode='REVIEW_PLAN_CHANGED';
   let gate:Record<string,unknown>|null=null;
   if(plan){
-    const results=journals.flatMap(j=>j?.result?.format==='shopee-sampled-result-v1'?[j.result]:[]);
+    const results=journals.flatMap((journal,index)=>summaries[index]!.skipped?[]:journal?.result?.format==='shopee-sampled-result-v1'?[journal.result]:[]);
     for(const result of results){const link=attempt.links.find(l=>l.url===result.link.url);if(!link)throw new ModuleError('REVIEW_RESULT_CHANGED');validateSamplingResult(result,plan,attempt.planSha256!,link,samplingDigest(jobRequest(link,attempt,plan)));}
     const rows=results.flatMap(result=>result.rows),ids=rows.map(row=>row.reviewId);
-    const checks:{id:string;ok:boolean;level?:string}[]=[{id:'verdict_ok',ok:!errorCode&&!unresolved&&results.length===attempt.links.length&&results.every(r=>r.phase==='terminal'&&['record_limit','exhausted','page_limit'].includes(r.stopReason))},
-      {id:'min_reviews_per_link',ok:summaries.every(s=>s.actual!==null&&s.actual>=1)},m3LimitCheck(plan,summaries,results),
+    // A skipped link is excluded from every per-link check; it is never a failure and never counts as collected.
+    const collected=summaries.filter(summary=>!summary.skipped),skipped=summaries.length-collected.length;
+    const checks:{id:string;ok:boolean;level?:string;got?:number}[]=[{id:'verdict_ok',ok:!errorCode&&!unresolved&&results.length===collected.length&&results.every(r=>r.phase==='terminal'&&['record_limit','exhausted','page_limit'].includes(r.stopReason))},
+      {id:'min_reviews_per_link',ok:collected.length>0&&collected.every(s=>s.actual!==null&&s.actual>=1)},m3LimitCheck(plan,collected,results),
       {id:'no_duplicate_review_ids',ok:ids.every(Boolean)&&new Set(ids).size===ids.length},{id:'product_ids_match_m2',ok:results.every(r=>attempt.links.some(link=>canonicalJson(link)===canonicalJson(r.link)))},
-      {id:'shape_shopee_public_rows',ok:true},...(pagesPerLink(plan.policy)===null?[{id:'links_below_cap',level:'warn',ok:summaries.every(s=>s.shortfall===0)}]:[])];
+      {id:'shape_shopee_public_rows',ok:true},...(pagesPerLink(plan.policy)===null?[{id:'links_below_cap',level:'warn',ok:collected.every(s=>s.shortfall===0)}]:[]),
+      {id:'links_skipped',level:'warn',ok:skipped===0,got:skipped}];
     const pass=checks.every(check=>check.ok||check.level==='warn');
     await atomicJson(run,`${base}/output/reviews.json`,pass?rows:[]);
-    await atomicJson(run,`${base}/output/outcome.json`,{format:'m3-custom-outcome-v1',planSha256:attempt.planSha256,verdict:pass?(pagesPerLink(plan.policy)===null&&summaries.some(s=>s.shortfall!==0)?'PARTIAL_LISTINGS':'OK'):'FAILED',errorCode:pass?null:errorCode??'M3_GATE_FAILED',links:summaries});
+    await atomicJson(run,`${base}/output/outcome.json`,{format:'m3-custom-outcome-v1',planSha256:attempt.planSha256,verdict:pass?(skipped>0?'PARTIAL_LINKS':pagesPerLink(plan.policy)===null&&summaries.some(s=>s.shortfall!==0)?'PARTIAL_LISTINGS':'OK'):'FAILED',errorCode:pass?null:errorCode??'M3_GATE_FAILED',links:summaries});
     gate={format:'handoff-v1',module:'M3',runId:basename(run),skillVersion:'custom-review-sampling-v1',verdict:pass?'PASS':['HUMAN_LOGIN_REQUIRED','HUMAN_VERIFICATION_REQUIRED'].includes(errorCode??'')?'WAIT_OWNER':'FAIL',inputSha256:attempt.planSha256,outputSha256:await hashFolder(run,`${base}/output`),checks,errorCode:pass?null:errorCode??'M3_GATE_FAILED',next:null};
     await atomicJson(run,`${base}/gate.json`,gate);
     if(!pass)errorCode??='M3_GATE_FAILED';
