@@ -1056,6 +1056,16 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'flow'])
         self.assertEqual(len(self.remote_calls[0][2]['response']['body']['data']['products']), 5)
 
+    def test_module_outputs_pass_link_issues_through_and_old_runs_unchanged(self):
+        """CONTRACT-link-check section 5: `linkIssues` is optional; the bridge neither requires nor rewrites it."""
+        issue = {'stage': 'm2', 'productBaseId': '1__1__2', 'url': 'https://shopee.vn/product/2/1',
+                 'reason': 'PRODUCT_UNAVAILABLE', 'at': '2026-11-18T05:30:00Z', 'replacedBy': '1__3__4'}
+        for label, extra in (('new run', {'linkIssues': [issue]}), ('empty', {'linkIssues': []}), ('old run', {})):
+            with self.subTest(label):
+                data = {'format': 'module-outputs-v1', 'runId': 'a1b2c3d4', 'm1': {}, 'm2': {}, **extra}
+                self.answers = [{'ok': True, 'data': json.loads(json.dumps(data))}]
+                self.assertEqual(self.api.moduleOutputs('a1b2c3d4'), {'ok': True, 'data': data})
+
     def test_m1_import_plan_sends_the_payload_on_stdin(self):
         payload = {'format': 'metric-user-page-import-v1', 'keyword': 'cà phê'}
         _, lines = tdn_shopee_app.Api._remote_plan(self.api, 'm1Import', payload=payload, config=dict(self.CONFIG))

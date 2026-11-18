@@ -313,6 +313,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .rs-counts-head h4 { font-size: 13px; }
 .rs-counts-meta { font-size: 12.5px; color: var(--muted); }
 .rs-counts-head .abtn { margin-left: auto; }
+.link-issues { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.link-issues h4 { margin: 0; font-size: 13.5px; color: var(--need); }
+.link-issues ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.link-issues li { display: grid; gap: 2px; }
+.link-issue-group { display: grid; gap: 4px; }
+.link-issue-when { margin: 0; font-size: 12.5px; color: var(--muted); }
+.link-issue-reason { font-size: 12.5px; font-weight: 600; color: var(--need); }
 .rs-url { display: block; max-width: 280px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .rs-why { color: var(--muted); font-weight: 400; }
 .rs-attempt { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--line); }
@@ -765,7 +772,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     no_duplicate_review_ids: 'Không có bình luận trùng',
     product_ids_match_m2: 'Bình luận thuộc đúng các link đã chọn',
     shape_shopee_public_rows: 'Dữ liệu đúng định dạng',
-    links_below_cap: 'Số link lấy được ít hơn yêu cầu'
+    links_below_cap: 'Số link lấy được ít hơn yêu cầu',
+    links_skipped: 'Không có link nào bị bỏ vì lỗi link'
   };
 
   var GATE_TITLES = {
@@ -835,6 +843,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     M2_ALREADY_PASSED: 'Bước 2 đã đạt nên không chạy lại. Muốn chọn lại sản phẩm thì tạo lượt mới.',
     AUTOMATIC_COLLECTION_EXISTS: 'Lượt này đã lấy bình luận rồi. Muốn lấy thêm, mở «Lấy thêm theo cách khác».',
     PICK_PRODUCT_UNRESOLVED: 'Có sản phẩm chưa xác định được là trùng hay khác nên chưa chọn đủ 5 sản phẩm.',
+    LINK_CHECK_FAILED: 'Không kiểm được link Shopee. Thử lại sau ít phút.',
     PICK_JEV_UNAVAILABLE: 'Chưa kiểm tra được sản phẩm trùng vì dịch vụ kiểm tra chưa phản hồi. Hãy chạy lại bước 2.',
     BRIDGE_MISSING: 'App chưa khởi động xong. Hãy đóng app rồi mở lại.',
     BRIDGE_SHAPE: 'App gặp lỗi khi nhận dữ liệu. Hãy đóng app rồi mở lại.',
@@ -3257,9 +3266,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var verdict = slip.verdict || 'FAIL';
     var tone = verdict === 'PASS' ? 'pass' : verdict === 'WAIT_OWNER' ? 'warn' : 'fail';
     card.dataset.tone = tone;
-    var verdictText = key === 'm3' && verdict === 'PASS'
+    var partialLinks = key === 'm3' && slipHasSkippedLinks(slip);
+    var verdictText = partialLinks ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS : key === 'm3' && verdict === 'PASS'
       ? 'Đạt kiểm tra dữ liệu' : (VERDICT_LABEL[verdict] || VERDICT_LABEL.FAIL);
-    head.appendChild(h('span', 'chip ' + (verdict === 'PASS' ? 's-pass' : verdict === 'WAIT_OWNER' ? 's-warn' : 's-fail'),
+    head.appendChild(h('span', 'chip ' + (partialLinks || verdict === 'WAIT_OWNER' ? 's-warn' : verdict === 'PASS' ? 's-pass' : 's-fail'),
       verdictText));
     card.appendChild(head);
 
@@ -3293,6 +3303,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     techWrap.appendChild(kv);
     card.appendChild(techWrap);
     return card;
+  }
+
+  // PARTIAL_LINKS: an M3 gate that passed with its `links_skipped` check counting at least 1 link.
+  function slipHasSkippedLinks(slip) {
+    var skippedCheck = slip && slip.verdict === 'PASS'
+      ? (slip.checks || []).find(function (c) { return c && c.id === 'links_skipped'; }) : null;
+    return !!skippedCheck && typeof skippedCheck.got === 'number' && skippedCheck.got > 0;
   }
 
   function executionOf(info) {
@@ -3481,6 +3498,81 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       renderDetail();
     });
     return link;
+  }
+
+  // Dead Shopee links (module-outputs-v1 `linkIssues`). Old runs have no array: nothing is shown.
+  var LINK_ISSUE_REASON = {
+    PRODUCT_UNAVAILABLE: 'Sản phẩm không còn trên Shopee',
+    RATINGS_MISSING: 'Trang sản phẩm không có phần đánh giá',
+    NO_TARGET_STAR_REVIEWS: 'Không có đánh giá ở các mức sao cần lấy'
+  };
+  var OUTCOME_VERDICT_TEXT = { PARTIAL_LINKS: 'Xong, có link bị bỏ' };
+
+  function linkIssuesFor(runId, stage) {
+    var outputs = state.moduleOutputs[runId];
+    var items = outputs && Array.isArray(outputs.linkIssues) ? outputs.linkIssues : [];
+    return items.filter(function (item) {
+      return !!item && typeof item === 'object' && item.stage === stage &&
+        typeof item.url === 'string' && typeof item.reason === 'string';
+    });
+  }
+
+  // Step 3: every attempt's skipped links, one group per attemptId, newest attempt first,
+  // labelled with the attempt end time. Not tied to the review source on display.
+  function linkIssueGroups(items) {
+    var groups = [];
+    items.forEach(function (item) {
+      var key = typeof item.attemptId === 'string' ? item.attemptId : '';
+      var group = groups.find(function (g) { return g.key === key; });
+      if (!group) { group = { key: key, at: null, items: [] }; groups.push(group); }
+      var at = Date.parse(item.at);
+      if (!isNaN(at) && (group.at === null || at > group.at)) group.at = at;
+      group.items.push(item);
+    });
+    return groups.sort(function (a, b) { return (b.at === null ? -Infinity : b.at) - (a.at === null ? -Infinity : a.at); });
+  }
+
+  function linkIssueGroupLabel(group) {
+    var stamp = group.at === null ? '' : vnStamp(new Date(group.at).toISOString());
+    if (!stamp) return 'Lần thu chưa rõ thời điểm';
+    var parts = stamp.split(' ');
+    return 'Lần thu lúc ' + parts[1] + ' ngày ' + parts[0];
+  }
+
+  function linkIssueText(item) {
+    var text = LINK_ISSUE_REASON[item.reason] || 'Link không dùng được';
+    if (item.stage === 'm2' && typeof item.replacedBy === 'string' && item.replacedBy) text += ', đã thay bằng link khác';
+    return text;
+  }
+
+  function linkIssueList(items, runId) {
+    var list = h('ul');
+    items.forEach(function (item) {
+      var li = h('li');
+      li.appendChild(shopeeLinkNode(item.url, runId));
+      li.appendChild(h('span', 'link-issue-reason', linkIssueText(item)));
+      list.appendChild(li);
+    });
+    return list;
+  }
+
+  function linkIssuesNode(runId, stage) {
+    var items = linkIssuesFor(runId, stage);
+    if (!items.length) return null;
+    var box = h('section', 'link-issues');
+    box.id = 'linkIssues-' + stage;
+    box.appendChild(h('h4', null, 'Link bị bỏ'));
+    if (stage !== 'm3') {
+      box.appendChild(linkIssueList(items, runId));
+      return box;
+    }
+    linkIssueGroups(items).forEach(function (group) {
+      var section = h('div', 'link-issue-group');
+      section.appendChild(h('p', 'link-issue-when', linkIssueGroupLabel(group)));
+      section.appendChild(linkIssueList(group.items, runId));
+      box.appendChild(section);
+    });
+    return box;
   }
 
   function present(value) { return value !== null && value !== undefined; }
@@ -3706,6 +3798,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       details.appendChild(moduleSkippedTable(skipped));
       card.appendChild(details);
     }
+    var issues = linkIssuesNode(runId, 'm2');
+    if (issues) card.appendChild(issues);
     return card;
   }
 
@@ -3980,6 +4074,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     manageSamplingPoll(runId);
     if (state.selectedRunId === runId && samplingRunning(previous) && !samplingRunning(state.sampling[runId])) {
       loadReviewData(runId);
+      loadModuleOutputs(runId);   // a finished or stopped attempt may have skipped dead links (linkIssues)
       if (state.screen === 'result') {
         loadReviewStats(runId);
         loadReviewInsights(runId);
@@ -5024,6 +5119,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     chip.id = 'rdChip';
     head.appendChild(chip);
     panel.appendChild(head);
+    var m3Issues = linkIssuesNode(runId, 'm3');
+    if (m3Issues) panel.appendChild(m3Issues);
 
     if (state.reviewDataErrors[runId]) {
       var loadError = h('p', 'errbar local-error', plainError(state.reviewDataErrors[runId]));
@@ -5154,8 +5251,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       clear(summary);
       if (source) {
         var validated = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS';
-        chip.textContent = validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
-        chip.className = 'chip ' + (validated ? 's-pass' : 's-fail');
+        // The displayed source's own attempt skipped dead links (m3 linkIssues with its attemptId).
+        var partial = validated && typeof source.attemptId === 'string' &&
+          linkIssuesFor(runId, 'm3').some(function (item) { return item.attemptId === source.attemptId; });
+        chip.textContent = partial ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS
+          : validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
+        chip.className = 'chip ' + (partial ? 's-warn' : validated ? 's-pass' : 's-fail');
         summary.appendChild(rdChecks(source));
       } else {
         chip.textContent = 'Chưa chọn kết quả';
