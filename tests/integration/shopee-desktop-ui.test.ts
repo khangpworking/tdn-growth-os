@@ -96,7 +96,7 @@ function harness(options: {
   hasFocus?: boolean;
   runSortSaved?: string;
   oldServer?: boolean;      // run-view and the insights summary answer USAGE (a server before F647 wave 2)
-  runViewHold?: () => Promise<void> | undefined;      // a run-view answers when this settles
+  runViewHold?: (runId: string, result: boolean) => Promise<void> | undefined;   // a run-view answers when this settles
   reviewProcessHold?: () => Promise<void> | undefined;
   insightCommentsHold?: () => Promise<void> | undefined;
   insightCommentsError?: boolean;   // every comment read fails
@@ -334,7 +334,7 @@ function harness(options: {
     },
     runView: async (runId: string, result: boolean) => {
       state.runViewCalls.push({ runId, result });
-      const held = options.runViewHold && options.runViewHold();
+      const held = options.runViewHold && options.runViewHold(runId, result);
       if (options.oldServer) {
         if (held) await held;
         return { ok: false, error: { code: 'USAGE', message: 'USAGE' } };
@@ -4909,4 +4909,204 @@ test('a read asked while a run-view is out is answered by the follow-up', async 
     assert.equal(run.state.runViewCalls.length, views + 2, '2 run-views in all');
     assert.equal(run.state.runViewMaxOut, 1);
   } finally { hold?.resolve(); run.dom.window.close(); }
+});
+
+// F647 wave 3, the open run's reads (UI), one row each:
+// | # | situation                                                                       | expected                                   |
+// |---|---------------------------------------------------------------------------------|--------------------------------------------|
+// | A | «Kết quả chạy» clicked while a read without --result is out                     | the --result read is sent at once; its     |
+// |   |                                                                                 | parts show before the older read answers   |
+// | B | a new summary whose bucket is equal to the one before, after its comments were  | the comments and the open section stay; no |
+// |   | read                                                                            | comment read again                         |
+// | C | one run-view answer                                                             | one redraw of the open run                 |
+// | 1 | a read fails (its answer cannot be drawn) while another read waits behind it    | the waiting read is still sent             |
+// | 2 | the connection is made again while the first run-view is out and a notice waits | the notice goes on once that read answers  |
+// | 3 | a run-view fails on the way (SSH_TIMEOUT)                                       | the open run keeps its last copy and shows |
+// |   |                                                                                 | the error line                             |
+test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal comments, redraws once and survives failures', async () => {
+  const runId = 'run-w3';
+  const sha = 'e'.repeat(64);
+  const comment = (id: string) => ({ id, text: 'Bình luận ' + id, rating: 5, date: null, productName: null,
+    url: 'https://shopee.vn/product/801/100', tags: [] });
+  const insights = () => ({ format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [{
+    sourceSha256: sha, kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z',
+    all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null },
+      themes: [{ code: 'T-CONGDUNG', name: 'Công dụng', count: 2, unclearCount: 0, share: 1,
+        polarityCounts: { khen: 2, che: 0, ke: 0, khong_ro_huong: 0 },
+        summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, comments: [comment('a'), comment('b')] }],
+      comments: [comment('a'), comment('b')] }, links: [] }] });
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const details = (doc: Document) =>
+    doc.querySelector<HTMLDetailsElement>('#resultThemeTags [data-theme-code="T-CONGDUNG"] details.theme-comments');
+  let hold: Deferred<void> | null = null;
+  let holdTrackOnly = false;
+  const base = (extra: Record<string, any> = {}) => harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 2) }),
+    reviewInsightsResult: () => ({ ok: true, data: insights() }),
+    runViewHold: (_id: string, result: boolean) => (holdTrackOnly && result ? undefined : hold?.promise),
+    ...extra,
+  });
+  const release = () => { const held = hold; hold = null; held?.resolve(); };
+
+  // A
+  let run = base();
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, 'A: open');
+    const views = run.state.runViewCalls.length;
+    hold = deferred<void>();
+    holdTrackOnly = true;
+    runListButton(run.doc, runId).click();                // a track read, held
+    await waitFor(() => run.state.runViewCalls.length === views + 1, 'A: a track read out');
+    tab(run.doc, 2);
+    await waitFor(() => details(run.doc) !== null, 'A: the result parts, before the track read answers');
+    assert.deepEqual(run.state.runViewCalls.slice(views).map((call) => call.result), [false, true]);
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.notEqual(details(run.doc), null, 'A: the older answer draws nothing over them');
+    assert.equal(run.state.runViewCalls.length, views + 2, 'A: nothing more');
+  } finally { release(); holdTrackOnly = false; run.dom.window.close(); }
+
+  // B
+  run = base();
+  try {
+    tab(run.doc, 2);
+    await waitFor(() => details(run.doc) !== null, 'B: themes');
+    details(run.doc)!.querySelector<HTMLElement>('summary')!.click();
+    await waitFor(() => details(run.doc)!.querySelectorAll('.comment-row').length === 2, 'B: comments read');
+    const views = run.state.runViewCalls.length;
+    tab(run.doc, 1);
+    tab(run.doc, 2);                                      // a new --result read: the same summary
+    await waitFor(() => run.state.runViewCalls.filter((call) => call.result).length >= 2 &&
+      run.state.runViewCalls.length > views, 'B: read again');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(details(run.doc)!.open, true, 'B: still open');
+    assert.equal(details(run.doc)!.querySelectorAll('.comment-row').length, 2, 'B: comments kept');
+    assert.equal(run.state.insightCommentCalls.length, 1, 'B: not read again');
+  } finally { run.dom.window.close(); }
+
+  // C
+  run = base();
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, 'C: open');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    let redraws = 0;
+    const watch = new (run.dom.window as any).MutationObserver((records: MutationRecord[]) => {
+      records.forEach((record) => record.addedNodes.forEach((node: any) => {
+        if (node.classList && node.classList.contains('dhead')) redraws += 1;
+      }));
+    });
+    watch.observe(run.doc.getElementById('runDetail')!, { childList: true });
+    hold = deferred<void>();
+    const views = run.state.runViewCalls.length;
+    runListButton(run.doc, runId).click();
+    await waitFor(() => run.state.runViewCalls.length === views + 1, 'C: a read out');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    redraws = 0;
+    release();
+    await waitFor(() => run.state.runViewCalls.length === views + 1 && redraws > 0, 'C: drawn');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    watch.disconnect();
+    assert.equal(redraws, 1, 'C: one redraw for the answer');
+  } finally { release(); run.dom.window.close(); }
+
+  // 1
+  const infos: Record<string, any> = { [runId]: syntheticRunInfo(runId) };
+  // The broken answer rejects the read; the page leaves that rejection unhandled, which is harmless there.
+  const listeners = process.listeners('unhandledRejection');
+  process.removeAllListeners('unhandledRejection');
+  process.on('unhandledRejection', (reason: any) => {
+    if (reason && /info.modules/.test(String(reason.message))) return;   // the page's own TypeError
+    listeners.forEach((listener) => (listener as any)(reason));
+  });
+  run = base({ runInfoByRun: infos });
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, '1: open');
+    const views = run.state.runViewCalls.length;
+    hold = deferred<void>();
+    infos[runId] = { ...syntheticRunInfo(runId), modules: 'broken' };   // this answer cannot be drawn
+    runListButton(run.doc, runId).click();
+    await waitFor(() => run.state.runViewCalls.length === views + 1, '1: the read out');
+    infos[runId] = syntheticRunInfo(runId);
+    runListButton(run.doc, runId).click();                // waits behind it
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(run.state.runViewCalls.length, views + 1);
+    release();
+    await waitFor(() => run.state.runViewCalls.length === views + 2, '1: the waiting read is sent');
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, '1: drawn again');
+  } finally {
+    release();
+    run.dom.window.close();
+    process.removeAllListeners('unhandledRejection');
+    listeners.forEach((listener) => process.on('unhandledRejection', listener as any));
+  }
+
+  // 2
+  let step4 = 'RUNNING' as 'RUNNING' | 'PASS';
+  let phase = 'before';
+  let listed = false;
+  let network = 'online';
+  run = base({
+    listRunsReply: async () => (listed ? undefined : { ok: true, data: { format: 'runs-v1', runs: [] } }),
+    hasFocus: true, fastProgress: true, fastReconnect: true,
+    reviewProcessResult: (id: string) => reviewProcessReply(id, step4),
+    connectionResultFor: () => (network === 'drop'
+      ? (network = 'online', { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } })
+      : { ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } }),
+    runsProgressFor: () => progressReply([progressRun(runId, phase === 'before' ? ['PASS', 'PASS', 'PASS', 'RUNNING']
+      : ['PASS', 'PASS', 'PASS', 'PASS'], phase === 'before'
+      ? { active: { step: 4, stage: 'label', done: 10, total: 498 } } : { finished: true })]),
+  });
+  try {
+    await booted(run.doc);
+    await waitFor(() => run.state.runsProgressCalls >= 2, '2: progress polled');
+    assert.equal(run.state.runViewCalls.length, 0, '2: nothing open yet');
+    hold = deferred<void>();
+    listed = true;
+    tab(run.doc, 1);                                      // the first run-view of this connection, held
+    await waitFor(() => run.state.runViewCalls.length === 1, '2: the first run-view out');
+    const polled = run.state.runsProgressCalls;
+    step4 = 'PASS';
+    phase = 'after';
+    await waitFor(() => run.state.runsProgressCalls >= polled + 3, '2: «finished» seen');
+    const calls = run.state.connectionCalls;
+    network = 'drop';
+    await waitFor(() => run.state.connectionCalls >= calls + 2, '2: connected again');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    release();
+    await waitFor(() => run.doc.querySelector('#noticeBox .notice') !== null, '2: the notice goes on');
+    assert.match(run.doc.querySelector('#noticeBox .notice')!.textContent || '', /498 bình luận đã gắn chủ đề/);
+  } finally { release(); run.dom.window.close(); }
+
+  // 3
+  let failing = false;
+  run = base({ statusError: () => (failing ? { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } } : undefined) });
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null &&
+      !/Đang tải/.test(run.doc.getElementById('moduleOutputsPanel')?.textContent || ''), '3: open');
+    const outputs = run.doc.getElementById('moduleOutputsPanel')!.textContent;
+    const views = run.state.runViewCalls.length;
+    let shown = '';                                       // the error line (a reconnect then clears it)
+    const watch = new (run.dom.window as any).MutationObserver(() => {
+      if (!element(run.doc, 'errbar').hidden) shown = element(run.doc, 'errbar').title;
+    });
+    watch.observe(element(run.doc, 'errbar'), { attributes: true, childList: true });
+    failing = true;
+    runListButton(run.doc, runId).click();
+    await waitFor(() => run.state.runViewCalls.length >= views + 1 && shown === 'SSH_TIMEOUT', '3: the error line');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    watch.disconnect();
+    assert.notEqual(run.doc.getElementById('btnDeleteRun'), null, '3: the open run stays');
+    assert.equal(run.doc.getElementById('moduleOutputsPanel')!.textContent, outputs, '3: its parts stay');
+  } finally { run.dom.window.close(); }
 });

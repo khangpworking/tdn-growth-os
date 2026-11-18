@@ -4,12 +4,17 @@ import base64
 import datetime as dt
 import hashlib
 import hmac
+import http.client
 import json
 import os
 from pathlib import Path
 import re
+from urllib.parse import urlsplit
 import shutil
+import socket
+import ssl
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -297,6 +302,109 @@ def _choose_save_folder():
     return os.fspath(selected)
 
 
+# ---- The HTTPS tunnel, inside this process -------------------------------------------------------------
+# A config whose sshCommand starts with the tunnel client (tdn-tunnel-client.exe --url ... --token ...) is sent
+# here as that client sends it: one POST of the script to <url>/run on a new connection, no retry, and the
+# answer read as frames of 1 byte kind + 4 byte big-endian length + data (O stdout, E stderr, K keepalive,
+# X exit code). Starting the client program costs about 0.5 s per call; this does not. A transport failure is
+# exit 255 (SSH_FAILED) as with the client; the call's time limit is SSH_TIMEOUT. The token is only sent in the
+# Authorization header; it is never logged or put in an error.
+_TUNNEL_CLIENT_NAMES = frozenset({'tdn-tunnel-client', 'tdn-tunnel-client.exe'})
+_TUNNEL_SILENCE_SECONDS = 60     # keepalives come every 15 s; 60 s of silence means the link is dead
+
+
+class _TunnelTimeout(Exception):
+    pass
+
+
+def _tunnel_target(argv):
+    """The --url / --token / --resolve-ip of a tunnel client argv, or None (not the tunnel client)."""
+    if not argv or Path(argv[0].replace('\\', '/')).name.lower() not in _TUNNEL_CLIENT_NAMES:
+        return None
+    values = {}
+    rest = list(argv[1:])
+    while rest:
+        word = rest.pop(0)
+        for name in ('--url', '--token', '--resolve-ip'):
+            if word == name and rest:
+                values[name] = rest.pop(0)
+            elif word.startswith(name + '='):
+                values[name] = word[len(name) + 1:]
+    if not values.get('--url') or not values.get('--token'):
+        return None          # the client itself would stop on its arguments: keep running it as before
+    return values
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, host, port, address, timeout):
+        super().__init__(host, port, timeout=timeout, context=ssl.create_default_context())
+        self.address = address
+
+    def connect(self):
+        sock = socket.create_connection((self.address or self.host, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+def _tunnel_run(target, script, timeout):
+    """(exit code, stdout bytes) of one tunnel call; raises _TunnelTimeout at the call's time limit."""
+    url = urlsplit(target['--url'])
+    if url.scheme != 'https' or not url.hostname:
+        return 255, b''
+    deadline = time.monotonic() + timeout
+
+    def wait():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise _TunnelTimeout()
+        return min(_TUNNEL_SILENCE_SECONDS, remaining)
+
+    try:
+        port = url.port or 443
+    except ValueError:
+        return 255, b''
+    out = []
+    conn = None
+    try:
+        conn = _PinnedHTTPSConnection(url.hostname, port, target.get('--resolve-ip'), timeout=wait())
+        conn.request('POST', '/run', body=script, headers={
+            'Authorization': 'Bearer ' + target['--token'],
+            'Content-Type': 'text/plain; charset=utf-8',
+        })
+        response = conn.getresponse()
+        if response.status != 200:
+            return 255, b''
+
+        def read_exact(size):
+            data = b''
+            while len(data) < size:
+                conn.sock.settimeout(wait())
+                chunk = response.read(size - len(data))
+                if not chunk:
+                    raise EOFError
+                data += chunk
+            return data
+
+        while True:
+            kind, size = struct.unpack('>cI', read_exact(5))
+            data = read_exact(size) if size else b''
+            if kind == b'O':
+                out.append(data)
+            elif kind == b'X':
+                code = struct.unpack('>i', data)[0]
+                return (code if 0 <= code <= 254 else 1), b''.join(out)
+            elif kind not in (b'E', b'K'):
+                return 255, b''
+    except socket.timeout:
+        if deadline - time.monotonic() <= 0.05:
+            raise _TunnelTimeout() from None
+        return 255, b''          # 60 s without a frame: the link is dead
+    except (OSError, EOFError, struct.error, http.client.HTTPException, ValueError):
+        return 255, b''
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def _config_path():
     override = os.environ.get('TDN_SHOPEE_APP_CONFIG')
     if override is not None:
@@ -516,8 +624,16 @@ class Api:
                        150 if action in ('metricDateAvailability', 'm1Import') else config['timeoutSeconds'])}
         if sys.platform == 'win32':
             options['creationflags'] = subprocess.CREATE_NO_WINDOW
+        tunnel = _tunnel_target(argv)
         try:
-            result = subprocess.run(argv, **options)
+            if tunnel is not None:
+                try:
+                    code, stdout = _tunnel_run(tunnel, options['input'], options['timeout'])
+                except _TunnelTimeout:
+                    raise subprocess.TimeoutExpired(argv[:1], options['timeout']) from None
+                result = subprocess.CompletedProcess(argv[:1], code, stdout=stdout, stderr=b'')
+            else:
+                result = subprocess.run(argv, **options)
         except subprocess.TimeoutExpired:
             self._invalidate_native(token)
             raise _BridgeFailure('SSH_TIMEOUT') from None
