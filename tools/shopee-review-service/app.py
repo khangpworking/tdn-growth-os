@@ -31,12 +31,6 @@ os.environ.setdefault('CLOAKBROWSER_AUTO_UPDATE', 'false')
 DEFAULT_PRODUCT = os.environ.get('SHOPEE_SESSION_CHECK_URL', 'https://shopee.vn/')
 TERMINAL = {'succeeded', 'partial', 'failed', 'cancelled', 'interrupted'}
 WAITING = {'needs_login', 'needs_verification'}
-# Sampling and count jobs report a dead product with one of these codes; everything else stays SOURCE_ACTION_FAILED.
-PRODUCT_UNAVAILABLE_TEXT = re.compile(
-    r'product does not exist|product is no longer available|this product is unavailable|product not found'
-    r'|sản phẩm không tồn tại|sản phẩm không còn bán|không tìm thấy sản phẩm', re.I)
-# Only page-level messages count: the product title h1 is seller content, and description/review text must never decide this.
-PRODUCT_UNAVAILABLE_INDICATOR = 'h2, h3, [role="dialog"], [role="alert"]'
 bearer = HTTPBearer(auto_error=False)
 
 
@@ -303,15 +297,12 @@ class BrowserWorker:
         return await self.observe_session()
 
     async def product_missing(self):
-        """A ready session whose page shows no product: no title h1, or a page-level unavailable message.
+        """A ready session whose page has no product title h1 is a dead product.
 
-        The message is read from page-level headings/dialogs only, never the whole body or the h1 product title:
-        a valid product whose title, description or reviews contain the same phrase is still a product.
+        Page text never decides this: seller content, descriptions and reviews may
+        contain any unavailable phrase and the link is still a product.
         """
-        if await self.page.locator('h1').count() == 0:
-            return True
-        messages = await self.page.locator(PRODUCT_UNAVAILABLE_INDICATOR).all_inner_texts()
-        return any(PRODUCT_UNAVAILABLE_TEXT.search(text[:500]) for text in messages)
+        return await self.page.locator('h1').count() == 0
 
     async def control(self, kind):
         if self.active_job or not self.queue.empty():
@@ -349,6 +340,13 @@ class BrowserWorker:
             except Exception as error:
                 # Only the ratings wait timing out means the product has no ratings block; other failures stay generic.
                 if custom and type(error).__name__ == 'TimeoutError':
+                    # A cancelled or read-only job stops as cancelled; a timeout is not a dead link for it.
+                    if get_job(job_id)['cancel_requested']:
+                        update_job(job_id, state='cancelled')
+                        return
+                    if sampling_readonly():
+                        update_job(job_id, state='cancelled', error='READONLY_ON')
+                        return
                     # The page may have moved to login/verification during the wait; that is a session stop, not a dead link.
                     observed = await self.observe_session()
                     if observed['state'] in WAITING:

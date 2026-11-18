@@ -60,6 +60,8 @@ class FakeLocator:
 
     async def wait_for(self, **_):
         if self.page and self.selector == '.product-ratings' and self.page.wait_error:
+            if self.page.during_wait is not None:
+                self.page.during_wait()
             if self.page.after_timeout is not None:
                 self.page.body_text, self.page.url = self.page.after_timeout
             raise self.page.wait_error
@@ -81,10 +83,11 @@ class FakeLocator:
 class FakePage:
     """Records the crawler config; the crawler script returns `result`."""
 
-    def __init__(self, result, h1=1, body_text='', wait_error=None, headings=(), after_timeout=None):
+    def __init__(self, result, h1=1, body_text='', wait_error=None, headings=(), after_timeout=None, during_wait=None):
         self.result, self.config, self.crawls = result, None, 0
         self.h1, self.body_text, self.wait_error = h1, body_text, wait_error
         self.headings, self.after_timeout = list(headings), after_timeout
+        self.during_wait = during_wait
         self.url = URL
 
     def locator(self, selector):
@@ -206,11 +209,13 @@ class ServiceTests(unittest.TestCase):
         config, state = self.run_job({'url': URL, 'max_comments': 20}, result)
         self.assertEqual((config['maxPages'], state), (500, 'partial'), 'existing callers keep 500 pages and partial')
 
-    def run_job_with_page(self, payload, page):
+    def run_job_with_page(self, payload, page, during_wait=None):
         app, job_id = self.app, str(uuid.uuid4())
         with app.db() as connection:
             connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
                                (job_id, json.dumps(payload), 'queued', app.now(), app.now()))
+        if during_wait is not None:
+            page.during_wait = lambda: during_wait(job_id)
         worker = app.BrowserWorker()
         worker.page = page
 
@@ -229,16 +234,10 @@ class ServiceTests(unittest.TestCase):
                 self.assertEqual((job['state'], job['error']), ('failed', 'PRODUCT_UNAVAILABLE'))
                 self.assertEqual(page.crawls, 0, 'a dead product is never crawled')
 
-    def test_a_page_level_unavailable_message_also_reports_product_unavailable(self):
-        payload = {'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())}
-        page = FakePage({}, h1=1, headings=['Sorry, this product is no longer available.'])
-        job = self.run_job_with_page(payload, page)
-        self.assertEqual((job['state'], job['error']), ('failed', 'PRODUCT_UNAVAILABLE'))
-        self.assertEqual(page.crawls, 0)
-
-    def test_product_title_and_content_with_the_unavailable_phrase_is_still_a_product(self):
+    def test_product_content_with_the_unavailable_phrase_is_still_a_product(self):
         payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
-        page = FakePage({}, h1=1, body_text='Mô tả: sản phẩm không tồn tại trong hình. Đánh giá: hàng như sản phẩm không tồn tại.')
+        page = FakePage({}, h1=1, headings=['Sản phẩm không tồn tại trong hình'],
+                        body_text='Mô tả: sản phẩm không tồn tại trong hình. Hỏi đáp: không tìm thấy sản phẩm nào tốt hơn.')
         job = self.run_job_with_page(payload, page)
         self.assertEqual(job['state'], 'succeeded')
         self.assertEqual(page.crawls, 1, 'a valid product is collected, not skipped')
@@ -259,6 +258,14 @@ class ServiceTests(unittest.TestCase):
                 self.assertEqual(job['state'], state)
                 self.assertNotEqual(job['error'], 'RATINGS_MISSING')
                 self.assertEqual(page.crawls, 0)
+
+    def test_a_cancelled_ratings_wait_keeps_the_cancellation_state(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'))
+        job = self.run_job_with_page(payload, page,
+                                     during_wait=lambda job_id: self.app.update_job(job_id, cancel_requested=1))
+        self.assertEqual((job['state'], job['error']), ('cancelled', None))
+        self.assertEqual(page.crawls, 0)
 
     def test_other_sampling_failures_stay_source_action_failed(self):
         payload = {'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())}
