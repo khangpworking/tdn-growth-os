@@ -776,7 +776,10 @@ class Api:
         if not result['ok']:
             return result
         data = result['data']
-        if data != {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}:
+        # `leftover: true`: the run is deleted, only its hidden folder is left for the next sweep (F644 §2).
+        base = {key: value for key, value in data.items() if key != 'leftover'} if isinstance(data, dict) else data
+        if (base != {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True} or
+                ('leftover' in data and data['leftover'] is not True)):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         # The run is gone on the server: its picture on this PC goes too (never through a link/junction).
         local = self._local_metric_shot(run_id)
