@@ -2388,8 +2388,8 @@ test('C1: a v2 run is a known rule and shows the approved skip, shortage and ste
     const reasons = [...doc.querySelectorAll('#moduleOutputsPanel details.tech-details tbody tr')]
       .map((row) => row.querySelectorAll('td')[2]!.textContent);
     assert.deepEqual(reasons, ['Trùng với sản phẩm đã chọn ở thứ tự 1.',
-      'Không rõ phân loại trùng/khác với sản phẩm đã chọn nên không lấy.',
-      'Không đọc được mã sản phẩm của dòng này nên không lấy.']);
+      'Có thể trùng với sản phẩm đã chọn, chưa chắc chắn nên bỏ qua.',
+      'Không đọc được mã sản phẩm nên bỏ qua.']);
     assert.doesNotMatch(doc.getElementById('moduleOutputsPanel')!.textContent!, /Jev/);
 
     runListButton(doc, 'run-b').click();

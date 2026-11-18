@@ -3718,12 +3718,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return OUTPUT_ERROR_TEXT.PICK_TITLE_GROUP_UNRESOLVED;
     }
     if (skipped.reason === 'PRODUCT_MATCH_UNSURE') {
-      return 'Không rõ phân loại trùng/khác với sản phẩm đã chọn nên không lấy.';
+      return 'Có thể trùng với sản phẩm đã chọn, chưa chắc chắn nên bỏ qua.';
     }
     if (skipped.reason === 'PICK_LISTING_ID_UNRESOLVED') {
-      return 'Không đọc được mã sản phẩm của dòng này nên không lấy.';
+      return 'Không đọc được mã sản phẩm nên bỏ qua.';
     }
-    return 'Chưa rõ lý do';
+    return 'Bỏ qua, chưa rõ lý do.';
   }
 
   function moduleSkippedTable(skipped) {
