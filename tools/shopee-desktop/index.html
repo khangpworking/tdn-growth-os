@@ -3264,8 +3264,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var verdict = slip.verdict || 'FAIL';
     var tone = verdict === 'PASS' ? 'pass' : verdict === 'WAIT_OWNER' ? 'warn' : 'fail';
     card.dataset.tone = tone;
-    var outcomeCheck = (slip.checks || []).find(function (c) { return c && c.id === 'verdict_ok'; });
-    var partialLinks = key === 'm3' && verdict === 'PASS' && !!outcomeCheck && outcomeCheck.got === 'PARTIAL_LINKS';
+    // PARTIAL_LINKS: the gate passed and its `links_skipped` check counts at least 1 skipped link.
+    var skippedCheck = (slip.checks || []).find(function (c) { return c && c.id === 'links_skipped'; });
+    var partialLinks = key === 'm3' && verdict === 'PASS' && !!skippedCheck &&
+      typeof skippedCheck.got === 'number' && skippedCheck.got > 0;
     var verdictText = partialLinks ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS : key === 'm3' && verdict === 'PASS'
       ? 'Đạt kiểm tra dữ liệu' : (VERDICT_LABEL[verdict] || VERDICT_LABEL.FAIL);
     head.appendChild(h('span', 'chip ' + (partialLinks || verdict === 'WAIT_OWNER' ? 's-warn' : verdict === 'PASS' ? 's-pass' : 's-fail'),
@@ -5106,6 +5108,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       panel.appendChild(h('p', 'muted', readOnly
         ? 'Chưa có kết quả bình luận nào.'
         : 'Chưa có kết quả bình luận nào dùng được để lưu hoặc tải file.'));
+      // No source yet (e.g. a dead link was skipped, then the attempt stopped): the current
+      // step 3 execution names the attempt whose skipped links are shown.
+      var m3View = moduleExecution(info, 'M3');
+      var stoppedIssues = linkIssuesNode(runId, 'm3', m3View ? m3View.attemptId : null);
+      if (stoppedIssues) {
+        var stoppedBox = h('div');
+        stoppedBox.id = 'rdIssues';
+        stoppedBox.appendChild(stoppedIssues);
+        panel.appendChild(stoppedBox);
+      }
       return panel;
     }
 
