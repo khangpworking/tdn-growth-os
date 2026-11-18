@@ -3936,7 +3936,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var existing = state.reviewDrafts[runId];
     if (!existing || existing.m2 !== digest) {
       var input = savedPolicy || (view && view.defaultInput ? view.defaultInput : {});
-      var mode = input.mode === 'all' || input.mode === 'stars' ? input.mode : 'with-comments';
+      // The editable form offers only with-comments and stars; an old run saved as 'all' starts as with-comments.
+      var mode = input.mode === 'stars' ? 'stars' : 'with-comments';
       var stars = Array.isArray(input.stars) ? input.stars.filter(function (star) {
         return Number.isInteger(star) && star >= 1 && star <= 5;
       }) : [];
