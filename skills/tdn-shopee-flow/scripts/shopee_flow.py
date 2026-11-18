@@ -3183,16 +3183,13 @@ def cmd_metric_evidence(ns):
         sys.exit(20)
 
 
-_RUN_VIEW_BOUND = 30                                    # the view's own bound
-_RUN_VIEW_OUTPUT_BOUND = 30                             # the outputs bound, enforced inside the node process
-_RUN_VIEW_DEADLINE = _RUN_VIEW_BOUND + _RUN_VIEW_OUTPUT_BOUND
-_RUN_VIEW_MISSING = {                                   # the single command's error when no line arrives
+_RUN_VIEW_MISSING = {                                   # the single command's error when node exits without a part
     'sampling': ('REVIEW_COMMAND_FAILED', 20),
     'reviewData': ('REVIEW_DATA_FAILED', 20),
     'process': ('REVIEW_DATA_FAILED', 20),
     'stats': ('REVIEW_DATA_FAILED', 20),
     'insights': ('REVIEW_DATA_FAILED', 20),
-    'outputs': ('MODULE_OUTPUT_TIMEOUT', 20),
+    'outputs': ('MODULE_OUTPUT_INVALID', 20),
 }
 _RUN_VIEW_UNAVAILABLE = {                               # node cannot be started at all
     'sampling': ('REVIEW_INPUT_INVALID', 'REVIEW_INPUT_INVALID', 2),
@@ -3205,8 +3202,9 @@ _RUN_VIEW_UNAVAILABLE = {                               # node cannot be started
 
 
 def review_run_view_script(repo, config, run, result, on_sampling):
-    """One node process streams one JSON line per finished part; a stalled part never discards the
-    parts already received. Every missing part gets the error its single command would give."""
+    """One node process streams one JSON line per finished part; a slow part never discards the
+    parts already received. Only `outputs` has a bound (inside node), so the reader waits until node
+    exits; a part missing then gets the error its single command would give."""
     import selectors, shlex
     command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
     command = shlex.split(command) if isinstance(command, str) else command
@@ -3224,12 +3222,10 @@ def review_run_view_script(repo, config, run, result, on_sampling):
                        for name, (code, message, exit_code) in _RUN_VIEW_UNAVAILABLE.items() if name in names}
     selector = selectors.DefaultSelector()
     selector.register(child.stdout, selectors.EVENT_READ)
-    buffer, deadline, stalled = b'', time.monotonic() + _RUN_VIEW_DEADLINE, False
+    buffer = b''
     try:
         while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0 or not selector.select(remaining):
-                stalled = True
+            if not selector.select():
                 break
             chunk = os.read(child.stdout.fileno(), 65536)
             if not chunk:
@@ -3266,8 +3262,6 @@ def review_run_view_script(repo, config, run, result, on_sampling):
         if name in parts or name in errors:
             continue
         code, exit_code = _RUN_VIEW_MISSING[name]
-        if name == 'outputs' and not stalled:
-            code = 'MODULE_OUTPUT_INVALID'
         errors[name] = {'code': code, 'message': code, 'exitCode': exit_code}
     return parts, errors
 

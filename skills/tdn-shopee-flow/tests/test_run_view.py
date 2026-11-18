@@ -15,7 +15,7 @@ from unittest import mock
 from test_flow import RUN_ID, ROOT, SCRIPT, FlowTest, load_flow_script, request_payload
 
 RUNVIEW_NODE = '''#!/usr/bin/env python3
-import json, os, pathlib, sys, time
+import json, os, pathlib, sys
 
 args = sys.argv[1:]
 script = pathlib.Path(next(a for a in args if a.endswith('.ts'))).name
@@ -51,9 +51,12 @@ if script == 'module-run-view.ts':
     if '--result' in args[index + 2:]:
         parts += ['stats', 'insights']
     parts += ['outputs']
+    # A stalled source discovery never settles the parts that await it. Node would then wait forever;
+    # here it exits once the independent parts are done, so they still arrive and the rest are missing.
+    stalled = {'reviewData', 'process', 'stats', 'insights'} if os.environ.get('RUNVIEW_STALL') == 'discovery' else set()
     for part in parts:
-        if part == os.environ.get('RUNVIEW_STALL'):
-            time.sleep(90)
+        if part in stalled:
+            continue
         if part == os.environ.get('RUNVIEW_FAIL'):
             code = os.environ.get('RUNVIEW_CODE') or 'REVIEW_DATA_FAILED'
             emit(part, error={'code': code, 'message': code}, exit_code=int(os.environ.get('RUNVIEW_EXIT') or 20))
@@ -145,17 +148,18 @@ class RunViewTest(FlowTest):
         for name in ('info', 'sampling', 'reviewData', 'process', 'stats', 'insights'):
             self.assertIn(name, view['parts'])
 
-    def test_a_stalled_part_keeps_info_and_every_finished_part(self):
+    def test_a_stalled_discovery_keeps_info_and_outputs_equal_to_the_single_commands(self):
         run = self.make_run(request=request_payload(cap=5))
         (run / 'm3-custom').mkdir()
-        rc, view, stderr = self.run_view('--result', extra_env={'RUNVIEW_STALL': 'stats'})
+        rc, view, stderr = self.run_view('--result', extra_env={'RUNVIEW_STALL': 'discovery'})
         self.assertEqual(rc, 0, (view, stderr))
-        self.assertEqual(set(view['parts']), {'info', 'sampling', 'reviewData', 'process'})
+        self.assertEqual(set(view['parts']), {'info', 'sampling', 'outputs'})
         self.assertEqual(view['parts']['info'], self.command('run-info', '--run', RUN_ID)[1])
-        self.assertEqual(view['errors'], {
-            'stats': {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'},
-            'insights': {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'},
-            'outputs': {'code': 'MODULE_OUTPUT_TIMEOUT', 'message': 'MODULE_OUTPUT_TIMEOUT'}})
+        self.assertEqual(view['parts']['sampling'], self.command('review-sampling', '--run', RUN_ID)[1])
+        self.assertEqual(view['parts']['outputs'], self.command('outputs', '--run', RUN_ID)[1],
+                         'independent outputs succeeds while discovery is stalled')
+        self.assertEqual(view['errors'], {name: {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'}
+                                          for name in ('reviewData', 'process', 'stats', 'insights')})
 
     def test_an_invalid_node_command_keeps_the_exit_code_and_error_run_info_gives(self):
         run = self.make_run(request=request_payload(cap=5))

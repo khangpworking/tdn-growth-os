@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { reviewInsightCommentsView, reviewInsightsSummaryView, reviewInsightsView } from '../../scripts/module-review-data.js';
-import { boundedPart, reviewRunView, type RunViewLine } from '../../scripts/module-run-view.js';
+import { reviewRunView, type RunViewLine } from '../../scripts/module-run-view.js';
 import { addCustomAttempt, addLegacySource, createModuleRun, moduleRow } from '../fixtures/shopee-module-review-data.js';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -56,8 +56,9 @@ test('one node run-view streams one line per part, outputs included, each equal 
   const view = await reviewRunView(run.runDir, true, line => emitted.push(line));
   assert.equal(view.format, 'review-run-view-node-v1');
   assert.deepEqual(view.errors, {});
-  assert.deepEqual(Object.keys(view.parts), ['sampling', 'reviewData', 'process', 'stats', 'insights', 'outputs']);
-  assert.deepEqual(emitted.map(line => line.part), ['sampling', 'reviewData', 'process', 'stats', 'insights', 'outputs']);
+  const parts = ['insights', 'outputs', 'process', 'reviewData', 'sampling', 'stats'];
+  assert.deepEqual(Object.keys(view.parts).sort(), parts);
+  assert.deepEqual(emitted.map(line => line.part).sort(), parts, 'every part is streamed once, in settle order');
   assert.ok(emitted.every(line => line.ok), 'every part is streamed as a success line');
   const expected: Record<string, { script: string; args: string[] }> = {
     sampling: { script: 'scripts/module-review-sampling.ts', args: ['view', run.runDir] },
@@ -81,19 +82,58 @@ test('a part that cannot be read stays an error and never hides the others', asy
   const view = await reviewRunView(run.runDir, true, line => emitted.push(line));
   assert.deepEqual(view.errors, { sampling: { code: 'REVIEW_PLAN_INVALID', message: 'REVIEW_PLAN_INVALID', exitCode: 20 } });
   for (const name of ['reviewData', 'process', 'stats', 'insights', 'outputs']) assert.ok(view.parts[name], name);
-  assert.deepEqual(emitted.map(line => [line.part, line.ok]),
-    [['sampling', false], ['reviewData', true], ['process', true], ['stats', true], ['insights', true], ['outputs', true]]);
+  assert.deepEqual(Object.fromEntries(emitted.map(line => [line.part, line.ok])),
+    { sampling: false, reviewData: true, process: true, stats: true, insights: true, outputs: true });
 });
 
-test('the outputs bound is its own and yields MODULE_OUTPUT_TIMEOUT alone', async () => {
-  assert.equal(await boundedPart(Promise.resolve(7), 'MODULE_OUTPUT_TIMEOUT', 20), 7);
-  await assert.rejects(boundedPart(new Promise(() => {}), 'MODULE_OUTPUT_TIMEOUT', 10),
-    (error: any) => error.code === 'MODULE_OUTPUT_TIMEOUT' && error.exitCode === 20);
-  // Work that settles after its bound must not surface as an unhandled rejection.
-  const late = new Promise((_, reject) => setTimeout(() => reject(new Error('late')), 20));
-  await assert.rejects(boundedPart(late, 'MODULE_OUTPUT_TIMEOUT', 5),
-    (error: any) => error.code === 'MODULE_OUTPUT_TIMEOUT');
-  await new Promise(resolve => setTimeout(resolve, 40));
+test('the outputs bound is its own at the command boundary: a stalled outputs read times out alone', async t => {
+  const run = await fixture(t);
+  // gates/m1.json is read by the outputs part only, so a FIFO without a writer stalls just that part.
+  const gate = path.join(run.runDir, 'gates', 'm1.json');
+  await fs.rm(gate, { force: true });
+  await new Promise<void>((resolveMkfifo, reject) => {
+    const mkfifo = spawn('mkfifo', [gate], { stdio: 'ignore' });
+    mkfifo.on('error', reject);
+    mkfifo.on('close', code => code === 0 ? resolveMkfifo() : reject(new Error(`mkfifo exited ${code}`)));
+  });
+  const child = spawn(process.execPath, ['--import', 'tsx', path.join(ROOT, 'scripts/module-run-view.ts'), run.runDir, '--result'],
+    { cwd: ROOT, env: commandEnv(), stdio: ['ignore', 'pipe', 'ignore'] });
+  t.after(() => child.kill('SIGKILL'));
+  const lines: RunViewLine[] = [];
+  await new Promise<void>((resolveClose, reject) => {
+    let pending = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      pending += chunk;
+      let newline: number;
+      while ((newline = pending.indexOf('\n')) >= 0) {
+        const line = JSON.parse(pending.slice(0, newline)) as RunViewLine;
+        pending = pending.slice(newline + 1);
+        lines.push(line);
+        // The abandoned read is still open; stop the process once its timeout line has arrived.
+        if (line.part === 'outputs') child.kill('SIGKILL');
+      }
+    });
+    child.on('error', reject);
+    child.on('close', () => resolveClose());
+  });
+  const outputs = lines.find(line => line.part === 'outputs');
+  if (!outputs || outputs.ok) assert.fail('outputs did not time out');
+  assert.equal(outputs.error.code, 'MODULE_OUTPUT_TIMEOUT');
+  assert.equal(outputs.exitCode, 20);
+  const expected: Record<string, { script: string; args: string[] }> = {
+    sampling: { script: 'scripts/module-review-sampling.ts', args: ['view', run.runDir] },
+    reviewData: { script: 'scripts/module-review-data.ts', args: ['view', run.runDir] },
+    process: { script: 'scripts/module-review-data.ts', args: ['process-view', run.runDir] },
+    stats: { script: 'scripts/module-review-data.ts', args: ['stats', run.runDir] },
+    insights: { script: 'scripts/module-review-data.ts', args: ['insights-summary', run.runDir] },
+  };
+  for (const [name, call] of Object.entries(expected)) {
+    const { code, value, stderr } = await single(call.script, call.args);
+    assert.equal(code, 0, `${name}: ${stderr}`);
+    const line = lines.find(candidate => candidate.part === name);
+    if (!line || !line.ok) assert.fail(`${name} did not settle while outputs stalled`);
+    assert.deepEqual(line.value, value, name);
+  }
 });
 
 test('insights v2 rebuilds v1 from the summary and one comment list per bucket and theme', async t => {

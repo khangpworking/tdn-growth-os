@@ -1,8 +1,8 @@
 /**
  * One node process for the per-run read view: the same functions the single commands call, with one
- * verified-source discovery shared by every part. Each part is streamed as one JSON line as soon as
- * it is done, so a slow or failing part never discards the parts already received. Output
- * verification runs in this process under its own 30 s bound.
+ * verified-source discovery shared by every part. Every part starts at once and each streams one
+ * JSON line as soon as it settles, so a slow part never discards the others. Only `outputs` carries a
+ * bound, the same 30 s its single command has; every other part is unbounded, as its command is.
  */
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,12 +24,12 @@ const failure = (error:unknown, fallback:string, defaultExit:number):PartError =
   return { code, message:code, exitCode:error instanceof ModuleError ? error.exitCode : defaultExit };
 };
 /** The abandoned work may settle after its bound; a no-op handler keeps that from crashing the run. */
-export async function boundedPart<T>(work:Promise<T>, code:string, ms = OUTPUT_TIMEOUT):Promise<T> {
+async function bounded<T>(work:Promise<T>, code:string):Promise<T> {
   work.catch(() => {});
   let timer:NodeJS.Timeout|undefined;
   try {
     return await Promise.race([work, new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new ModuleError(code, 20)), ms);
+      timer = setTimeout(() => reject(new ModuleError(code, 20)), OUTPUT_TIMEOUT);
     })]);
   } finally { if (timer) clearTimeout(timer); }
 }
@@ -39,26 +39,31 @@ export async function reviewRunView(runArg:string, result:boolean, emit:(line:Ru
   const parts:Record<string,unknown> = {}, errors:Record<string,PartError> = {};
   let discovered:ReturnType<typeof discoverModuleReviewSources>|null = null;
   const sources = () => (discovered ??= discoverModuleReviewSources(run));
-  const capture = async (name:string, fallback:string, defaultExit:number, compute:()=>Promise<unknown>|unknown) => {
-    try {
-      const value = await compute();
-      parts[name] = value;
-      emit({ part:name, ok:true, value });
-    } catch (error) {
-      const failed = failure(error, fallback, defaultExit);
-      errors[name] = failed;
-      emit({ part:name, ok:false, error:{ code:failed.code, message:failed.message }, exitCode:failed.exitCode });
-    }
+  const pending:Promise<void>[] = [];
+  // Each part starts now and emits its line the moment it settles; settle order is the line order.
+  const start = (name:string, fallback:string, defaultExit:number, compute:()=>Promise<unknown>|unknown) => {
+    pending.push((async () => {
+      try {
+        const value = await compute();
+        parts[name] = value;
+        emit({ part:name, ok:true, value });
+      } catch (error) {
+        const failed = failure(error, fallback, defaultExit);
+        errors[name] = failed;
+        emit({ part:name, ok:false, error:{ code:failed.code, message:failed.message }, exitCode:failed.exitCode });
+      }
+    })());
   };
-  await capture('sampling','REVIEW_INPUT_INVALID',2,() => reviewSamplingView(run));
-  await capture('reviewData','REVIEW_DATA_FAILED',20,async () => reviewDataView(run, await sources()));
-  await capture('process','REVIEW_DATA_FAILED',20,async () =>
+  start('sampling','REVIEW_INPUT_INVALID',2,() => reviewSamplingView(run));
+  start('reviewData','REVIEW_DATA_FAILED',20,async () => reviewDataView(run, await sources()));
+  start('process','REVIEW_DATA_FAILED',20,async () =>
     reviewProcessView(run, await reviewProcessSettings(), await sources()));
   if (result) {
-    await capture('stats','REVIEW_DATA_FAILED',20,async () => reviewStatsView(run, await sources()));
-    await capture('insights','REVIEW_DATA_FAILED',20,async () => reviewInsightsSummaryView(run, await sources()));
+    start('stats','REVIEW_DATA_FAILED',20,async () => reviewStatsView(run, await sources()));
+    start('insights','REVIEW_DATA_FAILED',20,async () => reviewInsightsSummaryView(run, await sources()));
   }
-  await capture('outputs','MODULE_OUTPUT_INVALID',20,() => boundedPart(moduleOutputs(run), 'MODULE_OUTPUT_TIMEOUT'));
+  start('outputs','MODULE_OUTPUT_INVALID',20,() => bounded(moduleOutputs(run), 'MODULE_OUTPUT_TIMEOUT'));
+  await Promise.all(pending);
   return { format:'review-run-view-node-v1', runId:basename(run), parts, errors };
 }
 
