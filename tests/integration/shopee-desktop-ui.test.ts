@@ -60,6 +60,7 @@ function harness(options: {
   runsProgressFor?: (call: number) => any | Promise<any>;
   listRunsHold?: () => Promise<void> | undefined;
   listRunsError?: () => any;
+  listRunsReply?: (call: number) => any | Promise<any> | undefined;
   libraryResult?: any;
   hasFocus?: boolean;
   fastProgress?: boolean;
@@ -161,6 +162,8 @@ function harness(options: {
       if (hold) await hold;
       const failure = options.listRunsError && options.listRunsError();
       if (failure) return clone(failure);
+      const own = options.listRunsReply && await options.listRunsReply(state.listRunsCalls);
+      if (own) return clone(own);
       return { ok: true, data: { format: 'runs-v1', runs: state.runsView.slice() } };
     },
     library: async () => clone(options.libraryResult || ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } })),
@@ -3193,20 +3196,23 @@ test('a progress transition notifies once: never on the first poll, a Windows to
     progressRun('run-new', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'], { active: { step: 1, stage: null, done: null, total: null } }),
   ], '2026-11-16T09:00:15Z');
   const replies = [before, before, after];
+  // The server lists every run its progress has (a run missing from a later list counts as deleted).
+  const runs = ['run-running', 'run-pass', 'run-fail', 'run-old', 'run-new']
+    .map((runId) => ({ runId, product: 'Sản phẩm ' + runId, status: 'DONE' }));
 
-  const background = step4Harness({ runsProgressResults: replies, hasFocus: false, fastProgress: true });
+  const background = step4Harness({ runs, runsProgressResults: replies, hasFocus: false, fastProgress: true });
   try {
     await waitFor(() => background.state.runsProgressCalls >= 2, 'first two polls');
     assert.deepEqual(background.state.notifyCalls, [], 'nothing for the state seen at start');
     await waitFor(() => background.state.runsProgressCalls >= 6 && background.state.notifyCalls.length >= 2, 'later polls');
     assert.deepEqual(background.state.notifyCalls, [
       { title: 'Bước 4 dừng vì lỗi', body: 'Sản phẩm run-fail: Jev không trả lời sau 3 lần thử lại. Phần đã xong được giữ lại. Mở lượt để bấm «Chạy tiếp».' },
-      { title: 'Lượt bắt đầu chạy', body: 'Lượt run-new: bước 1 Lấy số liệu bán hàng đã bắt đầu.' },
+      { title: 'Lượt bắt đầu chạy', body: 'Sản phẩm run-new: bước 1 Lấy số liệu bán hàng đã bắt đầu.' },
     ]);
     assert.equal(element(background.doc, 'noticeBox').children.length, 0, 'no in-app notice behind other windows');
   } finally { background.dom.window.close(); }
 
-  const front = step4Harness({ runsProgressResults: replies, hasFocus: true, fastProgress: true });
+  const front = step4Harness({ runs, runsProgressResults: replies, hasFocus: true, fastProgress: true });
   try {
     await waitFor(() => front.state.runsProgressCalls >= 6 && element(front.doc, 'noticeBox').children.length === 2, 'notices');
     assert.deepEqual(front.state.notifyCalls, [], 'no Windows toast while the window is in front');
@@ -3811,5 +3817,60 @@ test('a run is gone only on delete, RUN_NOT_FOUND or a successful list without i
     [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
     await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm C'), '2: run-c still shows');
     await waitFor(() => run.state.statusCalls.includes('run-c'), '2: the kept request opens run-c');
+  } finally { run.dom.window.close(); }
+});
+
+// Rule (c) for a run first seen in progress (F645, Terra r3 on #508), one row each:
+// | # | situation                                                                     | expected                              |
+// |---|-------------------------------------------------------------------------------|---------------------------------------|
+// | 1 | run A only in progress (notice shown), then a list asked later without it     | A gone: no notice, bar idle, no list  |
+// | 2 | a list asked before A was seen answers late without it; a newer list has A    | A kept: listed, its notice stays      |
+// (r3 #2, a late «Xem bằng chứng» reply after the delete, writes no per-run state; nothing of it is visible.)
+test('a run seen only in progress is gone when a later list does not have it', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const startA = progressRun('run-a', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'], { active: { step: 1, stage: null, done: null, total: null } });
+  const bar = (doc: Document) => element<HTMLElement>(doc, 'runStatus').textContent!;
+  const listed = (doc: Document) => [...doc.querySelectorAll<HTMLButtonElement>('#runList button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const runsReply = (runs: any[]) => ({ ok: true, data: { format: 'runs-v1', runs } });
+
+  // 1
+  let phase = 'before';
+  let run = harness({ runs: [runB], runInfoByRun: { 'run-b': syntheticRunInfo('run-b') }, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply(phase === 'before' ? [] : [startA]) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '1: first polls');
+    const lists = run.state.listRunsCalls;
+    phase = 'after';
+    await waitFor(() => run.state.listRunsCalls > lists, '1: a list asked after A was seen');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    assert.equal(element(run.doc, 'noticeBox').children.length, 0, '1: no notice');
+    assert.equal(bar(run.doc), 'Không có lượt nào đang chạy', '1: bar idle');
+    assert.doesNotMatch(listed(run.doc), /Sản phẩm A/, '1: not listed');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  phase = 'before';
+  let early: Deferred<void> | null = null;
+  let earlyCall = 0;
+  run = harness({ runs: [runB], runInfoByRun: { 'run-b': syntheticRunInfo('run-b') }, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply(phase === 'before' ? [] : [startA]),
+    listRunsReply: async (call) => {
+      if (call === earlyCall && early) { await early.promise; return runsReply([runB]); }   // asked before A existed
+      return phase === 'after' ? runsReply([runA, runB]) : undefined;
+    } });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '2: first polls');
+    early = deferred<void>();
+    earlyCall = run.state.listRunsCalls + 1;
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();     // the early list, held
+    await waitFor(() => run.state.listRunsCalls >= earlyCall, '2: early list asked');
+    phase = 'after';
+    await waitFor(() => listed(run.doc).includes('Sản phẩm A'), '2: newer list has A');
+    early.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    assert.match(listed(run.doc), /Sản phẩm A/, '2: A kept in the list');
+    assert.ok(run.doc.querySelector('#noticeBox .notice') !== null, '2: its notice stays');
   } finally { run.dom.window.close(); }
 });

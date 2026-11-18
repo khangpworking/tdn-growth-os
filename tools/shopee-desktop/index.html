@@ -3146,8 +3146,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     // gone runs.
     goneRuns: [],
     goneTold: [],      // runs already told «Lượt này đã bị xóa.» (or deleted here)
-    metricListSeq: 0,
-    runsPromise: null,  // the step 1 run counts for (c) only in lists asked after its import finished
+    // runId -> the list number (runsSeq) when the app first saw it from any source: a list, progress
+    // (and so its notices and events) or a Metric import. Lists asked after that must contain it (c).
+    knownSince: {},
+    runsPromise: null,
     scrollTarget: null,
     noticeChain: Promise.resolve()
   };
@@ -4373,6 +4375,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     delete state.moduleEvidenceNotice[runId];
     if (state.selectedRunId === runId) renderDetail();
     var res = await api.openModuleEvidence(runId, kind, descriptor.sha256);
+    if (isGone(runId)) return;
     delete state.moduleEvidenceBusy[runId];
     if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
@@ -6608,7 +6611,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var first = !state.progressSeen;
     var previous = state.progressByRun;
     var next = {};
-    data.runs.forEach(function (run) { next[run.runId] = run; });
+    data.runs.forEach(function (run) { next[run.runId] = run; knowRun(run.runId); });
     state.progressByRun = next;
     state.progressRuns = data.runs;
     state.progressAt = data.generatedAt;
@@ -7077,7 +7080,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var res = await api.listRuns();
     if (seq !== state.runsSeq) return state.runsPromise;
     if (!res.ok) { showError(res.error); return null; }
-    var listedBefore = state.runs.map(function (run) { return run.runId; });
     state.runs = ((res.data && res.data.runs) || []).filter(function (run) { return !isGone(run.runId); });
     if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
       state.selectedRunId = null;
@@ -7086,12 +7088,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       stopPoll();
       renderDetail();
     }
-    // A run that was listed and is no longer (deleted here or by a coworker) leaves the progress bar
-    // and every cache too. A run progress shows before the list does (just created) is kept.
-    var missing = function (runId) { return !state.runs.some(function (item) { return item.runId === runId; }); };
-    listedBefore.filter(missing).forEach(forgetRun);
-    // The step 1 run (and «Xem lượt vừa tạo», the open it asked for) by the same rule (c).
-    if (state.metricRunId && seq > state.metricListSeq && missing(state.metricRunId)) forgetRun(state.metricRunId);
+    // Rule (c): a run known before this list was asked and not in it is gone (deleted here or elsewhere).
+    // A run first seen while this list was on its way (just created) is kept.
+    var listedIds = state.runs.map(function (run) { return run.runId; });
+    Object.keys(state.knownSince).forEach(function (runId) {
+      if (seq > state.knownSince[runId] && listedIds.indexOf(runId) === -1) forgetRun(runId);
+    });
+    listedIds.forEach(function (runId) { knowRun(runId, seq); });
     renderRunList();
     renderRunStatus();
     return res;
@@ -7099,6 +7102,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The one place that forgets a deleted run: every per-run cache (any state object keyed by runId),
   // progress, selection, pending opens, the step 1 «Xem lượt vừa tạo» and open notices.
+  function knowRun(runId, seq) {
+    if (!isGone(runId) && !Object.prototype.hasOwnProperty.call(state.knownSince, runId)) {
+      state.knownSince[runId] = seq === undefined ? state.runsSeq : seq;
+    }
+  }
+
   function isGone(runId) {
     return state.goneRuns.indexOf(runId) !== -1;
   }
@@ -8898,7 +8907,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var data = res.data;
     if (isGone(data.runId)) return;
     state.metricRunId = data.runId;
-    state.metricListSeq = state.runsSeq;      // lists asked from now on must contain it
+    knowRun(data.runId);                      // lists asked from now on must contain it
     state.preferredRunId = data.runId;
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
       : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';
