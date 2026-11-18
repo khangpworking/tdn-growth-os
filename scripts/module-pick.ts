@@ -250,10 +250,9 @@ export function auditMaskedRows(raw: unknown, links: readonly { revenue: number 
   }
   return { maskedRows, maskedAboveLowestPick };
 }
-/** `jev` gives the Jev client for a v2 run; only the command line below builds the real one. `now` is the clock
- *  of one M2 attempt's count work, shared with its link-check deadline. */
+/** `jev` gives the Jev client for a v2 run; only the command line below builds the real one. */
 export async function main(runDir: string, options: { jev?: () => PickJev; sleep?: (ms: number) => Promise<void>;
-    linkCollector?: () => LinkCollector; now?: () => Date } = {}) {
+    linkCollector?: () => LinkCollector } = {}) {
   const run = resolve(runDir);
   const metricInputSha256 = await prerequisite(run, 'm1');
   const request = await readRequest(run);
@@ -269,9 +268,13 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
           await validateModuleValue('link-check-log-v1', log);
           await atomicJson(run, 'm2/link-checks.json', log);
         };
-        // A new attempt starts a fresh log; earlier unbound entries never carry over.
+        // A retry drops the previous selection before starting a fresh log, so the two are never out of
+        // step: a crash between them leaves an unbound log, never an old selection bound to an empty one.
+        await unlink(await safePath(run, 'm2/selection.json')).catch(error => {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        });
         await publishLog([]);
-        const clock = options.now ?? (() => new Date());
+        const clock = () => new Date();
         // One deadline for this attempt's whole count work, reconciliation included.
         const deadline = clock().getTime() + LINK_CHECK_BUDGET_MS;
         let jev: PickJev;

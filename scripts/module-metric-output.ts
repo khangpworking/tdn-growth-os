@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
-import { verifiedCustomAttempt } from './module-review-sampling.js';
 import type { LinkCheckEntry } from './module-link-check.js';
 import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick } from './module-product-pick.js';
 
@@ -225,40 +224,37 @@ type LinkIssue = { stage: 'm2' | 'm3'; productBaseId: string; url: string; reaso
   replacedBy: string | null; attemptId: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Step-2 deaths: each rejected candidate, replaced by the next accepted pick when one followed.
- *  A selection that bound the log keeps it immutable; changed or missing bytes fail the projection instead of
- *  showing altered evidence. A stopped attempt's log has no selection binding it and is still projected. */
-async function m2LinkIssues(run: string, selection: unknown): Promise<LinkIssue[]> {
-  const proof = isRow(selection) ? selection.selectionProof : undefined;
-  const bound = isRow(proof) ? proof.linkChecksSha256 : undefined;
-  let entries: readonly LinkCheckEntry[];
-  if (bound === undefined) entries = (await savedLinkChecks(run).catch(() => null))?.entries ?? [];
-  else {
-    if (typeof bound !== 'string' || await hashFile(run, 'm2/link-checks.json').catch(() => null) !== bound)
-      throw new ModuleError('GATE_INPUT_CHANGED', 23);
-    entries = (await savedLinkChecks(run))?.entries ?? [];
-  }
+ *  A display list only: the saved log is read as it is, never compared with the selection proof. */
+async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
+  const entries = (await savedLinkChecks(run))?.entries ?? [];
   return entries.flatMap((entry, index) => entry.result !== 'rejected' ? [] : [{
     stage: 'm2' as const, productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string, at: entry.checkedAt,
     replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null }]);
 }
-/** Step-3 deaths: every verified attempt's outcome, newest attempt end first, each issue keeping its attemptId. */
+/** Step-3 deaths: every attempt that wrote a final outcome, even when a later journal stays unresolved,
+ *  newest attempt end first and each issue keeping its attemptId. A display list only: a missing or
+ *  malformed file contributes no items and never fails `outputs`. */
 async function m3LinkIssues(run: string): Promise<LinkIssue[]> {
   let names: string[];
   try { names = await readdir(await safePath(run, 'm3-custom/attempts')); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
-  const verified: { attemptId: string; links: unknown[]; outcome: Row; at: string }[] = [];
+  const completed: { attemptId: string; links: unknown[]; outcome: Row; at: string }[] = [];
   for (const attemptId of names.filter(name => UUID.test(name))) {
-    // An unfinished attempt contributes nothing; a completed one that no longer verifies throws GATE_INPUT_CHANGED.
-    const read = await verifiedCustomAttempt(run, attemptId);
-    if (!read || !Array.isArray(read.outcome.links)) continue;
-    verified.push({ attemptId, links: read.attempt.links, outcome: read.outcome,
-      at: read.state.endedAt ?? read.attempt.createdAt });
+    try {
+      const attempt = object(await readJson(run, `m3-custom/attempts/${attemptId}/attempt.json`));
+      const outcome = object(await readJson(run, `m3-custom/attempts/${attemptId}/output/outcome.json`));
+      if (outcome.format !== 'm3-custom-outcome-v1' || !Array.isArray(outcome.links) || !Array.isArray(attempt.links)) continue;
+      const state = await readJson(run, `m3-custom/attempts/${attemptId}/state.json`).catch(() => null);
+      const at = isRow(state) && typeof state.endedAt === 'string' ? state.endedAt : attempt.createdAt;
+      if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) continue;
+      completed.push({ attemptId, links: attempt.links, outcome, at });
+    } catch { /* A malformed attempt contributes nothing. */ }
   }
-  verified.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.attemptId.localeCompare(a.attemptId));
+  completed.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.attemptId.localeCompare(a.attemptId));
   const issues: LinkIssue[] = [];
-  for (const { attemptId, links, outcome, at } of verified) {
+  for (const { attemptId, links, outcome, at } of completed) {
     // `skipped` arrives with step-3 skip; outcomes without it leave no issue.
-    if (outcome.format !== 'm3-custom-outcome-v1' || (outcome.links as unknown[]).length !== links.length) continue;
+    if ((outcome.links as unknown[]).length !== links.length) continue;
     for (const [index, rawSummary] of (outcome.links as unknown[]).entries()) {
       const summary = rawSummary, link = links[index];
       if (!isRow(summary) || summary.skipped !== true || typeof summary.stopReason !== 'string' ||
@@ -341,8 +337,8 @@ export async function moduleOutputs(runArg: string) {
   m2.links = m2.links.map(link => ({ ...link, metricProduct: metricProduct(productRows, link.productBaseId) }));
   // panelCovered is a gate-only result, not an undocumented desktop field.
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
-  // A selection-bound step-2 log is verified as evidence; a stopped attempt's unbound log is still projected.
-  const m2Issues = await m2LinkIssues(run, selection);
+  // `linkIssues` is a display list: a malformed log or attempt contributes no items, never an error.
+  const m2Issues = await m2LinkIssues(run).catch(() => [] as LinkIssue[]);
   const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...await m3LinkIssues(run)] };
   await validateModuleValue('module-outputs-v1', wire);
   return wire;

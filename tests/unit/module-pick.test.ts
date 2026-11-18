@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -433,6 +433,29 @@ test('a step-2 stop after a completed check keeps that check in the log and publ
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('a retry drops the previous selection before it starts a fresh log', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['8731', '8732', '8733', '8734', '8735']);
+    await writeV2Run(dir, rows);
+    const { collector: healthy } = fakeLinkCollector();
+    const first = await main(dir, { jev: () => fakeJev(v2Answers(5)).jev, sleep: noWait, linkCollector: () => healthy });
+    assert.equal(first.verdict, 'PASS');
+    assert.ok(JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8')).entries.length > 0);
+    // The retry stops on its first check, so it never publishes a replacement selection.
+    let during: { selection: boolean; entries: unknown[] } | undefined;
+    const { collector: stopping } = fakeLinkCollector(() => {
+      during = { selection: existsSync(join(dir, 'm2/selection.json')),
+        entries: JSON.parse(readFileSync(join(dir, 'm2/link-checks.json'), 'utf8')).entries };
+      return { errorCode: 'HUMAN_LOGIN_REQUIRED' };
+    });
+    await assert.rejects(main(dir, { jev: () => fakeJev([answer(1, 'MOI', 0.9)]).jev, sleep: noWait,
+      linkCollector: () => stopping }), (error: unknown) => error instanceof ModuleError && error.code === 'HUMAN_LOGIN_REQUIRED');
+    assert.deepEqual(during, { selection: false, entries: [] }, 'the old selection is gone before the fresh log exists');
+    await assert.rejects(readFile(join(dir, 'm2/selection.json')), { code: 'ENOENT' });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('each completed step-2 verdict is on disk before the next check starts', async () => {
   const dir = await runDir();
   try {
@@ -485,7 +508,7 @@ test('a lost count-job submission keeps its journal under m2 and is reconciled b
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('one step-2 deadline covers reconciliation; an expired one keeps the unresolved journal', async () => {
+test('one step-2 deadline covers reconciliation; an expired one keeps the unresolved journal', async t => {
   const dir = await runDir();
   try {
     const rows = v2Rows(['8681', '8682']);
@@ -512,16 +535,19 @@ test('one step-2 deadline covers reconciliation; an expired one keeps the unreso
       (error: unknown) => error instanceof LinkCheckStop && error.code === 'LINK_CHECK_FAILED');
     assert.deepEqual([recovered, (await journals()).length], [0, 1], 'no recovery call; the journal is retained');
     // Time spent recovering counts against the same deadline, so no new count job starts afterwards.
-    let clock = Date.parse(at), reconciliation = false, newChecks = 0;
+    const atMs = Date.parse(at);
+    let reconciliation = false, newChecks = 0;
     const recovering = () => ({ run: async (file: string, _request: unknown, _link: unknown, _plan: unknown,
         reconcileOnly?: boolean, signal?: AbortSignal) => {
       if (!reconcileOnly) { newChecks++; throw new Error('synthetic: no count job after the shared deadline'); }
       reconciliation = true;
       assert.ok(signal instanceof AbortSignal, 'the recovery runs under the shared deadline');
-      clock += LINK_CHECK_BUDGET_MS;
+      // Recovery spends the whole shared budget; the attempt's own clock is the mocked wall clock.
+      t.mock.timers.setTime(atMs + LINK_CHECK_BUDGET_MS);
       return { ...(await readSamplingJournal(file))!, terminal: true };
     } });
-    await assert.rejects(main(dir, { jev: () => fakeJev(v2Answers(2)).jev, sleep: noWait, now: () => new Date(clock),
+    t.mock.timers.enable({ apis: ['Date'], now: atMs });
+    await assert.rejects(main(dir, { jev: () => fakeJev(v2Answers(2)).jev, sleep: noWait,
       linkCollector: recovering }), failed);
     assert.deepEqual([reconciliation, newChecks], [true, 0], 'the first new check is refused after recovery spent the budget');
   } finally { await rm(dir, { recursive: true, force: true }); }

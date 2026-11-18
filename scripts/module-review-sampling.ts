@@ -139,22 +139,6 @@ async function readAttempt(run:string,kind:Kind,id:string,attempt:ReviewSampling
   if(!unresolved&&stored.status==='SUCCEEDED'&&!stored.outputSha256)throw new ModuleError('REVIEW_RESULT_CHANGED');
   return {attempt,state:stored,journals:js,plan,unresolved,live,status,stopRequested};
 }
-/** Step-4 projection: an unfinished attempt contributes nothing; a completed attempt that fails its
- *  identity or output verification fails the projection instead of hiding its evidence. */
-export async function verifiedCustomAttempt(run:string,id:string){
-  if(!uuid.test(id))return null;
-  let attempt:ReviewSamplingAttempt;
-  try{attempt=await metadata(run,'custom',id);}catch(error){
-    // A reservation that never wrote its metadata is genuinely unfinished.
-    if(error instanceof ModuleError&&error.code==='REVIEW_RESERVATION_INCOMPLETE')return null;
-    throw new ModuleError('GATE_INPUT_CHANGED',23);
-  }
-  let read:Awaited<ReturnType<typeof readAttempt>>;
-  try{read=await readAttempt(run,'custom',id,attempt);}catch{throw new ModuleError('GATE_INPUT_CHANGED',23);}
-  if(read.unresolved||!read.state.outputSha256)return null;
-  try{return {attempt:read.attempt,state:read.state,outcome:object(await readJson(run,`${attemptPath('custom',id)}/output/outcome.json`))};}
-  catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return null;throw new ModuleError('GATE_INPUT_CHANGED',23);}
-}
 export async function assertSamplingIdle(run:string,exclude?:{kind:Kind,id:string},checkLegacy=true):Promise<void>{
   const automatic=await automaticBinding(run);
   if(automatic&&!(exclude?.kind==='custom'&&exclude.id===automatic.attemptId))await metadata(run,'custom',automatic.attemptId);
