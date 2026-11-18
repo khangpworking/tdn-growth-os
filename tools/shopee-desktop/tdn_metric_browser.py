@@ -295,7 +295,26 @@ def keyword_of(body):
     return None
 
 
-MIN_SHOPEE_PRODUCTS = 5   # step 2 needs 5 distinct Shopee products (FEWER_THAN_FIVE_DISTINCT_PRODUCTS)
+PRODUCT_SELECTION_MAX = 100
+
+
+def valid_product_selection(value):
+    """`productSelection` of the m1-import payload (CONTRACT-F644 §1): {"mode":"top","count":1..100}
+    or {"mode":"all"}."""
+    if not isinstance(value, dict):
+        return False
+    if value.get('mode') == 'all':
+        return set(value) == {'mode'}
+    count = value.get('count')
+    return (value.get('mode') == 'top' and set(value) == {'mode', 'count'} and type(count) is int and
+            1 <= count <= PRODUCT_SELECTION_MAX)
+
+
+def needed_shopee_products(selection):
+    """Fewest Shopee products step 2 can work with: N for top N (5 without a choice), 1 for all."""
+    if selection is None:
+        return 5
+    return 1 if selection['mode'] == 'all' else selection['count']
 
 
 def shopee_product_count(response):
@@ -346,7 +365,8 @@ def _valid_scope(scope):
     return start <= end
 
 
-def build_import_payload(*, import_id, keyword, captured_at, collection_policy, scope, response):
+def build_import_payload(*, import_id, keyword, captured_at, collection_policy, scope, response,
+                         product_selection=None):
     """The exact `metric-user-page-import-v1` stdin object (CONTRACT-m1-import.md)."""
     try:
         if uuid.UUID(import_id).version != 4 or str(uuid.UUID(import_id)) != import_id:
@@ -369,6 +389,10 @@ def build_import_payload(*, import_id, keyword, captured_at, collection_policy, 
     payload = {'format': IMPORT_FORMAT, 'importId': import_id, 'keyword': keyword, 'capturedAt': captured_at,
                'collectionPolicy': copy.deepcopy(collection_policy), 'scope': copy.deepcopy(scope),
                'response': {k: response[k] for k in ('urlPath', 'method', 'status', 'requestBody', 'body')}}
+    if product_selection is not None:
+        if not valid_product_selection(product_selection):
+            raise MetricFailure('IMPORT_INPUT_INVALID')
+        payload['productSelection'] = copy.deepcopy(product_selection)
     if len(canonical(payload).encode('utf-8')) > IMPORT_MAX_BYTES:
         raise MetricFailure('IMPORT_TOO_LARGE')
     return payload
@@ -938,7 +962,7 @@ class MetricSession:
             'pending': None if pending is None else {'keyword': pending['keyword'], 'period': period_text(pending['scope'])},
         }
 
-    def capture(self, collection_policy, screenshot_dir=None):
+    def capture(self, collection_policy, screenshot_dir=None, product_selection=None):
         """Freeze, shoot the full Metric page, ask Metric once, build the payload and keep it as pending
         (with its shot). Caller holds ``busy``. ``screenshot_dir``: where the click's shot is saved."""
         if self.pending is not None:
@@ -973,11 +997,13 @@ class MetricSession:
         response = listener.fetch_top_products(frozen, request_in_page_source(self._js_path),
                                                screenshot_saved=shot is not None)
         payload = build_import_payload(import_id=str(uuid.uuid4()), keyword=keyword, captured_at=now_iso(),
-                                       collection_policy=collection_policy, scope=scope, response=response)
+                                       collection_policy=collection_policy, scope=scope, response=response,
+                                       product_selection=product_selection)
         count = shopee_product_count(response)
-        if count < MIN_SHOPEE_PRODUCTS:
+        needed = needed_shopee_products(product_selection)
+        if count < needed:
             # Step 2 would always fail: send nothing, keep nothing for «Gửi lại».
-            raise MetricFailure('METRIC_TOO_FEW_SHOPEE', detail={'shopeeProducts': count})
+            raise MetricFailure('METRIC_TOO_FEW_SHOPEE', detail={'shopeeProducts': count, 'needed': needed})
         self.pending = payload
         self.pending_shot = shot if linkable else None
         return payload

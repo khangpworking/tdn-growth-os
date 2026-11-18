@@ -17,7 +17,7 @@ async function waitFor(check: () => boolean, label: string, ms = 3000): Promise<
   }
 }
 
-function page(views: any[], take?: (input: any) => Promise<any>) {
+function page(views: any[], take?: (input: any) => Promise<any>, lastSelection: any = null) {
   const calls: { method: string; args: any[] }[] = [];
   let view = 0;
   const record = (method: string, answer: (...args: any[]) => any) => async (...args: any[]) => {
@@ -34,6 +34,8 @@ function page(views: any[], take?: (input: any) => Promise<any>) {
     takeMetricReviews: record('takeMetricReviews', (input: any) => (take ? take(input) : { ok: false, error: { code: 'X', message: 'X' } })),
     resendMetricImport: record('resendMetricImport', () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: true, step2: { ok: true } } })),
     discardMetricImport: record('discardMetricImport', () => ({ ok: true, data: { pending: null } })),
+    lastProductSelection: record('lastProductSelection', () => ({ ok: true, data: { productSelection: lastSelection } })),
+    rememberProductSelection: record('rememberProductSelection', (value: any) => ({ ok: true, data: { productSelection: value } })),
     newRun: record('newRun', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
     runFlow: record('runFlow', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
     runModule: record('runModule', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
@@ -86,8 +88,9 @@ test('the open pill and one click send the frozen policy once, then step 2 is re
     await waitFor(() => !p.$('metricNotice').hidden, 'notice');
     const takes = p.calls.filter((c) => c.method === 'takeMetricReviews');
     assert.equal(takes.length, 1);
-    assert.deepEqual(takes[0]!.args, [{ collectionPolicy: { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' } }]);
-    assert.match(p.$('metricNotice').textContent!, /Đã tạo lượt a1b2c3d4 từ số liệu Metric\. App đang chạy bước 2 \(chọn 5 link Shopee\), rồi tự chạy bước 3 và bước 4/);
+    assert.deepEqual(takes[0]!.args, [{ collectionPolicy: { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' },
+      productSelection: { mode: 'top', count: 5 } }]);
+    assert.match(p.$('metricNotice').textContent!, /Đã tạo lượt a1b2c3d4 từ số liệu Metric\. App đang chạy bước 2 \(chọn link Shopee\), rồi tự chạy bước 3 và bước 4/);
     assert.equal(p.$('metricDone').hidden, false);
     for (const name of ['newRun', 'runFlow', 'runModule']) assert.ok(!p.names().includes(name), name);
   } finally {
@@ -95,21 +98,21 @@ test('the open pill and one click send the frozen policy once, then step 2 is re
   }
 });
 
-test('fewer than 5 Shopee products is a yellow warning, nothing sent, and the button works again', async () => {
-  let answer: any = { ok: false, error: { code: 'METRIC_TOO_FEW_SHOPEE', message: 'METRIC_TOO_FEW_SHOPEE', detail: { shopeeProducts: 3 } } };
+test('fewer Shopee products than needed is a yellow warning, nothing sent, and the button works again', async () => {
+  let answer: any = { ok: false, error: { code: 'METRIC_TOO_FEW_SHOPEE', message: 'METRIC_TOO_FEW_SHOPEE', detail: { shopeeProducts: 3, needed: 5 } } };
   const p = page([SEEN], async () => answer);
   try {
     await waitFor(() => p.$('btnTakeReviews').disabled === false, 'take enabled');
     p.$('btnTakeReviews').click();
     await waitFor(() => !p.$('metricWarn').hidden, 'warning');
     assert.equal(p.$('metricWarn').className, 'warnbar');
-    assert.equal(p.$('metricWarn').textContent, 'Bộ lọc chỉ có 3 sản phẩm Shopee, cần ít nhất 5. Mở rộng bộ lọc trên Metric rồi bấm lại.');
+    assert.equal(p.$('metricWarn').textContent, 'Bộ lọc chỉ có 3 sản phẩm Shopee, cần ít nhất 5.');
     assert.equal(p.$('metricErr').hidden, true);
     assert.equal(p.$('btnResendImport').hidden, true);
     await waitFor(() => p.$('btnTakeReviews').disabled === false, 'can click again');
-    answer = { ok: false, error: { code: 'METRIC_TOO_FEW_SHOPEE', message: 'METRIC_TOO_FEW_SHOPEE', detail: { shopeeProducts: 0 } } };
+    answer = { ok: false, error: { code: 'METRIC_TOO_FEW_SHOPEE', message: 'METRIC_TOO_FEW_SHOPEE', detail: { shopeeProducts: 0, needed: 1 } } };
     p.$('btnTakeReviews').click();
-    await waitFor(() => /chỉ có 0 sản phẩm Shopee/.test(p.$('metricWarn').textContent!), 'N = 0');
+    await waitFor(() => p.$('metricWarn').textContent === 'Bộ lọc chỉ có 0 sản phẩm Shopee, cần ít nhất 1.', 'all, 0');
     answer = { ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } };
     await waitFor(() => p.$('btnTakeReviews').disabled === false, 'enabled again');
     p.$('btnTakeReviews').click();
@@ -147,6 +150,56 @@ test('a Metric error is told in plain words; «Mở Metric» reports the browser
     await waitFor(() => !p.$('metricErr').hidden, 'error');
     assert.equal(p.$('metricErr').textContent,
       'Metric chưa đăng nhập hoặc đã hết phiên. Đăng nhập lại trên Chrome rồi bấm lại. App đã lưu ảnh trang Metric lúc lỗi để người quản trị xem.');
+  } finally {
+    p.dom.window.close();
+  }
+});
+
+// «Sản phẩm bán chạy» (F644 §5), one row each:
+// | form                                  | sent productSelection     | take button |
+// |---------------------------------------|---------------------------|-------------|
+// | opens with the last choice (top 8)    | {mode: top, count: 8}     | enabled     |
+// | Top 0 or 101                          | –                         | disabled    |
+// | «Tất cả»                              | {mode: all}               | enabled     |
+// Each valid change is kept (rememberProductSelection); Top 0/101 is not kept (Terra r1 #4). Quick changes
+// save only the latest value, once (r2 #3).
+test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choice, and refuses Top outside 1–100', async () => {
+  const p = page([SEEN], async () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } }),
+    { mode: 'top', count: 8 });
+  try {
+    await waitFor(() => p.$('btnTakeReviews').disabled === false && p.$('newTopCount').value === '8', 'last choice');
+    const group = p.$('newSelectionGroup');
+    assert.equal(group.querySelector('legend')!.textContent, 'Sản phẩm bán chạy');
+    assert.deepEqual([...group.querySelectorAll('.chip')].map((c) => c.textContent), ['Lọc trùng', 'Không lọc trùng']);
+    p.$('btnTakeReviews').click();
+    await waitFor(() => p.calls.filter((c) => c.method === 'takeMetricReviews').length === 1, 'top 8 sent');
+    assert.deepEqual(p.calls.find((c) => c.method === 'takeMetricReviews')!.args[0].productSelection, { mode: 'top', count: 8 });
+    await waitFor(() => !p.$('metricNotice').hidden, 'done');
+    const kept = () => p.calls.filter((c) => c.method === 'rememberProductSelection').map((c) => c.args[0]);
+    for (const value of ['7', '9']) {
+      p.$('newTopCount').value = value;
+      p.$('newTopCount').dispatchEvent(new p.dom.window.Event('input', { bubbles: true }));
+    }
+    await waitFor(() => kept().length === 1, 'top 9 kept');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    assert.deepEqual(kept(), [{ mode: 'top', count: 9 }]);
+    for (const bad of ['0', '101']) {
+      p.$('newTopCount').value = bad;
+      p.$('newTopCount').dispatchEvent(new p.dom.window.Event('input', { bubbles: true }));
+      assert.equal(p.$('btnTakeReviews').disabled, true, bad);
+      assert.equal(p.$('metricTakeHint').textContent, 'Top từ 1 đến 100.', bad);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    assert.equal(kept().length, 1, 'invalid Top not kept');
+    const all = group.querySelector<HTMLInputElement>('input[value="all"]')!;
+    all.checked = true;
+    all.dispatchEvent(new p.dom.window.Event('change', { bubbles: true }));
+    assert.equal(p.$('btnTakeReviews').disabled, false);
+    await waitFor(() => kept().length === 2, 'all kept');
+    assert.deepEqual(kept().at(-1), { mode: 'all' });
+    p.$('btnTakeReviews').click();
+    await waitFor(() => p.calls.filter((c) => c.method === 'takeMetricReviews').length === 2, 'all sent');
+    assert.deepEqual(p.calls.filter((c) => c.method === 'takeMetricReviews')[1]!.args[0].productSelection, { mode: 'all' });
   } finally {
     p.dom.window.close();
   }

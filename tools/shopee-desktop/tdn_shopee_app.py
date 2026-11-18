@@ -60,6 +60,7 @@ _COMMANDS = {
     'reviewProcess': ('review-process', '--run'),
     'processReviewData': ('process-review-data', '--run'),
     'runsProgress': ('runs-progress',),
+    'deleteRun': ('delete-run', '--run'),
 }
 # Step 4 formats (review-process-view-v1, review-process-start-v1, runs-progress-v1).
 _STEP4_STATES = frozenset({'IDLE', 'RUNNING', 'PASS', 'FAIL'})
@@ -226,7 +227,13 @@ def _publish_without_replacing(temp_path, destination):
     raise _BridgeFailure('SAVE_FAILED')
 
 
-def _choose_save_path(file_name):
+def _downloads_folder():
+    """The user's Downloads folder when it exists, else None (the dialog then opens where it likes)."""
+    folder = Path.home() / 'Downloads'
+    return str(folder) if folder.is_dir() else None
+
+
+def _choose_save_path(file_name, directory=None):
     try:
         import webview
     except ImportError:
@@ -237,10 +244,13 @@ def _choose_save_path(file_name):
             dialog_type = getattr(getattr(webview, 'FileDialog', None), 'SAVE')
         windows = getattr(webview, 'windows', None)
         window = windows[0] if windows else None
+        options = {'save_filename': file_name}
+        if directory is not None:
+            options['directory'] = directory
         if window is not None and hasattr(window, 'create_file_dialog'):
-            selected = window.create_file_dialog(dialog_type, save_filename=file_name)
+            selected = window.create_file_dialog(dialog_type, **options)
         else:
-            selected = webview.create_file_dialog(dialog_type, save_filename=file_name)
+            selected = webview.create_file_dialog(dialog_type, **options)
     except Exception:
         raise _BridgeFailure('SAVE_DIALOG_FAILED') from None
     if isinstance(selected, (list, tuple)):
@@ -289,6 +299,11 @@ def _config_path():
     if not appdata:
         raise _BridgeFailure('CONFIG_MISSING')
     return Path(appdata) / 'tdn-shopee-flow' / 'config.json'
+
+
+def _choice_path():
+    """The last «Sản phẩm bán chạy» choice, next to config.json (the web view keeps no storage)."""
+    return _config_path().parent / 'product-selection.json'
 
 
 def _load_config():
@@ -414,7 +429,7 @@ class Api:
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats', 'reviewInsights',
                       'saveReviewData', 'exportReviewData', 'readReviewExport', 'reviewProcess',
-                      'processReviewData'):
+                      'processReviewData', 'deleteRun'):
             words.append(self._run_id(run_id))
         if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
             words.append('--stdin')
@@ -617,18 +632,19 @@ class Api:
     def openModuleEvidence(self, runId, kind, sha256):
         return self._safe(lambda: self._open_module_evidence(runId, kind, sha256))
 
-    def _open_module_evidence(self, run_id, kind, digest):
-        run_id, digest = self._run_id(run_id), self._sha256(digest)
-        names = {'full-page': ('m1', 'fullPage', 'full-page.png', 'image/png'),
-                 'top-products': ('m2', 'topProducts', 'top-products.png', 'image/png'),
-                 'raw': ('m1', 'raw', 'raw-responses.json', 'application/json')}
-        if kind not in names:
+    _EVIDENCE_NAMES = {'full-page': ('m1', 'fullPage', 'full-page.png', 'image/png'),
+                       'top-products': ('m2', 'topProducts', 'top-products.png', 'image/png'),
+                       'raw': ('m1', 'raw', 'raw-responses.json', 'application/json')}
+
+    def _evidence_descriptor(self, run_id, kind, digest):
+        """The server's descriptor of a saved evidence file, checked against ``kind`` and ``digest``."""
+        if kind not in self._EVIDENCE_NAMES:
             raise _BridgeFailure('ARG_INVALID')
         result = self._remote('moduleOutputs', run_id=run_id)
         if not result['ok']:
-            return result
+            raise _BridgeFailure(result['error']['code'])
         data = result['data']
-        module, key, file_name, media_type = names[kind]
+        module, key, file_name, media_type = self._EVIDENCE_NAMES[kind]
         if data.get('format') != 'module-outputs-v1' or data.get('runId') != run_id:
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         descriptor = data.get(module, {}).get('evidence', {}).get(key)
@@ -641,6 +657,17 @@ class Api:
                 descriptor['fileName'] != file_name or descriptor['mediaType'] != media_type or descriptor['errorCode'] is not None or
                 type(descriptor['byteSize']) is not int or not 1 <= descriptor['byteSize'] <= EXPORT_MAX_BYTES):
             raise _BridgeFailure('EVIDENCE_IDENTITY_MISMATCH')
+        return descriptor
+
+    def _open_module_evidence(self, run_id, kind, digest):
+        run_id, digest = self._run_id(run_id), self._sha256(digest)
+        if kind not in self._EVIDENCE_NAMES:
+            raise _BridgeFailure('ARG_INVALID')
+        try:
+            descriptor = self._evidence_descriptor(run_id, kind, digest)
+        except _BridgeFailure as failure:
+            return _error(failure.code)
+        file_name = self._EVIDENCE_NAMES[kind][2]
         try:
             folder = _evidence_folder()
             destination = self._stream_export(run_id, digest, descriptor['byteSize'], folder / file_name,
@@ -678,6 +705,87 @@ class Api:
         except OSError:
             raise _BridgeFailure('EVIDENCE_OPEN_FAILED') from None
         return {'ok': True, 'data': {'format': 'local-metric-shot-open-v1', 'runId': self._run_id(run_id), 'opened': True}}
+
+    # ---- «Tải ảnh»: a copy of the Metric picture, same source order as «Xem ảnh Metric» ----
+
+    def saveMetricShot(self, runId=None, name=None, sha256=None):
+        return self._safe(lambda: self._save_metric_shot(runId, name, sha256))
+
+    def _save_metric_shot(self, run_id, name, digest):
+        """The run's local picture, else the server's full-page picture (``digest``), saved where the user
+        picks. Default name ``<run name>-<runId>.png`` in Downloads. The original stays."""
+        run_id = self._run_id(run_id)
+        if name is not None and not isinstance(name, str):
+            raise _BridgeFailure('ARG_INVALID')
+        local = self._local_metric_shot(run_id)
+        descriptor = None
+        if local is None:
+            if digest is None:
+                raise _BridgeFailure('EVIDENCE_LOCAL_MISSING')
+            digest = self._sha256(digest)
+            descriptor = self._evidence_descriptor(run_id, 'full-page', digest)
+        # Clean the name first, then cut it so the whole «-<runId>.png» always fits in 120 characters.
+        suffix = f'-{run_id}.png'
+        name = re.sub(r'[\\/]', '_', name.strip()) if isinstance(name, str) else ''
+        stem = os.path.splitext(_safe_filename(name, 'png'))[0] if name else ''
+        stem = stem[:120 - len(suffix)].rstrip('. ')
+        suggested = stem + suffix if stem else _safe_filename(run_id, 'png')
+        selected = _choose_save_path(suggested, _downloads_folder())
+        if selected is None:
+            return {'ok': True, 'data': {'format': 'metric-shot-save-v1', 'runId': run_id,
+                                         'saved': False, 'cancelled': True, 'fileName': suggested}}
+        destination = Path(selected)
+        if descriptor is not None:
+            self._stream_export(run_id, digest, descriptor['byteSize'], destination, evidence_kind='full-page')
+        else:
+            self._copy_local_file(local, destination)
+        return {'ok': True, 'data': {'format': 'metric-shot-save-v1', 'runId': run_id,
+                                     'saved': True, 'cancelled': False, 'fileName': destination.name}}
+
+    @staticmethod
+    def _copy_local_file(source, destination):
+        folder = destination.parent
+        if not folder.is_dir():
+            raise _BridgeFailure('SAVE_FAILED')
+        try:
+            handle, temp_name = tempfile.mkstemp(prefix='.tdn-shopee-', suffix='.part', dir=str(folder))
+        except OSError:
+            raise _BridgeFailure('SAVE_FAILED') from None
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(handle, 'wb') as out, open(source, 'rb') as data:
+                shutil.copyfileobj(data, out)
+                out.flush()
+                os.fsync(out.fileno())
+            os.replace(temp_path, destination)
+        except OSError:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+            raise _BridgeFailure('SAVE_FAILED') from None
+
+    # ---- «Xóa lượt» (`delete-run --run <id>`, not detached) ----
+
+    def deleteRun(self, runId=None):
+        return self._safe(lambda: self._delete_run(runId))
+
+    def _delete_run(self, run_id):
+        run_id = self._run_id(run_id)
+        result = self._remote('deleteRun', run_id=run_id)
+        if not result['ok']:
+            return result
+        data = result['data']
+        if data != {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}:
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        # The run is gone on the server: its picture on this PC goes too (never through a link/junction).
+        local = self._local_metric_shot(run_id)
+        if local is not None:
+            try:
+                local.unlink()
+            except OSError:
+                pass
+        return {'ok': True, 'data': dict(data, localShotDeleted=self._local_metric_shot(run_id) is None)}
 
     def newRun(self, input=None):
         return self._safe(lambda: self._new_run(input))
@@ -1592,6 +1700,46 @@ class Api:
                 return result
         return self._safe(run)
 
+    def lastProductSelection(self):
+        return self._safe(self._last_product_selection)
+
+    @staticmethod
+    def _last_product_selection():
+        try:
+            value = json.loads(_choice_path().read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            value = None
+        if not tdn_metric_browser.valid_product_selection(value):
+            value = None
+        return {'ok': True, 'data': {'productSelection': value}}
+
+    def rememberProductSelection(self, value=None):
+        return self._safe(lambda: self._remember_product_selection(value))
+
+    @staticmethod
+    def _remember_product_selection(value):
+        """Kept when the form's choice changes. Best effort: a failed write only means the form opens
+        with Top 5 next time."""
+        if not tdn_metric_browser.valid_product_selection(value):
+            raise _BridgeFailure('ARG_INVALID')
+        temp = None
+        try:
+            path = _choice_path()
+            handle, temp = tempfile.mkstemp(prefix='.product-selection-', suffix='.part', dir=str(path.parent))
+            with os.fdopen(handle, 'w', encoding='utf-8') as out:
+                out.write(json.dumps(value))
+            os.replace(temp, path)
+            temp = None
+        except (OSError, _BridgeFailure):
+            pass
+        finally:
+            if temp is not None:
+                try:
+                    os.unlink(temp)
+                except OSError:
+                    pass
+        return {'ok': True, 'data': {'productSelection': value}}
+
     def metricBrowserState(self):
         return self._metric_safe(lambda: {'ok': True, 'data': self._metric_session().view()})
 
@@ -1608,16 +1756,21 @@ class Api:
 
     def _take_metric_reviews(self, value):
         if (not isinstance(value, dict) or 'collectionPolicy' not in value or
-                set(value) - {'collectionPolicy'}):
+                set(value) - {'collectionPolicy', 'productSelection'}):
             raise _BridgeFailure('ARG_INVALID')
         self._validate_collection_policy(value['collectionPolicy'])
+        selection = value.get('productSelection')
+        if 'productSelection' in value:
+            if not tdn_metric_browser.valid_product_selection(selection):
+                raise _BridgeFailure('ARG_INVALID')
         session = self._metric_session()
         if not session.busy.acquire(blocking=False):
             raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
         try:
             # The click's picture comes first, before the server config is read: a missing or invalid
             # config still leaves the picture (and the kept payload for «Gửi lại») on this PC.
-            session.capture(value['collectionPolicy'], screenshot_dir=_prepare_metric_shot_folder())
+            session.capture(value['collectionPolicy'], screenshot_dir=_prepare_metric_shot_folder(),
+                            product_selection=selection)
             config = _load_config()
             return self._send_metric_import(session, config)
         finally:

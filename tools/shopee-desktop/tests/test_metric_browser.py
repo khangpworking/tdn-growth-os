@@ -1022,6 +1022,8 @@ class BridgeTest(unittest.TestCase):
         patches = [mock.patch.object(tdn_shopee_app, '_load_config', lambda: dict(self.CONFIG)),
                    mock.patch.object(tdn_shopee_app, '_evidence_folder', lambda: pathlib.Path(self.tmp.name)),
                    mock.patch.object(tdn_shopee_app, '_metric_shot_folder', lambda: self.shots),
+                   mock.patch.object(tdn_shopee_app, '_choice_path',
+                                     lambda: pathlib.Path(self.tmp.name) / 'product-selection.json'),
                    mock.patch.object(self.api, '_remote', self.fake_remote)]
         for patch in patches:
             patch.start()
@@ -1057,7 +1059,7 @@ class BridgeTest(unittest.TestCase):
                 self.session.rows = answer
                 result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
                 self.assertEqual(result['error']['code'], 'METRIC_TOO_FEW_SHOPEE')
-                self.assertEqual(result['error']['detail'], {'shopeeProducts': count})
+                self.assertEqual(result['error']['detail'], {'shopeeProducts': count, 'needed': 5})
                 self.assertEqual(self.remote_calls, [])               # no m1-import, no run
                 self.assertIsNone(self.session.pending)               # nothing for «Gửi lại»
                 self.assertFalse(self.session.busy.locked())          # can click again at once
@@ -1078,6 +1080,145 @@ class BridgeTest(unittest.TestCase):
                 data = {'format': 'module-outputs-v1', 'runId': 'a1b2c3d4', 'm1': {}, 'm2': {}, **extra}
                 self.answers = [{'ok': True, 'data': json.loads(json.dumps(data))}]
                 self.assertEqual(self.api.moduleOutputs('a1b2c3d4'), {'ok': True, 'data': data})
+
+    def test_product_selection_rows(self):
+        """CONTRACT-F644 §5, one row each:
+        | choice sent              | Shopee products | result                                                  |
+        |--------------------------|-----------------|---------------------------------------------------------|
+        | top 8                    | 7               | METRIC_TOO_FEW_SHOPEE {7, needed 8}; nothing sent/kept  |
+        | top 8                    | 8               | m1-import has productSelection top 8; «Gửi lại» = same  |
+        | all                      | 0               | METRIC_TOO_FEW_SHOPEE {0, needed 1}; nothing sent       |
+        | all                      | 1               | m1-import has productSelection all                      |
+        | top 0, 101, "5", True, all+count, other mode | – | ARG_INVALID; Metric not asked            |
+        A valid choice is remembered when the form changes (Terra r1 #4); an invalid one is refused, not kept."""
+        shopee = lambda n: [{'product_base_id': f'1__{i}', 'revenue_custom': 100 - i} for i in range(n)]
+        top8, every = {'mode': 'top', 'count': 8}, {'mode': 'all'}
+        for label, choice, count in (('top 8, 7', top8, 7), ('all, 0', every, 0)):
+            with self.subTest(label):
+                self.session.rows = shopee(count)
+                result = self.api.takeMetricReviews({'collectionPolicy': POLICY, 'productSelection': choice})
+                self.assertEqual(result['error']['code'], 'METRIC_TOO_FEW_SHOPEE')
+                self.assertEqual(result['error']['detail'],
+                                 {'shopeeProducts': count, 'needed': 8 if choice is top8 else 1})
+                self.assertEqual(self.remote_calls, [])
+                self.assertIsNone(self.session.pending)
+        with self.subTest('top 8, 8 and the resend'):
+            self.session.rows = shopee(8)
+            self.answers = [tdn_shopee_app._BridgeFailure('SSH_TIMEOUT')]
+            self.assertFalse(self.api.takeMetricReviews({'collectionPolicy': POLICY, 'productSelection': top8})['ok'])
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.resendMetricImport()['ok'])
+            self.assertEqual(self.remote_calls[0][2]['productSelection'], top8)
+            self.assertEqual(self.remote_calls[1][2], self.remote_calls[0][2])    # the same payload, same importId
+        with self.subTest('all, 1'):
+            self.setUp_fresh()
+            self.session.rows = shopee(1)
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY, 'productSelection': every})['ok'])
+            self.assertEqual(self.remote_calls[0][2]['productSelection'], every)
+        with self.subTest('remembered on change'):
+            self.assertEqual(self.api.rememberProductSelection(top8)['ok'], True)
+            self.assertEqual(self.api.rememberProductSelection({'mode': 'top', 'count': 0})['error']['code'], 'ARG_INVALID')
+            self.assertEqual(self.api.lastProductSelection()['data'], {'productSelection': top8})
+            self.assertEqual(self.api.rememberProductSelection(every)['ok'], True)    # the latest wins
+            self.assertEqual(self.api.lastProductSelection()['data'], {'productSelection': every})
+            self.assertEqual(list(pathlib.Path(self.tmp.name).glob('*.part')), [])  # each write's own temp, gone
+        for bad in ({'mode': 'top', 'count': 0}, {'mode': 'top', 'count': 101}, {'mode': 'top', 'count': '5'},
+                    {'mode': 'top', 'count': True}, {'mode': 'all', 'count': 5}, {'mode': 'best'}, None):
+            with self.subTest(bad=bad):
+                self.setUp_fresh()
+                result = self.api.takeMetricReviews({'collectionPolicy': POLICY, 'productSelection': bad})
+                self.assertEqual(result['error']['code'], 'ARG_INVALID')
+                self.assertEqual(self.session.fetches, 0)
+                self.assertEqual(self.remote_calls, [])
+
+    def test_delete_run_rows(self):
+        """CONTRACT-F644 §4, one row each:
+        | server answer                         | result                                   | picture on this PC |
+        |---------------------------------------|------------------------------------------|--------------------|
+        | run-delete-v1, deleted                | ok                                       | deleted            |
+        | RUN_ACTIVE                            | RUN_ACTIVE                               | stays              |
+        | another shape                         | REMOTE_OUTPUT_INVALID                    | stays              |
+        The command is `delete-run --run <id>`, not detached."""
+        picture = self.shots / 'a1b2c3d4-metric-full-page.png'
+        deleted = {'format': 'run-delete-v1', 'runId': 'a1b2c3d4', 'deleted': True}
+        for label, answer, code in (
+                ('RUN_ACTIVE', {'ok': False, 'error': {'code': 'RUN_ACTIVE', 'message': 'RUN_ACTIVE'}}, 'RUN_ACTIVE'),
+                ('shape', {'ok': True, 'data': dict(deleted, deleted=False)}, 'REMOTE_OUTPUT_INVALID'),
+                ('deleted', {'ok': True, 'data': dict(deleted)}, None)):
+            with self.subTest(label):
+                self.shots.mkdir(exist_ok=True)
+                picture.write_bytes(b'\x89PNG')
+                self.answers = [answer]
+                self.remote_calls = []
+                result = self.api.deleteRun('a1b2c3d4')
+                self.assertEqual(self.remote_calls, [('deleteRun', 'a1b2c3d4', None)])
+                if code is None:
+                    self.assertEqual(result, {'ok': True, 'data': dict(deleted, localShotDeleted=True)})
+                    self.assertFalse(picture.exists())
+                else:
+                    self.assertEqual(result['error']['code'], code)
+                    self.assertTrue(picture.exists())
+        _, lines = tdn_shopee_app.Api._remote_plan(self.api, 'deleteRun', run_id='a1b2c3d4', config=dict(self.CONFIG))
+        self.assertTrue(lines[-1].endswith('shopee_flow.py" delete-run --run a1b2c3d4'))
+
+    def test_save_metric_picture_rows(self):
+        """CONTRACT-F644 §3, one row each:
+        | picture source                 | dialog | result                                                      |
+        |--------------------------------|--------|-------------------------------------------------------------|
+        | local picture                  | a path | a copy there; the original stays; name «<run name>-<id>.png» |
+        | local picture                  | cancel | nothing written                                             |
+        | none here, server full page    | a path | the server picture (full-page, its sha256) written there    |
+        | none here, no server picture   | –      | EVIDENCE_LOCAL_MISSING, no dialog                           |
+        | local, 120-character run name  | a path | the name is cut, «-<runId>.png» kept (Terra r1 #3)          |
+        |   same, name starting with «.» | a path | cleaned first, then cut: the whole suffix kept (r2 #2)      |"""
+        out = pathlib.Path(self.tmp.name) / 'out'
+        out.mkdir()
+        self.shots.mkdir()
+        original = self.shots / 'a1b2c3d4-metric-full-page.png'
+        original.write_bytes(b'\x89PNG local')
+        dialog = mock.Mock(return_value=str(out / 'chosen.png'))
+        with mock.patch.object(tdn_shopee_app, '_choose_save_path', dialog), \
+                mock.patch.object(tdn_shopee_app, '_downloads_folder', lambda: 'DOWNLOADS'):
+            with self.subTest('local'):
+                result = self.api.saveMetricShot('a1b2c3d4', 'Canxi: hộp/30', None)
+                self.assertEqual(result['data'], {'format': 'metric-shot-save-v1', 'runId': 'a1b2c3d4',
+                                                  'saved': True, 'cancelled': False, 'fileName': 'chosen.png'})
+                dialog.assert_called_once_with('Canxi_ hộp_30-a1b2c3d4.png', 'DOWNLOADS')
+                self.assertEqual((out / 'chosen.png').read_bytes(), b'\x89PNG local')
+                self.assertEqual(original.read_bytes(), b'\x89PNG local')
+            with self.subTest('cancel'):
+                dialog.return_value = None
+                result = self.api.saveMetricShot('a1b2c3d4', 'Canxi', None)
+                self.assertEqual((result['data']['saved'], result['data']['cancelled']), (False, True))
+                self.assertEqual(sorted(p.name for p in out.iterdir()), ['chosen.png'])
+            with self.subTest('server'):
+                original.unlink()
+                dialog.return_value = str(out / 'server.png')
+                digest = 'a' * 64
+                descriptor = {'available': True, 'kind': 'full-page', 'sha256': digest, 'byteSize': 4,
+                              'mediaType': 'image/png', 'fileName': 'full-page.png', 'errorCode': None}
+                self.answers = [{'ok': True, 'data': {'format': 'module-outputs-v1', 'runId': 'a1b2c3d4',
+                                                      'm1': {'evidence': {'fullPage': descriptor}}}}]
+                streamed = []
+                with mock.patch.object(self.api, '_stream_export',
+                                       lambda *args, **kw: streamed.append((args, kw))):
+                    self.assertTrue(self.api.saveMetricShot('a1b2c3d4', 'Canxi', digest)['data']['saved'])
+                self.assertEqual(streamed, [(('a1b2c3d4', digest, 4, out / 'server.png'), {'evidence_kind': 'full-page'})])
+            with self.subTest('none'):
+                dialog.reset_mock()
+                self.assertEqual(self.api.saveMetricShot('a1b2c3d4', 'Canxi', None)['error']['code'],
+                                 'EVIDENCE_LOCAL_MISSING')
+                dialog.assert_not_called()
+            for label, name in (('long name', 'x' * 120), ('long name starting with a dot', '.' + 'x' * 119)):
+                with self.subTest(label):
+                    original.write_bytes(b'\x89PNG local')
+                    dialog.return_value = None
+                    self.api.saveMetricShot('a1b2c3d4', name, None)
+                    suggested = dialog.call_args[0][0]
+                    self.assertTrue(suggested.endswith('x-a1b2c3d4.png'), suggested)
+                    self.assertFalse(suggested.startswith('.'), suggested)
+                    self.assertLessEqual(len(suggested), 120)
 
     def shot_files(self):
         return sorted(path.name for path in self.shots.glob('*.png')) if self.shots.exists() else []
