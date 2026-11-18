@@ -587,42 +587,45 @@ def gate_path(run, relative):
 def gate_hash(run, relative):
     import hashlib
     try:
-        if relative in ('m1/', 'm3/'):
-            folder = gate_path(run, relative)
-            if not folder.is_dir():
-                return None
+        path = gate_path(run, relative)
+        if path.is_dir():
             files = []
-            for path in folder.rglob('*'):
-                gate_path(run, path.relative_to(run).as_posix())
-                if path.is_file():
-                    files.append(path.relative_to(folder).as_posix())
-                elif not path.is_dir():
+            for item in path.rglob('*'):
+                gate_path(run, item.relative_to(run).as_posix())
+                if item.is_file():
+                    files.append(item)
+                elif not item.is_dir():
                     raise ValueError('unsupported evidence file')
-            lines = ''.join(f'{name}\t{hashlib.sha256(gate_path(run, relative + name).read_bytes()).hexdigest()}\n'
-                            for name in sorted(files))
+            lines = ''.join(f'{item.relative_to(path).as_posix()}\t{hashlib.sha256(item.read_bytes()).hexdigest()}\n'
+                            for item in sorted(files, key=lambda p: p.relative_to(path).as_posix()))
             return hashlib.sha256(lines.encode('utf8')).hexdigest()
-        return hashlib.sha256(gate_path(run, relative).read_bytes()).hexdigest()
+        return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
 
 
+def gate_slip_passed(slip, run, gate):
+    return (isinstance(slip, dict) and slip.get('format') == 'handoff-v1'
+            and slip.get('runId') == run.name and slip.get('module') == gate.upper()
+            and slip.get('verdict') == 'PASS')
+
+
 def gate_prerequisite(run, previous, input_sha):
-    """Shared B1/B2 barrier. Returns (errorCode, exitCode), or (None, 0)."""
+    """Shared B1/B2 barrier. Returns (errorCode, exitCode), or (None, 0).
+    Identity, verdict and the input binding all come from one receipt read, so a gate that
+    changes between two reads cannot mix a PASS verdict with another receipt's hash."""
     if previous is None:
         return None, 0
-    if not gate_passed(run, previous):
-        return 'GATE_NOT_PASSED', 22
     slip = gate_read(gate_path(run, f'gates/{previous}.json'))
+    if not gate_slip_passed(slip, run, previous):
+        return 'GATE_NOT_PASSED', 22
     if input_sha is None or slip.get('outputSha256') != input_sha:
         return 'GATE_INPUT_CHANGED', 23
     return None, 0
 
 
 def gate_passed(run, gate):
-    slip = gate_read(gate_path(run, f'gates/{gate}.json'))
-    return (isinstance(slip, dict) and slip.get('format') == 'handoff-v1'
-            and slip.get('runId') == run.name and slip.get('module') == gate.upper()
-            and slip.get('verdict') == 'PASS')
+    return gate_slip_passed(gate_read(gate_path(run, f'gates/{gate}.json')), run, gate)
 
 
 def flow_user_page(request):
@@ -635,6 +638,71 @@ def flow_user_page(request):
 
 def flow_user_page_run(run):
     return flow_user_page(gate_read(gate_path(run, 'request.json')))
+
+
+def flow_passed_automatic_attempt(run):
+    """The automatic configured M3 attempt that is complete for the current inputs, or None.
+
+    Canonical evidence is the attempt's own binding, receipt, state and output plus its
+    execution record; gates/m3.json is the legacy receipt and never describes this attempt.
+    Caller holds the run flock."""
+    automatic = gate_read(gate_path(run, 'm3-custom/automatic.json'))
+    attempt_id = automatic.get('attemptId') if isinstance(automatic, dict) else None
+    if not isinstance(attempt_id, str) or not re.fullmatch(r'[a-f0-9-]{36}', attempt_id):
+        return None
+    base = f'm3-custom/attempts/{attempt_id}'
+    attempt = gate_read(gate_path(run, f'{base}/attempt.json'))
+    state = gate_read(gate_path(run, f'{base}/state.json'))
+    slip = gate_read(gate_path(run, f'{base}/gate.json'))
+    hex64 = lambda value: isinstance(value, str) and re.fullmatch(r'[a-f0-9]{64}', value)
+    if not (isinstance(attempt, dict) and isinstance(state, dict) and isinstance(slip, dict)
+            and automatic.get('format') == 'shopee-automatic-review-binding-v1'
+            and automatic.get('runId') == run.name and attempt.get('attemptId') == attempt_id
+            and attempt.get('format') == 'shopee-review-attempt-v1'
+            and state.get('format') == 'shopee-review-attempt-state-v1'
+            and attempt.get('runId') == run.name
+            and automatic.get('planSha256') == attempt.get('planSha256')
+            and attempt.get('requestSha256') == gate_hash(run, 'request.json')
+            and attempt.get('m2Digest') == gate_hash(run, 'm2/selection.json')
+            and automatic.get('requestSha256') == attempt.get('requestSha256')
+            and automatic.get('m2Digest') == attempt.get('m2Digest')):
+        return None
+    if not (state.get('status') == 'SUCCEEDED' and state.get('errorCode') is None and hex64(state.get('outputSha256'))
+            and slip.get('format') == 'handoff-v1' and slip.get('module') == 'M3' and slip.get('runId') == run.name
+            and slip.get('verdict') == 'PASS' and slip.get('errorCode') is None
+            and slip.get('inputSha256') == attempt.get('planSha256')
+            and slip.get('outputSha256') == state.get('outputSha256')
+            and gate_hash(run, f'{base}/output') == state.get('outputSha256')):
+        return None
+    record = next((r for r in flow_execution_records(run) if r.get('attemptId') == attempt_id), None)
+    if not (record and record.get('module') == 'M3' and record.get('status') == 'SUCCEEDED'
+            and record.get('executionId') == attempt.get('executionId')
+            and record.get('sequence') == attempt.get('sequence')):
+        return None
+    return attempt_id
+
+
+def flow_step4_complete(run, attempt_id):
+    """Step 4 is done for this M3 source when its worker state says PASS; a missing link or a
+    recorded stop means the automatic start still has to continue."""
+    link = gate_read(gate_path(run, f'm4/m3/{attempt_id}.json'))
+    source = link.get('sourceSha256') if isinstance(link, dict) and link.get('errorCode') is None else None
+    if not isinstance(source, str) or not re.fullmatch(r'[a-f0-9]{64}', source):
+        return False
+    state = gate_read(gate_path(run, f'm4/{source}/state.json'))
+    return (isinstance(state, dict) and state.get('format') == 'review-process-state-v1'
+            and state.get('runId') == run.name and state.get('sourceSha256') == source
+            and state.get('status') == 'PASS')
+
+
+def flow_user_page_pending(run):
+    """Modules a user-page run still has to run, plus the completed automatic M3 attempt when
+    only step 4 is left. Caller holds the run flock."""
+    pending = [] if gate_passed(run, 'm2') else ['m2']
+    attempt = flow_passed_automatic_attempt(run)
+    if attempt is None:
+        pending.append('m3')
+    return pending, attempt
 
 
 def gate_date(value):
@@ -1642,20 +1710,18 @@ def cmd_module(ns):
     run, lock, slip, code, error, execution, last_execution = None, None, None, 0, None, None, None
     owns_lock = False
     mode, module = ('flow' if ns.cmd == 'run' else 'single'), ('m1' if ns.cmd == 'run' else ns.cmd)
+    pending, user_page, m3_continuation = [], False, None
     try:
         run = module_run_folder(ns.run_id)
         repo, config = module_config()
-        pending = ('m1', 'm2', 'm3') if ns.cmd == 'run' else (ns.cmd,)
         if ns.cmd == 'run' and flow_user_page_run(run):
             # m1-import already gated this run's M1 on the desktop capture, so the flow
-            # never starts (or re-runs) M1 here: it continues at the first module without
-            # a PASS gate. A missing/changed M1 gate is the existing barrier refusal.
+            # never starts (or re-runs) M1 here. A missing/changed M1 gate is the existing
+            # barrier refusal; which modules are left is decided under the run lock below.
             m1_error, m1_exit = gate_prerequisite(run, 'm1', gate_hash(run, 'm1/'))
             if m1_error:
                 raise ModuleFailure(m1_error, m1_exit)
-            pending = tuple(name for name in ('m2', 'm3') if not gate_passed(run, name))
-            if pending:
-                module = pending[0]
+            user_page = True
         worker_fd, ready_fd = getattr(ns, 'worker_lock_fd', None), getattr(ns, 'worker_ready_fd', None)
         if worker_fd is not None:
             if ready_fd is None or worker_fd < 3 or ready_fd < 3 or ready_fd == worker_fd:
@@ -1673,8 +1739,12 @@ def cmd_module(ns):
             if not isinstance(state, dict) or state.get('pid') != os.getpid() or state.get('status') != 'RUNNING':
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
             execution = next((r for r in flow_execution_records(run) if r['executionId'] == state.get('executionId')), None)
-            if not execution or execution['module'] != module.upper() or execution['pid'] != os.getpid():
+            allowed = ('M2', 'M3') if user_page else ('M1',) if ns.cmd == 'run' else (ns.cmd.upper(),)
+            if not execution or execution['module'] not in allowed or execution['pid'] != os.getpid():
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
+            # Resume the execution the parent admitted before selecting any later module.
+            module = execution['module'].lower()
+            pending = [module]
         else:
             if ready_fd is not None:
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
@@ -1690,6 +1760,17 @@ def cmd_module(ns):
                 slip, code = evaluate_gate(run, 'entry')
                 if code == 0 or not gate_path(run, 'gates/entry.json').exists():
                     module_atomic_json(run, 'gates/entry.json', slip)
+            if code == 0:
+                # Selected only after the lock and the live-state check, so another command that
+                # just finished a module is seen instead of being attempted again.
+                if user_page:
+                    pending, attempt = flow_user_page_pending(run)
+                    if pending:
+                        module = pending[0]
+                    elif attempt is not None and not flow_step4_complete(run, attempt):
+                        module, m3_continuation = 'm3', attempt
+                else:
+                    pending = ['m1', 'm2', 'm3'] if ns.cmd == 'run' else [ns.cmd]
             if code == 0 and pending and getattr(ns, 'detach', False):
                 execution, _ = module_admit(run, module, ns, repo, config, mode)
                 print(json.dumps(flow_detach(run, ns, lock, execution)))
@@ -1709,7 +1790,14 @@ def cmd_module(ns):
                     break
                 if module == 'm3':
                     review_process_after_m3(run, repo, config, execution['attemptId'])
+                    execution = None
+                    break
+                if ns.cmd == 'run':
+                    rest = flow_user_page_pending(run)[0] if user_page else ['m1', 'm2', 'm3']
+                    pending.extend(name for name in rest if name not in pending)
                 execution = None
+            if code == 0 and m3_continuation:
+                review_process_after_m3(run, repo, config, m3_continuation)
     except ModuleFailure as failure:
         error, code = failure.code, failure.exit_code
         if owns_lock and code not in (2, 24):

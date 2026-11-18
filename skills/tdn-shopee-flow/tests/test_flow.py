@@ -4,21 +4,29 @@ Each test owns temp runs, state and presets roots. The `run` command is only
 called on a run whose first verdict is not PASS, or while a run is busy, so no
 module subprocess starts. A fake `node` on PATH records any start.
 """
+import argparse
+import contextlib
+import fcntl
 import hashlib
 import http.server
+import importlib.util
+import io
 import json
 import os
 import pathlib
 import re
 import shutil
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 import uuid
+from unittest import mock
 import datetime as dt
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -245,6 +253,34 @@ class FlowTest(unittest.TestCase):
         for name, slip in gates:
             write_json(run / 'gates' / f'{name}.json', slip)
         return run
+
+
+def load_flow_script():
+    spec = importlib.util.spec_from_file_location('shopee_flow_contract', SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class PrerequisiteBarrierTests(FlowTest):
+    """The shared B1/B2 barrier reads one receipt for identity, verdict and output hash."""
+
+    def test_one_receipt_read_cannot_mix_a_pass_verdict_with_another_hash(self):
+        flow = load_flow_script()
+        run = self.runs / RUN_ID
+        passed = {'format': 'handoff-v1', 'runId': RUN_ID, 'module': 'M1', 'verdict': 'PASS',
+                  'outputSha256': 'a' * 64}
+        failed = {**passed, 'verdict': 'FAIL'}
+        receipts = []
+
+        def changing(path):
+            receipts.append(path)
+            return passed if len(receipts) == 1 else failed
+
+        with mock.patch.object(flow, 'gate_read', changing):
+            result = flow.gate_prerequisite(run, 'm1', 'a' * 64)
+        self.assertEqual(result, (None, 0))
+        self.assertEqual(len(receipts), 1, 'the verdict and the output hash must come from the same receipt')
 
 
 class MetricDateAvailabilityTests(FlowTest):
@@ -1050,6 +1086,7 @@ elif script == 'module-pick.ts':
                       'revenue': 1000 - rank, 'reason': f'Hạng {rank}'})
     write(run / 'm2' / 'selection.json', {
         'format': 'selection-v1', 'runId': run.name, 'source': 'auto', 'pickRuleVersion': rule,
+        'metricInputSha256': json.loads((run / 'gates' / 'm1.json').read_text())['outputSha256'],
         'links': links, 'counts': {'walked': 5, 'deleted': 0, 'notIncluded': 0, 'tokenGuardRejected': 0,
                                    'eligible': 5, 'picked': 5, 'maskedRows': 0, 'maskedAboveLowestPick': 0}})
     pathlib.Path(os.environ['USER_PAGE_PICK_MARKER']).touch()
@@ -1078,6 +1115,17 @@ elif script == 'module-review-data.ts':
 else:
     raise SystemExit('unexpected module script')
 '''
+
+# The production automatic M3 binding and step 4 run through the real TS boundary; only
+# the Metric/pick scripts stay synthetic so the run keeps the user-page shape.
+USER_PAGE_REAL_NODE = USER_PAGE_NODE.replace(
+    "elif script == 'module-review-sampling.ts':",
+    "elif script in ('module-review-sampling.ts', 'module-review-data.ts'):\n"
+    "    real = os.environ.get('TDN_REAL_NODE')\n"
+    "    if not real:\n"
+    "        raise SystemExit('real node is required for the production M3 binding')\n"
+    "    os.execv(real, [real, *sys.argv[1:]])\n"
+    "elif script == 'module-review-sampling.ts':", 1)
 
 USER_PAGE_IMPORT_ID = '3f6c2a1e-8b9d-4c1e-9f00-1234567890ab'
 
@@ -1171,6 +1219,55 @@ class UserPageRunTests(FlowTest):
         self.assertEqual((state['status'], state['module'], state['mode']), ('DONE', 'M3', 'flow'))
         self.assertEqual(json.loads((run / 'gates' / 'm2.json').read_text())['verdict'], 'PASS')
 
+    def test_pending_modules_are_selected_after_the_run_lock(self):
+        """Another command finishes M2 while this run waits for the lock: the continuation must start at M3."""
+        run_id = self.imported('7a1b2c3d-0000-4000-8000-000000000004')
+        run = self.runs / run_id
+        selection = {
+            'format': 'selection-v1', 'runId': run_id, 'source': 'auto',
+            'pickRuleVersion': next(m['ruleVersion'] for m in MODULES['modules'] if m['id'] == 'M2'),
+            'metricInputSha256': None,
+            'links': [{'rank': rank, 'productBaseId': f'1__{7200 + rank}__{72 + rank}',
+                       'shopId': str(72 + rank), 'itemId': str(7200 + rank),
+                       'url': f'https://shopee.vn/product/{72 + rank}/{7200 + rank}',
+                       'brand': 'Synthetic Brand', 'revenue': 1000 - rank, 'reason': f'Hạng {rank}'}
+                      for rank in range(1, 6)],
+            'counts': {'walked': 5, 'deleted': 0, 'notIncluded': 0, 'tokenGuardRejected': 0,
+                       'eligible': 5, 'picked': 5, 'maskedRows': 0, 'maskedAboveLowestPick': 0},
+        }
+        published, real_flock = [], fcntl.flock
+
+        def finish_m2_then_lock(fd, operation):
+            if not published:
+                published.append(True)
+                selection['metricInputSha256'] = sha_folder(run / 'm1')
+                (run / 'm2').mkdir(mode=0o700, exist_ok=True)
+                (run / 'm2' / 'selection.json').write_bytes(json.dumps(selection).encode('utf8'))
+                write_json(run / 'gates' / 'm2.json', {
+                    'format': 'handoff-v1', 'module': 'M2', 'runId': run_id, 'skillVersion': 'test',
+                    'verdict': 'PASS', 'inputSha256': sha_folder(run / 'm1'),
+                    'outputSha256': hashlib.sha256((run / 'm2' / 'selection.json').read_bytes()).hexdigest(),
+                    'checks': [], 'errorCode': None, 'next': None})
+            return real_flock(fd, operation)
+
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, self.env(), clear=False):
+            flow = load_flow_script()
+            ns = types.SimpleNamespace(cmd='run', run_id=run_id, detach=False, manual=None, plan_sha256=None,
+                                       worker_lock_fd=None, worker_ready_fd=None)
+            with mock.patch('fcntl.flock', finish_m2_then_lock):
+                try:
+                    with contextlib.redirect_stdout(out):
+                        flow.cmd_module(ns)
+                except SystemExit as exited:
+                    code = exited.code
+        self.assertEqual(code, 0, out.getvalue())
+        result = json.loads(out.getvalue())
+        self.assertEqual((result['status'], result['errorCode']), ('DONE', None), result)
+        self.assertFalse(self.pick_marker.exists(), 'the M2 that finished under the lock was not attempted again')
+        self.assertEqual([record['module'] for record in self.executions(run_id)], ['M3'])
+        self.assertTrue(self.step4_marker.exists(), 'the continuation reached step 4')
+
     def test_run_refuses_when_the_m1_gate_is_not_pass_and_executes_nothing(self):
         for import_id, break_gate in ((USER_PAGE_IMPORT_ID, 'unlink'),
                                       ('7a1b2c3d-0000-4000-8000-000000000001', 'fail')):
@@ -1189,6 +1286,75 @@ class UserPageRunTests(FlowTest):
                 self.assertEqual(self.executions(run_id), [], 'nothing was admitted')
                 self.assertFalse((run / 'm2' / 'selection.json').exists(), 'M2 did not run')
                 self.assertFalse(self.pick_marker.exists(), 'no module subprocess started')
+
+
+class UserPageConfiguredFlowTests(FlowTest):
+    """A user-page run continues through the real production automatic M3 binding and step 4."""
+
+    def setUp(self):
+        super().setUp()
+        self.real_node = shutil.which('node')
+        if not self.real_node or not (ROOT / 'node_modules' / 'tsx').is_dir():
+            self.skipTest('real node with tsx is unavailable for the TS sampling boundary')
+        node = self.bin / 'node'
+        node.write_text(USER_PAGE_REAL_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+        try:
+            self.transport = _SamplingTransport()
+        except OSError:
+            try:
+                self.transport = _SamplingTransport(host='::1')
+            except OSError:
+                self.skipTest('the local collector port is unavailable on both loopback families')
+        self.addCleanup(self.transport.close)
+        self.pick_marker = pathlib.Path(self._tmp.name) / 'pick-called'
+        self.step4_marker = pathlib.Path(self._tmp.name) / 'step4-called'
+
+    def env(self, extra=None):
+        env = super().env(extra)
+        env['TDN_WORKSPACE_DB'] = str(pathlib.Path(self._tmp.name) / 'app.db')
+        env['TDN_REAL_NODE'] = self.real_node
+        env['REAL_TS_SAMPLING'] = '1'
+        env['TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED'] = '1'
+        env['TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN'] = 'synthetic-token'
+        env['TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL'] = self.transport.url
+        env['USER_PAGE_PICK_MARKER'] = str(self.pick_marker)
+        env['USER_PAGE_STEP4_MARKER'] = str(self.step4_marker)
+        return env
+
+    def imported(self, import_id=USER_PAGE_IMPORT_ID):
+        payload = user_page_payload(import_id)
+        payload['collectionPolicy'] = {'mode': 'stars', 'stars': [3, 2], 'totalPerLink': 50, 'allocation': 'pooled'}
+        rc, result, stderr = self.command('m1-import', '--stdin', stdin=json.dumps(payload))
+        self.assertEqual(rc, 0, (result, stderr))
+        return result['runId']
+
+    def test_run_continues_step4_from_a_passed_automatic_m3_attempt(self):
+        run_id = self.imported()
+        run = self.runs / run_id
+        auto = run / 'm4' / 'auto.json'
+        auto_bytes = auto.read_bytes()
+        auto.unlink()  # an interruption between M3 completion and the step-4 dispatch
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual(payload['status'], 'DONE', payload)
+        attempts = sorted((run / 'm3-custom' / 'attempts').iterdir())
+        self.assertEqual(len(attempts), 1, attempts)
+        attempt_id = attempts[0].name
+        binding = run / 'm3-custom' / 'automatic.json'
+        binding_bytes = binding.read_bytes()
+        self.assertEqual(json.loads(binding_bytes)['attemptId'], attempt_id)
+        self.assertFalse((run / 'm4' / 'm3' / f'{attempt_id}.json').exists(), 'step 4 did not start')
+
+        auto.write_bytes(auto_bytes)
+        rc, payload, stderr = self.command('run', '--run', run_id)
+        self.assertEqual(rc, 0, (payload, stderr))
+        self.assertEqual((payload['status'], payload['errorCode']), ('DONE', None), payload)
+        self.assertEqual([path.name for path in (run / 'm3-custom' / 'attempts').iterdir()], [attempt_id],
+                         'M3 was not collected again')
+        self.assertEqual(binding.read_bytes(), binding_bytes, 'the automatic binding is unchanged')
+        self.assertTrue((run / 'm4' / 'm3' / f'{attempt_id}.json').is_file(),
+                        'step 4 continued with the passed attempt')
 
 
 class _SamplingState:
@@ -1282,10 +1448,16 @@ class _SamplingHandler(http.server.BaseHTTPRequestHandler):
 
 
 class _SamplingTransport:
-    def __init__(self):
+    """Serves the fixed collector port on IPv4 or IPv6 loopback; the provider accepts both."""
+
+    def __init__(self, port=8877, host='127.0.0.1'):
         self.sampling = _SamplingState()
-        self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 8877), _SamplingHandler)
+        server_class = type('_SamplingServer', (http.server.ThreadingHTTPServer,),
+                            {'address_family': socket.AF_INET6 if ':' in host else socket.AF_INET})
+        self.server = server_class((host, port), _SamplingHandler)
         self.server.sampling = self.sampling
+        self.port = self.server.server_address[1]
+        self.url = f'http://{f"[{host}]" if ":" in host else host}:{self.port}'
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 
