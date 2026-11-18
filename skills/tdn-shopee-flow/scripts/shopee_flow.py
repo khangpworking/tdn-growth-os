@@ -1511,11 +1511,11 @@ SAMPLING_VIEW_ANSWER_TIMEOUT = 120.0  # the per-run view call has no timeout; bo
 
 
 class SamplingViewServer:
-    """One long-lived sampling process for the run list: each run's path goes in as one JSON line and its answer comes
-    back as one JSON line, so every view is read at the same point in the loop as the per-run call it replaces. The
-    answer carries `{exitCode, stdout}`: exactly what the single `view` command would have printed and exited with for
-    that run, and it goes through the same parser as the per-run call. Any server failure (spawn, pipe, answer wait
-    timeout, malformed answer) closes it and falls back to the per-run view call for that run and all later runs."""
+    """One long-lived sampling process for the run list: each run's path goes in as one JSON line and an answer line
+    comes back at the same point in the loop as the per-run call it replaces. An answer is accepted only as an
+    `{exitCode, stdout}` object with exit code 0 whose stdout parses to this run's `review-sampling-view-v1` dict;
+    every other answer is decided by the per-run view call. A malformed answer, an answer wait timeout, or a
+    spawn/pipe error closes it and sends that run and all later runs to the per-run call."""
 
     def __init__(self, repo, config):
         self.repo, self.config, self.process, self.usable = repo, config, None, True
@@ -1525,11 +1525,12 @@ class SamplingViewServer:
             try:
                 if self.process is None:
                     self._spawn()
-                return self._ask(run)
-            except ModuleFailure:
-                raise
+                accepted = self._ask(run)
             except (OSError, ValueError):
                 self.close()
+            else:
+                if accepted is not None:
+                    return accepted
         return review_sampling_script(self.repo, self.config, 'view', run)
 
     def _spawn(self):
@@ -1547,12 +1548,19 @@ class SamplingViewServer:
         self.process.stdin.write(json.dumps(str(run)) + '\n')
         self.process.stdin.flush()
         answer = json.loads(self._read_answer_line())
-        # The only server-level protocol is {exitCode:<int>, stdout:<string>}; every other line is a server
-        # failure, never a per-run sampling failure.
+        # The server is a speed path only: its answer stands in for the per-run view call only in this exact form.
         if (not isinstance(answer, dict) or set(answer) != {'exitCode', 'stdout'}
                 or type(answer['exitCode']) is not int or not isinstance(answer['stdout'], str)):
             raise ValueError('invalid sampling answer')
-        return review_sampling_result(answer['exitCode'], answer['stdout'])
+        if answer['exitCode'] != 0:
+            return None  # a run-level answer, not a view: the per-run call decides, and the server stays open
+        try:
+            view = json.loads(answer['stdout'])
+        except ValueError:
+            raise ValueError('invalid sampling stdout') from None
+        if not isinstance(view, dict) or view.get('format') != 'review-sampling-view-v1' or view.get('runId') != run.name:
+            raise ValueError('not this run\'s sampling view')
+        return view
 
     def _read_answer_line(self):
         line, reading = {}, {}
@@ -1881,8 +1889,7 @@ def review_sampling_script(repo, config, action, run, *args, input_text=None):
 
 
 def review_sampling_result(returncode, stdout):
-    """One sampling command's stdout and exit status to a view or ModuleFailure; shared by the per-run call and the
-    serve-views answer, which reports exactly the stdout and exit code the single `view` command would produce."""
+    """One per-run sampling command's stdout and exit status to a view or ModuleFailure."""
     try:
         value = json.loads(stdout)
     except ValueError:
