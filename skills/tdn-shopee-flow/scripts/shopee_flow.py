@@ -2952,6 +2952,28 @@ def flow_delete_leftovers(root):
             continue
 
 
+def flow_delete_restore_import(imports_fd, name, data):
+    """Put one removed .imports record back from memory: write a temp file in the same directory,
+    then rename it over the name, so no reader ever sees a partial record."""
+    temp = f'.{name}.{uuid.uuid4().hex}.tmp'
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666, dir_fd=imports_fd)
+    try:
+        with os.fdopen(fd, 'wb') as handle:
+            fd = None
+            handle.write(data)
+        os.rename(temp, name, src_dir_fd=imports_fd, dst_dir_fd=imports_fd)
+        os.fsync(imports_fd)
+    except OSError:
+        try:
+            os.unlink(temp, dir_fd=imports_fd)
+        except OSError:
+            pass
+        raise
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
 def cmd_delete_run(ns):
     """Delete one run folder and the .imports records that point at it, under the imports lock.
     The run's own module admission lock is taken non-blockingly, so no module, count refresh or
@@ -2966,15 +2988,18 @@ def cmd_delete_run(ns):
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', run_id):
             raise ModuleFailure('RUN_NOT_FOUND', 2)
         root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
-        run = root / run_id
-        if run.is_symlink() or not run.is_dir() or run.resolve().parent != root:
+        if not root.is_dir():
             raise ModuleFailure('RUN_NOT_FOUND', 2)
-        run = run.resolve()
+        run = root / run_id
         with open(root / '.imports.lock', 'a') as imports_lock:
             fcntl.flock(imports_lock.fileno(), fcntl.LOCK_EX)
-            # Serialized with every other delete-run: a folder another caller is renaming back is
-            # never swept half-way.
+            # Every call retries leftovers from an earlier failed cleanup, even when the named run
+            # is already gone. Serialized with every other delete-run: a folder another caller is
+            # renaming back is never swept half-way.
             flow_delete_leftovers(root)
+            if run.is_symlink() or not run.is_dir() or run.resolve().parent != root:
+                raise ModuleFailure('RUN_NOT_FOUND', 2)
+            run = run.resolve()
             # Same admission lock every module, count refresh and step 4 take: a live owner keeps
             # it, and holding it here keeps a new owner out until the run is renamed away.
             module_lock = os.open(gate_path(run, '.module.lock'),
@@ -2992,34 +3017,46 @@ def cmd_delete_run(ns):
                     raise ModuleFailure('RUN_DELETE_FAILED', 20)
                 if imports.exists():
                     imports_fd = os.open(imports, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                records = []
+                if imports_fd is not None:
+                    # Read every record before anything is removed: an unreadable record may be
+                    # this run's reservation, and it must fail the delete before any unlink.
+                    with os.scandir(imports_fd) as entries:
+                        for entry in entries:
+                            if not entry.name.endswith('.json'):
+                                continue
+                            fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=imports_fd)
+                            try:
+                                info = os.fstat(fd)
+                                if not stat.S_ISREG(info.st_mode):
+                                    continue
+                                with os.fdopen(fd, 'rb') as handle:
+                                    fd = None
+                                    data = handle.read()
+                                record = json.loads(data)
+                            finally:
+                                if fd is not None:
+                                    os.close(fd)
+                            if isinstance(record, dict) and record.get('runId') == run_id:
+                                records.append((entry.name, data, info.st_dev, info.st_ino))
                 deleted = root / f'.deleted-{run_id}-{int(time.time())}'
                 os.rename(run, deleted)
+                removed = []
                 try:
-                    if imports_fd is not None:
-                        with os.scandir(imports_fd) as records:
-                            for entry in records:
-                                if not entry.name.endswith('.json'):
-                                    continue
-                                fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=imports_fd)
-                                try:
-                                    info = os.fstat(fd)
-                                    if not stat.S_ISREG(info.st_mode):
-                                        continue
-                                    with os.fdopen(fd, 'rb') as handle:
-                                        fd = None
-                                        record = json.loads(handle.read())
-                                finally:
-                                    if fd is not None:
-                                        os.close(fd)
-                                if not isinstance(record, dict) or record.get('runId') != run_id:
-                                    continue
-                                current = os.stat(entry.name, dir_fd=imports_fd, follow_symlinks=False)
-                                if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
-                                    raise OSError('import record replaced during delete')
-                                os.unlink(entry.name, dir_fd=imports_fd)
+                    for name, data, device, inode in records:
+                        current = os.stat(name, dir_fd=imports_fd, follow_symlinks=False)
+                        if (current.st_dev, current.st_ino) != (device, inode):
+                            raise OSError('import record replaced during delete')
+                        os.unlink(name, dir_fd=imports_fd)
+                        removed.append((name, data))
                 except (OSError, ValueError):
-                    # A record that cannot be opened or read may be this run's reservation, so the
-                    # deletion fails and the run goes back; the reservation still points at it.
+                    # A failed unlink may be this run's reservation: put every record already
+                    # removed back from memory, then the run, so the resend can still resume it.
+                    for name, data in removed:
+                        try:
+                            flow_delete_restore_import(imports_fd, name, data)
+                        except OSError:
+                            pass
                     try:
                         os.rename(deleted, run)
                     except OSError:

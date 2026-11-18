@@ -164,3 +164,40 @@ Exactly the three rules in the contract's Update 18/11, round 3 block.
 
 Suites (same as above): delete-run 14 tests OK; full shopee-flow discover 173 tests OK
 (skipped=4); `node scripts/typecheck.mjs` exit 0.
+
+## Round-4 fix
+
+Exactly the two rules in the round-4 review.
+
+- Finding 1 (major, a removed reservation was lost when a later read or unlink failed): the
+  `.imports` scan now runs in two phases. First every regular `.json` record is read through the
+  pinned directory fd and the ones whose `runId` matches are kept in memory as name plus bytes; an
+  unreadable or unparseable record fails the delete here, before the run is renamed or anything is
+  unlinked. Then the run folder is renamed away and only the remembered records are unlinked (the
+  round-2 `dev/ino` re-check before each unlink is unchanged). A failed unlink writes every record
+  already removed back from memory by new `flow_delete_restore_import`: a temp file in the same
+  `.imports` directory, fsync, then rename onto the original name, so no reader sees a partial
+  record; then the run is renamed back and the command returns 20 `RUN_DELETE_FAILED`. A failed
+  restore write is ignored and the original failure is still reported. A resend can therefore
+  still resume an interrupted import after a failed delete.
+- Finding 2 (minor, an unknown run skipped the sweep): the `.deleted-*` sweep now runs under the
+  `.imports` lock before the run existence check, so every `delete-run` call, including a retry
+  whose run is already gone, removes leftovers left by an earlier failed cleanup. The
+  `READONLY_ON` refusal stays first and still writes nothing.
+
+### Round-4 tests
+
+- `test_unlink_failure_after_one_record_restores_every_removed_record`: two matching records; a
+  driver subprocess patches `os.unlink` to fail on the second call, so exactly one record is
+  removed first. `delete-run` returns 20 `RUN_DELETE_FAILED`, the same folder inode is back at the
+  run path, both records exist with their original bytes, and no `.deleted-*` folder remains.
+- `test_delete_sweeps_a_leftover_even_when_the_run_is_unknown`: a pre-existing `.deleted-*` folder
+  and another run's import record; `delete-run --run no-such-run` returns 2 `RUN_NOT_FOUND` and
+  still removes the leftover while the import record stays.
+
+Suites (same as above): delete-run 16 tests OK; full shopee-flow discover 175 tests OK
+(skipped=4); `node scripts/typecheck.mjs` exit 0.
+
+Notes: no Linux permission or `fcntl` behaviour was changed, and the round-4 review noted its
+conclusions came from code inspection; the new unlink-failure test drives the real command line in
+a subprocess instead of relying on host permissions.

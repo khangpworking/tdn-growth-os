@@ -252,6 +252,55 @@ class DeleteRunTest(unittest.TestCase):
         self.assertTrue(record.is_file(), 'an unreadable reservation must not be dropped')
         self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
 
+    def test_unlink_failure_after_one_record_restores_every_removed_record(self):
+        run = self.make_run('run-p7')
+        records = {}
+        for index in range(2):
+            import_id = uuid.uuid4().hex
+            path = self.runs / '.imports' / f'{import_id}.json'
+            write_json(path, {'format': 'metric-user-page-import-reservation-v1', 'importId': import_id,
+                              'payloadSha256': str(index) * 64, 'runId': 'run-p7'})
+            records[path.name] = path.read_bytes()
+        inode = run.stat().st_ino
+        driver = (
+            "import importlib.util, os, sys, types\n"
+            "spec = importlib.util.spec_from_file_location('shopee_flow', sys.argv[1])\n"
+            "module = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(module)\n"
+            "real, calls = os.unlink, []\n"
+            "def unlink(path, *args, **kwargs):\n"
+            "    calls.append(path)\n"
+            "    if len(calls) == 2:\n"
+            "        raise PermissionError('synthetic unlink failure')\n"
+            "    return real(path, *args, **kwargs)\n"
+            "os.unlink = unlink\n"
+            "module.cmd_delete_run(types.SimpleNamespace(run_id='run-p7'))\n"
+        )
+        proc = subprocess.run([sys.executable, '-c', driver, str(SCRIPT)], capture_output=True,
+                              text=True, env=self.env(), timeout=60)
+        out = json.loads(proc.stdout.strip())
+        self.assertEqual(proc.returncode, 20, out)
+        self.assertEqual(out.get('code'), 'RUN_DELETE_FAILED')
+        self.assertTrue(run.is_dir())
+        self.assertEqual(run.stat().st_ino, inode, 'the same folder must be renamed back')
+        self.assertEqual({path.name: path.read_bytes()
+                          for path in (self.runs / '.imports').iterdir()}, records,
+                         'the record unlinked before the failure must be written back')
+        self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
+
+    def test_delete_sweeps_a_leftover_even_when_the_run_is_unknown(self):
+        write_json(self.runs / '.deleted-run-gone-1' / 'request.json', request_payload())
+        import_id = uuid.uuid4().hex
+        record = self.runs / '.imports' / f'{import_id}.json'
+        write_json(record, {'format': 'metric-user-page-import-reservation-v1',
+                            'payloadSha256': 'a' * 64, 'runId': 'run-gone'})
+        rc, out = self.command('delete-run', '--run', 'no-such-run')
+        self.assertEqual(rc, 2, out)
+        self.assertEqual(out.get('code'), 'RUN_NOT_FOUND')
+        self.assertFalse((self.runs / '.deleted-run-gone-1').exists(),
+                         'the sweep must run before the run existence check')
+        self.assertTrue(record.is_file(), 'a sweeping retry must not touch import records')
+
     @unittest.skipIf(os.geteuid() == 0, 'directory permissions do not bind root')
     def test_failed_cleanup_reports_a_leftover_folder(self):
         run = self.make_run('run-m4')
