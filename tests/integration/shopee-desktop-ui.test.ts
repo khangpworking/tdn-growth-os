@@ -3227,3 +3227,96 @@ test('the technical-docs tab shows the 4-step guide from modules.json first, the
       ['links_match_source_order', 'five_distinct_products']);
   } finally { dom.window.close(); }
 });
+
+// Dead Shopee links (CONTRACT-link-check §6): module-outputs-v1 `linkIssues`.
+// | stage | reason                 | replacedBy | line text                                                        |
+// |-------|------------------------|------------|------------------------------------------------------------------|
+// | m2    | PRODUCT_UNAVAILABLE    | set        | Sản phẩm không còn trên Shopee, đã thay bằng link khác          |
+// | m2    | RATINGS_MISSING        | null       | Trang sản phẩm không có phần đánh giá                            |
+// | m2    | NO_TARGET_STAR_REVIEWS | set        | Không có đánh giá ở các mức sao cần lấy, đã thay bằng link khác  |
+// | m3    | RATINGS_MISSING        | (set)      | Trang sản phẩm không có phần đánh giá (step 3 never replaces)    |
+const DEAD = (n: number) => `https://shopee.vn/product/900/${n}`;
+const LINK_ISSUE_ROWS: [string, string, string | null, string][] = [
+  ['m2', 'PRODUCT_UNAVAILABLE', '1__500__900', 'Sản phẩm không còn trên Shopee, đã thay bằng link khác'],
+  ['m2', 'RATINGS_MISSING', null, 'Trang sản phẩm không có phần đánh giá'],
+  ['m2', 'NO_TARGET_STAR_REVIEWS', '1__501__900', 'Không có đánh giá ở các mức sao cần lấy, đã thay bằng link khác'],
+  ['m3', 'RATINGS_MISSING', '1__502__900', 'Trang sản phẩm không có phần đánh giá'],
+];
+
+function linkIssueRun(outputs: (runId: string) => any, info: any = collectedRunInfo()) {
+  return harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: info, sampling: syntheticSampling(), reviewData: syntheticReviewData(),
+    moduleOutputsResult: (runId) => ({ ok: true, data: outputs(runId) }),
+  });
+}
+
+const issueLines = (doc: Document, stage: string) => [...doc.querySelectorAll(`#linkIssues-${stage} li`)].map((li) => ({
+  url: li.querySelector('a')?.getAttribute('href') ?? null,
+  text: li.querySelector('.link-issue-reason')!.textContent,
+}));
+
+test('dead links: «Link bị bỏ» under step 2 and step 3 with the reason table; old runs show nothing new', async () => {
+  const linkIssues = LINK_ISSUE_ROWS.map(([stage, reason, replacedBy], i) => (
+    { stage, productBaseId: `1__${i}__900`, url: DEAD(i), reason, at: '2026-11-18T05:30:00Z', replacedBy }));
+  const run = linkIssueRun((runId) => ({ ...moduleOutputView(runId), linkIssues }));
+  try {
+    await waitFor(() => run.doc.getElementById('linkIssues-m2') !== null && run.doc.getElementById('linkIssues-m3') !== null,
+      'link issue lists');
+    for (const stage of ['m2', 'm3']) {
+      const rows = LINK_ISSUE_ROWS.map((row, i) => [row, i] as const).filter(([row]) => row[0] === stage);
+      assert.equal(run.doc.querySelector(`#linkIssues-${stage} h4`)!.textContent, 'Link bị bỏ');
+      assert.deepEqual(issueLines(run.doc, stage), rows.map(([row, i]) => ({ url: DEAD(i), text: row[3] })), stage);
+    }
+    assert.ok(run.doc.getElementById('moduleOutputsPanel')!.contains(run.doc.getElementById('linkIssues-m2')));
+    assert.ok(run.doc.getElementById('rdPanel')!.contains(run.doc.getElementById('linkIssues-m3')));
+    await waitFor(() => run.doc.getElementById('rdChip')!.textContent === 'Xong, có link bị bỏ', 'step 3 chip');
+    assert.match(run.doc.getElementById('rdChip')!.className, /s-warn/);
+    assert.equal(run.doc.querySelector('#linkIssues-m3 a')!.getAttribute('rel'), 'noopener noreferrer');
+  } finally { run.dom.window.close(); }
+
+  for (const [label, outputs] of [
+    ['no linkIssues (old run)', (runId: string) => moduleOutputView(runId)],
+    ['empty linkIssues', (runId: string) => ({ ...moduleOutputView(runId), linkIssues: [] })],
+    ['malformed items', (runId: string) => ({ ...moduleOutputView(runId), linkIssues: [null, { stage: 'm2' }, 'x'] })],
+  ] as const) {
+    const old = linkIssueRun(outputs);
+    try {
+      await waitFor(() => old.doc.getElementById('moM2Chip') !== null && old.doc.getElementById('rdChip')!.textContent !== 'Đang tải kết quả…', label);
+      assert.equal(old.doc.querySelector('.link-issues'), null, label);
+      assert.ok(!old.doc.getElementById('runDetail')!.textContent!.includes('Link bị bỏ'), label);
+      assert.equal(old.doc.getElementById('rdChip')!.textContent, 'Đạt kiểm tra dữ liệu', label);
+    } finally { old.dom.window.close(); }
+  }
+});
+
+test('dead links: new error and verdict texts', async () => {
+  const failedInfo: any = syntheticRunInfo();
+  failedInfo.state = { status: 'FAILED', module: 'M2', errorCode: 'LINK_CHECK_FAILED' };
+  const failed = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'FAILED' }],
+    runInfo: failedInfo, sampling: syntheticSampling(),
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
+  });
+  try {
+    const errors = () => [...failed.doc.querySelectorAll('#runDetail .local-error')].map((node) => node.textContent);
+    await waitFor(() => errors().includes('Không kiểm được link Shopee. Thử lại sau ít phút.'), 'LINK_CHECK_FAILED text');
+  } finally { failed.dom.window.close(); }
+
+  const info: any = collectedRunInfo();
+  const gate = { ...passSlip('M3'), checks: [
+    { id: 'verdict_ok', ok: true, got: 'PARTIAL_LINKS' },
+    { id: 'links_skipped', ok: false, level: 'warn', got: 1 },
+  ] };
+  info.modules = info.modules.map((module: any) => module.id === 'M3' ? { ...module, execution: {
+    status: 'SUCCEEDED', executionId: 'exec-3', sequence: 1, attemptId: null, startedAt: null, endedAt: null,
+    basis: 'none', currentGate: gate, historicalGate: null, errorCode: null,
+  } } : module);
+  const partial = linkIssueRun((runId) => moduleOutputView(runId), info);
+  try {
+    await waitFor(() => partial.doc.getElementById('techDetails') !== null, 'step section');
+    const chips = [...partial.doc.querySelectorAll('#techDetails .chip')].map((chip) => chip.textContent);
+    assert.ok(chips.includes('Xong, có link bị bỏ'), chips.join(' | '));
+    assert.match(partial.doc.getElementById('techDetails')!.textContent!, /Không có link nào bị bỏ vì lỗi link/);
+  } finally { partial.dom.window.close(); }
+});
