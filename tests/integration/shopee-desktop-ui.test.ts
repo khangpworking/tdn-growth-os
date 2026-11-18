@@ -4057,3 +4057,72 @@ test('a create reply for a run already deleted names nothing', async () => {
     assert.doesNotMatch(element<HTMLElement>(doc, 'newNotice').textContent || '', /run-late/, 'no notice names it');
   } finally { dom.window.close(); }
 });
+
+// Opening a run and overlapping lists follow the latest successful list (F645, Terra r8 on #508), one row each:
+// | # | situation                                                                  | expected                                      |
+// |---|----------------------------------------------------------------------------|-----------------------------------------------|
+// | 1 | «Xem lượt» on A's notice; the list it asks omits A, A's status still works | empty detail; A opens once a later list has it |
+// | 2 | list 1 answers without X after list 2 (asked later) failed                 | X gone from the shown list all the same        |
+test('opening a run and overlapping lists follow the latest successful list', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const runX = { runId: 'run-x', product: 'Sản phẩm X', status: 'DONE' };
+  const runY = { runId: 'run-y', product: 'Sản phẩm Y', status: 'DONE' };
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const runsReply = (runs: any[]) => ({ ok: true, data: { format: 'runs-v1', runs } });
+
+  // 1
+  let phase = 'before';
+  let hideA = false;
+  let run = harness({ runs: [runB, runA], runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply([progressRun('run-a', phase === 'before' ? ['PASS', 'RUNNING', 'IDLE', 'IDLE']
+      : ['PASS', 'PASS', 'RUNNING', 'IDLE'], { active: phase === 'before' ? { step: 2, stage: null, done: null, total: null }
+      : { step: 3, stage: null, done: 1, total: 9 } })]),
+    listRunsReply: async () => (hideA ? runsReply([runB]) : undefined) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '1: first polls');
+    phase = 'after';
+    await waitFor(() => run.doc.querySelector('#noticeBox .notice-go') !== null, '1: notice');
+    hideA = true;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const asked = run.state.statusCalls.filter((id) => id === 'run-a').length;
+    run.doc.querySelector<HTMLAnchorElement>('#noticeBox .notice-go')!.click();
+    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm A'), '1: list without A');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(run.state.statusCalls.filter((id) => id === 'run-a').length, asked, '1: A not opened');
+    assert.equal(element(run.doc, 'runDetail').textContent, 'Chọn một lượt bên trái.', '1: empty detail');
+    hideA = false;
+    tab(run.doc, 2);
+    tab(run.doc, 1);
+    await waitFor(() => (run.doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-a') &&
+      run.doc.getElementById('btnDeleteRun') !== null, '1: A opens once listed');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  const held = deferred<void>();
+  let aCall = 0;
+  let bCall = 0;
+  run = harness({ runs: [runX, runY], runInfoByRun: { 'run-x': syntheticRunInfo('run-x'), 'run-y': syntheticRunInfo('run-y') },
+    listRunsError: () => (run && run.state.listRunsCalls === bCall
+      ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } } : undefined),
+    listRunsReply: async (call) => {
+      if (call !== aCall) return undefined;
+      await held.promise;
+      return runsReply([runY]);
+    } });
+  try {
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm X'), '2: X listed');
+    aCall = run.state.listRunsCalls + 1;
+    tab(run.doc, 1);                                   // list 1, held
+    await waitFor(() => run.state.listRunsCalls >= aCall, '2: list 1 asked');
+    bCall = run.state.listRunsCalls + 1;
+    tab(run.doc, 2);                                   // list 2, fails
+    await waitFor(() => !element(run.doc, 'errbar').hidden, '2: list 2 failed');
+    held.resolve();
+    await waitFor(() => listed(run.doc, 'resultRunList').includes('Sản phẩm Y') &&
+      !listed(run.doc, 'resultRunList').includes('Sản phẩm X'), '2: X gone from the shown list');
+  } finally { run.dom.window.close(); }
+});

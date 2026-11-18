@@ -3093,6 +3093,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     poll: null,
     pollRunId: null,
     runsSeq: 0,
+    appliedListSeq: 0,   // the newest successful listing applied; an older success never overwrites it
     infoSeq: {},
     lib: null,
     reviewDrafts: {},
@@ -7097,6 +7098,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   // The listing (null on a list error). A listing overtaken by a newer one answers with the newer one's result.
+  // Every success newer than the one applied is applied, even while a newer request is pending or later fails.
   function fetchRuns() {
     var seq = ++state.runsSeq;
     state.runsPromise = listRunsOnce(seq);
@@ -7105,25 +7107,33 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function listRunsOnce(seq) {
     var res = await api.listRuns();
-    if (seq !== state.runsSeq) return state.runsPromise;      // only the newest listing replaces the list
+    if (res.ok && seq > state.appliedListSeq) applyListing(res, seq);
+    if (seq !== state.runsSeq) return state.runsPromise;      // the newest request answers for all
     if (!res.ok) { showError(res.error); return null; }
+    return res;
+  }
+
+  function applyListing(res, seq) {
+    state.appliedListSeq = seq;
     state.runs = ((res.data && res.data.runs) || []).filter(function (run) { return !isGone(run.runId); });
     // Not listed now: not shown (not forgotten). The open run is closed and its polls stop.
-    if (state.selectedRunId && !isListed(state.selectedRunId)) {
-      state.selectedRunId = null;
-      state.loadingRunId = null;
-      state.info = null;
-      stopPoll();
-      stopSamplingPoll();
-      stopStep4Poll();
-      renderDetail();
-    }
+    if (state.selectedRunId && !isListed(state.selectedRunId)) closeDetail();
     Array.prototype.forEach.call(document.querySelectorAll('#noticeBox .notice'), function (item) {
       if (!isListed(item.dataset.runId)) item.remove();
     });
     renderRunList();
     renderRunStatus();
-    return res;
+  }
+
+  // The empty detail: no run open, its polls stopped.
+  function closeDetail() {
+    state.selectedRunId = null;
+    state.loadingRunId = null;
+    state.info = null;
+    stopPoll();
+    stopSamplingPoll();
+    stopStep4Poll();
+    renderDetail();
   }
 
   function isListed(runId) {
@@ -8757,8 +8767,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     await refreshRuns();
     if (preferred && isGone(preferred)) {
       await runGone(preferred);                 // told once, never another run instead
-    } else if (preferred) {
+    } else if (preferred && isListed(preferred)) {
       await selectRun(preferred);               // its status decides: RUN_NOT_FOUND makes it gone (rule b)
+    } else if (preferred) {
+      state.preferredRunId = preferred;         // not in the latest list: not shown, kept for a later open
+      closeDetail();
     } else if (state.selectedRunId) {
       await selectRun(state.selectedRunId);
     } else if (state.runs.length) {
