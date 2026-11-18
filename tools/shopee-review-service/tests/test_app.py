@@ -71,6 +71,9 @@ class FakeLocator:
         return None
 
     async def count(self):
+        if self.page and self.page.during_title_check is not None:
+            check, self.page.during_title_check = self.page.during_title_check, None
+            check()
         return self.page.h1 if self.page else 1
 
     async def inner_text(self):
@@ -92,6 +95,7 @@ class FakePage:
         self.h1, self.body_text, self.wait_error = h1, body_text, wait_error
         self.headings, self.after_timeout = list(headings), after_timeout
         self.during_wait, self.during_observe = during_wait, during_observe
+        self.during_title_check = None
         self.url = URL
 
     def locator(self, selector):
@@ -213,7 +217,7 @@ class ServiceTests(unittest.TestCase):
         config, state = self.run_job({'url': URL, 'max_comments': 20}, result)
         self.assertEqual((config['maxPages'], state), (500, 'partial'), 'existing callers keep 500 pages and partial')
 
-    def run_job_with_page(self, payload, page, during_wait=None, during_observe=None):
+    def run_job_with_page(self, payload, page, during_wait=None, during_observe=None, during_title_check=None):
         app, job_id = self.app, str(uuid.uuid4())
         with app.db() as connection:
             connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
@@ -222,6 +226,8 @@ class ServiceTests(unittest.TestCase):
             page.during_wait = lambda: during_wait(job_id)
         if during_observe is not None:
             page.during_observe = lambda: during_observe(job_id)
+        if during_title_check is not None:
+            page.during_title_check = lambda: during_title_check(job_id)
         worker = app.BrowserWorker()
         worker.page = page
 
@@ -239,6 +245,24 @@ class ServiceTests(unittest.TestCase):
                 job = self.run_job_with_page(payload, page)
                 self.assertEqual((job['state'], job['error']), ('failed', 'PRODUCT_UNAVAILABLE'))
                 self.assertEqual(page.crawls, 0, 'a dead product is never crawled')
+
+    def test_a_stop_during_the_product_title_check_wins_over_product_unavailable(self):
+        payload = {'url': URL, 'max_comments': 300, 'sampling': sampling(policy_v1())}
+        for stop, expected in (('cancel', ('cancelled', None)), ('readonly', ('cancelled', 'READONLY_ON'))):
+            with self.subTest(stop=stop):
+                page, flags = FakePage({}, h1=0), {'readonly': False}
+
+                def stop_during_title_check(job_id):
+                    if stop == 'cancel':
+                        self.app.update_job(job_id, cancel_requested=1)
+                    else:
+                        flags['readonly'] = True
+
+                with mock.patch.object(self.app, 'sampling_readonly', lambda: flags['readonly']):
+                    job = self.run_job_with_page(payload, page, during_title_check=stop_during_title_check)
+                self.assertEqual((job['state'], job['error']), expected,
+                                 'a stop that arrived during the title check is not a dead link')
+                self.assertEqual(page.crawls, 0)
 
     def test_product_content_with_the_unavailable_phrase_is_still_a_product(self):
         payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}

@@ -304,6 +304,16 @@ class BrowserWorker:
         """
         return await self.page.locator('h1').count() == 0
 
+    def stop_requested(self, job_id):
+        """A cancel or read-only stop that arrived during an await wins over any classification."""
+        if get_job(job_id)['cancel_requested']:
+            update_job(job_id, state='cancelled')
+            return True
+        if sampling_readonly():
+            update_job(job_id, state='cancelled', error='READONLY_ON')
+            return True
+        return False
+
     async def control(self, kind):
         if self.active_job or not self.queue.empty():
             raise HTTPException(409, 'Browser is busy. Wait for the active/queued jobs first.')
@@ -333,6 +343,9 @@ class BrowserWorker:
                 update_job(job_id, state=status['state'], error='Open the Fedora browser and finish login/verification, then resume this job.')
                 return
             if custom and await self.product_missing():
+                # The title check awaits; a stop that arrived meanwhile is not a dead link.
+                if self.stop_requested(job_id):
+                    return
                 update_job(job_id, state='failed', error='PRODUCT_UNAVAILABLE')
                 return
             try:
@@ -341,20 +354,12 @@ class BrowserWorker:
                 # Only the ratings wait timing out means the product has no ratings block; other failures stay generic.
                 if custom and type(error).__name__ == 'TimeoutError':
                     # A cancelled or read-only job stops as cancelled; a timeout is not a dead link for it.
-                    if get_job(job_id)['cancel_requested']:
-                        update_job(job_id, state='cancelled')
-                        return
-                    if sampling_readonly():
-                        update_job(job_id, state='cancelled', error='READONLY_ON')
+                    if self.stop_requested(job_id):
                         return
                     # The page may have moved to login/verification during the wait; that is a session stop, not a dead link.
                     observed = await self.observe_session()
-                    # Cancellation or a read-only stop may arrive during session observation; it wins over any classification.
-                    if get_job(job_id)['cancel_requested']:
-                        update_job(job_id, state='cancelled')
-                        return
-                    if sampling_readonly():
-                        update_job(job_id, state='cancelled', error='READONLY_ON')
+                    # A stop that arrived during session observation wins over any classification.
+                    if self.stop_requested(job_id):
                         return
                     if observed['state'] in WAITING:
                         update_job(job_id, state=observed['state'], error='Open the Fedora browser and finish login/verification, then resume this job.')
