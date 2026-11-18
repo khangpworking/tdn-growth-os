@@ -235,3 +235,31 @@ Exactly the round-5 finding: rollback no longer recreates a record by writing da
 
 Suites (same as above): delete-run 16 tests OK; full shopee-flow discover 175 tests OK
 (skipped=4); `node scripts/typecheck.mjs` exit 0.
+
+## Round-6 fix
+
+Exactly the contract's final rule (Update 18/11, round 6).
+
+- The rollback stops at the first record that cannot be renamed back into `.imports`. In that case
+  the run folder is NOT renamed back: the command finishes the delete instead. Every record of
+  this run that is still in `.imports` (the record whose forward move failed, plus any already
+  renamed back before the failure) is moved into the hidden `.deleted-*` folder with `os.rename`,
+  best effort. The hidden folder is left in place for the next sweep (no `rmtree` on this path),
+  and the command returns 0 with
+  `{"format":"run-delete-v1","runId":"<id>","deleted":true,"leftover":true}`. A restored run with
+  a missing reservation is no longer possible.
+- Only a fully successful rollback (every staged record back in `.imports`) renames the run back
+  and returns 20 `RUN_DELETE_FAILED`, as before.
+
+### Round-6 tests
+
+- `test_failed_rollback_keeps_the_run_hidden_and_finishes_the_delete`: two matching records; a
+  driver subprocess patches `os.rename` so the second record move fails and the move-back of the
+  first also fails. `delete-run` returns 0 with
+  `{"format":"run-delete-v1","runId":"run-q8","deleted":true,"leftover":true}`, the run is not at
+  its path, no record for this run remains in `.imports`, and exactly one `.deleted-*` folder
+  stays.
+
+Suites (same as above): delete-run 17 tests OK; full shopee-flow discover 176 tests OK
+(skipped=4); `/home/pkhang/opt/node-v24.14.0/bin/node scripts/typecheck.mjs` exit 0;
+`git diff --check origin/main...HEAD` clean.

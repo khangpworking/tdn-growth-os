@@ -2969,6 +2969,7 @@ def cmd_delete_run(ns):
         if not root.is_dir():
             raise ModuleFailure('RUN_NOT_FOUND', 2)
         run = root / run_id
+        rollback_failed = False
         with open(root / '.imports.lock', 'a') as imports_lock:
             fcntl.flock(imports_lock.fileno(), fcntl.LOCK_EX)
             # Every call retries leftovers from an earlier failed cleanup, even when the named run
@@ -3038,12 +3039,23 @@ def cmd_delete_run(ns):
                         try:
                             os.rename(name, name, src_dir_fd=deleted_fd, dst_dir_fd=imports_fd)
                         except OSError:
+                            rollback_failed = True
+                            break
+                    if rollback_failed:
+                        # Restoring the run would lose a staged record: finish the delete instead.
+                        # Every record still in .imports goes into the hidden folder, which the
+                        # next sweep removes, and the run is not renamed back.
+                        for name, _, _ in records:
+                            try:
+                                os.rename(name, name, src_dir_fd=imports_fd, dst_dir_fd=deleted_fd)
+                            except OSError:
+                                pass
+                    else:
+                        try:
+                            os.rename(deleted, run)
+                        except OSError:
                             pass
-                    try:
-                        os.rename(deleted, run)
-                    except OSError:
-                        pass
-                    raise ModuleFailure('RUN_DELETE_FAILED', 20)
+                        raise ModuleFailure('RUN_DELETE_FAILED', 20)
                 finally:
                     if deleted_fd is not None:
                         os.close(deleted_fd)
@@ -3051,11 +3063,12 @@ def cmd_delete_run(ns):
                 os.close(module_lock)
                 if imports_fd is not None:
                     os.close(imports_fd)
-        leftover = False
-        try:
-            shutil.rmtree(deleted)
-        except OSError:
-            leftover = True  # Hidden and unlisted, with its reservation gone; it may be retried.
+        leftover = rollback_failed
+        if not leftover:
+            try:
+                shutil.rmtree(deleted)
+            except OSError:
+                leftover = True  # Hidden and unlisted, with its reservation gone; it may be retried.
         output = {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}
         if leftover:
             output['leftover'] = True

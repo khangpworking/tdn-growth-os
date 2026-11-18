@@ -289,6 +289,42 @@ class DeleteRunTest(unittest.TestCase):
                          'both records must be back under their names with their inodes')
         self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
 
+    def test_failed_rollback_keeps_the_run_hidden_and_finishes_the_delete(self):
+        run = self.make_run('run-q8')
+        records = []
+        for index in range(2):
+            import_id = uuid.uuid4().hex
+            path = self.runs / '.imports' / f'{import_id}.json'
+            write_json(path, {'format': 'metric-user-page-import-reservation-v1', 'importId': import_id,
+                              'payloadSha256': str(index) * 64, 'runId': 'run-q8'})
+            records.append(path)
+        driver = (
+            "import importlib.util, os, sys, types\n"
+            "spec = importlib.util.spec_from_file_location('shopee_flow', sys.argv[1])\n"
+            "module = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(module)\n"
+            "real, moves = os.rename, []\n"
+            "def rename(src, dst, *args, **kwargs):\n"
+            "    if kwargs.get('src_dir_fd') is not None and kwargs.get('dst_dir_fd') is not None:\n"
+            "        moves.append(src)\n"
+            "        if len(moves) in (2, 3):\n"
+            "            raise OSError('synthetic move failure')\n"
+            "    return real(src, dst, *args, **kwargs)\n"
+            "os.rename = rename\n"
+            "module.cmd_delete_run(types.SimpleNamespace(run_id='run-q8'))\n"
+        )
+        proc = subprocess.run([sys.executable, '-c', driver, str(SCRIPT)], capture_output=True,
+                              text=True, env=self.env(), timeout=60)
+        out = json.loads(proc.stdout.strip())
+        self.assertEqual(proc.returncode, 0, out)
+        self.assertEqual(out, {'format': 'run-delete-v1', 'runId': 'run-q8', 'deleted': True,
+                               'leftover': True})
+        self.assertFalse(run.exists(), 'a failed rollback must not restore the run')
+        self.assertEqual([path.name for path in records if path.exists()], [],
+                         'no reservation for this run may stay in .imports')
+        hidden = [name for name in os.listdir(self.runs) if name.startswith('.deleted-')]
+        self.assertEqual(len(hidden), 1, 'the hidden folder with the staged records must stay')
+
     def test_delete_sweeps_a_leftover_even_when_the_run_is_unknown(self):
         write_json(self.runs / '.deleted-run-gone-1' / 'request.json', request_payload())
         import_id = uuid.uuid4().hex
