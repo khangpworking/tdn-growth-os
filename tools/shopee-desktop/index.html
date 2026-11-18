@@ -3064,6 +3064,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     infoByRun: {},       // the last run-info per run, shown at once while the fresh one loads
     loadingRunId: null,
     listPending: 0,      // listings on their way («Đang cập nhật…»)
+    refreshToken: 0,     // the open run's refresh (run-info and every per-run call); a newer one replaces it
+    refreshing: false,
     moduleRunBusy: {},
     newRunId: null,
     newEntry: null,
@@ -6936,7 +6938,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   function renderRefreshMark() {
-    var busy = state.listPending > 0 || (!!state.loadingRunId && state.loadingRunId === state.selectedRunId);
+    var busy = state.listPending > 0 || state.refreshing;
     Array.prototype.forEach.call(document.querySelectorAll('.refresh-mark'), function (mark) { mark.hidden = !busy; });
   }
 
@@ -7139,6 +7141,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The empty detail: no run open, its polls stopped.
   function closeDetail() {
+    state.refreshToken += 1;
+    state.refreshing = false;
     state.selectedRunId = null;
     state.loadingRunId = null;
     state.info = null;
@@ -7233,14 +7237,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
     var status = runStatus(runId);
-    loadSampling(runId);
-    loadReviewData(runId);
-    loadModuleOutputs(runId);
-    loadReviewProcess(runId);
-    if (state.screen === 'result') {
-      loadReviewStats(runId);
-      loadReviewInsights(runId);
-    }
+    var tasks = [status, loadSampling(runId), loadReviewData(runId), loadModuleOutputs(runId), loadReviewProcess(runId)];
+    if (state.screen === 'result') tasks.push(loadReviewStats(runId), loadReviewInsights(runId));
+    if (state.selectedRunId === runId) trackRefresh(runId, tasks);
     var res = await status;
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
@@ -7255,6 +7254,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (res.data) state.infoByRun[runId] = res.data;
     renderDetail();
     managePoll();
+  }
+
+  // «Đang cập nhật…» stays until every call of the open run's latest refresh has answered, and goes when a
+  // newer refresh or another selection replaces it.
+  function trackRefresh(runId, tasks) {
+    var token = ++state.refreshToken;
+    state.refreshing = true;
+    renderRefreshMark();
+    Promise.allSettled(tasks).then(function () {
+      if (token !== state.refreshToken) return;
+      state.refreshing = false;
+      if (state.loadingRunId === runId) state.loadingRunId = null;
+      renderRefreshMark();
+    });
   }
 
   async function selectRun(runId) {

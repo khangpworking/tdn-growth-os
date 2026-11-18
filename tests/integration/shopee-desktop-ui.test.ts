@@ -34,6 +34,7 @@ function harness(options: {
   saveReviewPlanResult?: ((runId: string, input: any, sha: string, plan: any) => any) | undefined;
   runModuleResult?: ((runId: string, module: string, sha?: string) => any) | undefined;
   reviewData?: any; reviewDataByRun?: Record<string, any>;
+  reviewDataHold?: (runId: string) => Promise<void> | undefined;
   saveReviewDataResult?: (runId: string, input: any) => any;
   exportReviewResult?: (runId: string, input: any) => any;
   newRunGate?: Deferred<any> | undefined;
@@ -265,6 +266,8 @@ function harness(options: {
     reviewData: async (runId: string) => {
       state.reviewDataCalls++;
       state.reviewDataCallsByRun[runId] = (state.reviewDataCallsByRun[runId] || 0) + 1;
+      const held = options.reviewDataHold && options.reviewDataHold(runId);
+      if (held) await held;
       const view = state.reviewDataByRun[runId] || state.reviewDataView;
       if (view) return { ok: true, data: clone(view) };
       return { ok: true, data: {
@@ -4181,5 +4184,53 @@ test('the run tabs show what they have at once and ask everything together', asy
     assert.equal(marked(), true, '3: «Đang cập nhật…»');
     listHold.resolve();
     await waitFor(() => !marked(), '3: mark gone after the list');
+  } finally { run.dom.window.close(); }
+});
+
+// «Đang cập nhật…» follows the whole refresh of the open run (F647, Terra r1 minor on #510), one row each:
+// | # | situation                                                                  | expected                          |
+// |---|----------------------------------------------------------------------------|-----------------------------------|
+// | 1 | run-info and the list answered, review data still on its way              | the mark stays until it answers   |
+// | 2 | a running run reopened; its 10 s poll asks run-info again while the first is slow | the mark goes once both answer |
+test('the refresh mark follows every call of the open run and never sticks', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'RUNNING' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const running: any = syntheticRunInfo('run-a');
+  running.state = { status: 'RUNNING', module: 'M3', errorCode: null };
+  const marked = (doc: Document) => [...doc.querySelectorAll<HTMLElement>('.refresh-mark')].some((mark) => !mark.hidden);
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  // 1
+  let dataHold: Deferred<void> | null = null;
+  let run = harness({ runs: [runB, runA], runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    reviewDataHold: (runId) => (runId === 'run-a' && dataHold ? dataHold.promise : undefined) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '1: run-b open');
+    dataHold = deferred<void>();
+    const statusAsked = run.state.statusCalls.length;
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => run.state.statusCalls.length > statusAsked && run.state.listRunsCalls > 0, '1: run-info asked');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(marked(run.doc), true, '1: review data still on its way');
+    dataHold.resolve();
+    await waitFor(() => !marked(run.doc), '1: gone once it answers');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let statusHold: Deferred<void> | null = null;
+  run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': running, 'run-b': syntheticRunInfo('run-b') }, fastPoll: true,
+    statusGate: (runId) => (runId === 'run-a' && statusHold ? statusHold : undefined) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(run.doc), '2: run-a open, polled');
+    statusHold = deferred<void>();
+    const asked = run.state.statusCalls.filter((id) => id === 'run-a').length;
+    runListButton(run.doc, 'run-a').click();
+    await waitFor(() => run.state.statusCalls.filter((id) => id === 'run-a').length >= asked + 2, '2: the poll asks again');
+    const hold = statusHold;
+    statusHold = null;
+    hold.resolve();
+    await waitFor(() => !marked(run.doc), '2: the mark goes');
   } finally { run.dom.window.close(); }
 });
