@@ -30,7 +30,7 @@ Read-only switch: env TDN_SHOPEE_FLOW_READONLY=1 or the file ~/.local/state/tdn-
 refuses and logs every write. Use the FILE for evals: some agent shells (codex) do not pass pane env vars.
 Never prints tokens, keys or review text.
 """
-import argparse, datetime as dt, json, os, pathlib, re, sqlite3, subprocess, sys, time, urllib.error, urllib.request, uuid
+import argparse, datetime as dt, json, os, pathlib, re, shutil, sqlite3, subprocess, sys, time, urllib.error, urllib.request, uuid
 
 PORT = int(os.environ.get('SHOPEE_FLOW_PORT', '8787'))
 ORIGIN = f'http://127.0.0.1:{PORT}'
@@ -2899,6 +2899,78 @@ def flow_m1_import():
                 'reused': reused, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
 
 
+def flow_run_active(run):
+    """A live process still owns this run: RUNNING state, a detached worker, an M3 attempt/count
+    refresh with a live worker, or a running step 4."""
+    def record(relative):
+        try:
+            return gate_read(gate_path(run, relative))
+        except (OSError, ValueError):
+            return None
+
+    state = record('state.json')
+    if isinstance(state, dict) and state.get('status') == 'RUNNING':
+        return True
+    executions = gate_path(run, 'executions')
+    for child in executions.iterdir() if executions.is_dir() else []:
+        if child.name in ('gates', 'previous') or not child.name.endswith('.json'):
+            continue
+        value = record(f'executions/{child.name}')
+        if isinstance(value, dict) and value.get('status') == 'RUNNING' and module_pid_live(value.get('pid')):
+            return True
+    for folder in ('review-counts', 'm3-custom/attempts'):
+        root = gate_path(run, folder)
+        for child in root.iterdir() if root.is_dir() else []:
+            value = record(f'{folder}/{child.name}/state.json')
+            if (isinstance(value, dict) and value.get('status') in ('RUNNING', 'UNCERTAIN')
+                    and module_pid_live(value.get('pid'))):
+                return True
+    m4 = gate_path(run, 'm4')
+    for child in m4.iterdir() if m4.is_dir() else []:
+        if not re.fullmatch(r'[a-f0-9]{64}', child.name):
+            continue
+        value = record(f'm4/{child.name}/state.json')
+        if isinstance(value, dict) and value.get('status') == 'RUNNING' and module_pid_live(value.get('pid')):
+            return True
+    return False
+
+
+def cmd_delete_run(ns):
+    """Delete one run folder and the .imports records that point at it, under the imports lock.
+    Refused while a live process still owns the run."""
+    import fcntl
+    try:
+        if module_readonly():
+            raise ModuleFailure('READONLY_ON', 20)
+        run_id = ns.run_id
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', run_id):
+            raise ModuleFailure('RUN_NOT_FOUND', 2)
+        root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
+        run = root / run_id
+        if run.is_symlink() or not run.is_dir() or run.resolve().parent != root:
+            raise ModuleFailure('RUN_NOT_FOUND', 2)
+        run = run.resolve()
+        if flow_run_active(run):
+            raise ModuleFailure('RUN_ACTIVE', 20)
+        with open(root / '.imports.lock', 'a') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            imports = root / '.imports'
+            for path in imports.iterdir() if imports.is_dir() else []:
+                if path.is_symlink() or not path.is_file() or not path.name.endswith('.json'):
+                    continue
+                record = gate_read(path)
+                if isinstance(record, dict) and record.get('runId') == run_id:
+                    path.unlink()
+            shutil.rmtree(run)
+        print(json.dumps({'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}))
+    except ModuleFailure as failure:
+        print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
+        sys.exit(failure.exit_code)
+    except (OSError, ValueError, TypeError):
+        print(json.dumps({'format': 'error-v1', 'code': 'RUN_DELETE_FAILED', 'message': 'RUN_DELETE_FAILED'}))
+        sys.exit(20)
+
+
 def flow_run_info(run, config):
     request = gate_read(gate_path(run, 'request.json'))
     execution = flow_execution_view(run, config)
@@ -3041,7 +3113,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -3089,6 +3161,8 @@ def main():
         x.set_defaults(f=cmd_flow_query)
     x = sp.add_parser('metric-date-availability'); x.add_argument('--end-date', required=True)
     x.set_defaults(f=cmd_flow_query)
+    x = sp.add_parser('delete-run'); x.add_argument('--run', dest='run_id', required=True)
+    x.set_defaults(f=cmd_delete_run)
     x = sp.add_parser('evidence'); x.add_argument('--run', dest='run_id', required=True)
     x.add_argument('--kind', choices=['full-page', 'top-products', 'raw'], required=True); x.add_argument('--output-sha256', required=True)
     x.set_defaults(f=cmd_metric_evidence)
