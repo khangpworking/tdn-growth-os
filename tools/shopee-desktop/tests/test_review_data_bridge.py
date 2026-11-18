@@ -444,6 +444,10 @@ class ReviewDataBridgeTest(unittest.TestCase):
             selected = tdn_shopee_app._choose_save_path('shopee.json')
         self.assertEqual(selected, r'C:\Users\Test\shopee.json')
         window.create_file_dialog.assert_called_once_with('save', save_filename='shopee.json')
+        with mock.patch.dict(sys.modules, {'webview': webview}):
+            tdn_shopee_app._choose_save_path('a.png', r'C:\Users\Test\Downloads')
+        window.create_file_dialog.assert_called_with('save', save_filename='a.png',
+                                                     directory=r'C:\Users\Test\Downloads')
 
     def test_native_save_dialog_cancel_returns_no_path(self):
         window = mock.Mock()
