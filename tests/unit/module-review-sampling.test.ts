@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { Readable } from 'node:stream';
 import test from 'node:test';
 import { ModuleError } from '../../scripts/module-pick.js';
 import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingCommand, reviewSamplingView, samplingContext, saveReviewPlan } from '../../scripts/module-review-sampling.js';
@@ -361,7 +362,13 @@ test('a count-mode run keeps v1, sends no max_pages and keeps its comment-cap ga
     'no_duplicate_review_ids', 'product_ids_match_m2', 'shape_shopee_public_rows', 'links_below_cap', 'links_skipped']);
 }, { mode: 'with-comments', stars: [], totalPerLink: 300, allocation: 'pooled' }));
 
-test('the views action returns exactly the same per-run view as the view action', async () => {
+async function withStdin<T>(text: string, run: () => Promise<T>): Promise<T> {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'stdin')!;
+  Object.defineProperty(process, 'stdin', { value: Readable.from([Buffer.from(text)]), configurable: true });
+  try { return await run(); } finally { Object.defineProperty(process, 'stdin', descriptor); }
+}
+
+test('the views action returns one entry per run in input order from stdin', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'shopee-views-'));
   const state = join(dir, 'state'), first = join(dir, 'run-a'), second = join(dir, 'run-b');
   await mkdir(state);
@@ -370,9 +377,36 @@ test('the views action returns exactly the same per-run view as the view action'
   const previous = process.env.SHOPEE_FLOW_STATE;
   process.env.SHOPEE_FLOW_STATE = state;
   try {
-    const result = await reviewSamplingCommand(['views', first, second]) as { format: string, views: unknown[] };
+    const result = await withStdin(JSON.stringify([first, second]), () =>
+      reviewSamplingCommand(['views'])) as { format: string, entries: unknown[] };
     assert.equal(result.format, 'review-sampling-views-v1');
-    assert.deepEqual(result.views, [await reviewSamplingView(first), await reviewSamplingView(second)]);
+    assert.deepEqual(result.entries, [{ ok: true, view: await reviewSamplingView(first) },
+      { ok: true, view: await reviewSamplingView(second) }]);
+  } finally {
+    if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;
+    else process.env.SHOPEE_FLOW_STATE = previous;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('the views action reports a failing run as its own entry and keeps the other runs', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'shopee-views-'));
+  const state = join(dir, 'state'), good = join(dir, 'run-a'), bad = join(dir, 'run-b');
+  await mkdir(state);
+  await mkdir(good);
+  await mkdir(join(bad, 'm3-custom', 'plans'), { recursive: true });
+  await writeJson(join(bad, 'm3-custom', 'plans', 'not-a-plan.json'), {});
+  const previous = process.env.SHOPEE_FLOW_STATE;
+  process.env.SHOPEE_FLOW_STATE = state;
+  try {
+    const result = await withStdin(JSON.stringify([bad, good]), () =>
+      reviewSamplingCommand(['views'])) as { format: string, entries: { ok: boolean, error?: { code: string, message: string } }[] };
+    const [failed, kept] = result.entries;
+    assert.ok(failed);
+    assert.equal(failed.ok, false);
+    assert.equal(failed.error?.code, 'REVIEW_PLAN_INVALID');
+    assert.equal(failed.error?.message, 'REVIEW_PLAN_INVALID');
+    assert.deepEqual(kept, { ok: true, view: await reviewSamplingView(good) });
   } finally {
     if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;
     else process.env.SHOPEE_FLOW_STATE = previous;

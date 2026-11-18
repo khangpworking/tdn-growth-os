@@ -698,9 +698,9 @@ import json, os, pathlib, sys
 args = sys.argv[1:]
 script = next(a for a in args if a.endswith('.ts'))
 index = args.index(script)
-action, targets = args[index + 1], args[index + 2:]
+action, argv_targets = args[index + 1], args[index + 2:]
 with open(os.environ['NODE_MARKER'], 'a', encoding='utf8') as log:
-    log.write(' '.join([action, *targets]) + '\\n')
+    log.write(' '.join([action, *argv_targets]) + '\\n')
 
 
 def view(target):
@@ -717,13 +717,26 @@ def view(target):
     }
 
 
-if any(pathlib.Path(target).name == 'badrun' for target in targets):
-    print(json.dumps({'format': 'error-v1', 'code': 'REVIEW_PLAN_INVALID', 'message': 'REVIEW_PLAN_INVALID'}))
-    raise SystemExit(2)
 if action == 'views':
-    print(json.dumps({'format': 'review-sampling-views-v1', 'views': [view(target) for target in targets]}))
+    text = sys.stdin.read()
+    with open(os.environ['NODE_MARKER'] + '.stdin', 'a', encoding='utf8') as log:
+        log.write(text + '\\n')
+    if os.environ.get('VIEWS_BROKEN') == '1':
+        print('not json')
+        raise SystemExit(0)
+    entries = []
+    for target in json.loads(text):
+        if pathlib.Path(target).name == 'badrun':
+            entries.append({'ok': False, 'error': {'code': 'REVIEW_PLAN_INVALID',
+                                                   'message': 'REVIEW_PLAN_INVALID', 'exitCode': 2}})
+        else:
+            entries.append({'ok': True, 'view': view(target)})
+    print(json.dumps({'format': 'review-sampling-views-v1', 'entries': entries}))
 elif action == 'view':
-    print(json.dumps(view(targets[0])))
+    if pathlib.Path(argv_targets[0]).name == 'badrun':
+        print(json.dumps({'format': 'error-v1', 'code': 'REVIEW_PLAN_INVALID', 'message': 'REVIEW_PLAN_INVALID'}))
+        raise SystemExit(2)
+    print(json.dumps(view(argv_targets[0])))
 else:
     raise SystemExit('unexpected sampling action')
 '''
@@ -746,22 +759,46 @@ class RunsSamplingBatchTests(FlowTest):
     def starts(self):
         return self.marker.read_text().splitlines() if self.marker.exists() else []
 
-    def runs_in_process(self, flow, per_run_views=False):
+    def stdin_paths(self):
+        lines = (self.marker.with_name(self.marker.name + '.stdin')).read_text().splitlines()
+        return [json.loads(line) for line in lines]
+
+    def runs_in_process(self, flow, per_run_views=False, extra_env=None):
         ns = argparse.Namespace(cmd='runs')
         output = io.StringIO()
-        patcher = (mock.patch.object(flow, 'sampling_views', lambda runs, config: [None] * len(runs))
+        patcher = (mock.patch.object(flow, 'sampling_views', lambda runs, config: None)
                    if per_run_views else contextlib.nullcontext())
-        with mock.patch.dict(os.environ, self.env(), clear=True), patcher, contextlib.redirect_stdout(output):
+        with mock.patch.dict(os.environ, self.env(extra_env), clear=True), patcher, contextlib.redirect_stdout(output):
             flow.cmd_flow_query(ns)
         return output.getvalue()
 
+    def command_in_process(self, flow, order=None, fallback=False):
+        real_iterdir = pathlib.Path.iterdir
+
+        def iterdir(path):
+            items = list(real_iterdir(path))
+            if order and path == self.runs:
+                items.sort(key=lambda item: order.index(item.name) if item.name in order else len(order))
+            return iter(items)
+
+        output = io.StringIO()
+        patcher = (mock.patch.object(flow, 'sampling_views', lambda runs, config: None)
+                   if fallback else contextlib.nullcontext())
+        with mock.patch.dict(os.environ, self.env(), clear=True), patcher, \
+                mock.patch.object(pathlib.Path, 'iterdir', iterdir), contextlib.redirect_stdout(output):
+            try:
+                flow.cmd_flow_query(argparse.Namespace(cmd='runs'))
+            except SystemExit as error:
+                return error.code, json.loads(output.getvalue())
+        return 0, json.loads(output.getvalue())
+
     def test_runs_starts_node_once_and_matches_the_per_run_view_output(self):
-        self.sampled_run('aaaaaaaa')
-        self.sampled_run('bbbbbbbb')
+        first, second = self.sampled_run('aaaaaaaa'), self.sampled_run('bbbbbbbb')
         flow = load_flow_script()
         new_bytes = self.runs_in_process(flow)
-        self.assertEqual(len(self.starts()), 1, self.starts())
-        self.assertEqual(self.starts()[0].split()[:1], ['views'])
+        self.assertEqual(self.starts(), ['views'], 'the views action gets its paths on stdin, not argv')
+        self.assertEqual(len(self.stdin_paths()), 1)
+        self.assertEqual(sorted(self.stdin_paths()[0]), sorted([str(first), str(second)]))
         self.marker.unlink()
         old_bytes = self.runs_in_process(flow, per_run_views=True)
         self.assertEqual(len(self.starts()), 2, 'the old path starts node per run')
@@ -777,6 +814,44 @@ class RunsSamplingBatchTests(FlowTest):
         rc, payload, stderr = self.command('runs')
         self.assertEqual(rc, 2, (payload, stderr))
         self.assertEqual(payload.get('code'), 'REVIEW_PLAN_INVALID', payload)
+
+    def test_an_earlier_receipt_error_still_wins_over_a_later_sampling_error(self):
+        receipt_id = '11111111-1111-4111-8111-111111111111'
+        run = self.make_run('receipt')
+        write_json(run / 'executions' / f'{receipt_id}.json', {
+            'format': 'shopee-module-execution-v1', 'runId': 'receipt', 'executionId': receipt_id,
+            'sequence': 1, 'module': 'M1', 'kind': 'module', 'attemptId': None,
+            'requestSha256': None, 'inputSha256': None, 'startedAt': '2026-11-01T00:00:00Z',
+            'endedAt': None, 'status': 'FAILED', 'pid': None, 'gateSha256': None, 'errorCode': None,
+            'previousGateSha256': 'a' * 64,
+        })
+        self.sampled_run('badrun')
+        flow = load_flow_script()
+        expected = (20, {'format': 'error-v1', 'code': 'EXECUTION_RECEIPT_CHANGED',
+                         'message': 'EXECUTION_RECEIPT_CHANGED'})
+        self.assertEqual(self.command_in_process(flow, order=['receipt', 'badrun']), expected)
+        self.assertEqual(self.command_in_process(flow, order=['receipt', 'badrun'], fallback=True), expected,
+                         'the batched views keep the old per-run error precedence')
+
+    def test_a_broken_views_process_falls_back_to_per_run_views(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        new_bytes = self.runs_in_process(flow)
+        self.marker.unlink()
+        broken_bytes = self.runs_in_process(flow, extra_env={'VIEWS_BROKEN': '1'})
+        self.assertEqual(len(self.starts()), 3, 'one broken views call, then one view per run')
+        self.assertEqual(broken_bytes, new_bytes)
+
+    def test_gate_hash_reads_the_evidence_again(self):
+        flow = load_flow_script()
+        self.assertFalse(hasattr(flow, '_GATE_HASH_MEMO'))
+        run = self.make_run()
+        evidence = run / 'evidence.txt'
+        evidence.write_text('one', encoding='utf8')
+        first = flow.gate_hash(run, 'evidence.txt')
+        evidence.write_text('two', encoding='utf8')
+        self.assertNotEqual(first, flow.gate_hash(run, 'evidence.txt'))
 
 
 class CaptureSpecReviewTests(FlowTest):
