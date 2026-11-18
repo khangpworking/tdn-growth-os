@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
 import { ModuleError } from '../../scripts/module-pick.js';
-import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingView, saveReviewPlan } from '../../scripts/module-review-sampling.js';
+import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingView, samplingContext, saveReviewPlan } from '../../scripts/module-review-sampling.js';
 import { reviewPolicy, samplingDigest, validateSamplingResult, ReviewSamplingError, type ShopeeReviewPlan } from '../../src/modules/foundation/shopee-review-sampling.js';
 import type { SamplingJobInput, SamplingJournal, SamplingResult, ReviewLink } from '../../contracts/foundation/shopee-review-sampling.generated.js';
 import { moduleRow } from '../fixtures/shopee-module-review-data.js';
@@ -69,6 +69,40 @@ async function withFixture<T>(work: (value: Awaited<ReturnType<typeof fixture>>)
     await rm(value.dir, { recursive: true, force: true });
   }
 }
+
+/** Replaces the manual fixture selection with a schema-valid v2 one that binds its step-2 link log. */
+async function v2SelectionBoundToLog(run: string) {
+  const logPath = join(run, 'm2/link-checks.json');
+  const logBytes = Buffer.from(`${JSON.stringify({ format: 'link-check-log-v1', runId: basename(run), entries: [] }, null, 2)}\n`);
+  await writeFile(logPath, logBytes);
+  const selection = {
+    format: 'selection-v1', runId: basename(run), source: 'auto', pickRuleVersion: 'metric-products-unique-v2',
+    metricInputSha256: 'a'.repeat(64),
+    links: [{ rank: 1, productBaseId: '1__200__100', shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200',
+      brand: null, revenue: 1, reason: 'Synthetic link', sourceRank: 1, productName: 'Synthetic link', shopName: null }],
+    counts: { walked: 1, deleted: 0, notIncluded: 0, tokenGuardRejected: 0, eligible: 1, picked: 1, maskedRows: 0, maskedAboveLowestPick: 0 },
+    selectionProof: { sourceMap: 'raw-responses.json#/0/body/data', rawSha256: 'a'.repeat(64), windowId: 'selected',
+      sortBy: 'revenue_custom__desc', candidateCount: 1, distinctCount: 1, unresolvedCount: 0, shortageReason: null, skipped: [],
+      matcher: { provider: 'typesafe-jev', model: 'synthetic', questionVersion: 'a'.repeat(64), threshold: 0.7 },
+      decisions: [], linkChecksSha256: sha(logBytes) },
+  };
+  const selectionBytes = Buffer.from(`${JSON.stringify(selection, null, 2)}\n`);
+  await writeFile(join(run, 'm2/selection.json'), selectionBytes);
+  await writeJson(join(run, 'gates/m2.json'), { format: 'handoff-v1', module: 'M2', runId: basename(run), skillVersion: 'synthetic',
+    verdict: 'PASS', inputSha256: null, outputSha256: sha(selectionBytes), checks: [], errorCode: null, next: 'M3' });
+  return { selection, logPath };
+}
+
+test('an m3 admission keeps the step-2 log a v2 selection bound, and only that log', () => withFixture(async ({ run }) => {
+  const { logPath } = await v2SelectionBoundToLog(run);
+  assert.deepEqual((await samplingContext(run)).links,
+    [{ shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200' }], 'the bound log passes admission');
+  const changed = (error: unknown) => error instanceof ModuleError && error.code === 'GATE_INPUT_CHANGED' && error.exitCode === 23;
+  await writeFile(logPath, Buffer.concat([await readFile(logPath), Buffer.from('\n')]));
+  await assert.rejects(samplingContext(run), changed, 'edited log bytes fail admission');
+  await rm(logPath);
+  await assert.rejects(samplingContext(run), changed, 'a deleted log fails admission');
+}));
 
 test('an automatic binding without attempt metadata refuses redispatch and stays UNCERTAIN', () => withFixture(async ({ run, requestBytes, selectionBytes, saved }) => {
   await writeJson(join(run, 'm3-custom/automatic.json'), {

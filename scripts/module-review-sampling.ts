@@ -27,6 +27,12 @@ export async function samplingContext(run:string) {
   if(tracking!==null&&object(tracking).requestSha256!==await hashFile(run,'request.json'))throw new ModuleError('RUN_TRACKING_CHANGED',23);
   const selection=object(await readJson(run,'m2/selection.json'));await validateModuleValue('selection-v1',selection);
   if(selection.runId!==basename(run))throw new ModuleError('MODULE_INPUT_INVALID');
+  // A selection that bound its step-2 link log stays bound to the same bytes; older selections have no field.
+  if(selection.selectionProof!==undefined){
+    const proof=object(selection.selectionProof);
+    if(proof.linkChecksSha256!==undefined&&(typeof proof.linkChecksSha256!=='string'||!hex.test(proof.linkChecksSha256)||
+      await hashFile(run,'m2/link-checks.json').catch(()=>null)!==proof.linkChecksSha256))throw new ModuleError('GATE_INPUT_CHANGED',23);
+  }
   const links:ReviewLink[]=(selection.links as unknown[]).map(value=>{const link=object(value);if(link.url!==`https://shopee.vn/product/${link.shopId}/${link.itemId}` || link.productBaseId!==`1__${link.itemId}__${link.shopId}`)throw new ModuleError('MODULE_INPUT_INVALID');return {shopId:link.shopId as string,itemId:link.itemId as string,url:link.url as string};});
   return {m2Digest,requestSha256:await hashFile(run,'request.json'),links};
 }
@@ -106,6 +112,42 @@ export async function journalsFor(run:string,attempt:ReviewSamplingAttempt):Prom
 async function attemptUnresolved(run:string,attempt:ReviewSamplingAttempt,state:ReviewSamplingAttemptState):Promise<boolean>{
   if(state.status==='RUNNING'||state.status==='UNCERTAIN')return true;
   return (await journalsFor(run,attempt)).some(j=>j!==null&&(!j.terminal||j.job&&['queued','running','needs_login','needs_verification'].includes(j.job.state)));
+}
+/** Identity, journal and output checks shared by the sampling view and the step-4 issue projection. */
+async function readAttempt(run:string,kind:Kind,id:string,attempt:ReviewSamplingAttempt){
+  const stored=await stateFor(run,kind,id),js=await journalsFor(run,attempt);
+  const unresolved=await attemptUnresolved(run,attempt,stored),live=stored.status==='RUNNING'&&await pidLive(stored.pid);
+  const status=stored.status==='RUNNING'&&!live?'UNCERTAIN':unresolved&&stored.status!=='RUNNING'?'UNCERTAIN':stored.status;
+  const stopRequested=await optional(run,`${attemptPath(kind,id)}/stop.json`)!==null;
+  const plan=attempt.planSha256?validateReviewPlan(await readJson(run,`m3-custom/plans/${attempt.planSha256}.json`),attempt.planSha256):null;
+  if(plan&&(plan.m2Digest!==attempt.m2Digest||plan.requestSha256!==attempt.requestSha256||canonicalJson(plan.links)!==canonicalJson(attempt.links)))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
+  for(let index=0;index<js.length;index++){
+    const journal=js[index],link=attempt.links[index]!;
+    if(!journal)continue;
+    const expected=jobRequest(link,attempt,plan);
+    if(canonicalJson(journal.request)!==canonicalJson(expected))throw new ModuleError('REVIEW_JOURNAL_CHANGED');
+    if(journal.result?.format==='shopee-sampled-result-v1')validateSamplingResult(journal.result,plan!,attempt.planSha256!,link,samplingDigest(expected));
+  }
+  if(!unresolved&&stored.outputSha256){
+    if(kind==='custom'){
+      if(stored.outputSha256!==await hashFolder(run,`${attemptPath(kind,id)}/output`))throw new ModuleError('REVIEW_RESULT_CHANGED');
+      const gate=object(await readJson(run,`${attemptPath(kind,id)}/gate.json`));
+      if(gate.format!=='handoff-v1'||gate.module!=='M3'||gate.runId!==basename(run)||gate.inputSha256!==attempt.planSha256||gate.outputSha256!==stored.outputSha256||
+        stored.status==='FAILED'&&gate.verdict==='PASS'||stored.status==='SUCCEEDED'&&(stored.errorCode!==null||gate.verdict!=='PASS'||gate.errorCode!==null||!Array.isArray(gate.checks)||gate.checks.some(c=>{const check=object(c);return !check.ok&&check.level!=='warn';})))throw new ModuleError('REVIEW_RESULT_CHANGED');
+    }else if(stored.outputSha256!==samplingDigest(js.map(j=>j?.result??null)))throw new ModuleError('REVIEW_COUNTS_CHANGED');
+  }
+  if(!unresolved&&stored.status==='SUCCEEDED'&&!stored.outputSha256)throw new ModuleError('REVIEW_RESULT_CHANGED');
+  return {attempt,state:stored,journals:js,plan,unresolved,live,status,stopRequested};
+}
+/** Step-4 projection: only an attempt that passes every identity/output check contributes its outcome. */
+export async function verifiedCustomAttempt(run:string,id:string){
+  try{
+    if(!uuid.test(id))return null;
+    const attempt=await metadata(run,'custom',id),read=await readAttempt(run,'custom',id,attempt);
+    if(read.unresolved||!read.state.outputSha256)return null;
+    const outcome=object(await readJson(run,`${attemptPath('custom',id)}/output/outcome.json`));
+    return {attempt:read.attempt,state:read.state,outcome};
+  }catch{return null;}
 }
 export async function assertSamplingIdle(run:string,exclude?:{kind:Kind,id:string},checkLegacy=true):Promise<void>{
   const automatic=await automaticBinding(run);
@@ -210,30 +252,10 @@ export async function reviewSamplingView(run:string){
       (kind==='custom'?attempts:countAttempts).push({attemptId:id,automatic:binding!==null,executionId:binding?.executionId??null,sequence:binding?.sequence??null,createdAt:binding?.createdAt??null,planSha256:binding?.planSha256??null,requestSha256:binding?.requestSha256??null,m2Digest:binding?.m2Digest??null,status:'UNCERTAIN',errorCode:'REVIEW_RESERVATION_INCOMPLETE',gate:null,links:[],receiptMatchesCurrentInputs:false,stopRequested:false,reconcilable:false});
       blockedBy??={code:'REVIEW_RESERVATION_INCOMPLETE'};continue;
     }
-    const attempt=await metadata(run,kind,id),stored=await stateFor(run,kind,id),js=await journalsFor(run,attempt);
+    const attempt=await metadata(run,kind,id);
     if(binding&&(attempt.executionId!==binding.executionId||attempt.sequence!==binding.sequence||attempt.planSha256!==binding.planSha256||attempt.requestSha256!==binding.requestSha256||attempt.m2Digest!==binding.m2Digest))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
-    const unresolved=await attemptUnresolved(run,attempt,stored),live=stored.status==='RUNNING'&&await pidLive(stored.pid);
-    const status=stored.status==='RUNNING'&&!live?'UNCERTAIN':unresolved&&stored.status!=='RUNNING'?'UNCERTAIN':stored.status;
-    const stopRequested=await optional(run,`${attemptPath(kind,id)}/stop.json`)!==null;
+    const read=await readAttempt(run,kind,id,attempt),{state:stored,journals:js,plan,unresolved,live,status,stopRequested}=read;
     if(unresolved)blockedBy??={code:status==='RUNNING'?'RUN_BUSY':'SUBMISSION_UNCERTAIN'};
-    const plan=attempt.planSha256?validateReviewPlan(await readJson(run,`m3-custom/plans/${attempt.planSha256}.json`),attempt.planSha256):null;
-    if(plan&&(plan.m2Digest!==attempt.m2Digest||plan.requestSha256!==attempt.requestSha256||canonicalJson(plan.links)!==canonicalJson(attempt.links)))throw new ModuleError('REVIEW_ATTEMPT_CHANGED');
-    for(let index=0;index<js.length;index++){
-      const journal=js[index],link=attempt.links[index]!;
-      if(!journal)continue;
-      const expected=jobRequest(link,attempt,plan);
-      if(canonicalJson(journal.request)!==canonicalJson(expected))throw new ModuleError('REVIEW_JOURNAL_CHANGED');
-      if(journal.result?.format==='shopee-sampled-result-v1')validateSamplingResult(journal.result,plan!,attempt.planSha256!,link,samplingDigest(expected));
-    }
-    if(!unresolved&&stored.outputSha256){
-      if(kind==='custom'){
-        if(stored.outputSha256!==await hashFolder(run,`${attemptPath(kind,id)}/output`))throw new ModuleError('REVIEW_RESULT_CHANGED');
-        const gate=object(await readJson(run,`${attemptPath(kind,id)}/gate.json`));
-        if(gate.format!=='handoff-v1'||gate.module!=='M3'||gate.runId!==basename(run)||gate.inputSha256!==attempt.planSha256||gate.outputSha256!==stored.outputSha256||
-          stored.status==='FAILED'&&gate.verdict==='PASS'||stored.status==='SUCCEEDED'&&(stored.errorCode!==null||gate.verdict!=='PASS'||gate.errorCode!==null||!Array.isArray(gate.checks)||gate.checks.some(c=>{const check=object(c);return !check.ok&&check.level!=='warn';})))throw new ModuleError('REVIEW_RESULT_CHANGED');
-      }else if(stored.outputSha256!==samplingDigest(js.map(j=>j?.result??null)))throw new ModuleError('REVIEW_COUNTS_CHANGED');
-    }
-    if(!unresolved&&stored.status==='SUCCEEDED'&&!stored.outputSha256)throw new ModuleError('REVIEW_RESULT_CHANGED');
     const summary={attemptId:id,automatic:binding!==null,executionId:attempt.executionId??null,sequence:attempt.sequence??null,requestSha256:attempt.requestSha256,m2Digest:attempt.m2Digest,receiptMatchesCurrentInputs:!unresolved&&stored.outputSha256!==null&&context!==null&&context.requestSha256===attempt.requestSha256&&context.m2Digest===attempt.m2Digest,planSha256:attempt.planSha256,createdAt:attempt.createdAt,status,errorCode:stored.errorCode,stopRequested,reconcilable:!live,
       gate:await optional(run,`${attemptPath(kind,id)}/gate.json`),links:attempt.links.map((link,index)=>summarizeLink(link,plan,js[index]??null))};
     if(context&&attempt.m2Digest===context.m2Digest)for(const j of js){const count=j?.result?.format==='shopee-review-counts-v1'?j.result:j?.result?.sourceCounts;if(count){validateReviewCounts(count);if(!counts.has(count.url)||counts.get(count.url)!.observedAt<count.observedAt)counts.set(count.url,count);}}
@@ -306,7 +328,7 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   }else if(journals.some(j=>!j?.result||j.result.format!=='shopee-review-counts-v1'))errorCode??='REVIEW_COUNTS_INCOMPLETE';
   const status=unresolved?'UNCERTAIN':errorCode?'FAILED':'SUCCEEDED';
   const outputSha256=gate?.outputSha256??samplingDigest(journals.map(j=>j?.result??null));
-  await atomicJson(run,`${base}/state.json`,{format:'shopee-review-attempt-state-v1',attemptSha256:prior.attemptSha256,status,pid:null,errorCode,outputSha256});
+  await atomicJson(run,`${base}/state.json`,{format:'shopee-review-attempt-state-v1',attemptSha256:prior.attemptSha256,status,pid:null,errorCode,outputSha256,endedAt:new Date().toISOString()});
   return {format:'review-attempt-control-v1',runId:basename(run),kind:deps.kind,attemptId:deps.attemptId,status,pid:null,errorCode};
 }
 async function inputJson():Promise<unknown>{let value='';for await(const part of process.stdin){value+=String(part);if(Buffer.byteLength(value)>65536)throw new ModuleError('REVIEW_INPUT_INVALID',2);}return JSON.parse(value);}

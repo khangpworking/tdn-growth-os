@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
 import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pickRaw, readPickSource, readRequest, sha256 } from '../../scripts/module-pick.js';
+import { createM2LinkCheck, LINK_CHECK_BUDGET_MS, LinkCheckStop } from '../../scripts/module-link-check.js';
+import { ShopeeReviewSamplingCollector } from '../../src/platform/collectors/shopee-review-sampling.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
 import { pickJevFromEnvironment } from '../../scripts/module-product-pick-jev.js';
@@ -410,6 +412,75 @@ test('a count job that cannot answer stops step 2 with the session code or LINK_
       await assert.rejects(readFile(join(dir, 'm2/link-checks.json')), { code: 'ENOENT' }, errorCode);
     } finally { await rm(dir, { recursive: true, force: true }); }
   }
+});
+
+test('a step-2 stop after a completed check keeps that check in the log and publishes no selection', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['8651', '8652', '8653']);
+    await writeV2Run(dir, rows);
+    const blocked = rowUrl(rows[1]!);
+    const { collector, asked } = fakeLinkCollector(url => url === blocked ? { errorCode: 'HUMAN_LOGIN_REQUIRED' } : {});
+    await assert.rejects(main(dir, { jev: () => fakeJev([answer(1, 'MOI', 0.9)]).jev, sleep: noWait, linkCollector: () => collector }),
+      (error: unknown) => error instanceof ModuleError && error.code === 'HUMAN_LOGIN_REQUIRED');
+    assert.deepEqual(asked, [rowUrl(rows[0]!), blocked], 'the stop happens while checking the second candidate');
+    const log = JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8'));
+    assert.deepEqual(log.entries.map((entry: any) => [entry.productBaseId, entry.result, entry.reason]), [['1__8651__801', 'ok', null]],
+      'the check that completed before the stop stays in the log');
+    await assert.rejects(readFile(join(dir, 'm2/selection.json')), { code: 'ENOENT' });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a lost count-job submission keeps its journal under m2 and is reconciled before a new one', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['8661', '8662']);
+    await writeV2Run(dir, rows);
+    const now = '2026-11-18T03:00:00.000Z';
+    const routes: string[] = [];
+    let lost = true;
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const method = init?.method ?? 'GET', url = new URL(String(input));
+      routes.push(`${method} ${url.pathname}${url.search}`);
+      if (method === 'GET' && url.pathname === '/session')
+        return Response.json({ state: 'ready', authenticated: true, checked_at: now });
+      if (method === 'GET' && url.pathname === '/jobs') return Response.json([]);
+      if (method === 'POST' && url.pathname === '/count-jobs') {
+        if (lost) { lost = false; throw new TypeError('synthetic network loss'); }
+      }
+      throw new Error(`unexpected ${method} ${url.pathname}`);
+    };
+    const collector = new ShopeeReviewSamplingCollector({ token: 'synthetic-token', fetch: fakeFetch,
+      now: () => new Date(now), sleep: noWait, submitLockFile: join(dir, 'submit.lock') });
+    const collect = () => main(dir, { jev: () => fakeJev([]).jev, sleep: noWait, linkCollector: () => collector });
+    const failed = (error: unknown) => error instanceof ModuleError && error.code === 'LINK_CHECK_FAILED';
+    await assert.rejects(collect(), failed);
+    const journals = await readdir(join(dir, 'm2/link-check-journal'));
+    assert.equal(journals.filter(name => name.endsWith('.json')).length, 1, 'the unresolved journal stays with the run');
+    await assert.rejects(readFile(join(dir, 'm2/link-checks.json')), { code: 'ENOENT' });
+    assert.equal(routes.filter(route => route === 'POST /count-jobs').length, 1, 'the lost submission is never repeated');
+    await assert.rejects(collect(), failed);
+    assert.equal(routes.filter(route => route === 'POST /count-jobs').length, 1, 'the retry reconciles, it never resubmits');
+    assert.equal(routes.filter(route => route === 'GET /jobs?limit=100').length, 2,
+      'one free-service poll before the lost submission, one on the reconcile');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('the step-2 link-check budget stops with LINK_CHECK_FAILED before another check', async () => {
+  const dir = await runDir();
+  try {
+    assert.equal(LINK_CHECK_BUDGET_MS, 600_000, 'owner decision: 10 minutes for all count checks of one run');
+    let clock = Date.parse('2026-11-18T03:00:00.000Z');
+    const { collector, asked } = fakeLinkCollector();
+    const { check, entries } = createM2LinkCheck({ collector, policy: null, journalDir: join(dir, 'm2/link-check-journal'),
+      now: () => new Date(clock) });
+    const link = (itemId: string) => ({ productBaseId: `1__${itemId}__801`, shopId: '801', itemId, url: `https://shopee.vn/product/801/${itemId}` });
+    assert.equal((await check(link('9001'))).result, 'ok');
+    clock += LINK_CHECK_BUDGET_MS;
+    await assert.rejects(check(link('9002')), (error: unknown) => error instanceof LinkCheckStop && error.code === 'LINK_CHECK_FAILED');
+    assert.deepEqual(asked, [link('9001').url], 'no count job starts after the budget');
+    assert.equal(entries.length, 1, 'the refused check records no verdict');
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test('a rejected link with no later candidate leaves the existing four-pick shortage', async () => {

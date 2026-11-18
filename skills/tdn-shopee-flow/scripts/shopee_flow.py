@@ -1100,6 +1100,13 @@ def module_blocking(run, module, manual=False, owner_pid=None):
         error, code = gate_prerequisite(run, previous, gate_hash(run, relative))
         if error:
             return {'code': error, 'gate': previous}, code
+    if module == 'm3':
+        # Owner decision: a selection that bound its step-2 link log stays bound to the same bytes.
+        selection = gate_read(gate_path(run, 'm2/selection.json'))
+        proof = selection.get('selectionProof') if isinstance(selection, dict) else None
+        bound = proof.get('linkChecksSha256') if isinstance(proof, dict) else None
+        if bound is not None and (not isinstance(bound, str) or gate_hash(run, 'm2/link-checks.json') != bound):
+            return {'code': 'GATE_INPUT_CHANGED', 'gate': 'm2'}, 23
     if module in ('m1', 'm3') and module_readonly():
         return {'code': 'READONLY_ON', 'gate': None}, 20
     if module == 'm1' and gate_path(run, 'm1').exists():

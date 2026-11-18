@@ -1,9 +1,8 @@
 import { derivePeriodProductPick, MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, pickProductsWithJev, ProductPickError } from './module-product-pick.js';
 import { pickJevFromEnvironment, type PickJev } from './module-product-pick-jev.js';
-import { createM2LinkCheck, LinkCheckStop, linkCollectorFromEnvironment, type LinkCollector } from './module-link-check.js';
+import { createM2LinkCheck, LinkCheckStop, linkCollectorFromEnvironment, reconcileLinkJournals, type LinkCollector } from './module-link-check.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -267,16 +266,24 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
         try { jev = options.jev!(); } catch { throw new ModuleError('PICK_JEV_UNAVAILABLE'); }
         const collector = options.linkCollector ? options.linkCollector() : null;
         if (!collector) throw new ModuleError('LINK_CHECK_FAILED');
-        const journalDir = await mkdtemp(join(tmpdir(), 'shopee-m2-link-'));
-        try {
-          const { check, entries } = createM2LinkCheck({ collector, policy: request.collectionPolicy, journalDir });
-          picked = await pickProductsWithJev(source.raw, source.part, sha256(source.rawBytes), jev, options.sleep, check);
-          // Owner F640: `m2/link-checks.json` is written with the selection it belongs to.
+        // Count-job journals live with the run: an unresolved one is reconciled here before any new submission.
+        const journalDir = join(run, 'm2/link-check-journal');
+        await reconcileLinkJournals({ collector, journalDir });
+        const { check, entries } = createM2LinkCheck({ collector, policy: request.collectionPolicy, journalDir });
+        const publishLog = async () => {
           const log = { format: 'link-check-log-v1', runId: basename(run), entries };
           await validateModuleValue('link-check-log-v1', log);
           await atomicJson(run, 'm2/link-checks.json', log);
-          linkChecksSha256 = await hashFile(run, 'm2/link-checks.json');
-        } finally { await rm(journalDir, { recursive: true, force: true }); }
+        };
+        try { picked = await pickProductsWithJev(source.raw, source.part, sha256(source.rawBytes), jev, options.sleep, check); }
+        catch (error) {
+          // Every completed check stays as evidence when step 2 stops before a selection exists.
+          if (entries.length > 0) await publishLog();
+          throw error;
+        }
+        await publishLog();
+        // Only a published selection binds the log's digest.
+        linkChecksSha256 = await hashFile(run, 'm2/link-checks.json');
       } else picked = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
     } catch (error) {
       if (error instanceof ModuleError) throw error;

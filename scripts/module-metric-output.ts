@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
+import { verifiedCustomAttempt } from './module-review-sampling.js';
 import type { LinkCheckEntry } from './module-link-check.js';
 import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick } from './module-product-pick.js';
 
@@ -230,29 +231,30 @@ async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
     stage: 'm2' as const, productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string, at: entry.checkedAt,
     replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null }]);
 }
-/** Step-3 deaths: every attempt's outcome, each issue keeping its own attemptId. */
+/** Step-3 deaths: every verified attempt's outcome, newest attempt end first, each issue keeping its attemptId. */
 async function m3LinkIssues(run: string): Promise<LinkIssue[]> {
   let names: string[];
   try { names = await readdir(await safePath(run, 'm3-custom/attempts')); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
+  const verified: { attemptId: string; links: unknown[]; outcome: Row; at: string }[] = [];
+  for (const attemptId of names.filter(name => UUID.test(name))) {
+    // An attempt that fails its identity/output checks contributes nothing and never crashes the projection.
+    const read = await verifiedCustomAttempt(run, attemptId);
+    if (!read || !Array.isArray(read.outcome.links)) continue;
+    verified.push({ attemptId, links: read.attempt.links, outcome: read.outcome,
+      at: read.state.endedAt ?? read.attempt.createdAt });
+  }
+  verified.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.attemptId.localeCompare(a.attemptId));
   const issues: LinkIssue[] = [];
-  for (const attemptId of names.filter(name => UUID.test(name)).sort()) {
-    const base = `m3-custom/attempts/${attemptId}`;
-    let attempt: Row, outcome: Row, endedAt: Date;
-    try {
-      attempt = object(await readJson(run, `${base}/attempt.json`));
-      outcome = object(await readJson(run, `${base}/output/outcome.json`));
-      endedAt = (await lstat(await safePath(run, `${base}/output/outcome.json`))).mtime;
-    } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
+  for (const { attemptId, links, outcome, at } of verified) {
     // `skipped` arrives with step-3 skip; outcomes without it leave no issue.
-    if (outcome.format !== 'm3-custom-outcome-v1' || !Array.isArray(outcome.links) || !Array.isArray(attempt.links) ||
-        attempt.links.length !== outcome.links.length) continue;
-    for (const [index, rawSummary] of outcome.links.entries()) {
-      const summary = rawSummary, link = attempt.links[index];
+    if (outcome.format !== 'm3-custom-outcome-v1' || (outcome.links as unknown[]).length !== links.length) continue;
+    for (const [index, rawSummary] of (outcome.links as unknown[]).entries()) {
+      const summary = rawSummary, link = links[index];
       if (!isRow(summary) || summary.skipped !== true || typeof summary.stopReason !== 'string' ||
           !isRow(link) || typeof link.shopId !== 'string' || typeof link.itemId !== 'string' || typeof link.url !== 'string') continue;
       issues.push({ stage: 'm3', productBaseId: `1__${link.itemId}__${link.shopId}`, url: link.url, reason: summary.stopReason,
-        at: endedAt.toISOString(), replacedBy: null, attemptId });
+        at, replacedBy: null, attemptId });
     }
   }
   return issues;

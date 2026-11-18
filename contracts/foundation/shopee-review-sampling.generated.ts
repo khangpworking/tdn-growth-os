@@ -353,6 +353,10 @@ export interface ReviewSamplingAttemptState {
   errorCode: string | null;
   outputSha256: string | null;
   attemptSha256: string;
+  /**
+   * Optional. Written once when the attempt ends; step 4 labels its links with this time.
+   */
+  endedAt?: string;
 }
 /**
  * This interface was referenced by `ShopeeReviewPlan`'s JSON-Schema
