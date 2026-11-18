@@ -4689,10 +4689,10 @@ test('theme comments load on a click only, follow the latest summary, and a chan
     const hold3 = statusHold;
     statusHold = null;
     hold3.resolve();
-    await waitFor(() => statsCalls > before.stats, '3: the run-view answered');
+    await waitFor(() => run.state.runViewCalls.length === before.views + 2, '3: the queued one after it');
     await new Promise((resolve) => setTimeout(resolve, 150));
     const views = run.state.runViewCalls.length - before.views;
-    assert.equal(views, 1, '3: both polls share it');
+    assert.equal(views, 2, '3: one follow-up for both polls');
     assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, views, '3: review data only inside run-view');
     assert.equal(run.state.moduleOutputsCalls.length - before.outputs, views, '3: outputs only inside run-view');
     assert.equal(statsCalls - before.stats, views, '3: stats only inside run-view');
@@ -4704,8 +4704,9 @@ test('theme comments load on a click only, follow the latest summary, and a chan
 // |---|----------------------------------------------------------------------------------|---------------------------------------------|
 // | 1 | older server: a reopen's sampling answer shows the attempt finished, after the   | the review data is read again               |
 // |   | other single calls answered                                                      |                                             |
-// | 2 | run-view: step 2 of the open run passes (a progress change and its notice)       | ONE run-view, no other command, never 2 out |
-test('single calls keep their completion refresh and a progress change asks one run-view', async () => {
+// | 2 | run-view: step 2 of the open run passes (a progress change and its notice)       | the change's run-view and the notice's one  |
+// |   |                                                                                  | follow-up, no other command, never 2 out    |
+test('single calls keep their completion refresh and a progress change asks run-views only', async () => {
   const runId = 'run-r2';
   const attempt = {
     attemptId: 'attempt-r2', planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
@@ -4751,10 +4752,10 @@ test('single calls keep their completion refresh and a progress change asks one 
     phase = 'after';
     await waitFor(() => run.doc.querySelector('#noticeBox .notice-go') !== null, '2: notice');
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.equal(run.state.runViewCalls.length - before.views, 1, '2: one run-view');
-    assert.equal(run.state.statusCalls.length - before.status, 1, '2: run-info only inside it');
-    assert.equal(run.state.reviewProcessCalls.length - before.process, 1, '2: step 4 state only inside it');
-    assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, 1, '2: review data only inside it');
+    assert.equal(run.state.runViewCalls.length - before.views, 2, '2: the change and one follow-up');
+    assert.equal(run.state.statusCalls.length - before.status, 2, '2: run-info only inside them');
+    assert.equal(run.state.reviewProcessCalls.length - before.process, 2, '2: step 4 state only inside them');
+    assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, 2, '2: review data only inside them');
     assert.equal(run.state.runViewMaxOut, 1, '2: never two at once');
   } finally { run.dom.window.close(); }
 });
@@ -4866,4 +4867,46 @@ test('the per-part loaders of the open run use its one run-view or, on an older 
     await waitFor(() => run.doc.querySelector('#noticeBox .notice') !== null, '3: notice');
     assert.match(run.doc.querySelector('#noticeBox .notice')!.textContent || '', /498 bình luận đã gắn chủ đề/);
   } finally { hold?.resolve(); processHold?.resolve(); run.dom.window.close(); }
+});
+
+// #516 Terra r4: a per-part read is answered by a run-view started after it, one row:
+// | # | situation                                                                   | expected                                    |
+// |---|-----------------------------------------------------------------------------|---------------------------------------------|
+// | 1 | «Chạy tiếp» of step 4 answers while a run-view asked before it is still out | its step 4 read waits for the follow-up and |
+// |   |                                                                             | shows the new state; 2 run-views in all     |
+test('a read asked while a run-view is out is answered by the follow-up', async () => {
+  let kind = 'FAIL' as 'FAIL' | 'RUNNING';
+  let hold: Deferred<void> | null = null;
+  const resume = deferred<void>();
+  const run = step4Harness({
+    reviewProcessResult: (runId) => reviewProcessReply(runId,
+      runId === 'run-fail' ? kind : STEP4_RUN_KINDS[runId as keyof typeof STEP4_RUN_KINDS]),
+    processReviewDataResult: (runId, sourceSha256) => resume.promise.then(() =>
+      ({ ok: true, data: { format: 'review-process-start-v1', runId, sourceSha256, status: 'RUNNING', pid: 4321 } })),
+    runViewHold: () => hold?.promise,
+  });
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList button').length === 4, 'list');
+    runListButton(run.doc, 'run-fail').click();
+    await waitFor(() => run.doc.getElementById('s4Resume') !== null, '«Chạy tiếp»');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    element<HTMLButtonElement>(run.doc, 's4Resume').click();
+    await waitFor(() => run.state.processReviewDataCalls.length === 1, 'resume sent');
+    const views = run.state.runViewCalls.length;
+    hold = deferred<void>();
+    runListButton(run.doc, 'run-fail').click();          // a run-view out: its step 4 part is from before the resume
+    await waitFor(() => run.state.runViewCalls.length === views + 1, 'a run-view out');
+    kind = 'RUNNING';
+    resume.resolve();                                    // the resume answers: its step 4 read is asked now
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(run.state.runViewCalls.length, views + 1, 'never two at once');
+    const held = hold;
+    hold = null;
+    held.resolve();
+    await waitFor(() => run.state.runViewCalls.length === views + 2, 'the follow-up');
+    await waitFor(() => run.doc.getElementById('s4Resume') === null, 'the running state shown');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(run.state.runViewCalls.length, views + 2, '2 run-views in all');
+    assert.equal(run.state.runViewMaxOut, 1);
+  } finally { hold?.resolve(); run.dom.window.close(); }
 });

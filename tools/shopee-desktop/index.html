@@ -7509,11 +7509,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return refresh;
   }
 
-  // The answer of the read loadInfo has out for this run (or the follow-up it queued), or a new one.
-  function runViewAnswer(runId) {
-    return state.runViewAgain[runId] || state.runViewInFlight[runId] || loadInfo(runId);
-  }
-
   // Resolves true or false once the first run-view of this connection answers (USAGE = false); pending until then.
   function runViewSupport(runId) {
     if (state.runViewSupported === true || state.runViewSupported === false) return Promise.resolve(state.runViewSupported);
@@ -7522,13 +7517,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   // A per-part loader's read of `runId`: null = its own single call (another run, an older server, or a result part
-  // off «Kết quả chạy»); else a promise of the run-view answer that applied its part (null when there was none).
+  // off «Kết quả chạy»); else a promise of the answer of a run-view STARTED AFTER this call (loadInfo: a new one, or
+  // the one follow-up shared by every read asked while one is out), which applied its part; null when there was none.
   function runViewFor(runId, resultPart) {
     if (isGone(runId) || state.selectedRunId !== runId || state.runViewSupported === false) return null;
     if (resultPart && state.screen !== 'result') return null;
     return runViewSupport(runId).then(function (supported) {
       if (!supported || isGone(runId) || state.selectedRunId !== runId) return null;
-      return runViewAnswer(runId);
+      return loadInfo(runId);
     }).then(function (info) { return info || null; });
   }
 
