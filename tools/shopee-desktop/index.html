@@ -2271,6 +2271,41 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       };
     }
 
+    // review-insights-v2 from v1: each comment list becomes its size; buckets get the key the server uses.
+    function mockInsightBucketKeys(view, each) {
+      (view.sources || []).forEach(function (source) {
+        each(source.sourceSha256 + ':all', source.all, function (next) { source.all = next; });
+        (source.links || []).forEach(function (link) {
+          each(source.sourceSha256 + ':' + link.shopId + '.' + link.itemId, link.insights, function (next) { link.insights = next; });
+        });
+      });
+    }
+
+    function mockInsightsSummary(v1) {
+      var view = JSON.parse(JSON.stringify(v1));
+      view.format = 'review-insights-v2';
+      mockInsightBucketKeys(view, function (key, bucket, put) {
+        put({ key: key, summary: bucket.summary, commentCount: (bucket.comments || []).length,
+          themes: (bucket.themes || []).map(function (theme) {
+            var copy = Object.assign({}, theme, { commentCount: (theme.comments || []).length });
+            delete copy.comments;
+            return copy;
+          }) });
+      });
+      return view;
+    }
+
+    function mockInsightCommentList(v1, bucketKey, theme) {
+      var found = null;
+      mockInsightBucketKeys(v1, function (key, bucket) {
+        if (key !== bucketKey || found) return;
+        if (theme === null || theme === undefined) { found = bucket.comments || []; return; }
+        var match = (bucket.themes || []).find(function (item) { return item.code === theme; });
+        if (match) found = match.comments || [];
+      });
+      return found;
+    }
+
     function mergeInsightBuckets(buckets, totalCount) {
       var safeTotal = totalCount || 0;
       var comments = [];
@@ -2772,6 +2807,30 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         return Promise.resolve(ok(mockReviewInsights(run)));
       },
+      reviewInsightsSummary: function (runId) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        return Promise.resolve(ok(mockInsightsSummary(mockReviewInsights(run))));
+      },
+      reviewInsightComments: function (runId, bucket, theme) {
+        var run = store.get(runId);
+        if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
+        var found = mockInsightCommentList(mockReviewInsights(run), bucket, theme);
+        return Promise.resolve(found ? ok({ format: 'review-insight-comments-v1', bucket: bucket, theme: theme, comments: found })
+          : err('REVIEW_DATA_INVALID', 'REVIEW_DATA_INVALID'));
+      },
+      runView: function (runId, result) {
+        var self = this;
+        var names = ['info', 'sampling', 'reviewData', 'outputs', 'process'].concat(result ? ['stats', 'insights'] : []);
+        var single = { info: 'status', sampling: 'reviewSampling', reviewData: 'reviewData', outputs: 'moduleOutputs',
+          process: 'reviewProcess', stats: 'reviewStats', insights: 'reviewInsightsSummary' };
+        return Promise.all(names.map(function (name) { return self[single[name]](runId); })).then(function (replies) {
+          if (!replies[0].ok) return replies[0];
+          var parts = {};
+          names.forEach(function (name, index) { parts[name] = replies[index]; });
+          return ok({ format: 'run-view-v1', runId: runId, parts: parts });
+        });
+      },
       reviewProcess: function (runId) {
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
@@ -2992,7 +3051,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return (async function () {
         await readyPromise;
         if (mode === 'none') return err('BRIDGE_MISSING', NO_BRIDGE_TEXT);
-        if (mode === 'mock') return mock[method].apply(null, args);
+        if (mode === 'mock') return mock[method].apply(mock, args);
         try {
           var res = await window.pywebview.api[method].apply(window.pywebview.api, args);
           if (res && typeof res === 'object' && 'ok' in res) return res;
@@ -3000,6 +3059,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         } catch (e) {
           return err('BRIDGE_ERROR', String((e && e.message) || e));
         }
+      })();
+    }
+
+    function callWave2(method, args) {
+      return (async function () {
+        await readyPromise;
+        if (mode === 'real' && typeof window.pywebview.api[method] !== 'function') return err('USAGE', 'USAGE');
+        return call(method, args);
       })();
     }
 
@@ -3042,6 +3109,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       reviewData: function (runId) { return call('reviewData', [runId]); },
       reviewStats: function (runId) { return call('reviewStats', [runId]); },
       reviewInsights: function (runId) { return call('reviewInsights', [runId]); },
+      // F647 wave 2. A bridge without these (an older app part) answers like an older server: USAGE.
+      runView: function (runId, result) { return callWave2('runView', [runId, !!result]); },
+      reviewInsightsSummary: function (runId) { return callWave2('reviewInsightsSummary', [runId]); },
+      reviewInsightComments: function (runId, bucket, theme) {
+        return callWave2('reviewInsightComments', [runId, bucket, theme === undefined ? null : theme]);
+      },
       saveReviewData: function (runId, input) { return call('saveReviewData', [runId, input]); },
       exportReviewFiles: function (runId, input) { return call('exportReviewFiles', [runId, input]); },
       reviewProcess: function (runId) { return call('reviewProcess', [runId]); },
@@ -3081,6 +3154,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     infoByRun: {},       // the last run-info per run, shown at once while the fresh one loads
     loadingRunId: null,
     listPending: 0,      // listings on their way («Đang cập nhật…»)
+    runViewSupported: null,   // false after an older server answered USAGE to run-view
+    insightComments: {},      // runId -> 'bucketKey|theme' -> { status, comments, count, codebook, token }
+    insightOpen: {},          // runId -> 'bucketKey|theme' -> true while its comments are open
     refreshRunId: null,  // the open run whose refresh is tracked for «Đang cập nhật…»
     refreshTasks: {},    // kind -> sequence of its latest request (run-info, sampling, outputs + picture, …)
     runSortSaving: false,
@@ -4292,11 +4368,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return state.samplingTokens[runId];
   }
 
-  async function loadSampling(runId) {
+  // Each loader takes an optional `pending` reply: the matching part of one run-view call. Without it, it asks
+  // its own single command. Sequence, selection and isGone checks are the same either way.
+  async function loadSampling(runId, pending) {
     var seq = (state.samplingSeq[runId] || 0) + 1;
     state.samplingSeq[runId] = seq;
     var previous = state.sampling[runId];
-    var res = await api.reviewSampling(runId);
+    var res = await (pending || api.reviewSampling(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.samplingSeq[runId]) return;
     if (res.ok) {
@@ -4324,10 +4402,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     ));
   }
 
-  async function loadReviewData(runId) {
+  async function loadReviewData(runId, pending) {
     var seq = (state.reviewDataSeq[runId] || 0) + 1;
     state.reviewDataSeq[runId] = seq;
-    var res = await api.reviewData(runId);
+    var res = await (pending || api.reviewData(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewDataSeq[runId]) return;
     var work = state.reviewBusy[runId];
@@ -4342,16 +4420,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   // The outputs view and the local Metric picture lookup run together; the call ends when both have answered.
-  async function loadModuleOutputs(runId) {
+  async function loadModuleOutputs(runId, pending) {
     var shot = loadLocalShot(runId);
-    await loadModuleOutputsView(runId);
+    await loadModuleOutputsView(runId, pending);
     await shot;
   }
 
-  async function loadModuleOutputsView(runId) {
+  async function loadModuleOutputsView(runId, pending) {
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
-    var res = await api.moduleOutputs(runId);
+    var res = await (pending || api.moduleOutputs(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.moduleOutputsSeq[runId] || state.selectedRunId !== runId) return;
     if (!res.ok) {
@@ -4366,10 +4444,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId === runId) renderDetail();
   }
 
-  async function loadReviewStats(runId) {
+  async function loadReviewStats(runId, pending) {
     var seq = (state.reviewStatsSeq[runId] || 0) + 1;
     state.reviewStatsSeq[runId] = seq;
-    var res = await api.reviewStats(runId);
+    var res = await (pending || api.reviewStats(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewStatsSeq[runId] || state.selectedRunId !== runId) return;
     if (!res.ok) {
@@ -4384,15 +4462,27 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     renderResult();
   }
 
-  async function loadReviewInsights(runId) {
+  // The summary (review-insights-v2: counts, no comment lists) first; an older server answers USAGE and the
+  // full v1 view is read instead. Theme comments of v2 are read when their «Xem … bình luận mẫu» opens.
+  function askReviewInsights(runId) {
+    if (state.runViewSupported === false) return api.reviewInsights(runId);
+    return api.reviewInsightsSummary(runId).then(function (res) {
+      if (res.ok || !isUsage(res.error)) return res;
+      state.runViewSupported = false;
+      return api.reviewInsights(runId);
+    });
+  }
+
+  async function loadReviewInsights(runId, pending) {
     var seq = (state.reviewInsightsSeq[runId] || 0) + 1;
     state.reviewInsightsSeq[runId] = seq;
-    var res = await api.reviewInsights(runId);
+    var res = await (pending || askReviewInsights(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewInsightsSeq[runId] || state.selectedRunId !== runId) return;
     if (!res.ok) {
       state.reviewInsightsErrors[runId] = res.error;
-    } else if (!res.data || res.data.format !== 'review-insights-v1' || res.data.runId !== runId ||
+    } else if (!res.data || (res.data.format !== 'review-insights-v1' && res.data.format !== 'review-insights-v2') ||
+        res.data.runId !== runId ||
         typeof res.data.codebookVersion !== 'string' || !Array.isArray(res.data.sources)) {
       state.reviewInsightsErrors[runId] = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
     } else {
@@ -6048,7 +6138,35 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return box;
   }
 
-  function insightThemeCard(bucket) {
+  // A v2 theme's comments, read once per run and kept while the summary still has the same count.
+  async function loadInsightComments(runId, bucketKey, theme, count, codebook) {
+    var cache = state.insightComments[runId] || (state.insightComments[runId] = {});
+    var key = bucketKey + '|' + theme;
+    var entry = { status: 'loading', comments: null, count: count, codebook: codebook };
+    cache[key] = entry;
+    renderResult();
+    var res = await api.reviewInsightComments(runId, bucketKey, theme);
+    if (isGone(runId)) return;   // a late reply for a deleted run
+    if (!state.insightComments[runId] || state.insightComments[runId][key] !== entry) return;
+    if (res.ok && res.data && res.data.format === 'review-insight-comments-v1' && res.data.bucket === bucketKey &&
+        res.data.theme === theme && Array.isArray(res.data.comments)) {
+      entry.status = 'ok';
+      entry.comments = res.data.comments;
+    } else {
+      entry.status = 'error';
+      entry.error = res.ok ? { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } : res.error;
+    }
+    if (state.selectedRunId === runId) renderResult();
+  }
+
+  function insightThemeComments(runId, bucket, theme, codebook) {
+    var key = bucket.key + '|' + theme.code;
+    var entry = (state.insightComments[runId] || {})[key];
+    var fresh = entry && entry.count === theme.commentCount && entry.codebook === codebook;
+    return { key: key, entry: fresh ? entry : null };
+  }
+
+  function insightThemeCard(bucket, runId, codebook) {
     var card = h('article', 'mod insight-card');
     card.id = 'resultThemeTags';
     var head = h('div', 'mh');
@@ -6101,11 +6219,33 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var details = document.createElement('details');
       details.className = 'theme-comments';
       var toggle = document.createElement('summary');
-      var examples = Array.isArray(theme.comments) ? theme.comments : [];
-      toggle.textContent = examples.length ? 'Xem ' + fmtInt(examples.length) + ' bình luận mẫu' : 'Chưa có bình luận mẫu';
+      var onDemand = typeof theme.commentCount === 'number' && bucket && typeof bucket.key === 'string';
+      var listed = onDemand ? insightThemeComments(runId, bucket, theme, codebook) : null;
+      var examples = onDemand ? (listed.entry && listed.entry.status === 'ok' ? listed.entry.comments : [])
+        : (Array.isArray(theme.comments) ? theme.comments : []);
+      var sampleCount = onDemand ? theme.commentCount : examples.length;
+      toggle.textContent = sampleCount ? 'Xem ' + fmtInt(sampleCount) + ' bình luận mẫu' : 'Chưa có bình luận mẫu';
       details.appendChild(toggle);
       var body = h('div', 'theme-body');
-      if (examples.length) {
+      if (onDemand && sampleCount) {
+        var opened = state.insightOpen[runId] || {};
+        details.open = !!opened[listed.key];
+        details.addEventListener('toggle', function () {
+          var open = state.insightOpen[runId] || (state.insightOpen[runId] = {});
+          if (details.open) open[listed.key] = true; else delete open[listed.key];
+          var now = insightThemeComments(runId, bucket, theme, codebook);
+          if (details.open && (!now.entry || now.entry.status === 'error')) {
+            loadInsightComments(runId, bucket.key, theme.code, theme.commentCount, codebook);
+          }
+        });
+      }
+      if (onDemand && sampleCount && (!listed.entry || listed.entry.status === 'loading')) {
+        body.appendChild(h('p', 'theme-note', 'Đang tải bình luận mẫu…'));
+      } else if (onDemand && sampleCount && listed.entry.status === 'error') {
+        var failed = h('p', 'theme-note', 'Chưa tải được bình luận mẫu. Đóng rồi mở lại để thử lại.');
+        failed.title = errorCode(listed.entry.error);
+        body.appendChild(failed);
+      } else if (examples.length) {
         body.appendChild(commentList(examples, 8));
         if (theme.count > examples.length) {
           body.appendChild(h('p', 'theme-note', 'Đang hiển thị ' + fmtInt(examples.length) + ' bình luận mẫu trong tổng ' + fmtInt(theme.count) + ' bình luận của nhãn này.'));
@@ -6168,7 +6308,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     wrap.id = 'resultInsights';
     wrap.setAttribute('aria-label', 'Phân tích AI và nhãn chủ đề');
     wrap.appendChild(insightSummaryCard(bucket));
-    wrap.appendChild(insightThemeCard(bucket));
+    wrap.appendChild(insightThemeCard(bucket, runId, view.codebookVersion));
     wrap.appendChild(insightCommentDownload(runId, source));
     return wrap;
   }
@@ -6566,11 +6706,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return line;
   }
 
-  async function loadReviewProcess(runId) {
+  async function loadReviewProcess(runId, pending) {
     var seq = (state.reviewProcessSeq[runId] || 0) + 1;
     state.reviewProcessSeq[runId] = seq;
     var before = step4Kind(runId);
-    var res = await api.reviewProcess(runId);
+    var res = await (pending || api.reviewProcess(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewProcessSeq[runId]) return;
     if (res.ok && res.data && res.data.format === 'review-process-view-v1' && res.data.runId === runId &&
@@ -7308,19 +7448,60 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // run-info and every other per-run call start together: they need only the runId. Each loader drops a
   // late reply itself (isGone, its own sequence, the selection).
+  function isUsage(error) {
+    return errorCode(error) === 'USAGE';
+  }
+
+  // ONE run-view call for a run open or a poll (with --result on «Kết quả chạy»). part(name, single) is that
+  // part's reply in the shape of its single call. An older server answers USAGE: from then on the single
+  // calls are used (until the next connect).
+  function askRunView(runId, withResult) {
+    var view = state.runViewSupported === false ? null : api.runView(runId, withResult);
+    return function part(name, single) {
+      if (!view) return single();
+      return view.then(function (res) {
+        if (!res.ok && isUsage(res.error)) {
+          state.runViewSupported = false;
+          return single();
+        }
+        if (!res.ok) return res;            // the info error is the command error: every part gets it
+        state.runViewSupported = true;
+        var reply = res.data && res.data.parts ? res.data.parts[name] : null;
+        return reply && typeof reply === 'object' && 'ok' in reply ? reply
+          : { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } };
+      });
+    };
+  }
+
+  // Start the tracked loaders of one run-view call. `kinds` names the parts to apply.
+  function startRunView(runId, kinds, withResult) {
+    var part = askRunView(runId, withResult);
+    var loaders = {
+      info: ['info', state.infoSeq, function () { return runStatus(runId, part('info', function () { return api.status(runId); })); }],
+      sampling: ['sampling', state.samplingSeq, function () { return loadSampling(runId, part('sampling', function () { return api.reviewSampling(runId); })); }],
+      reviewData: ['data', state.reviewDataSeq, function () { return loadReviewData(runId, part('reviewData', function () { return api.reviewData(runId); })); }],
+      outputs: ['outputs', state.moduleOutputsSeq, function () { return loadModuleOutputs(runId, part('outputs', function () { return api.moduleOutputs(runId); })); }],
+      process: ['process', state.reviewProcessSeq, function () { return loadReviewProcess(runId, part('process', function () { return api.reviewProcess(runId); })); }],
+      stats: ['stats', state.reviewStatsSeq, function () { return loadReviewStats(runId, part('stats', function () { return api.reviewStats(runId); })); }],
+      insights: ['insights', state.reviewInsightsSeq, function () { return loadReviewInsights(runId, part('insights', function () { return askReviewInsights(runId); })); }]
+    };
+    var started = {};
+    kinds.forEach(function (name) {
+      var loader = loaders[name];
+      started[name] = trackLoad(loader[0], runId, loader[1], loader[2]);
+    });
+    return started;
+  }
+
+  // An open and the 10 s poll ask the same parts, so the poll's request replaces every part of the open's.
+  function runViewKinds() {
+    return ['info', 'sampling', 'reviewData', 'outputs', 'process'].concat(state.screen === 'result' ? ['stats', 'insights'] : []);
+  }
+
   async function loadInfo(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var status = trackLoad('info', runId, state.infoSeq, runStatus);
-    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
-    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
-    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
-    trackLoad('process', runId, state.reviewProcessSeq, loadReviewProcess);
-    if (state.screen === 'result') {
-      trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
-      trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
-    }
-    var res = await status;
+    var res = await startRunView(runId, runViewKinds(), state.screen === 'result').info;
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     state.loadingRunId = null;
@@ -7377,8 +7558,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // Every status/info call goes through here: RUN_NOT_FOUND makes the run gone FIRST (rule b), before any
   // selection or sequence check of the caller; the caller's isGone check then drops the reply.
-  async function runStatus(runId) {
-    var res = await api.status(runId);
+  async function runStatus(runId, pending) {
+    var res = await (pending || api.status(runId));
     if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND' && !isGone(runId)) runGone(runId);
     return res;
   }
@@ -7395,7 +7576,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId !== runId) return;
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await trackLoad('info', runId, state.infoSeq, runStatus);
+    // The same run-view call as an open on this tab.
+    var res = await startRunView(runId, runViewKinds(), state.screen === 'result').info;
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     if (state.loadingRunId === runId) state.loadingRunId = null;
@@ -7410,14 +7592,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.info = data;
     if (data) state.infoByRun[runId] = data;
     renderDetail();
-    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
-    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
-    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
-    if (!running) {
-      if (state.screen === 'result') {
-        trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
-        trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
-      }
+    if (!running) {                    // the result parts came with this run-view on «Kết quả chạy»
       stopPoll();
       await refreshRuns();
     }
@@ -7554,6 +7729,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function hydrateAfterConnect(epoch, first) {
+    state.runViewSupported = null;              // the server may have changed: try run-view again
     var presAsked = api.presets();
     var runsAsked = fetchRuns();
     var pres = await presAsked;

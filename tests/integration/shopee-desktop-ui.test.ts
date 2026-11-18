@@ -18,6 +18,35 @@ function deferred<T>(): Deferred<T> {
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
+/** The server's review-insights-v2 from a v1 view: each comment list becomes its size, buckets get their key. */
+function insightBuckets(view: any, each: (key: string, bucket: any, put: (next: any) => void) => void): void {
+  for (const source of view.sources || []) {
+    each(source.sourceSha256 + ':all', source.all, (next) => { source.all = next; });
+    for (const link of source.links || []) {
+      each(source.sourceSha256 + ':' + link.shopId + '.' + link.itemId, link.insights, (next) => { link.insights = next; });
+    }
+  }
+}
+function insightsSummaryOf(v1: any): any {
+  const view = clone(v1);
+  view.format = 'review-insights-v2';
+  insightBuckets(view, (key, bucket, put) => put({
+    key, summary: bucket.summary, commentCount: (bucket.comments || []).length,
+    themes: (bucket.themes || []).map(({ comments, ...theme }: any) => ({ ...theme, commentCount: (comments || []).length })),
+  }));
+  return view;
+}
+function insightCommentsOf(v1: any, bucketKey: string, theme: string | null): any[] | null {
+  let found: any[] | null = null;
+  insightBuckets(clone(v1), (key, bucket) => {
+    if (key !== bucketKey || found) return;
+    if (theme === null) { found = bucket.comments || []; return; }
+    const match = (bucket.themes || []).find((item: any) => item.code === theme);
+    if (match) found = match.comments || [];
+  });
+  return found;
+}
+
 async function waitFor(check: () => boolean, label: string, ms = 3000): Promise<void> {
   const start = Date.now();
   while (!check()) {
@@ -66,6 +95,8 @@ function harness(options: {
   libraryResult?: any;
   hasFocus?: boolean;
   runSortSaved?: string;
+  oldServer?: boolean;      // run-view and the insights summary answer USAGE (a server before F647 wave 2)
+  insightCommentsHold?: () => Promise<void> | undefined;
   rememberRunSortHold?: (value: string) => Promise<void> | undefined;
   fastProgress?: boolean;
   fastPoll?: boolean;
@@ -112,6 +143,8 @@ function harness(options: {
     notifyCalls: { title: string; body: string }[];
     runSortSaved: string | null;
     runSortCalls: string[];
+    runViewCalls: { runId: string; result: boolean }[];
+    insightCommentCalls: { runId: string; bucket: string; theme: string | null }[];
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
@@ -147,6 +180,8 @@ function harness(options: {
     notifyCalls: [],
     runSortSaved: options.runSortSaved || null,
     runSortCalls: [],
+    runViewCalls: [],
+    insightCommentCalls: [],
   };
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
@@ -272,6 +307,35 @@ function harness(options: {
     reviewInsights: async (runId: string) => options.reviewInsightsResult
       ? options.reviewInsightsResult(runId)
       : { ok: true, data: { format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [] } },
+    // F647 wave 2, built from the single answers above (so their counters and holds still apply).
+    reviewInsightsSummary: async (runId: string) => {
+      if (options.oldServer) return { ok: false, error: { code: 'USAGE', message: 'USAGE' } };
+      const v1: any = await api.reviewInsights(runId);
+      return v1.ok ? { ok: true, data: insightsSummaryOf(v1.data) } : v1;
+    },
+    reviewInsightComments: async (runId: string, bucket: string, theme: string | null) => {
+      state.insightCommentCalls.push({ runId, bucket, theme });
+      const held = options.insightCommentsHold && options.insightCommentsHold();
+      if (held) await held;
+      const v1: any = await api.reviewInsights(runId);
+      const comments = v1.ok ? insightCommentsOf(v1.data, bucket, theme) : null;
+      return comments ? { ok: true, data: { format: 'review-insight-comments-v1', bucket, theme, comments } }
+        : { ok: false, error: { code: 'REVIEW_DATA_INVALID', message: 'REVIEW_DATA_INVALID' } };
+    },
+    runView: async (runId: string, result: boolean) => {
+      state.runViewCalls.push({ runId, result });
+      if (options.oldServer) return { ok: false, error: { code: 'USAGE', message: 'USAGE' } };
+      const single: Record<string, (id: string) => Promise<any>> = {
+        info: api.status, sampling: api.reviewSampling, reviewData: api.reviewData, outputs: api.moduleOutputs,
+        process: api.reviewProcess, stats: api.reviewStats, insights: api.reviewInsightsSummary,
+      };
+      const names = ['info', 'sampling', 'reviewData', 'outputs', 'process', ...(result ? ['stats', 'insights'] : [])];
+      const replies = await Promise.all(names.map((name) => single[name]!(runId)));
+      if (!replies[0].ok) return replies[0];
+      const parts: Record<string, any> = {};
+      names.forEach((name, index) => { parts[name] = replies[index]; });
+      return { ok: true, data: { format: 'run-view-v1', runId, parts } };
+    },
     runFlow: async (runId: string) => {
       state.flowCalls.push(runId);
       if (options.runFlowGate) await options.runFlowGate.promise;
@@ -2470,6 +2534,7 @@ test('a module-output reply for a run left meanwhile never repaints the selected
     moduleOutputsResult: (runId) => runId === 'run-a'
       ? gate.promise
       : { ok: true, data: view(runId, 'beta') },
+    oldServer: true,      // single calls: run A's detail shows while its outputs are still on their way
   });
   try {
     await waitFor(() => doc.querySelectorAll('#runList button').length === 2, 'run list');
@@ -4387,5 +4452,106 @@ test('the sort save keeps the last click and the refresh mark follows only the l
     await waitFor(() => element(run.doc, 'toast').textContent === 'Đã xóa lượt', '4: deleted');
     await waitFor(() => !marked(run.doc), '4: the mark goes at once');
     slowData.resolve();
+  } finally { run.dom.window.close(); }
+});
+
+// F647 wave 2: one run-view per open, insights summary first (CONTRACT-F647-wave2 §4), one row each:
+// | # | situation                                                         | expected                                                  |
+// |---|-------------------------------------------------------------------|-----------------------------------------------------------|
+// | 1 | open a run on «Chi tiết lịch sử lượt chạy»                        | one run-view, no --result; run-info asked once            |
+// | 2 | open it on «Kết quả chạy»                                         | one run-view --result; no comment list read yet           |
+// | 3 | open «Xem 2 bình luận mẫu» of a theme, close, open again          | its comments read once (bucket key + theme), then kept    |
+// | 4 | the outputs part fails                                            | the same panel text as the single call's failure          |
+// | 5 | an older server (USAGE)                                           | the single calls; run-view not asked again; v1 inline     |
+// | 6 | a running run's 10 s poll                                         | run-view again                                            |
+test('a run opens with one run-view, insights summary first and theme comments on demand', async () => {
+  const runId = 'run-w2';
+  const sha = 'c'.repeat(64);
+  const comment = (id: string, text: string) => ({ id, text, rating: 5, date: null, productName: null,
+    url: 'https://shopee.vn/product/801/100', tags: [] });
+  const theme = { code: 'T-CONGDUNG', name: 'Công dụng', count: 2, unclearCount: 0, share: 1,
+    polarityCounts: { khen: 2, che: 0, ke: 0, khong_ro_huong: 0 },
+    summary: { status: 'EMPTY', text: null, model: null, generatedAt: null },
+    comments: [comment('r1', 'Dùng tốt'), comment('r2', 'Hiệu quả rõ')] };
+  const insights = { format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [{
+    sourceSha256: sha, kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z',
+    all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, themes: [theme],
+      comments: theme.comments }, links: [] }] };
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const themeDetails = (doc: Document) =>
+    doc.querySelector<HTMLDetailsElement>('#resultThemeTags [data-theme-code="T-CONGDUNG"] details.theme-comments');
+  const setup = (extra: Record<string, any> = {}) => harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }, { runId: 'run-other', product: 'Khác', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId), 'run-other': syntheticRunInfo('run-other') },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 2) }),
+    reviewInsightsResult: () => ({ ok: true, data: clone(insights) }),
+    ...extra,
+  });
+
+  // 1 and 2
+  let run = setup();
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, '1: open');
+    assert.deepEqual(run.state.runViewCalls, [{ runId, result: false }], '1: one run-view');
+    assert.deepEqual(run.state.statusCalls, [runId], '1: run-info once, inside it');
+    tab(run.doc, 2);
+    await waitFor(() => themeDetails(run.doc) !== null, '2: themes shown');
+    assert.deepEqual(run.state.runViewCalls.at(-1), { runId, result: true }, '2: --result on «Kết quả chạy»');
+    assert.equal(run.state.runViewCalls.length, 2);
+    assert.deepEqual(run.state.insightCommentCalls, [], '2: no comment list yet');
+    // 3
+    const details = themeDetails(run.doc)!;
+    assert.equal(details.querySelector('summary')!.textContent, 'Xem 2 bình luận mẫu');
+    details.open = true;
+    details.dispatchEvent(new (run.dom.window as any).Event('toggle'));
+    await waitFor(() => themeDetails(run.doc)!.querySelectorAll('.comment-row').length === 2, '3: comments shown');
+    assert.deepEqual(run.state.insightCommentCalls, [{ runId, bucket: sha + ':all', theme: 'T-CONGDUNG' }]);
+    assert.equal(themeDetails(run.doc)!.open, true, '3: stays open after the redraw');
+    themeDetails(run.doc)!.open = false;
+    themeDetails(run.doc)!.dispatchEvent(new (run.dom.window as any).Event('toggle'));
+    themeDetails(run.doc)!.open = true;
+    themeDetails(run.doc)!.dispatchEvent(new (run.dom.window as any).Event('toggle'));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(run.state.insightCommentCalls.length, 1, '3: kept for this run');
+    assert.equal(themeDetails(run.doc)!.querySelectorAll('.comment-row').length, 2);
+  } finally { run.dom.window.close(); }
+
+  // 4
+  const failing = { moduleOutputsResult: () => ({ ok: false, error: { code: 'MODULE_OUTPUT_INVALID', message: 'MODULE_OUTPUT_INVALID' } }) };
+  const panelText = async (extra: Record<string, any>) => {
+    const opened = setup({ ...failing, ...extra });
+    try {
+      tab(opened.doc, 1);
+      await waitFor(() => /không đúng dạng/.test(opened.doc.getElementById('moduleOutputsPanel')?.textContent || ''),
+        '4: outputs error shown');
+      return opened.doc.getElementById('moduleOutputsPanel')!.textContent;
+    } finally { opened.dom.window.close(); }
+  };
+  assert.equal(await panelText({}), await panelText({ oldServer: true }), '4: the same error path');
+
+  // 5
+  run = setup({ oldServer: true });
+  try {
+    tab(run.doc, 2);
+    await waitFor(() => themeDetails(run.doc) !== null, '5: themes shown');
+    assert.equal(themeDetails(run.doc)!.querySelector('summary')!.textContent, 'Xem 2 bình luận mẫu');
+    assert.equal(themeDetails(run.doc)!.querySelectorAll('.comment-row').length, 2, '5: v1 comments inline');
+    const asked = run.state.runViewCalls.length;
+    [...run.doc.querySelectorAll<HTMLButtonElement>('#resultRunList button')]
+      .find((button) => button.title.includes('run-other'))!.click();
+    await waitFor(() => run.state.statusCalls.includes('run-other'), '5: the other run opens');
+    assert.equal(run.state.runViewCalls.length, asked, '5: run-view not asked again');
+    assert.deepEqual(run.state.insightCommentCalls, []);
+  } finally { run.dom.window.close(); }
+
+  // 6
+  const running: any = syntheticRunInfo(runId);
+  running.state = { status: 'RUNNING', module: 'M3', errorCode: null };
+  run = setup({ runInfoByRun: { [runId]: running, 'run-other': syntheticRunInfo('run-other') }, fastPoll: true });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => run.state.runViewCalls.filter((call) => call.runId === runId).length >= 3, '6: the poll uses run-view');
   } finally { run.dom.window.close(); }
 });
