@@ -54,6 +54,7 @@ function harness(options: {
   reviewStatsResult?: (runId: string) => any;
   reviewInsightsResult?: (runId: string) => any;
   statusGate?: (runId: string) => Deferred<void> | undefined;
+  statusError?: (runId: string) => any;
   reviewProcessResult?: (runId: string) => any;
   processReviewDataResult?: (runId: string, sourceSha256: string) => any;
   runsProgressResults?: any[];
@@ -186,6 +187,8 @@ function harness(options: {
       state.statusCalls.push(runId);
       const gate = options.statusGate && options.statusGate(runId);
       if (gate) await gate.promise;
+      const failure = options.statusError && options.statusError(runId);
+      if (failure) return clone(failure);
       const info = (options.runInfoByRun && options.runInfoByRun[runId]) || options.runInfo;
       if (info) return { ok: true, data: clone(info) };
       return { ok: false, error: { code: 'RUN_NOT_FOUND', message: 'RUN_NOT_FOUND' } };
@@ -835,7 +838,9 @@ test('a created run with unverified entry stays bound and locked when status can
       const label = entryCase.label + ' + ' + statusCase.label;
       const { dom, doc, state } = harness({
         newRunResult: () => ({ ok: true, data: { format: 'new-run-v1', runId, ...entryCase.data } }),
-        ...(info ? { runInfoByRun: { [runId]: info } } : {}),
+        // A status failure that is not RUN_NOT_FOUND (that one means the run is gone).
+        ...(info ? { runInfoByRun: { [runId]: info } }
+          : { statusError: () => ({ ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } }) }),
       });
       try {
         await booted(doc);
@@ -3922,5 +3927,82 @@ test('delete and step 4 resume replies for a run that is going away', async () =
     await new Promise((resolve) => setTimeout(resolve, 60));
     assert.deepEqual(run.state.reviewProcessCalls.slice(loads).filter((id) => id === 'run-fail'), [],
       '2: nothing loaded for the deleted run');
+  } finally { run.dom.window.close(); }
+});
+
+// Gone-run evidence and cleanup (F645, Terra r5 on #508), one row each:
+// | # | situation                                                                      | expected                                  |
+// |---|--------------------------------------------------------------------------------|-------------------------------------------|
+// | 1 | list A (asked after X was seen) answers without X; newer list B fails          | X gone from both lists all the same       |
+// | 2 | a step 2 completion event asks X's status and gets RUN_NOT_FOUND               | no notice; X gone from the lists          |
+// | 3 | X, open with a sampling poll running, drops out of a successful list           | the sampling poll for X stops             |
+test('gone-run evidence from any successful list or status, and its polls stop', async () => {
+  const runX = { runId: 'run-x', product: 'Sản phẩm X', status: 'DONE' };
+  const runY = { runId: 'run-y', product: 'Sản phẩm Y', status: 'DONE' };
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  // 1
+  const held = deferred<void>();
+  let aCall = 0;
+  let bCall = 0;
+  let run = harness({ runs: [runX, runY], runInfoByRun: { 'run-x': syntheticRunInfo('run-x'), 'run-y': syntheticRunInfo('run-y') },
+    listRunsError: () => (run && run.state.listRunsCalls === bCall
+      ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } } : undefined),
+    listRunsReply: async (call) => {
+      if (call !== aCall) return undefined;
+      await held.promise;
+      return { ok: true, data: { format: 'runs-v1', runs: [runY] } };
+    } });
+  try {
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm X'), '1: X listed');
+    aCall = run.state.listRunsCalls + 1;
+    tab(run.doc, 1);                                   // list A, held
+    await waitFor(() => run.state.listRunsCalls >= aCall, '1: list A asked');
+    bCall = run.state.listRunsCalls + 1;
+    tab(run.doc, 2);                                   // list B, fails
+    await waitFor(() => !element(run.doc, 'errbar').hidden, '1: list B failed');
+    held.resolve();
+    await waitFor(() => listed(run.doc, 'resultRunList').includes('Sản phẩm Y') &&
+      !listed(run.doc, 'resultRunList').includes('Sản phẩm X'), '1: X gone from the shown list');
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let phase = 'before';
+  run = harness({ runs: [runY, runX], runInfoByRun: { 'run-y': syntheticRunInfo('run-y') }, hasFocus: true, fastProgress: true,
+    runsProgressFor: () => progressReply([progressRun('run-x', phase === 'before' ? ['PASS', 'RUNNING', 'IDLE', 'IDLE']
+      : ['PASS', 'PASS', 'RUNNING', 'IDLE'], { active: phase === 'before' ? { step: 2, stage: null, done: null, total: null }
+      : { step: 3, stage: null, done: 1, total: 9 } })]) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2 && listed(run.doc, 'runList').includes('Sản phẩm X'), '2: first polls');
+    phase = 'after';                                   // step 2 PASS: the event asks X's status -> RUN_NOT_FOUND
+    await waitFor(() => run.state.statusCalls.includes('run-x'), '2: status asked');
+    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm X'), '2: X gone');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(run.doc.querySelectorAll('#noticeBox .notice').length, 0, '2: no notice');
+  } finally { run.dom.window.close(); }
+
+  // 3
+  const attempt = {
+    attemptId: 'attempt-x', planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  let newRun = false;
+  run = harness({ runs: [runX, runY], runInfoByRun: { 'run-x': syntheticRunInfo('run-x'), 'run-y': syntheticRunInfo('run-y') },
+    samplingByRun: { 'run-x': syntheticSampling({ runId: 'run-x', attempts: [attempt] }) }, fastPoll: true, fastProgress: true,
+    // A run the list does not have yet makes the app list again by itself (no tab switch, no new selection).
+    runsProgressFor: () => progressReply(newRun ? [progressRun('run-z', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'])] : []) });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => (run.state.reviewSamplingCallsByRun['run-x'] || 0) >= 3, '3: sampling poll runs for X');
+    run.state.runsView = [runY];                       // deleted elsewhere
+    const lists = run.state.listRunsCalls;
+    newRun = true;
+    await waitFor(() => run.state.listRunsCalls > lists && !listed(run.doc, 'runList').includes('Sản phẩm X'), '3: X gone');
+    const calls = run.state.reviewSamplingCallsByRun['run-x'] || 0;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(run.state.reviewSamplingCallsByRun['run-x'] || 0, calls, '3: no more sampling calls for X');
   } finally { run.dom.window.close(); }
 });

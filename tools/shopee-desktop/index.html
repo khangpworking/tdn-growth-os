@@ -4995,6 +4995,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         delete state.samplingActionErrors[run];
       }
       await loadInfo(run);
+      if (isGone(run)) return;
       await loadSampling(run);
       await refreshRuns();
     }
@@ -5064,6 +5065,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         delete state.samplingActionErrors[run];
       }
       await loadInfo(run);
+      if (isGone(run)) return;
       await loadSampling(run);
       await refreshRuns();
     }
@@ -6564,14 +6566,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.step4Poll) {
       clearTimeout(state.step4Poll);
       state.step4Poll = null;
+      state.step4PollRunId = null;
     }
   }
 
   function manageStep4Poll(runId) {
     stopStep4Poll();
     if (state.selectedRunId !== runId || !state.connected || step4Kind(runId) !== 'running') return;
+    state.step4PollRunId = runId;
     state.step4Poll = setTimeout(function () {
       state.step4Poll = null;
+      state.step4PollRunId = null;
       if (state.selectedRunId === runId) loadReviewProcess(runId);
     }, STEP4_POLL_MS);
   }
@@ -6669,9 +6674,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function deliverEvent(event) {
     if (isGone(event.runId)) return;
     if (event.kind === 'finished' || (event.kind === 'fail' && event.step === 4)) await loadReviewProcess(event.runId);
+    if (isGone(event.runId)) return;
     if (event.kind === 'pass' && event.step === 2) {
       // runs-progress carries no link count; the run status has the selection.
-      var info = await api.status(event.runId);
+      var info = await runStatus(event.runId);
       if (isGone(event.runId)) return;   // a late reply for a deleted run
       var picked = info.ok && info.data && info.data.selection && info.data.selection.links;
       event.links = Array.isArray(picked) && picked.length ? picked.length : null;
@@ -7095,26 +7101,34 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function listRunsOnce(seq) {
     var res = await api.listRuns();
-    if (seq !== state.runsSeq) return state.runsPromise;
+    // Rule (c) from EVERY successful listing, newest or not; a list error changes nothing here.
+    if (res.ok) applyListing(((res.data && res.data.runs) || []).map(function (run) { return run.runId; }), seq);
+    if (seq !== state.runsSeq) return state.runsPromise;      // only the newest listing replaces the list
     if (!res.ok) { showError(res.error); return null; }
     state.runs = ((res.data && res.data.runs) || []).filter(function (run) { return !isGone(run.runId); });
     if (state.selectedRunId && !state.runs.some(function (r) { return r.runId === state.selectedRunId; })) {
-      state.selectedRunId = null;
-      state.loadingRunId = null;
-      state.info = null;
-      stopPoll();
+      forgetRun(state.selectedRunId);
       renderDetail();
     }
-    // Rule (c): a run known before this list was asked and not in it is gone (deleted here or elsewhere).
-    // A run first seen while this list was on its way (just created) is kept.
-    var listedIds = state.runs.map(function (run) { return run.runId; });
-    Object.keys(state.knownSince).forEach(function (runId) {
-      if (seq > state.knownSince[runId] && listedIds.indexOf(runId) === -1) forgetRun(runId);
-    });
-    listedIds.forEach(function (runId) { knowRun(runId, seq); });
     renderRunList();
     renderRunStatus();
     return res;
+  }
+
+  // Rule (c): a run known before this listing was asked and not in it is gone (deleted here or elsewhere).
+  // A run first seen while the listing was on its way (just created) is kept.
+  function applyListing(listedIds, seq) {
+    var gone = Object.keys(state.knownSince).filter(function (runId) {
+      return seq > state.knownSince[runId] && listedIds.indexOf(runId) === -1;
+    });
+    gone.forEach(forgetRun);
+    listedIds.forEach(function (runId) { knowRun(runId, seq); });
+    if (gone.length) {
+      state.runs = state.runs.filter(function (run) { return !isGone(run.runId); });
+      renderRunList();
+      renderDetail();
+      renderRunStatus();
+    }
   }
 
   // The one place that forgets a deleted run: every per-run cache (any state object keyed by runId),
@@ -7137,6 +7151,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
           Object.prototype.hasOwnProperty.call(value, runId)) delete value[runId];
     });
     state.progressRuns = state.progressRuns.filter(function (run) { return run.runId !== runId; });
+    if (state.pollRunId === runId) stopPoll();
+    if (state.samplingPollRunId === runId) stopSamplingPoll();
+    if (state.step4PollRunId === runId) stopStep4Poll();
     if (state.selectedRunId === runId) {
       state.selectedRunId = null;
       state.loadingRunId = null;
@@ -7187,11 +7204,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function loadInfo(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await api.status(runId);
+    var res = await runStatus(runId);
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     state.loadingRunId = null;
-    if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND') { await runGone(runId); return; }
     if (!res.ok) {
       showError(res.error);
       state.info = null;
@@ -7225,6 +7241,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     await loadInfo(runId);
   }
 
+  // Every status/info call goes through here: RUN_NOT_FOUND makes the run gone FIRST (rule b), before any
+  // selection or sequence check of the caller; the caller's isGone check then drops the reply.
+  async function runStatus(runId) {
+    var res = await api.status(runId);
+    if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND' && !isGone(runId)) runGone(runId);
+    return res;
+  }
+
   function stopPoll() {
     if (state.poll) {
       clearInterval(state.poll);
@@ -7237,10 +7261,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId !== runId) return;
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await api.status(runId);
+    var res = await runStatus(runId);
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
-    if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND') { await runGone(runId); return; }
     if (!res.ok) {
       showError(res.error);
       stopPoll();
@@ -7409,7 +7432,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (!runs) return false;
     if (state.newBinding) {
       var bindingRunId = state.newBinding.runId;
-      var status = await api.status(bindingRunId);
+      var status = await runStatus(bindingRunId);
       if (epoch !== state.connectionEpoch) return false;
       if (isGone(bindingRunId)) {
         // a late reply for a deleted run: write nothing for it, the rest of the reconnect goes on
@@ -8431,7 +8454,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       }
       var runId = res.data.runId;
       var entryError = res.data.entryError && typeof res.data.entryError === 'object' ? res.data.entryError : null;
-      var status = await api.status(runId);
+      var status = await runStatus(runId);
       if (isGone(runId)) return;   // a late reply for a deleted run
       if (generation !== state.newFormSeq) {
         state.newStaleRunId = runId;
