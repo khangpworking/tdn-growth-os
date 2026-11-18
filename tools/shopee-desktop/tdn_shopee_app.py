@@ -170,6 +170,34 @@ def _evidence_folder():
     return folder
 
 
+def _metric_shot_folder():
+    """Where click-time full-page Metric shots live: a sub-folder of the evidence folder, so the
+    evidence cleanup (regular files directly inside only) keeps them. Not created here."""
+    return _config_path().parent / 'evidence' / tdn_metric_browser.SHOT_FOLDER
+
+
+def _prepare_metric_shot_folder():
+    """The click's shot folder, made if needed WITHOUT the evidence cleanup (earlier evidence and shots
+    stay). None when it cannot be made, or the folder or its parent is a link/junction: no picture then."""
+    try:
+        folder = _metric_shot_folder()
+        for path in (folder.parent, folder):
+            if not tdn_metric_browser.plain_path(folder.parent, path):
+                return None
+            path.mkdir(mode=0o700, exist_ok=True)
+        return folder if tdn_metric_browser.plain_path(folder.parent, folder) else None
+    except (OSError, _BridgeFailure):
+        return None
+
+
+def _open_local_file(path):
+    if sys.platform == 'win32':
+        os.startfile(str(path))
+    else:
+        subprocess.Popen(['open' if sys.platform == 'darwin' else 'xdg-open', str(path)],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def _publish_without_replacing(temp_path, destination):
     """Copy a verified file to `destination`, or to `name (N).ext` when that name is taken."""
     stem, extension = os.path.splitext(destination.name)
@@ -617,15 +645,39 @@ class Api:
             folder = _evidence_folder()
             destination = self._stream_export(run_id, digest, descriptor['byteSize'], folder / file_name,
                                               evidence_kind=kind, keep_existing=True)
-            if sys.platform == 'win32':
-                os.startfile(str(destination))
-            else:
-                subprocess.Popen(['open' if sys.platform == 'darwin' else 'xdg-open', str(destination)],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _open_local_file(destination)
         except OSError:
             raise _BridgeFailure('EVIDENCE_OPEN_FAILED') from None
         return {'ok': True, 'data': {'format': 'module-evidence-open-v1', 'runId': run_id,
                                      'kind': kind, 'sha256': digest, 'opened': True}}
+
+    # ---- The full-page Metric shot kept on this PC at the click (never sent to the server) ----
+
+    def _local_metric_shot(self, run_id):
+        """The run's local picture, or None: missing, or any part from evidence/ down is a link/junction."""
+        folder = _metric_shot_folder()
+        path = folder / tdn_metric_browser.run_shot_name(self._run_id(run_id))
+        try:
+            return path if tdn_metric_browser.plain_path(folder.parent, path) and path.is_file() else None
+        except OSError:
+            return None
+
+    def localMetricShot(self, runId=None):
+        return self._safe(lambda: {'ok': True, 'data': {'format': 'local-metric-shot-v1', 'runId': self._run_id(runId),
+                                                         'exists': self._local_metric_shot(runId) is not None}})
+
+    def openLocalMetricShot(self, runId=None):
+        return self._safe(lambda: self._open_local_metric_shot(runId))
+
+    def _open_local_metric_shot(self, run_id):
+        path = self._local_metric_shot(run_id)      # checked again right before opening
+        if path is None:
+            raise _BridgeFailure('EVIDENCE_LOCAL_MISSING')
+        try:
+            _open_local_file(path)
+        except OSError:
+            raise _BridgeFailure('EVIDENCE_OPEN_FAILED') from None
+        return {'ok': True, 'data': {'format': 'local-metric-shot-open-v1', 'runId': self._run_id(run_id), 'opened': True}}
 
     def newRun(self, input=None):
         return self._safe(lambda: self._new_run(input))
@@ -1563,12 +1615,10 @@ class Api:
         if not session.busy.acquire(blocking=False):
             raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
         try:
+            # The click's picture comes first, before the server config is read: a missing or invalid
+            # config still leaves the picture (and the kept payload for «Gửi lại») on this PC.
+            session.capture(value['collectionPolicy'], screenshot_dir=_prepare_metric_shot_folder())
             config = _load_config()
-            try:
-                folder = _evidence_folder()
-            except _BridgeFailure:
-                folder = None
-            session.capture(value['collectionPolicy'], screenshot_dir=folder)
             return self._send_metric_import(session, config)
         finally:
             session.busy.release()
@@ -1593,7 +1643,7 @@ class Api:
         if not session.busy.acquire(blocking=False):
             raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
         try:
-            session.pending = None
+            session.drop_pending()
             return {'ok': True, 'data': {'pending': None}}
         finally:
             session.busy.release()
@@ -1610,7 +1660,7 @@ class Api:
         if not result['ok']:
             code = result['error'].get('code')
             if code in self._IMPORT_FINAL_ERRORS:
-                session.pending = None
+                session.drop_pending()
             result['error']['detail'] = {'pending': session.pending is not None}
             return result
         data = result['data']
@@ -1620,8 +1670,9 @@ class Api:
                 type(data['reused']) is not bool or data['gates'] != {'entry': 'PASS', 'm1': 'PASS'}):
             return {'ok': False, 'error': {'code': 'REMOTE_OUTPUT_INVALID', 'message': 'REMOTE_OUTPUT_INVALID',
                                            'detail': {'pending': True}}}
-        session.confirmed()
         run_id = data['runId']
+        session.link_shot(run_id)        # the click's shot becomes <runId>-metric-full-page.png
+        session.confirmed()
         try:
             # The whole flow (`run --run <id> --detach`): on a user-page run the server runs M2 -> M3 -> step 4.
             step2 = self._remote('flow', run_id=run_id, config=config)

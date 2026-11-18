@@ -49,6 +49,42 @@ _JS_NAME = 'request-in-page.js'
 _JS_START = 'export async function requestV3InPage('
 
 
+SHOT_FOLDER = 'metric'      # sub-folder of the app's evidence folder (its cleanup keeps sub-folders)
+SHOT_TIMEOUT = 30
+
+
+def _is_link(path):
+    """A symlink, junction or other reparse point (never followed for a picture). Missing: False."""
+    try:
+        if os.path.islink(path):
+            return True
+        return bool(getattr(os.lstat(path), 'st_file_attributes', 0) & 0x400)
+    except FileNotFoundError:
+        return False
+
+
+def plain_path(root, path):
+    """The one rule for the local Metric pictures: True only when no part from ``root`` (the evidence
+    folder) down to ``path`` is a symlink, junction or other reparse point. Parts that do not exist yet
+    are fine (to be created); ``path`` must be inside ``root``. Never raises."""
+    try:
+        root, path = Path(root), Path(path)
+        relative = path.relative_to(root)
+        part = root
+        for name in ('',) + relative.parts:
+            part = part / name if name else part
+            if _is_link(part):
+                return False
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def run_shot_name(run_id):
+    """The local full-page Metric shot linked to a run (never sent to the server)."""
+    return f'{run_id}-metric-full-page.png'
+
+
 class MetricFailure(Exception):
     """A static code for the page; ``message`` is an optional Vietnamese sentence."""
 
@@ -425,6 +461,7 @@ class MetricListener:
         # {'targetId', 'key', 'requestId', 'state': 'pending'|'resolved'|'failed', 'body'}.
         # The click freezes exactly this one; it never falls back to an older request.
         self._newest = None
+        self._tab_newest = {}      # targetId -> order key of that tab's newest user products request
         self._body_state = threading.Condition(self._lock)
         self.body_wait_seconds = BODY_WAIT_SECONDS
         self._app_scripts = collections.deque(maxlen=64)   # sourceURLs of the app's own calls
@@ -657,6 +694,8 @@ class MetricListener:
                       'state': 'pending', 'body': None}
             if self._newest is None or key > self._newest['key']:
                 self._newest = record
+            if target_id not in self._tab_newest or key > self._tab_newest[target_id]:
+                self._tab_newest[target_id] = key
         post_data = request.get('postData')
         if post_data is None and request.get('hasPostData'):
             self._fetch_body_later(target_id, tab, record)
@@ -731,14 +770,21 @@ class MetricListener:
             return None if best is None else {'targetId': best.target_id, 'seq': best.last['seq'],
                                               'body': copy.deepcopy(best.last['body'])}
 
-    def freeze(self):
-        """At the click: freeze exactly the newest products request seen on any Metric tab.
+    def click_record(self):
+        """At the click, atomically: the newest products request seen on any Metric tab (its record,
+        with its tab). Everything after the click works on THIS record, never a later one."""
+        with self._lock:
+            return self._newest
+
+    def freeze(self, record=None):
+        """Freeze exactly the click's request (``record``; default: the newest one now).
 
         Its body may still be on the way (body worker): wait up to ``body_wait_seconds``
         (the caller's thread, never a CDP dispatch thread). Still pending, or the body could
-        not be read: refuse. Never fall back to an older request."""
+        not be read: refuse. Never fall back to another request."""
         with self._lock:
-            record = self._newest
+            if record is None:
+                record = self._newest
             if record is None:
                 raise MetricFailure('METRIC_NOT_SEEN')
             deadline = time.monotonic() + self.body_wait_seconds
@@ -755,8 +801,10 @@ class MetricListener:
             self._frozen = frozen
             return copy.deepcopy(frozen)
 
-    def fetch_top_products(self, frozen, source, screenshot_dir=None):
-        """One in-page request on the frozen tab. Returns the response dict or raises MetricFailure."""
+    def fetch_top_products(self, frozen, source, screenshot_saved=False):
+        """One in-page request on the frozen tab. Returns the response dict or raises MetricFailure.
+
+        ``screenshot_saved``: the click's full-page shot exists, so a failure can say so."""
         request = {'urlPath': PRODUCTS_PATH, 'requestBody': top_products_body(frozen['body'])}
         script = _APP_SCRIPT.format(uuid.uuid4().hex)
         with self._lock:
@@ -771,34 +819,74 @@ class MetricListener:
             answer = tab.call_method('Runtime.evaluate', expression=evaluate_expression(source, request, script),
                                      awaitPromise=True, returnByValue=True, _timeout=EVALUATE_TIMEOUT)
         except Exception:
-            raise self._failure(tab, screenshot_dir, 'METRIC_EVALUATE_FAILED') from None
+            raise self._failure(screenshot_saved, 'METRIC_EVALUATE_FAILED') from None
         result = answer.get('result') if isinstance(answer, dict) else None
         value = result.get('value') if isinstance(result, dict) else None
         if not isinstance(answer, dict) or answer.get('exceptionDetails') or not isinstance(value, dict):
-            raise self._failure(tab, screenshot_dir, 'METRIC_EVALUATE_FAILED')
+            raise self._failure(screenshot_saved, 'METRIC_EVALUATE_FAILED')
         stop = value.get('stop')
         if isinstance(stop, str):
             code = stop if re.fullmatch(r'CAPTURE_[A-Z_]{1,56}', stop) else 'METRIC_EVALUATE_FAILED'
-            raise self._failure(tab, screenshot_dir, code)
+            raise self._failure(screenshot_saved, code)
         return value
 
-    def _failure(self, tab, folder, code):
-        saved = self._screenshot(tab, folder) is not None
-        return MetricFailure(code, detail={'screenshotSaved': True} if saved else None)
-
     @staticmethod
-    def _screenshot(tab, folder):
-        """saveDebug port: on failure only, keep a picture of the tab. Never raises."""
-        if folder is None:
+    def _failure(screenshot_saved, code):
+        return MetricFailure(code, detail={'screenshotSaved': True} if screenshot_saved else None)
+
+    def tab_newest_key(self, target_id):
+        """Order key of the newest user products request seen on that tab (None: none yet)."""
+        with self._lock:
+            return self._tab_newest.get(target_id)
+
+    def shot_target(self, record):
+        """The tab to picture: the click record's tab; with no request seen yet, the first attached
+        Metric tab. None when that tab is not attached."""
+        with self._lock:
+            attached = [tid for tid, entry in self._tabs.items() if entry.phase == 'attached']
+        if record is not None:
+            return record['targetId'] if record['targetId'] in attached else None
+        return attached[0] if attached else None
+
+    def full_page_shot(self, target_id, folder):
+        """At the click: one full-page picture of that Metric tab, saved on this PC only as
+        ``metric-<local YYYY-MM-DD-HHMMSS>.png``. Never raises; a failed shot never blocks the capture.
+        Failed shot (None): no folder, a linked folder, no attached tab, or no valid full-page size."""
+        if folder is None or target_id is None:
+            return None
+        with self._lock:
+            entry = self._tabs.get(target_id)
+            tab = entry.tab if entry is not None and entry.phase == 'attached' else None
+        if tab is None:
             return None
         try:
-            shot = tab.call_method('Page.captureScreenshot', format='png', _timeout=10)
+            folder = Path(folder)
+            root = folder.parent                     # the evidence folder
+            if not plain_path(root, folder):
+                return None
+            # Full page only: the page size must be known, else it is a failed shot.
+            metrics = tab.call_method('Page.getLayoutMetrics', _timeout=10)
+            size = metrics.get('cssContentSize') or metrics.get('contentSize')
+            width, height = float(size['width']), float(size['height'])
+            if not (0 < width < 1e6 and 0 < height < 1e6):
+                return None
+            shot = tab.call_method('Page.captureScreenshot', format='png', captureBeyondViewport=True,
+                                   clip={'x': 0, 'y': 0, 'width': width, 'height': height, 'scale': 1},
+                                   _timeout=SHOT_TIMEOUT)
             data = base64.b64decode(shot['data'], validate=True)
-            stamp = dt.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-            path = Path(folder) / f'metric-loi_{stamp}.png'
-            with open(path, 'xb') as handle:
-                handle.write(data)
-            return path
+            folder.mkdir(exist_ok=True)
+            stamp = dt.datetime.now().strftime('%Y-%m-%d-%H%M%S')
+            for number in range(100):
+                path = folder / (f'metric-{stamp}.png' if number == 0 else f'metric-{stamp}-{number}.png')
+                if not plain_path(root, path):
+                    return None
+                try:
+                    with open(path, 'xb') as handle:
+                        handle.write(data)
+                    return path
+                except FileExistsError:
+                    continue
+            return None
         except Exception:
             return None
 
@@ -812,6 +900,7 @@ class MetricSession:
         self._js_path = js_path
         self.listener = None
         self.pending = None           # the import payload, until the server confirms it
+        self.pending_shot = None      # the full-page shot of that click (local path), for «Gửi lại»
         self.busy = threading.Lock()  # blocks double clicks
         self._lock = threading.Lock()
 
@@ -850,18 +939,39 @@ class MetricSession:
         }
 
     def capture(self, collection_policy, screenshot_dir=None):
-        """Freeze, ask Metric once, build the payload and keep it as pending. Caller holds ``busy``."""
+        """Freeze, shoot the full Metric page, ask Metric once, build the payload and keep it as pending
+        (with its shot). Caller holds ``busy``. ``screenshot_dir``: where the click's shot is saved."""
         if self.pending is not None:
             raise MetricFailure('METRIC_IMPORT_PENDING')
         listener = self.listener
         if listener is None:
             raise MetricFailure('METRIC_NOT_SEEN')
-        frozen = listener.freeze()
-        scope = scope_of(frozen['body'])
-        if not _valid_scope(scope):
-            raise MetricFailure('METRIC_FILTER_INVALID')
+        # Every click keeps one full-page shot on this PC, taken first: success, too few Shopee
+        # products, and every refusal or failure after this point (filter still loading too).
+        # The click's request is snapshotted ONCE; the picture is of its tab and the import is built
+        # from that same record, even if Metric sends a later request while the picture is taken.
+        record = listener.click_record()
+        target = listener.shot_target(record)
+        shot = listener.full_page_shot(target, screenshot_dir)
+        # The page may have changed since the click (the user picked another filter on that tab, even
+        # right after the click record was taken): unless the tab's newest request is still the click's
+        # own request, the picture stays an unlinked metric-<time>.png and this run gets no local picture.
+        linkable = (shot is not None and record is not None and
+                    listener.tab_newest_key(target) == record['key'])
+        try:
+            if record is None:
+                raise MetricFailure('METRIC_NOT_SEEN')
+            frozen = listener.freeze(record)  # its body: pending / unavailable handling, 5 s wait
+            scope = scope_of(frozen['body'])
+            if not _valid_scope(scope):
+                raise MetricFailure('METRIC_FILTER_INVALID')
+        except MetricFailure as failure:
+            if shot is not None and failure.detail is None:
+                failure.detail = {'screenshotSaved': True}
+            raise
         keyword = run_name(scope)
-        response = listener.fetch_top_products(frozen, request_in_page_source(self._js_path), screenshot_dir)
+        response = listener.fetch_top_products(frozen, request_in_page_source(self._js_path),
+                                               screenshot_saved=shot is not None)
         payload = build_import_payload(import_id=str(uuid.uuid4()), keyword=keyword, captured_at=now_iso(),
                                        collection_policy=collection_policy, scope=scope, response=response)
         count = shopee_product_count(response)
@@ -869,11 +979,33 @@ class MetricSession:
             # Step 2 would always fail: send nothing, keep nothing for «Gửi lại».
             raise MetricFailure('METRIC_TOO_FEW_SHOPEE', detail={'shopeeProducts': count})
         self.pending = payload
+        self.pending_shot = shot if linkable else None
         return payload
+
+    def drop_pending(self):
+        """Forget the payload; its shot stays on disk under its click-time name."""
+        self.pending = None
+        self.pending_shot = None
+
+    def link_shot(self, run_id):
+        """The server returned the run: the kept shot becomes ``<runId>-metric-full-page.png``. Never raises."""
+        shot, self.pending_shot = self.pending_shot, None
+        if shot is None:
+            return None
+        target = shot.with_name(run_shot_name(run_id))
+        try:
+            root = shot.parent.parent
+            if not (plain_path(root, shot) and plain_path(root, target)):
+                return None
+            os.replace(shot, target)
+        except OSError:
+            return None
+        return target
 
     def confirmed(self):
         """The server created the run: drop the payload and stop listening. Chrome stays open."""
         self.pending = None
+        self.pending_shot = None
         with self._lock:
             listener, self.listener = self.listener, None
         if listener is not None:
