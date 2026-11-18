@@ -963,13 +963,17 @@ class RunsSamplingStreamTests(FlowTest):
         self.sampled_run('aaaaaaaa')
         self.sampled_run('hang')
         flow = load_flow_script()
+        order = ['hang', 'aaaaaaaa']  # the hung run first, so a later run must also use its own process
         with mock.patch.object(flow, 'SAMPLING_VIEW_ANSWER_TIMEOUT', 0.2):
-            hung_bytes = self.runs_in_process(flow)
+            hung = self.command_in_process(flow, order=order)
         self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
                          'a server that stops answering is closed after the bound, then every run uses its own process')
         self.marker.unlink()
-        old_bytes = self.runs_in_process(flow, per_run_views=True)
-        self.assertEqual(hung_bytes, old_bytes)
+        per_run = mock.patch.object(flow.SamplingViewServer, 'view', lambda server, run: flow.review_sampling_script(
+            server.repo, server.config, 'view', run))
+        with per_run:
+            old = self.command_in_process(flow, order=order)
+        self.assertEqual(hung, old)
 
     def test_gate_hash_reads_the_evidence_again(self):
         flow = load_flow_script()
