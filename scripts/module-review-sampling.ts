@@ -310,8 +310,10 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   if(inputsChanged)errorCode='REVIEW_PLAN_CHANGED';
   let gate:Record<string,unknown>|null=null;
   if(plan){
-    const results=journals.flatMap((journal,index)=>summaries[index]!.skipped?[]:journal?.result?.format==='shopee-sampled-result-v1'?[journal.result]:[]);
-    for(const result of results){const link=attempt.links.find(l=>l.url===result.link.url);if(!link)throw new ModuleError('REVIEW_RESULT_CHANGED');validateSamplingResult(result,plan,attempt.planSha256!,link,samplingDigest(jobRequest(link,attempt,plan)));}
+    // Every present result binds to its frozen link and inputs before a skip can exclude it; R1 review finding.
+    const present=journals.flatMap((journal,index)=>journal?.result?.format==='shopee-sampled-result-v1'?[{index,result:journal.result}]:[]);
+    for(const {index,result} of present){const link=attempt.links[index]!;validateSamplingResult(result,plan,attempt.planSha256!,link,samplingDigest(jobRequest(link,attempt,plan)));}
+    const results=present.flatMap(({index,result})=>summaries[index]!.skipped?[]:[result]);
     const rows=results.flatMap(result=>result.rows),ids=rows.map(row=>row.reviewId);
     // A skipped link is excluded from every per-link check; it is never a failure and never counts as collected.
     const collected=summaries.filter(summary=>!summary.skipped),skipped=summaries.length-collected.length;

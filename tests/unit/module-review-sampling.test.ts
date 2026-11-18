@@ -288,6 +288,23 @@ test('every custom link ending with no text review still fails the gate', () => 
     [[true, 'NO_TEXT_REVIEWS'], [true, 'NO_TEXT_REVIEWS']]);
 }, COUNT_INPUT, 2));
 
+test('a zero-row result that fails validation is refused, never skipped as no-text', () => withFixture(async ({ run }) => {
+  const started = await reserveConfiguredAttempt(run, { executionId: EXECUTION, sequence: 1 });
+  const tampered = (request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan) => {
+    const journal = terminalJournal(request, link, plan, 0, 'exhausted');
+    const result = { ...(journal.result as SamplingResult), planSha256: 'c'.repeat(64) };
+    return { ...journal, result, resultSha256: samplingDigest(result) };
+  };
+  await assert.rejects(executeSamplingAttempt({ runDir: run, kind: 'custom', attemptId: started.attemptId, collector: {
+    run: async (_file, request, link, plan) => link.url === 'https://shopee.vn/product/100/200'
+      ? tampered(request, link, plan!) : terminalJournal(request, link, plan!, 1, 'exhausted'),
+  } }), (error: unknown) => error instanceof ReviewSamplingError && error.code === 'REVIEW_RESULT_CHANGED');
+  const base = join(run, 'm3-custom/attempts', started.attemptId);
+  // Nothing is published, so the attempt neither passes nor records NO_TEXT_REVIEWS for the invalid link.
+  await assert.rejects(readFile(join(base, 'gate.json')));
+  await assert.rejects(readFile(join(base, 'output/outcome.json')));
+}, COUNT_INPUT, 2));
+
 test('a counts attempt stops on a dead first link with its reason and starts no later job', () => withFixture(async ({ run }) => {
   const started = await reserveAttempt(run, 'counts');
   const requests: SamplingJobInput[] = [];
