@@ -224,9 +224,19 @@ function countShopeeRows(raw: unknown): number {
 type LinkIssue = { stage: 'm2' | 'm3'; productBaseId: string; url: string; reason: string; at: string;
   replacedBy: string | null; attemptId: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-/** Step-2 deaths: each rejected candidate, replaced by the next accepted pick when one followed. */
-async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
-  const entries = (await savedLinkChecks(run))?.entries ?? [];
+/** Step-2 deaths: each rejected candidate, replaced by the next accepted pick when one followed.
+ *  A selection that bound the log keeps it immutable; changed or missing bytes fail the projection instead of
+ *  showing altered evidence. A stopped attempt's log has no selection binding it and is still projected. */
+async function m2LinkIssues(run: string, selection: unknown): Promise<LinkIssue[]> {
+  const proof = isRow(selection) ? selection.selectionProof : undefined;
+  const bound = isRow(proof) ? proof.linkChecksSha256 : undefined;
+  let entries: readonly LinkCheckEntry[];
+  if (bound === undefined) entries = (await savedLinkChecks(run).catch(() => null))?.entries ?? [];
+  else {
+    if (typeof bound !== 'string' || await hashFile(run, 'm2/link-checks.json').catch(() => null) !== bound)
+      throw new ModuleError('GATE_INPUT_CHANGED', 23);
+    entries = (await savedLinkChecks(run))?.entries ?? [];
+  }
   return entries.flatMap((entry, index) => entry.result !== 'rejected' ? [] : [{
     stage: 'm2' as const, productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string, at: entry.checkedAt,
     replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null }]);
@@ -238,7 +248,7 @@ async function m3LinkIssues(run: string): Promise<LinkIssue[]> {
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
   const verified: { attemptId: string; links: unknown[]; outcome: Row; at: string }[] = [];
   for (const attemptId of names.filter(name => UUID.test(name))) {
-    // An attempt that fails its identity/output checks contributes nothing and never crashes the projection.
+    // An unfinished attempt contributes nothing; a completed one that no longer verifies throws GATE_INPUT_CHANGED.
     const read = await verifiedCustomAttempt(run, attemptId);
     if (!read || !Array.isArray(read.outcome.links)) continue;
     verified.push({ attemptId, links: read.attempt.links, outcome: read.outcome,
@@ -331,8 +341,8 @@ export async function moduleOutputs(runArg: string) {
   m2.links = m2.links.map(link => ({ ...link, metricProduct: metricProduct(productRows, link.productBaseId) }));
   // panelCovered is a gate-only result, not an undocumented desktop field.
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
-  // A damaged step-2 log already shows in m2.errorCode; it does not break the whole projection.
-  const m2Issues = await m2LinkIssues(run).catch(() => [] as LinkIssue[]);
+  // A selection-bound step-2 log is verified as evidence; a stopped attempt's unbound log is still projected.
+  const m2Issues = await m2LinkIssues(run, selection);
   const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...await m3LinkIssues(run)] };
   await validateModuleValue('module-outputs-v1', wire);
   return wire;

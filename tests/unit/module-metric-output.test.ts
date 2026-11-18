@@ -392,8 +392,30 @@ test('link issues name step-2 replacements and every verified step-3 attempt tha
       reason: 'PRODUCT_UNAVAILABLE', at: endedA, replacedBy: null, attemptId: attemptA },
   ], 'step-3 issues come newest attempt end first');
   for (const issue of output.linkIssues) assert.match(issue.at, /^\d{4}-\d{2}-\d{2}T/);
-  // An attempt whose output no longer matches its state contributes nothing and never crashes the projection.
+  // The selection bound the log: a schema-valid edit or a missing log fails the projection.
+  const logText = await readFile(join(run, 'm2/link-checks.json'), 'utf8');
+  const fabricated = JSON.parse(logText);
+  fabricated.entries[1].reason = 'RATINGS_MISSING';
+  await writeFile(join(run, 'm2/link-checks.json'), `${JSON.stringify(fabricated, null, 2)}\n`);
+  const integrity = (error: unknown) => error instanceof ModuleError && error.code === 'GATE_INPUT_CHANGED';
+  await assert.rejects(moduleOutputs(run), integrity);
+  await rm(join(run, 'm2/link-checks.json'));
+  await assert.rejects(moduleOutputs(run), integrity, 'a bound log that disappeared is not evidence');
+  await writeFile(join(run, 'm2/link-checks.json'), logText);
+  // A completed attempt whose outcome no longer matches its state fails the projection instead of hiding it.
   await writeFile(join(run, 'm3-custom/attempts', attemptB, 'output/outcome.json'), jsonBytes({ format: 'tampered' }));
-  const after = await moduleOutputs(run) as any;
-  assert.deepEqual(after.linkIssues.filter((issue: any) => issue.stage === 'm3').map((issue: any) => issue.attemptId), [attemptA]);
+  await assert.rejects(moduleOutputs(run), integrity);
+});
+
+test('a stopped step-2 attempt with an unbound log still projects its rejections', async t => {
+  const rows = Array.from({ length: 5 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = linkUrl(rows[1]);
+  const { collector } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fakeJev(answersAfterRejection()).jev, linkCollector: collector });
+  // A step-2 stop publishes the log without a selection, so no proof binds its hash.
+  await rm(join(run, 'm2/selection.json'));
+  const output = await moduleOutputs(run) as any;
+  assert.equal(output.m2.errorCode, 'SELECTION_MISSING');
+  assert.deepEqual(output.linkIssues.map((issue: any) => [issue.stage, issue.reason, issue.replacedBy]),
+    [['m2', 'PRODUCT_UNAVAILABLE', rows[2]!.product_base_id]]);
 });

@@ -6,7 +6,7 @@ import { shopeePublicReviewConfigFromEnv } from '../src/modules/analysis/researc
 import { ShopeeReviewSamplingCollector, readSamplingJournal } from '../src/platform/collectors/shopee-review-sampling.js';
 import { validateReviewCounts, type ReviewCounts, type ReviewLink } from '../src/modules/foundation/shopee-review-sampling.js';
 
-/** Owner decision (round 1): all count checks of one M2 run together, waits included. */
+/** Owner decision: one clock for all count work of one M2 attempt, reconciliation and waits included. */
 export const LINK_CHECK_BUDGET_MS = 10 * 60_000;
 
 /** Contract names (owner F640): one closed list shared by steps 2 and 3. */
@@ -57,9 +57,12 @@ const linkFromUrl = (url: string): ReviewLink | null => {
 
 /**
  * Retry path: a count job whose submission was lost stays on disk and is reconciled before any new submission.
- * An unresolved journal stops step 2 instead of being deleted or resubmitted.
+ * An unresolved journal stops step 2 instead of being deleted or resubmitted. The caller's deadline (started
+ * before this reconciliation) bounds the recovery; when it has expired the journal stays on disk untouched.
  */
-export async function reconcileLinkJournals(options: { collector: LinkCollector; journalDir: string }): Promise<void> {
+export async function reconcileLinkJournals(options: { collector: LinkCollector; journalDir: string; deadline: number;
+    now?: () => Date }): Promise<void> {
+  const clock = () => (options.now?.() ?? new Date()).getTime();
   let names: string[];
   try { names = await readdir(options.journalDir); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw new LinkCheckStop('LINK_CHECK_FAILED'); }
@@ -68,10 +71,12 @@ export async function reconcileLinkJournals(options: { collector: LinkCollector;
     let journal: SamplingJournal | null;
     try { journal = await readSamplingJournal(file); } catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
     if (!journal || journal.terminal) continue;
+    const remaining = options.deadline - clock();
+    if (remaining <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
     const link = linkFromUrl(journal.request.url);
     if (!link) throw new LinkCheckStop('LINK_CHECK_FAILED');
     let reconciled: SamplingJournal;
-    try { reconciled = await options.collector.run(file, journal.request, link, null, true); }
+    try { reconciled = await options.collector.run(file, journal.request, link, null, true, AbortSignal.timeout(remaining)); }
     catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
     if (!reconciled.terminal) throw new LinkCheckStop('LINK_CHECK_FAILED');
   }
@@ -79,21 +84,23 @@ export async function reconcileLinkJournals(options: { collector: LinkCollector;
 
 /**
  * One count job per accepted candidate, through the same collector client and `/count-jobs` route as review-counts.
- * Every candidate with a verdict (ok or a product-level rejection) appends its entry in walk order.
- * The aggregate budget bounds every wait; expiry stops step 2 without a verdict and keeps the journal.
+ * Every candidate with a verdict (ok or a product-level rejection) appends its entry in walk order and is handed
+ * to `publish` before the next check starts, so an interrupted walk keeps every completed verdict.
+ * The caller's deadline bounds every wait; expiry stops step 2 without a verdict and keeps the journal.
  */
 export function createM2LinkCheck(options: { collector: LinkCollector; policy: { mode: string; stars: readonly number[] } | null;
-  journalDir: string; now?: () => Date; budgetMs?: number }) {
+  journalDir: string; deadline: number; now?: () => Date; publish?: (entries: readonly LinkCheckEntry[]) => Promise<void> }) {
   const entries: LinkCheckEntry[] = [];
   const clock = () => (options.now?.() ?? new Date()).getTime();
-  const deadline = clock() + (options.budgetMs ?? LINK_CHECK_BUDGET_MS);
   const checkedAt = () => new Date(clock()).toISOString();
-  const verdict = (pick: Pick<LinkCheckInput, 'productBaseId' | 'url'>, result: 'ok' | 'rejected', reason: LinkRejectCode | null, starCounts: StarCounts | null) => {
+  const verdict = async (pick: Pick<LinkCheckInput, 'productBaseId' | 'url'>, result: 'ok' | 'rejected',
+      reason: LinkRejectCode | null, starCounts: StarCounts | null): Promise<LinkCheckDecision> => {
     entries.push({ productBaseId: pick.productBaseId, url: pick.url, stage: 'm2', result, reason, starCounts, checkedAt: checkedAt() });
+    if (options.publish) await options.publish(entries);
     return result === 'ok' ? { result: 'ok' as const, starCounts } : { result: 'rejected' as const, reason: reason! };
   };
   const check: LinkCheck = async ({ productBaseId, shopId, itemId, url }) => {
-    const remaining = deadline - clock();
+    const remaining = options.deadline - clock();
     if (remaining <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
     const link: ReviewLink = { shopId, itemId, url };
     let journal: SamplingJournal;
