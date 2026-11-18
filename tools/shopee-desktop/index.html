@@ -3081,8 +3081,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     infoByRun: {},       // the last run-info per run, shown at once while the fresh one loads
     loadingRunId: null,
     listPending: 0,      // listings on their way («Đang cập nhật…»)
-    refreshToken: 0,     // the open run's refresh (run-info and every per-run call); a newer one replaces it
-    refreshing: false,
+    refreshRunId: null,  // the open run whose refresh is tracked for «Đang cập nhật…»
+    refreshTasks: {},    // kind -> sequence of its latest request (run-info, sampling, outputs + picture, …)
+    runSortSaving: false,
+    runSortToSave: null,
     moduleRunBusy: {},
     newRunId: null,
     newEntry: null,
@@ -4339,8 +4341,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId === runId) renderDetail();
   }
 
+  // The outputs view and the local Metric picture lookup run together; the call ends when both have answered.
   async function loadModuleOutputs(runId) {
-    loadLocalShot(runId);
+    var shot = loadLocalShot(runId);
+    await loadModuleOutputsView(runId);
+    await shot;
+  }
+
+  async function loadModuleOutputsView(runId) {
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
     var res = await api.moduleOutputs(runId);
@@ -6957,7 +6965,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   function renderRefreshMark() {
-    var busy = state.listPending > 0 || state.refreshing;
+    var busy = state.listPending > 0 ||
+      (state.refreshRunId === state.selectedRunId && Object.keys(state.refreshTasks).length > 0);
     Array.prototype.forEach.call(document.querySelectorAll('.refresh-mark'), function (mark) { mark.hidden = !busy; });
   }
 
@@ -7142,7 +7151,22 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.runSort = value;
     renderRunSort();
     renderRunList();
-    api.rememberRunSort(value);      // best effort: kept on this PC by the bridge
+    state.runSortToSave = value;
+    saveRunSort();
+  }
+
+  // One save in flight; the latest click is saved last (best effort, kept on this PC by the bridge).
+  async function saveRunSort() {
+    if (state.runSortSaving || !state.runSortToSave) return;
+    var value = state.runSortToSave;
+    state.runSortToSave = null;
+    state.runSortSaving = true;
+    try {
+      await api.rememberRunSort(value);
+    } finally {
+      state.runSortSaving = false;
+    }
+    if (state.runSortToSave) saveRunSort();
   }
 
   // The last choice made on this PC.
@@ -7192,8 +7216,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The empty detail: no run open, its polls stopped.
   function closeDetail() {
-    state.refreshToken += 1;
-    state.refreshing = false;
+    dropRefresh();
     state.selectedRunId = null;
     state.loadingRunId = null;
     state.info = null;
@@ -7225,6 +7248,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.samplingPollRunId === runId) stopSamplingPoll();
     if (state.step4PollRunId === runId) stopStep4Poll();
     if (state.selectedRunId === runId) {
+      dropRefresh();
       state.selectedRunId = null;
       state.loadingRunId = null;
       state.info = null;
@@ -7287,10 +7311,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function loadInfo(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var status = runStatus(runId);
-    var tasks = [status, loadSampling(runId), loadReviewData(runId), loadModuleOutputs(runId), loadReviewProcess(runId)];
-    if (state.screen === 'result') tasks.push(loadReviewStats(runId), loadReviewInsights(runId));
-    if (state.selectedRunId === runId) trackRefresh(runId, tasks);
+    var status = trackLoad('info', runId, state.infoSeq, runStatus);
+    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
+    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
+    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
+    trackLoad('process', runId, state.reviewProcessSeq, loadReviewProcess);
+    if (state.screen === 'result') {
+      trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
+      trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
+    }
     var res = await status;
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
@@ -7307,18 +7336,31 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     managePoll();
   }
 
-  // «Đang cập nhật…» stays until every call of the open run's latest refresh has answered, and goes when a
-  // newer refresh or another selection replaces it.
-  function trackRefresh(runId, tasks) {
-    var token = ++state.refreshToken;
-    state.refreshing = true;
+  // «Đang cập nhật…» follows the LATEST request of each kind for the open run (open and 10 s poll alike): a
+  // request replaced by a newer one of its kind is retired, not waited for. Another selection drops them all.
+  function trackLoad(kind, runId, seqMap, start) {
+    var promise = start(runId);
+    if (runId !== state.selectedRunId) return promise;
+    if (state.refreshRunId !== runId) {
+      state.refreshRunId = runId;
+      state.refreshTasks = {};
+    }
+    var seq = seqMap[runId];
+    state.refreshTasks[kind] = seq;
     renderRefreshMark();
-    Promise.allSettled(tasks).then(function () {
-      if (token !== state.refreshToken) return;
-      state.refreshing = false;
-      if (state.loadingRunId === runId) state.loadingRunId = null;
+    var done = function () {
+      if (state.refreshRunId !== runId || state.refreshTasks[kind] !== seq) return;
+      delete state.refreshTasks[kind];
       renderRefreshMark();
-    });
+    };
+    promise.then(done, done);
+    return promise;
+  }
+
+  function dropRefresh() {
+    state.refreshRunId = null;
+    state.refreshTasks = {};
+    renderRefreshMark();
   }
 
   async function selectRun(runId) {
@@ -7353,9 +7395,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId !== runId) return;
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await runStatus(runId);
+    var res = await trackLoad('info', runId, state.infoSeq, runStatus);
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
+    if (state.loadingRunId === runId) state.loadingRunId = null;
     if (!res.ok) {
       showError(res.error);
       stopPoll();
@@ -7367,13 +7410,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.info = data;
     if (data) state.infoByRun[runId] = data;
     renderDetail();
-    loadSampling(runId);
-    loadReviewData(runId);
-    loadModuleOutputs(runId);
+    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
+    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
+    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
     if (!running) {
       if (state.screen === 'result') {
-        loadReviewStats(runId);
-        loadReviewInsights(runId);
+        trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
+        trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
       }
       stopPoll();
       await refreshRuns();
