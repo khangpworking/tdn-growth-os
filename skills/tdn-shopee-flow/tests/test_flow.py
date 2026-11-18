@@ -736,7 +736,7 @@ if action == 'serve-views':
         raise SystemExit(0)
     served, hung = 0, False
     with open(os.environ['NODE_MARKER'] + '.serverpid', 'a', encoding='utf8') as log:
-        log.write(str(os.getpid()) + '\n')
+        log.write(str(os.getpid()) + '\\n')
     for line in sys.stdin:
         line = line.strip()
         if not line:
