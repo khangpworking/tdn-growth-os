@@ -2826,17 +2826,16 @@ test('C2: a pages-mode run shows its page limit in the run list and the run meta
 
 test('an old run saved with mode all opens the step 3 editor with «Lấy tất cả bình luận» checked', async () => {
   const info: any = syntheticRunInfo();
-  info.request = { ...clone(createdRunInfo('run-synthetic').request), collectionPolicy: {
+  info.request = { ...info.request, collectionPolicy: {
     format: 'shopee-review-policy-v1', mode: 'all', stars: [], totalPerLink: 300, allocation: 'pooled',
     textRule: 'comment-or-attributes-v1', order: 'native-filter-ascending-stars-v1',
   } };
   const { dom, doc } = harness({
-    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE', request: info.request }],
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'IDLE' }],
     runInfo: info, sampling: syntheticSampling(),
   });
   try {
-    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
-    runListButton(doc, 'run-synthetic').click();
+    await waitFor(() => doc.getElementById('rsPanel') !== null, 'sampling panel');
     await waitFor(() => doc.getElementById('rsMode-with-comments') !== null, 'step 3 editor');
     assert.equal(doc.getElementById('rsMode-all'), null, 'the removed mode is not offered');
     assert.equal(element<HTMLInputElement>(doc, 'rsMode-with-comments').checked, true);
