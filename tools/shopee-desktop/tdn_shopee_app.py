@@ -22,6 +22,7 @@ import tdn_shopee_transport
 
 _RUN_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}')
 _PLAN_SHA = re.compile(r'[0-9a-f]{64}')
+_INSIGHT_ID = re.compile(r'[A-Za-z0-9._:-]{1,128}')   # run-view wave 2: insight bucket keys and theme codes
 _REMOTE_PATH = re.compile(r'(\$HOME/)?[A-Za-z0-9_./-]+')
 _STATIC_ERROR = re.compile(r'[A-Z][A-Z0-9_]{0,63}')
 _SHOP_ITEM_ID = re.compile(r'[1-9][0-9]{0,19}')
@@ -61,7 +62,15 @@ _COMMANDS = {
     'processReviewData': ('process-review-data', '--run'),
     'runsProgress': ('runs-progress',),
     'deleteRun': ('delete-run', '--run'),
+    # F647 wave 2: one call per run open, insights summary first, comments on demand.
+    'runView': ('run-view', '--run'),
+    'reviewInsightsSummary': ('review-insights', '--run'),
+    'reviewInsightComments': ('review-insight-comments', '--run'),
 }
+# Commands an older server does not know: argparse exits 2 with nothing on stdout -> USAGE.
+_WAVE2_COMMANDS = frozenset({'runView', 'reviewInsightsSummary', 'reviewInsightComments'})
+_RUN_VIEW_PARTS = ('info', 'sampling', 'reviewData', 'outputs', 'process')
+_RUN_VIEW_RESULT_PARTS = ('stats', 'insights')
 # Step 4 formats (review-process-view-v1, review-process-start-v1, runs-progress-v1).
 _STEP4_STATES = frozenset({'IDLE', 'RUNNING', 'PASS', 'FAIL'})
 _STEP4_SOURCE_STATES = _STEP4_STATES | {'NOT_APPLICABLE'}
@@ -448,7 +457,7 @@ class Api:
             raise _BridgeFailure(error.code) from None
 
     def _remote_plan(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
-                     kind=None, attempt_id=None, export_sha256=None, source_sha256=None):
+                     kind=None, attempt_id=None, export_sha256=None, source_sha256=None, flags=()):
         words = list(_COMMANDS[action])
         if action == 'metricDateAvailability':
             words.append(self._metric_end_date(payload))
@@ -456,8 +465,9 @@ class Api:
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats', 'reviewInsights',
                       'saveReviewData', 'exportReviewData', 'readReviewExport', 'reviewProcess',
-                      'processReviewData', 'deleteRun'):
+                      'processReviewData', 'deleteRun', 'runView', 'reviewInsightsSummary', 'reviewInsightComments'):
             words.append(self._run_id(run_id))
+        words.extend(flags)              # wave 2 flags, built and checked by the caller
         if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
             words.append('--stdin')
         if action in ('stopReviewAttempt', 'reconcileReviewAttempt'):
@@ -492,10 +502,11 @@ class Api:
         return config, lines
 
     def _remote(self, action, run_id=None, payload=None, config=None, plan_sha256=None,
-                kind=None, attempt_id=None, export_sha256=None, source_sha256=None):
+                kind=None, attempt_id=None, export_sha256=None, source_sha256=None, flags=()):
         config, lines = self._remote_plan(action, run_id=run_id, payload=payload, config=config,
                                           plan_sha256=plan_sha256, kind=kind, attempt_id=attempt_id,
-                                          export_sha256=export_sha256, source_sha256=source_sha256)
+                                          export_sha256=export_sha256, source_sha256=source_sha256,
+                                          flags=flags)
         argv, token = self._dispatch_argv(config)
         return self._invoke(action, config, lines, argv, token=token)
 
@@ -518,6 +529,8 @@ class Api:
         if result.returncode == 255:
             self._invalidate_native(token)
             raise _BridgeFailure('SSH_FAILED')
+        if action in _WAVE2_COMMANDS and result.returncode == 2 and not result.stdout.strip():
+            raise _BridgeFailure('USAGE')    # an older server: unknown command
         try:
             output = json.loads(result.stdout.decode('utf-8'), parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
         except (ValueError, TypeError):
@@ -1026,7 +1039,10 @@ class Api:
         return self._safe(lambda: self._review_sampling(runId))
 
     def _review_sampling(self, run_id):
-        result = self._remote('reviewSampling', run_id=run_id)
+        return self._check_review_sampling(run_id, self._remote('reviewSampling', run_id=run_id))
+
+    @staticmethod
+    def _check_review_sampling(run_id, result):
         if not result['ok']:
             return result
         if result['data'].get('format') != 'review-sampling-view-v1':
@@ -1117,7 +1133,10 @@ class Api:
         return self._safe(lambda: self._review_data(runId))
 
     def _review_data(self, run_id):
-        result = self._remote('reviewData', run_id=run_id)
+        return self._check_review_data(run_id, self._remote('reviewData', run_id=run_id))
+
+    @staticmethod
+    def _check_review_data(run_id, result):
         if not result['ok']:
             return result
         data = result['data']
@@ -1131,7 +1150,9 @@ class Api:
         return self._safe(lambda: self._review_stats(runId))
 
     def _review_stats(self, run_id):
-        result = self._remote('reviewStats', run_id=run_id)
+        return self._check_review_stats(run_id, self._remote('reviewStats', run_id=run_id))
+
+    def _check_review_stats(self, run_id, result):
         if not result['ok']:
             # Numbers only: never forward server error text or detail, just a static code.
             code = result.get('error', {}).get('code')
@@ -1180,18 +1201,7 @@ class Api:
         reader is numbers-only, while this surface is the explicit, user-facing
         drilldown that is allowed to carry review text and tag evidence.
         """
-        result = self._remote('reviewInsights', run_id=run_id)
-        if not result['ok']:
-            code = result.get('error', {}).get('code')
-            raise _BridgeFailure(code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID')
-        data = result['data']
-        if (set(data) != {'format', 'runId', 'codebookVersion', 'sources'} or
-                data.get('format') != 'review-insights-v1' or data.get('runId') != run_id or
-                not isinstance(data.get('codebookVersion'), str) or not data['codebookVersion'] or
-                not isinstance(data.get('sources'), list) or
-                not all(self._review_insights_source(source) for source in data['sources'])):
-            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
-        return result
+        return self._check_review_insights(run_id, self._remote('reviewInsights', run_id=run_id))
 
     @staticmethod
     def _review_insights_summary(value):
@@ -1226,17 +1236,34 @@ class Api:
                 all(cls._review_insights_comment_tag(tag) for tag in value['tags']))
 
     @classmethod
-    def _review_insights_bucket(cls, value):
-        if not isinstance(value, dict) or set(value) != {'summary', 'themes', 'comments'}:
-            return False
-        themes = value['themes']
-        comments = value['comments']
-        if not isinstance(themes, list) or len(themes) > 10 or not isinstance(comments, list) or len(comments) > 200:
+    def _review_insights_bucket(cls, value, summary=False):
+        """v1 holds the comment lists; the v2 summary holds `key` and a `commentCount` in place of each list."""
+        if summary:
+            if (not isinstance(value, dict) or set(value) != {'key', 'summary', 'themes', 'commentCount'} or
+                    not isinstance(value['key'], str) or _INSIGHT_ID.fullmatch(value['key']) is None or
+                    type(value['commentCount']) is not int or not 0 <= value['commentCount'] <= 200):
+                return False
+            themes = value['themes']
+            comments = None
+            list_key = 'commentCount'
+        else:
+            if not isinstance(value, dict) or set(value) != {'summary', 'themes', 'comments'}:
+                return False
+            themes = value['themes']
+            comments = value['comments']
+            list_key = 'comments'
+            if not isinstance(comments, list) or len(comments) > 200:
+                return False
+        if not isinstance(themes, list) or len(themes) > 10:
             return False
         for theme in themes:
             if (not isinstance(theme, dict) or
-                    set(theme) != {'code', 'name', 'count', 'unclearCount', 'share', 'polarityCounts', 'summary', 'comments'}):
+                    set(theme) != {'code', 'name', 'count', 'unclearCount', 'share', 'polarityCounts', 'summary', list_key}):
                 return False
+            if summary:
+                if type(theme['commentCount']) is not int or not 0 <= theme['commentCount'] <= value['commentCount']:
+                    return False
+                theme = dict(theme, comments=[])
             polarity = theme['polarityCounts']
             if (not isinstance(theme['code'], str) or re.fullmatch(r'T-[A-Z0-9]+', theme['code']) is None or
                     not isinstance(theme['name'], str) or not theme['name'] or
@@ -1246,25 +1273,112 @@ class Api:
                     not cls._review_insights_summary(theme['summary']) or
                     not isinstance(polarity, dict) or set(polarity) != {'khen', 'che', 'ke', 'khong_ro_huong'} or
                     any(type(count) is not int or count < 0 for count in polarity.values()) or
-                    not isinstance(theme['comments'], list) or len(theme['comments']) > len(comments) or
+                    not isinstance(theme['comments'], list) or
+                    (comments is not None and len(theme['comments']) > len(comments)) or
                     not all(cls._review_insights_comment(comment) for comment in theme['comments'])):
                 return False
-        return cls._review_insights_summary(value['summary']) and all(cls._review_insights_comment(comment) for comment in comments)
+        return cls._review_insights_summary(value['summary']) and all(cls._review_insights_comment(comment) for comment in comments or [])
 
     @classmethod
-    def _review_insights_source(cls, source):
+    def _review_insights_source(cls, source, summary=False):
         if not isinstance(source, dict) or set(source) != {'sourceSha256', 'kind', 'status', 'completedAt', 'all', 'links'}:
             return False
         links = source['links']
         return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
                 source['kind'] in ('legacy', 'custom') and source['status'] in ('SUCCEEDED', 'FAILED') and
                 (source['completedAt'] is None or isinstance(source['completedAt'], str)) and
-                cls._review_insights_bucket(source['all']) and isinstance(links, list) and len(links) <= 5 and
+                cls._review_insights_bucket(source['all'], summary) and isinstance(links, list) and len(links) <= 5 and
                 all(isinstance(link, dict) and set(link) == {'shopId', 'itemId', 'url', 'insights'} and
                     isinstance(link['shopId'], str) and _SHOP_ITEM_ID.fullmatch(link['shopId']) is not None and
                     isinstance(link['itemId'], str) and _SHOP_ITEM_ID.fullmatch(link['itemId']) is not None and
                     isinstance(link['url'], str) and _SHOPEE_LINK.fullmatch(link['url']) is not None and
-                    cls._review_insights_bucket(link['insights']) for link in links))
+                    cls._review_insights_bucket(link['insights'], summary) for link in links))
+
+    def reviewInsightsSummary(self, runId=None):
+        return self._safe(lambda: self._review_insights_summary_view(runId))
+
+    def _review_insights_summary_view(self, run_id):
+        result = self._remote('reviewInsightsSummary', run_id=run_id, flags=('--summary',))
+        return self._check_review_insights(run_id, result, summary=True)
+
+    def _check_review_insights(self, run_id, result, summary=False):
+        if not result['ok']:
+            code = result.get('error', {}).get('code')
+            raise _BridgeFailure(code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID')
+        data = result['data']
+        if (set(data) != {'format', 'runId', 'codebookVersion', 'sources'} or
+                data.get('format') != ('review-insights-v2' if summary else 'review-insights-v1') or
+                data.get('runId') != run_id or
+                not isinstance(data.get('codebookVersion'), str) or not data['codebookVersion'] or
+                not isinstance(data.get('sources'), list) or
+                not all(self._review_insights_source(source, summary) for source in data['sources'])):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def reviewInsightComments(self, runId=None, bucket=None, theme=None):
+        return self._safe(lambda: self._review_insight_comments(runId, bucket, theme))
+
+    def _review_insight_comments(self, run_id, bucket, theme):
+        if not isinstance(bucket, str) or _INSIGHT_ID.fullmatch(bucket) is None:
+            raise _BridgeFailure('ARG_INVALID')
+        if theme is not None and (not isinstance(theme, str) or _INSIGHT_ID.fullmatch(theme) is None):
+            raise _BridgeFailure('ARG_INVALID')
+        flags = ('--bucket', bucket) + (('--theme', theme) if theme is not None else ())
+        result = self._remote('reviewInsightComments', run_id=run_id, flags=flags)
+        if not result['ok']:
+            code = result.get('error', {}).get('code')
+            raise _BridgeFailure(code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID')
+        data = result['data']
+        if (set(data) != {'format', 'bucket', 'theme', 'comments'} or data['format'] != 'review-insight-comments-v1' or
+                data['bucket'] != bucket or data['theme'] != theme or not isinstance(data['comments'], list) or
+                len(data['comments']) > 200 or
+                not all(self._review_insights_comment(comment) for comment in data['comments'])):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def runView(self, runId=None, result=False):
+        return self._safe(lambda: self._run_view(runId, result))
+
+    def _run_view(self, run_id, with_result):
+        """One call for a run open: each part goes through the same check as its single call, and a part in
+        `errors` comes back as that call's error. The page gets {part: single-call reply}."""
+        run_id = self._run_id(run_id)
+        if type(with_result) is not bool:
+            raise _BridgeFailure('ARG_INVALID')
+        reply = self._remote('runView', run_id=run_id, flags=('--result',) if with_result else ())
+        if not reply['ok']:
+            return reply                  # the info error is the command error (RUN_NOT_FOUND, USAGE, …)
+        data = reply['data']
+        names = _RUN_VIEW_PARTS + (_RUN_VIEW_RESULT_PARTS if with_result else ())
+        parts, errors = data.get('parts'), data.get('errors')
+        if (set(data) != {'format', 'runId', 'parts', 'errors'} or data['format'] != 'run-view-v1' or
+                data['runId'] != run_id or not isinstance(parts, dict) or not isinstance(errors, dict) or
+                not set(parts) | set(errors) <= set(names) or set(parts) & set(errors) or 'info' not in parts or
+                not all(isinstance(part, dict) for part in parts.values())):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        checks = {
+            'info': lambda single: single,
+            'sampling': lambda single: self._check_review_sampling(run_id, single),
+            'reviewData': lambda single: self._check_review_data(run_id, single),
+            'outputs': lambda single: single,
+            'process': lambda single: self._check_review_process(run_id, single),
+            'stats': lambda single: self._check_review_stats(run_id, single),
+            'insights': lambda single: self._check_review_insights(run_id, single, summary=True),
+        }
+        out = {}
+        for name in names:
+            if name in parts:
+                single = {'ok': True, 'data': parts[name]}
+            elif name in errors:
+                error = errors[name]
+                if (not isinstance(error, dict) or not isinstance(error.get('code'), str) or
+                        not isinstance(error.get('message'), str)):
+                    raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+                single = _error(error['code'], error['message'])
+            else:
+                raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+            out[name] = self._safe(lambda check=checks[name], single=single: check(single))
+        return {'ok': True, 'data': {'format': 'run-view-v1', 'runId': run_id, 'parts': out}}
 
     def saveReviewData(self, runId=None, input=None):
         return self._safe(lambda: self._save_review_data(runId, input))
@@ -1291,7 +1405,14 @@ class Api:
         return self._safe(lambda: self._review_process(runId))
 
     def _review_process(self, run_id):
-        data = self._step4_remote('reviewProcess', run_id=run_id)
+        return self._check_review_process(run_id, self._remote('reviewProcess', run_id=run_id))
+
+    def _check_review_process(self, run_id, result):
+        if not result['ok']:
+            # Static code only: never forward server error text or detail.
+            code = result.get('error', {}).get('code')
+            raise _BridgeFailure(code if isinstance(code, str) and _STATIC_ERROR.fullmatch(code) else 'REMOTE_OUTPUT_INVALID')
+        data = result['data']
         if (set(data) != {'format', 'runId', 'autoRun', 'labelUnresolved', 'sources'} or
                 data['format'] != 'review-process-view-v1' or data['runId'] != run_id or
                 type(data['autoRun']) is not bool or type(data['labelUnresolved']) is not bool or
