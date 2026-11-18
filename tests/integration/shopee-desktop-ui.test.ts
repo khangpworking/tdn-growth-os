@@ -3417,14 +3417,18 @@ test('dead links: an attempt that finishes while the run is open shows its group
 // | yes                    | missing (user-page run)               | enabled                         | the local file     | the local file (null)|
 // | no                     | available                             | enabled                         | the server picture | its sha256           |
 // | no                     | missing                               | disabled + «Ảnh chỉ lưu trên máy đã lấy dữ liệu» | nothing | nothing   |
+// | no                     | error (hash mismatch)                 | disabled + the error note (r2 #4)                | nothing | nothing   |
 test('the full-page Metric picture: local shot first, then the server picture, else a hint', async () => {
   const missing = { available: false, kind: 'full-page', sha256: null, byteSize: null, mediaType: 'image/png',
     fileName: 'full-page.png', errorCode: 'EVIDENCE_FILES_MISSING' };
-  const rows: { label: string; local: boolean; fullPage: any; enabled: boolean; opens: 'local' | 'server' | null }[] = [
+  const broken = { ...missing, errorCode: 'EVIDENCE_HASH_MISMATCH' };
+  const rows: { label: string; local: boolean; fullPage: any; enabled: boolean; opens: 'local' | 'server' | null; note?: string }[] = [
     { label: 'local shot', local: true, fullPage: missing, enabled: true, opens: 'local' },
     { label: 'server picture', local: false, fullPage: evidenceDescriptor('full-page', 'full-page.png', 'image/png'),
       enabled: true, opens: 'server' },
     { label: 'neither', local: false, fullPage: missing, enabled: false, opens: null },
+    { label: 'server error', local: false, fullPage: broken, enabled: false, opens: null,
+      note: 'Tệp bằng chứng đã lưu không khớp mã kiểm tra.' },
   ];
   for (const row of rows) {
     const run = harness({
@@ -3452,7 +3456,8 @@ test('the full-page Metric picture: local shot first, then the server picture, e
         assert.equal(run.state.saveShotCalls.length, 0, row.label + ': nothing saved');
       }
       assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent ?? null,
-        row.enabled ? null : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu', row.label + ': hint');
+        row.enabled || row.note ? null : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu', row.label + ': hint');
+      if (row.note) assert.equal(button.parentElement!.querySelector('.rs-note')!.textContent, row.note, row.label + ': note');
       button.click();
       if (row.opens) {
         await waitFor(() => run.state.openLocalShotCalls.length + run.state.openEvidenceCalls.length === 1, row.label + ': opened');
@@ -3540,6 +3545,7 @@ test('«Xóa lượt» asks first, explains a running run, and leaves the delete
 // | top 8                                 | requested_distinct_products (8) | 8      | yes               | Đã chọn đủ 8/8 sản phẩm khác nhau             | –                                                   |
 // | all                                   | requested_distinct_products (1) | 3      | no                | Đã chọn 3 sản phẩm                            | –                                                   |
 // | top 8, FEWER_PRODUCTS_THAN_REQUESTED  | requested_distinct_products (8) | 6      | yes               | Chỉ chọn được 6/8 sản phẩm: nguồn không đủ …  | Không đủ 8 sản phẩm khác nhau. Giảm số Top hoặc …   |
+// (outputs projects that code into both shortageReason and errorCode; the bar shows all the same, r2 #1)
 test('the step 2 card follows the run\'s Top N or all choice', async () => {
   const slip = (id: string, want: number, ok: boolean) => ({ ...passSlip('M2'), verdict: ok ? 'PASS' : 'FAIL',
     checks: [{ id, ok, want }] });
@@ -3554,10 +3560,7 @@ test('the step 2 card follows the run\'s Top N or all choice', async () => {
       same: false, line: '✓Đã chọn 3 sản phẩm', bar: null },
     { label: 'top 8 short', selection: { mode: 'top', count: 8 }, gate: slip('requested_distinct_products', 8, false),
       m2: v2(6, { shortageReason: 'FEWER_PRODUCTS_THAN_REQUESTED', errorCode: 'FEWER_PRODUCTS_THAN_REQUESTED' }),
-      same: true, line: '!Chỉ chọn được 6/8 sản phẩm: nguồn không đủ sản phẩm khác nhau', bar: null },
-    { label: 'top 8 error', selection: { mode: 'top', count: 8 }, gate: slip('requested_distinct_products', 8, false),
-      m2: v2(6, { errorCode: 'FEWER_PRODUCTS_THAN_REQUESTED' }),
-      same: true, line: '!Chỉ chọn được 6/8 sản phẩm: chưa rõ lý do',
+      same: true, line: '!Chỉ chọn được 6/8 sản phẩm: nguồn không đủ sản phẩm khác nhau',
       bar: 'Không đủ 8 sản phẩm khác nhau. Giảm số Top hoặc mở rộng bộ lọc.' },
   ];
   for (const row of rows) {

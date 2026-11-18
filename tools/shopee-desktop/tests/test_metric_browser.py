@@ -1120,6 +1120,9 @@ class BridgeTest(unittest.TestCase):
             self.assertEqual(self.api.rememberProductSelection(top8)['ok'], True)
             self.assertEqual(self.api.rememberProductSelection({'mode': 'top', 'count': 0})['error']['code'], 'ARG_INVALID')
             self.assertEqual(self.api.lastProductSelection()['data'], {'productSelection': top8})
+            self.assertEqual(self.api.rememberProductSelection(every)['ok'], True)    # the latest wins
+            self.assertEqual(self.api.lastProductSelection()['data'], {'productSelection': every})
+            self.assertEqual(list(pathlib.Path(self.tmp.name).glob('*.part')), [])  # each write's own temp, gone
         for bad in ({'mode': 'top', 'count': 0}, {'mode': 'top', 'count': 101}, {'mode': 'top', 'count': '5'},
                     {'mode': 'top', 'count': True}, {'mode': 'all', 'count': 5}, {'mode': 'best'}, None):
             with self.subTest(bad=bad):
@@ -1167,7 +1170,8 @@ class BridgeTest(unittest.TestCase):
         | local picture                  | cancel | nothing written                                             |
         | none here, server full page    | a path | the server picture (full-page, its sha256) written there    |
         | none here, no server picture   | –      | EVIDENCE_LOCAL_MISSING, no dialog                           |
-        | local, 120-character run name  | a path | the name is cut, «-<runId>.png» kept (Terra r1 #3)          |"""
+        | local, 120-character run name  | a path | the name is cut, «-<runId>.png» kept (Terra r1 #3)          |
+        |   same, name starting with «.» | a path | cleaned first, then cut: the whole suffix kept (r2 #2)      |"""
         out = pathlib.Path(self.tmp.name) / 'out'
         out.mkdir()
         self.shots.mkdir()
@@ -1206,13 +1210,15 @@ class BridgeTest(unittest.TestCase):
                 self.assertEqual(self.api.saveMetricShot('a1b2c3d4', 'Canxi', None)['error']['code'],
                                  'EVIDENCE_LOCAL_MISSING')
                 dialog.assert_not_called()
-            with self.subTest('long name'):
-                original.write_bytes(b'\x89PNG local')
-                dialog.return_value = None
-                self.api.saveMetricShot('a1b2c3d4', 'x' * 120, None)
-                suggested = dialog.call_args[0][0]
-                self.assertTrue(suggested.endswith('x-a1b2c3d4.png'), suggested)
-                self.assertLessEqual(len(suggested), 120)
+            for label, name in (('long name', 'x' * 120), ('long name starting with a dot', '.' + 'x' * 119)):
+                with self.subTest(label):
+                    original.write_bytes(b'\x89PNG local')
+                    dialog.return_value = None
+                    self.api.saveMetricShot('a1b2c3d4', name, None)
+                    suggested = dialog.call_args[0][0]
+                    self.assertTrue(suggested.endswith('x-a1b2c3d4.png'), suggested)
+                    self.assertFalse(suggested.startswith('.'), suggested)
+                    self.assertLessEqual(len(suggested), 120)
 
     def shot_files(self):
         return sorted(path.name for path in self.shots.glob('*.png')) if self.shots.exists() else []

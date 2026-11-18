@@ -161,7 +161,8 @@ test('a Metric error is told in plain words; «Mở Metric» reports the browser
 // | opens with the last choice (top 8)    | {mode: top, count: 8}     | enabled     |
 // | Top 0 or 101                          | –                         | disabled    |
 // | «Tất cả»                              | {mode: all}               | enabled     |
-// Each valid change is kept at once (rememberProductSelection); Top 0/101 is not kept (Terra r1 #4).
+// Each valid change is kept (rememberProductSelection); Top 0/101 is not kept (Terra r1 #4). Quick changes
+// save only the latest value, once (r2 #3).
 test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choice, and refuses Top outside 1–100', async () => {
   const p = page([SEEN], async () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } }),
     { mode: 'top', count: 8 });
@@ -175,9 +176,12 @@ test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choic
     assert.deepEqual(p.calls.find((c) => c.method === 'takeMetricReviews')!.args[0].productSelection, { mode: 'top', count: 8 });
     await waitFor(() => !p.$('metricNotice').hidden, 'done');
     const kept = () => p.calls.filter((c) => c.method === 'rememberProductSelection').map((c) => c.args[0]);
-    p.$('newTopCount').value = '9';
-    p.$('newTopCount').dispatchEvent(new p.dom.window.Event('input', { bubbles: true }));
+    for (const value of ['7', '9']) {
+      p.$('newTopCount').value = value;
+      p.$('newTopCount').dispatchEvent(new p.dom.window.Event('input', { bubbles: true }));
+    }
     await waitFor(() => kept().length === 1, 'top 9 kept');
+    await new Promise((resolve) => setTimeout(resolve, 350));
     assert.deepEqual(kept(), [{ mode: 'top', count: 9 }]);
     for (const bad of ['0', '101']) {
       p.$('newTopCount').value = bad;
@@ -185,7 +189,7 @@ test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choic
       assert.equal(p.$('btnTakeReviews').disabled, true, bad);
       assert.equal(p.$('metricTakeHint').textContent, 'Top từ 1 đến 100.', bad);
     }
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await new Promise((resolve) => setTimeout(resolve, 350));
     assert.equal(kept().length, 1, 'invalid Top not kept');
     const all = group.querySelector<HTMLInputElement>('input[value="all"]')!;
     all.checked = true;
