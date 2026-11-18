@@ -1,10 +1,12 @@
 import { createRequire } from 'node:module';
-import { lstat, readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { lstat, readFile, readdir } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
+import outputsSchema from '../skills/tdn-shopee-flow/chuan/module-outputs-v1.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
+import type { LinkCheckEntry } from './module-link-check.js';
 import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick } from './module-product-pick.js';
 
 const require = createRequire(import.meta.url);
@@ -12,6 +14,9 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const ajv = new Ajv2020({ strict: true });
 (require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
 const validateEvidence = ajv.compile(evidenceSchema);
+ajv.addSchema(outputsSchema);
+// The projection admits only items the final outputs validation would accept, so a malformed file cannot fail it.
+const validateLinkIssue = ajv.getSchema(`${outputsSchema.$id}#/$defs/linkIssue`)!;
 const MAX_BYTES = 64 * 1024 * 1024;
 type Kind = 'full-page' | 'top-products' | 'raw';
 type Source = Awaited<ReturnType<typeof readPickSource>>;
@@ -120,6 +125,17 @@ export async function verifyModuleCapture(run: string) {
   return { request, source };
 }
 
+/** The step-2 link log that belongs to this run, if any; replay and the app projection read it, never the collector. */
+async function savedLinkChecks(run: string) {
+  let log: unknown;
+  try { log = await readJson(run, 'm2/link-checks.json'); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; }
+  await validateModuleValue('link-check-log-v1', log);
+  const value = object(log);
+  if (value.runId !== basename(run) || !Array.isArray(value.entries)) throw new ModuleError('MODULE_INPUT_INVALID');
+  return { entries: value.entries as LinkCheckEntry[], sha256: await hashFile(run, 'm2/link-checks.json') };
+}
+
 export async function verifyModuleSelection(run: string) {
   const { request, source } = await verifyModuleCapture(run);
   const v2 = request.selectionPolicy === MODULE_PICK_POLICY_V2;
@@ -127,15 +143,19 @@ export async function verifyModuleSelection(run: string) {
   const metricInputSha256 = await prerequisite(run, 'm1');
   const selection = object(await readJson(run, 'm2/selection.json'));
   await validateModuleValue('selection-v1', selection);
-  let expected;
+  let expected, linkChecksSha256: string | null = null;
   if (v2) {
-    // Replay with the saved answers only; Jev is never asked here (work package C1, section 3.5).
+    // Replay with the saved answers and link verdicts only; neither Jev nor the collector is called here.
+    const checks = await savedLinkChecks(run);
+    linkChecksSha256 = checks?.sha256 ?? null;
     const proof = object(selection.selectionProof), matcher = object(proof.matcher);
-    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), String(matcher.model), proof.decisions); }
+    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), String(matcher.model),
+      proof.decisions, checks?.entries); }
     catch (error) { throw error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH' ? new ModuleError('PICK_PROOF_MISMATCH') : error; }
   } else expected = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
   const exact = { format: 'selection-v1', runId: basename(run), source: 'auto', pickRuleVersion: request.selectionPolicy,
-    metricInputSha256, links: expected.links, counts: expected.counts, selectionProof: expected.selectionProof };
+    metricInputSha256, links: expected.links, counts: expected.counts,
+    selectionProof: linkChecksSha256 === null ? expected.selectionProof : { ...expected.selectionProof, linkChecksSha256 } };
   if (canonicalJson(selection) !== canonicalJson(exact)) throw new ModuleError('PICK_PROOF_MISMATCH');
   const files = await evidenceFiles(run, source, request);
   const fiveDistinct = v2 ? expected.links.length === 5 : expected.links.length === 5 && expected.selectionProof.unresolvedCount === 0;
@@ -204,6 +224,61 @@ function countShopeeRows(raw: unknown): number {
   }
   return ids.size;
 }
+type LinkIssue = { stage: 'm2' | 'm3'; productBaseId: string; url: string; reason: string; at: string;
+  replacedBy: string | null; attemptId: string | null };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** Step-2 deaths: each rejected candidate, replaced by the next accepted pick when one followed.
+ *  A display list only: the saved log is read as it is, never compared with the selection proof. */
+async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
+  const entries = (await savedLinkChecks(run))?.entries ?? [];
+  const issues: LinkIssue[] = [];
+  entries.forEach((entry, index) => {
+    if (entry.result !== 'rejected') return;
+    const issue: LinkIssue = { stage: 'm2', productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string,
+      at: entry.checkedAt, replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null };
+    // One invalid entry is dropped alone; the rest of the saved log still shows.
+    if (validateLinkIssue(issue)) issues.push(issue);
+  });
+  return issues;
+}
+/** Step-3 deaths: every attempt that wrote a final outcome, even when a later journal stays unresolved,
+ *  newest attempt end first and each issue keeping its attemptId. A display list only: a missing or
+ *  malformed file contributes no items and never fails `outputs`. */
+async function m3LinkIssues(run: string): Promise<LinkIssue[]> {
+  let names: string[];
+  try { names = await readdir(await safePath(run, 'm3-custom/attempts')); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
+  const completed: { attemptId: string; links: unknown[]; outcome: Row; at: string }[] = [];
+  for (const attemptId of names.filter(name => UUID.test(name))) {
+    try {
+      const attempt = object(await readJson(run, `m3-custom/attempts/${attemptId}/attempt.json`));
+      const outcome = object(await readJson(run, `m3-custom/attempts/${attemptId}/output/outcome.json`));
+      if (outcome.format !== 'm3-custom-outcome-v1' || !Array.isArray(outcome.links) || !Array.isArray(attempt.links)) continue;
+      const state = await readJson(run, `m3-custom/attempts/${attemptId}/state.json`).catch(() => null);
+      const at = isRow(state) && typeof state.endedAt === 'string' ? state.endedAt : attempt.createdAt;
+      if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) continue;
+      completed.push({ attemptId, links: attempt.links, outcome, at });
+    } catch { /* A malformed attempt contributes nothing. */ }
+  }
+  completed.sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || b.attemptId.localeCompare(a.attemptId));
+  const issues: LinkIssue[] = [];
+  for (const { attemptId, links, outcome, at } of completed) {
+    // `skipped` arrives with step-3 skip; outcomes without it leave no issue.
+    if ((outcome.links as unknown[]).length !== links.length) continue;
+    const projected: LinkIssue[] = [];
+    for (const [index, rawSummary] of (outcome.links as unknown[]).entries()) {
+      const summary = rawSummary, link = links[index];
+      if (!isRow(summary) || summary.skipped !== true || typeof summary.stopReason !== 'string' ||
+          !isRow(link) || typeof link.shopId !== 'string' || typeof link.itemId !== 'string' || typeof link.url !== 'string') continue;
+      projected.push({ stage: 'm3', productBaseId: `1__${link.itemId}__${link.shopId}`, url: link.url, reason: summary.stopReason,
+        at, replacedBy: null, attemptId });
+    }
+    // One malformed item drops the whole attempt, so `outputs` never fails on a link issue.
+    if (projected.every(issue => validateLinkIssue(issue))) issues.push(...projected);
+  }
+  return issues;
+}
+
 export async function moduleOutputs(runArg: string) {
   const run = resolve(runArg), runId = basename(run);
   const request = await frozenRequest(run);
@@ -275,7 +350,10 @@ export async function moduleOutputs(runArg: string) {
   m2.links = m2.links.map(link => ({ ...link, metricProduct: metricProduct(productRows, link.productBaseId) }));
   // panelCovered is a gate-only result, not an undocumented desktop field.
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
-  const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2 };
+  // `linkIssues` is a display list: a malformed log or attempt contributes no items, never an error.
+  const m2Issues = await m2LinkIssues(run).catch(() => [] as LinkIssue[]);
+  const m3Issues = await m3LinkIssues(run).catch(() => [] as LinkIssue[]);
+  const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...m3Issues] };
   await validateModuleValue('module-outputs-v1', wire);
   return wire;
 }

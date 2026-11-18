@@ -1273,6 +1273,11 @@
         "attemptSha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "endedAt": {
+          "description": "Optional. Written once when the attempt ends; step 4 labels its links with this time.",
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

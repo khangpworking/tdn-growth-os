@@ -343,6 +343,41 @@ class StartRefusalTests(ModuleTest):
         self.assertEqual(m2['blockedBy'], {'code': 'M2_ALREADY_PASSED', 'gate': None})
 
 
+class LinkLogBindingTests(ModuleTest):
+    """Round-1 decision: a selection bound to its step-2 log keeps that exact log at M3 admission."""
+
+    def bind(self):
+        self.m2_pass()
+        selection_path = self.run / 'm2' / 'selection.json'
+        selection = json.loads(selection_path.read_text())
+        log = self.run / 'm2' / 'link-checks.json'
+        write_json(log, {'format': 'link-check-log-v1', 'runId': RUN_ID, 'entries': []})
+        selection['selectionProof'] = {'linkChecksSha256': sha_file(log)}
+        write_json(selection_path, selection)
+        self.slip('m2', 'PASS', sha_file(selection_path))
+        return log
+
+    def run_info(self):
+        proc = subprocess.run([sys.executable, str(SCRIPT), 'run-info', '--run', RUN_ID],
+                              capture_output=True, text=True, env=self.env(), timeout=60)
+        payload = json.loads(proc.stdout) if proc.stdout.strip() else None
+        self.assertEqual(proc.returncode, 0, (payload, proc.stderr))
+        return payload
+
+    def test_m3_admits_an_intact_bound_log(self):
+        self.bind()
+        m3 = next(m for m in self.run_info()['modules'] if m['id'] == 'M3')
+        self.assertTrue(m3['canRun'], m3)
+        self.assertIsNone(m3['blockedBy'], m3)
+
+    def test_m3_refuses_a_changed_or_missing_bound_log(self):
+        log = self.bind()
+        log.write_bytes(log.read_bytes() + b'\n')
+        self.assert_stop('m3', 23, 'GATE_INPUT_CHANGED', 'm3')
+        log.unlink()
+        self.assert_stop('m3', 23, 'GATE_INPUT_CHANGED', 'm3')
+
+
 class CaptureSpecTests(ModuleTest):
     """D15 + R2: entry warns, m1 stops hard without a capture spec."""
 

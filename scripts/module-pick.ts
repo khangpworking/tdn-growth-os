@@ -1,5 +1,7 @@
 import { derivePeriodProductPick, MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, pickProductsWithJev, ProductPickError } from './module-product-pick.js';
 import { pickJevFromEnvironment, type PickJev } from './module-product-pick-jev.js';
+import { createM2LinkCheck, LINK_CHECK_BUDGET_MS, LinkCheckStop, linkCollectorFromEnvironment, reconcileLinkJournals,
+  type LinkCheckEntry, type LinkCollector } from './module-link-check.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -249,7 +251,8 @@ export function auditMaskedRows(raw: unknown, links: readonly { revenue: number 
   return { maskedRows, maskedAboveLowestPick };
 }
 /** `jev` gives the Jev client for a v2 run; only the command line below builds the real one. */
-export async function main(runDir: string, options: { jev?: () => PickJev; sleep?: (ms: number) => Promise<void> } = {}) {
+export async function main(runDir: string, options: { jev?: () => PickJev; sleep?: (ms: number) => Promise<void>;
+    linkCollector?: () => LinkCollector } = {}) {
   const run = resolve(runDir);
   const metricInputSha256 = await prerequisite(run, 'm1');
   const request = await readRequest(run);
@@ -257,19 +260,44 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
   let picked, selection;
   if (request.selectionPolicy) {
     if (!source.part || !source.rawBytes) throw new ModuleError('PICK_WINDOW_MISSING');
+    let linkChecksSha256: string | null = null;
     try {
       if (request.selectionPolicy === MODULE_PICK_POLICY_V2) {
+        const publishLog = async (entries: readonly LinkCheckEntry[]) => {
+          const log = { format: 'link-check-log-v1', runId: basename(run), entries };
+          await validateModuleValue('link-check-log-v1', log);
+          await atomicJson(run, 'm2/link-checks.json', log);
+        };
+        // A retry drops the previous selection before starting a fresh log, so the two are never out of
+        // step: a crash between them leaves an unbound log, never an old selection bound to an empty one.
+        await unlink(await safePath(run, 'm2/selection.json')).catch(error => {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        });
+        await publishLog([]);
+        const clock = () => new Date();
+        // One deadline for this attempt's whole count work, reconciliation included.
+        const deadline = clock().getTime() + LINK_CHECK_BUDGET_MS;
         let jev: PickJev;
         try { jev = options.jev!(); } catch { throw new ModuleError('PICK_JEV_UNAVAILABLE'); }
-        picked = await pickProductsWithJev(source.raw, source.part, sha256(source.rawBytes), jev, options.sleep);
+        const collector = options.linkCollector ? options.linkCollector() : null;
+        if (!collector) throw new ModuleError('LINK_CHECK_FAILED');
+        // Count-job journals live with the run: an unresolved one is reconciled here before any new submission.
+        const journalDir = join(run, 'm2/link-check-journal');
+        await reconcileLinkJournals({ collector, journalDir, deadline, now: clock });
+        // Each completed verdict is published before the next check starts, so an interrupted walk keeps it.
+        const { check } = createM2LinkCheck({ collector, policy: request.collectionPolicy, journalDir, deadline, now: clock, publish: publishLog });
+        picked = await pickProductsWithJev(source.raw, source.part, sha256(source.rawBytes), jev, options.sleep, check);
+        // Only a published selection binds the log's digest.
+        linkChecksSha256 = await hashFile(run, 'm2/link-checks.json');
       } else picked = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
     } catch (error) {
       if (error instanceof ModuleError) throw error;
+      if (error instanceof LinkCheckStop) throw new ModuleError(error.code);
       throw new ModuleError(error instanceof ProductPickError ? error.message : 'PICK_CANDIDATE_INVALID');
     }
     selection = { format: 'selection-v1', runId: basename(run), source: 'auto',
       pickRuleVersion: picked.pickRuleVersion, metricInputSha256, links: picked.links, counts: picked.counts,
-      selectionProof: picked.selectionProof };
+      selectionProof: linkChecksSha256 === null ? picked.selectionProof : { ...picked.selectionProof, linkChecksSha256 } };
   } else {
     const legacy = derivePickCandidate(source.raw, request.keywords, request.principalTitles);
     picked = { ...legacy, counts: { ...legacy.counts, ...auditMaskedRows(source.raw, legacy.links) } };
@@ -290,6 +318,6 @@ export function failureResult(error: unknown) {
     exitCode: error instanceof ModuleError ? error.exitCode : 20 };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const task = process.argv.length === 3 ? main(process.argv[2]!, { jev: pickJevFromEnvironment }) : Promise.reject(new ModuleError('USAGE', 2));
+  const task = process.argv.length === 3 ? main(process.argv[2]!, { jev: pickJevFromEnvironment, linkCollector: linkCollectorFromEnvironment }) : Promise.reject(new ModuleError('USAGE', 2));
   void task.catch(failureResult).then(result => { process.stdout.write(`${JSON.stringify(result)}\n`); process.exitCode = result.exitCode; });
 }

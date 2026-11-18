@@ -115,6 +115,99 @@
         }
       ]
     },
+    "linkIssue": {
+      "description": "A dead link dropped at step 2 or skipped at step 3.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "productBaseId",
+        "url",
+        "reason",
+        "at",
+        "replacedBy",
+        "attemptId"
+      ],
+      "properties": {
+        "stage": {
+          "enum": [
+            "m2",
+            "m3"
+          ]
+        },
+        "productBaseId": {
+          "type": "string",
+          "pattern": "^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://shopee\\.vn/",
+          "maxLength": 2000
+        },
+        "reason": {
+          "enum": [
+            "PRODUCT_UNAVAILABLE",
+            "RATINGS_MISSING",
+            "NO_TARGET_STAR_REVIEWS"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "replacedBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$"
+        },
+        "attemptId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "m2"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "attemptId": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "m3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "attemptId": {
+                "type": "string"
+              },
+              "replacedBy": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
     "metricProduct": {
       "description": "Read-only copy of the link's row in the saved Metric products response; rank is its 1-based position there.",
       "type": "object",
@@ -269,11 +362,18 @@
     "format",
     "runId",
     "m1",
-    "m2"
+    "m2",
+    "linkIssues"
   ],
   "properties": {
     "format": {
       "const": "module-outputs-v1"
+    },
+    "linkIssues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/linkIssue"
+      }
     },
     "runId": {
       "type": "string",

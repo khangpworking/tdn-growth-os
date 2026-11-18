@@ -3,8 +3,10 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { TestContext } from 'node:test';
 import { main, hashFolder, sha256 } from '../../scripts/module-pick.js';
+import type { LinkCollector } from '../../scripts/module-link-check.js';
 import type { PickJev } from '../../scripts/module-product-pick-jev.js';
 import { capturedAt, evidenceAdapter, fakeEvidencePage, jsonBytes } from './evr2-evidence-fixture.js';
+import { fakeLinkCollector } from './fake-link-collector.js';
 
 const { buildV3WindowManifest } = await import(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
 const fixture = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
@@ -47,7 +49,7 @@ function captureResponses(rows: Row[]) {
 
 /** Builds a real retained run: capture manifest, raw bytes, evidence v2 and the flow's own gate/selection. */
 export async function buildModuleRun(t: TestContext, options: { rows?: Row[]; pictured?: number[]; controls?: boolean; policy?: boolean | string;
-  evidence?: boolean; legacyGate?: boolean; jev?: PickJev } = {}) {
+  evidence?: boolean; legacyGate?: boolean; jev?: PickJev; linkCollector?: LinkCollector } = {}) {
   const run = await mkdtemp(join(tmpdir(), 'shopee-module-output-'));
   t.after(() => rm(run, { recursive: true, force: true }));
   const rows = options.rows ?? distinctRows(5);
@@ -81,7 +83,10 @@ export async function buildModuleRun(t: TestContext, options: { rows?: Row[]; pi
   await writeFile(join(run, 'gates/m1.json'), jsonBytes({ format: 'handoff-v1', module: 'M1', runId: basename(run),
     skillVersion: '1.0.0', verdict: 'PASS', inputSha256: null, outputSha256: await hashFolder(run, 'm1'),
     checks: [], errorCode: null, next: null }));
-  await main(run, options.jev ? { jev: () => options.jev!, sleep: async () => {} } : {});
+  // A v2 walk checks every pick with a count job; synthetic runs answer it locally.
+  const collector = options.linkCollector ?? (options.policy === 'metric-products-unique-v2' ? fakeLinkCollector().collector : undefined);
+  await main(run, { ...(options.jev ? { jev: () => options.jev!, sleep: async () => {} } : {}),
+    ...(collector ? { linkCollector: () => collector } : {}) });
   if (options.legacyGate) {
     await writeFile(join(run, 'gates/m2.json'), jsonBytes({ format: 'handoff-v1', module: 'M2', runId: basename(run),
       skillVersion: '1.0.0', verdict: 'PASS', inputSha256: await hashFolder(run, 'm1'),

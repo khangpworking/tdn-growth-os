@@ -1,4 +1,5 @@
 import { metricTitleGroup } from '../src/modules/foundation/metric-product-groups.js';
+import type { LinkCheck, LinkCheckDecision, LinkCheckEntry, LinkRejectCode } from './module-link-check.js';
 import { PICK_JEV_PROVIDER, PICK_JEV_QUESTION_VERSION, PICK_JEV_THRESHOLD, askPickJev, pickQuestion, validPickProbabilities, type PickJev } from './module-product-pick-jev.js';
 
 export const MODULE_PICK_POLICY = 'metric-products-unique-v1';
@@ -85,7 +86,8 @@ export type PickDecision = { sourceRank: number; productBaseId: string; choice: 
 export type PickClassifier = (input: { sourceRank: number; productBaseId: string; row: Row; picked: readonly Row[] }) =>
   Promise<{ choice: string; probabilities: Record<string, number> }>;
 
-export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: string, model: string, classify: PickClassifier) {
+export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: string, model: string, classify: PickClassifier,
+    check?: LinkCheck) {
   const { rows, sourceMap } = rankedMetricProducts(raw, part);
   const links: { rank: number; sourceRank: number; productBaseId: string; shopId: string; itemId: string; url: string;
     productName: string; shopName: string | null; brand: string | null; revenue: number; reason: string }[] = [];
@@ -116,10 +118,16 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
       if (outcome === 'UNSURE') { unresolvedCount++; skip('PRODUCT_MATCH_UNSURE'); continue; }
       if (outcome === 'DUPLICATE') { skip('SAME_PRODUCT', Number(choice.slice(2))); continue; }
     }
+    const url = `https://shopee.vn/product/${match[2]}/${match[1]}`;
+    // Owner F640: an accepted candidate counts toward the five only after its link check passes.
+    if (check) {
+      const decision = await check({ productBaseId: id!, shopId: match[2]!, itemId: match[1]!, url });
+      if (decision.result === 'rejected') { skip(decision.reason); continue; }
+    }
     const brand = row.final_brand ?? row.brand;
     pickedRows.push(row);
     links.push({ rank: links.length + 1, sourceRank, productBaseId: id!, itemId: match[1]!, shopId: match[2]!,
-      url: `https://shopee.vn/product/${match[2]}/${match[1]}`, productName: row.product_name,
+      url, productName: row.product_name,
       shopName: typeof row.shop_name === 'string' ? row.shop_name : null,
       brand: typeof brand === 'string' ? brand : null, revenue: Number(row.revenue_custom),
       reason: links.length ? `Hạng nguồn ${sourceRank}; khác các sản phẩm đã chọn.` : `Hạng nguồn ${sourceRank}; sản phẩm đầu tiên bán trên Shopee.` });
@@ -135,11 +143,12 @@ export async function deriveJevProductPick(raw: unknown, part: Row, rawSha256: s
 }
 
 /** The live v2 pick: one Jev question per row, asked with retries; a failed question throws PICK_JEV_UNAVAILABLE. */
-export function pickProductsWithJev(raw: unknown, part: Row, rawSha256: string, jev: PickJev, sleep?: (ms: number) => Promise<void>) {
+export function pickProductsWithJev(raw: unknown, part: Row, rawSha256: string, jev: PickJev, sleep?: (ms: number) => Promise<void>,
+    check?: LinkCheck) {
   return deriveJevProductPick(raw, part, rawSha256, jev.model, async ({ row, picked }) => {
     try { return await askPickJev(jev, pickQuestion(row, picked), sleep); }
     catch { throw new ProductPickError('PICK_JEV_UNAVAILABLE'); }
-  });
+  }, check);
 }
 
 /**
@@ -147,10 +156,19 @@ export function pickProductsWithJev(raw: unknown, part: Row, rawSha256: string, 
  * the next question of the walk (same row, options SP1..SPn + MOI) and the list must be used up; otherwise
  * PICK_PROOF_MISMATCH. Outcomes, links and skips are recomputed, so the caller compares the result with the file.
  */
-export async function replayJevProductPick(raw: unknown, part: Row, rawSha256: string, model: string, saved: unknown) {
+export async function replayJevProductPick(raw: unknown, part: Row, rawSha256: string, model: string, saved: unknown,
+    checks?: readonly LinkCheckEntry[]) {
   const mismatch = () => new ProductPickError('PICK_PROOF_MISMATCH');
   if (!Array.isArray(saved)) throw mismatch();
-  let next = 0;
+  let next = 0, nextCheck = 0;
+  // Replay reads the saved link verdicts; it never calls the collector (owner F640).
+  const check = checks && (async ({ productBaseId, url }: { productBaseId: string; url: string }): Promise<LinkCheckDecision> => {
+    const entry = checks![nextCheck++];
+    if (!entry || entry.productBaseId !== productBaseId || entry.url !== url ||
+        (entry.result === 'rejected' && entry.reason === null)) throw mismatch();
+    return entry.result === 'ok' ? { result: 'ok', starCounts: entry.starCounts }
+      : { result: 'rejected', reason: entry.reason as LinkRejectCode };
+  });
   const replay = await deriveJevProductPick(raw, part, rawSha256, model, async ({ sourceRank, productBaseId, picked }) => {
     const decision = saved[next++] as Row | undefined;
     const options = [...picked.map((_, i) => `SP${i + 1}`), 'MOI'];
@@ -158,7 +176,7 @@ export async function replayJevProductPick(raw: unknown, part: Row, rawSha256: s
         typeof decision.choice !== 'string' || !options.includes(decision.choice) || !validPickProbabilities(decision.probabilities, options))
       throw mismatch();
     return { choice: decision.choice, probabilities: decision.probabilities };
-  });
-  if (next !== saved.length) throw mismatch();
+  }, check);
+  if (next !== saved.length || nextCheck !== (checks?.length ?? 0)) throw mismatch();
   return replay;
 }

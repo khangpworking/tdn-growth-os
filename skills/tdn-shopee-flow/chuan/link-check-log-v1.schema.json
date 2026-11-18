@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/shopee-flow/link-check-log-v1.schema.json",
+  "title": "Step 2 link-check log",
+  "description": "Every candidate step 2 accepted and then checked with the collector count job, in walk order.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "runId",
+    "entries"
+  ],
+  "properties": {
+    "format": {
+      "const": "link-check-log-v1"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productBaseId",
+          "url",
+          "stage",
+          "result",
+          "reason",
+          "starCounts",
+          "checkedAt"
+        ],
+        "properties": {
+          "productBaseId": {
+            "type": "string",
+            "pattern": "^1__[1-9][0-9]{0,19}__[1-9][0-9]{0,19}$"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://shopee\\.vn/product/[1-9][0-9]{0,19}/[1-9][0-9]{0,19}$",
+            "maxLength": 2000
+          },
+          "stage": {
+            "const": "m2"
+          },
+          "result": {
+            "enum": [
+              "ok",
+              "rejected"
+            ]
+          },
+          "reason": {
+            "enum": [
+              null,
+              "PRODUCT_UNAVAILABLE",
+              "RATINGS_MISSING",
+              "NO_TARGET_STAR_REVIEWS"
+            ]
+          },
+          "starCounts": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "1",
+                  "2",
+                  "3",
+                  "4",
+                  "5"
+                ],
+                "properties": {
+                  "1": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "2": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "3": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "4": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "5": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "result": {
+                  "const": "ok"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reason": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "PRODUCT_UNAVAILABLE",
+                    "RATINGS_MISSING",
+                    "NO_TARGET_STAR_REVIEWS"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

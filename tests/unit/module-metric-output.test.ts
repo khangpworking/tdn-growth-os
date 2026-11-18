@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { hashFolder, main, ModuleError, sha256 } from '../../scripts/module-pick.js';
+import { saveReviewPlan } from '../../scripts/module-review-sampling.js';
+import { samplingDigest } from '../../src/modules/foundation/shopee-review-sampling.js';
 import { moduleOutputs, readModuleEvidence, verifyModuleCapture, verifyModuleSelection } from '../../scripts/module-metric-output.js';
-import { answer, fakeJev, noWait } from '../helpers/fake-pick-jev.js';
+import { answer, answersAfterRejection, fakeJev, noWait } from '../helpers/fake-pick-jev.js';
+import { fakeLinkCollector } from '../helpers/fake-link-collector.js';
 import { buildModuleRun as buildRun, distinctRows as distinct, preset, product, requestBytes, window } from '../helpers/module-run-fixture.js';
 import { buildUserPageRun, jsonBytes, USER_PAGE_WINDOW } from '../helpers/user-page-run-fixture.js';
 
@@ -48,6 +51,7 @@ test('module outputs keep legacy predicate fields null and label the saved gate 
   assert.equal(output.m2.policy, 'legacy');
   assert.equal(output.m2.legacyVerdict, 'PASS');
   assert.deepEqual([output.m2.linksMatchSourceOrder, output.m2.fiveDistinct, output.m2.shortageReason], [null, null, null]);
+  assert.deepEqual(output.linkIssues, [], 'a legacy run has no link issues');
   assert.deepEqual([output.m1.evidence.fullPage.available, output.m1.evidence.raw.available], [false, false]);
   assert.deepEqual([output.m1.evidence.fullPage.errorCode, output.m1.evidence.raw.errorCode],
     ['LEGACY_EVIDENCE_UNBOUND', 'LEGACY_EVIDENCE_UNBOUND']);
@@ -254,7 +258,8 @@ test('B0: a user-page run projects its selected window and picks without logic c
     [true, true, true, 5]);
   assert.deepEqual([output.m2.links, output.m2.errorCode], [[], 'SELECTION_MISSING']);
   const fake = fakeJev([answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9), answer(4, 'MOI', 0.9)]);
-  const result = await main(run, { jev: () => fake.jev, sleep: noWait });
+  const { collector } = fakeLinkCollector();
+  const result = await main(run, { jev: () => fake.jev, sleep: noWait, linkCollector: () => collector });
   assert.deepEqual([result.verdict, result.exitCode, result.pickedIds.length], ['PASS', 0, 5]);
   const proof = await verifyModuleSelection(run);
   assert.deepEqual([proof.fiveDistinct, proof.selectedCount, proof.errorCode], [true, 5, null]);
@@ -311,4 +316,136 @@ test('v2: an edited, removed, reordered or added decision, a changed link or thr
   await writeFile(join(run, 'm2/selection.json'),
     `${JSON.stringify(tamper(s => { s.selectionProof.decisions[0].probabilities = { SP1: -0.1, MOI: 1.1 }; }), null, 2)}\n`);
   await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'MODULE_INPUT_INVALID');
+});
+
+const linkUrl = (row: any) => `https://shopee.vn/product/801/${String(row.product_base_id).split('__')[1]}`;
+
+test('v2: replay reads the saved link verdicts, so an edited or missing log is PICK_PROOF_MISMATCH', async t => {
+  const rows = Array.from({ length: 6 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = linkUrl(rows[1]);
+  const fake = fakeJev(answersAfterRejection());
+  const { collector, asked } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fake.jev, linkCollector: collector });
+  const proof = await verifyModuleSelection(run);
+  assert.deepEqual([proof.fiveDistinct, proof.selectedCount], [true, 5]);
+  assert.equal(asked.length, 6, 'the live run checked each accepted candidate once');
+  const logPath = join(run, 'm2/link-checks.json'), logText = await readFile(logPath, 'utf8');
+  const tampered = JSON.parse(logText);
+  tampered.entries[1].reason = 'RATINGS_MISSING';
+  await writeFile(logPath, `${JSON.stringify(tampered, null, 2)}\n`);
+  await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'PICK_PROOF_MISMATCH');
+  await writeFile(logPath, logText);
+  await rm(logPath);
+  await assert.rejects(verifyModuleSelection(run), (error: unknown) => error instanceof ModuleError && error.code === 'PICK_PROOF_MISMATCH',
+    'without the log, the replay accepts the dead link again and disagrees with the saved selection');
+});
+
+test('link issues name step-2 replacements and every step-3 attempt with a final outcome', async t => {
+  const rows = Array.from({ length: 5 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = [linkUrl(rows[1]), linkUrl(rows[4])];
+  const fake = fakeJev([answer(1, 'MOI', 0.9), answer(1, 'MOI', 0.9), answer(2, 'MOI', 0.9), answer(3, 'MOI', 0.9)]);
+  const { collector } = fakeLinkCollector(url => dead.includes(url) ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fake.jev, linkCollector: collector });
+  const selection = JSON.parse(await readFile(join(run, 'm2/selection.json'), 'utf8'));
+  const log = JSON.parse(await readFile(join(run, 'm2/link-checks.json'), 'utf8'));
+  const checkedAt = (productBaseId: string) => log.entries.find((entry: any) => entry.productBaseId === productBaseId).checkedAt;
+  const attemptA = '11111111-1111-4111-8111-111111111111', attemptB = '22222222-2222-4222-8222-222222222222';
+  const attemptC = '33333333-3333-4333-8333-333333333333';
+  const endedA = '2026-11-18T04:00:00.000Z', endedB = '2026-11-18T05:00:00.000Z', endedC = '2026-11-18T06:00:00.000Z';
+  const attemptLink = (link: any) => ({ shopId: link.shopId, itemId: link.itemId, url: link.url });
+  const summary = (link: any, stopReason: string, skipped: boolean) =>
+    ({ shopId: link.shopId, itemId: link.itemId, requested: null, actual: skipped ? null : 10, shortfall: null, stopReason, stars: [], skipped });
+  // The plan reader admits only after the M2 slip names this exact selection.
+  await writeFile(join(run, 'gates/m2.json'), jsonBytes({ format: 'handoff-v1', module: 'M2', runId: basename(run),
+    skillVersion: 'synthetic', verdict: 'PASS', inputSha256: await hashFolder(run, 'm1'),
+    outputSha256: sha256(await readFile(join(run, 'm2/selection.json'))), checks: [], errorCode: null, next: 'M3' }));
+  const { planSha256 } = await saveReviewPlan(run, { mode: 'stars', stars: [2, 3], totalPerLink: 500, allocation: 'pooled' });
+  const writeAttempt = async (attemptId: string, skipped: Record<number, [string, boolean]>, endedAt: string,
+      status = 'FAILED') => {
+    const base = join(run, 'm3-custom/attempts', attemptId);
+    await mkdir(join(base, 'output'), { recursive: true });
+    const attempt = { format: 'shopee-review-attempt-v1', kind: 'custom', attemptId,
+      runId: basename(run), createdAt: '2026-11-18T03:00:00.000Z', m2Digest: sha256(await readFile(join(run, 'm2/selection.json'))),
+      requestSha256: sha256(await readFile(join(run, 'request.json'))), planSha256, links: selection.links.map(attemptLink) };
+    await writeFile(join(base, 'attempt.json'), jsonBytes(attempt));
+    await writeFile(join(base, 'output/outcome.json'), jsonBytes({ format: 'm3-custom-outcome-v1', planSha256,
+      verdict: 'PARTIAL_LINKS', errorCode: null, links: selection.links.map((link: any, index: number) =>
+        summary(link, skipped[index]?.[0] ?? 'exhausted', skipped[index]?.[1] ?? false)) }));
+    const outputSha256 = await hashFolder(run, `m3-custom/attempts/${attemptId}/output`);
+    await writeFile(join(base, 'gate.json'), jsonBytes({ format: 'handoff-v1', module: 'M3', runId: basename(run),
+      skillVersion: 'synthetic', verdict: 'FAIL', inputSha256: planSha256, outputSha256, checks: [], errorCode: 'M3_GATE_FAILED', next: null }));
+    await writeFile(join(base, 'state.json'), jsonBytes({ format: 'shopee-review-attempt-state-v1',
+      attemptSha256: samplingDigest(attempt), status, pid: null, errorCode: 'M3_GATE_FAILED', outputSha256, endedAt }));
+  };
+  await writeAttempt(attemptA, { 0: ['PRODUCT_UNAVAILABLE', true] }, endedA);
+  await writeAttempt(attemptB, { 2: ['RATINGS_MISSING', true] }, endedB);
+  // A stopped attempt wrote its outcome, end time and UNCERTAIN state, but a later journal stays unresolved.
+  await writeAttempt(attemptC, { 1: ['PRODUCT_UNAVAILABLE', true] }, endedC, 'UNCERTAIN');
+  const journalDir = join(run, 'm3-custom/attempts', attemptC, 'journal');
+  await mkdir(journalDir, { recursive: true });
+  await writeFile(join(journalDir, `${samplingDigest(attemptLink(selection.links[selection.links.length - 1]))}.json`),
+    jsonBytes({ format: 'shopee-sampling-journal-v1', terminal: false, result: null }));
+  // The label is the durable attempt end, never the file mtime: A's file is touched last, its issue stays first.
+  await utimes(join(run, 'm3-custom/attempts', attemptA, 'output/outcome.json'),
+    new Date('2026-11-18T09:00:00.000Z'), new Date('2026-11-18T09:00:00.000Z'));
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual(output.linkIssues, [
+    { stage: 'm2', productBaseId: rows[1]!.product_base_id, url: dead[0], reason: 'PRODUCT_UNAVAILABLE',
+      at: checkedAt(rows[1]!.product_base_id as string), replacedBy: rows[2]!.product_base_id, attemptId: null },
+    { stage: 'm2', productBaseId: rows[4]!.product_base_id, url: dead[1], reason: 'PRODUCT_UNAVAILABLE',
+      at: checkedAt(rows[4]!.product_base_id as string), replacedBy: null, attemptId: null },
+    { stage: 'm3', productBaseId: selection.links[1].productBaseId, url: selection.links[1].url,
+      reason: 'PRODUCT_UNAVAILABLE', at: endedC, replacedBy: null, attemptId: attemptC },
+    { stage: 'm3', productBaseId: selection.links[2].productBaseId, url: selection.links[2].url,
+      reason: 'RATINGS_MISSING', at: endedB, replacedBy: null, attemptId: attemptB },
+    { stage: 'm3', productBaseId: selection.links[0].productBaseId, url: selection.links[0].url,
+      reason: 'PRODUCT_UNAVAILABLE', at: endedA, replacedBy: null, attemptId: attemptA },
+  ], 'step-3 issues come newest attempt end first; an unresolved later journal does not hide the skipped link');
+  for (const issue of output.linkIssues) assert.match(issue.at, /^\d{4}-\d{2}-\d{2}T/);
+  // The projection is a display list: an edited log shows as saved, and a missing log contributes nothing.
+  const logText = await readFile(join(run, 'm2/link-checks.json'), 'utf8');
+  const edited = JSON.parse(logText);
+  edited.entries[1].reason = 'RATINGS_MISSING';
+  await writeFile(join(run, 'm2/link-checks.json'), `${JSON.stringify(edited, null, 2)}\n`);
+  const shown = await moduleOutputs(run) as any;
+  assert.equal(shown.linkIssues.find((issue: any) => issue.productBaseId === rows[1]!.product_base_id).reason,
+    'RATINGS_MISSING', 'the display list reads the saved log as it is');
+  await rm(join(run, 'm2/link-checks.json'));
+  const withoutLog = await moduleOutputs(run) as any;
+  assert.deepEqual(withoutLog.linkIssues.filter((issue: any) => issue.stage === 'm2'), []);
+  await writeFile(join(run, 'm2/link-checks.json'), logText);
+  // A malformed outcome contributes no items and never fails the projection.
+  await writeFile(join(run, 'm3-custom/attempts', attemptB, 'output/outcome.json'), jsonBytes({ format: 'tampered' }));
+  const tamperedOutput = await moduleOutputs(run) as any;
+  assert.deepEqual(tamperedOutput.linkIssues.map((issue: any) => issue.attemptId).filter(Boolean), [attemptC, attemptA],
+    'the malformed attempt is dropped and its neighbours stay');
+  const outcomeB = join(run, 'm3-custom/attempts', attemptB, 'output/outcome.json');
+  const outcomeWith = (reason: string) => ({ format: 'm3-custom-outcome-v1', planSha256, verdict: 'PARTIAL_LINKS',
+    errorCode: null, links: selection.links.map((link: any, index: number) => summary(link, index === 2 ? reason : 'exhausted', index === 2)) });
+  // An otherwise valid outcome whose stop reason is outside the closed list drops that attempt only.
+  await writeFile(outcomeB, jsonBytes(outcomeWith('BAD')));
+  const badReason = await moduleOutputs(run) as any;
+  assert.deepEqual(badReason.linkIssues.map((issue: any) => issue.attemptId).filter(Boolean), [attemptC, attemptA],
+    'a stop reason outside the closed list drops the attempt; the others stay and outputs still builds');
+  // A parseable but non-RFC3339 end time is rejected the same way.
+  await writeFile(outcomeB, jsonBytes(outcomeWith('RATINGS_MISSING')));
+  const statePath = join(run, 'm3-custom/attempts', attemptB, 'state.json');
+  const stateB = JSON.parse(await readFile(statePath, 'utf8'));
+  await writeFile(statePath, jsonBytes({ ...stateB, endedAt: '2026-11-18 05:00:00' }));
+  const badDate = await moduleOutputs(run) as any;
+  assert.deepEqual(badDate.linkIssues.map((issue: any) => issue.attemptId).filter(Boolean), [attemptC, attemptA],
+    'an end time outside RFC3339 drops the attempt; the others stay and outputs still builds');
+});
+
+test('a stopped step-2 attempt with an unbound log still projects its rejections', async t => {
+  const rows = Array.from({ length: 5 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = linkUrl(rows[1]);
+  const { collector } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', jev: fakeJev(answersAfterRejection()).jev, linkCollector: collector });
+  // A step-2 stop publishes the log without a selection, so no proof binds its hash.
+  await rm(join(run, 'm2/selection.json'));
+  const output = await moduleOutputs(run) as any;
+  assert.equal(output.m2.errorCode, 'SELECTION_MISSING');
+  assert.deepEqual(output.linkIssues.map((issue: any) => [issue.stage, issue.reason, issue.replacedBy]),
+    [['m2', 'PRODUCT_UNAVAILABLE', rows[2]!.product_base_id]]);
 });
