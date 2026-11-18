@@ -17,6 +17,7 @@ import { validateMetricWebSnapshot } from './metric-web-snapshot.js';
 import type { ScopeSnapshot, StartSnapshot } from './model.js';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import { createRequire } from 'node:module';
+import { lazyValidator } from '../../../platform/lazy-validator.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -27,8 +28,8 @@ ajv.addSchema(snapshotSchema);
 ajv.addSchema(sourceV2Schema);
 ajv.addSchema(captureManifestSchema);
 ajv.addSchema(captureSourceSchema);
-const validateManifest = ajv.compile<AutomationMetricResultsCaptureV1>(captureManifestSchema);
-const validateDescriptor = ajv.compile<AutomationMetricSourceCaptureV1>(captureSourceSchema);
+const validateManifest = lazyValidator<AutomationMetricResultsCaptureV1>(ajv, captureManifestSchema);
+const validateDescriptor = lazyValidator<AutomationMetricSourceCaptureV1>(ajv, captureSourceSchema);
 
 export const MAX_METRIC_CAPTURE_BYTES = 8 * 1024 * 1024;
 export const MAX_METRIC_CAPTURE_TOTAL_BYTES = MAX_METRIC_CAPTURE_BYTES + 256 * 1024;

@@ -7,15 +7,16 @@ import type { ShopeeListingRequest } from '../../../contracts/foundation/shopee-
 import type { ShopeeCollection } from '../../../contracts/foundation/shopee-collection.generated.js';
 import type { ApifyShopeeRows } from '../../../contracts/foundation/apify-shopee-rows.generated.js';
 import { canonicalJson } from './canonical-json.js';
+import { lazyValidator } from '../../platform/lazy-validator.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
-const requestValidator = ajv.compile(requestSchema);
-const collectionValidator = ajv.compile(collectionSchema);
-const rowValidator = ajv.compile(rowsSchema.items);
+const requestValidator = lazyValidator(ajv, requestSchema);
+const collectionValidator = lazyValidator(ajv, collectionSchema);
+const rowValidator = lazyValidator(ajv, rowsSchema.items);
 
 export const MAX_PRODUCTS = 5;
 export const MAX_COMMENTS = 500;

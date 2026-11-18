@@ -8,7 +8,9 @@ import { ApifyShopeeCollector, FixtureShopeeCollector, CollectionPendingError,
 import { ShopeeCollectionService } from '../src/modules/foundation/shopee-collection-service.js';
 import { ShopeeReviewAnalysisService } from '../src/modules/analysis/shopee-review-service.js';
 import { digest, parseJsonBytes, selectShopeeListings, validateListingRequest } from '../src/modules/foundation/shopee-selection.js';
+import { compileAll } from '../src/platform/lazy-validator.js';
 
+compileAll();
 const args = process.argv.slice(2);
 try {
   if (args[0] === 'preview' && args.length === 2) {

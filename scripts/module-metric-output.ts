@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
 import outputsSchema from '../skills/tdn-shopee-flow/chuan/module-outputs-v1.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
+import { compileAll, lazyValidator } from '../src/platform/lazy-validator.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
 import type { LinkCheckEntry } from './module-link-check.js';
 import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick,
@@ -14,10 +15,10 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true });
 (require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
-const validateEvidence = ajv.compile(evidenceSchema);
+const validateEvidence = lazyValidator(ajv, evidenceSchema);
 ajv.addSchema(outputsSchema);
 // The projection admits only items the final outputs validation would accept, so a malformed file cannot fail it.
-const validateLinkIssue = ajv.getSchema(`${outputsSchema.$id}#/$defs/linkIssue`)!;
+const validateLinkIssue = lazyValidator(() => ajv.getSchema(`${outputsSchema.$id}#/$defs/linkIssue`)!);
 const MAX_BYTES = 64 * 1024 * 1024;
 type Kind = 'full-page' | 'top-products' | 'raw';
 type Source = Awaited<ReturnType<typeof readPickSource>>;
@@ -395,6 +396,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   void (async () => {
     if (!run) throw new ModuleError('USAGE', 2);
     if (action === 'read') { process.stdout.write(await readModuleEvidence(run, kind ?? '', digest ?? '')); return; }
+    if (action !== 'view') compileAll();
     const result = action === 'view' ? await moduleOutputs(run) : action === 'verify-capture'
       ? await verifyModuleCapture(run).then(() => ({ valid: true })) : action === 'verify-selection'
         ? await verifyModuleSelection(run) : null;

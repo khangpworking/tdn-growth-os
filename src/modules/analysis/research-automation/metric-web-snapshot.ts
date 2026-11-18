@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { lazyValidator } from '../../../platform/lazy-validator.js';
 import snapshotSchema from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.schema.json' with { type: 'json' };
 import type { AutomationMetricWebSnapshotV1, Table } from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 
@@ -9,7 +10,7 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
-const validateSchema = ajv.compile<AutomationMetricWebSnapshotV1>(snapshotSchema);
+const validateSchema = lazyValidator<AutomationMetricWebSnapshotV1>(ajv, snapshotSchema);
 
 /** Allowed column keys per table group, from the #127 "B. Web snapshot" W-table. */
 export const METRIC_WEB_TABLE_COLUMNS = {

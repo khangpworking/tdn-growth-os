@@ -8,6 +8,7 @@ import type { ShopeeTransportListing } from '../src/platform/collectors/apify-sh
 import { shopeePublicReviewConfigFromEnv } from '../src/modules/analysis/research-automation/providers.js';
 import { classifyPublicExactShopee, countReviewsPerListing } from '../src/modules/analysis/research-automation/exact-shopee-outcome.js';
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
+import { compileAll } from '../src/platform/lazy-validator.js';
 import rowsSchema from '../contracts/foundation/shopee-public-rows.schema.json' with { type: 'json' };
 import type { ShopeePublicRows } from '../contracts/foundation/shopee-public-rows.generated.js';
 import { atomicJson, failureResult, hashFile, ModuleError, object, prerequisite, readJson, readRequest, repoRoot, safePath, validateModuleValue } from './module-pick.js';
@@ -44,6 +45,7 @@ function publicRows(collected: PublicCollectedPages): ShopeePublicRows {
   return rows;
 }
 export async function main(deps: CollectDependencies) {
+  compileAll();
   const run = resolve(deps.runDir);
   const confirmedSourceSetSha256 = await prerequisite(run, 'm2');
   // An injected collector never constructs a live client or reads credentials.

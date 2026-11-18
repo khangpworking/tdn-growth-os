@@ -6,6 +6,7 @@ import legacyCollectionSchema from '../../../contracts/foundation/shopee-collect
 import type { ShopeeExactRequest } from '../../../contracts/foundation/shopee-exact-request.generated.js';
 import type { ShopeeExactCollection } from '../../../contracts/foundation/shopee-exact-collection.generated.js';
 import { shopeeUrlMatches } from './shopee-selection.js';
+import { lazyValidator } from '../../platform/lazy-validator.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -14,8 +15,8 @@ const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
 ajv.addSchema(legacyRequestSchema, 'shopee-listing-request.schema.json');
 ajv.addSchema(legacyCollectionSchema, 'shopee-collection.schema.json');
-const requestValidator = ajv.compile<ShopeeExactRequest>(requestSchema);
-const collectionValidator = ajv.compile<ShopeeExactCollection>(collectionSchema);
+const requestValidator = lazyValidator<ShopeeExactRequest>(ajv, requestSchema);
+const collectionValidator = lazyValidator<ShopeeExactCollection>(ajv, collectionSchema);
 
 export function validateExactShopeeRequest(value: unknown): ShopeeExactRequest {
   if (!requestValidator(value)) throw new Error('Invalid exact Shopee request');

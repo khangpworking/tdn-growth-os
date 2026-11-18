@@ -13,6 +13,7 @@
 // carries the code version plus the data version so later appendices (M13/I17)
 // can consume exclusion accounting without re-running the filter.
 import { createRequire } from 'node:module';
+import { lazyValidator } from '../../platform/lazy-validator.js';
 import filterSchema from '../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import type {
   KeywordMeaningExclusion,
@@ -40,9 +41,9 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true, allErrors: false });
 ajv.addSchema(filterSchema);
-const validateFilterData = ajv.compile<KeywordMeaningFilterData>({ $ref: `${filterSchema.$id}#/$defs/data` });
-const validateFilterRecords = ajv.compile<KeywordMeaningRecord[]>({ $ref: `${filterSchema.$id}#/$defs/records` });
-const validateFilterResult = ajv.compile<KeywordMeaningFilterResult>({ $ref: `${filterSchema.$id}#/$defs/result` });
+const validateFilterData = lazyValidator<KeywordMeaningFilterData>(ajv, { $ref: `${filterSchema.$id}#/$defs/data` });
+const validateFilterRecords = lazyValidator<KeywordMeaningRecord[]>(ajv, { $ref: `${filterSchema.$id}#/$defs/records` });
+const validateFilterResult = lazyValidator<KeywordMeaningFilterResult>(ajv, { $ref: `${filterSchema.$id}#/$defs/result` });
 
 /** Canonical schema check for versioned keyword/exclusion data; used by drafting and future consumers. */
 export function validatesKeywordMeaningFilterData(value: unknown): value is KeywordMeaningFilterData {

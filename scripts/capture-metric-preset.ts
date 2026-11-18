@@ -9,6 +9,7 @@ import { readRequest, sha256 } from './module-pick.js';
 import { runMetricCapture } from '../src/modules/analysis/research-automation/metric-capture-runner.js';
 import { buildCaptureSpec } from '../src/modules/analysis/research-automation/autorun-derive.js';
 import { metricCapturePeriod, validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
+import { compileAll } from '../src/platform/lazy-validator.js';
 
 const exec = promisify(execFile);
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -18,6 +19,7 @@ const inside = (parent: string, child: string) => {
 };
 
 async function main() {
+  compileAll();
   const args = process.argv.slice(2);
   const moduleIndex = args.indexOf('--module-run');
   const moduleRun = moduleIndex < 0 ? undefined : args[moduleIndex + 1];

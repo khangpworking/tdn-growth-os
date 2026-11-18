@@ -16,6 +16,7 @@ import { LabelsBusyError } from '../src/modules/raw-db/labels-lock.js';
 import { defaultSnapshotDir, publishAppDbSnapshot, tryPublishAppDbSnapshot } from '../src/modules/raw-db/app-db-snapshot.js';
 import { TypesafeJevClient, typesafeJevConfigurationFromEnvironment } from '../src/platform/ai/typesafe-jev-client.js';
 import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '../src/platform/collectors/apify-tiktok-comments-free.js';
+import { compileAll } from '../src/platform/lazy-validator.js';
 
 // Usage: raw-db-load --source S02b|S05|S06|S07|S14|S19b|S29 --run <runId> [--file <raw-v1 file>] [--privacy-file <abs path>] [--db <path>] [--artifacts <dir>] [--dry-run]
 // S06 (TikTok Shop reviews) reads only the run's stored kalodata.product.comment.insight captures (no --file).
@@ -44,6 +45,7 @@ import { readTikTokCommentPrivacyFile, TIKTOK_COMMENTS_PRIVACY_FILE_ENV } from '
 // skips only S07, S02b and S14 (SKIPPED_NO_PRIVACY_KEY); Jev disabled → labelling SKIPPED_JEV_DISABLED. --dry-run records nothing.
 // The shadow review filter runs before labelling only when TDN_RAW_DB_REVIEW_FILTER_ENABLED=true (else filtering SKIPPED_FLAG_OFF).
 // --db defaults to TDN_WORKSPACE_DB, else runtime/tdn-growth-os.sqlite; --artifacts defaults to TDN_ARTIFACT_ROOT.
+compileAll();
 let options;
 try {
   options = parseArgs({ options: { source: { type: 'string' }, run: { type: 'string' }, file: { type: 'string' }, 'privacy-file': { type: 'string' }, 'mcp-run': { type: 'string' }, codebook: { type: 'string' }, coder: { type: 'string' }, 'max-calls': { type: 'string' }, captures: { type: 'string' }, 'no-label': { type: 'boolean', default: false }, db: { type: 'string' }, artifacts: { type: 'string' },

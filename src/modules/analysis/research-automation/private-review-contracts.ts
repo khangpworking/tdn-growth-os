@@ -12,6 +12,7 @@ import reviewSample from '../../../../contracts/analysis/automation-review-sampl
 import type { AutomationPrivateShopeeSource } from '../../../../contracts/analysis/automation-private-shopee-source.generated.js';
 import type { ResearchPrivateReviewCorpus } from '../../../../contracts/analysis/research-private-review-corpus.generated.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
+import { lazyValidator } from '../../../platform/lazy-validator.js';
 
 /** The same canonical dependencies are used at the service/source trust boundaries. */
 export function registerPrivateReviewSchemas(ajv: AjvType): void {
@@ -29,9 +30,9 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 (require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
 registerPrivateReviewSchemas(ajv);
-const validateMarker = ajv.compile<AutomationPrivateShopeeSource>({ $ref: marker.$id });
-const validateCorpus = ajv.compile<ResearchPrivateReviewCorpus>({ $ref: corpus.$id });
-const validateView = ajv.compile<PrivateReviewReportView>({ $ref: view.$id });
+const validateMarker = lazyValidator<AutomationPrivateShopeeSource>(ajv, { $ref: marker.$id });
+const validateCorpus = lazyValidator<ResearchPrivateReviewCorpus>(ajv, { $ref: corpus.$id });
+const validateView = lazyValidator<PrivateReviewReportView>(ajv, { $ref: view.$id });
 export function privateShopeeMarker(value: unknown): AutomationPrivateShopeeSource {
   if (!validateMarker(value)) throw new TypeError('Invalid explicit private Shopee marker');
   return value;
