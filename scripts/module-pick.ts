@@ -1,6 +1,7 @@
-import { derivePeriodProductPick, MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, pickProductsWithJev, ProductPickError } from './module-product-pick.js';
+import { derivePeriodProductPick, linksToCheckCount, MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, pickAllShopeeProducts,
+  pickProductsWithJev, ProductPickError, type ProductSelection } from './module-product-pick.js';
 import { pickJevFromEnvironment, type PickJev } from './module-product-pick-jev.js';
-import { createM2LinkCheck, LINK_CHECK_BUDGET_MS, LinkCheckStop, linkCollectorFromEnvironment, reconcileLinkJournals,
+import { createM2LinkCheck, linkCheckBudgetMs, LinkCheckStop, linkCollectorFromEnvironment, reconcileLinkJournals,
   type LinkCheckEntry, type LinkCollector } from './module-link-check.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
@@ -116,6 +117,7 @@ export async function readRequest(run: string) {
       w.period.endDate !== captureSpec.windows[i]?.period.endDate ||
       (object(w).intervalDays !== undefined && object(w).intervalDays !== captureSpec.windows[i]?.intervalDays)))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
   return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: value.selectionPolicy === MODULE_PICK_POLICY || value.selectionPolicy === MODULE_PICK_POLICY_V2 ? value.selectionPolicy as string : null,
+    productSelection: value.productSelection as ProductSelection | undefined,
     windows, metricSource: value.metricSource as UserPageMetricSource | undefined };
 }
 type UserPageMetricSource = { format: 'user-page-v1'; scope: Record<string, unknown>; importId: string };
@@ -275,10 +277,10 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
         });
         await publishLog([]);
         const clock = () => new Date();
-        // One deadline for this attempt's whole count work, reconciliation included.
-        const deadline = clock().getTime() + LINK_CHECK_BUDGET_MS;
-        let jev: PickJev;
-        try { jev = options.jev!(); } catch { throw new ModuleError('PICK_JEV_UNAVAILABLE'); }
+        // One deadline for this attempt's whole count work, reconciliation included. Contract F644 scales it
+        // with the number of links this selection may check; an absent productSelection stays at five.
+        const selection = request.productSelection;
+        const deadline = clock().getTime() + linkCheckBudgetMs(linksToCheckCount(source.raw, source.part, selection));
         const collector = options.linkCollector ? options.linkCollector() : null;
         if (!collector) throw new ModuleError('LINK_CHECK_FAILED');
         // Count-job journals live with the run: an unresolved one is reconciled here before any new submission.
@@ -286,7 +288,12 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
         await reconcileLinkJournals({ collector, journalDir, deadline, now: clock });
         // Each completed verdict is published before the next check starts, so an interrupted walk keeps it.
         const { check } = createM2LinkCheck({ collector, policy: request.collectionPolicy, journalDir, deadline, now: clock, publish: publishLog });
-        picked = await pickProductsWithJev(source.raw, source.part, sha256(source.rawBytes), jev, options.sleep, check);
+        if (selection?.mode === 'all') picked = await pickAllShopeeProducts(source.raw, source.part, sha256(source.rawBytes), check, selection);
+        else {
+          let jev: PickJev;
+          try { jev = options.jev!(); } catch { throw new ModuleError('PICK_JEV_UNAVAILABLE'); }
+          picked = await pickProductsWithJev(source.raw, source.part, sha256(source.rawBytes), jev, options.sleep, check, selection);
+        }
         // Only a published selection binds the log's digest.
         linkChecksSha256 = await hashFile(run, 'm2/link-checks.json');
       } else picked = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));

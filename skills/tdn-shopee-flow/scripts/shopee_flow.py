@@ -875,11 +875,12 @@ def evaluate_gate(run, gate, *, readonly_file=None):
             try:
                 proof = metric_output_script(run, 'verify-selection')
                 check('links_match_source_order', proof.get('linksMatchSourceOrder') is True, proof.get('selectedCount'))
-                check('five_distinct_products', proof.get('fiveDistinct') is True, proof.get('shortageReason'))
+                check('requested_distinct_products', proof.get('requestedDistinct') is True,
+                      {'requested': proof.get('requested'), 'found': proof.get('selectedCount')})
                 code = proof.get('errorCode')
             except ModuleFailure as failure:
                 check('links_match_source_order', False, failure.code)
-                check('five_distinct_products', False, 'UNVERIFIED')
+                check('requested_distinct_products', False, 'UNVERIFIED')
                 code = failure.code
         else:
             links = selection.get('links')
@@ -2697,11 +2698,22 @@ def flow_import_payload():
     except (ValueError, RecursionError):
         raise ModuleFailure('IMPORT_INPUT_INVALID', 2) from None
     invalid = lambda: ModuleFailure('IMPORT_INPUT_INVALID', 2)
-    if not isinstance(payload, dict) or set(payload) != {'format', 'importId', 'keyword', 'capturedAt',
-                                                         'collectionPolicy', 'scope', 'response'}:
+    required = {'format', 'importId', 'keyword', 'capturedAt', 'collectionPolicy', 'scope', 'response'}
+    if (not isinstance(payload, dict) or not required <= set(payload)
+            or not set(payload) <= required | {'productSelection'}):
         raise invalid()
     if payload['format'] != 'metric-user-page-import-v1':
         raise invalid()
+    product_selection = payload.get('productSelection')
+    if product_selection is not None:
+        if not isinstance(product_selection, dict):
+            raise invalid()
+        if product_selection.get('mode') == 'top':
+            count = product_selection.get('count')
+            if set(product_selection) != {'mode', 'count'} or type(count) is not int or not 1 <= count <= 100:
+                raise invalid()
+        elif product_selection.get('mode') != 'all' or set(product_selection) != {'mode'}:
+            raise invalid()
     import_id = payload['importId']
     if (not isinstance(import_id, str) or
             not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', import_id)):
@@ -2754,7 +2766,7 @@ def flow_import_payload():
         raise ModuleFailure('IMPORT_NO_SHOPEE_ROWS', 20)
     return payload, {'importId': import_id, 'keyword': keyword, 'capturedAt': captured, 'policy': policy,
                      'scope': scope, 'response': response, 'startDate': start_date.isoformat(),
-                     'endDate': end_date.isoformat(),
+                     'endDate': end_date.isoformat(), 'productSelection': product_selection,
                      'payloadSha256': hashlib.sha256(flow_canonical(payload).encode('utf8')).hexdigest()}
 
 
@@ -2848,6 +2860,8 @@ def flow_m1_import():
                'selectionPolicy': 'metric-products-unique-v2',
                'metricSource': {'format': 'user-page-v1', 'scope': fields['scope'],
                                 'importId': fields['importId']}}
+    if fields['productSelection'] is not None:
+        request['productSelection'] = fields['productSelection']
     with open(root / '.imports.lock', 'a') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
         existing, record = flow_find_import(root, fields['importId'])

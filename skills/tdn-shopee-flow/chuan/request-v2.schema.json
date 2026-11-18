@@ -57,6 +57,41 @@
         "metric-products-unique-v2"
       ]
     },
+    "productSelection": {
+      "description": "How many distinct products M2 links. Absent means top 5.",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "count"
+          ],
+          "properties": {
+            "mode": {
+              "const": "top"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "const": "all"
+            }
+          }
+        }
+      ]
+    },
     "metricSource": {
       "type": "object",
       "additionalProperties": false,

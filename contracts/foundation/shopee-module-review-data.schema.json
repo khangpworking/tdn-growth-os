@@ -543,7 +543,7 @@
           "items": {
             "$ref": "#/$defs/link"
           },
-          "maxItems": 5
+          "maxItems": 100
         },
         "canExport": {
           "type": "boolean"

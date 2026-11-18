@@ -11,7 +11,7 @@
 | `source` | `"auto"` do máy chọn, hoặc `"manual"` do người soạn. |
 | `pickRuleVersion` | Bản luật chọn. `"autorun-pick-v3"` khi máy chọn; `"manual"` khi người soạn. Cổng M2 so giá trị này với `modules.json`. |
 | `metricInputSha256` | Mã băm thư mục `m1/` mà máy đã đọc. `null` với file `manual`. |
-| `links[]` | 1 đến 5 link, sắp theo thứ hạng. |
+| `links[]` | 1 link trở lên, sắp theo thứ hạng. Tối đa 5 với lượt cũ và v1; tối đa 100 với `metric-products-unique-v2`. |
 | `links[].rank` | Thứ hạng, bắt đầu từ 1. |
 | `links[].productBaseId` | Mã sản phẩm của bản thu Metric: `1__<itemId>__<shopId>` — phần đầu là mã sản phẩm, phần sau là mã gian hàng (D1; code quyết định). |
 | `links[].shopId` | Mã gian hàng, chỉ gồm chữ số. |
@@ -66,14 +66,14 @@ Lượt tạo bằng `new-run` chọn theo cửa sổ `30d` (`modules.json` → 
 ## Ai ghi, ai đọc
 
 - Người ghi: lệnh `shopee_flow.py m2 --run <id>` (có từ B2) ghi file khi máy chọn. Với `manual`, người phụ trách tự soạn file, rồi chạy cổng M2 trước khi chạy M3.
-- Người đọc: cổng M2 (kiểm 1–5 link, mã số, không trùng gian hàng, đúng bản luật, có lý do), module M3 (danh sách link cần thu), app desktop ở màn thư viện, và người kiểm lại một lượt.
+- Người đọc: cổng M2 (kiểm số link theo bản luật, mã số, không trùng gian hàng, đúng bản luật, có lý do), module M3 (danh sách link cần thu), app desktop ở màn thư viện, và người kiểm lại một lượt.
 - File `manual` phải có `metricInputSha256` = `null` và `pickRuleVersion` = `"manual"`. Ba phép kiểm phụ thuộc bản thu không chạy với file `manual`; phiếu ghi cảnh báo.
 
 ## Quy tắc `metric-products-unique-v2`
 
 Lượt mới tạo bằng `new-run` (một kỳ) ghi `request.selectionPolicy` = `"metric-products-unique-v2"`. Lượt đã tạo với `metric-products-unique-v1` và lượt cũ giữ nguyên cách chọn và cách đọc. Các trường ở trên giữ nguyên nghĩa.
 
-Trình tự: duyệt bảng Top Products đã lưu ở bước 1 theo doanh số kỳ giảm dần, như v1. Dòng sàn khác (`2__`, `3__`, `8__`) bị bỏ qua, không ghi lại. Dòng Shopee hợp lệ đầu tiên được chọn mà không hỏi. Mỗi dòng Shopee sau đó: lệnh M2 hỏi Jev (TypeSafe System One) một câu «tin đăng này là sản phẩm nào đã chọn, hay sản phẩm mới?» với lựa chọn `SP1`…`SPn` (sản phẩm đã chọn, theo thứ tự chọn) và `MOI`. Đủ 5 thì dừng, không hỏi thêm. Câu hỏi đúng từng chữ nằm trong `scripts/module-product-pick-jev.ts`.
+Trình tự: duyệt bảng Top Products đã lưu ở bước 1 theo doanh số kỳ giảm dần, như v1. Dòng sàn khác (`2__`, `3__`, `8__`) bị bỏ qua, không ghi lại. Dòng Shopee hợp lệ đầu tiên được chọn mà không hỏi. Mỗi dòng Shopee sau đó: lệnh M2 hỏi Jev (TypeSafe System One) một câu «tin đăng này là sản phẩm nào đã chọn, hay sản phẩm mới?» với lựa chọn `SP1`…`SPn` (sản phẩm đã chọn, theo thứ tự chọn) và `MOI`. Đủ số link yêu cầu thì dừng, không hỏi thêm. Số link yêu cầu lấy từ `request.json` → `productSelection`: top N (mặc định 5 khi vắng), hoặc `all` lấy mọi sản phẩm Shopee, tối đa 100, không gọi Jev và không lọc trùng. Câu hỏi đúng từng chữ nằm trong `scripts/module-product-pick-jev.ts`.
 
 | Câu trả lời (`p` = xác suất của lựa chọn Jev chọn) | Kết quả | `outcome` | Lý do bỏ qua |
 |---|---|---|---|
@@ -89,11 +89,13 @@ Trường thêm của lượt v2:
 | Trường | Ý nghĩa |
 |---|---|
 | `links[]` | Có `sourceRank`, `productName`, `shopName`; không có `groupKey`, `groupingBasis`. `reason`: thứ tự 1 là «Hạng nguồn N; sản phẩm đầu tiên bán trên Shopee.», các thứ tự sau là «Hạng nguồn N; khác các sản phẩm đã chọn.» |
-| `selectionProof.shortageReason` | `null` khi đủ 5, kể cả có dòng bị bỏ qua. Thiếu 5 và có dòng chưa xác định: `PICK_PRODUCT_UNRESOLVED`. Thiếu 5 và không có dòng chưa xác định: `FEWER_THAN_FIVE_DISTINCT_PRODUCTS`. |
-| `selectionProof.matcher` | Bắt buộc. `provider` = `"typesafe-jev"`, `model` = model đã hỏi, `questionVersion` = mã băm SHA-256 của câu hỏi, `threshold` = 0,7. |
-| `selectionProof.decisions[]` | Bắt buộc. Mỗi câu đã hỏi Jev có đúng một phần tử, theo thứ tự hỏi: `sourceRank`, `productBaseId`, `choice`, `probabilities` (đủ `SP1`…`SPn` và `MOI`), `outcome`. |
+| `selectionProof.shortageReason` | `null` khi đủ số link yêu cầu (`requested`), kể cả có dòng bị bỏ qua. Không có `productSelection` (top 5 mặc định): thiếu 5 và có dòng chưa xác định → `PICK_PRODUCT_UNRESOLVED`; thiếu 5 và không có dòng chưa xác định → `FEWER_THAN_FIVE_DISTINCT_PRODUCTS`. Có `productSelection`: thiếu số link yêu cầu → `FEWER_PRODUCTS_THAN_REQUESTED` (gồm `all` khi không chọn được link nào). |
+| `selectionProof.shortageDetail` | Chỉ có khi `shortageReason` = `FEWER_PRODUCTS_THAN_REQUESTED`: `{requested, found}` (`requested` = N, hoặc 1 khi `all`). |
+| `selectionProof.productSelection` | Chỉ có khi lượt khai báo `productSelection`: `{mode:"top",count:N}` hoặc `{mode:"all"}`; phải khớp `request.json`. |
+| `selectionProof.matcher` | Bắt buộc trừ `all`. `provider` = `"typesafe-jev"`, `model` = model đã hỏi, `questionVersion` = mã băm SHA-256 của câu hỏi, `threshold` = 0,7. |
+| `selectionProof.decisions[]` | Bắt buộc trừ `all`. Mỗi câu đã hỏi Jev có đúng một phần tử, theo thứ tự hỏi: `sourceRank`, `productBaseId`, `choice`, `probabilities` (đủ `SP1`…`SPn` và `MOI`), `outcome`. |
 
-Cổng M2 và tab kết quả không gọi Jev. Chúng chạy lại trình tự trên dữ liệu bước 1 đã lưu bằng các câu trả lời trong `decisions`, tính lại mọi `outcome` từ `choice`, `probabilities` và ngưỡng, rồi so từng chữ với `m2/selection.json`. Quyết định bị sửa, xóa, thêm hoặc đổi thứ tự, link bị đổi, hoặc `matcher` khác giá trị của quy tắc: `PICK_PROOF_MISMATCH`. Cổng đạt khi khớp, đủ 5 sản phẩm và ảnh Top Products phủ các hạng đã chọn.
+Cổng M2 và tab kết quả không gọi Jev. Chúng chạy lại trình tự trên dữ liệu bước 1 đã lưu bằng các câu trả lời trong `decisions`, tính lại mọi `outcome` từ `choice`, `probabilities` và ngưỡng, rồi so từng chữ với `m2/selection.json`. Quyết định bị sửa, xóa, thêm hoặc đổi thứ tự, link bị đổi, `productSelection` khác `request.json`, hoặc `matcher` khác giá trị của quy tắc: `PICK_PROOF_MISMATCH`. Cổng đạt khi khớp, đủ số link yêu cầu (`requested_distinct_products`: want = N, hoặc 1 khi `all`) và ảnh Top Products phủ các hạng đã chọn.
 
 Cổng bước 2 chạy lại trình tự chọn trên dữ liệu bước 1 đã lưu với các câu trả lời đã lưu trong `decisions`, rồi so với file này. Cách kiểm đó chứng minh kết quả chọn suy ra đúng từ các câu trả lời đã lưu. Nó không chứng minh các câu trả lời đó do Jev trả về, và không kiểm `matcher.model`. Cổng không hỏi lại Jev. Không có cơ chế nào ngăn việc sửa tay file của lượt trước khi cổng kiểm. Sau khi cổng đã ghi phiếu, mã băm trong phiếu cổng phát hiện file bị đổi (`GATE_INPUT_CHANGED`).
 

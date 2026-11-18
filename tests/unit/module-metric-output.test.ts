@@ -107,7 +107,7 @@ test('a selected source rank outside the pictured panel hides the picture but M2
     { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
   const slip = JSON.parse(gate.stdout);
   assert.deepEqual([gate.status, slip.verdict, slip.errorCode], [0, 'PASS', null], gate.stderr);
-  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok]), [['links_match_source_order', true], ['five_distinct_products', true]]);
+  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok]), [['links_match_source_order', true], ['requested_distinct_products', true]]);
 });
 
 test('a panel without both native sorting controls cannot certify the selected ranks', async t => {
@@ -456,4 +456,50 @@ test('a stopped step-2 attempt with an unbound log still projects its rejections
   assert.equal(output.m2.errorCode, 'SELECTION_MISSING');
   assert.deepEqual(output.linkIssues.map((issue: any) => [issue.stage, issue.reason, issue.replacedBy]),
     [['m2', 'PRODUCT_UNAVAILABLE', rows[2]!.product_base_id]]);
+});
+
+test('F644 replay reproduces top 8 and all from the saved proof, and the gate asks for the requested count', async t => {
+  const items = distinct(9);
+  const top = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 8 },
+    jev: fakeJev(Array.from({ length: 7 }, (_, i) => answer(i + 1, 'MOI', 0.9))).jev });
+  const topProof = await verifyModuleSelection(top.run) as any;
+  assert.deepEqual([topProof.requested, topProof.requestedDistinct, topProof.selectedCount], [8, true, 8]);
+  const state = await mkdtemp(join(tmpdir(), 'shopee-flow-state-'));
+  t.after(() => rm(state, { recursive: true, force: true }));
+  const gate = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+    ['skills/tdn-shopee-flow/scripts/shopee_flow.py', 'gate', 'm2', '--run', basename(top.run)],
+    { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(top.run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
+  const slip = JSON.parse(gate.stdout);
+  assert.deepEqual([gate.status, slip.verdict], [0, 'PASS'], gate.stderr);
+  const requested = slip.checks.find((c: any) => c.id === 'requested_distinct_products');
+  assert.deepEqual([requested.ok, requested.got], [true, { requested: 8, found: 8 }]);
+
+  const all = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'all' } });
+  const allProof = await verifyModuleSelection(all.run) as any;
+  assert.deepEqual([allProof.requested, allProof.requestedDistinct, allProof.selectedCount], [1, true, 9],
+    'all links every Shopee row, repeated titles included');
+  const output = await moduleOutputs(all.run) as any;
+  assert.deepEqual([output.m2.requested, output.m2.requestedDistinct, output.m2.fiveDistinct], [1, true, true]);
+});
+
+test('F644 an explicit top count below five and above five report their own shortage counts', async t => {
+  const items = distinct(5);
+  const short = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 8 },
+    jev: fakeJev(Array.from({ length: 4 }, (_, i) => answer(i + 1, 'MOI', 0.9))).jev });
+  const proof = await verifyModuleSelection(short.run) as any;
+  assert.deepEqual([proof.requested, proof.requestedDistinct, proof.selectedCount, proof.shortageReason, proof.shortageDetail],
+    [8, false, 5, 'FEWER_PRODUCTS_THAN_REQUESTED', { requested: 8, found: 5 }]);
+  const one = await buildRun(t, { rows: items, policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 1 },
+    jev: fakeJev([]).jev });
+  const oneProof = await verifyModuleSelection(one.run) as any;
+  assert.deepEqual([oneProof.requested, oneProof.requestedDistinct, oneProof.selectedCount], [1, true, 1]);
+});
+
+test('F644 a saved productSelection that disagrees with the request is PICK_PROOF_MISMATCH', async t => {
+  const { run } = await buildRun(t, { rows: distinct(7), policy: 'metric-products-unique-v2', productSelection: { mode: 'top', count: 8 },
+    jev: fakeJev(Array.from({ length: 6 }, (_, i) => answer(i + 1, 'MOI', 0.9))).jev });
+  const selection = JSON.parse(await readFile(join(run, 'm2/selection.json'), 'utf8'));
+  selection.selectionProof.productSelection = { mode: 'all' };
+  await writeFile(join(run, 'm2/selection.json'), jsonBytes(selection));
+  await assert.rejects(verifyModuleSelection(run), (error: any) => error?.code === 'PICK_PROOF_MISMATCH');
 });
