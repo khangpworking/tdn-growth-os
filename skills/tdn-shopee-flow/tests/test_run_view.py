@@ -1,21 +1,23 @@
 """`run-view` rows of shopee_flow.py: one streaming node process for every part (outputs included),
 each part equal to the single command, a slow part that never discards info or finished parts, and
 the exit code and error object each single command gives. A fake `node` serves canned parts and logs
-each call."""
+each call; one row delays only the outputs line past the launch-based bound."""
 import argparse
 import contextlib
 import io
 import json
+import os
 import pathlib
 import stat
 import subprocess
 import sys
+import time
 from unittest import mock
 
 from test_flow import RUN_ID, ROOT, SCRIPT, FlowTest, load_flow_script, request_payload
 
 RUNVIEW_NODE = '''#!/usr/bin/env python3
-import json, os, pathlib, sys
+import json, os, pathlib, sys, time
 
 args = sys.argv[1:]
 script = pathlib.Path(next(a for a in args if a.endswith('.ts'))).name
@@ -23,6 +25,11 @@ index = args.index(next(a for a in args if a.endswith('.ts')))
 name = pathlib.Path(args[index + 1 if script == 'module-run-view.ts' else index + 2]).name
 with open(os.environ['RUNVIEW_LOG'], 'a', encoding='utf8') as log:
     log.write(json.dumps([script, *args[index + 1:]]) + '\\n')
+
+def delay_outputs():
+    delay = os.environ.get('RUNVIEW_OUTPUT_DELAY')
+    if delay:
+        time.sleep(float(delay))
 
 def sampling():
     return {'format': 'review-sampling-view-v1', 'runId': name, 'readonly': True, 'm2Digest': None, 'links': [],
@@ -57,6 +64,8 @@ if script == 'module-run-view.ts':
     for part in parts:
         if part in stalled:
             continue
+        if part == 'outputs':
+            delay_outputs()
         if part == os.environ.get('RUNVIEW_FAIL'):
             code = os.environ.get('RUNVIEW_CODE') or 'REVIEW_DATA_FAILED'
             emit(part, error={'code': code, 'message': code}, exit_code=int(os.environ.get('RUNVIEW_EXIT') or 20))
@@ -65,6 +74,7 @@ if script == 'module-run-view.ts':
 elif script == 'module-review-sampling.ts':
     print(json.dumps(sampling()))
 elif script == 'module-metric-output.ts':
+    delay_outputs()
     if os.environ.get('RUNVIEW_OUTPUT_FAIL'):
         sys.exit(3)
     print(json.dumps(views()['outputs']))
@@ -160,6 +170,36 @@ class RunViewTest(FlowTest):
                          'independent outputs succeeds while discovery is stalled')
         self.assertEqual(view['errors'], {name: {'code': 'REVIEW_DATA_FAILED', 'message': 'REVIEW_DATA_FAILED'}
                                           for name in ('reviewData', 'process', 'stats', 'insights')})
+
+    def test_an_outputs_line_after_the_launch_bound_is_the_single_command_timeout(self):
+        run = self.make_run(request=request_payload(cap=5))
+        (run / 'm3-custom').mkdir()
+        flow = load_flow_script()
+        bound, delay = 1, 3
+        single, view, elapsed = None, None, None
+        with mock.patch.dict(os.environ, self.env({'RUNVIEW_OUTPUT_DELAY': str(delay)})), \
+             mock.patch.object(flow, 'MODULE_OUTPUT_TIMEOUT_SECONDS', bound):
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                try:
+                    flow.cmd_flow_query(argparse.Namespace(cmd='outputs', run_id=RUN_ID))
+                except SystemExit as exit_signal:
+                    single = (exit_signal.code, json.loads(out.getvalue()))
+                out.seek(0)
+                out.truncate()
+                started = time.monotonic()
+                flow.cmd_run_view(argparse.Namespace(run_id=RUN_ID, result=False))
+                elapsed = time.monotonic() - started
+                view = json.loads(out.getvalue())
+        self.assertEqual(single, (20, {'format': 'error-v1', 'code': 'MODULE_OUTPUT_TIMEOUT',
+                                       'message': 'MODULE_OUTPUT_TIMEOUT'}),
+                         'the single outputs command times out for the same delay')
+        self.assertLess(elapsed, bound + 2, f'run-view returned after {elapsed:.2f}s')
+        self.assertNotIn('outputs', view['parts'])
+        self.assertEqual(view['errors'], {'outputs': {'code': single[1]['code'], 'message': single[1]['message']}},
+                         'the outputs error is the one the single command gives on timeout')
+        for name, command in (('info', 'run-info'), ('sampling', 'review-sampling'),
+                              ('reviewData', 'review-data'), ('process', 'review-process')):
+            self.assertEqual(view['parts'][name], self.command(command, '--run', RUN_ID)[1], name)
 
     def test_an_invalid_node_command_keeps_the_exit_code_and_error_run_info_gives(self):
         run = self.make_run(request=request_payload(cap=5))

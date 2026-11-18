@@ -1,8 +1,9 @@
 /**
  * One node process for the per-run read view: the same functions the single commands call, with one
  * verified-source discovery shared by every part. Every part starts at once and each streams one
- * JSON line as soon as it settles, so a slow part never discards the others. Only `outputs` carries a
- * bound, the same 30 s its single command has; every other part is unbounded, as its command is.
+ * JSON line as soon as it settles, so a slow part never discards the others. The Python reader owns
+ * the `outputs` bound, counted from this process's launch as its single command counts it; the race
+ * kept here on the same 30 s is only a backstop, so a stalled read never outlives the reader.
  */
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

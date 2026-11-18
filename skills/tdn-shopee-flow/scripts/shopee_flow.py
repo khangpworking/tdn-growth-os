@@ -3139,6 +3139,9 @@ def flow_run_info(run, config, sampling=_SAMPLING_UNSET):
             'selection': gate_read(gate_path(run, 'm2/selection.json'))}
 
 
+MODULE_OUTPUT_TIMEOUT_SECONDS = 30       # the outputs bound, counted from the node launch
+
+
 def metric_output_script(run, action, *args, stream=False):
     """Canonical offline TS reader/replay; never starts a source or writes artifacts."""
     import shlex
@@ -3149,7 +3152,7 @@ def metric_output_script(run, action, *args, stream=False):
         raise ModuleFailure('NODE_COMMAND_INVALID')
     try:
         result = subprocess.run([*command, str(repo / 'scripts/module-metric-output.ts'), action, str(run), *args],
-                                cwd=repo, capture_output=True, timeout=30)
+                                cwd=repo, capture_output=True, timeout=MODULE_OUTPUT_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         raise ModuleFailure('MODULE_OUTPUT_TIMEOUT') from None
     if stream:
@@ -3203,10 +3206,13 @@ _RUN_VIEW_UNAVAILABLE = {                               # node cannot be started
 
 def review_run_view_script(repo, config, run, result, on_sampling):
     """One node process streams one JSON line per finished part; a slow part never discards the
-    parts already received. Only `outputs` has a bound (inside node). Node exits once every line is
-    flushed, but a stalled file read can hold its exit in the threadpool; the reader therefore stops
-    at the last expected part and releases the child, and a part missing at exit gets the error its
-    single command would give."""
+    parts already received. `outputs` keeps the bound its single command has: it is counted from
+    the node launch, a missing line by launch + MODULE_OUTPUT_TIMEOUT_SECONDS is the timeout error
+    the single command gives, and a line that arrives later is ignored. Every other part stays
+    unbounded, as its single command is. Node exits once every line is flushed, but a stalled file
+    read can hold its exit in the threadpool; the reader therefore stops once every other part line
+    has arrived and outputs is decided, releases the child, and a part missing at exit gets the
+    error its single command would give."""
     import selectors, shlex
     command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
     command = shlex.split(command) if isinstance(command, str) else command
@@ -3217,18 +3223,29 @@ def review_run_view_script(repo, config, run, result, on_sampling):
                               'exitCode': 2 if name in ('reviewData', 'process', 'stats', 'insights') else 20}
                        for name in names}
     args = [*command, str(repo / 'scripts/module-run-view.ts'), str(run), *(['--result'] if result else [])]
+    launched = time.monotonic()
     try:
         child = subprocess.Popen(args, cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     except OSError:
         return parts, {name: {'code': code, 'message': message, 'exitCode': exit_code}
                        for name, (code, message, exit_code) in _RUN_VIEW_UNAVAILABLE.items() if name in names}
+    deadline = launched + MODULE_OUTPUT_TIMEOUT_SECONDS
     selector = selectors.DefaultSelector()
     selector.register(child.stdout, selectors.EVENT_READ)
     buffer = b''
     try:
         while True:
-            if not selector.select():
-                break
+            decided = 'outputs' in parts or 'outputs' in errors
+            if not decided and time.monotonic() >= deadline:
+                # The same error object and exit code the single outputs command gives on timeout.
+                errors['outputs'] = {'code': 'MODULE_OUTPUT_TIMEOUT', 'message': 'MODULE_OUTPUT_TIMEOUT',
+                                     'exitCode': 20}
+                decided = True
+            if decided and all(name in parts or name in errors for name in names):
+                break  # never wait on a read the child abandoned after its bound.
+            # The select timeout lets the outputs deadline fire while node prints nothing.
+            if not selector.select(None if decided else max(0.0, deadline - time.monotonic())):
+                continue
             chunk = os.read(child.stdout.fileno(), 65536)
             if not chunk:
                 break
@@ -3254,8 +3271,6 @@ def review_run_view_script(repo, config, run, result, on_sampling):
                         exit_code = value.get('exitCode')
                         errors[name] = {'code': error['code'], 'message': error['message'],
                                         'exitCode': exit_code if type(exit_code) is int else 20}
-            if all(name in parts or name in errors for name in names):
-                break  # every part is in: never wait on a read the child abandoned after its bound.
     finally:
         selector.close()
         if child.poll() is None:
