@@ -349,6 +349,13 @@ class BrowserWorker:
                         return
                     # The page may have moved to login/verification during the wait; that is a session stop, not a dead link.
                     observed = await self.observe_session()
+                    # Cancellation or a read-only stop may arrive during session observation; it wins over any classification.
+                    if get_job(job_id)['cancel_requested']:
+                        update_job(job_id, state='cancelled')
+                        return
+                    if sampling_readonly():
+                        update_job(job_id, state='cancelled', error='READONLY_ON')
+                        return
                     if observed['state'] in WAITING:
                         update_job(job_id, state=observed['state'], error='Open the Fedora browser and finish login/verification, then resume this job.')
                         return

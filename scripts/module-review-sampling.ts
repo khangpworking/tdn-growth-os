@@ -281,8 +281,8 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
       if(deps.reconcileOnly&&await readSamplingJournal(file)===null)continue;
       const request=jobRequest(link,attempt,plan);
       journals[index]=await collector.run(file,request,link,plan,deps.reconcileOnly,controller.signal);
-      // A dead product skips its link and the run keeps collecting; session and other codes stop it as today.
-      if(journals[index]!.errorCode&&!PRODUCT_LEVEL_CODES.has(journals[index]!.errorCode!)){errorCode=journals[index]!.errorCode;break;}
+      // Only a custom M3 attempt skips a dead product and keeps collecting; session, other codes and count refreshes stop as today.
+      if(journals[index]!.errorCode&&!(deps.kind==='custom'&&PRODUCT_LEVEL_CODES.has(journals[index]!.errorCode!))){errorCode=journals[index]!.errorCode;break;}
     }
   }catch(error){errorCode=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_ATTEMPT_FAILED';}
   finally{clearInterval(timer);process.removeListener('SIGTERM',onStop);process.removeListener('SIGINT',onStop);}

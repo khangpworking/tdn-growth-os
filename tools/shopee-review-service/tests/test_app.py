@@ -74,6 +74,9 @@ class FakeLocator:
         return self.page.h1 if self.page else 1
 
     async def inner_text(self):
+        if self.page and self.page.during_observe is not None:
+            observe, self.page.during_observe = self.page.during_observe, None
+            observe()
         return self.page.body_text if self.page else ''
 
     async def all_inner_texts(self):
@@ -83,11 +86,12 @@ class FakeLocator:
 class FakePage:
     """Records the crawler config; the crawler script returns `result`."""
 
-    def __init__(self, result, h1=1, body_text='', wait_error=None, headings=(), after_timeout=None, during_wait=None):
+    def __init__(self, result, h1=1, body_text='', wait_error=None, headings=(), after_timeout=None, during_wait=None,
+                 during_observe=None):
         self.result, self.config, self.crawls = result, None, 0
         self.h1, self.body_text, self.wait_error = h1, body_text, wait_error
         self.headings, self.after_timeout = list(headings), after_timeout
-        self.during_wait = during_wait
+        self.during_wait, self.during_observe = during_wait, during_observe
         self.url = URL
 
     def locator(self, selector):
@@ -209,13 +213,15 @@ class ServiceTests(unittest.TestCase):
         config, state = self.run_job({'url': URL, 'max_comments': 20}, result)
         self.assertEqual((config['maxPages'], state), (500, 'partial'), 'existing callers keep 500 pages and partial')
 
-    def run_job_with_page(self, payload, page, during_wait=None):
+    def run_job_with_page(self, payload, page, during_wait=None, during_observe=None):
         app, job_id = self.app, str(uuid.uuid4())
         with app.db() as connection:
             connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
                                (job_id, json.dumps(payload), 'queued', app.now(), app.now()))
         if during_wait is not None:
             page.during_wait = lambda: during_wait(job_id)
+        if during_observe is not None:
+            page.during_observe = lambda: during_observe(job_id)
         worker = app.BrowserWorker()
         worker.page = page
 
@@ -264,6 +270,14 @@ class ServiceTests(unittest.TestCase):
         page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'))
         job = self.run_job_with_page(payload, page,
                                      during_wait=lambda job_id: self.app.update_job(job_id, cancel_requested=1))
+        self.assertEqual((job['state'], job['error']), ('cancelled', None))
+        self.assertEqual(page.crawls, 0)
+
+    def test_cancellation_during_session_observation_wins_over_the_timeout_classification(self):
+        payload = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+        page = FakePage({}, wait_error=TimeoutError('synthetic wait timeout'))
+        job = self.run_job_with_page(payload, page,
+                                     during_observe=lambda job_id: self.app.update_job(job_id, cancel_requested=1))
         self.assertEqual((job['state'], job['error']), ('cancelled', None))
         self.assertEqual(page.crawls, 0)
 

@@ -229,6 +229,17 @@ test('a run where every link is dead cannot pass without a collected link', () =
   assert.equal(result.errorCode, 'M3_GATE_FAILED');
 }, COUNT_INPUT, 2));
 
+test('a counts attempt stops on a dead first link with its reason and starts no later job', () => withFixture(async ({ run }) => {
+  const started = await reserveAttempt(run, 'counts');
+  const requests: SamplingJobInput[] = [];
+  const result = await executeSamplingAttempt({ runDir: run, kind: 'counts', attemptId: started.attemptId, collector: {
+    run: async (_file, request, link) => { requests.push(request); return failedJournal(request, link, 'PRODUCT_UNAVAILABLE'); },
+  } });
+  assert.equal(requests.length, 1, 'the first product error stops a counts attempt');
+  assert.equal(result.status, 'FAILED');
+  assert.equal(result.errorCode, 'PRODUCT_UNAVAILABLE');
+}, COUNT_INPUT, 2));
+
 test('a pages-mode run saves policy v2, asks the service for max_pages and gates on saved pages', () => withFixture(async ({ run }) => {
   const request = JSON.parse(await readFile(join(run, 'request.json'), 'utf8'));
   assert.deepEqual(request.collectionPolicy, { format: 'shopee-review-policy-v2', limitBy: 'pages', mode: 'with-comments', stars: [],
