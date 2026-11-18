@@ -93,3 +93,41 @@ while a run still exists. Test row 9.
 
 `runs` and `runs-progress` were checked: both filter folder names with the run-id pattern, which
 excludes leading dots, so no listing change was needed.
+
+## Round-2 fix
+
+Exactly the three rules in the contract's Update 18/11 block. No deletion markers and no crash
+recovery were added.
+
+- Rule 1 (blocker, stale admission lock): new `module_lock_acquire(run, lock, blocking=False)`
+  helper. It takes the flock, then compares `os.fstat(lock.fileno())` device/inode with
+  `os.stat(<run>/.module.lock)`. A missing lock path (or a `gate_path` symlink refusal) or a
+  different inode raises `RUN_NOT_FOUND` (exit 2) before any write, so a starter that opened the
+  old lock cannot recreate the deleted folder or write into a replacement run. Used by every
+  starter that takes or inherits the run lock: `cmd_module` (run/m1/m2/m3), `cmd_review_sampling`
+  (sampling commands and the attempt worker hand-off), `cmd_review_data` (save/export),
+  `cmd_review_process` (step 4 and its worker hand-off), and `flow_initialize_run` (launch
+  initializer, blocking flock). A busy lock still returns `RUN_BUSY` (exit 24).
+- Rule 2 (major, reservation lost after a failed unlink): after the folder rename, any unlink
+  error (or a read/stat error in that block) renames the folder back to its original path and
+  returns `RUN_DELETE_FAILED` (exit 20). The reservation and the run stay as they were; if the
+  rename-back itself fails, the dot folder stays as before.
+- Rule 3 (major, pathname read raced the pinned directory fd): each `.imports/*.json` candidate
+  is opened with `O_NOFOLLOW` relative to the pinned `.imports` fd, read from that fd, required
+  to be a regular file, and its `dev/ino` is re-checked with
+  `os.stat(name, dir_fd=..., follow_symlinks=False)` against the opened fd immediately before
+  `os.unlink(name, dir_fd=...)`. A replaced entry fails the deletion (rule-2 rollback) instead of
+  unlinking another run's record; a symlink or non-regular entry is skipped, never unlinked.
+
+### Round-2 tests
+
+- `test_starter_fails_when_its_open_lock_is_no_longer_the_run_lock`: a `run` starter is paused
+  between opening `.module.lock` and flocking; `delete-run` removes the run; when the starter
+  resumes it exits 2 with `RUN_NOT_FOUND` and the run folder is not recreated.
+- `test_failed_record_unlink_renames_the_run_back`: `.imports` is readable but not writable, so
+  the unlink fails; `delete-run` returns 20 `RUN_DELETE_FAILED`, the same inode is back at the
+  run path, the reservation file is intact and no `.deleted-*` folder remains.
+
+Suites (same as above): delete-run 11 tests OK; full shopee-flow discover 170 tests OK
+(skipped=4); `node scripts/typecheck.mjs` exit 0.
+

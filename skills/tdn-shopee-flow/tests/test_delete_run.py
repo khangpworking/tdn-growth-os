@@ -10,6 +10,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 
@@ -173,6 +174,65 @@ class DeleteRunTest(unittest.TestCase):
         self.assertTrue(run.is_dir())
         self.assertTrue((self.runs / '.imports' / f'{import_id}.json').is_file(),
                         'a failed rename must leave the reservation in place')
+
+    def test_starter_fails_when_its_open_lock_is_no_longer_the_run_lock(self):
+        run = self.make_run('run-j1')
+        opened, release = self.base / 'lock-opened', self.base / 'lock-release'
+        driver = (
+            "import fcntl, importlib.util, os, sys, time, types\n"
+            "spec = importlib.util.spec_from_file_location('shopee_flow', sys.argv[1])\n"
+            "module = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(module)\n"
+            "real_flock, paused = fcntl.flock, []\n"
+            "def flock(fd, operation):\n"
+            "    if operation & fcntl.LOCK_EX and not paused:\n"
+            "        paused.append(True)\n"
+            "        open(sys.argv[3], 'w').close()\n"
+            "        while not os.path.exists(sys.argv[4]):\n"
+            "            time.sleep(0.01)\n"
+            "    return real_flock(fd, operation)\n"
+            "fcntl.flock = flock\n"
+            "module.cmd_module(types.SimpleNamespace(cmd='run', run_id=sys.argv[2], manual=None, detach=False,\n"
+            "                                        worker_lock_fd=None, worker_ready_fd=None, plan_sha256=None))\n"
+        )
+        starter = subprocess.Popen([sys.executable, '-c', driver, str(SCRIPT), 'run-j1', str(opened), str(release)],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env())
+        self.addCleanup(starter.kill)
+        deadline = time.monotonic() + 30
+        while not opened.exists() and starter.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertTrue(opened.exists(), 'the starter did not reach its lock')
+
+        rc, out = self.command('delete-run', '--run', 'run-j1')
+        self.assertEqual(rc, 0, out)
+        release.touch()
+        stdout, stderr = starter.communicate(timeout=60)
+        self.assertEqual(starter.returncode, 2, (stdout, stderr))
+        self.assertEqual(json.loads(stdout.strip())['code'], 'RUN_NOT_FOUND')
+        self.assertFalse(run.exists(), 'a starter holding a stale lock must not recreate the run folder')
+
+    @unittest.skipIf(os.geteuid() == 0, 'directory permissions do not bind root')
+    def test_failed_record_unlink_renames_the_run_back(self):
+        run = self.make_run('run-k2')
+        import_id = uuid.uuid4().hex
+        record = self.runs / '.imports' / f'{import_id}.json'
+        write_json(record, {'format': 'metric-user-page-import-reservation-v1',
+                            'importId': import_id, 'payloadSha256': 'e' * 64, 'runId': 'run-k2'})
+        inode = run.stat().st_ino
+        mode = (self.runs / '.imports').stat().st_mode
+        os.chmod(self.runs / '.imports', 0o500)
+        self.addCleanup(os.chmod, self.runs / '.imports', mode)
+        try:
+            rc, out = self.command('delete-run', '--run', 'run-k2')
+        finally:
+            os.chmod(self.runs / '.imports', mode)
+        self.assertEqual(rc, 20, out)
+        self.assertEqual(out.get('code'), 'RUN_DELETE_FAILED')
+        self.assertTrue(run.is_dir())
+        self.assertEqual(run.stat().st_ino, inode, 'the same folder must be renamed back')
+        self.assertEqual(json.loads(record.read_text())['runId'], 'run-k2',
+                         'the reservation must stay in place')
+        self.assertEqual([name for name in os.listdir(self.runs) if name.startswith('.deleted-')], [])
 
 
 if __name__ == '__main__':
