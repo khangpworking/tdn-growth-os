@@ -3266,10 +3266,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var verdict = slip.verdict || 'FAIL';
     var tone = verdict === 'PASS' ? 'pass' : verdict === 'WAIT_OWNER' ? 'warn' : 'fail';
     card.dataset.tone = tone;
-    // PARTIAL_LINKS: the gate passed and its `links_skipped` check counts at least 1 skipped link.
-    var skippedCheck = (slip.checks || []).find(function (c) { return c && c.id === 'links_skipped'; });
-    var partialLinks = key === 'm3' && verdict === 'PASS' && !!skippedCheck &&
-      typeof skippedCheck.got === 'number' && skippedCheck.got > 0;
+    var partialLinks = key === 'm3' && slipHasSkippedLinks(slip);
     var verdictText = partialLinks ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS : key === 'm3' && verdict === 'PASS'
       ? 'Đạt kiểm tra dữ liệu' : (VERDICT_LABEL[verdict] || VERDICT_LABEL.FAIL);
     head.appendChild(h('span', 'chip ' + (partialLinks || verdict === 'WAIT_OWNER' ? 's-warn' : verdict === 'PASS' ? 's-pass' : 's-fail'),
@@ -3306,6 +3303,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     techWrap.appendChild(kv);
     card.appendChild(techWrap);
     return card;
+  }
+
+  // PARTIAL_LINKS: an M3 gate that passed with its `links_skipped` check counting at least 1 link.
+  function slipHasSkippedLinks(slip) {
+    var skippedCheck = slip && slip.verdict === 'PASS'
+      ? (slip.checks || []).find(function (c) { return c && c.id === 'links_skipped'; }) : null;
+    return !!skippedCheck && typeof skippedCheck.got === 'number' && skippedCheck.got > 0;
   }
 
   function executionOf(info) {
@@ -5246,8 +5250,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       clear(summary);
       if (source) {
         var validated = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS';
-        chip.textContent = validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
-        chip.className = 'chip ' + (validated ? 's-pass' : 's-fail');
+        // The current (latest) M3 attempt passed but skipped dead links: say so on the visible card.
+        var m3Now = moduleExecution(info, 'M3');
+        var partial = validated && !!m3Now && slipHasSkippedLinks(m3Now.currentGate);
+        chip.textContent = partial ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS
+          : validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
+        chip.className = 'chip ' + (partial ? 's-warn' : validated ? 's-pass' : 's-fail');
         summary.appendChild(rdChecks(source));
       } else {
         chip.textContent = 'Chưa chọn kết quả';

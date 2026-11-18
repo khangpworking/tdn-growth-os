@@ -3231,12 +3231,13 @@ test('the technical-docs tab shows the 4-step guide from modules.json first, the
 // Dead Shopee links (CONTRACT-link-check §5-6): module-outputs-v1 `linkIssues`, one contract table.
 // Step 3 shows ALL m3 issues of the run, one group per attempt, newest first, labelled with the
 // attempt end time; it is not tied to the review source on display.
-// | case                                 | review sources      | m3 linkIssues                         | step 3 groups (label: lines)          | M3 verdict label    |
-// |--------------------------------------|---------------------|---------------------------------------|---------------------------------------|---------------------|
-// | a. one clean, one partial attempt    | first, second       | second only                           | 12:00: link 5                         | Xong, có link bị bỏ |
-// | b. two partial attempts              | first, second       | first and second                      | 12:00: link 5; then 11:00: link 4     | Xong, có link bị bỏ |
-// | c. stopped attempt, no source for it | first (clean)       | stopped (no source)                   | 13:00: link 6                         | Xong, có link bị bỏ |
-// | old run                              | first, second       | absent                                | none                                  | Đạt kiểm tra dữ liệu |
+// | case                                   | sources       | m3 linkIssues | step 3 groups                     | latest M3 attempt           | visible step 3 chip  | M3 gate chip         |
+// |----------------------------------------|---------------|---------------|-----------------------------------|-----------------------------|----------------------|----------------------|
+// | a. clean then partial (latest partial) | first, second | second        | 12:00: link 5                     | PASS, links_skipped 1       | Xong, có link bị bỏ  | Xong, có link bị bỏ  |
+// | a2. partial then clean (latest clean)  | first, second | first         | 11:00: link 4                     | PASS, links_skipped 0       | Đạt kiểm tra dữ liệu | Đạt kiểm tra dữ liệu |
+// | b. two partial attempts                | first, second | first, second | 12:00: link 5; then 11:00: link 4 | PASS, links_skipped 1       | Xong, có link bị bỏ  | Xong, có link bị bỏ  |
+// | c. stopped attempt, no source for it   | first (clean) | stopped       | 13:00: link 6                     | FAILED on session, FAIL gate| Đạt kiểm tra dữ liệu | Không đạt            |
+// | old run                                | first, second | absent        | none                              | PASS, links_skipped 0       | Đạt kiểm tra dữ liệu | Đạt kiểm tra dữ liệu |
 // Every case with linkIssues also has the 3 m2 items (3 reasons; «đã thay bằng link khác» only with replacedBy).
 const DEAD = (n: number) => `https://shopee.vn/product/900/${n}`;
 const linkIssue = (n: number, stage: string, reason: string, extra: any = {}) =>
@@ -3269,11 +3270,13 @@ const m3Groups = (doc: Document) => [...doc.querySelectorAll('#linkIssues-m3 .li
   lines: [...group.querySelectorAll('li')].map(lineOf),
 }));
 
-function withM3Gate(info: any, skipped: number) {
-  const gate = { ...passSlip('M3'), checks: [{ id: 'links_skipped', ok: skipped === 0, level: 'warn', got: skipped }] };
+function withM3Gate(info: any, skipped: number, stopped = false) {
+  const errorCode = stopped ? 'HUMAN_LOGIN_REQUIRED' : null;
+  const gate = { ...passSlip('M3'), verdict: stopped ? 'FAIL' : 'PASS', errorCode,
+    checks: [{ id: 'links_skipped', ok: skipped === 0, level: 'warn', got: skipped }] };
   info.modules = info.modules.map((module: any) => module.id === 'M3' ? { ...module, execution: {
-    status: 'SUCCEEDED', executionId: 'exec-3', sequence: 2, attemptId: null, startedAt: null, endedAt: null,
-    basis: 'none', currentGate: gate, historicalGate: null, errorCode: null,
+    status: stopped ? 'FAILED' : 'SUCCEEDED', executionId: 'exec-3', sequence: 2, attemptId: null, startedAt: null,
+    endedAt: null, basis: 'none', currentGate: gate, historicalGate: null, errorCode,
   } } : module);
   return info;
 }
@@ -3283,19 +3286,23 @@ test('dead links: «Link bị bỏ» for step 2 and every step 3 attempt, newest
     syntheticReviewSource({ attemptId, sourceSha256: sha.repeat(64), completedAt, rowCount });
   const first = source('attempt-first', 'd', '2026-11-18T04:00:00.000Z', 7);
   const second = source('attempt-second', 'e', '2026-11-18T05:00:00.000Z', 9);
-  const rows: { label: string; sources: any[]; m3?: any[]; skipped: number; groups: any[]; verdict: string }[] = [
-    { label: 'a. one clean, one partial attempt', sources: [first, second], m3: [SECOND_ISSUE], skipped: 1,
-      groups: [SECOND_GROUP], verdict: 'Xong, có link bị bỏ' },
+  const rows: { label: string; sources: any[]; m3?: any[]; skipped: number; stopped?: boolean; groups: any[];
+    chip: string; chipCls: string; verdict: string }[] = [
+    { label: 'a. latest attempt partial', sources: [first, second], m3: [SECOND_ISSUE], skipped: 1,
+      groups: [SECOND_GROUP], chip: 'Xong, có link bị bỏ', chipCls: 's-warn', verdict: 'Xong, có link bị bỏ' },
+    { label: 'a2. latest attempt clean', sources: [first, second], m3: [FIRST_ISSUE], skipped: 0,
+      groups: [FIRST_GROUP], chip: 'Đạt kiểm tra dữ liệu', chipCls: 's-pass', verdict: 'Đạt kiểm tra dữ liệu' },
     { label: 'b. two partial attempts', sources: [first, second], m3: [FIRST_ISSUE, SECOND_ISSUE], skipped: 1,
-      groups: [SECOND_GROUP, FIRST_GROUP], verdict: 'Xong, có link bị bỏ' },
-    { label: 'c. stopped attempt without a source', sources: [first], m3: [STOPPED_ISSUE], skipped: 1,
-      groups: [STOPPED_GROUP], verdict: 'Xong, có link bị bỏ' },
-    { label: 'old run', sources: [first, second], skipped: 0, groups: [], verdict: 'Đạt kiểm tra dữ liệu' },
+      groups: [SECOND_GROUP, FIRST_GROUP], chip: 'Xong, có link bị bỏ', chipCls: 's-warn', verdict: 'Xong, có link bị bỏ' },
+    { label: 'c. stopped attempt without a source', sources: [first], m3: [STOPPED_ISSUE], skipped: 1, stopped: true,
+      groups: [STOPPED_GROUP], chip: 'Đạt kiểm tra dữ liệu', chipCls: 's-pass', verdict: 'Không đạt' },
+    { label: 'old run', sources: [first, second], skipped: 0, groups: [], chip: 'Đạt kiểm tra dữ liệu',
+      chipCls: 's-pass', verdict: 'Đạt kiểm tra dữ liệu' },
   ];
   for (const row of rows) {
     const run = harness({
       runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-      runInfo: withM3Gate(collectedRunInfo(), row.skipped), sampling: syntheticSampling(),
+      runInfo: withM3Gate(collectedRunInfo(), row.skipped, row.stopped), sampling: syntheticSampling(),
       reviewData: syntheticReviewData({ sources: row.sources }),
       moduleOutputsResult: (runId) => ({ ok: true, data: row.m3
         ? { ...moduleOutputView(runId), linkIssues: [...M2_ISSUES, ...row.m3] } : moduleOutputView(runId) }),
@@ -3307,6 +3314,9 @@ test('dead links: «Link bị bỏ» for step 2 and every step 3 attempt, newest
       assert.deepEqual(m3Groups(run.doc), row.groups, row.label + ': step 3');
       if (row.groups.length) assert.ok(run.doc.getElementById('rdPanel')!.contains(run.doc.getElementById('linkIssues-m3')));
       if (!row.m3) assert.equal(run.doc.querySelector('.link-issues'), null, 'old run shows nothing new');
+      const visible = run.doc.getElementById('rdChip')!;
+      assert.equal(visible.textContent, row.chip, row.label + ': visible step 3 chip');
+      assert.equal(visible.className, 'chip ' + row.chipCls, row.label + ': chip colour');
       const chips = [...run.doc.querySelectorAll('#techDetails .chip')].map((chip) => chip.textContent);
       assert.ok(chips.includes(row.verdict), row.label + ': verdict ' + chips.join(' | '));
     } finally { run.dom.window.close(); }
