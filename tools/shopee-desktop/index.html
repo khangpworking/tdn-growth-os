@@ -3160,6 +3160,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     insightSummarySeq: {},    // runId -> number of insights summaries applied; a new one empties the comments
     runViewInFlight: {},      // runId -> the run-view read on its way (loadInfo)
     runViewAgain: {},         // runId -> the one follow-up read asked while it was out
+    runViewProbe: null,       // { promise, settle } while the first run-view of this connection is unanswered
     refreshRunId: null,  // the open run whose refresh is tracked for «Đang cập nhật…»
     refreshTasks: {},    // kind -> sequence of its latest request (run-info, sampling, outputs + picture, …)
     runSortSaving: false,
@@ -4371,9 +4372,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return state.samplingTokens[runId];
   }
 
-  // Each loader takes an optional `pending` reply: the matching part of one run-view call. Without it, it asks
-  // its own single command. Sequence, selection and isGone checks are the same either way.
+  // Each loader takes an optional `pending` reply: the matching part of one run-view call. Without it, a read of
+  // the open run waits for runViewSupport(): supported -> the run's one tracked run-view (its part is applied by
+  // that call); not supported, or another run -> its own single command, as before run-view. Sequence, selection
+  // and isGone checks are the same either way.
   async function loadSampling(runId, pending) {
+    var viewed = !pending && runViewFor(runId, false);
+    if (viewed && await viewed) return;
     var seq = (state.samplingSeq[runId] || 0) + 1;
     state.samplingSeq[runId] = seq;
     var previous = state.sampling[runId];
@@ -4391,7 +4396,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     // A finished attempt seen in a run-view part came with every other part of that call; one seen by the
     // sampling poll asks for a refresh.
     if (state.selectedRunId === runId && samplingRunning(previous) && !samplingRunning(state.sampling[runId]) &&
-        !pending && !refreshAfterChange(runId)) {
+        !pending) {
       loadReviewData(runId);
       loadModuleOutputs(runId);   // a finished or stopped attempt may have skipped dead links (linkIssues)
       if (state.screen === 'result') {
@@ -4409,6 +4414,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function loadReviewData(runId, pending) {
+    var viewed = !pending && runViewFor(runId, false);
+    if (viewed && await viewed) return;
     var seq = (state.reviewDataSeq[runId] || 0) + 1;
     state.reviewDataSeq[runId] = seq;
     var res = await (pending || api.reviewData(runId));
@@ -4427,6 +4434,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // The outputs view and the local Metric picture lookup run together; the call ends when both have answered.
   async function loadModuleOutputs(runId, pending) {
+    var viewed = !pending && runViewFor(runId, false);
+    if (viewed && await viewed) return;
     var shot = loadLocalShot(runId);
     await loadModuleOutputsView(runId, pending);
     await shot;
@@ -4451,6 +4460,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function loadReviewStats(runId, pending) {
+    var viewed = !pending && runViewFor(runId, true);
+    if (viewed && await viewed) return;
     var seq = (state.reviewStatsSeq[runId] || 0) + 1;
     state.reviewStatsSeq[runId] = seq;
     var res = await (pending || api.reviewStats(runId));
@@ -4480,6 +4491,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function loadReviewInsights(runId, pending) {
+    var viewed = !pending && runViewFor(runId, true);
+    if (viewed && await viewed) return;
     var seq = (state.reviewInsightsSeq[runId] || 0) + 1;
     state.reviewInsightsSeq[runId] = seq;
     var res = await (pending || askReviewInsights(runId));
@@ -6718,6 +6731,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function loadReviewProcess(runId, pending) {
+    var viewed = !pending && runViewFor(runId, false);
+    if (viewed && await viewed) return;
     var seq = (state.reviewProcessSeq[runId] || 0) + 1;
     state.reviewProcessSeq[runId] = seq;
     var before = step4Kind(runId);
@@ -6734,8 +6749,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (state.selectedRunId === runId) {
       renderDetail();
       manageStep4Poll(runId);
-      if (before === 'running' && step4Kind(runId) !== 'running' && state.screen === 'result' &&
-          !pending && !refreshAfterChange(runId)) {
+      if (before === 'running' && step4Kind(runId) !== 'running' && state.screen === 'result' && !pending) {
         loadReviewStats(runId);
         loadReviewInsights(runId);
       }
@@ -6852,29 +6866,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return events;
   }
 
-  function selectedLinks(info) {
-    var picked = info && info.selection && info.selection.links;
-    return Array.isArray(picked) && picked.length ? picked.length : null;
-  }
-
   async function deliverEvent(event) {
     if (isGone(event.runId)) return;
-    var needsProcess = event.kind === 'finished' || (event.kind === 'fail' && event.step === 4);
-    var needsLinks = event.kind === 'pass' && event.step === 2;   // runs-progress carries no link count
-    if ((needsProcess || needsLinks) && state.runViewSupported !== false && event.runId === state.selectedRunId) {
-      // The open run: the progress change already asked loadInfo's one run-view; its process and info parts
-      // give this notice its numbers. No separate command.
-      await runViewAnswer(event.runId);
+    if (event.kind === 'finished' || (event.kind === 'fail' && event.step === 4)) await loadReviewProcess(event.runId);
+    if (isGone(event.runId)) return;
+    if (event.kind === 'pass' && event.step === 2) {
+      // runs-progress carries no link count; the run status has the selection.
+      var info = await runStatus(event.runId);
       if (isGone(event.runId)) return;   // a late reply for a deleted run
-      if (needsLinks) event.links = selectedLinks(state.infoByRun[event.runId]);
-    } else {
-      if (needsProcess) await loadReviewProcess(event.runId);
-      if (isGone(event.runId)) return;
-      if (needsLinks) {
-        var info = await runStatus(event.runId);
-        if (isGone(event.runId)) return;   // a late reply for a deleted run
-        event.links = selectedLinks(info.ok ? info.data : null);
-      }
+      var picked = info.ok && info.data && info.data.selection && info.data.selection.links;
+      event.links = Array.isArray(picked) && picked.length ? picked.length : null;
     }
     if (isGone(event.runId)) return;
     if (!isListed(event.runId)) {
@@ -7494,7 +7495,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         var again = current.then(function () {
           if (state.runViewAgain[runId] === again) delete state.runViewAgain[runId];
           return isGone(runId) || state.selectedRunId !== runId ? undefined : loadInfo(runId);
-        });
+        }, function () { return undefined; });
         state.runViewAgain[runId] = again;
       }
       return state.runViewAgain[runId];
@@ -7513,28 +7514,47 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return state.runViewAgain[runId] || state.runViewInFlight[runId] || loadInfo(runId);
   }
 
-  // A sampling attempt or step 4 finished, seen by its own poll: with run-view, one read of the open run
-  // through loadInfo. Returns false on the single-call path, where the caller reads its parts itself.
-  function refreshAfterChange(runId) {
-    if (state.runViewSupported === false) return false;
-    if (!isGone(runId) && state.selectedRunId === runId) loadInfo(runId);
-    return true;
+  // Resolves true or false once the first run-view of this connection answers (USAGE = false); pending until then.
+  function runViewSupport(runId) {
+    if (state.runViewSupported === true || state.runViewSupported === false) return Promise.resolve(state.runViewSupported);
+    if (!state.runViewProbe) loadInfo(runId);   // sends the probe
+    return state.runViewProbe.promise;
+  }
+
+  // A per-part loader's read of `runId`: null = its own single call (another run, an older server, or a result part
+  // off «Kết quả chạy»); else a promise of the run-view answer that applied its part (null when there was none).
+  function runViewFor(runId, resultPart) {
+    if (isGone(runId) || state.selectedRunId !== runId || state.runViewSupported === false) return null;
+    if (resultPart && state.screen !== 'result') return null;
+    return runViewSupport(runId).then(function (supported) {
+      if (!supported || isGone(runId) || state.selectedRunId !== runId) return null;
+      return runViewAnswer(runId);
+    }).then(function (info) { return info || null; });
   }
 
   // One run-view call (--result on «Kết quả chạy»). Only a real combined answer feeds the loaders a `pending`
-  // part; USAGE switches to the single calls for this session (until the next connect).
+  // part; USAGE switches to the single calls for this session (until the next connect). Resolves with the info
+  // part's reply (none on the single-call path).
   async function runViewRefresh(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
     var withResult = state.screen === 'result';
     var kinds = runViewKinds();
-    var res = await trackLoad('view', runId, state.infoSeq, function () { return api.runView(runId, withResult); });
-    if (isGone(runId)) return;   // a late reply for a deleted run
-    if (!res.ok && isUsage(res.error)) {
-      state.runViewSupported = false;
-      return loadInfoSingles(runId);
+    if (state.runViewSupported !== true && !state.runViewProbe) {
+      var probe = { promise: null, settle: null };
+      probe.promise = new Promise(function (resolve) { probe.settle = resolve; });
+      state.runViewProbe = probe;
     }
-    if (res.ok) state.runViewSupported = true;
+    var res = await trackLoad('view', runId, state.infoSeq, function () { return api.runView(runId, withResult); });
+    var usage = !res.ok && isUsage(res.error);
+    state.runViewSupported = !usage;
+    if (state.runViewProbe) {
+      var answered = state.runViewProbe;
+      state.runViewProbe = null;
+      answered.settle(!usage);
+    }
+    if (isGone(runId)) return;   // a late reply for a deleted run
+    if (usage) return loadInfoSingles(runId);
     var reply = function (name) {
       if (!res.ok) return Promise.resolve(res);     // the info error is the command error: every part gets it
       var part = res.data && res.data.parts ? res.data.parts[name] : null;
@@ -7557,6 +7577,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var info = await started[0];
     applyInfo(runId, seq, info);
     await Promise.all(started);                       // every part applied before a caller reads the state
+    return info;
   }
 
   function applyInfo(runId, seq, res) {
@@ -7633,6 +7654,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // Every status/info call goes through here: RUN_NOT_FOUND makes the run gone FIRST (rule b), before any
   // selection or sequence check of the caller; the caller's isGone check then drops the reply.
   async function runStatus(runId, pending) {
+    var viewed = !pending && runViewFor(runId, false);
+    var info = viewed && await viewed;
+    if (info) return info;
     var res = await (pending || api.status(runId));
     if (!res.ok && errorCode(res.error) === 'RUN_NOT_FOUND' && !isGone(runId)) runGone(runId);
     return res;
@@ -7825,6 +7849,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function hydrateAfterConnect(epoch, first) {
     state.runViewSupported = null;              // the server may have changed: try run-view again
+    state.runViewProbe = null;
     var presAsked = api.presets();
     var runsAsked = fetchRuns();
     var pres = await presAsked;

@@ -96,6 +96,8 @@ function harness(options: {
   hasFocus?: boolean;
   runSortSaved?: string;
   oldServer?: boolean;      // run-view and the insights summary answer USAGE (a server before F647 wave 2)
+  runViewHold?: () => Promise<void> | undefined;      // a run-view answers when this settles
+  reviewProcessHold?: () => Promise<void> | undefined;
   insightCommentsHold?: () => Promise<void> | undefined;
   insightCommentsError?: boolean;   // every comment read fails
   fastStep4?: boolean;              // the 10 s step 4 poll (a setTimeout) fires at once
@@ -285,6 +287,8 @@ function harness(options: {
     },
     reviewProcess: async (runId: string) => {
       state.reviewProcessCalls.push(runId);
+      const held = options.reviewProcessHold && options.reviewProcessHold();
+      if (held) await held;
       if (options.reviewProcessResult) return clone(options.reviewProcessResult(runId));
       return { ok: true, data: { format: 'review-process-view-v1', runId, autoRun: true, labelUnresolved: false, sources: [] } };
     },
@@ -330,7 +334,11 @@ function harness(options: {
     },
     runView: async (runId: string, result: boolean) => {
       state.runViewCalls.push({ runId, result });
-      if (options.oldServer) return { ok: false, error: { code: 'USAGE', message: 'USAGE' } };
+      const held = options.runViewHold && options.runViewHold();
+      if (options.oldServer) {
+        if (held) await held;
+        return { ok: false, error: { code: 'USAGE', message: 'USAGE' } };
+      }
       const single: Record<string, (id: string) => Promise<any>> = {
         info: api.status, sampling: api.reviewSampling, reviewData: api.reviewData, outputs: api.moduleOutputs,
         process: api.reviewProcess, stats: api.reviewStats, insights: api.reviewInsightsSummary,
@@ -339,6 +347,7 @@ function harness(options: {
       runViewOut += 1;
       state.runViewMaxOut = Math.max(state.runViewMaxOut, runViewOut);
       const replies = await Promise.all(names.map((name) => single[name]!(runId)))
+        .then(async (answered) => { if (held) await held; return answered; })
         .finally(() => { runViewOut -= 1; });
       if (!replies[0].ok) return replies[0];
       const parts: Record<string, any> = {};
@@ -4680,10 +4689,10 @@ test('theme comments load on a click only, follow the latest summary, and a chan
     const hold3 = statusHold;
     statusHold = null;
     hold3.resolve();
-    await waitFor(() => run.state.runViewCalls.length === before.views + 2, '3: the queued one after it');
+    await waitFor(() => statsCalls > before.stats, '3: the run-view answered');
     await new Promise((resolve) => setTimeout(resolve, 150));
     const views = run.state.runViewCalls.length - before.views;
-    assert.equal(views, 2);
+    assert.equal(views, 1, '3: both polls share it');
     assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, views, '3: review data only inside run-view');
     assert.equal(run.state.moduleOutputsCalls.length - before.outputs, views, '3: outputs only inside run-view');
     assert.equal(statsCalls - before.stats, views, '3: stats only inside run-view');
@@ -4748,4 +4757,113 @@ test('single calls keep their completion refresh and a progress change asks one 
     assert.equal((run.state.reviewDataCallsByRun[runId] || 0) - before.data, 1, '2: review data only inside it');
     assert.equal(run.state.runViewMaxOut, 1, '2: never two at once');
   } finally { run.dom.window.close(); }
+});
+
+// #516 Terra r3: the per-part loaders decide (run-view or the single call), one row each:
+// | # | situation                                                                       | expected                                  |
+// |---|---------------------------------------------------------------------------------|-------------------------------------------|
+// | 1 | run-view: the open run's sampling timer and step 4 timer fire, one run-view held | ONE run-view, no other command            |
+// | 2 | run-view: «Hoàn tất» bar of the open run without step 4 data (progressDetail)   | ONE run-view at a time, no other command  |
+// | 3 | a «Lượt hoàn tất» notice while the first run-view is unanswered; it is USAGE     | the notice waits for the single step 4    |
+// |   | and the single step 4 read is slow                                              | read and shows its count                  |
+test('the per-part loaders of the open run use its one run-view or, on an older server, their single call', async () => {
+  const runId = 'run-r3';
+  const attempt = {
+    attemptId: 'attempt-r3', planSha256: 'c'.repeat(64), createdAt: '2026-11-01T02:00:00.000Z',
+    status: 'RUNNING', errorCode: null, gate: null, stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 300, actual: null, shortfall: null, stopReason: '', stars: [] }],
+  };
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const counts = (run: ReturnType<typeof harness>) => ({ views: run.state.runViewCalls.length,
+    status: run.state.statusCalls.length, process: run.state.reviewProcessCalls.length,
+    sampling: run.state.reviewSamplingCallsByRun[runId] || 0, data: run.state.reviewDataCallsByRun[runId] || 0 });
+  const onlyRunView = (run: ReturnType<typeof harness>, before: ReturnType<typeof counts>, label: string) => {
+    const now = counts(run);
+    const views = now.views - before.views;
+    assert.ok(views >= 1, label + ': a run-view was asked');
+    assert.deepEqual({ status: now.status - before.status, process: now.process - before.process,
+      sampling: now.sampling - before.sampling, data: now.data - before.data },
+    { status: views, process: views, sampling: views, data: views }, label + ': every read inside a run-view');
+    assert.equal(run.state.runViewMaxOut, 1, label + ': never two at once');
+    return views;
+  };
+  let hold: Deferred<void> | null = null;
+
+  // 1
+  let run = harness({ runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) }, fastPoll: true, fastStep4: true,
+    samplingByRun: { [runId]: syntheticSampling({ runId, attempts: [attempt] }) },
+    reviewProcessResult: (id: string) => reviewProcessReply(id, 'RUNNING'), runViewHold: () => hold?.promise });
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => run.state.runViewCalls.length >= 3, '1: open, the timers read');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const before = counts(run);
+    hold = deferred<void>();
+    await waitFor(() => run.state.runViewCalls.length === before.views + 1, '1: one run-view held');
+    await new Promise((resolve) => setTimeout(resolve, 150));          // both timers fire many times meanwhile
+    assert.equal(onlyRunView(run, before, '1'), 1, '1: they share it');
+    const held = hold;
+    hold = null;
+    held.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    onlyRunView(run, before, '1 after');
+  } finally { hold?.resolve(); hold = null; run.dom.window.close(); }
+
+  // 2
+  run = harness({ runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) }, hasFocus: true, fastProgress: true,
+    runsProgressFor: (call: number) => progressReply([progressRun(runId, ['PASS', 'PASS', 'PASS', 'PASS'],
+      { finished: true, changedAt: '2026-11-16T08:59:' + String(10 + (call % 40)) + 'Z' })]) });
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && run.state.runsProgressCalls >= 2, '2: open');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const before = counts(run);
+    await waitFor(() => run.state.runsProgressCalls >= 8, '2: the bar redrawn');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    onlyRunView(run, before, '2');
+  } finally { run.dom.window.close(); }
+
+  // 3
+  let step4 = 'RUNNING' as 'RUNNING' | 'PASS';
+  let phase = 'before';
+  let processHold: Deferred<void> | null = null;
+  let listed = false;                                      // no run at the start: run-view not asked yet
+  run = harness({ runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    listRunsReply: async () => (listed ? undefined : { ok: true, data: { format: 'runs-v1', runs: [] } }),
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) }, oldServer: true, hasFocus: true, fastProgress: true,
+    runViewHold: () => hold?.promise, reviewProcessHold: () => processHold?.promise,
+    reviewProcessResult: (id: string) => reviewProcessReply(id, step4),
+    runsProgressFor: () => progressReply([progressRun(runId, phase === 'before' ? ['PASS', 'PASS', 'PASS', 'RUNNING']
+      : ['PASS', 'PASS', 'PASS', 'PASS'], phase === 'before'
+      ? { active: { step: 4, stage: 'label', done: 10, total: 498 } } : { finished: true })]) });
+  try {
+    await booted(run.doc);
+    await waitFor(() => run.state.runsProgressCalls >= 2, '3: progress polled');
+    assert.equal(run.state.runViewCalls.length, 0, '3: nothing open yet');
+    hold = deferred<void>();
+    listed = true;
+    tab(run.doc, 1);                                       // the run is listed and opens: the first run-view
+    await waitFor(() => run.state.runViewCalls.length === 1, '3: the first run-view out');
+    const polled = run.state.runsProgressCalls;
+    step4 = 'PASS';
+    phase = 'after';
+    await waitFor(() => run.state.runsProgressCalls >= polled + 3, '3: «finished» seen');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(run.doc.querySelector('#noticeBox .notice'), null, '3: the notice waits for run-view support');
+    processHold = deferred<void>();
+    const held = hold;
+    hold = null;
+    held.resolve();                                        // USAGE
+    await waitFor(() => run.state.reviewProcessCalls.length >= 1, '3: the single step 4 read');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(run.doc.querySelector('#noticeBox .notice'), null, '3: still waiting for that read');
+    processHold.resolve();
+    processHold = null;
+    await waitFor(() => run.doc.querySelector('#noticeBox .notice') !== null, '3: notice');
+    assert.match(run.doc.querySelector('#noticeBox .notice')!.textContent || '', /498 bình luận đã gắn chủ đề/);
+  } finally { hold?.resolve(); processHold?.resolve(); run.dom.window.close(); }
 });
