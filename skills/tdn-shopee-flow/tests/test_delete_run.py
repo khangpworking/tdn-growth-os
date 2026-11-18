@@ -3,6 +3,7 @@
 Each test owns temp runs and state roots and calls the real command line.
 Deletion is pure Python, so no node subprocess is involved.
 """
+import fcntl
 import json
 import os
 import pathlib
@@ -128,6 +129,50 @@ class DeleteRunTest(unittest.TestCase):
         self.assertEqual(rc, 20, out)
         self.assertEqual(out.get('code'), 'READONLY_ON')
         self.assertTrue(run.is_dir())
+
+    def test_delete_refuses_a_held_module_lock(self):
+        run = self.make_run('run-g7')
+        with open(run / '.module.lock', 'a') as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            rc, out = self.command('delete-run', '--run', 'run-g7')
+        self.assertEqual(rc, 20, out)
+        self.assertEqual(out.get('code'), 'RUN_ACTIVE')
+        self.assertTrue(run.is_dir(), 'a run whose admission lock is held must stay intact')
+
+    def test_delete_refuses_a_symlinked_imports_folder(self):
+        run = self.make_run('run-h8')
+        outside = self.base / 'outside-imports'
+        outside.mkdir()
+        record = outside / f'{uuid.uuid4().hex}.json'
+        write_json(record, {'format': 'metric-user-page-import-reservation-v1',
+                            'payloadSha256': 'c' * 64, 'runId': 'run-h8'})
+        (self.runs / '.imports').symlink_to(outside, target_is_directory=True)
+        rc, out = self.command('delete-run', '--run', 'run-h8')
+        self.assertEqual(rc, 20, out)
+        self.assertEqual(out.get('code'), 'RUN_DELETE_FAILED')
+        self.assertTrue(record.exists(), 'nothing outside the runs root may be unlinked')
+        self.assertTrue(run.is_dir())
+
+    @unittest.skipIf(os.geteuid() == 0, 'directory permissions do not bind root')
+    def test_delete_keeps_the_reservation_when_the_rename_fails(self):
+        run = self.make_run('run-i9')
+        import_id = uuid.uuid4().hex
+        write_json(self.runs / '.imports' / f'{import_id}.json',
+                   {'format': 'metric-user-page-import-reservation-v1',
+                    'payloadSha256': 'd' * 64, 'runId': 'run-i9'})
+        (self.runs / '.imports.lock').touch()
+        mode = self.runs.stat().st_mode
+        os.chmod(self.runs, 0o500)
+        self.addCleanup(os.chmod, self.runs, mode)
+        try:
+            rc, out = self.command('delete-run', '--run', 'run-i9')
+        finally:
+            os.chmod(self.runs, mode)
+        self.assertEqual(rc, 20, out)
+        self.assertEqual(out.get('code'), 'RUN_DELETE_FAILED')
+        self.assertTrue(run.is_dir())
+        self.assertTrue((self.runs / '.imports' / f'{import_id}.json').is_file(),
+                        'a failed rename must leave the reservation in place')
 
 
 if __name__ == '__main__':

@@ -2937,8 +2937,11 @@ def flow_run_active(run):
 
 def cmd_delete_run(ns):
     """Delete one run folder and the .imports records that point at it, under the imports lock.
-    Refused while a live process still owns the run."""
+    The run's own module admission lock is taken non-blockingly, so no module, count refresh or
+    step 4 starts while deletion runs; the folder is renamed away before any record is dropped,
+    so listings and starters stop seeing the run even if cleanup is interrupted."""
     import fcntl
+    imports_fd = None
     try:
         if module_readonly():
             raise ModuleFailure('READONLY_ON', 20)
@@ -2950,18 +2953,43 @@ def cmd_delete_run(ns):
         if run.is_symlink() or not run.is_dir() or run.resolve().parent != root:
             raise ModuleFailure('RUN_NOT_FOUND', 2)
         run = run.resolve()
-        if flow_run_active(run):
-            raise ModuleFailure('RUN_ACTIVE', 20)
-        with open(root / '.imports.lock', 'a') as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            imports = root / '.imports'
-            for path in imports.iterdir() if imports.is_dir() else []:
-                if path.is_symlink() or not path.is_file() or not path.name.endswith('.json'):
-                    continue
-                record = gate_read(path)
-                if isinstance(record, dict) and record.get('runId') == run_id:
-                    path.unlink()
-            shutil.rmtree(run)
+        with open(root / '.imports.lock', 'a') as imports_lock:
+            fcntl.flock(imports_lock.fileno(), fcntl.LOCK_EX)
+            # Same admission lock every module, count refresh and step 4 take: a live owner keeps
+            # it, and holding it here keeps a new owner out until the run is renamed away.
+            module_lock = os.open(gate_path(run, '.module.lock'),
+                                  os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o666)
+            try:
+                try:
+                    fcntl.flock(module_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    raise ModuleFailure('RUN_ACTIVE', 20)
+                if flow_run_active(run):
+                    raise ModuleFailure('RUN_ACTIVE', 20)
+                imports = root / '.imports'
+                if imports.is_symlink() or imports.exists() and not imports.is_dir():
+                    # A link or non-directory here could carry unlinks outside the runs root.
+                    raise ModuleFailure('RUN_DELETE_FAILED', 20)
+                if imports.exists():
+                    imports_fd = os.open(imports, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                deleted = root / f'.deleted-{run_id}-{int(time.time())}'
+                os.rename(run, deleted)
+                if imports_fd is not None:
+                    with os.scandir(imports_fd) as records:
+                        for entry in records:
+                            if not entry.is_file(follow_symlinks=False) or not entry.name.endswith('.json'):
+                                continue
+                            record = gate_read(imports / entry.name)
+                            if isinstance(record, dict) and record.get('runId') == run_id:
+                                os.unlink(entry.name, dir_fd=imports_fd)
+            finally:
+                os.close(module_lock)
+                if imports_fd is not None:
+                    os.close(imports_fd)
+        try:
+            shutil.rmtree(deleted)
+        except OSError:
+            pass  # The dot folder is no longer a run; leaving it only costs disk space.
         print(json.dumps({'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}))
     except ModuleFailure as failure:
         print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
