@@ -3140,8 +3140,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     progressByRun: {},
     progressRuns: [],
     progressAt: null,
-    goneRuns: [],      // deleted here or no longer listed: every late reply drops these runs
+    // A run becomes gone ONLY on (a) our delete-run success, (b) RUN_NOT_FOUND from the server, or
+    // (c) a SUCCESSFUL runs listing that does not contain a run whose creation had finished when that
+    // listing was asked. A transport or list error never marks anything gone. Every late reply drops
+    // gone runs.
+    goneRuns: [],
     goneTold: [],      // runs already told «Lượt này đã bị xóa.» (or deleted here)
+    metricListSeq: 0,
+    runsPromise: null,  // the step 1 run counts for (c) only in lists asked after its import finished
     scrollTarget: null,
     noticeChain: Promise.resolve()
   };
@@ -3540,6 +3546,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
     var name = runDisplayName(item.tracking || null, item.product || '');
     var res = await api.saveMetricShot(runId, name, sha256);
+    if (isGone(runId)) {
+      if (res.ok && res.data && res.data.saved) showToast('Đã lưu ảnh');   // the file was saved all the same
+      return;
+    }
     delete state.moduleEvidenceBusy[runId];
     if (!res.ok) state.moduleEvidenceErrors[runId] = res.error;
     else if (res.data && res.data.saved) showToast('Đã lưu ảnh');
@@ -3569,6 +3579,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     delete state.moduleEvidenceNotice[runId];
     if (state.selectedRunId === runId) renderDetail();
     var res = await api.openLocalMetricShot(runId);
+    if (isGone(runId)) return;
     delete state.moduleEvidenceBusy[runId];
     if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
@@ -7055,10 +7066,16 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
   }
 
-  async function fetchRuns() {
+  // The listing (null on a list error). A listing overtaken by a newer one answers with the newer one's result.
+  function fetchRuns() {
     var seq = ++state.runsSeq;
+    state.runsPromise = listRunsOnce(seq);
+    return state.runsPromise;
+  }
+
+  async function listRunsOnce(seq) {
     var res = await api.listRuns();
-    if (seq !== state.runsSeq) return null;
+    if (seq !== state.runsSeq) return state.runsPromise;
     if (!res.ok) { showError(res.error); return null; }
     var listedBefore = state.runs.map(function (run) { return run.runId; });
     state.runs = ((res.data && res.data.runs) || []).filter(function (run) { return !isGone(run.runId); });
@@ -7071,9 +7088,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     // A run that was listed and is no longer (deleted here or by a coworker) leaves the progress bar
     // and every cache too. A run progress shows before the list does (just created) is kept.
-    listedBefore.filter(function (runId) {
-      return !state.runs.some(function (item) { return item.runId === runId; });
-    }).forEach(forgetRun);
+    var missing = function (runId) { return !state.runs.some(function (item) { return item.runId === runId; }); };
+    listedBefore.filter(missing).forEach(forgetRun);
+    // The step 1 run (and «Xem lượt vừa tạo», the open it asked for) by the same rule (c).
+    if (state.metricRunId && seq > state.metricListSeq && missing(state.metricRunId)) forgetRun(state.metricRunId);
     renderRunList();
     renderRunStatus();
     return res;
@@ -7120,6 +7138,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // A run that is gone (deleted elsewhere, RUN_NOT_FOUND): leave it quietly, tell once, never open another.
   async function runGone(runId) {
     forgetRun(runId);
+    state.runs = state.runs.filter(function (run) { return run.runId !== runId; });
+    renderRunList();
     renderDetail();
     renderRunStatus();
     if (state.goneTold.indexOf(runId) === -1) {
@@ -7133,9 +7153,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (!state.connected) {
       state.runs = [];
       renderRunList();
-      return;
+      return null;
     }
-    await fetchRuns();
+    return fetchRuns();
   }
 
   async function loadInfo(runId) {
@@ -8667,11 +8687,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     clearError();
     var preferred = state.preferredRunId;      // read before the refresh, which may forget it
     state.preferredRunId = null;
-    await refreshRuns();
-    if (preferred && !isGone(preferred) && state.runs.some(function (run) { return run.runId === preferred; })) {
+    var listed = await refreshRuns();
+    if (preferred && !listed && !isGone(preferred)) {
+      state.preferredRunId = preferred;         // list error: keep it for the next open, normal error shown
+      renderDetail();
+    } else if (preferred && !isGone(preferred) && state.runs.some(function (run) { return run.runId === preferred; })) {
       await selectRun(preferred);
     } else if (preferred) {
-      await runGone(preferred);
+      await runGone(preferred);                 // gone, or missing from a successful list (rule c)
     } else if (state.selectedRunId) {
       await selectRun(state.selectedRunId);
     } else if (state.runs.length) {
@@ -8875,6 +8898,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var data = res.data;
     if (isGone(data.runId)) return;
     state.metricRunId = data.runId;
+    state.metricListSeq = state.runsSeq;      // lists asked from now on must contain it
     state.preferredRunId = data.runId;
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
       : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';

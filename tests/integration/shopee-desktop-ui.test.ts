@@ -59,6 +59,7 @@ function harness(options: {
   runsProgressResults?: any[];
   runsProgressFor?: (call: number) => any | Promise<any>;
   listRunsHold?: () => Promise<void> | undefined;
+  listRunsError?: () => any;
   libraryResult?: any;
   hasFocus?: boolean;
   fastProgress?: boolean;
@@ -158,6 +159,8 @@ function harness(options: {
       if (options.listRunsGate && state.flowCalls.length > 0) await options.listRunsGate.promise;
       const hold = options.listRunsHold && options.listRunsHold();
       if (hold) await hold;
+      const failure = options.listRunsError && options.listRunsError();
+      if (failure) return clone(failure);
       return { ok: true, data: { format: 'runs-v1', runs: state.runsView.slice() } };
     },
     library: async () => clone(options.libraryResult || ({ ok: true, data: { format: 'library-v1', modules: {}, skills: [] } })),
@@ -3753,5 +3756,60 @@ test('late replies never bring a deleted run back', async () => {
     assert.doesNotMatch(listed(run.doc, 'runList'), /Sản phẩm A/, '4: track list at once');
     assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, '4: result list at once');
     listHold.resolve();
+  } finally { run.dom.window.close(); }
+});
+
+// When a run counts as gone (F645, Terra r2 on #508), one row each:
+// | # | situation                                                           | expected                                                    |
+// |---|---------------------------------------------------------------------|-------------------------------------------------------------|
+// | 1 | info says RUN_NOT_FOUND, the list refresh is slow                   | both lists without the run at once, «Lượt này đã bị xóa.»   |
+// | 2 | «Xem lượt» on a new run's notice while the run list fails           | normal error, not «đã bị xóa»; once the list works it opens |
+// (#3 is in shopee-desktop-step1-ui.test.ts. #4, a late local-picture open or save after the delete, writes no
+// per-run state; nothing of it is visible on the page.)
+test('a run is gone only on delete, RUN_NOT_FOUND or a successful list without it', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'DONE' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  const runC = { runId: 'run-c', product: 'Sản phẩm C', status: 'RUNNING' };
+  const listed = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => b.textContent!).join('|');
+
+  // 1
+  let listHold: Deferred<void> | null = null;
+  let run = harness({ runs: [runB, runA], runInfoByRun: { 'run-b': syntheticRunInfo('run-b') },
+    listRunsHold: () => listHold?.promise });
+  try {
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm A'), '1: list');
+    listHold = deferred<void>();
+    runListButton(run.doc, 'run-a').click();      // the server no longer has it
+    await waitFor(() => element(run.doc, 'toast').textContent === 'Lượt này đã bị xóa.', '1: told');
+    assert.doesNotMatch(listed(run.doc, 'runList'), /Sản phẩm A/, '1: track list at once');
+    assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, '1: result list at once');
+    listHold.resolve();
+  } finally { run.dom.window.close(); }
+
+  // 2
+  let phase = 'before';
+  let listFails = false;
+  run = harness({ runs: [runB], runInfoByRun: { 'run-b': syntheticRunInfo('run-b'), 'run-c': syntheticRunInfo('run-c') },
+    hasFocus: true, fastProgress: true,
+    listRunsError: () => (listFails ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } } : undefined),
+    runsProgressFor: () => progressReply(phase === 'before' ? []
+      : [progressRun('run-c', ['RUNNING', 'IDLE', 'IDLE', 'IDLE'], { active: { step: 1, stage: null, done: null, total: null } })]) });
+  try {
+    await waitFor(() => run.state.runsProgressCalls >= 2, '2: first polls');
+    listFails = true;                              // run-c is new: not in any successful list yet
+    phase = 'after';
+    await waitFor(() => run.doc.querySelector('#noticeBox .notice-go') !== null, '2: notice');
+    run.doc.querySelector<HTMLAnchorElement>('#noticeBox .notice-go')!.click();
+    await waitFor(() => !element(run.doc, 'errbar').hidden, '2: list error shown');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.notEqual(element(run.doc, 'toast').textContent, 'Lượt này đã bị xóa.', '2: not told gone');
+    listFails = false;
+    run.state.runsView = [runC, runB];
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => listed(run.doc, 'runList').includes('Sản phẩm C'), '2: run-c still shows');
+    await waitFor(() => run.state.statusCalls.includes('run-c'), '2: the kept request opens run-c');
   } finally { run.dom.window.close(); }
 });
