@@ -62,6 +62,7 @@ function harness(options: {
   fastProgress?: boolean;
   fastPoll?: boolean;
   bridge?: 'complete' | 'partial';
+  localShots?: Record<string, boolean>;
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -91,6 +92,7 @@ function harness(options: {
     captureSpecsResult: ((runId: string, call: number) => any | Promise<any> | undefined) | undefined;
     moduleOutputsCalls: string[];
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
+    openLocalShotCalls: string[];
     openLinkCalls: string[];
     reviewProcessCalls: string[];
     processReviewDataCalls: { runId: string; sourceSha256: string }[];
@@ -121,6 +123,7 @@ function harness(options: {
     captureSpecsResult: options.captureSpecsResult,
     moduleOutputsCalls: [],
     openEvidenceCalls: [],
+    openLocalShotCalls: [],
     openLinkCalls: [],
     reviewProcessCalls: [],
     processReviewDataCalls: [],
@@ -182,6 +185,12 @@ function harness(options: {
       state.openEvidenceCalls.push({ runId, kind, sha256 });
       if (options.openModuleEvidenceResult) return options.openModuleEvidenceResult(runId, kind, sha256);
       return { ok: true, data: { format: 'module-evidence-open-v1', runId, kind, sha256, opened: true } };
+    },
+    localMetricShot: async (runId: string) => ({ ok: true,
+      data: { format: 'local-metric-shot-v1', runId, exists: !!(options.localShots && options.localShots[runId]) } }),
+    openLocalMetricShot: async (runId: string) => {
+      state.openLocalShotCalls.push(runId);
+      return { ok: true, data: { format: 'local-metric-shot-open-v1', runId, opened: true } };
     },
     openShopeeLink: async (url: string) => {
       state.openLinkCalls.push(url);
@@ -3381,4 +3390,46 @@ test('dead links: an attempt that finishes while the run is open shows its group
     assert.equal(chip.textContent, 'Xong, có link bị bỏ');
     assert.equal(chip.className, 'chip s-warn');
   } finally { run.dom.window.close(); }
+});
+
+// «Xem ảnh toàn trang Metric» (F642): the shot this PC took at «Lấy bình luận Shopee» comes first.
+// | local shot for the run | server picture (m1.evidence.fullPage) | button                          | click opens             |
+// |------------------------|---------------------------------------|---------------------------------|-------------------------|
+// | yes                    | missing (user-page run)               | enabled                         | the local file          |
+// | no                     | available                             | enabled                         | the server picture      |
+// | no                     | missing                               | disabled + «Ảnh chỉ lưu trên máy đã lấy dữ liệu» | nothing |
+test('the full-page Metric picture: local shot first, then the server picture, else a hint', async () => {
+  const missing = { available: false, kind: 'full-page', sha256: null, byteSize: null, mediaType: 'image/png',
+    fileName: 'full-page.png', errorCode: 'EVIDENCE_FILES_MISSING' };
+  const rows: { label: string; local: boolean; fullPage: any; enabled: boolean; opens: 'local' | 'server' | null }[] = [
+    { label: 'local shot', local: true, fullPage: missing, enabled: true, opens: 'local' },
+    { label: 'server picture', local: false, fullPage: evidenceDescriptor('full-page', 'full-page.png', 'image/png'),
+      enabled: true, opens: 'server' },
+    { label: 'neither', local: false, fullPage: missing, enabled: false, opens: null },
+  ];
+  for (const row of rows) {
+    const run = harness({
+      runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+      runInfo: syntheticRunInfo(), localShots: { 'run-synthetic': row.local },
+      moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
+        { evidence: { fullPage: row.fullPage, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
+    });
+    try {
+      await waitFor(() => run.doc.getElementById('moM1FullPage') !== null, row.label);
+      if (row.local) await waitFor(() => !(run.doc.getElementById('moM1FullPage') as HTMLButtonElement).disabled, 'local shot found');
+      const button = element<HTMLButtonElement>(run.doc, 'moM1FullPage');
+      assert.equal(button.textContent, 'Xem ảnh toàn trang Metric', row.label);
+      assert.equal(button.disabled, !row.enabled, row.label + ': enabled');
+      assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent ?? null,
+        row.enabled ? null : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu', row.label + ': hint');
+      button.click();
+      if (row.opens) {
+        await waitFor(() => run.state.openLocalShotCalls.length + run.state.openEvidenceCalls.length === 1, row.label + ': opened');
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+      assert.deepEqual(run.state.openLocalShotCalls, row.opens === 'local' ? ['run-synthetic'] : [], row.label + ': local open');
+      assert.equal(run.state.openEvidenceCalls.length, row.opens === 'server' ? 1 : 0, row.label + ': server open');
+    } finally { run.dom.window.close(); }
+  }
 });

@@ -872,6 +872,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     PICK_POLICY_MISMATCH: 'Cách chọn sản phẩm không khớp với lượt này.',
     PICK_TITLE_GROUP_UNRESOLVED: 'Tên sản phẩm mơ hồ nên chưa xác định đủ sản phẩm khác nhau.',
     FEWER_THAN_FIVE_DISTINCT_PRODUCTS: 'Dữ liệu đã thu không đủ 5 sản phẩm khác nhau.',
+    EVIDENCE_LOCAL_MISSING: 'Ảnh chỉ lưu trên máy đã lấy dữ liệu.',
     LINK_NOT_ALLOWED: 'Chỉ mở được link sản phẩm Shopee.',
     LINK_OPEN_FAILED: 'Chưa mở được link trong trình duyệt của máy.'
   };
@@ -2613,6 +2614,12 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       openModuleEvidence: function () {
         return Promise.resolve(err('EVIDENCE_FILES_MISSING', 'EVIDENCE_FILES_MISSING'));
       },
+      localMetricShot: function (runId) {
+        return Promise.resolve(ok({ format: 'local-metric-shot-v1', runId: runId, exists: false }));
+      },
+      openLocalMetricShot: function () {
+        return Promise.resolve(err('EVIDENCE_LOCAL_MISSING', 'EVIDENCE_LOCAL_MISSING'));
+      },
       openShopeeLink: function (url) {
         if (typeof url !== 'string' || !/^https:\/\/shopee\.vn\//.test(url)) {
           return Promise.resolve(err('LINK_NOT_ALLOWED', 'LINK_NOT_ALLOWED'));
@@ -2949,6 +2956,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         return call('openModuleEvidence', [runId, kind, sha256]);
       },
       openShopeeLink: function (url) { return call('openShopeeLink', [url]); },
+      localMetricShot: function (runId) { return call('localMetricShot', [runId]); },
+      openLocalMetricShot: function (runId) { return call('openLocalMetricShot', [runId]); },
       newRun: function (input) { return call('newRun', [input]); },
       addProduct: function (input) { return call('addProduct', [input]); },
       status: function (runId) { return call('status', [runId]); },
@@ -3047,6 +3056,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     samplingPoll: null,
     samplingPollRunId: null,
     moduleOutputs: {},
+    localShots: {},
     moduleOutputsErrors: {},
     moduleOutputsSeq: {},
     reviewStats: {},
@@ -3423,6 +3433,59 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return btn;
   }
 
+  // «Xem ảnh toàn trang Metric»: the shot this PC took at «Lấy bình luận Shopee» first, else the
+  // server's saved picture, else a disabled button with where the picture is.
+  function metricFullPageAction(runId, descriptor) {
+    var label = 'Xem ảnh toàn trang Metric';
+    if (state.localShots[runId] === true) {
+      var btn = h('button', 'abtn', state.moduleEvidenceBusy[runId] ? 'Đang mở…' : label);
+      btn.type = 'button';
+      btn.id = 'moM1FullPage';
+      btn.disabled = !!state.moduleEvidenceBusy[runId];
+      btn.addEventListener('click', function () { openLocalShot(runId); });
+      return btn;
+    }
+    if (outputEvidenceAvailable(descriptor)) return outputEvidenceButton('moM1FullPage', label, runId, descriptor);
+    if (descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
+      return outputEvidenceAction('moM1FullPage', label, runId, descriptor);
+    }
+    var wrap = h('span', 'rs-actions');
+    var off = h('button', 'abtn', label);
+    off.type = 'button';
+    off.id = 'moM1FullPage';
+    off.disabled = true;
+    wrap.appendChild(off);
+    var hint = h('span', 'rs-note', 'Ảnh chỉ lưu trên máy đã lấy dữ liệu');
+    hint.id = 'moM1FullPageHint';
+    wrap.appendChild(hint);
+    return wrap;
+  }
+
+  async function openLocalShot(runId) {
+    if (state.moduleEvidenceBusy[runId]) return;
+    state.moduleEvidenceBusy[runId] = true;
+    delete state.moduleEvidenceErrors[runId];
+    delete state.moduleEvidenceNotice[runId];
+    if (state.selectedRunId === runId) renderDetail();
+    var res = await api.openLocalMetricShot(runId);
+    delete state.moduleEvidenceBusy[runId];
+    if (!res.ok) {
+      state.moduleEvidenceErrors[runId] = res.error;
+      if (errorCode(res.error) === 'EVIDENCE_LOCAL_MISSING') state.localShots[runId] = false;
+    } else {
+      state.moduleEvidenceNotice[runId] = 'Đã mở ảnh toàn trang Metric lưu trên máy này.';
+    }
+    if (state.selectedRunId === runId) renderDetail();
+  }
+
+  async function loadLocalShot(runId) {
+    var res = await api.localMetricShot(runId);
+    var exists = !!(res.ok && res.data && res.data.runId === runId && res.data.exists === true);
+    if (state.localShots[runId] === exists) return;
+    state.localShots[runId] = exists;
+    if (state.selectedRunId === runId) renderDetail();
+  }
+
   function outputEvidenceAction(id, label, runId, descriptor) {
     if (outputEvidenceAvailable(descriptor)) return outputEvidenceButton(id, label, runId, descriptor);
     return h('span', 'rs-note', descriptor && descriptor.errorCode
@@ -3466,8 +3529,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (m1.errorCode) card.appendChild(outputErrorBar(m1.errorCode));
 
     var actions = h('div', 'rs-actions');
-    actions.appendChild(outputEvidenceAction('moM1FullPage', 'Xem ảnh toàn trang Metric',
-      runId, m1.evidence && m1.evidence.fullPage));
+    actions.appendChild(metricFullPageAction(runId, m1.evidence && m1.evidence.fullPage));
     card.appendChild(actions);
 
     if (capture === true && valid === true) {
@@ -4106,6 +4168,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function loadModuleOutputs(runId) {
+    loadLocalShot(runId);
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
     var res = await api.moduleOutputs(runId);

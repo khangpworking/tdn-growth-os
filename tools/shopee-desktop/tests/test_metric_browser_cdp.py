@@ -197,14 +197,15 @@ class RealChromeTest(unittest.TestCase):
 
         # One evaluate with the real shared function: on a non-Metric origin it stops by itself.
         frozen = listener.freeze()
-        shots = pathlib.Path(self.folder) / 'evidence'
-        shots.mkdir()
+        shots = pathlib.Path(self.folder) / 'evidence' / 'metric'
+        shots.parent.mkdir()
+        picture = listener.full_page_shot(frozen, shots)     # real Chrome: full page, beyond the viewport
+        self.assertEqual(picture.read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
+        self.assertEqual(list(shots.glob('metric-*.png')), [picture])
         with self.assertRaises(mb.MetricFailure) as caught:
-            listener.fetch_top_products(frozen, mb.request_in_page_source(), screenshot_dir=shots)
+            listener.fetch_top_products(frozen, mb.request_in_page_source(), screenshot_saved=True)
         self.assertEqual(caught.exception.code, 'CAPTURE_ORIGIN_CHANGED')
-        pictures = list(shots.glob('metric-loi_*.png'))
-        self.assertEqual(len(pictures), 1)
-        self.assertEqual(pictures[0].read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
+        self.assertEqual(caught.exception.detail, {'screenshotSaved': True})
 
         # The same path with a local stand-in function: the reply comes back by value and the
         # app's own request is not taken as the user's filter.

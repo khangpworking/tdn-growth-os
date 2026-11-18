@@ -739,20 +739,24 @@ class FreezeAndRequestTest(unittest.TestCase):
         self.assertEqual(json.dumps(sent, sort_keys=True), json.dumps(expected, sort_keys=True))
         self.assertEqual(response['urlPath'], '/v2/market/analytics/products/')
 
-    def test_a_page_stop_code_takes_a_screenshot_into_the_evidence_folder(self):
+    def test_the_full_page_shot_covers_the_whole_page_and_never_raises(self):
         self.tab.products_request(page_body())
         frozen = self.listener.freeze()
-        self.tab.answers['Runtime.evaluate'] = {'result': {'value': {'stop': 'CAPTURE_PAGE_SESSION_UNAVAILABLE'}}}
+        self.tab.answers['Page.getLayoutMetrics'] = {'cssContentSize': {'x': 0, 'y': 0, 'width': 1280, 'height': 5400}}
         self.tab.answers['Page.captureScreenshot'] = {'data': base64.b64encode(b'\x89PNG fake').decode()}
         with tempfile.TemporaryDirectory() as folder:
-            with self.assertRaises(mb.MetricFailure) as caught:
-                self.listener.fetch_top_products(frozen, self.SOURCE, screenshot_dir=folder)
-            files = list(pathlib.Path(folder).iterdir())
-            self.assertEqual(len(files), 1)
-            self.assertRegex(files[0].name, r'^metric-loi_\d{4}-\d\d-\d\d-\d\d-\d\d-\d\d\.png$')
-            self.assertEqual(files[0].read_bytes(), b'\x89PNG fake')
-        self.assertEqual(caught.exception.code, 'CAPTURE_PAGE_SESSION_UNAVAILABLE')
-        self.assertEqual(caught.exception.detail, {'screenshotSaved': True})
+            path = self.listener.full_page_shot(frozen, pathlib.Path(folder) / 'metric')
+            self.assertRegex(path.name, r'^metric-\d{4}-\d\d-\d\d-\d{6}\.png$')
+            self.assertEqual(path.read_bytes(), b'\x89PNG fake')
+            shot = [params for method, params in self.tab.calls if method == 'Page.captureScreenshot'][0]
+            self.assertEqual(shot, {'format': 'png', 'captureBeyondViewport': True,
+                                    'clip': {'x': 0, 'y': 0, 'width': 1280.0, 'height': 5400.0, 'scale': 1}})
+
+            def broken(**_):
+                raise RuntimeError('capture failed')
+            self.tab.answers['Page.captureScreenshot'] = broken
+            self.assertIsNone(self.listener.full_page_shot(frozen, folder))
+            self.assertIsNone(self.listener.full_page_shot(frozen, None))
 
     def test_no_screenshot_on_success_and_a_detached_tab_is_refused(self):
         self.tab.products_request(page_body())
@@ -994,6 +998,8 @@ class FakeSession(mb.MetricSession):
                                          'requestBody': arg['requestBody'],
                                          'body': {'status': 'success', 'data': {'products': self.rows}}}}}
         self.tab.answers['Runtime.evaluate'] = evaluate
+        self.tab.answers['Page.getLayoutMetrics'] = {'cssContentSize': {'width': 1280, 'height': 4000}}
+        self.tab.answers['Page.captureScreenshot'] = {'data': base64.b64encode(b'\x89PNG click').decode()}
 
 
 class BridgeTest(unittest.TestCase):
@@ -1007,8 +1013,10 @@ class BridgeTest(unittest.TestCase):
         self.api._metric = self.session
         self.remote_calls = []
         self.answers = []
+        self.shots = pathlib.Path(self.tmp.name) / 'metric'
         patches = [mock.patch.object(tdn_shopee_app, '_load_config', lambda: dict(self.CONFIG)),
                    mock.patch.object(tdn_shopee_app, '_evidence_folder', lambda: pathlib.Path(self.tmp.name)),
+                   mock.patch.object(tdn_shopee_app, '_metric_shot_folder', lambda: self.shots),
                    mock.patch.object(self.api, '_remote', self.fake_remote)]
         for patch in patches:
             patch.start()
@@ -1065,6 +1073,85 @@ class BridgeTest(unittest.TestCase):
                 data = {'format': 'module-outputs-v1', 'runId': 'a1b2c3d4', 'm1': {}, 'm2': {}, **extra}
                 self.answers = [{'ok': True, 'data': json.loads(json.dumps(data))}]
                 self.assertEqual(self.api.moduleOutputs('a1b2c3d4'), {'ok': True, 'data': data})
+
+    def shot_files(self):
+        return sorted(path.name for path in self.shots.glob('*.png')) if self.shots.exists() else []
+
+    def test_every_click_keeps_one_full_page_shot_on_this_pc(self):
+        """| click outcome                     | shots on this PC                  | sent to the server       |
+        |-----------------------------------|-----------------------------------|--------------------------|
+        | run created                       | <runId>-metric-full-page.png      | payload without the shot |
+        | fewer than 5 Shopee products      | metric-<time>.png                 | nothing                  |
+        | Metric stops (page error)         | metric-<time>.png, said in error  | nothing                  |
+        | send fails, then «Gửi lại»        | the same shot, linked on success  | same payload             |
+        | the shot itself fails             | none; the capture still works     | payload                  |"""
+        stamped = r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$'
+        with self.subTest('run created'):
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
+            self.assertEqual((self.shots / 'a1b2c3d4-metric-full-page.png').read_bytes(), b'\x89PNG click')
+            sent = json.dumps(self.remote_calls[0][2])
+            self.assertNotIn('png', sent)
+            self.assertNotIn('shot', sent.lower())
+        for label, setup, code in (
+                ('fewer than 5 Shopee products', lambda: setattr(self.session, 'rows', products(4)), 'METRIC_TOO_FEW_SHOPEE'),
+                ('Metric stops', lambda: self.session.tab.answers.__setitem__(
+                    'Runtime.evaluate', {'result': {'value': {'stop': 'CAPTURE_LOGIN_REQUIRED'}}}), 'CAPTURE_LOGIN_REQUIRED')):
+            with self.subTest(label):
+                self.setUp_fresh()
+                setup()
+                result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
+                self.assertEqual(result['error']['code'], code)
+                self.assertEqual(len(self.shot_files()), 1)
+                self.assertRegex(self.shot_files()[0], stamped)
+                self.assertEqual(self.remote_calls, [])
+                if code.startswith('CAPTURE_'):
+                    self.assertEqual(result['error']['detail'], {'screenshotSaved': True})
+        with self.subTest('send fails, then resend'):
+            self.setUp_fresh()
+            self.answers = [tdn_shopee_app._BridgeFailure('SSH_TIMEOUT')]
+            self.assertFalse(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertRegex(self.shot_files()[0], stamped)
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.resendMetricImport()['ok'])
+            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
+            self.assertEqual(self.session.tab.methods().count('Page.captureScreenshot'), 1)
+        with self.subTest('the shot fails'):
+            self.setUp_fresh()
+
+            def broken(**_):
+                raise RuntimeError('capture failed')
+            self.session.tab.answers['Page.captureScreenshot'] = broken
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertEqual(self.shot_files(), [])
+
+    def setUp_fresh(self):
+        """A new click world in the same test: new session, empty shot folder, no remote calls."""
+        for path in self.shot_files():
+            (self.shots / path).unlink()
+        self.session = FakeSession(self.tmp.name)
+        self.api._metric = self.session
+        self.remote_calls = []
+        self.answers = []
+
+    def test_the_run_picture_opens_from_this_pc(self):
+        """| local shot for the run | localMetricShot | openLocalMetricShot          |
+        |------------------------|-----------------|------------------------------|
+        | present                | exists          | opens that file              |
+        | absent                 | not exists      | EVIDENCE_LOCAL_MISSING       |"""
+        opened = []
+        with mock.patch.object(tdn_shopee_app, '_open_local_file', opened.append):
+            self.assertEqual(self.api.localMetricShot('a1b2c3d4')['data']['exists'], False)
+            self.assertEqual(self.api.openLocalMetricShot('a1b2c3d4')['error']['code'], 'EVIDENCE_LOCAL_MISSING')
+            self.shots.mkdir()
+            (self.shots / 'a1b2c3d4-metric-full-page.png').write_bytes(b'\x89PNG')
+            self.assertEqual(self.api.localMetricShot('a1b2c3d4')['data'],
+                             {'format': 'local-metric-shot-v1', 'runId': 'a1b2c3d4', 'exists': True})
+            self.assertTrue(self.api.openLocalMetricShot('a1b2c3d4')['ok'])
+        self.assertEqual(opened, [self.shots / 'a1b2c3d4-metric-full-page.png'])
+        self.assertEqual(self.remote_calls, [])
 
     def test_m1_import_plan_sends_the_payload_on_stdin(self):
         payload = {'format': 'metric-user-page-import-v1', 'keyword': 'cà phê'}
