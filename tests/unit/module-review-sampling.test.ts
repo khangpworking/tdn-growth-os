@@ -368,8 +368,15 @@ async function withStdin<T>(text: string, run: () => Promise<T>): Promise<T> {
   try { return await run(); } finally { Object.defineProperty(process, 'stdin', descriptor); }
 }
 
-test('the views action returns one entry per run in input order from stdin', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'shopee-views-'));
+async function withStdout<T>(run: (lines: string[]) => Promise<T>): Promise<T> {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'stdout')!;
+  const lines: string[] = [];
+  Object.defineProperty(process, 'stdout', { value: { write: (chunk: string) => { lines.push(String(chunk)); return true; } }, configurable: true });
+  try { return await run(lines); } finally { Object.defineProperty(process, 'stdout', descriptor); }
+}
+
+test('the serve-views action answers one line per run in input order', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'shopee-serve-views-'));
   const state = join(dir, 'state'), first = join(dir, 'run-a'), second = join(dir, 'run-b');
   await mkdir(state);
   await mkdir(first);
@@ -377,10 +384,11 @@ test('the views action returns one entry per run in input order from stdin', asy
   const previous = process.env.SHOPEE_FLOW_STATE;
   process.env.SHOPEE_FLOW_STATE = state;
   try {
-    const result = await withStdin(JSON.stringify([first, second]), () =>
-      reviewSamplingCommand(['views'])) as { format: string, entries: unknown[] };
-    assert.equal(result.format, 'review-sampling-views-v1');
-    assert.deepEqual(result.entries, [{ ok: true, view: await reviewSamplingView(first) },
+    const lines = await withStdout(lines => withStdin(`${JSON.stringify(first)}\n${JSON.stringify(second)}\n`, async () => {
+      await reviewSamplingCommand(['serve-views']);
+      return lines;
+    }));
+    assert.deepEqual(lines.map(line => JSON.parse(line)), [{ ok: true, view: await reviewSamplingView(first) },
       { ok: true, view: await reviewSamplingView(second) }]);
   } finally {
     if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;
@@ -389,8 +397,8 @@ test('the views action returns one entry per run in input order from stdin', asy
   }
 });
 
-test('the views action reports a failing run as its own entry and keeps the other runs', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'shopee-views-'));
+test('the serve-views action answers a failing run and keeps serving the others', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'shopee-serve-views-'));
   const state = join(dir, 'state'), good = join(dir, 'run-a'), bad = join(dir, 'run-b');
   await mkdir(state);
   await mkdir(good);
@@ -399,13 +407,16 @@ test('the views action reports a failing run as its own entry and keeps the othe
   const previous = process.env.SHOPEE_FLOW_STATE;
   process.env.SHOPEE_FLOW_STATE = state;
   try {
-    const result = await withStdin(JSON.stringify([bad, good]), () =>
-      reviewSamplingCommand(['views'])) as { format: string, entries: { ok: boolean, error?: { code: string, message: string } }[] };
-    const [failed, kept] = result.entries;
+    const lines = await withStdout(lines => withStdin(`${JSON.stringify(bad)}\n${JSON.stringify(good)}\n`, async () => {
+      await reviewSamplingCommand(['serve-views']);
+      return lines;
+    }));
+    const [failed, kept] = lines.map(line => JSON.parse(line)) as { ok: boolean, error?: { code: string, message: string, exitCode: number } }[];
     assert.ok(failed);
     assert.equal(failed.ok, false);
     assert.equal(failed.error?.code, 'REVIEW_PLAN_INVALID');
     assert.equal(failed.error?.message, 'REVIEW_PLAN_INVALID');
+    assert.equal(failed.error?.exitCode, 20);
     assert.deepEqual(kept, { ok: true, view: await reviewSamplingView(good) });
   } finally {
     if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;

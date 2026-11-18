@@ -328,23 +328,32 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   await atomicJson(run,`${base}/state.json`,{format:'shopee-review-attempt-state-v1',attemptSha256:prior.attemptSha256,status,pid:null,errorCode,outputSha256,endedAt:new Date().toISOString()});
   return {format:'review-attempt-control-v1',runId:basename(run),kind:deps.kind,attemptId:deps.attemptId,status,pid:null,errorCode};
 }
-async function inputJson(limit=65536):Promise<unknown>{let value='';for await(const part of process.stdin){value+=String(part);if(Buffer.byteLength(value)>limit)throw new ModuleError('REVIEW_INPUT_INVALID',2);}return JSON.parse(value);}
+async function inputJson():Promise<unknown>{let value='';for await(const part of process.stdin){value+=String(part);if(Buffer.byteLength(value)>65536)throw new ModuleError('REVIEW_INPUT_INVALID',2);}return JSON.parse(value);}
 function samplingFailure(error:unknown){
   const code=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_INPUT_INVALID';
   return {code,message:code,exitCode:error instanceof ModuleError?error.exitCode:2};
 }
+/** One long-lived process serves many runs: one run path per stdin line in, one answer line out. */
+async function serveViews(){
+  let buffer='';
+  for await(const part of process.stdin){
+    buffer+=String(part);
+    let newline;
+    while((newline=buffer.indexOf('\n'))>=0){
+      const line=buffer.slice(0,newline);buffer=buffer.slice(newline+1);
+      let answer:unknown;
+      try{
+        const target=JSON.parse(line);
+        if(typeof target!=='string')throw new ModuleError('USAGE',2);
+        answer={ok:true,view:await reviewSamplingView(resolve(target))};
+      }catch(error){answer={ok:false,error:samplingFailure(error)};}
+      process.stdout.write(`${JSON.stringify(answer)}\n`);
+    }
+  }
+}
 export async function reviewSamplingCommand(args:string[]){
   const [action,runArg,...rest]=args;
-  if(action==='views'){
-    const targets=await inputJson(Infinity);
-    if(!Array.isArray(targets)||targets.some(target=>typeof target!=='string'))throw new ModuleError('USAGE',2);
-    const entries:unknown[]=[];
-    for(const target of targets){
-      try{entries.push({ok:true,view:await reviewSamplingView(resolve(target))});}
-      catch(error){entries.push({ok:false,error:samplingFailure(error)});}
-    }
-    return {format:'review-sampling-views-v1',entries};
-  }
+  if(action==='serve-views'){await serveViews();return;}
   if(!runArg)throw new ModuleError('USAGE',2);const run=resolve(runArg);
   if(action==='view')return reviewSamplingView(run);
   if(action==='configured-reserve')return reserveConfiguredAttempt(run,{executionId:rest[0]??'',sequence:Number(rest[1])});
@@ -362,7 +371,7 @@ export async function reviewSamplingCommand(args:string[]){
   }
   throw new ModuleError('USAGE',2);
 }
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))void reviewSamplingCommand(process.argv.slice(2)).then(result=>{process.stdout.write(`${JSON.stringify(result)}\n`);}).catch(error=>{
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))void reviewSamplingCommand(process.argv.slice(2)).then(result=>{if(result!==undefined)process.stdout.write(`${JSON.stringify(result)}\n`);}).catch(error=>{
   const code=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_INPUT_INVALID';
   process.stdout.write(`${JSON.stringify({format:'error-v1',code,message:code})}\n`);process.exitCode=error instanceof ModuleError?error.exitCode:2;
 });
