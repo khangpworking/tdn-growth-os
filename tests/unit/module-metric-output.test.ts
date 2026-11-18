@@ -515,3 +515,34 @@ test('F644 a saved productSelection that disagrees with the request is PICK_PROO
   await writeFile(join(run, 'm2/selection.json'), jsonBytes(selection));
   await assert.rejects(verifyModuleSelection(run), (error: any) => error?.code === 'PICK_PROOF_MISMATCH');
 });
+
+test('F644 round-2: a selection with productSelection requires the link log and its saved digest', async t => {
+  const { run } = await buildRun(t, { rows: distinct(9), policy: 'metric-products-unique-v2', productSelection: { mode: 'all' } });
+  const selectionPath = join(run, 'm2/selection.json'), logPath = join(run, 'm2/link-checks.json');
+  const selectionText = await readFile(selectionPath, 'utf8'), logText = await readFile(logPath, 'utf8');
+  const fail = (message: string) => assert.rejects(verifyModuleSelection(run),
+    (error: any) => error?.code === 'PICK_PROOF_MISMATCH', message);
+  assert.equal((await verifyModuleSelection(run) as any).selectedCount, 9);
+  await rm(logPath);
+  await fail('all mode without the link log fails instead of replaying unchecked links');
+  await writeFile(logPath, logText);
+  const withoutDigest = JSON.parse(selectionText);
+  delete withoutDigest.selectionProof.linkChecksSha256;
+  await writeFile(selectionPath, jsonBytes(withoutDigest));
+  await fail('all mode without the saved digest fails');
+  await rm(logPath);
+  await fail('all mode without both the log and its digest fails');
+  await writeFile(selectionPath, selectionText);
+  await writeFile(logPath, logText);
+  assert.equal((await verifyModuleSelection(run) as any).selectedCount, 9, 'the saved evidence passes again when restored');
+  // A v2 request without productSelection keeps the historical path: an absent log is not an error.
+  const { run: old } = await buildRun(t, { rows: distinct(9), policy: 'metric-products-unique-v2',
+    jev: fakeJev([1, 2, 3, 4].map(picked => answer(picked, 'MOI', 0.9))).jev });
+  const oldSelectionPath = join(old, 'm2/selection.json');
+  const oldSelection = JSON.parse(await readFile(oldSelectionPath, 'utf8'));
+  delete oldSelection.selectionProof.linkChecksSha256;
+  await writeFile(oldSelectionPath, jsonBytes(oldSelection));
+  await rm(join(old, 'm2/link-checks.json'));
+  const oldProof = await verifyModuleSelection(old) as any;
+  assert.deepEqual([oldProof.requested, oldProof.requestedDistinct, oldProof.selectedCount], [5, true, 5]);
+});

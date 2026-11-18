@@ -127,3 +127,29 @@ node --import tsx --test tests/integration/shopee-module-review-export.test.ts
 python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py'
   Ran 162 tests, OK (4 skipped)
 ```
+
+## Round-2 fix (review `review-505-r2.md`)
+
+One finding fixed; nothing else in section 1 changed. No push, no PR, no deploy.
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | `scripts/module-metric-output.ts:151` gate M2 could pass an `all` selection whose `m2/link-checks.json` and `selectionProof.linkChecksSha256` were both deleted: the replay ran without a check callback and the reconstructed selection still matched, so no link check was evidenced. | `verifyModuleSelection` now requires, when `request.json` has `productSelection`, a saved `m2/link-checks.json` and a string `selectionProof.linkChecksSha256` equal to that file's sha256; a missing log, a missing digest or a digest mismatch fails `PICK_PROOF_MISMATCH`. The replay already consumes `checks.entries`, now guaranteed for declared selections. Requests without `productSelection` keep the historical path where an absent log is not an error. New test: all mode with the log deleted → fail; digest removed → fail; both removed (the reported case) → fail; a v2 request without `productSelection`, log and digest removed → passes as before. |
+
+Checks after the fix:
+
+```
+node scripts/typecheck.mjs
+  clean (no output)
+
+node --import tsx --test tests/unit/module-pick.test.ts \
+  tests/unit/module-product-pick.test.ts tests/unit/module-metric-output.test.ts \
+  tests/integration/shopee-desktop-ui.test.ts
+  147 tests, 147 pass, 0 fail (was 146; +1 round-2 test)
+
+node --import tsx --test tests/integration/shopee-module-review-export.test.ts
+  7 tests, 7 pass, 0 fail
+
+python3 -m unittest discover -s skills/tdn-shopee-flow/tests -p 'test_*.py'
+  Ran 162 tests, OK (4 skipped)
+```

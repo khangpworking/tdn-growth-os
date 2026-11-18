@@ -153,6 +153,11 @@ export async function verifyModuleSelection(run: string) {
     productSelection = proof.productSelection as ProductSelection | undefined;
     if (canonicalJson(request.productSelection ?? null) !== canonicalJson(productSelection ?? null))
       throw new ModuleError('PICK_PROOF_MISMATCH');
+    // F644 round-2: a declared selection was link-checked, so its log and saved digest are required evidence.
+    // Requests without productSelection keep the historical path where an absent log is not an error.
+    if (request.productSelection !== undefined &&
+        (!checks || typeof proof.linkChecksSha256 !== 'string' || proof.linkChecksSha256 !== checks.sha256))
+      throw new ModuleError('PICK_PROOF_MISMATCH');
     try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), matcher ? String(matcher.model) : '',
       proof.decisions, checks?.entries, productSelection); }
     catch (error) { throw error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH' ? new ModuleError('PICK_PROOF_MISMATCH') : error; }
