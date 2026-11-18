@@ -30,7 +30,7 @@ Read-only switch: env TDN_SHOPEE_FLOW_READONLY=1 or the file ~/.local/state/tdn-
 refuses and logs every write. Use the FILE for evals: some agent shells (codex) do not pass pane env vars.
 Never prints tokens, keys or review text.
 """
-import argparse, datetime as dt, json, os, pathlib, re, sqlite3, subprocess, sys, time, urllib.error, urllib.request, uuid
+import argparse, datetime as dt, json, os, pathlib, re, shutil, sqlite3, stat, subprocess, sys, time, urllib.error, urllib.request, uuid
 
 PORT = int(os.environ.get('SHOPEE_FLOW_PORT', '8787'))
 ORIGIN = f'http://127.0.0.1:{PORT}'
@@ -1053,6 +1053,24 @@ def module_atomic_json(run, relative, value):
         temp.unlink(missing_ok=True)
 
 
+def module_lock_acquire(run, lock, blocking=False):
+    """Take a run's admission lock, then confirm the opened file is still the lock at the run
+    path. Deletion can rename the run away between open and flock; a stale lock must never let
+    a starter write into a deleted (or recreated) run folder."""
+    import fcntl
+    try:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise ModuleFailure('RUN_BUSY', 24)
+    try:
+        current = gate_path(run, '.module.lock').stat()
+    except (OSError, ValueError):
+        raise ModuleFailure('RUN_NOT_FOUND', 2)
+    held = os.fstat(lock.fileno())
+    if (current.st_dev, current.st_ino) != (held.st_dev, held.st_ino):
+        raise ModuleFailure('RUN_NOT_FOUND', 2)
+
+
 def module_pid_live(pid):
     if type(pid) is not int or pid <= 0:
         return False
@@ -1657,7 +1675,6 @@ def flow_detach(run, ns, lock, execution):
 def cmd_module(ns):
     if ns.cmd == 'm3' and getattr(ns, 'plan_sha256', None):
         return cmd_review_sampling(ns)
-    import fcntl
     run, lock, slip, code, error, execution, last_execution = None, None, None, 0, None, None, None
     owns_lock = False
     mode, module = ('flow' if ns.cmd == 'run' else 'single'), ('m1' if ns.cmd == 'run' else ns.cmd)
@@ -1700,10 +1717,7 @@ def cmd_module(ns):
             if ready_fd is not None:
                 raise ModuleFailure('WORKER_HANDOFF_INVALID', 2)
             lock = open(gate_path(run, '.module.lock'), 'a')
-        try:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise ModuleFailure('RUN_BUSY', 24)
+        module_lock_acquire(run, lock)
         owns_lock = True
         if worker_fd is None:
             module_busy_check(run)
@@ -1792,7 +1806,6 @@ def review_sampling_script(repo, config, action, run, *args, input_text=None):
 
 def cmd_review_sampling(ns):
     """Stable exact-attempt control, sharing the legacy run lock but not its artifacts."""
-    import fcntl
     lock, execution = None, None
     try:
         run = module_run_folder(ns.run_id)
@@ -1821,10 +1834,7 @@ def cmd_review_sampling(ns):
                     os.close(ready)
             else:
                 lock = open(gate_path(run, '.module.lock'), 'a')
-            try:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise ModuleFailure('RUN_BUSY', 24)
+            module_lock_acquire(run, lock)
             if module_readonly():
                 raise ModuleFailure('READONLY_ON')
             recovering = ns.cmd == 'reconcile-review-attempt' or worker and ns.reconcile
@@ -1908,7 +1918,7 @@ def cmd_review_sampling(ns):
 
 def cmd_review_data(ns):
     """Offline exact-source save/export; never loads defaults or acquires provider clients."""
-    import fcntl, shlex
+    import shlex
     lock = None
     binary = ns.cmd == 'read-review-export'
     try:
@@ -1916,10 +1926,7 @@ def cmd_review_data(ns):
         repo, config = module_config()
         if ns.cmd in ('save-review-data', 'export-review-data'):
             lock = open(gate_path(run, '.module.lock'), 'a')
-            try:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise ModuleFailure('RUN_BUSY', 24)
+            module_lock_acquire(run, lock)
         command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
         command = shlex.split(command) if isinstance(command, str) else command
         if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
@@ -2033,7 +2040,6 @@ def review_process_after_m3(run, repo, config, attempt_id, value=None):
 
 def cmd_review_process(ns):
     """«Chạy tiếp» and the manual start of step 4 for one source; same run-lock hand-off as review attempts."""
-    import fcntl
     lock = None
     try:
         run = module_run_folder(ns.run_id)
@@ -2056,10 +2062,7 @@ def cmd_review_process(ns):
                 os.close(ready)
         else:
             lock = open(gate_path(run, '.module.lock'), 'a')
-        try:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise ModuleFailure('RUN_BUSY', 24)
+        module_lock_acquire(run, lock)
         if not worker:
             state = gate_read(gate_path(run, 'state.json'))
             if isinstance(state, dict) and state.get('status') == 'RUNNING' and module_pid_live(state.get('pid')):
@@ -2537,10 +2540,9 @@ def flow_initialize_run(run, request, keyword, receipt=None):
     """One idempotent initializer for every record a run publishes: request, state, tracking,
     the step-4 auto record and (for an import) its receipt. An interrupted import resumes here,
     so a missing record is created before any gate reads the run; existing launch state is kept."""
-    import fcntl
     # Publish under the launch admission lock so initialization cannot erase an accepted launch.
     with open(gate_path(run, '.module.lock'), 'a') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        module_lock_acquire(run, lock, blocking=True)
         if gate_read(gate_path(run, 'request.json')) != request:
             module_atomic_json(run, 'request.json', request)
         state = gate_read(gate_path(run, 'state.json'))
@@ -2926,6 +2928,186 @@ def flow_m1_import():
                 'reused': reused, 'gates': {'entry': 'PASS', 'm1': 'PASS'}}
 
 
+def flow_run_active(run):
+    """A live process still owns this run: RUNNING state, a detached worker, an M3 attempt/count
+    refresh with a live worker, or a running step 4."""
+    def record(relative):
+        try:
+            return gate_read(gate_path(run, relative))
+        except (OSError, ValueError):
+            return None
+
+    state = record('state.json')
+    if isinstance(state, dict) and state.get('status') == 'RUNNING':
+        return True
+    executions = gate_path(run, 'executions')
+    for child in executions.iterdir() if executions.is_dir() else []:
+        if child.name in ('gates', 'previous') or not child.name.endswith('.json'):
+            continue
+        value = record(f'executions/{child.name}')
+        if isinstance(value, dict) and value.get('status') == 'RUNNING' and module_pid_live(value.get('pid')):
+            return True
+    for folder in ('review-counts', 'm3-custom/attempts'):
+        root = gate_path(run, folder)
+        for child in root.iterdir() if root.is_dir() else []:
+            value = record(f'{folder}/{child.name}/state.json')
+            if (isinstance(value, dict) and value.get('status') in ('RUNNING', 'UNCERTAIN')
+                    and module_pid_live(value.get('pid'))):
+                return True
+    m4 = gate_path(run, 'm4')
+    for child in m4.iterdir() if m4.is_dir() else []:
+        if not re.fullmatch(r'[a-f0-9]{64}', child.name):
+            continue
+        value = record(f'm4/{child.name}/state.json')
+        if isinstance(value, dict) and value.get('status') == 'RUNNING' and module_pid_live(value.get('pid')):
+            return True
+    return False
+
+
+def flow_delete_leftovers(root):
+    """Best effort: remove .deleted-* folders earlier deletes could not remove. Other names are
+    never touched, and every error is ignored."""
+    try:
+        entries = list(os.scandir(root))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.name.startswith('.deleted-') and entry.is_dir(follow_symlinks=False):
+                shutil.rmtree(entry.path, ignore_errors=True)
+        except OSError:
+            continue
+
+
+def cmd_delete_run(ns):
+    """Delete one run folder and the .imports records that point at it, under the imports lock.
+    The run's own module admission lock is taken non-blockingly, so no module, count refresh or
+    step 4 starts while deletion runs; the folder is renamed away before any record is dropped,
+    so listings and starters stop seeing the run even if cleanup is interrupted."""
+    import fcntl
+    imports_fd = None
+    try:
+        if module_readonly():
+            raise ModuleFailure('READONLY_ON', 20)
+        run_id = ns.run_id
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', run_id):
+            raise ModuleFailure('RUN_NOT_FOUND', 2)
+        root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
+        if not root.is_dir():
+            raise ModuleFailure('RUN_NOT_FOUND', 2)
+        run = root / run_id
+        rollback_failed = False
+        with open(root / '.imports.lock', 'a') as imports_lock:
+            fcntl.flock(imports_lock.fileno(), fcntl.LOCK_EX)
+            # Every call retries leftovers from an earlier failed cleanup, even when the named run
+            # is already gone. Serialized with every other delete-run: a folder another caller is
+            # renaming back is never swept half-way.
+            flow_delete_leftovers(root)
+            if run.is_symlink() or not run.is_dir() or run.resolve().parent != root:
+                raise ModuleFailure('RUN_NOT_FOUND', 2)
+            run = run.resolve()
+            # Same admission lock every module, count refresh and step 4 take: a live owner keeps
+            # it, and holding it here keeps a new owner out until the run is renamed away.
+            module_lock = os.open(gate_path(run, '.module.lock'),
+                                  os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o666)
+            try:
+                try:
+                    fcntl.flock(module_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    raise ModuleFailure('RUN_ACTIVE', 20)
+                if flow_run_active(run):
+                    raise ModuleFailure('RUN_ACTIVE', 20)
+                imports = root / '.imports'
+                if imports.is_symlink() or imports.exists() and not imports.is_dir():
+                    # A link or non-directory here could carry unlinks outside the runs root.
+                    raise ModuleFailure('RUN_DELETE_FAILED', 20)
+                if imports.exists():
+                    imports_fd = os.open(imports, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                records = []
+                if imports_fd is not None:
+                    # Read every record before anything is moved: an unreadable record may be
+                    # this run's reservation, and it must fail the delete before any move.
+                    with os.scandir(imports_fd) as entries:
+                        for entry in entries:
+                            if not entry.name.endswith('.json'):
+                                continue
+                            fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=imports_fd)
+                            try:
+                                info = os.fstat(fd)
+                                if not stat.S_ISREG(info.st_mode):
+                                    continue
+                                with os.fdopen(fd, 'rb') as handle:
+                                    fd = None
+                                    data = handle.read()
+                                record = json.loads(data)
+                            finally:
+                                if fd is not None:
+                                    os.close(fd)
+                            if isinstance(record, dict) and record.get('runId') == run_id:
+                                records.append((entry.name, info.st_dev, info.st_ino))
+                deleted = root / f'.deleted-{run_id}-{int(time.time())}'
+                os.rename(run, deleted)
+                moved, deleted_fd = [], None
+                try:
+                    # Move the reservations into the renamed folder (same filesystem, through the
+                    # pinned fds): they leave .imports with their inodes intact and go away with
+                    # the folder, so a rollback only ever renames them back, never rewrites them.
+                    deleted_fd = os.open(deleted, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                    for name, device, inode in records:
+                        current = os.stat(name, dir_fd=imports_fd, follow_symlinks=False)
+                        if (current.st_dev, current.st_ino) != (device, inode):
+                            raise OSError('import record replaced during delete')
+                        os.rename(name, name, src_dir_fd=imports_fd, dst_dir_fd=deleted_fd)
+                        moved.append(name)
+                except (OSError, ValueError):
+                    # A failed move may be this run's reservation: put every record already moved
+                    # back into .imports, then the run, so the resend can still resume it.
+                    for name in moved:
+                        try:
+                            os.rename(name, name, src_dir_fd=deleted_fd, dst_dir_fd=imports_fd)
+                        except OSError:
+                            rollback_failed = True
+                            break
+                    if rollback_failed:
+                        # Restoring the run would lose a staged record: finish the delete instead.
+                        # Every record still in .imports goes into the hidden folder, which the
+                        # next sweep removes, and the run is not renamed back.
+                        for name, _, _ in records:
+                            try:
+                                os.rename(name, name, src_dir_fd=imports_fd, dst_dir_fd=deleted_fd)
+                            except OSError:
+                                pass
+                    else:
+                        try:
+                            os.rename(deleted, run)
+                        except OSError:
+                            pass
+                        raise ModuleFailure('RUN_DELETE_FAILED', 20)
+                finally:
+                    if deleted_fd is not None:
+                        os.close(deleted_fd)
+            finally:
+                os.close(module_lock)
+                if imports_fd is not None:
+                    os.close(imports_fd)
+        leftover = rollback_failed
+        if not leftover:
+            try:
+                shutil.rmtree(deleted)
+            except OSError:
+                leftover = True  # Hidden and unlisted, with its reservation gone; it may be retried.
+        output = {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}
+        if leftover:
+            output['leftover'] = True
+        print(json.dumps(output))
+    except ModuleFailure as failure:
+        print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
+        sys.exit(failure.exit_code)
+    except (OSError, ValueError, TypeError):
+        print(json.dumps({'format': 'error-v1', 'code': 'RUN_DELETE_FAILED', 'message': 'RUN_DELETE_FAILED'}))
+        sys.exit(20)
+
+
 def flow_run_info(run, config):
     request = gate_read(gate_path(run, 'request.json'))
     execution = flow_execution_view(run, config)
@@ -3068,7 +3250,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -3116,6 +3298,8 @@ def main():
         x.set_defaults(f=cmd_flow_query)
     x = sp.add_parser('metric-date-availability'); x.add_argument('--end-date', required=True)
     x.set_defaults(f=cmd_flow_query)
+    x = sp.add_parser('delete-run'); x.add_argument('--run', dest='run_id', required=True)
+    x.set_defaults(f=cmd_delete_run)
     x = sp.add_parser('evidence'); x.add_argument('--run', dest='run_id', required=True)
     x.add_argument('--kind', choices=['full-page', 'top-products', 'raw'], required=True); x.add_argument('--output-sha256', required=True)
     x.set_defaults(f=cmd_metric_evidence)
