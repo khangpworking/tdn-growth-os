@@ -3339,3 +3339,40 @@ test('dead links: «Link bị bỏ» for step 2 and every step 3 attempt, newest
       node.textContent === 'Không kiểm được link Shopee. Thử lại sau ít phút.'), 'LINK_CHECK_FAILED text');
   } finally { failed.dom.window.close(); }
 });
+
+test('dead links: an attempt that finishes while the run is open shows its group and the yellow chip without reopening', async () => {
+  const second = syntheticReviewSource({ attemptId: 'attempt-second', sourceSha256: 'e'.repeat(64),
+    completedAt: '2026-11-18T05:00:00.000Z', rowCount: 9 });
+  const attempt = (status: string) => ({
+    attemptId: 'attempt-second', executionId: null, sequence: null, status, errorCode: null, gate: null,
+    stopRequested: false, reconcilable: false,
+    links: [{ shopId: '100', itemId: '200', requested: 12, actual: status === 'RUNNING' ? 3 : 9, shortfall: null,
+      stopReason: '', stars: [] }],
+  });
+  let finished = false;
+  const run = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: collectedRunInfo(), sampling: syntheticSampling({ attempts: [attempt('RUNNING')] }),
+    reviewData: syntheticReviewData({ sources: [] }), fastPoll: true,
+    moduleOutputsResult: (runId) => ({ ok: true, data: { ...moduleOutputView(runId),
+      linkIssues: finished ? [...M2_ISSUES, SECOND_ISSUE] : [...M2_ISSUES] } }),
+  });
+  try {
+    await waitFor(() => /Chưa có kết quả bình luận/.test(run.doc.getElementById('rdPanel')?.textContent ?? '') &&
+      run.doc.getElementById('moM2Chip') !== null, 'run open, attempt running');
+    assert.deepEqual(m3Groups(run.doc), [], 'no step 3 group while the attempt runs');
+    assert.equal(run.doc.getElementById('rdChip')!.textContent, 'Chưa có kết quả');
+    const opened = run.state.moduleOutputsCalls.length;
+
+    finished = true;                                    // the attempt ends with one skipped link
+    run.state.sampling = syntheticSampling({ attempts: [attempt('SUCCEEDED')] });
+    run.state.reviewDataView = syntheticReviewData({ sources: [second] });
+    await waitFor(() => m3Groups(run.doc).length === 1 && /9 bình luận/.test(run.doc.getElementById('rdSummary')?.textContent ?? ''),
+      'new group after the attempt finished', 3000);
+    assert.ok(run.state.moduleOutputsCalls.length > opened, 'module outputs reloaded with review data');
+    assert.deepEqual(m3Groups(run.doc), [SECOND_GROUP]);
+    const chip = run.doc.getElementById('rdChip')!;
+    assert.equal(chip.textContent, 'Xong, có link bị bỏ');
+    assert.equal(chip.className, 'chip s-warn');
+  } finally { run.dom.window.close(); }
+});

@@ -4074,6 +4074,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     manageSamplingPoll(runId);
     if (state.selectedRunId === runId && samplingRunning(previous) && !samplingRunning(state.sampling[runId])) {
       loadReviewData(runId);
+      loadModuleOutputs(runId);   // a finished or stopped attempt may have skipped dead links (linkIssues)
       if (state.screen === 'result') {
         loadReviewStats(runId);
         loadReviewInsights(runId);
