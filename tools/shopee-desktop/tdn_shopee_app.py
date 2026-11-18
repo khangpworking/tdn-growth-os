@@ -306,6 +306,33 @@ def _choice_path():
     return _config_path().parent / 'product-selection.json'
 
 
+def _run_sort_path():
+    """The last run list order («Mới tạo trước» / «Cũ nhất trước»), next to config.json."""
+    return _config_path().parent / 'run-sort.json'
+
+
+RUN_SORTS = ('newest', 'oldest')
+
+
+def _write_choice(path, value, prefix):
+    """Best effort: a failed write only means the default choice next time."""
+    temp = None
+    try:
+        handle, temp = tempfile.mkstemp(prefix=prefix, suffix='.part', dir=str(path.parent))
+        with os.fdopen(handle, 'w', encoding='utf-8') as out:
+            out.write(json.dumps(value))
+        os.replace(temp, path)
+        temp = None
+    except (OSError, _BridgeFailure):
+        pass
+    finally:
+        if temp is not None:
+            try:
+                os.unlink(temp)
+            except OSError:
+                pass
+
+
 def _load_config():
     path = _config_path()
     try:
@@ -1725,23 +1752,37 @@ class Api:
         with Top 5 next time."""
         if not tdn_metric_browser.valid_product_selection(value):
             raise _BridgeFailure('ARG_INVALID')
-        temp = None
         try:
             path = _choice_path()
-            handle, temp = tempfile.mkstemp(prefix='.product-selection-', suffix='.part', dir=str(path.parent))
-            with os.fdopen(handle, 'w', encoding='utf-8') as out:
-                out.write(json.dumps(value))
-            os.replace(temp, path)
-            temp = None
-        except (OSError, _BridgeFailure):
-            pass
-        finally:
-            if temp is not None:
-                try:
-                    os.unlink(temp)
-                except OSError:
-                    pass
+        except _BridgeFailure:
+            return {'ok': True, 'data': {'productSelection': value}}
+        _write_choice(path, value, '.product-selection-')
         return {'ok': True, 'data': {'productSelection': value}}
+
+    def lastRunSort(self):
+        return self._safe(self._last_run_sort)
+
+    @staticmethod
+    def _last_run_sort():
+        try:
+            value = json.loads(_run_sort_path().read_text(encoding='utf-8'))
+        except (OSError, ValueError, _BridgeFailure):
+            value = None
+        return {'ok': True, 'data': {'runSort': value if value in RUN_SORTS else None}}
+
+    def rememberRunSort(self, value=None):
+        return self._safe(lambda: self._remember_run_sort(value))
+
+    @staticmethod
+    def _remember_run_sort(value):
+        if value not in RUN_SORTS:
+            raise _BridgeFailure('ARG_INVALID')
+        try:
+            path = _run_sort_path()
+        except _BridgeFailure:
+            return {'ok': True, 'data': {'runSort': value}}
+        _write_choice(path, value, '.run-sort-')
+        return {'ok': True, 'data': {'runSort': value}}
 
     def metricBrowserState(self):
         return self._metric_safe(lambda: {'ok': True, 'data': self._metric_session().view()})

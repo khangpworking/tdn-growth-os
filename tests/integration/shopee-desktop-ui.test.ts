@@ -64,6 +64,7 @@ function harness(options: {
   listRunsReply?: (call: number) => any | Promise<any> | undefined;
   libraryResult?: any;
   hasFocus?: boolean;
+  runSortSaved?: string;
   fastProgress?: boolean;
   fastPoll?: boolean;
   bridge?: 'complete' | 'partial';
@@ -107,6 +108,7 @@ function harness(options: {
     processReviewDataCalls: { runId: string; sourceSha256: string }[];
     runsProgressCalls: number;
     notifyCalls: { title: string; body: string }[];
+    runSortSaved: string | null;
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
@@ -140,6 +142,7 @@ function harness(options: {
     processReviewDataCalls: [],
     runsProgressCalls: 0,
     notifyCalls: [],
+    runSortSaved: options.runSortSaved || null,
   };
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
   const api = {
@@ -151,6 +154,11 @@ function harness(options: {
         return clone(options.connectionResults[index]);
       }
       return options.connectionResult || ({ ok: true, data: { connected: true, readonly: false, runsRoot: '/synthetic' } });
+    },
+    lastRunSort: async () => ({ ok: true, data: { runSort: state.runSortSaved } }),
+    rememberRunSort: async (value: string) => {
+      state.runSortSaved = value;
+      return { ok: true, data: { runSort: value } };
     },
     presets: async () => {
       state.presetsCalls++;
@@ -4124,6 +4132,56 @@ test('opening a run and overlapping lists follow the latest successful list', as
     held.resolve();
     await waitFor(() => listed(run.doc, 'resultRunList').includes('Sản phẩm Y') &&
       !listed(run.doc, 'resultRunList').includes('Sản phẩm X'), '2: X gone from the shown list');
+  } finally { run.dom.window.close(); }
+});
+
+// The run list order (F648), one row each:
+// | # | situation                                                     | expected order (newest = C)               |
+// |---|---------------------------------------------------------------|-------------------------------------------|
+// | 1 | first open                                                    | «Mới tạo trước» pressed: C, B, A          |
+// | 2 | «Cũ nhất trước»                                               | A, B, C on both tabs; kept on this PC     |
+// | 3 | «Cũ nhất trước» with «Lọc theo trạng thái» = done             | A, C                                      |
+// | 4 | the app opened again                                          | «Cũ nhất trước» pressed: A, B, C          |
+test('the run lists sort newest or oldest first, with the status filter, and keep the choice', async () => {
+  const runs = [
+    { runId: 'run-b', product: 'Sản phẩm B', status: 'RUNNING', createdAt: '2026-11-02T03:00:00.000Z' },
+    { runId: 'run-a', product: 'Sản phẩm A', status: 'DONE', createdAt: '2026-11-01T03:00:00.000Z' },
+    { runId: 'run-c', product: 'Sản phẩm C', status: 'DONE', createdAt: '2026-11-03T03:00:00.000Z' },
+  ];
+  const infos = { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b'), 'run-c': syntheticRunInfo('run-c') };
+  const order = (doc: Document, list: string) => [...doc.querySelectorAll<HTMLButtonElement>('#' + list + ' button.runbtn')]
+    .map((b) => (b.title.match(/run-(\w)/) || [])[1]).join('');
+  const pressed = (doc: Document, screen: string) => doc.querySelector('#scr-' + screen + ' [data-run-sort][aria-pressed="true"]')!
+    .getAttribute('data-run-sort');
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+
+  let run = harness({ runs, runInfoByRun: infos });
+  try {
+    tab(run.doc, 1);
+    // 1
+    await waitFor(() => order(run.doc, 'runList') === 'cba', '1: newest first');
+    assert.equal(pressed(run.doc, 'track'), 'newest');
+    // 2
+    run.doc.querySelector<HTMLButtonElement>('#scr-track [data-run-sort="oldest"]')!.click();
+    assert.equal(order(run.doc, 'runList'), 'abc', '2: oldest first');
+    assert.equal(pressed(run.doc, 'track'), 'oldest');
+    await waitFor(() => run.state.runSortSaved === 'oldest', '2: kept on this PC');
+    tab(run.doc, 2);
+    await waitFor(() => order(run.doc, 'resultRunList') === 'abc', '2: the result tab too');
+    assert.equal(pressed(run.doc, 'result'), 'oldest');
+    // 3
+    tab(run.doc, 1);
+    const filter = element<HTMLSelectElement>(run.doc, 'runFilter');
+    filter.value = 'done';
+    filter.dispatchEvent(new (run.dom.window as any).Event('change', { bubbles: true }));
+    await waitFor(() => order(run.doc, 'runList') === 'ac', '3: filter and order together');
+  } finally { run.dom.window.close(); }
+
+  // 4
+  run = harness({ runs, runInfoByRun: infos, runSortSaved: 'oldest' });
+  try {
+    tab(run.doc, 1);
+    await waitFor(() => order(run.doc, 'runList') === 'abc' && pressed(run.doc, 'track') === 'oldest', '4: restored');
   } finally { run.dom.window.close(); }
 });
 
