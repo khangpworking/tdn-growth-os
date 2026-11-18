@@ -757,6 +757,15 @@ if action == 'serve-views':
         print(json.dumps(answer), flush=True)
         served += 1
 elif action == 'view':
+    pid_log = pathlib.Path(os.environ['NODE_MARKER'] + '.serverpid')
+    for pid in (pid_log.read_text().split() if pid_log.exists() else []):
+        try:
+            os.kill(int(pid), 0)
+            state = 'alive'
+        except ProcessLookupError:
+            state = 'gone'
+        with open(os.environ['NODE_MARKER'] + '.serverstate', 'a', encoding='utf8') as log:
+            log.write(state + '\\n')
     exit_code, stdout = view_bytes(rest[0])
     sys.stdout.write(stdout)
     raise SystemExit(exit_code)
@@ -970,9 +979,8 @@ class RunsSamplingStreamTests(FlowTest):
             hung = self.command_in_process(flow, order=order, raw=True)
         self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
                          'a server that stops answering is closed after the bound, then every run uses its own process')
-        server_pid = int(self.marker.with_name(self.marker.name + '.serverpid').read_text().split()[0])
-        with self.assertRaises(ProcessLookupError, msg='the hung server process is ended, not left running'):
-            os.kill(server_pid, 0)
+        self.assertEqual(self.marker.with_name(self.marker.name + '.serverstate').read_text().split(), ['gone', 'gone'],
+                         'the hung server process has ended before each per-run view starts')
         self.marker.unlink()
         per_run = mock.patch.object(flow.SamplingViewServer, 'view', lambda server, run: flow.review_sampling_script(
             server.repo, server.config, 'view', run))
