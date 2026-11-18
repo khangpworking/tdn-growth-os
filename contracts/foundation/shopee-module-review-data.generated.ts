@@ -93,7 +93,7 @@ export interface ReviewDataSource {
   rowBasis: 'published' | 'terminal-retained';
   rowCount: number;
   /**
-   * @maxItems 5
+   * @maxItems 100
    */
   links: ReviewDataLink[];
   canExport: boolean;
@@ -146,7 +146,7 @@ export interface ModuleReviewArchive {
   rowBasis: 'published' | 'terminal-retained';
   links: ReviewDataLink[];
   /**
-   * @maxItems 10000
+   * @maxItems 200000
    */
   rows: {
     [k: string]: unknown;

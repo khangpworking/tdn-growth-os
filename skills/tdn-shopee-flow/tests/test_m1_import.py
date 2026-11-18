@@ -134,6 +134,7 @@ class M1ImportTest(unittest.TestCase):
     def test_invalid_product_selection_is_refused_before_any_run(self):
         cases = [
             ('not an object', 'top', 'IMPORT_INPUT_INVALID'),
+            ('explicit null', None, 'IMPORT_INPUT_INVALID'),
             ('zero count', {'mode': 'top', 'count': 0}, 'IMPORT_INPUT_INVALID'),
             ('count above 100', {'mode': 'top', 'count': 101}, 'IMPORT_INPUT_INVALID'),
             ('fractional count', {'mode': 'top', 'count': 2.5}, 'IMPORT_INPUT_INVALID'),

@@ -237,14 +237,16 @@ type LinkIssue = { stage: 'm2' | 'm3'; productBaseId: string; url: string; reaso
   replacedBy: string | null; attemptId: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Step-2 deaths: each rejected candidate, replaced by the next accepted pick when one followed.
+ *  `all` mode rejects dead links without replacing them, so it never reports a replacement.
  *  A display list only: the saved log is read as it is, never compared with the selection proof. */
-async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
+async function m2LinkIssues(run: string, productSelection: ProductSelection | undefined): Promise<LinkIssue[]> {
   const entries = (await savedLinkChecks(run))?.entries ?? [];
+  const replace = productSelection?.mode !== 'all';
   const issues: LinkIssue[] = [];
   entries.forEach((entry, index) => {
     if (entry.result !== 'rejected') return;
     const issue: LinkIssue = { stage: 'm2', productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string,
-      at: entry.checkedAt, replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null };
+      at: entry.checkedAt, replacedBy: replace ? entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null : null, attemptId: null };
     // One invalid entry is dropped alone; the rest of the saved log still shows.
     if (validateLinkIssue(issue)) issues.push(issue);
   });
@@ -360,7 +362,7 @@ export async function moduleOutputs(runArg: string) {
   // panelCovered is a gate-only result, not an undocumented desktop field.
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
   // `linkIssues` is a display list: a malformed log or attempt contributes no items, never an error.
-  const m2Issues = await m2LinkIssues(run).catch(() => [] as LinkIssue[]);
+  const m2Issues = await m2LinkIssues(run, request.productSelection).catch(() => [] as LinkIssue[]);
   const m3Issues = await m3LinkIssues(run).catch(() => [] as LinkIssue[]);
   const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...m3Issues] };
   await validateModuleValue('module-outputs-v1', wire);

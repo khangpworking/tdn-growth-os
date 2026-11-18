@@ -107,7 +107,8 @@ test('a selected source rank outside the pictured panel hides the picture but M2
     { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
   const slip = JSON.parse(gate.stdout);
   assert.deepEqual([gate.status, slip.verdict, slip.errorCode], [0, 'PASS', null], gate.stderr);
-  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok]), [['links_match_source_order', true], ['requested_distinct_products', true]]);
+  assert.deepEqual(slip.checks.map((c: any) => [c.id, c.ok]), [['links_match_source_order', true], ['five_distinct_products', true]],
+    'a request without productSelection keeps the historical gate check name');
 });
 
 test('a panel without both native sorting controls cannot certify the selected ranks', async t => {
@@ -456,6 +457,17 @@ test('a stopped step-2 attempt with an unbound log still projects its rejections
   assert.equal(output.m2.errorCode, 'SELECTION_MISSING');
   assert.deepEqual(output.linkIssues.map((issue: any) => [issue.stage, issue.reason, issue.replacedBy]),
     [['m2', 'PRODUCT_UNAVAILABLE', rows[2]!.product_base_id]]);
+});
+
+test('F644 all mode rejects a dead link without naming a replacement', async t => {
+  const rows = Array.from({ length: 3 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = linkUrl(rows[1]);
+  const { collector } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const { run } = await buildRun(t, { rows, policy: 'metric-products-unique-v2', productSelection: { mode: 'all' }, linkCollector: collector });
+  const output = await moduleOutputs(run) as any;
+  assert.deepEqual(output.linkIssues.map((issue: any) => [issue.productBaseId, issue.reason, issue.replacedBy]),
+    [[rows[1]!.product_base_id, 'PRODUCT_UNAVAILABLE', null]], 'all mode accepts the same dead link without replacement');
+  assert.equal(output.m2.selectedCount, 2);
 });
 
 test('F644 replay reproduces top 8 and all from the saved proof, and the gate asks for the requested count', async t => {

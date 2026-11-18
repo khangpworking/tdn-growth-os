@@ -875,12 +875,19 @@ def evaluate_gate(run, gate, *, readonly_file=None):
             try:
                 proof = metric_output_script(run, 'verify-selection')
                 check('links_match_source_order', proof.get('linksMatchSourceOrder') is True, proof.get('selectedCount'))
-                check('requested_distinct_products', proof.get('requestedDistinct') is True,
-                      {'requested': proof.get('requested'), 'found': proof.get('selectedCount')})
+                # A request created without productSelection keeps the historical check name and shape.
+                if 'productSelection' in request:
+                    check('requested_distinct_products', proof.get('requestedDistinct') is True,
+                          {'requested': proof.get('requested'), 'found': proof.get('selectedCount')})
+                else:
+                    check('five_distinct_products', proof.get('fiveDistinct') is True, proof.get('shortageReason'))
                 code = proof.get('errorCode')
             except ModuleFailure as failure:
                 check('links_match_source_order', False, failure.code)
-                check('requested_distinct_products', False, 'UNVERIFIED')
+                if 'productSelection' in request:
+                    check('requested_distinct_products', False, 'UNVERIFIED')
+                else:
+                    check('five_distinct_products', False, 'UNVERIFIED')
                 code = failure.code
         else:
             links = selection.get('links')
@@ -2705,7 +2712,8 @@ def flow_import_payload():
     if payload['format'] != 'metric-user-page-import-v1':
         raise invalid()
     product_selection = payload.get('productSelection')
-    if product_selection is not None:
+    # Presence, not truthiness: only the two selection objects are allowed when the key is there.
+    if 'productSelection' in payload:
         if not isinstance(product_selection, dict):
             raise invalid()
         if product_selection.get('mode') == 'top':
