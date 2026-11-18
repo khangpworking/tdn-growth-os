@@ -3500,12 +3500,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   };
   var OUTCOME_VERDICT_TEXT = { PARTIAL_LINKS: 'Xong, có link bị bỏ' };
 
-  function linkIssuesFor(runId, stage) {
+  // Step 3 issues belong to one collection attempt: only those whose `attemptId` is the
+  // displayed source's attempt are shown with it (never another attempt's, never a guess).
+  function linkIssuesFor(runId, stage, attemptId) {
     var outputs = state.moduleOutputs[runId];
     var items = outputs && Array.isArray(outputs.linkIssues) ? outputs.linkIssues : [];
     return items.filter(function (item) {
       return !!item && typeof item === 'object' && item.stage === stage &&
-        typeof item.url === 'string' && typeof item.reason === 'string';
+        typeof item.url === 'string' && typeof item.reason === 'string' &&
+        (stage !== 'm3' || (typeof attemptId === 'string' && item.attemptId === attemptId));
     });
   }
 
@@ -3515,8 +3518,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return text;
   }
 
-  function linkIssuesNode(runId, stage) {
-    var items = linkIssuesFor(runId, stage);
+  function linkIssuesNode(runId, stage, attemptId) {
+    var items = linkIssuesFor(runId, stage, attemptId);
     if (!items.length) return null;
     var box = h('section', 'link-issues');
     box.id = 'linkIssues-' + stage;
@@ -5075,8 +5078,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     chip.id = 'rdChip';
     head.appendChild(chip);
     panel.appendChild(head);
-    var m3Issues = linkIssuesNode(runId, 'm3');
-    if (m3Issues) panel.appendChild(m3Issues);
 
     if (state.reviewDataErrors[runId]) {
       var loadError = h('p', 'errbar local-error', plainError(state.reviewDataErrors[runId]));
@@ -5136,6 +5137,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var links = h('div');
     links.id = 'rdLinks';
     panel.appendChild(links);
+
+    var issues = h('div');
+    issues.id = 'rdIssues';
+    panel.appendChild(issues);
 
     var blocks = h('div');
     blocks.id = 'rdBlocks';
@@ -5207,7 +5212,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       clear(summary);
       if (source) {
         var validated = source.status === 'SUCCEEDED' && source.gateVerdict === 'PASS';
-        var partial = validated && linkIssuesFor(runId, 'm3').length > 0;
+        var partial = validated && linkIssuesFor(runId, 'm3', source.attemptId).length > 0;
         chip.textContent = partial ? OUTCOME_VERDICT_TEXT.PARTIAL_LINKS
           : validated ? 'Đạt kiểm tra dữ liệu' : 'Không đạt kiểm tra dữ liệu';
         chip.className = 'chip ' + (partial ? 's-warn' : validated ? 's-pass' : 's-fail');
@@ -5225,6 +5230,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         var table = rdLinksTable(source.links);
         if (table) links.appendChild(table);
       }
+
+      clear(issues);
+      var sourceIssues = source ? linkIssuesNode(runId, 'm3', source.attemptId) : null;
+      if (sourceIssues) issues.appendChild(sourceIssues);
 
       clear(blocks);
       if (!readOnly) {

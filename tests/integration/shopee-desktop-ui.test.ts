@@ -3258,7 +3258,8 @@ const issueLines = (doc: Document, stage: string) => [...doc.querySelectorAll(`#
 
 test('dead links: «Link bị bỏ» under step 2 and step 3 with the reason table; old runs show nothing new', async () => {
   const linkIssues = LINK_ISSUE_ROWS.map(([stage, reason, replacedBy], i) => (
-    { stage, productBaseId: `1__${i}__900`, url: DEAD(i), reason, at: '2026-11-18T05:30:00Z', replacedBy }));
+    ({ stage, productBaseId: `1__${i}__900`, url: DEAD(i), reason, at: '2026-11-18T05:30:00Z', replacedBy,
+      ...(stage === 'm3' ? { attemptId: 'attempt-review' } : {}) })));
   const run = linkIssueRun((runId) => ({ ...moduleOutputView(runId), linkIssues }));
   try {
     await waitFor(() => run.doc.getElementById('linkIssues-m2') !== null && run.doc.getElementById('linkIssues-m3') !== null,
@@ -3287,6 +3288,41 @@ test('dead links: «Link bị bỏ» under step 2 and step 3 with the reason tab
       assert.ok(!old.doc.getElementById('runDetail')!.textContent!.includes('Link bị bỏ'), label);
       assert.equal(old.doc.getElementById('rdChip')!.textContent, 'Đạt kiểm tra dữ liệu', label);
     } finally { old.dom.window.close(); }
+  }
+});
+
+// Step 3 issues follow the displayed source's own attempt, never another attempt's.
+// | first attempt | second attempt (shown) | issues for          | step 3 chip / list                |
+// |---------------|------------------------|---------------------|-----------------------------------|
+// | partial       | clean                  | first attempt       | Đạt kiểm tra dữ liệu, no list     |
+// | clean         | partial                | second attempt      | Xong, có link bị bỏ, its list     |
+// | clean         | partial                | no attemptId (old)  | Đạt kiểm tra dữ liệu, no list     |
+test('dead links: step 3 shows only the displayed attempt issues, in both orders', async () => {
+  const source = (attemptId: string, sha: string, completedAt: string, rowCount: number) =>
+    syntheticReviewSource({ attemptId, sourceSha256: sha.repeat(64), completedAt, rowCount });
+  const first = source('attempt-first', 'd', '2026-11-18T04:00:00.000Z', 7);
+  const second = source('attempt-second', 'e', '2026-11-18T05:00:00.000Z', 9);
+  const issue = (extra: any) => ({ stage: 'm3', productBaseId: '1__7__900', url: DEAD(7), reason: 'RATINGS_MISSING',
+    at: '2026-11-18T05:00:00Z', replacedBy: null, ...extra });
+  const rows: [string, any, string, boolean][] = [
+    ['partial then clean', issue({ attemptId: 'attempt-first' }), 'Đạt kiểm tra dữ liệu', false],
+    ['clean then partial', issue({ attemptId: 'attempt-second' }), 'Xong, có link bị bỏ', true],
+    ['issue without attemptId', issue({}), 'Đạt kiểm tra dữ liệu', false],
+  ];
+  for (const [label, item, chipText, listed] of rows) {
+    const run = harness({
+      runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+      runInfo: collectedRunInfo(), sampling: syntheticSampling(),
+      reviewData: syntheticReviewData({ sources: [first, second] }),
+      moduleOutputsResult: (runId) => ({ ok: true, data: { ...moduleOutputView(runId), linkIssues: [item] } }),
+    });
+    try {
+      await waitFor(() => /9 bình luận/.test(run.doc.getElementById('rdSummary')?.textContent ?? '') &&
+        run.doc.getElementById('moM2Chip') !== null, label + ': second attempt shown');
+      await waitFor(() => run.doc.getElementById('rdChip')!.textContent === chipText, label + ': chip');
+      assert.equal(run.doc.getElementById('linkIssues-m3') !== null, listed, label + ': list');
+      if (listed) assert.deepEqual(issueLines(run.doc, 'm3'), [{ url: DEAD(7), text: 'Trang sản phẩm không có phần đánh giá' }]);
+    } finally { run.dom.window.close(); }
   }
 });
 
