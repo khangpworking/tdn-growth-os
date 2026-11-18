@@ -30,7 +30,7 @@ Read-only switch: env TDN_SHOPEE_FLOW_READONLY=1 or the file ~/.local/state/tdn-
 refuses and logs every write. Use the FILE for evals: some agent shells (codex) do not pass pane env vars.
 Never prints tokens, keys or review text.
 """
-import argparse, datetime as dt, json, os, pathlib, re, shutil, sqlite3, stat, subprocess, sys, time, urllib.error, urllib.request, uuid
+import argparse, datetime as dt, json, os, pathlib, re, shutil, sqlite3, stat, subprocess, sys, threading, time, urllib.error, urllib.request, uuid
 
 PORT = int(os.environ.get('SHOPEE_FLOW_PORT', '8787'))
 ORIGIN = f'http://127.0.0.1:{PORT}'
@@ -1507,10 +1507,15 @@ def flow_passed_before_extra(attempts):
     return best if extras else None
 
 
+SAMPLING_VIEW_ANSWER_TIMEOUT = 120.0  # the per-run view call has no timeout; bound an unresponsive server at this
+
+
 class SamplingViewServer:
-    """One long-lived sampling process for the run list: each run's path goes in as one JSON line and its view comes
-    back as one JSON line, so every view is read at the same point in the loop as the per-run call it replaces. Any
-    server failure closes it and falls back to the per-run view call for that run and all later runs."""
+    """One long-lived sampling process for the run list: each run's path goes in as one JSON line and its answer comes
+    back as one JSON line, so every view is read at the same point in the loop as the per-run call it replaces. The
+    answer carries `{exitCode, stdout}`: exactly what the single `view` command would have printed and exited with for
+    that run, and it goes through the same parser as the per-run call. Any server failure (spawn, pipe, answer wait
+    timeout, malformed answer) closes it and falls back to the per-run view call for that run and all later runs."""
 
     def __init__(self, repo, config):
         self.repo, self.config, self.process, self.usable = repo, config, None, True
@@ -1541,24 +1546,31 @@ class SamplingViewServer:
     def _ask(self, run):
         self.process.stdin.write(json.dumps(str(run)) + '\n')
         self.process.stdin.flush()
-        answer = json.loads(self.process.stdout.readline())
-        # Only {ok:true, view:<object>} or {ok:false, error:{code:<non-empty string>, message:<string>}}
-        # are protocol answers; anything else is a server failure, never a per-run sampling failure.
-        if not isinstance(answer, dict) or type(answer.get('ok')) is not bool:
+        answer = json.loads(self._read_answer_line())
+        # The only server-level protocol is {exitCode:<int>, stdout:<string>}; every other line is a server
+        # failure, never a per-run sampling failure.
+        if (not isinstance(answer, dict) or set(answer) != {'exitCode', 'stdout'}
+                or type(answer['exitCode']) is not int or not isinstance(answer['stdout'], str)):
             raise ValueError('invalid sampling answer')
-        if answer['ok']:
-            if set(answer) != {'ok', 'view'} or not isinstance(answer['view'], dict):
-                raise ValueError('invalid sampling answer')
-            return answer['view']
-        error = answer.get('error')
-        if (set(answer) != {'ok', 'error'} or not isinstance(error, dict)
-                or not set(error) <= {'code', 'message', 'exitCode'}
-                or not isinstance(error.get('code'), str) or not error['code']
-                or not isinstance(error.get('message'), str)
-                or 'exitCode' in error and type(error['exitCode']) is not int):
-            raise ValueError('invalid sampling answer')
-        exit_code = error.get('exitCode')
-        raise ModuleFailure(error['code'], exit_code if exit_code in (2, 20, 21, 22, 23, 24) else 20)
+        return review_sampling_result(answer['exitCode'], answer['stdout'])
+
+    def _read_answer_line(self):
+        line, reading = {}, {}
+
+        def read():
+            try:
+                line['value'] = self.process.stdout.readline()
+            except (OSError, ValueError) as error:
+                reading['error'] = error
+
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        reader.join(SAMPLING_VIEW_ANSWER_TIMEOUT)
+        if reader.is_alive():
+            raise TimeoutError('sampling answer timeout')
+        if 'error' in reading:
+            raise reading['error']
+        return line.get('value', '')
 
     def close(self):
         process, self.process, self.usable = self.process, None, False
@@ -1865,15 +1877,21 @@ def review_sampling_script(repo, config, action, run, *args, input_text=None):
         raise ModuleFailure('NODE_COMMAND_INVALID')
     result = subprocess.run([*command, str(repo / 'scripts/module-review-sampling.ts'), action, str(run), *args],
                             cwd=repo, input=input_text, capture_output=True, text=True)
+    return review_sampling_result(result.returncode, result.stdout)
+
+
+def review_sampling_result(returncode, stdout):
+    """One sampling command's stdout and exit status to a view or ModuleFailure; shared by the per-run call and the
+    serve-views answer, which reports exactly the stdout and exit code the single `view` command would produce."""
     try:
-        value = json.loads(result.stdout)
+        value = json.loads(stdout)
     except ValueError:
         raise ModuleFailure('REVIEW_COMMAND_FAILED')
-    if result.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
+    if returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
         code = value.get('code') if isinstance(value, dict) else None
         if not isinstance(code, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code):
             code = 'REVIEW_COMMAND_FAILED'
-        raise ModuleFailure(code, result.returncode if result.returncode in (2, 20, 21, 22, 23, 24) else 20)
+        raise ModuleFailure(code, returncode if returncode in (2, 20, 21, 22, 23, 24) else 20)
     return value
 
 

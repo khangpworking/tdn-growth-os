@@ -329,11 +329,21 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   return {format:'review-attempt-control-v1',runId:basename(run),kind:deps.kind,attemptId:deps.attemptId,status,pid:null,errorCode};
 }
 async function inputJson():Promise<unknown>{let value='';for await(const part of process.stdin){value+=String(part);if(Buffer.byteLength(value)>65536)throw new ModuleError('REVIEW_INPUT_INVALID',2);}return JSON.parse(value);}
-function samplingFailure(error:unknown){
+/** The single `view` command's stdout text and exit status for one result or one error. */
+function viewResult(result:unknown){return {exitCode:0,stdout:`${JSON.stringify(result)}\n`};}
+function viewFailure(error:unknown){
   const code=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_INPUT_INVALID';
-  return {code,message:code,exitCode:error instanceof ModuleError?error.exitCode:2};
+  return {exitCode:error instanceof ModuleError?error.exitCode:2,stdout:`${JSON.stringify({format:'error-v1',code,message:code})}\n`};
 }
-/** One long-lived process serves many runs: one run path per stdin line in, one answer line out. */
+async function viewReply(line:string){
+  try{
+    const target=JSON.parse(line);
+    if(typeof target!=='string')throw new ModuleError('USAGE',2);
+    return viewResult(await reviewSamplingView(resolve(target)));
+  }catch(error){return viewFailure(error);}
+}
+/** One long-lived process serves many runs: one run path per stdin line in, one answer line out. Each answer is
+ *  exactly what the single `view` command would have printed to stdout and its exit code. */
 async function serveViews(){
   let buffer='';
   for await(const part of process.stdin){
@@ -341,13 +351,7 @@ async function serveViews(){
     let newline;
     while((newline=buffer.indexOf('\n'))>=0){
       const line=buffer.slice(0,newline);buffer=buffer.slice(newline+1);
-      let answer:unknown;
-      try{
-        const target=JSON.parse(line);
-        if(typeof target!=='string')throw new ModuleError('USAGE',2);
-        answer={ok:true,view:await reviewSamplingView(resolve(target))};
-      }catch(error){answer={ok:false,error:samplingFailure(error)};}
-      process.stdout.write(`${JSON.stringify(answer)}\n`);
+      process.stdout.write(`${JSON.stringify(await viewReply(line))}\n`);
     }
   }
 }
@@ -372,6 +376,5 @@ export async function reviewSamplingCommand(args:string[]){
   throw new ModuleError('USAGE',2);
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))void reviewSamplingCommand(process.argv.slice(2)).then(result=>{if(result!==undefined)process.stdout.write(`${JSON.stringify(result)}\n`);}).catch(error=>{
-  const code=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_INPUT_INVALID';
-  process.stdout.write(`${JSON.stringify({format:'error-v1',code,message:code})}\n`);process.exitCode=error instanceof ModuleError?error.exitCode:2;
+  const answer=viewFailure(error);process.stdout.write(answer.stdout);process.exitCode=answer.exitCode;
 });

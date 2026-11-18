@@ -702,12 +702,15 @@ with open(os.environ['NODE_MARKER'], 'a', encoding='utf8') as log:
     log.write(action + '\\n')
 
 
-def answer(target):
+def view_bytes(target):
+    """What the single `view` command prints and exits with for one target."""
     run = pathlib.Path(target)
     if run.name == 'badrun':
-        return {'ok': False, 'error': {'code': 'REVIEW_PLAN_INVALID',
-                                       'message': 'REVIEW_PLAN_INVALID', 'exitCode': 2}}
-    return {'ok': True, 'view': {
+        return 2, json.dumps({'format': 'error-v1', 'code': 'REVIEW_PLAN_INVALID',
+                              'message': 'REVIEW_PLAN_INVALID'}) + '\\n'
+    if run.name == 'emptystdout':
+        return 0, '{}\\n'
+    return 0, json.dumps({
         'format': 'review-sampling-view-v1', 'runId': run.name, 'readonly': False,
         'm2Digest': None, 'links': [], 'plans': [], 'counts': [], 'countRefresh': None,
         'blockedBy': None,
@@ -716,14 +719,14 @@ def answer(target):
             'status': 'SUCCEEDED', 'executionId': None, 'receiptMatchesCurrentInputs': False,
             'gate': None, 'errorCode': None, 'automatic': True,
         }],
-    }}
+    }) + '\\n'
 
 
 if action == 'serve-views':
     if os.environ.get('SERVE_BROKEN') == '1':
         print('not json', flush=True)
         raise SystemExit(0)
-    served = 0
+    served, hung = 0, False
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -733,18 +736,21 @@ if action == 'serve-views':
         with open(os.environ['NODE_MARKER'] + '.stdin', 'a', encoding='utf8') as log:
             log.write(line + '\\n')
         target = json.loads(line)
-        if pathlib.Path(target).name == 'noerror':
-            print(json.dumps({'ok': False}), flush=True)
+        if hung or pathlib.Path(target).name == 'hang':
+            hung = True  # alive but never answers again; the client must bound its wait
+            continue
+        if pathlib.Path(target).name == 'noview':
+            print(json.dumps({'ok': True, 'view': {}}), flush=True)
+        elif pathlib.Path(target).name == 'noerror':
+            print(json.dumps({'ok': False, 'error': {'code': 'garbage', 'message': 'x'}}), flush=True)
         else:
-            print(json.dumps(answer(target)), flush=True)
+            exit_code, stdout = view_bytes(target)
+            print(json.dumps({'exitCode': exit_code, 'stdout': stdout}), flush=True)
         served += 1
 elif action == 'view':
-    entry = answer(rest[0])
-    if not entry['ok']:
-        print(json.dumps({'format': 'error-v1', 'code': entry['error']['code'],
-                          'message': entry['error']['message']}), flush=True)
-        raise SystemExit(entry['error']['exitCode'])
-    print(json.dumps(entry['view']), flush=True)
+    exit_code, stdout = view_bytes(rest[0])
+    sys.stdout.write(stdout)
+    raise SystemExit(exit_code)
 else:
     raise SystemExit('unexpected sampling action')
 '''
@@ -899,15 +905,50 @@ class RunsSamplingStreamTests(FlowTest):
                          'one broken server, then one view per run')
         self.assertEqual(broken_bytes, new_bytes)
 
-    def test_a_reply_without_an_error_falls_back_to_the_per_run_views(self):
+    def test_an_old_style_view_answer_falls_back_to_the_per_run_views(self):
+        self.sampled_run('noview')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        rc, payload = self.command_in_process(flow, order=['noview', 'bbbbbbbb'])
+        self.assertEqual(rc, 0, payload)
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'an old-style answer is a server failure; this and later runs use their own process')
+        self.assertEqual(sorted(item['runId'] for item in payload['runs']), ['bbbbbbbb', 'noview'])
+
+    def test_an_error_shaped_garbage_answer_falls_back_to_the_per_run_views(self):
         self.sampled_run('noerror')
         self.sampled_run('bbbbbbbb')
         flow = load_flow_script()
         rc, payload = self.command_in_process(flow, order=['noerror', 'bbbbbbbb'])
         self.assertEqual(rc, 0, payload)
         self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
-                         'an answer without a valid error closes the server, then this and later runs use their own process')
+                         'a garbage error answer is a server failure, not a sampling failure')
         self.assertEqual(sorted(item['runId'] for item in payload['runs']), ['bbbbbbbb', 'noerror'])
+
+    def test_a_server_stdout_row_is_parsed_exactly_as_the_per_run_view(self):
+        self.sampled_run('emptystdout')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        new_bytes = self.runs_in_process(flow)
+        self.assertEqual(self.starts(), ['serve-views'], 'the server answer is accepted, not retried')
+        self.marker.unlink()
+        old_bytes = self.runs_in_process(flow, per_run_views=True)
+        self.assertEqual(new_bytes, old_bytes, 'a {} stdout parses the same through the server and per-run paths')
+        payload = json.loads(new_bytes)
+        attempts = {item['runId']: item['execution']['modules']['M3'].get('attemptId') for item in payload['runs']}
+        self.assertEqual(attempts, {'emptystdout': None, 'bbbbbbbb': 'bbbbbbbb-attempt'})
+
+    def test_an_unresponsive_server_falls_back_after_the_answer_wait_bound(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('hang')
+        flow = load_flow_script()
+        with mock.patch.object(flow, 'SAMPLING_VIEW_ANSWER_TIMEOUT', 0.2):
+            hung_bytes = self.runs_in_process(flow)
+        self.assertEqual(self.starts(), ['serve-views', 'view', 'view'],
+                         'a server that stops answering is closed after the bound, then every run uses its own process')
+        self.marker.unlink()
+        old_bytes = self.runs_in_process(flow, per_run_views=True)
+        self.assertEqual(hung_bytes, old_bytes)
 
     def test_gate_hash_reads_the_evidence_again(self):
         flow = load_flow_script()

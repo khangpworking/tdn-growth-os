@@ -388,8 +388,9 @@ test('the serve-views action answers one line per run in input order', async () 
       await reviewSamplingCommand(['serve-views']);
       return lines;
     }));
-    assert.deepEqual(lines.map(line => JSON.parse(line)), [{ ok: true, view: await reviewSamplingView(first) },
-      { ok: true, view: await reviewSamplingView(second) }]);
+    assert.deepEqual(lines.map(line => JSON.parse(line)), [
+      { exitCode: 0, stdout: `${JSON.stringify(await reviewSamplingView(first))}\n` },
+      { exitCode: 0, stdout: `${JSON.stringify(await reviewSamplingView(second))}\n` }]);
   } finally {
     if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;
     else process.env.SHOPEE_FLOW_STATE = previous;
@@ -411,13 +412,10 @@ test('the serve-views action answers a failing run and keeps serving the others'
       await reviewSamplingCommand(['serve-views']);
       return lines;
     }));
-    const [failed, kept] = lines.map(line => JSON.parse(line)) as { ok: boolean, error?: { code: string, message: string, exitCode: number } }[];
-    assert.ok(failed);
-    assert.equal(failed.ok, false);
-    assert.equal(failed.error?.code, 'REVIEW_PLAN_INVALID');
-    assert.equal(failed.error?.message, 'REVIEW_PLAN_INVALID');
-    assert.equal(failed.error?.exitCode, 20);
-    assert.deepEqual(kept, { ok: true, view: await reviewSamplingView(good) });
+    const [failed, kept] = lines.map(line => JSON.parse(line)) as { exitCode: number, stdout: string }[];
+    assert.equal(failed?.exitCode, 20);
+    assert.deepEqual(JSON.parse(failed!.stdout), { format: 'error-v1', code: 'REVIEW_PLAN_INVALID', message: 'REVIEW_PLAN_INVALID' });
+    assert.deepEqual(kept, { exitCode: 0, stdout: `${JSON.stringify(await reviewSamplingView(good))}\n` });
   } finally {
     if (previous === undefined) delete process.env.SHOPEE_FLOW_STATE;
     else process.env.SHOPEE_FLOW_STATE = previous;
