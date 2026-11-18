@@ -692,6 +692,93 @@ class ReadOnlyCommandTests(FlowTest):
         self.assertEqual(skills[flow['skill']]['version'], flow['skillVersion'])
 
 
+SAMPLING_BATCH_NODE = '''#!/usr/bin/env python3
+import json, os, pathlib, sys
+
+args = sys.argv[1:]
+script = next(a for a in args if a.endswith('.ts'))
+index = args.index(script)
+action, targets = args[index + 1], args[index + 2:]
+with open(os.environ['NODE_MARKER'], 'a', encoding='utf8') as log:
+    log.write(' '.join([action, *targets]) + '\\n')
+
+
+def view(target):
+    run = pathlib.Path(target)
+    return {
+        'format': 'review-sampling-view-v1', 'runId': run.name, 'readonly': False,
+        'm2Digest': None, 'links': [], 'plans': [], 'counts': [], 'countRefresh': None,
+        'blockedBy': None,
+        'attempts': [{
+            'attemptId': f'{run.name}-attempt', 'sequence': 1, 'createdAt': '2026-11-01T00:00:00Z',
+            'status': 'SUCCEEDED', 'executionId': None, 'receiptMatchesCurrentInputs': False,
+            'gate': None, 'errorCode': None, 'automatic': True,
+        }],
+    }
+
+
+if any(pathlib.Path(target).name == 'badrun' for target in targets):
+    print(json.dumps({'format': 'error-v1', 'code': 'REVIEW_PLAN_INVALID', 'message': 'REVIEW_PLAN_INVALID'}))
+    raise SystemExit(2)
+if action == 'views':
+    print(json.dumps({'format': 'review-sampling-views-v1', 'views': [view(target) for target in targets]}))
+elif action == 'view':
+    print(json.dumps(view(targets[0])))
+else:
+    raise SystemExit('unexpected sampling action')
+'''
+
+
+class RunsSamplingBatchTests(FlowTest):
+    """F647 change 2: the run list fetches every sampling view in one node call and keeps the old output."""
+
+    def setUp(self):
+        super().setUp()
+        node = self.bin / 'node'
+        node.write_text(SAMPLING_BATCH_NODE, encoding='utf8')
+        node.chmod(node.stat().st_mode | stat.S_IXUSR)
+
+    def sampled_run(self, run_id):
+        run = self.make_run(run_id)
+        (run / 'm3-custom').mkdir()
+        return run
+
+    def starts(self):
+        return self.marker.read_text().splitlines() if self.marker.exists() else []
+
+    def runs_in_process(self, flow, per_run_views=False):
+        ns = argparse.Namespace(cmd='runs')
+        output = io.StringIO()
+        patcher = (mock.patch.object(flow, 'sampling_views', lambda runs, config: [None] * len(runs))
+                   if per_run_views else contextlib.nullcontext())
+        with mock.patch.dict(os.environ, self.env(), clear=True), patcher, contextlib.redirect_stdout(output):
+            flow.cmd_flow_query(ns)
+        return output.getvalue()
+
+    def test_runs_starts_node_once_and_matches_the_per_run_view_output(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('bbbbbbbb')
+        flow = load_flow_script()
+        new_bytes = self.runs_in_process(flow)
+        self.assertEqual(len(self.starts()), 1, self.starts())
+        self.assertEqual(self.starts()[0].split()[:1], ['views'])
+        self.marker.unlink()
+        old_bytes = self.runs_in_process(flow, per_run_views=True)
+        self.assertEqual(len(self.starts()), 2, 'the old path starts node per run')
+        self.assertEqual(new_bytes, old_bytes, 'the batched views change no byte of the runs answer')
+        payload = json.loads(new_bytes)
+        self.assertEqual(payload['format'], 'runs-v1')
+        attempts = {item['runId']: item['execution']['modules']['M3']['attemptId'] for item in payload['runs']}
+        self.assertEqual(attempts, {'aaaaaaaa': 'aaaaaaaa-attempt', 'bbbbbbbb': 'bbbbbbbb-attempt'})
+
+    def test_one_failing_view_still_fails_the_runs_command(self):
+        self.sampled_run('aaaaaaaa')
+        self.sampled_run('badrun')
+        rc, payload, stderr = self.command('runs')
+        self.assertEqual(rc, 2, (payload, stderr))
+        self.assertEqual(payload.get('code'), 'REVIEW_PLAN_INVALID', payload)
+
+
 class CaptureSpecReviewTests(FlowTest):
     """Read-only review of the actual saved spec member and its independent digests."""
 

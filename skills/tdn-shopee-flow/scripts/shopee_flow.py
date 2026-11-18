@@ -584,8 +584,16 @@ def gate_path(run, relative):
     return path
 
 
+# Per-process memo used only by the read-only query commands (runs, runs-progress, run-info);
+# those commands never write, so one snapshot per path is the same evidence as repeated reads.
+_GATE_HASH_MEMO = None
+
+
 def gate_hash(run, relative):
     import hashlib
+    memo, key = _GATE_HASH_MEMO, (str(run), relative)
+    if memo is not None and key in memo:
+        return memo[key]
     try:
         path = gate_path(run, relative)
         if path.is_dir():
@@ -598,10 +606,14 @@ def gate_hash(run, relative):
                     raise ValueError('unsupported evidence file')
             lines = ''.join(f'{item.relative_to(path).as_posix()}\t{hashlib.sha256(item.read_bytes()).hexdigest()}\n'
                             for item in sorted(files, key=lambda p: p.relative_to(path).as_posix()))
-            return hashlib.sha256(lines.encode('utf8')).hexdigest()
-        return hashlib.sha256(path.read_bytes()).hexdigest()
+            value = hashlib.sha256(lines.encode('utf8')).hexdigest()
+        else:
+            value = hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
-        return None
+        value = None
+    if memo is not None:
+        memo[key] = value
+    return value
 
 
 def gate_slip_passed(slip, run, gate):
@@ -1507,10 +1519,22 @@ def flow_passed_before_extra(attempts):
     return best if extras else None
 
 
-def flow_execution_view(run, config):
+def sampling_views(runs, config):
+    """review-sampling-view-v1 of each run from the TS module in one node call. It is the same view action per run,
+    returned in the same order; a failed call fails the command as one bad view did before."""
+    repo, _ = module_config()
+    value = review_sampling_script(repo, config, 'views', *map(str, runs))
+    views = value.get('views')
+    if not isinstance(views, list) or len(views) != len(runs) or any(
+            not isinstance(view, dict) or view.get('format') != 'review-sampling-view-v1' or view.get('runId') != run.name
+            for view, run in zip(views, runs)):
+        raise ModuleFailure('REVIEW_COMMAND_FAILED')
+    return views
+
+
+def flow_execution_view(run, config, sampling=None):
     records = flow_execution_records(run)
-    sampling = None
-    if gate_path(run, 'm3-custom').exists():
+    if sampling is None and gate_path(run, 'm3-custom').exists():
         repo, _ = module_config()
         sampling = review_sampling_script(repo, config, 'view', run)
     attempts = sampling.get('attempts', []) if sampling else []
@@ -3172,6 +3196,10 @@ def cmd_metric_evidence(ns):
 
 
 def cmd_flow_query(ns):
+    global _GATE_HASH_MEMO
+    previous_memo = _GATE_HASH_MEMO
+    if ns.cmd in ('runs', 'runs-progress', 'run-info'):
+        _GATE_HASH_MEMO = {}
     try:
         if ns.cmd == 'connection':
             root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().absolute()
@@ -3211,7 +3239,7 @@ def cmd_flow_query(ns):
             result = flow_runs_progress()
         elif ns.cmd == 'runs':
             root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser()
-            values = []
+            listed = []
             for path in root.iterdir() if root.is_dir() else []:
                 if path.is_symlink() or not path.is_dir() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', path.name):
                     continue
@@ -3219,7 +3247,12 @@ def cmd_flow_query(ns):
                 request = gate_read(request_path)
                 if not isinstance(request, dict):
                     continue
-                execution = flow_execution_view(path, config)
+                listed.append((path, request_path, request))
+            sampled = [path for path, _, _ in listed if gate_path(path, 'm3-custom').exists()]
+            views = dict(zip(sampled, sampling_views(sampled, config))) if sampled else {}
+            values = []
+            for path, request_path, request in listed:
+                execution = flow_execution_view(path, config, sampling=views.get(path))
                 current = execution['modules'].get(execution['currentModule'], {})
                 last = current.get('currentGate') or {}
                 created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
@@ -3243,6 +3276,8 @@ def cmd_flow_query(ns):
     except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
         print(json.dumps({'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID', 'message': 'Invalid or unreadable flow input.'}))
         sys.exit(2)
+    finally:
+        _GATE_HASH_MEMO = previous_memo
 
 
 class FlowArgumentParser(argparse.ArgumentParser):

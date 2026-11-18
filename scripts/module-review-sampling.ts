@@ -332,6 +332,7 @@ async function inputJson():Promise<unknown>{let value='';for await(const part of
 export async function reviewSamplingCommand(args:string[]){
   const [action,runArg,...rest]=args;if(!runArg)throw new ModuleError('USAGE',2);const run=resolve(runArg);
   if(action==='view')return reviewSamplingView(run);
+  if(action==='views')return {format:'review-sampling-views-v1',views:await Promise.all([runArg,...rest].map(target=>reviewSamplingView(resolve(target))))};
   if(action==='configured-reserve')return reserveConfiguredAttempt(run,{executionId:rest[0]??'',sequence:Number(rest[1])});
   if(action==='save')return saveReviewPlan(run,await inputJson());
   if(action==='idle'){await assertSamplingIdle(run,undefined,false);return {format:'review-idle-v1'};}
