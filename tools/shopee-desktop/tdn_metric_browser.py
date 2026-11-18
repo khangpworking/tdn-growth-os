@@ -53,6 +53,16 @@ SHOT_FOLDER = 'metric'      # sub-folder of the app's evidence folder (its clean
 SHOT_TIMEOUT = 30
 
 
+def _is_link(path):
+    """A symlink, junction or other reparse point (never followed for a picture). Missing: False."""
+    try:
+        if os.path.islink(path):
+            return True
+        return bool(getattr(os.lstat(path), 'st_file_attributes', 0) & 0x400)
+    except FileNotFoundError:
+        return False
+
+
 def run_shot_name(run_id):
     """The local full-page Metric shot linked to a run (never sent to the server)."""
     return f'{run_id}-metric-full-page.png'
@@ -797,30 +807,44 @@ class MetricListener:
     def _failure(screenshot_saved, code):
         return MetricFailure(code, detail={'screenshotSaved': True} if screenshot_saved else None)
 
-    def full_page_shot(self, frozen, folder):
-        """At the click: one full-page picture of the frozen Metric tab, saved on this PC only as
-        ``metric-<local YYYY-MM-DD-HHMMSS>.png``. Never raises; a failed shot never blocks the capture."""
-        if folder is None:
+    def shot_target(self):
+        """The Metric tab to picture at the click, before the filter is frozen: the tab of the newest
+        products request, else the first attached Metric tab. None when no Metric tab is attached."""
+        with self._lock:
+            newest = self._newest['targetId'] if self._newest is not None else None
+            attached = [tid for tid, entry in self._tabs.items() if entry.phase == 'attached']
+        if newest in attached:
+            return newest
+        return attached[0] if attached else None
+
+    def full_page_shot(self, target_id, folder):
+        """At the click: one full-page picture of that Metric tab, saved on this PC only as
+        ``metric-<local YYYY-MM-DD-HHMMSS>.png``. Never raises; a failed shot never blocks the capture.
+        Failed shot (None): no folder, a linked folder, no attached tab, or no valid full-page size."""
+        if folder is None or target_id is None:
             return None
         with self._lock:
-            entry = self._tabs.get(frozen['targetId'])
+            entry = self._tabs.get(target_id)
             tab = entry.tab if entry is not None and entry.phase == 'attached' else None
         if tab is None:
             return None
         try:
-            params = {'format': 'png', 'captureBeyondViewport': True, '_timeout': SHOT_TIMEOUT}
-            try:
-                metrics = tab.call_method('Page.getLayoutMetrics', _timeout=10)
-                size = metrics.get('cssContentSize') or metrics.get('contentSize')
-                width, height = float(size['width']), float(size['height'])
-                if width > 0 and height > 0:
-                    params['clip'] = {'x': 0, 'y': 0, 'width': width, 'height': height, 'scale': 1}
-            except Exception:
-                pass            # no page size: Chrome still captures beyond the viewport
-            shot = tab.call_method('Page.captureScreenshot', **params)
-            data = base64.b64decode(shot['data'], validate=True)
             folder = Path(folder)
+            if _is_link(folder.parent) or _is_link(folder):
+                return None
+            # Full page only: the page size must be known, else it is a failed shot.
+            metrics = tab.call_method('Page.getLayoutMetrics', _timeout=10)
+            size = metrics.get('cssContentSize') or metrics.get('contentSize')
+            width, height = float(size['width']), float(size['height'])
+            if not (0 < width < 1e6 and 0 < height < 1e6):
+                return None
+            shot = tab.call_method('Page.captureScreenshot', format='png', captureBeyondViewport=True,
+                                   clip={'x': 0, 'y': 0, 'width': width, 'height': height, 'scale': 1},
+                                   _timeout=SHOT_TIMEOUT)
+            data = base64.b64decode(shot['data'], validate=True)
             folder.mkdir(exist_ok=True)
+            if _is_link(folder):
+                return None
             stamp = dt.datetime.now().strftime('%Y-%m-%d-%H%M%S')
             for number in range(100):
                 path = folder / (f'metric-{stamp}.png' if number == 0 else f'metric-{stamp}-{number}.png')
@@ -890,12 +914,18 @@ class MetricSession:
         listener = self.listener
         if listener is None:
             raise MetricFailure('METRIC_NOT_SEEN')
-        frozen = listener.freeze()
-        # Every click keeps one full-page shot on this PC (success, too few Shopee products, failure).
-        shot = listener.full_page_shot(frozen, screenshot_dir)
-        scope = scope_of(frozen['body'])
-        if not _valid_scope(scope):
-            raise MetricFailure('METRIC_FILTER_INVALID')
+        # Every click keeps one full-page shot on this PC, taken first: success, too few Shopee
+        # products, and every refusal or failure after this point (filter still loading too).
+        shot = listener.full_page_shot(listener.shot_target(), screenshot_dir)
+        try:
+            frozen = listener.freeze()       # still never an older filter
+            scope = scope_of(frozen['body'])
+            if not _valid_scope(scope):
+                raise MetricFailure('METRIC_FILTER_INVALID')
+        except MetricFailure as failure:
+            if shot is not None and failure.detail is None:
+                failure.detail = {'screenshotSaved': True}
+            raise
         keyword = run_name(scope)
         response = listener.fetch_top_products(frozen, request_in_page_source(self._js_path),
                                                screenshot_saved=shot is not None)
@@ -921,6 +951,8 @@ class MetricSession:
             return None
         target = shot.with_name(run_shot_name(run_id))
         try:
+            if _is_link(shot.parent) or _is_link(target):
+                return None
             os.replace(shot, target)
         except OSError:
             return None

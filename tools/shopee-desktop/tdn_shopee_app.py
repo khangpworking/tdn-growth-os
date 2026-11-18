@@ -176,6 +176,20 @@ def _metric_shot_folder():
     return _config_path().parent / 'evidence' / tdn_metric_browser.SHOT_FOLDER
 
 
+def _prepare_metric_shot_folder():
+    """The click's shot folder, made if needed WITHOUT the evidence cleanup (earlier evidence and shots
+    stay). None when it cannot be made, or the folder or its parent is a link/junction: no picture then."""
+    try:
+        folder = _metric_shot_folder()
+        for path in (folder.parent, folder):
+            path.mkdir(mode=0o700, exist_ok=True)
+            if not _real_directory(path):
+                return None
+        return folder
+    except (OSError, _BridgeFailure):
+        return None
+
+
 def _open_local_file(path):
     if sys.platform == 'win32':
         os.startfile(str(path))
@@ -1600,12 +1614,7 @@ class Api:
             raise tdn_metric_browser.MetricFailure('METRIC_BUSY')
         try:
             config = _load_config()
-            try:
-                _evidence_folder()
-                folder = _metric_shot_folder()
-            except _BridgeFailure:
-                folder = None
-            session.capture(value['collectionPolicy'], screenshot_dir=folder)
+            session.capture(value['collectionPolicy'], screenshot_dir=_prepare_metric_shot_folder())
             return self._send_metric_import(session, config)
         finally:
             session.busy.release()

@@ -6,8 +6,10 @@ Jev is reached. The real-Chrome check is test_metric_browser_cdp.py.
 import base64
 import importlib.util
 import json
+import os
 import pathlib
 import re
+import subprocess
 import sys
 import tempfile
 import threading
@@ -20,6 +22,9 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import tdn_metric_browser as mb  # noqa: E402
 import tdn_shopee_app  # noqa: E402
+
+REAL_SHOT_FOLDER = tdn_shopee_app._metric_shot_folder
+REAL_EVIDENCE_FOLDER = tdn_shopee_app._evidence_folder
 
 PRODUCTS = 'https://apiv4.metric.vn/v2/market/analytics/products/'
 POLICY = {'mode': 'with-comments', 'stars': [], 'totalPerLink': 300, 'allocation': 'pooled'}
@@ -745,7 +750,7 @@ class FreezeAndRequestTest(unittest.TestCase):
         self.tab.answers['Page.getLayoutMetrics'] = {'cssContentSize': {'x': 0, 'y': 0, 'width': 1280, 'height': 5400}}
         self.tab.answers['Page.captureScreenshot'] = {'data': base64.b64encode(b'\x89PNG fake').decode()}
         with tempfile.TemporaryDirectory() as folder:
-            path = self.listener.full_page_shot(frozen, pathlib.Path(folder) / 'metric')
+            path = self.listener.full_page_shot(frozen['targetId'], pathlib.Path(folder) / 'metric')
             self.assertRegex(path.name, r'^metric-\d{4}-\d\d-\d\d-\d{6}\.png$')
             self.assertEqual(path.read_bytes(), b'\x89PNG fake')
             shot = [params for method, params in self.tab.calls if method == 'Page.captureScreenshot'][0]
@@ -755,8 +760,8 @@ class FreezeAndRequestTest(unittest.TestCase):
             def broken(**_):
                 raise RuntimeError('capture failed')
             self.tab.answers['Page.captureScreenshot'] = broken
-            self.assertIsNone(self.listener.full_page_shot(frozen, folder))
-            self.assertIsNone(self.listener.full_page_shot(frozen, None))
+            self.assertIsNone(self.listener.full_page_shot(frozen['targetId'], folder))
+            self.assertIsNone(self.listener.full_page_shot(frozen['targetId'], None))
 
     def test_no_screenshot_on_success_and_a_detached_tab_is_refused(self):
         self.tab.products_request(page_body())
@@ -1126,6 +1131,87 @@ class BridgeTest(unittest.TestCase):
             self.answers = [self.OK_IMPORT, self.OK_FLOW]
             self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
             self.assertEqual(self.shot_files(), [])
+
+    def test_review_r1_rows(self):
+        """Terra r1 on PR #501, one row each:
+        | # | situation                                       | expected                                         |
+        |---|-------------------------------------------------|--------------------------------------------------|
+        | 1 | newest filter still loading (pending body)      | refused METRIC_FILTER_PENDING, picture taken     |
+        | 2 | earlier evidence files and shots exist          | all kept after the click (no cleanup)            |
+        | 3 | evidence/metric is a junction/symlink           | no picture written there; import goes on         |
+        | 4 | page size unknown (getLayoutMetrics fails)      | no picture (never a viewport one); import goes on |
+        | 5 | the shot folder cannot be made (OSError)        | no picture; import goes on                       |"""
+        stamped = r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$'
+        with self.subTest('1 filter still loading'):
+            release = threading.Event()
+            self.addCleanup(release.set)
+            self.session.listener.body_wait_seconds = 0.1
+            self.session.tab.answers['Network.getRequestPostData'] = lambda requestId: (
+                release.wait(5), {'postData': json.dumps(page_body())})[1]
+            self.session.tab.products_request(None, request_id='slow', inline=False)
+            result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
+            self.assertEqual(result['error']['code'], 'METRIC_FILTER_PENDING')
+            self.assertEqual(result['error']['detail'], {'screenshotSaved': True})
+            self.assertEqual(len(self.shot_files()), 1)
+            self.assertRegex(self.shot_files()[0], stamped)
+            self.assertEqual(self.remote_calls, [])
+            release.set()
+        with self.subTest('2 earlier evidence stays'):
+            self.setUp_fresh()
+            root = pathlib.Path(self.tmp.name) / 'profile'
+            evidence = root / 'evidence'
+            (evidence / 'metric').mkdir(parents=True)
+            (evidence / 'full-page.png').write_bytes(b'old evidence')
+            (evidence / 'metric' / 'run1-metric-full-page.png').write_bytes(b'old shot')
+            with mock.patch.object(tdn_shopee_app, '_config_path', lambda: root / 'config.json'), \
+                    mock.patch.object(tdn_shopee_app, '_metric_shot_folder', REAL_SHOT_FOLDER), \
+                    mock.patch.object(tdn_shopee_app, '_evidence_folder', REAL_EVIDENCE_FOLDER):
+                self.answers = [self.OK_IMPORT, self.OK_FLOW]
+                self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertEqual((evidence / 'full-page.png').read_bytes(), b'old evidence')
+            self.assertEqual(sorted(p.name for p in (evidence / 'metric').iterdir()),
+                             ['a1b2c3d4-metric-full-page.png', 'run1-metric-full-page.png'])
+        with self.subTest('3 linked shot folder'):
+            self.setUp_fresh()
+            elsewhere = pathlib.Path(self.tmp.name) / 'elsewhere'
+            elsewhere.mkdir()
+            if self.shots.exists():
+                self.shots.rmdir()
+            made = subprocess.run(['cmd', '/c', 'mklink', '/J', str(self.shots), str(elsewhere)],
+                                  capture_output=True) if sys.platform == 'win32' else None
+            if made is None:
+                os.symlink(elsewhere, self.shots, target_is_directory=True)
+            elif made.returncode != 0:
+                self.skipTest('cannot make a junction here')
+            drop_link = os.rmdir if sys.platform == 'win32' else os.unlink     # the link only, never its target
+            self.addCleanup(lambda: mb._is_link(self.shots) and drop_link(self.shots))
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertEqual(list(elsewhere.iterdir()), [])
+            drop_link(self.shots)
+        with self.subTest('4 page size unknown'):
+            self.setUp_fresh()
+
+            def no_metrics(**_):
+                raise RuntimeError('no layout')
+            self.session.tab.answers['Page.getLayoutMetrics'] = no_metrics
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertEqual(self.shot_files(), [])
+            self.assertNotIn('Page.captureScreenshot', self.session.tab.methods())
+            self.setUp_fresh()
+            self.session.tab.answers['Page.getLayoutMetrics'] = {'cssContentSize': {'width': 0, 'height': 900}}
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertNotIn('Page.captureScreenshot', self.session.tab.methods())
+        with self.subTest('5 shot folder cannot be made'):
+            self.setUp_fresh()
+            def unreadable():
+                raise PermissionError('evidence folder unreadable')
+            with mock.patch.object(tdn_shopee_app, '_metric_shot_folder', unreadable):
+                self.answers = [self.OK_IMPORT, self.OK_FLOW]
+                self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+            self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'flow'])
 
     def setUp_fresh(self):
         """A new click world in the same test: new session, empty shot folder, no remote calls."""

@@ -199,7 +199,7 @@ class RealChromeTest(unittest.TestCase):
         frozen = listener.freeze()
         shots = pathlib.Path(self.folder) / 'evidence' / 'metric'
         shots.parent.mkdir()
-        picture = listener.full_page_shot(frozen, shots)     # real Chrome: full page, beyond the viewport
+        picture = listener.full_page_shot(frozen['targetId'], shots)     # real Chrome: full page, beyond the viewport
         self.assertEqual(picture.read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
         self.assertEqual(list(shots.glob('metric-*.png')), [picture])
         with self.assertRaises(mb.MetricFailure) as caught:
