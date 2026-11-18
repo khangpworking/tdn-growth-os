@@ -3651,7 +3651,7 @@ test('a deleted run leaves the status bar, both run lists and both tabs', async 
     await waitFor(() => bar(run.doc).includes('Sản phẩm A') && listed(run.doc, 'runList').includes('Sản phẩm A'), 'b: shown');
     run.state.runsView = run.state.runsView.filter((item: any) => item.runId !== 'run-a');     // deleted elsewhere
     [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();               // «Kết quả chạy»
-    await waitFor(() => !listed(run.doc, 'runList').includes('Sản phẩm A'), 'b: list refreshed');
+    await waitFor(() => !listed(run.doc, 'resultRunList').includes('Sản phẩm A'), 'b: list refreshed');
     assert.equal(bar(run.doc), idle, 'b: status bar pruned');
     assert.doesNotMatch(listed(run.doc, 'resultRunList'), /Sản phẩm A/, 'b: result list');
   } finally { run.dom.window.close(); }
@@ -4124,5 +4124,62 @@ test('opening a run and overlapping lists follow the latest successful list', as
     held.resolve();
     await waitFor(() => listed(run.doc, 'resultRunList').includes('Sản phẩm Y') &&
       !listed(run.doc, 'resultRunList').includes('Sản phẩm X'), '2: X gone from the shown list');
+  } finally { run.dom.window.close(); }
+});
+
+// Opening the track and result tabs fast (F647 change 1), one row each:
+// | # | situation                                              | expected before the slow reply comes                     |
+// |---|--------------------------------------------------------|-----------------------------------------------------------|
+// | 1 | open run A again while its run-info is slow            | A's last detail is shown, with «Đang cập nhật…»           |
+// | 2 | open run A while its run-info is slow                  | sampling, review data, outputs and step 4 are asked       |
+// | 3 | click «Chi tiết lịch sử lượt chạy» while the list is slow | the open run's run-info is asked; «Đang cập nhật…» shown |
+test('the run tabs show what they have at once and ask everything together', async () => {
+  const runA = { runId: 'run-a', product: 'Sản phẩm A', status: 'DONE' };
+  const runB = { runId: 'run-b', product: 'Sản phẩm B', status: 'DONE' };
+  let statusHold: Deferred<void> | null = null;
+  let listHold: Deferred<void> | null = null;
+  const run = harness({ runs: [runA, runB], runInfoByRun: { 'run-a': syntheticRunInfo('run-a'), 'run-b': syntheticRunInfo('run-b') },
+    statusGate: (runId) => (runId === 'run-a' && statusHold ? statusHold : undefined),
+    listRunsHold: () => listHold?.promise });
+  const tab = (index: number) => [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const heading = () => run.doc.querySelector('#runDetail h2')?.textContent || '';
+  const marked = () => [...run.doc.querySelectorAll<HTMLElement>('.refresh-mark')].some((mark) => !mark.hidden);
+  try {
+    tab(1);
+    await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null && !marked(), 'run-a open');
+    const headA = heading();
+    runListButton(run.doc, 'run-b').click();
+    await waitFor(() => heading() !== headA && !marked(), 'run-b open');
+
+    // 1 and 2
+    statusHold = deferred<void>();
+    const asked = {
+      sampling: run.state.reviewSamplingCallsByRun['run-a'] || 0,
+      data: run.state.reviewDataCallsByRun['run-a'] || 0,
+      outputs: run.state.moduleOutputsCalls.filter((id) => id === 'run-a').length,
+      process: run.state.reviewProcessCalls.filter((id) => id === 'run-a').length,
+    };
+    runListButton(run.doc, 'run-a').click();
+    assert.equal(heading(), headA, '1: the last detail at once');
+    assert.equal(marked(), true, '1: «Đang cập nhật…»');
+    await waitFor(() => (run.state.reviewSamplingCallsByRun['run-a'] || 0) > asked.sampling &&
+      (run.state.reviewDataCallsByRun['run-a'] || 0) > asked.data &&
+      run.state.moduleOutputsCalls.filter((id) => id === 'run-a').length > asked.outputs &&
+      run.state.reviewProcessCalls.filter((id) => id === 'run-a').length > asked.process, '2: all asked with run-info');
+    assert.equal(heading(), headA, '1: still shown while run-info is slow');
+    statusHold.resolve();
+    statusHold = null;
+    await waitFor(() => !marked(), 'run-a fresh');
+
+    // 3
+    tab(2);
+    listHold = deferred<void>();
+    const statusAsked = run.state.statusCalls.length;
+    tab(1);
+    await waitFor(() => run.state.statusCalls.length > statusAsked, '3: run-info asked while the list is slow');
+    assert.equal(run.state.statusCalls.at(-1), 'run-a');
+    assert.equal(marked(), true, '3: «Đang cập nhật…»');
+    listHold.resolve();
+    await waitFor(() => !marked(), '3: mark gone after the list');
   } finally { run.dom.window.close(); }
 });

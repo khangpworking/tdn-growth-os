@@ -96,6 +96,7 @@ select, input { font: inherit; color: var(--fg); background: var(--panel); borde
 @media (max-width: 880px) { .track { grid-template-columns: minmax(0, 1fr); } }
 .runs { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; align-content: start; }
 .runs h2 { margin: 0; font-size: 15px; }
+.refresh-mark { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--muted); }
 .run-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .runbtn { width: 100%; text-align: left; display: grid; gap: 3px; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; cursor: pointer; }
 .runbtn:hover { border-color: var(--accent); }
@@ -657,7 +658,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     <section id="scr-track" aria-label="Chi tiết lịch sử lượt chạy" hidden>
       <div class="track">
         <aside class="runs">
-          <h2>Các lượt đã tạo</h2>
+          <h2>Các lượt đã tạo<span class="refresh-mark" hidden>Đang cập nhật…</span></h2>
           <label class="field run-filter"><span>Lọc theo trạng thái</span>
             <select id="runFilter">
               <option value="all">Tất cả trạng thái</option>
@@ -683,7 +684,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     <section id="scr-result" aria-label="Kết quả chạy" hidden>
       <div class="track">
         <aside class="runs">
-          <h2>Các lượt đã tạo</h2>
+          <h2>Các lượt đã tạo<span class="refresh-mark" hidden>Đang cập nhật…</span></h2>
           <ol id="resultRunList" class="run-list"></ol>
           <p class="muted" id="resultRunsEmpty" hidden>Chưa có lượt nào.</p>
         </aside>
@@ -3060,7 +3061,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     navSeq: 0,
     screen: 'new',
     info: null,
+    infoByRun: {},       // the last run-info per run, shown at once while the fresh one loads
     loadingRunId: null,
+    listPending: 0,      // listings on their way («Đang cập nhật…»)
     moduleRunBusy: {},
     newRunId: null,
     newEntry: null,
@@ -6932,7 +6935,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     root.appendChild(reviewInsightsPanel(insights, runId));
   }
 
+  function renderRefreshMark() {
+    var busy = state.listPending > 0 || (!!state.loadingRunId && state.loadingRunId === state.selectedRunId);
+    Array.prototype.forEach.call(document.querySelectorAll('.refresh-mark'), function (mark) { mark.hidden = !busy; });
+  }
+
   function renderDetail() {
+    renderRefreshMark();
     renderResult();
     var root = $('runDetail');
     clear(root);
@@ -7097,8 +7106,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // Every success newer than the one applied is applied, even while a newer request is pending or later fails.
   function fetchRuns() {
     var seq = ++state.runsSeq;
-    state.runsPromise = listRunsOnce(seq);
-    return state.runsPromise;
+    state.listPending += 1;
+    renderRefreshMark();
+    var listing = listRunsOnce(seq);
+    state.runsPromise = listing;
+    listing.then(function () {
+      state.listPending -= 1;
+      renderRefreshMark();
+    });
+    return listing;
   }
 
   async function listRunsOnce(seq) {
@@ -7211,10 +7227,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return fetchRuns();
   }
 
+  // run-info and every other per-run call start together: they need only the runId. Each loader drops a
+  // late reply itself (isGone, its own sequence, the selection).
   async function loadInfo(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
-    var res = await runStatus(runId);
+    var status = runStatus(runId);
+    loadSampling(runId);
+    loadReviewData(runId);
+    loadModuleOutputs(runId);
+    loadReviewProcess(runId);
+    if (state.screen === 'result') {
+      loadReviewStats(runId);
+      loadReviewInsights(runId);
+    }
+    var res = await status;
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.infoSeq[runId] || state.selectedRunId !== runId) return;
     state.loadingRunId = null;
@@ -7225,18 +7252,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return;
     }
     state.info = res.data;
+    if (res.data) state.infoByRun[runId] = res.data;
     renderDetail();
     managePoll();
-    if (res.data) {
-      loadSampling(runId);
-      loadReviewData(runId);
-      loadModuleOutputs(runId);
-      loadReviewProcess(runId);
-      if (state.screen === 'result') {
-        loadReviewStats(runId);
-        loadReviewInsights(runId);
-      }
-    }
   }
 
   async function selectRun(runId) {
@@ -7245,7 +7263,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.selectionSeq += 1;
     state.selectedRunId = runId;
     state.loadingRunId = runId;
-    state.info = null;
+    state.info = state.infoByRun[runId] || null;   // the last copy at once; the fresh one replaces it
     renderRunList();
     renderDetail();
     await loadInfo(runId);
@@ -7283,6 +7301,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var running = !!(data.execution && data.execution.status === 'RUNNING') ||
       !!(data.state && data.state.status === 'RUNNING');
     state.info = data;
+    if (data) state.infoByRun[runId] = data;
     renderDetail();
     loadSampling(runId);
     loadReviewData(runId);
@@ -7428,7 +7447,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   async function hydrateAfterConnect(epoch, first) {
-    var pres = await api.presets();
+    var presAsked = api.presets();
+    var runsAsked = fetchRuns();
+    var pres = await presAsked;
     if (epoch !== state.connectionEpoch) return false;
     if (pres.ok) {
       state.presets = (pres.data && pres.data.presets) || [];
@@ -7437,7 +7458,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       showError(pres.error);
       if (epoch !== state.connectionEpoch) return false;
     }
-    var runs = await fetchRuns();
+    var runs = await runsAsked;
     if (epoch !== state.connectionEpoch) return false;
     if (!runs) return false;
     if (state.newBinding) {
@@ -8756,7 +8777,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     clearError();
     var preferred = state.preferredRunId;      // read before the refresh, which may forget it
     state.preferredRunId = null;
-    await refreshRuns();
+    var listing = refreshRuns();
+    // A tab click with a list on screen starts the selection at once; the fresh list follows and closes a run
+    // it no longer has. A run asked for by name (notice, status bar, «Xem lượt») waits for the fresh list.
+    if (preferred || !state.runs.length) await listing;
     if (preferred && isGone(preferred)) {
       await runGone(preferred);                 // told once, never another run instead
     } else if (preferred && isListed(preferred)) {
