@@ -78,6 +78,9 @@ export async function reconcileLinkJournals(options: { collector: LinkCollector;
     let reconciled: SamplingJournal;
     try { reconciled = await options.collector.run(file, journal.request, link, null, true, AbortSignal.timeout(remaining)); }
     catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
+    // The job can stop on a session that still needs the owner: keep that wait instead of a generic failure.
+    if (reconciled.errorCode === 'HUMAN_LOGIN_REQUIRED' || reconciled.errorCode === 'HUMAN_VERIFICATION_REQUIRED')
+      throw new LinkCheckStop(reconciled.errorCode);
     if (!reconciled.terminal) throw new LinkCheckStop('LINK_CHECK_FAILED');
   }
 }

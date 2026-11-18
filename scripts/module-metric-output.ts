@@ -3,6 +3,7 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import evidenceSchema from '../contracts/analysis/metric-v3-evidence-v2.schema.json' with { type: 'json' };
+import outputsSchema from '../skills/tdn-shopee-flow/chuan/module-outputs-v1.schema.json' with { type: 'json' };
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
 import type { LinkCheckEntry } from './module-link-check.js';
@@ -13,6 +14,9 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const ajv = new Ajv2020({ strict: true });
 (require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
 const validateEvidence = ajv.compile(evidenceSchema);
+ajv.addSchema(outputsSchema);
+// The projection admits only items the final outputs validation would accept, so a malformed file cannot fail it.
+const validateLinkIssue = ajv.getSchema(`${outputsSchema.$id}#/$defs/linkIssue`)!;
 const MAX_BYTES = 64 * 1024 * 1024;
 type Kind = 'full-page' | 'top-products' | 'raw';
 type Source = Awaited<ReturnType<typeof readPickSource>>;
@@ -227,9 +231,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
  *  A display list only: the saved log is read as it is, never compared with the selection proof. */
 async function m2LinkIssues(run: string): Promise<LinkIssue[]> {
   const entries = (await savedLinkChecks(run))?.entries ?? [];
-  return entries.flatMap((entry, index) => entry.result !== 'rejected' ? [] : [{
-    stage: 'm2' as const, productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string, at: entry.checkedAt,
-    replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null }]);
+  const issues: LinkIssue[] = [];
+  entries.forEach((entry, index) => {
+    if (entry.result !== 'rejected') return;
+    const issue: LinkIssue = { stage: 'm2', productBaseId: entry.productBaseId, url: entry.url, reason: entry.reason as string,
+      at: entry.checkedAt, replacedBy: entries.slice(index + 1).find(next => next.result === 'ok')?.productBaseId ?? null, attemptId: null };
+    // One invalid entry is dropped alone; the rest of the saved log still shows.
+    if (validateLinkIssue(issue)) issues.push(issue);
+  });
+  return issues;
 }
 /** Step-3 deaths: every attempt that wrote a final outcome, even when a later journal stays unresolved,
  *  newest attempt end first and each issue keeping its attemptId. A display list only: a missing or
@@ -255,13 +265,16 @@ async function m3LinkIssues(run: string): Promise<LinkIssue[]> {
   for (const { attemptId, links, outcome, at } of completed) {
     // `skipped` arrives with step-3 skip; outcomes without it leave no issue.
     if ((outcome.links as unknown[]).length !== links.length) continue;
+    const projected: LinkIssue[] = [];
     for (const [index, rawSummary] of (outcome.links as unknown[]).entries()) {
       const summary = rawSummary, link = links[index];
       if (!isRow(summary) || summary.skipped !== true || typeof summary.stopReason !== 'string' ||
           !isRow(link) || typeof link.shopId !== 'string' || typeof link.itemId !== 'string' || typeof link.url !== 'string') continue;
-      issues.push({ stage: 'm3', productBaseId: `1__${link.itemId}__${link.shopId}`, url: link.url, reason: summary.stopReason,
+      projected.push({ stage: 'm3', productBaseId: `1__${link.itemId}__${link.shopId}`, url: link.url, reason: summary.stopReason,
         at, replacedBy: null, attemptId });
     }
+    // One malformed item drops the whole attempt, so `outputs` never fails on a link issue.
+    if (projected.every(issue => validateLinkIssue(issue))) issues.push(...projected);
   }
   return issues;
 }
@@ -339,7 +352,8 @@ export async function moduleOutputs(runArg: string) {
   const { panelCovered: _covered, ...wireM2 } = m2 as typeof m2 & { panelCovered?: boolean };
   // `linkIssues` is a display list: a malformed log or attempt contributes no items, never an error.
   const m2Issues = await m2LinkIssues(run).catch(() => [] as LinkIssue[]);
-  const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...await m3LinkIssues(run)] };
+  const m3Issues = await m3LinkIssues(run).catch(() => [] as LinkIssue[]);
+  const wire = { format: 'module-outputs-v1', runId, m1, m2: wireM2, linkIssues: [...m2Issues, ...m3Issues] };
   await validateModuleValue('module-outputs-v1', wire);
   return wire;
 }

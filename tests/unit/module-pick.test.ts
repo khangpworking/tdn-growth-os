@@ -508,6 +508,38 @@ test('a lost count-job submission keeps its journal under m2 and is reconciled b
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test('a retry keeps the owner-wait code from a count journal stopped for human action', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['8691', '8692']);
+    await writeV2Run(dir, rows);
+    const at = '2026-11-18T03:00:00.000Z', routes: string[] = [];
+    const job = { id: '55555555-5555-4555-8555-555555555555', request: null as unknown, state: 'needs_login',
+      created_at: at, updated_at: at, result_available: false };
+    const fakeFetch: typeof fetch = async (input, init) => {
+      const method = init?.method ?? 'GET', url = new URL(String(input));
+      routes.push(`${method} ${url.pathname}`);
+      if (method === 'GET' && url.pathname === '/session') return Response.json({ state: 'ready', authenticated: true, checked_at: at });
+      if (method === 'GET' && url.pathname === '/jobs') return Response.json([]);
+      if (method === 'POST' && url.pathname === '/count-jobs') {
+        job.request = JSON.parse(String(init?.body));
+        return Response.json(job);
+      }
+      if (method === 'GET' && url.pathname === `/jobs/${job.id}`) return Response.json(job);
+      throw new Error(`unexpected ${method} ${url.pathname}`);
+    };
+    const collector = new ShopeeReviewSamplingCollector({ token: 'synthetic-token', fetch: fakeFetch,
+      now: () => new Date(at), sleep: noWait, submitLockFile: join(dir, 'submit.lock') });
+    const collect = () => main(dir, { jev: () => fakeJev([answer(1, 'MOI', 0.9)]).jev, sleep: noWait, linkCollector: () => collector });
+    const waits = (error: unknown) => error instanceof ModuleError && error.code === 'HUMAN_LOGIN_REQUIRED';
+    await assert.rejects(collect(), waits, 'the first attempt stops on the session');
+    assert.equal((await readdir(join(dir, 'm2/link-check-journal'))).filter(name => name.endsWith('.json')).length, 1,
+      'the stopped journal stays nonterminal on disk');
+    await assert.rejects(collect(), waits, 'the retry keeps the owner-wait code from the reconciled journal');
+    assert.equal(routes.filter(route => route === 'POST /count-jobs').length, 1, 'the retry reconciles, it never resubmits');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('one step-2 deadline covers reconciliation; an expired one keeps the unresolved journal', async t => {
   const dir = await runDir();
   try {

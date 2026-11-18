@@ -419,6 +419,22 @@ test('link issues name step-2 replacements and every step-3 attempt with a final
   const tamperedOutput = await moduleOutputs(run) as any;
   assert.deepEqual(tamperedOutput.linkIssues.map((issue: any) => issue.attemptId).filter(Boolean), [attemptC, attemptA],
     'the malformed attempt is dropped and its neighbours stay');
+  const outcomeB = join(run, 'm3-custom/attempts', attemptB, 'output/outcome.json');
+  const outcomeWith = (reason: string) => ({ format: 'm3-custom-outcome-v1', planSha256, verdict: 'PARTIAL_LINKS',
+    errorCode: null, links: selection.links.map((link: any, index: number) => summary(link, index === 2 ? reason : 'exhausted', index === 2)) });
+  // An otherwise valid outcome whose stop reason is outside the closed list drops that attempt only.
+  await writeFile(outcomeB, jsonBytes(outcomeWith('BAD')));
+  const badReason = await moduleOutputs(run) as any;
+  assert.deepEqual(badReason.linkIssues.map((issue: any) => issue.attemptId).filter(Boolean), [attemptC, attemptA],
+    'a stop reason outside the closed list drops the attempt; the others stay and outputs still builds');
+  // A parseable but non-RFC3339 end time is rejected the same way.
+  await writeFile(outcomeB, jsonBytes(outcomeWith('RATINGS_MISSING')));
+  const statePath = join(run, 'm3-custom/attempts', attemptB, 'state.json');
+  const stateB = JSON.parse(await readFile(statePath, 'utf8'));
+  await writeFile(statePath, jsonBytes({ ...stateB, endedAt: '2026-11-18 05:00:00' }));
+  const badDate = await moduleOutputs(run) as any;
+  assert.deepEqual(badDate.linkIssues.map((issue: any) => issue.attemptId).filter(Boolean), [attemptC, attemptA],
+    'an end time outside RFC3339 drops the attempt; the others stay and outputs still builds');
 });
 
 test('a stopped step-2 attempt with an unbound log still projects its rejections', async t => {
