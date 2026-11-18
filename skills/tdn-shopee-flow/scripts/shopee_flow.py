@@ -1507,12 +1507,16 @@ def flow_passed_before_extra(attempts):
     return best if extras else None
 
 
-def flow_execution_view(run, config):
+_SAMPLING_UNSET = object()
+
+
+def flow_execution_view(run, config, sampling=_SAMPLING_UNSET):
     records = flow_execution_records(run)
-    sampling = None
-    if gate_path(run, 'm3-custom').exists():
-        repo, _ = module_config()
-        sampling = review_sampling_script(repo, config, 'view', run)
+    if sampling is _SAMPLING_UNSET:
+        sampling = None
+        if gate_path(run, 'm3-custom').exists():
+            repo, _ = module_config()
+            sampling = review_sampling_script(repo, config, 'view', run)
     attempts = sampling.get('attempts', []) if sampling else []
     state = gate_read(gate_path(run, 'state.json')) or {}
     modules, revision = {}, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
@@ -1931,14 +1935,21 @@ def cmd_review_data(ns):
         command = shlex.split(command) if isinstance(command, str) else command
         if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
             raise ModuleFailure('NODE_COMMAND_INVALID', 2)
-        action = {'review-data': 'view', 'review-stats': 'stats', 'review-insights': 'insights', 'save-review-data': 'save', 'export-review-data': 'export',
+        action = {'review-data': 'view', 'review-stats': 'stats', 'review-insights': 'insights', 'review-insight-comments': 'insight-comments',
+                  'save-review-data': 'save', 'export-review-data': 'export',
                   'read-review-export': 'read', 'review-process': 'process-view'}[ns.cmd]
+        if ns.cmd == 'review-insights' and ns.summary:
+            action = 'insights-summary'
         payload = None
         if ns.cmd in ('save-review-data', 'export-review-data'):
             payload = sys.stdin.buffer.read(65537)
             if len(payload) > 65536:
                 raise ModuleFailure('REVIEW_DATA_INVALID', 2)
         args = [*command, str(repo / 'scripts/module-review-data.ts'), action, str(run)]
+        if ns.cmd == 'review-insight-comments':
+            args.append(ns.bucket)
+            if ns.theme is not None:
+                args.append(ns.theme)
         if binary:
             if not re.fullmatch(r'[a-f0-9]{64}', ns.export_sha256):
                 raise ModuleFailure('REVIEW_DATA_INVALID', 2)
@@ -1958,7 +1969,8 @@ def cmd_review_data(ns):
             code = value.get('code') if isinstance(value, dict) else None
             raise ModuleFailure(code if isinstance(code, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'REVIEW_DATA_FAILED',
                                 result.returncode if result.returncode in (2, 20, 23, 24) else 20)
-        print(json.dumps(value, ensure_ascii=True))
+        utf8 = ns.cmd == 'review-insight-comments' or (ns.cmd == 'review-insights' and ns.summary)
+        print(json.dumps(value, ensure_ascii=not utf8))
     except (ModuleFailure, OSError, ValueError, TypeError, KeyError) as error:
         code = error.code if isinstance(error, ModuleFailure) else 'REVIEW_DATA_FAILED'
         if binary:
@@ -3108,9 +3120,9 @@ def cmd_delete_run(ns):
         sys.exit(20)
 
 
-def flow_run_info(run, config):
+def flow_run_info(run, config, sampling=_SAMPLING_UNSET):
     request = gate_read(gate_path(run, 'request.json'))
-    execution = flow_execution_view(run, config)
+    execution = flow_execution_view(run, config, sampling)
     modules = []
     for m in config['modules']:
         module = m['id'].lower()
@@ -3169,6 +3181,65 @@ def cmd_metric_evidence(ns):
     except (OSError, ValueError, TypeError):
         print('EVIDENCE_READ_FAILED', file=sys.stderr)
         sys.exit(20)
+
+
+def review_run_view_script(repo, config, run, result):
+    """One node process for every per-run part; never relay subprocess diagnostics."""
+    import shlex
+    command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
+    command = shlex.split(command) if isinstance(command, str) else command
+    if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
+        raise ModuleFailure('NODE_COMMAND_INVALID', 2)
+    args = [*command, str(repo / 'scripts/module-run-view.ts'), str(run), *(['--result'] if result else [])]
+    completed = subprocess.run(args, cwd=repo, capture_output=True, text=True)
+    try:
+        value = json.loads(completed.stdout)
+    except ValueError:
+        raise ModuleFailure('REVIEW_COMMAND_FAILED') from None
+    if completed.returncode or not isinstance(value, dict) or value.get('format') == 'error-v1':
+        code = value.get('code') if isinstance(value, dict) else None
+        if not isinstance(code, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code):
+            code = 'REVIEW_COMMAND_FAILED'
+        raise ModuleFailure(code, completed.returncode if completed.returncode in (2, 20) else 20)
+    parts, errors = value.get('parts'), value.get('errors')
+    if not isinstance(parts, dict) or not isinstance(errors, dict):
+        raise ModuleFailure('REVIEW_COMMAND_FAILED')
+    for error in errors.values():
+        if not isinstance(error, dict) or not isinstance(error.get('code'), str) or not isinstance(error.get('message'), str):
+            raise ModuleFailure('REVIEW_COMMAND_FAILED')
+    return value
+
+
+def cmd_run_view(ns):
+    """One process for the per-run read view; a failing part never hides the others."""
+    try:
+        run = module_run_folder(ns.run_id)
+        repo, config = module_config()
+        node = review_run_view_script(repo, config, run, ns.result)
+        parts, errors = node['parts'], node['errors']
+        try:
+            if gate_path(run, 'm3-custom').exists():
+                if 'sampling' not in parts:
+                    raise ModuleFailure(errors.get('sampling', {}).get('code') or 'REVIEW_COMMAND_FAILED')
+                sampling = parts['sampling']
+            else:
+                sampling = None
+            info = flow_run_info(run, config, sampling)
+        except ModuleFailure as failure:
+            print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
+            sys.exit(failure.exit_code)
+        except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
+            message = 'Invalid or unreadable flow input.'
+            print(json.dumps({'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID', 'message': message}))
+            sys.exit(2)
+        print(json.dumps({'format': 'run-view-v1', 'runId': run.name, 'parts': {'info': info, **parts}, 'errors': errors},
+                         ensure_ascii=False))
+    except ModuleFailure as failure:
+        print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
+        sys.exit(failure.exit_code)
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError):
+        print(json.dumps({'format': 'error-v1', 'code': 'FLOW_INPUT_INVALID', 'message': 'Invalid or unreadable flow input.'}))
+        sys.exit(2)
 
 
 def cmd_flow_query(ns):
@@ -3250,7 +3321,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'run-view', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'review-insight-comments', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -3273,7 +3344,14 @@ def main():
             x.add_argument('--stdin', action='store_true', required=True)
         if name == 'read-review-export':
             x.add_argument('--export-sha256', required=True)
+        if name == 'review-insights':
+            x.add_argument('--summary', action='store_true')
         x.set_defaults(f=cmd_review_data)
+    x = sp.add_parser('review-insight-comments'); x.add_argument('--run', dest='run_id', required=True)
+    x.add_argument('--bucket', required=True); x.add_argument('--theme')
+    x.set_defaults(f=cmd_review_data)
+    x = sp.add_parser('run-view'); x.add_argument('--run', dest='run_id', required=True); x.add_argument('--result', action='store_true')
+    x.set_defaults(f=cmd_run_view)
     for module in ('m1', 'm2', 'm3', 'run'):
         x = sp.add_parser(module); x.add_argument('--run', dest='run_id', required=True)
         if module == 'm2': x.add_argument('--manual')

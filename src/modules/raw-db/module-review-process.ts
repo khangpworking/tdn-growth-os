@@ -398,7 +398,8 @@ export async function reviewProcessLabelCoverage(run: string, source: VerifiedMo
   } catch { return null; } finally { db.close(); }
 }
 
-export async function reviewProcessView(run: string, settings: ReviewProcessSettings): Promise<ReviewProcessView> {
+export async function reviewProcessView(run: string, settings: ReviewProcessSettings,
+  discovered?: VerifiedModuleReviewCollection[]): Promise<ReviewProcessView> {
   const autoRun = await reviewProcessAutoRun(run), v = await versions(settings, 'none');
   let db: BetterSqlite3.Database | null = null;
   try {
@@ -406,7 +407,7 @@ export async function reviewProcessView(run: string, settings: ReviewProcessSett
     if (config && (await stat(config.artifactRoot)).isDirectory()) db = configuredDatabase(true);
   } catch { db = null; }
   try {
-    const sources = (await discoverModuleReviewSources(run)).filter(s => s.gateVerdict === 'PASS' && s.status === 'SUCCEEDED')
+    const sources = (discovered ?? await discoverModuleReviewSources(run)).filter(s => s.gateVerdict === 'PASS' && s.status === 'SUCCEEDED')
       .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
     const views: ReviewProcessSource[] = [];
     for (const source of sources) {
