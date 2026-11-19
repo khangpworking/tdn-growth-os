@@ -1,8 +1,11 @@
 """F647 wave 2 bridge: run-view parts, the insights summary and comments on demand (CONTRACT-F647-wave2 §4)."""
 
+import json
+import os
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -47,6 +50,14 @@ def view(parts, errors=None):
 
 class RunViewBridgeTest(unittest.TestCase):
     def setUp(self):
+        folder = tempfile.TemporaryDirectory()      # the disk copy never touches this PC's real app folder
+        self.addCleanup(folder.cleanup)
+        config = pathlib.Path(folder.name) / 'config.json'
+        config.write_text(json.dumps({'sshCommand': ['ssh', 'runs.example'], 'remoteScript': '$HOME/tdn/shopee_flow.py',
+                                      'timeoutSeconds': 5}), encoding='utf-8')
+        env = mock.patch.dict(os.environ, {'TDN_SHOPEE_APP_CONFIG': str(config)})
+        env.start()
+        self.addCleanup(env.stop)
         self.api = tdn_shopee_app.Api()
         self.calls = []
         self.answer = None

@@ -3072,6 +3072,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return (async function () {
         await readyPromise;
         if (mode === 'real' && typeof window.pywebview.api[method] !== 'function') return err('USAGE', 'USAGE');
+        if (mode === 'mock' && typeof mock[method] !== 'function') return err('USAGE', 'USAGE');
         return call(method, args);
       })();
     }
@@ -3116,7 +3117,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       reviewStats: function (runId) { return call('reviewStats', [runId]); },
       reviewInsights: function (runId) { return call('reviewInsights', [runId]); },
       // F647 wave 2. A bridge without these (an older app part) answers like an older server: USAGE.
-      runView: function (runId, result) { return callWave2('runView', [runId, !!result]); },
+      // `join`: the first read of a row open may take the bridge's prefetch read of that run (no other read does).
+      runView: function (runId, result, join) { return callWave2('runView', [runId, !!result, !!join]); },
+      // F651: the bridge's disk copy of a run's view, and its background read of the visible settled rows.
+      runViewCached: function (runId) { return callWave2('runViewCached', [runId]); },
+      prefetchRunViews: function (rows) { return callWave2('prefetchRunViews', [rows]); },
       reviewInsightsSummary: function (runId) { return callWave2('reviewInsightsSummary', [runId]); },
       reviewInsightComments: function (runId, bucket, theme) {
         return callWave2('reviewInsightComments', [runId, bucket, theme === undefined ? null : theme]);
@@ -3187,6 +3192,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     newDateSuggestion: null,
     preferredRunId: null,
     flowDialogBinding: null,
+    prefetchSent: '[]',
+    copiesOff: false,         // true after a run-view USAGE: the disk copy is not used again this session
+    copyWait: {},             // runId -> an open waits for its disk copy (until its first live answer)
+    copyHold: {},             // runId -> its disk copy is shown: start/save/delete held       // the visible prefetch queue last sent to the bridge (JSON)
     runFilters: { track: 'all', result: 'all' },   // «Lọc theo trạng thái», per tab
     runSort: 'newest',      // «Mới tạo trước» | «Cũ nhất trước», one choice for both run lists
     runSortChosen: false,   // a click before the saved choice is read wins
@@ -4387,6 +4396,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.samplingSeq[runId] || 0) + 1;
     state.samplingSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var previous = state.sampling[runId];
     var res = await (pending || api.reviewSampling(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
@@ -4394,6 +4404,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (res.ok) {
       state.sampling[runId] = res.data;
       delete state.samplingErrors[runId];
+      if (live) markLive(runId, 'sampling', live);
     } else {
       state.samplingErrors[runId] = res.error;
     }
@@ -4424,6 +4435,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewDataSeq[runId] || 0) + 1;
     state.reviewDataSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || api.reviewData(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewDataSeq[runId]) return;
@@ -4432,6 +4444,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (res.ok) {
       state.reviewData[runId] = res.data;
       delete state.reviewDataErrors[runId];
+      if (live) markLive(runId, 'reviewData', live);
     } else {
       state.reviewDataErrors[runId] = res.error;
     }
@@ -4450,6 +4463,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function loadModuleOutputsView(runId, pending) {
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || api.moduleOutputs(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.moduleOutputsSeq[runId] || state.selectedRunId !== runId) return;
@@ -4461,6 +4475,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     } else {
       state.moduleOutputs[runId] = res.data;
       delete state.moduleOutputsErrors[runId];
+      if (live) markLive(runId, 'outputs', live);
     }
     if (state.selectedRunId === runId) renderDetail();
   }
@@ -4470,6 +4485,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewStatsSeq[runId] || 0) + 1;
     state.reviewStatsSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || api.reviewStats(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewStatsSeq[runId] || state.selectedRunId !== runId) return;
@@ -4481,6 +4497,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     } else {
       state.reviewStats[runId] = res.data;
       delete state.reviewStatsErrors[runId];
+      if (live) markLive(runId, 'stats', live);
     }
     renderResult();
   }
@@ -4501,6 +4518,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewInsightsSeq[runId] || 0) + 1;
     state.reviewInsightsSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || askReviewInsights(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewInsightsSeq[runId] || state.selectedRunId !== runId) return;
@@ -4515,6 +4533,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       state.reviewInsights[runId] = res.data;
       forgetChangedBuckets(runId, before, insightBucketTexts(res.data));
       delete state.reviewInsightsErrors[runId];
+      if (live) markLive(runId, 'insights', live);
     }
     renderResult();
   }
@@ -6774,6 +6793,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewProcessSeq[runId] || 0) + 1;
     state.reviewProcessSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var before = step4Kind(runId);
     var res = await (pending || api.reviewProcess(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
@@ -6782,6 +6802,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         Array.isArray(res.data.sources)) {
       state.reviewProcess[runId] = res.data;
       delete state.reviewProcessErrors[runId];
+      if (live) markLive(runId, 'process', live);
     } else {
       state.reviewProcessErrors[runId] = res.ok ? { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } : res.error;
     }
@@ -7121,60 +7142,73 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       if (state.renderWanted !== 'detail') state.renderWanted = 'result';
       return;
     }
-    var root = $('resultDetail');
-    clear(root);
-    var info = state.info;
-    if (!info) {
-      root.appendChild(h('p', 'muted', emptyRunText()));
-      return;
-    }
-    var runId = info.runId;
-    var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
-    var tracking = info.tracking || item.tracking || null;
-    var exec = executionOf(info);
-    var meta = requestMeta(info.request || item.request || null);
-    var head = h('div', 'dhead');
-    head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + runId))));
-    head.appendChild(statusChip(effectiveStatus(runId, exec ? exec.status : (info.state && info.state.status)), tracking));
-    root.appendChild(head);
-    var step4Line = step4ResultLine(runId);
-    if (step4Line) root.appendChild(step4Line);
-
-    var view = state.reviewStats[runId];
-    var failure = state.reviewStatsErrors[runId];
-    if (failure) {
-      var bar = h('p', 'errbar local-error', plainError(failure));
-      bar.title = failure.code || '';
-      if (panelReadError(root, bar, !!view, null)) return;
-    }
-    if (!view) {
-      root.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
-      return;
-    }
-    var source = resultSource(view, runId);
-    if (!source || !source.all || !source.all.commentCount) {
-      var none = h('p', 'muted', 'Lượt này chưa có bình luận.');
-      none.id = 'resultEmpty';
-      root.appendChild(none);
-      return;
-    }
-    root.appendChild(reviewOverviewCard(source, runId));
-    var insights = state.reviewInsights[runId];
-    var insightsFailure = state.reviewInsightsErrors[runId];
-    if (insightsFailure) {
-      if (!insights) {
-        root.appendChild(reviewInsightsErrorCard(insightsFailure));
+    try {
+      var root = $('resultDetail');
+      clear(root);
+      var info = state.info;
+      if (!info) {
+        root.appendChild(h('p', 'muted', emptyRunText()));
         return;
       }
-      var insightsBar = h('p', 'errbar local-error', plainError(insightsFailure));
-      insightsBar.title = insightsFailure.code || '';
-      panelReadError(root, insightsBar, true, null);
+      var runId = info.runId;
+      var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
+      var tracking = info.tracking || item.tracking || null;
+      var exec = executionOf(info);
+      var meta = requestMeta(info.request || item.request || null);
+      var head = h('div', 'dhead');
+      head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + runId))));
+      head.appendChild(statusChip(effectiveStatus(runId, exec ? exec.status : (info.state && info.state.status)), tracking));
+      root.appendChild(head);
+      var step4Line = step4ResultLine(runId);
+      if (step4Line) root.appendChild(step4Line);
+
+      var view = state.reviewStats[runId];
+      var failure = state.reviewStatsErrors[runId];
+      if (failure) {
+        var bar = h('p', 'errbar local-error', plainError(failure));
+        bar.title = failure.code || '';
+        if (panelReadError(root, bar, !!view, null)) return;
+      }
+      if (!view) {
+        root.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
+        return;
+      }
+      var source = resultSource(view, runId);
+      if (!source || !source.all || !source.all.commentCount) {
+        var none = h('p', 'muted', 'Lượt này chưa có bình luận.');
+        none.id = 'resultEmpty';
+        root.appendChild(none);
+        return;
+      }
+      root.appendChild(reviewOverviewCard(source, runId));
+      var insights = state.reviewInsights[runId];
+      var insightsFailure = state.reviewInsightsErrors[runId];
+      if (insightsFailure) {
+        if (!insights) {
+          root.appendChild(reviewInsightsErrorCard(insightsFailure));
+          return;
+        }
+        var insightsBar = h('p', 'errbar local-error', plainError(insightsFailure));
+        insightsBar.title = insightsFailure.code || '';
+        panelReadError(root, insightsBar, true, null);
+      }
+      if (!insights) {
+        root.appendChild(h('p', 'muted', 'Đang tải AI và nhãn chủ đề…'));
+        return;
+      }
+      root.appendChild(reviewInsightsPanel(insights, runId));
+    } finally {
+      holdCopyWrites('resultDetail');
     }
-    if (!insights) {
-      root.appendChild(h('p', 'muted', 'Đang tải AI và nhãn chủ đề…'));
-      return;
-    }
-    root.appendChild(reviewInsightsPanel(insights, runId));
+  }
+
+  // While the open run shows its disk copy (it can be days old, and its hashes go into write commands), every
+  // action button of the run is held disabled until the first live answer settles the copy.
+  function holdCopyWrites(rootId) {
+    if (!state.selectedRunId || !state.copyHold[state.selectedRunId]) return;
+    Array.prototype.forEach.call($(rootId).querySelectorAll('button.abtn'), function (button) {
+      button.disabled = true;
+    });
   }
 
   function renderRefreshMark() {
@@ -7188,120 +7222,125 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       state.renderWanted = 'detail';
       return;
     }
-    renderRefreshMark();
-    renderResult();
-    var root = $('runDetail');
-    clear(root);
-    var info = state.info;
-    if (!info) {
-      root.appendChild(h('p', 'muted', emptyRunText()));
-      return;
-    }
-    var item = state.runs.find(function (r) { return r.runId === info.runId; }) || {};
-    var tracking = info.tracking || item.tracking || null;
-    var exec = executionOf(info);
-    var status = exec ? exec.status : (info.state && info.state.status);
-    var currentView = exec && exec.currentModule && exec.modules ? exec.modules[exec.currentModule] : null;
-    var request = info.request || item.request || null;
-    var meta = requestMeta(request);
-
-    var head = h('div', 'dhead');
-    head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + info.runId))));
-    head.appendChild(statusChip(effectiveStatus(info.runId, status), tracking));
-    var note = trackingNote(tracking);
-    if (note) head.appendChild(h('span', 'muted', note));
-    if (status === 'RUNNING') head.appendChild(h('span', 'muted', 'tự cập nhật mỗi 10 giây'));
-    var del = h('button', 'abtn danger', 'Xóa lượt');
-    del.type = 'button';
-    del.id = 'btnDeleteRun';
-    del.disabled = !state.connected || !!info.readonly;
-    del.addEventListener('click', function () { onDeleteRun(info.runId); });
-    head.appendChild(del);
-    root.appendChild(head);
-
-    if (info.readonly) root.appendChild(h('p', 'roline', 'Hệ thống đang tạm dừng lấy dữ liệu.'));
-
-    var dmeta = h('dl', 'run-meta');
-    function metaRow(label, value) {
-      var div = h('div');
-      div.appendChild(h('dt', null, label));
-      div.appendChild(h('dd', null, value));
-      dmeta.appendChild(div);
-    }
-    metaRow('Sản phẩm', item.product || meta.product);
-    metaRow('Khoảng thời gian', meta.period);
-    metaRow('Cách lấy bình luận', meta.policy);
-    metaRow('Số lượng mỗi link', meta.quantity);
-    root.appendChild(dmeta);
-
-    var progress = progressInfo(info);
-    if (progress) {
-      var progressLine = h('p', 'progress', progress);
-      progressLine.id = 'progressLine';
-      progressLine.setAttribute('role', 'status');
-      progressLine.setAttribute('aria-live', 'polite');
-      root.appendChild(progressLine);
-    }
-
-    var moduleOutput = moduleOutputPanel(info);
-    if (moduleOutput) root.appendChild(moduleOutput);
-
-    var hasM3 = (info.modules || []).some(function (mod) { return mod.id === 'M3'; });
-    var m3View = moduleExecution(info, 'M3');
-    var m3Started = !!(m3View && m3View.status && m3View.status !== 'IDLE') || !!(info.gates && info.gates.m3);
-    if (hasM3 && m3Started) (moduleOutput || root).appendChild(reviewDataPanel(info, true));
-    if (hasM3 && m3Started) (moduleOutput || root).appendChild(step4Card(info));
-
-    var failure = (currentView && currentView.errorCode) ||
-      (exec && exec.modules ? ['M3', 'M2', 'M1'].map(function (id) { return exec.modules[id]; })
-        .filter(function (view) { return view && view.errorCode; })
-        .map(function (view) { return view.errorCode; })[0] : null) ||
-      (info.state && info.state.errorCode);
-    if (failure) {
-      var reasonText = failure === 'GATE_FAILED'
-        ? 'Một bước không đạt kiểm tra. Mở chi tiết kỹ thuật để xem bước nào.'
-        : plainError({ code: failure });
-      var reason = h('p', 'errbar local-error', reasonText);
-      reason.title = failure;
-      root.appendChild(reason);
-    }
-
-    var failedGate = !!(currentView && currentView.currentGate && currentView.currentGate.verdict &&
-      currentView.currentGate.verdict !== 'PASS');
-    if (!failedGate && info.gates) {
-      failedGate = Object.keys(info.gates).some(function (key) {
-        var slip = info.gates[key];
-        return !!(slip && slip.verdict && slip.verdict !== 'PASS');
-      });
-    }
-    var failed = status === 'FAILED' || status === 'UNCERTAIN' || failedGate ||
-      !!(currentView && currentView.status === 'FAILED') || (m3Started && step4Kind(info.runId) === 'fail');
-    var tech = h('details', 'tech-details');
-    tech.id = 'techDetails';
-    tech.open = failed;
-    tech.appendChild(h('summary', null, 'Log kĩ thuật lịch sử chạy'));
-
-    var seq = h('div', 'seq');
-    SEQUENCE.forEach(function (step) { seq.appendChild(seqChip(step, info)); });
-    if (hasM3 && m3Started) step4SeqChips(info).forEach(function (chip) { seq.appendChild(chip); });
-    tech.appendChild(seq);
-
-    SEQUENCE.forEach(function (step) {
-      if (step.kind === 'gate') {
-        tech.appendChild(gateStepNode(step.key, info));
-      } else {
-        var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
-        if (mod) tech.appendChild(moduleCard(mod, info, true));
+    try {
+      renderRefreshMark();
+      renderResult();
+      var root = $('runDetail');
+      clear(root);
+      var info = state.info;
+      if (!info) {
+        root.appendChild(h('p', 'muted', emptyRunText()));
+        return;
       }
-    });
-    if (hasM3 && m3Started) {
-      tech.appendChild(step4GateCard(info, 'in'));
-      tech.appendChild(step4ModuleCard(info));
-      tech.appendChild(step4GateCard(info, 'out'));
+      var item = state.runs.find(function (r) { return r.runId === info.runId; }) || {};
+      var tracking = info.tracking || item.tracking || null;
+      var exec = executionOf(info);
+      var status = exec ? exec.status : (info.state && info.state.status);
+      var currentView = exec && exec.currentModule && exec.modules ? exec.modules[exec.currentModule] : null;
+      var request = info.request || item.request || null;
+      var meta = requestMeta(request);
+
+      var head = h('div', 'dhead');
+      head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + info.runId))));
+      head.appendChild(statusChip(effectiveStatus(info.runId, status), tracking));
+      var note = trackingNote(tracking);
+      if (note) head.appendChild(h('span', 'muted', note));
+      if (status === 'RUNNING') head.appendChild(h('span', 'muted', 'tự cập nhật mỗi 10 giây'));
+      var del = h('button', 'abtn danger', 'Xóa lượt');
+      del.type = 'button';
+      del.id = 'btnDeleteRun';
+      del.disabled = !state.connected || !!info.readonly;
+      del.addEventListener('click', function () { onDeleteRun(info.runId); });
+      head.appendChild(del);
+      root.appendChild(head);
+
+      if (info.readonly) root.appendChild(h('p', 'roline', 'Hệ thống đang tạm dừng lấy dữ liệu.'));
+
+      var dmeta = h('dl', 'run-meta');
+      function metaRow(label, value) {
+        var div = h('div');
+        div.appendChild(h('dt', null, label));
+        div.appendChild(h('dd', null, value));
+        dmeta.appendChild(div);
+      }
+      metaRow('Sản phẩm', item.product || meta.product);
+      metaRow('Khoảng thời gian', meta.period);
+      metaRow('Cách lấy bình luận', meta.policy);
+      metaRow('Số lượng mỗi link', meta.quantity);
+      root.appendChild(dmeta);
+
+      var progress = progressInfo(info);
+      if (progress) {
+        var progressLine = h('p', 'progress', progress);
+        progressLine.id = 'progressLine';
+        progressLine.setAttribute('role', 'status');
+        progressLine.setAttribute('aria-live', 'polite');
+        root.appendChild(progressLine);
+      }
+
+      var moduleOutput = moduleOutputPanel(info);
+      if (moduleOutput) root.appendChild(moduleOutput);
+
+      var hasM3 = (info.modules || []).some(function (mod) { return mod.id === 'M3'; });
+      var m3View = moduleExecution(info, 'M3');
+      var m3Started = !!(m3View && m3View.status && m3View.status !== 'IDLE') || !!(info.gates && info.gates.m3);
+      if (hasM3 && m3Started) (moduleOutput || root).appendChild(reviewDataPanel(info, true));
+      if (hasM3 && m3Started) (moduleOutput || root).appendChild(step4Card(info));
+
+      var failure = (currentView && currentView.errorCode) ||
+        (exec && exec.modules ? ['M3', 'M2', 'M1'].map(function (id) { return exec.modules[id]; })
+          .filter(function (view) { return view && view.errorCode; })
+          .map(function (view) { return view.errorCode; })[0] : null) ||
+        (info.state && info.state.errorCode);
+      if (failure) {
+        var reasonText = failure === 'GATE_FAILED'
+          ? 'Một bước không đạt kiểm tra. Mở chi tiết kỹ thuật để xem bước nào.'
+          : plainError({ code: failure });
+        var reason = h('p', 'errbar local-error', reasonText);
+        reason.title = failure;
+        root.appendChild(reason);
+      }
+
+      var failedGate = !!(currentView && currentView.currentGate && currentView.currentGate.verdict &&
+        currentView.currentGate.verdict !== 'PASS');
+      if (!failedGate && info.gates) {
+        failedGate = Object.keys(info.gates).some(function (key) {
+          var slip = info.gates[key];
+          return !!(slip && slip.verdict && slip.verdict !== 'PASS');
+        });
+      }
+      var failed = status === 'FAILED' || status === 'UNCERTAIN' || failedGate ||
+        !!(currentView && currentView.status === 'FAILED') || (m3Started && step4Kind(info.runId) === 'fail');
+      var tech = h('details', 'tech-details');
+      tech.id = 'techDetails';
+      tech.open = failed;
+      tech.appendChild(h('summary', null, 'Log kĩ thuật lịch sử chạy'));
+
+      var seq = h('div', 'seq');
+      SEQUENCE.forEach(function (step) { seq.appendChild(seqChip(step, info)); });
+      if (hasM3 && m3Started) step4SeqChips(info).forEach(function (chip) { seq.appendChild(chip); });
+      tech.appendChild(seq);
+
+      SEQUENCE.forEach(function (step) {
+        if (step.kind === 'gate') {
+          tech.appendChild(gateStepNode(step.key, info));
+        } else {
+          var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
+          if (mod) tech.appendChild(moduleCard(mod, info, true));
+        }
+      });
+      if (hasM3 && m3Started) {
+        tech.appendChild(step4GateCard(info, 'in'));
+        tech.appendChild(step4ModuleCard(info));
+        tech.appendChild(step4GateCard(info, 'out'));
+      }
+      root.appendChild(tech);
+      scrollToTarget(info);
+    } finally {
+      holdCopyWrites('runDetail');
     }
-    root.appendChild(tech);
-    scrollToTarget(info);
   }
+
 
   var RUN_FILTERS = {
     running: ['RUNNING'],
@@ -7314,11 +7353,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     unfinished: ['UNFINISHED']
   };
 
-  function renderRunList() {
+  // The rows of the visible run list, in screen order (this tab's filter + the sort).
+  function visibleRuns() {
     var allowed = RUN_FILTERS[state.runFilters[state.screen === 'result' ? 'result' : 'track']] || null;
-    var shown = state.runs.filter(function (run) {
+    return state.runs.filter(function (run) {
       return !allowed || allowed.indexOf(effectiveStatus(run.runId, run.status)) !== -1;
     }).sort(compareRuns);
+  }
+
+  function renderRunList() {
+    var shown = visibleRuns();
+    prefetchVisible(shown);
     // «Kết quả chạy» shows the same run list as «Chi tiết lịch sử lượt chạy»; only the visible tab holds it.
     clear($(state.screen === 'result' ? 'runList' : 'resultRunList'));
     [state.screen === 'result' ? ['resultRunList', 'resultRunsEmpty'] : ['runList', 'runsEmpty']].forEach(function (ids) {
@@ -7446,6 +7491,23 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     renderRunStatus();
   }
 
+  // The bridge reads the first 12 visible settled rows into its disk copy, one at a time, in the background
+  // (it skips a row whose copy has the same status + revision). Every list redraw (a list answer, the filter, the
+  // sort, the tab) sends the visible queue again when it changed; it replaces the bridge's queue, [] clears it.
+  function prefetchVisible(shown) {
+    if (state.runViewSupported === false) return;      // an older server: run-view is not there
+    var rows = shown.filter(function (run) {
+      return runIsSettled(run.runId) && run.execution && typeof run.execution.status === 'string' &&
+        typeof run.execution.revision === 'number';
+    }).slice(0, 12).map(function (run) {
+      return { runId: run.runId, sig: run.execution.status + ':' + run.execution.revision };
+    });
+    var key = JSON.stringify(rows);
+    if (key === state.prefetchSent) return;
+    state.prefetchSent = key;
+    api.prefetchRunViews(rows);
+  }
+
   // The empty detail: no run open, its polls stopped.
   function closeDetail() {
     dropRefresh();
@@ -7544,9 +7606,22 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return errorCode(error) === 'USAGE';
   }
 
+  // A run whose list row is settled (no step runs, nothing left to decide by the server).
+  var SETTLED_STATUSES = ['DONE', 'SUCCEEDED', 'FAILED', 'STOPPED', 'UNFINISHED', 'WAIT_OWNER'];
+  function runIsSettled(runId) {
+    var row = state.runs.filter(function (run) { return run.runId === runId; })[0];
+    return !!row && SETTLED_STATUSES.indexOf(effectiveStatus(runId, row.status)) !== -1;
+  }
+
+  // --result on «Kết quả chạy», and always for a settled run: one read then fills both tabs (and is the read the
+  // bridge keeps as the disk copy). A run in progress keeps its light 10 s poll.
+  function runViewWithResult(runId) {
+    return state.screen === 'result' || runIsSettled(runId);
+  }
+
   // An open and the 10 s poll ask the same parts, so the poll's request replaces every part of the open's.
-  function runViewKinds() {
-    return ['info', 'sampling', 'reviewData', 'outputs', 'process'].concat(state.screen === 'result' ? ['stats', 'insights'] : []);
+  function runViewKinds(runId) {
+    return ['info', 'sampling', 'reviewData', 'outputs', 'process'].concat(runViewWithResult(runId) ? ['stats', 'insights'] : []);
   }
 
   // THE one read of the open run: an open, the 10 s poll, a progress change, a step 4 / step 2 notice and a
@@ -7554,10 +7629,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // one is out shares one follow-up sent when it ends. One exception: on «Kết quả chạy» a read out without
   // --result does not hold back the --result read, which is sent at once as that follow-up (and becomes the read
   // out). On an older server (USAGE) it is the single calls of before (loadInfoSingles), unchanged.
-  function loadInfo(runId) {
+  function loadInfo(runId, join) {
     if (state.runViewSupported === false) return loadInfoSingles(runId);
     var current = state.runViewInFlight[runId];
-    if (!current || (state.screen === 'result' && !current.withResult)) return startRunView(runId);
+    if (!current || (state.screen === 'result' && !current.withResult)) return startRunView(runId, join);
     var queued = state.runViewAgain[runId];
     if (!queued) {
       queued = { promise: null, resolve: null };
@@ -7567,9 +7642,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return queued.promise;
   }
 
-  function startRunView(runId) {
-    var refresh = runViewRefresh(runId);
-    var entry = { promise: refresh, withResult: state.screen === 'result' };
+  function startRunView(runId, join) {
+    var refresh = runViewRefresh(runId, join);
+    var entry = { promise: refresh, withResult: runViewWithResult(runId) };
     state.runViewInFlight[runId] = entry;
     var answered = refresh.then(null, function () { return undefined; });
     var queued = state.runViewAgain[runId];
@@ -7623,14 +7698,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // One run-view call (--result on «Kết quả chạy»). USAGE switches to the single calls for this session (until
   // the next connect); every other answer goes to applyRunViewAnswer. Resolves with the info part's reply (none
   // on the single-call path).
-  async function runViewRefresh(runId) {
+  async function runViewRefresh(runId, join) {
     state.infoSeq[runId] = (state.infoSeq[runId] || 0) + 1;     // a single-call status still out is now older
     var viewSeq = (state.runViewSent[runId] || 0) + 1;
     state.runViewSent[runId] = viewSeq;
-    var withResult = state.screen === 'result';
-    var kinds = runViewKinds();
+    var withResult = runViewWithResult(runId);
+    var kinds = runViewKinds(runId);
     if (state.runViewSupported !== true && !state.runViewProbe) newRunViewProbe();
-    var res = await trackLoad('view', runId, state.runViewSent, function () { return api.runView(runId, withResult); });
+    var res = await trackLoad('view', runId, state.runViewSent, function () { return api.runView(runId, withResult, join); });
     var usage = !res.ok && isUsage(res.error);
     state.runViewSupported = !usage;
     if (state.runViewProbe) {
@@ -7639,8 +7714,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       answered.settle(!usage);
     }
     if (isGone(runId)) return;   // a late reply for a deleted run
-    if (usage) return loadInfoSingles(runId);
-    return applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
+    // The first live answer of an open settles its disk copy hold; while one is held, everything this answer
+    // applies and the settle draw once.
+    var holding = !!state.copyHold[runId];
+    if (holding) state.renderHold += 1;
+    try {
+      if (usage) {
+        state.copiesOff = true;    // the server cannot refresh a copy: none is shown for the rest of the session
+        return await loadInfoSingles(runId);    // settles once every single call has answered
+      }
+      return await applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
+    } finally {
+      settleCopy(runId);
+      if (holding) releaseRenders();
+    }
   }
 
   var RUN_VIEW_INVALID = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
@@ -7770,16 +7857,22 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function loadInfoSingles(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
+    var live = claimLiveSeq(runId);
     var status = trackLoad('info', runId, state.infoSeq, runStatus);
-    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
-    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
-    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
-    trackLoad('process', runId, state.reviewProcessSeq, loadReviewProcess);
+    var others = [
+      trackLoad('sampling', runId, state.samplingSeq, loadSampling),
+      trackLoad('data', runId, state.reviewDataSeq, loadReviewData),
+      trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs),
+      trackLoad('process', runId, state.reviewProcessSeq, loadReviewProcess)
+    ];
     if (state.screen === 'result') {
-      trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
-      trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
+      others.push(trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats));
+      others.push(trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights));
     }
-    applyInfo(runId, seq, await status);
+    var res = await status;
+    applyInfo(runId, seq, res);
+    if (res && res.ok && seq === state.infoSeq[runId]) markLive(runId, 'info', live);
+    await Promise.all(others.map(function (call) { return call.then(null, function () { return undefined; }); }));
   }
 
   // «Đang cập nhật…» follows the LATEST request of each kind for the open run (open and 10 s poll alike): a
@@ -7818,7 +7911,59 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.info = state.infoByRun[runId] || null;   // the last copy at once; the fresh one replaces it
     renderRunList();
     renderDetail();
-    await loadInfo(runId);
+    if (!state.info && !state.copiesOff) {         // none in memory: the bridge's disk copy, same time as the read
+      state.copyWait[runId] = true;
+      showDiskCopy(runId);
+    }
+    await loadInfo(runId, true);                   // a row open: the one read that may join a prefetch read
+  }
+
+  // The disk copy of a run: shown only while this open waits for its first live answer and no live part is in.
+  // Showing it holds the run's start/save/delete buttons (copyHold). The first live answer (run-view of any kind,
+  // or the single calls after USAGE once all have answered) settles it in one step: every part still from the
+  // copy is removed, the hold ends, one redraw. A copy answer after that is dropped.
+  var COPY_SEQ = 0.5;
+  async function showDiskCopy(runId) {
+    var res = await api.runViewCached(runId);
+    if (!state.copyWait[runId] || state.copiesOff || isGone(runId) || state.selectedRunId !== runId) return;
+    var seqs = state.runViewPartSeq[runId] || {};
+    if (Object.keys(seqs).some(function (name) { return seqs[name] >= 1; })) return;   // a live part is in
+    if (!res || !res.ok || !res.data || !res.data.parts) return;
+    var kinds = Object.keys(runViewPartRules(runId)).filter(function (name) { return name in res.data.parts; });
+    if (kinds.indexOf('info') === -1) return;
+    delete state.copyWait[runId];
+    state.copyHold[runId] = true;
+    await applyRunViewAnswer(runId, COPY_SEQ, { reply: res, kinds: kinds });
+  }
+
+  var COPY_PART_STATE = { info: 'infoByRun', sampling: 'sampling', reviewData: 'reviewData', outputs: 'moduleOutputs',
+    process: 'reviewProcess', stats: 'reviewStats', insights: 'reviewInsights' };
+
+  function settleCopy(runId) {
+    delete state.copyWait[runId];                  // a copy answering later is dropped
+    if (!state.copyHold[runId]) return;
+    delete state.copyHold[runId];
+    var seqs = state.runViewPartSeq[runId] || {};
+    Object.keys(seqs).forEach(function (name) {
+      if (seqs[name] !== COPY_SEQ) return;
+      delete seqs[name];
+      delete state[COPY_PART_STATE[name]][runId];  // never kept after a live read: its normal empty or error state
+      if (name === 'info' && state.selectedRunId === runId) state.info = null;
+    });
+    if (state.selectedRunId === runId) renderDetail();
+  }
+
+  // Every live write of a part (a run-view answer, or an older server's single call) takes the next number of the
+  // run's one sequence, which orders the live answers.
+  function claimLiveSeq(runId) {
+    var seq = (state.runViewSent[runId] || 0) + 1;
+    state.runViewSent[runId] = seq;
+    return seq;
+  }
+
+  function markLive(runId, name, seq) {
+    var seqs = state.runViewPartSeq[runId] || (state.runViewPartSeq[runId] = {});
+    if ((seqs[name] || 0) < seq) seqs[name] = seq;
   }
 
   // Every status/info call goes through here: RUN_NOT_FOUND makes the run gone FIRST (rule b), before any
