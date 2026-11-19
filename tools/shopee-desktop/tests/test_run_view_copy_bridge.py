@@ -171,7 +171,7 @@ class RunViewCopyTest(unittest.TestCase):
             for index, run_id in enumerate(('run-a', 'run-b', 'run-c')):
                 self.save(run_id)
                 path = next(self.root.glob('run-view-cache/*/%s.json' % run_id))
-                os.utime(path, ns=(10 ** 18 + index, 10 ** 18 + index))
+                os.utime(path, (1_700_000_000 + index, 1_700_000_000 + index))
             self.save('run-d')
             self.assertEqual([path.rsplit('/', 1)[1] for path in self.files()], ['run-c.json', 'run-d.json'])
 
@@ -203,7 +203,7 @@ class RunViewCopyTest(unittest.TestCase):
             self.api.prefetchRunViews([{'runId': 'run-3', 'sig': 'DONE:3'}])
             self.assertTrue(started.wait(5))
             clicked = {}
-            user = threading.Thread(target=lambda: clicked.update(self.api.runView('run-3', True)))
+            user = threading.Thread(target=lambda: clicked.update(self.api.runView('run-3', True, True)))
             user.start()
             time.sleep(0.1)
             self.assertTrue(user.is_alive(), 'the click waits for the prefetch read')
@@ -233,6 +233,55 @@ class RunViewCopyTest(unittest.TestCase):
             page.join(5)
             self.wait_prefetch()
             self.assertEqual([call[:3] for call in self.run_views()[before:]], [('runView', 'run-4', True)])
+
+
+    def held_prefetch(self, run_id):
+        """A prefetch read of run_id that waits on the prefetch thread only; returns (started, release)."""
+        started, release = threading.Event(), threading.Event()
+
+        def answer():
+            if threading.current_thread().name == 'tdn-run-view-prefetch':
+                started.set()
+                release.wait(5)
+            return server_view(run_id, parts(run_id))
+        self.answers[('runView', run_id)] = answer
+        self.api.prefetchRunViews([{'runId': run_id, 'sig': 'DONE:3'}])
+        self.assertTrue(started.wait(5))
+        return release
+
+    def test_prefetch_is_never_taken_stale(self):
+        """| situation                                                   | expected                                    |
+        |--------------------------------------------------------------|---------------------------------------------|
+        | a read that is not a row open (no `join`), prefetch out      | its own read, at once                       |
+        | a row open (`join`) after a write/start sent since the       | its own read, not the prefetch's            |
+        | prefetch read started                                        |                                             |
+        | the run deleted while its prefetch read is out               | the late read saves no copy                 |
+        """
+        with self.subTest('no join'):
+            release = self.held_prefetch('run-5')
+            before = len(self.run_views())
+            self.assertTrue(self.api.runView('run-5', True)['ok'])
+            self.assertEqual(len(self.run_views()) - before, 1, 'its own read while the prefetch is still out')
+            release.set()
+            self.wait_prefetch()
+        with self.subTest('a write since'):
+            release = self.held_prefetch('run-6')
+            self.answers[('flow', 'run-6')] = {'ok': True, 'data': {'format': 'run-result-v1'}}
+            self.api._remote('flow', run_id='run-6')
+            before = len(self.run_views())
+            self.assertTrue(self.api.runView('run-6', True, True)['ok'])
+            self.assertEqual(len(self.run_views()) - before, 1, 'its own read, not the older prefetch read')
+            release.set()
+            self.wait_prefetch()
+        with self.subTest('deleted while out'):
+            release = self.held_prefetch('run-7')
+            self.answers[('deleteRun', 'run-7')] = {'ok': True, 'data': {'format': 'run-delete-v1', 'runId': 'run-7',
+                                                                          'deleted': True}}
+            with mock.patch.object(self.api, '_local_metric_shot', return_value=None):
+                self.assertTrue(self.api.deleteRun('run-7')['ok'])
+            release.set()
+            self.wait_prefetch()
+            self.assertNotIn('run-7.json', ' '.join(self.files()))
 
 
 if __name__ == '__main__':

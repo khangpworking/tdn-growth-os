@@ -3117,7 +3117,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       reviewStats: function (runId) { return call('reviewStats', [runId]); },
       reviewInsights: function (runId) { return call('reviewInsights', [runId]); },
       // F647 wave 2. A bridge without these (an older app part) answers like an older server: USAGE.
-      runView: function (runId, result) { return callWave2('runView', [runId, !!result]); },
+      // `join`: the first read of a row open may take the bridge's prefetch read of that run (no other read does).
+      runView: function (runId, result, join) { return callWave2('runView', [runId, !!result, !!join]); },
       // F651: the bridge's disk copy of a run's view, and its background read of the visible settled rows.
       runViewCached: function (runId) { return callWave2('runViewCached', [runId]); },
       prefetchRunViews: function (rows) { return callWave2('prefetchRunViews', [rows]); },
@@ -3191,6 +3192,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     newDateSuggestion: null,
     preferredRunId: null,
     flowDialogBinding: null,
+    prefetchSent: '[]',       // the visible prefetch queue last sent to the bridge (JSON)
     runFilters: { track: 'all', result: 'all' },   // «Lọc theo trạng thái», per tab
     runSort: 'newest',      // «Mới tạo trước» | «Cũ nhất trước», one choice for both run lists
     runSortChosen: false,   // a click before the saved choice is read wins
@@ -7185,8 +7187,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
   }
 
-  // While the open run shows only its disk copy (it can be days old, and its hashes go into write commands),
-  // every action button of the run is held disabled; the fresh read (always sent) redraws them.
+  // While any part of the open run is still from its disk copy (it can be days old, and its hashes go into write
+  // commands), every action button of the run is held disabled; the live reads (always sent) redraw them.
   function holdCopyWrites(rootId) {
     if (!state.selectedRunId || !shownFromCopy(state.selectedRunId)) return;
     Array.prototype.forEach.call($(rootId).querySelectorAll('button.abtn'), function (button) {
@@ -7346,6 +7348,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   function renderRunList() {
     var shown = visibleRuns();
+    prefetchVisible(shown);
     // «Kết quả chạy» shows the same run list as «Chi tiết lịch sử lượt chạy»; only the visible tab holds it.
     clear($(state.screen === 'result' ? 'runList' : 'resultRunList'));
     [state.screen === 'result' ? ['resultRunList', 'resultRunsEmpty'] : ['runList', 'runsEmpty']].forEach(function (ids) {
@@ -7471,20 +7474,23 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
     renderRunList();
     renderRunStatus();
-    prefetchVisible();
   }
 
   // The bridge reads the first 12 visible settled rows into its disk copy, one at a time, in the background
-  // (it skips a row whose copy has the same status + revision, and a click on a row in prefetch joins that read).
-  function prefetchVisible() {
+  // (it skips a row whose copy has the same status + revision). Every list redraw (a list answer, the filter, the
+  // sort, the tab) sends the visible queue again when it changed; it replaces the bridge's queue, [] clears it.
+  function prefetchVisible(shown) {
     if (state.runViewSupported === false) return;      // an older server: run-view is not there
-    var rows = visibleRuns().filter(function (run) {
+    var rows = shown.filter(function (run) {
       return runIsSettled(run.runId) && run.execution && typeof run.execution.status === 'string' &&
         typeof run.execution.revision === 'number';
     }).slice(0, 12).map(function (run) {
       return { runId: run.runId, sig: run.execution.status + ':' + run.execution.revision };
     });
-    if (rows.length) api.prefetchRunViews(rows);
+    var key = JSON.stringify(rows);
+    if (key === state.prefetchSent) return;
+    state.prefetchSent = key;
+    api.prefetchRunViews(rows);
   }
 
   // The empty detail: no run open, its polls stopped.
@@ -7608,10 +7614,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // one is out shares one follow-up sent when it ends. One exception: on «Kết quả chạy» a read out without
   // --result does not hold back the --result read, which is sent at once as that follow-up (and becomes the read
   // out). On an older server (USAGE) it is the single calls of before (loadInfoSingles), unchanged.
-  function loadInfo(runId) {
+  function loadInfo(runId, join) {
     if (state.runViewSupported === false) return loadInfoSingles(runId);
     var current = state.runViewInFlight[runId];
-    if (!current || (state.screen === 'result' && !current.withResult)) return startRunView(runId);
+    if (!current || (state.screen === 'result' && !current.withResult)) return startRunView(runId, join);
     var queued = state.runViewAgain[runId];
     if (!queued) {
       queued = { promise: null, resolve: null };
@@ -7621,8 +7627,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return queued.promise;
   }
 
-  function startRunView(runId) {
-    var refresh = runViewRefresh(runId);
+  function startRunView(runId, join) {
+    var refresh = runViewRefresh(runId, join);
     var entry = { promise: refresh, withResult: runViewWithResult(runId) };
     state.runViewInFlight[runId] = entry;
     var answered = refresh.then(null, function () { return undefined; });
@@ -7677,14 +7683,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // One run-view call (--result on «Kết quả chạy»). USAGE switches to the single calls for this session (until
   // the next connect); every other answer goes to applyRunViewAnswer. Resolves with the info part's reply (none
   // on the single-call path).
-  async function runViewRefresh(runId) {
+  async function runViewRefresh(runId, join) {
     state.infoSeq[runId] = (state.infoSeq[runId] || 0) + 1;     // a single-call status still out is now older
     var viewSeq = (state.runViewSent[runId] || 0) + 1;
     state.runViewSent[runId] = viewSeq;
     var withResult = runViewWithResult(runId);
     var kinds = runViewKinds(runId);
     if (state.runViewSupported !== true && !state.runViewProbe) newRunViewProbe();
-    var res = await trackLoad('view', runId, state.runViewSent, function () { return api.runView(runId, withResult); });
+    var res = await trackLoad('view', runId, state.runViewSent, function () { return api.runView(runId, withResult, join); });
     var usage = !res.ok && isUsage(res.error);
     state.runViewSupported = !usage;
     if (state.runViewProbe) {
@@ -7873,7 +7879,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     renderRunList();
     renderDetail();
     if (!state.info) showDiskCopy(runId);          // none in memory: the bridge's disk copy, same time as the read
-    await loadInfo(runId);
+    await loadInfo(runId, true);                   // a row open: the one read that may join a prefetch read
   }
 
   // The disk copy goes through applyRunViewAnswer with a sequence below every live read (they start at 1), so
@@ -7888,8 +7894,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     await applyRunViewAnswer(runId, COPY_SEQ, { reply: res, kinds: kinds });
   }
 
+  // True while any part of the run still comes from the disk copy (not yet applied from a live read).
   function shownFromCopy(runId) {
-    return (state.runViewPartSeq[runId] || {}).info === COPY_SEQ;
+    var seqs = state.runViewPartSeq[runId] || {};
+    return Object.keys(seqs).some(function (name) { return seqs[name] === COPY_SEQ; });
   }
 
   // Every status/info call goes through here: RUN_NOT_FOUND makes the run gone FIRST (rule b), before any

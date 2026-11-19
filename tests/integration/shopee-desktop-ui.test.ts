@@ -109,6 +109,7 @@ function harness(options: {
   saveShotResult?: (runId: string) => any;
   deleteRunResult?: (runId: string) => any;
   runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
+  reviewDataError?: (runId: string) => any; // the review data read fails with this reply
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -151,6 +152,7 @@ function harness(options: {
     runViewCalls: { runId: string; result: boolean }[];
     runViewMaxOut: number;    // the most run-view calls out at once
     runViewCachedCalls: string[];
+    runViewJoins: boolean[];  // the `join` flag of each run-view call
     prefetchCalls: { runId: string; sig: string }[][];
     insightCommentCalls: { runId: string; bucket: string; theme: string | null }[];
   } = {
@@ -191,6 +193,7 @@ function harness(options: {
     runViewCalls: [],
     runViewMaxOut: 0,
     runViewCachedCalls: [],
+    runViewJoins: [],
     prefetchCalls: [],
     insightCommentCalls: [],
   };
@@ -346,8 +349,9 @@ function harness(options: {
       state.prefetchCalls.push(clone(rows));
       return { ok: true, data: { format: 'run-view-prefetch-v1', queued: rows.length } };
     },
-    runView: async (runId: string, result: boolean) => {
+    runView: async (runId: string, result: boolean, join?: boolean) => {
       state.runViewCalls.push({ runId, result });
+      state.runViewJoins.push(!!join);
       const held = options.runViewHold && options.runViewHold(runId, result);
       if (options.oldServer) {
         if (held) await held;
@@ -378,6 +382,8 @@ function harness(options: {
       state.reviewDataCallsByRun[runId] = (state.reviewDataCallsByRun[runId] || 0) + 1;
       const held = options.reviewDataHold && options.reviewDataHold(runId);
       if (held) await held;
+      const failure = options.reviewDataError && options.reviewDataError(runId);
+      if (failure) return clone(failure);
       const view = state.reviewDataByRun[runId] || state.reviewDataView;
       if (view) return { ok: true, data: clone(view) };
       return { ok: true, data: {
@@ -5243,6 +5249,10 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
 // | 2 | the fresh read fails (SSH_TIMEOUT)                               | the copy stays, the error line shows, still held  |
 // | 3 | a list answer                                                    | the first 12 visible settled rows go to prefetch  |
 // |   |                                                                  | in screen order, with status:revision; no running |
+// | 4 | a row open, then the 10 s poll                                   | the open's read may join a prefetch read          |
+// |   |                                                                  | (`join`); the poll's reads do not                 |
+// | 5 | the fresh read answers info but its review data fails            | delete stays held: a part is still from the copy  |
+// | 6 | the status filter changes (to none of the rows, then back)       | the prefetch queue is sent again: [] then the rows |
 test('an old run opens from its disk copy at once, the fresh read replaces it, and the list is prefetched', async () => {
   const runId = 'run-copy';
   const copyName = 'Bản lưu trên máy';
@@ -5304,13 +5314,61 @@ test('an old run opens from its disk copy at once, the fresh read replaces it, a
     row('run-b', 'FAILED', '2026-11-04T00:00:00Z', 5),
     ...Array.from({ length: 12 }, (_, i) =>
       row('run-o' + String(i).padStart(2, '0'), 'DONE', '2026-10-' + String(10 + i) + 'T00:00:00Z', i))];
-  run = harness({ runs });
+  run = harness({ runs, runInfoByRun: Object.fromEntries(runs.map((entry) => [entry.runId, syntheticRunInfo(entry.runId)])) });
   try {
-    await waitFor(() => run.state.prefetchCalls.length > 0, '3: prefetch asked');
+    await waitFor(() => (run.state.prefetchCalls.at(-1) || []).length > 0, '3: prefetch asked');
     const rows = run.state.prefetchCalls.at(-1)!;
     assert.equal(rows.length, 12, '3: at most 12');
     assert.deepEqual(rows.slice(0, 3), [{ runId: 'run-b', sig: 'FAILED:5' }, { runId: 'run-a', sig: 'DONE:3' },
       { runId: 'run-o11', sig: 'DONE:11' }], '3: newest first, the running row left out');
     assert.ok(!rows.some((entry) => entry.runId === 'run-r'));
+    // 6
+    const sent = run.state.prefetchCalls.length;
+    const filter = element<HTMLSelectElement>(run.doc, 'runFilter');
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    filter.value = 'stopped';
+    filter.dispatchEvent(new (run.dom.window as any).Event('change', { bubbles: true }));
+    await waitFor(() => run.state.prefetchCalls.length > sent, '6: sent again');
+    assert.deepEqual(run.state.prefetchCalls.at(-1), [], '6: no visible settled row: the queue is cleared');
+    filter.value = 'failed';
+    filter.dispatchEvent(new (run.dom.window as any).Event('change', { bubbles: true }));
+    await waitFor(() => run.state.prefetchCalls.length > sent + 1, '6: sent again');
+    assert.deepEqual(run.state.prefetchCalls.at(-1), [{ runId: 'run-b', sig: 'FAILED:5' }], '6: the visible rows only');
   } finally { run.dom.window.close(); }
+
+  // 4
+  run = harness({ runs: [{ runId: 'run-live', product: 'Đang chạy', status: 'RUNNING' }],
+    runInfoByRun: { 'run-live': { ...syntheticRunInfo('run-live'), state: { status: 'RUNNING', module: 'M1', errorCode: null } } },
+    fastPoll: true });
+  try {
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+    await waitFor(() => run.state.runViewJoins.length >= 3, '4: the open and the poll read');
+    assert.equal(run.state.runViewJoins.filter(Boolean).length >= 1, true, '4: the open joins');
+    const firstOpen = run.state.runViewJoins.indexOf(true);
+    assert.deepEqual(run.state.runViewJoins.slice(firstOpen + 1).filter(Boolean), [], '4: no poll read joins');
+  } finally { run.dom.window.close(); }
+
+  // 5
+  hold = deferred<void>();
+  run = harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    runViewCopy: (id: string) => {
+      const value: any = copy(id);
+      value.parts.reviewData = { ok: true, data: { format: 'review-data-view-v1', runId: id, readonly: false, tracking: null,
+        db: { configured: false, schemaReady: false, blockedBy: null }, sources: [] } };
+      return value;
+    },
+    runViewHold: () => hold?.promise,
+    reviewDataError: () => ({ ok: false, error: { code: 'REVIEW_DATA_INVALID', message: 'REVIEW_DATA_INVALID' } }),
+  });
+  try {
+    trackTab(run.doc);
+    await waitFor(() => outputs(run.doc).includes(copyName), '5: the copy');
+    hold.resolve();
+    await waitFor(() => !outputs(run.doc).includes(copyName), '5: info and outputs from the fresh read');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(held(run.doc), true, '5: delete still held: the review data is from the copy');
+  } finally { hold?.resolve(); run.dom.window.close(); }
 });

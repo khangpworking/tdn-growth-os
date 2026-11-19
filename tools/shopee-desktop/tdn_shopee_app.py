@@ -73,6 +73,12 @@ _COMMANDS = {
 }
 # Commands an older server does not know: argparse exits 2 with nothing on stdout -> USAGE.
 _WAVE2_COMMANDS = frozenset({'runView', 'reviewInsightsSummary', 'reviewInsightComments'})
+# Commands that only read. Every other command (a write, start, save, delete, detached run, gate) moves the
+# mutation counter: a prefetch read started before it is never joined.
+_READ_ONLY_COMMANDS = frozenset({
+    'connection', 'presets', 'runs', 'library', 'status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence',
+    'metricDateAvailability', 'reviewSampling', 'reviewData', 'reviewStats', 'reviewInsights', 'reviewProcess',
+    'runsProgress', 'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'readReviewExport'})
 _RUN_VIEW_PARTS = ('info', 'sampling', 'reviewData', 'outputs', 'process')
 _RUN_VIEW_RESULT_PARTS = ('stats', 'insights')
 # Step 4 formats (review-process-view-v1, review-process-start-v1, runs-progress-v1).
@@ -714,6 +720,8 @@ class Api:
         self._prefetch_current = None      # {'runId', 'done', 'reply'} of the prefetch read out
         self._prefetch_running = False
         self._user_calls = 0               # page calls out (the prefetch waits for none)
+        self._mutations = 0                # write/start/save/delete commands sent (each moves it, before and after)
+        self._copy_generation = {}         # runId -> times its copy was removed (a read started before saves nothing)
         self._transport = None
         self._transport_key = None
         self._transport_lock = threading.Lock()
@@ -835,16 +843,21 @@ class Api:
 
     def _invoke(self, action, config, lines, argv, *, token=None, timeout=None):
         user = threading.current_thread().name != 'tdn-run-view-prefetch'
-        if user:
-            with self._prefetch:
+        mutation = action not in _READ_ONLY_COMMANDS
+        with self._prefetch:
+            if user:
                 self._user_calls += 1
+            if mutation:
+                self._mutations += 1
         try:
             return self._invoke_now(action, config, lines, argv, token=token, timeout=timeout)
         finally:
-            if user:
-                with self._prefetch:
+            with self._prefetch:
+                if user:
                     self._user_calls -= 1
-                    self._prefetch.notify_all()
+                if mutation:
+                    self._mutations += 1
+                self._prefetch.notify_all()
 
     def _invoke_now(self, action, config, lines, argv, *, token=None, timeout=None):
         options = {'input': ('\n'.join(lines) + '\n').encode('utf-8'), 'capture_output': True,
@@ -1173,7 +1186,7 @@ class Api:
         if (base != {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True} or
                 ('leftover' in data and data['leftover'] is not True)):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
-        self._drop_copies(lambda gone: gone == run_id)
+        self._forget_copy(run_id)
         # The run is gone on the server: its picture on this PC goes too (never through a link/junction).
         local = self._local_metric_shot(run_id)
         if local is not None:
@@ -1689,18 +1702,21 @@ class Api:
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return result
 
-    def runView(self, runId=None, result=False):
-        return self._safe(lambda: self._run_view(runId, result))
+    def runView(self, runId=None, result=False, join=False):
+        return self._safe(lambda: self._run_view(runId, result, join))
 
-    def _run_view(self, run_id, with_result):
+    def _run_view(self, run_id, with_result, join=False):
         run_id = self._run_id(run_id)
-        if type(with_result) is not bool:
+        if type(with_result) is not bool or type(join) is not bool:
             raise _BridgeFailure('ARG_INVALID')
         if with_result:
-            with self._prefetch:          # a click on a row in prefetch joins that read
+            with self._prefetch:
                 self._prefetch_queue = [row for row in self._prefetch_queue if row['runId'] != run_id]
-                joined = self._prefetch_current if (self._prefetch_current and
-                                                    self._prefetch_current['runId'] == run_id) else None
+                # Only the first read of a row open (`join`) may take the prefetch read of that run, and only
+                # when no write/start/save/delete was sent since it started. Every other read is its own call.
+                current = self._prefetch_current
+                joined = current if (join and current and current['runId'] == run_id and
+                                     current['mutations'] == self._mutations) else None
             if joined is not None:
                 joined['done'].wait()
                 if joined['reply'] is not None and joined['reply']['ok']:
@@ -1722,10 +1738,12 @@ class Api:
         """One call for a run open: each part goes through the same check as its single call, and a part in
         `errors` comes back as that call's error. The page gets {part: single-call reply}. A --result answer of a
         settled run is kept as the disk copy; RUN_NOT_FOUND removes it."""
+        with self._prefetch:
+            generation = self._copy_generation.get(run_id, 0)
         reply = self._remote('runView', run_id=run_id, flags=('--result',) if with_result else ())
         if not reply['ok']:
             if reply['error'].get('code') == 'RUN_NOT_FOUND':
-                self._drop_copies(lambda gone: gone == run_id)
+                self._forget_copy(run_id)
             return reply                  # the info error is the command error (RUN_NOT_FOUND, USAGE, …)
         data = reply['data']
         names = _RUN_VIEW_PARTS + (_RUN_VIEW_RESULT_PARTS if with_result else ())
@@ -1751,7 +1769,7 @@ class Api:
             out[name] = self._safe(lambda check=checks[name], single=single: check(single))
         view = {'format': 'run-view-v1', 'runId': run_id, 'parts': out}
         if with_result:
-            self._save_copy(run_id, view)
+            self._save_copy(run_id, view, generation)
         return {'ok': True, 'data': view}
 
     # ---- The disk copy ----
@@ -1782,7 +1800,7 @@ class Api:
             return None
         return out
 
-    def _save_copy(self, run_id, view):
+    def _save_copy(self, run_id, view, generation):
         """Best effort: keep the checked --result answer of a settled run (all parts ok, nothing RUNNING or
         UNCERTAIN). Temp file + os.replace; a failed write only means no copy."""
         parts = self._checked_copy(run_id, view)
@@ -1804,7 +1822,10 @@ class Api:
                 handle, temp = tempfile.mkstemp(prefix='.copy-', suffix='.part', dir=str(path.parent))
                 with os.fdopen(handle, 'w', encoding='utf-8') as out:
                     out.write(json.dumps(record, ensure_ascii=False, separators=(',', ':')))
-                os.replace(temp, path)
+                with self._prefetch:
+                    if self._copy_generation.get(run_id, 0) != generation:
+                        return                 # removed (deleted, gone, unlisted) since this read started
+                    os.replace(temp, path)
                 temp = None
             self._trim_copies()
         except (OSError, _BridgeFailure, ValueError):
@@ -1839,13 +1860,21 @@ class Api:
         except (OSError, _BridgeFailure):
             return None
 
+    def _forget_copy(self, run_id):
+        """The run is gone: its copy goes, and a read of it still out saves nothing."""
+        with self._prefetch:
+            self._copy_generation[run_id] = self._copy_generation.get(run_id, 0) + 1
+        self._drop_copies(lambda gone: gone == run_id)
+
     def _drop_copies(self, match):
-        """Remove this server's copies whose runId matches (best effort)."""
+        """Remove this server's copies whose runId matches (best effort); each removal moves the run's generation."""
         try:
             folder = self._copy_path('x').parent
             with _RUN_VIEW_COPY_LOCK:
                 for path in folder.glob('*.json') if folder.is_dir() else []:
                     if match(path.stem):
+                        with self._prefetch:
+                            self._copy_generation[path.stem] = self._copy_generation.get(path.stem, 0) + 1
                         try:
                             path.unlink()
                         except OSError:
@@ -1889,6 +1918,7 @@ class Api:
         return self._safe(lambda: self._prefetch_run_views(rows))
 
     def _prefetch_run_views(self, rows):
+        """The page's newest visible queue replaces the one before; an empty list clears it."""
         if not isinstance(rows, list) or len(rows) > 12:
             raise _BridgeFailure('ARG_INVALID')
         queue = []
@@ -1917,8 +1947,8 @@ class Api:
             saved = self._read_copy(row['runId'])
             if saved is not None and saved['sig'] == row['sig']:
                 continue
-            entry = {'runId': row['runId'], 'done': threading.Event(), 'reply': None}
             with self._prefetch:
+                entry = {'runId': row['runId'], 'done': threading.Event(), 'reply': None, 'mutations': self._mutations}
                 self._prefetch_current = entry
             try:
                 entry['reply'] = self._safe(lambda: self._read_run_view(row['runId'], True))
