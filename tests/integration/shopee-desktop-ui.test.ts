@@ -4928,6 +4928,7 @@ test('a read asked while a run-view is out is answered by the follow-up', async 
 // |   | (good outputs) answers                                                          |                                            |
 // | 6 | a run-view fails with a non-transport error (REMOTE_OUTPUT_INVALID) after a     | the run detail stays; the error line shows |
 // |   | good open                                                                       |                                            |
+// | 7 | after a good open, a run-view answers good info but an outputs error            | the last outputs stay, with the error mark |
 test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal comments, redraws once and survives failures', async () => {
   const runId = 'run-w3';
   const sha = 'e'.repeat(64);
@@ -5180,5 +5181,26 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
       '6: the error line');
     await new Promise((resolve) => setTimeout(resolve, 30));
     assert.match(run.doc.getElementById('runDetail')?.textContent || '', /Kết quả các bước/, '6: the detail stays');
+  } finally { run.dom.window.close(); }
+
+  // 7
+  outputsFail = false;
+  run = base({
+    moduleOutputsResult: (id: string) => (outputsFail
+      ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } }
+      : { ok: true, data: moduleOutputView(id) }),
+  });
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => run.doc.getElementById('moduleOutputsPanel') !== null &&
+      !/Đang tải/.test(run.doc.getElementById('moduleOutputsPanel')!.textContent || ''), '7: open');
+    const shown = run.doc.getElementById('moduleOutputsPanel')!.textContent;
+    outputsFail = true;
+    runListButton(run.doc, runId).click();
+    await waitFor(() => run.doc.getElementById('moduleOutputsErr') !== null, '7: the error mark');
+    const panel = run.doc.getElementById('moduleOutputsPanel')!.cloneNode(true) as HTMLElement;
+    panel.querySelector('#moduleOutputsErr')!.remove();
+    assert.equal(panel.textContent, shown, '7: the last good outputs stay under the mark');
   } finally { run.dom.window.close(); }
 });

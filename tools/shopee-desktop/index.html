@@ -332,6 +332,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
 /* Plain-language surfaces: local errors, technical disclosures, progress and confirmation. */
 .local-error { margin: 0; }
+.errbar.stale-error { padding: 4px 10px; font-size: 12px; font-weight: 500; }
 .capture-spec-review { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .capture-spec-review > summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--accent); width: fit-content; }
 .capture-spec-review[open] > summary { padding-bottom: 4px; }
@@ -4131,22 +4132,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     head.appendChild(h('h4', null, 'Kết quả các bước'));
     panel.appendChild(head);
 
+    var data = state.moduleOutputs[runId];
     if (state.moduleOutputsErrors[runId]) {
       var loadError = outputErrorBar(state.moduleOutputsErrors[runId].code || 'MODULE_OUTPUT_INVALID');
       loadError.id = 'moduleOutputsErr';
-      panel.appendChild(loadError);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại kết quả');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadModuleOutputs(runId); });
-      retryRow.appendChild(retry);
-      panel.appendChild(retryRow);
-      var errorShot = localShotRow(runId);
-      if (errorShot) panel.appendChild(errorShot);
-      return panel;
+      if (panelReadError(panel, loadError, !!data,
+          { label: 'Tải lại kết quả', run: function () { loadModuleOutputs(runId); } })) {
+        var errorShot = localShotRow(runId);
+        if (errorShot) panel.appendChild(errorShot);
+        return panel;
+      }
     }
 
-    var data = state.moduleOutputs[runId];
     if (!data) {
       panel.appendChild(h('p', 'muted', 'Đang tải kết quả các bước…'));
       var loadingShot = localShotRow(runId);
@@ -4714,6 +4711,26 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return box;
   }
 
+  // Every per-run panel's failed read follows one rule: with a last good copy the copy stays and only the small
+  // error mark `node` goes above it; without one the panel is the error (with its retry button) alone. Returns
+  // true when the panel stops there (no copy).
+  function panelReadError(parent, node, hasCopy, retry) {
+    parent.appendChild(node);
+    if (hasCopy) {
+      node.classList.add('stale-error');
+      return false;
+    }
+    if (retry) {
+      var row = h('div', 'rs-actions');
+      var button = h('button', 'abtn', retry.label);
+      button.type = 'button';
+      button.addEventListener('click', retry.run);
+      row.appendChild(button);
+      parent.appendChild(row);
+    }
+    return true;
+  }
+
   function reviewSamplingPanel(info) {
     var runId = info.runId;
     var view = state.sampling[runId];
@@ -4735,14 +4752,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       loadErr.id = 'samplingErr';
       loadErr.setAttribute('role', 'alert');
       loadErr.title = errorCode(state.samplingErrors[runId]);
-      panel.appendChild(loadErr);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadSampling(runId); });
-      retryRow.appendChild(retry);
-      panel.appendChild(retryRow);
-      return panel;
+      if (panelReadError(panel, loadErr, !!view, { label: 'Tải lại', run: function () { loadSampling(runId); } })) {
+        return panel;
+      }
     }
     if (!view) {
       panel.appendChild(h('p', 'muted', 'Đang tải thiết lập đã lưu…'));
@@ -5495,14 +5507,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       loadError.id = 'reviewDataErr';
       loadError.setAttribute('role', 'alert');
       loadError.title = errorCode(state.reviewDataErrors[runId]);
-      panel.appendChild(loadError);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadReviewData(runId); });
-      retryRow.appendChild(retry);
-      panel.appendChild(retryRow);
-      return panel;
+      if (panelReadError(panel, loadError, !!view, { label: 'Tải lại', run: function () { loadReviewData(runId); } })) {
+        return panel;
+      }
     }
     if (!view) {
       panel.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
@@ -6539,20 +6546,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     head.appendChild(h('h3', null, STEP4_TITLE));
     card.appendChild(head);
 
+    var view = state.reviewProcess[runId];
     if (state.reviewProcessErrors[runId]) {
-      head.appendChild(h('span', 'chip s-idle', 'Chưa có kết quả'));
       var loadError = h('p', 'errbar local-error', plainError(state.reviewProcessErrors[runId]));
       loadError.title = errorCode(state.reviewProcessErrors[runId]);
-      card.appendChild(loadError);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadReviewProcess(runId); });
-      retryRow.appendChild(retry);
-      card.appendChild(retryRow);
-      return card;
+      if (panelReadError(card, loadError, !!view, { label: 'Tải lại', run: function () { loadReviewProcess(runId); } })) {
+        head.appendChild(h('span', 'chip s-idle', 'Chưa có kết quả'));
+        return card;
+      }
     }
-    var view = state.reviewProcess[runId];
     if (!view) {
       head.appendChild(h('span', 'chip s-idle', 'Đang tải kết quả…'));
       card.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
@@ -7133,14 +7135,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var step4Line = step4ResultLine(runId);
     if (step4Line) root.appendChild(step4Line);
 
+    var view = state.reviewStats[runId];
     var failure = state.reviewStatsErrors[runId];
     if (failure) {
       var bar = h('p', 'errbar local-error', plainError(failure));
       bar.title = failure.code || '';
-      root.appendChild(bar);
-      return;
+      if (panelReadError(root, bar, !!view, null)) return;
     }
-    var view = state.reviewStats[runId];
     if (!view) {
       root.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
       return;
@@ -7153,12 +7154,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return;
     }
     root.appendChild(reviewOverviewCard(source, runId));
+    var insights = state.reviewInsights[runId];
     var insightsFailure = state.reviewInsightsErrors[runId];
     if (insightsFailure) {
-      root.appendChild(reviewInsightsErrorCard(insightsFailure));
-      return;
+      if (!insights) {
+        root.appendChild(reviewInsightsErrorCard(insightsFailure));
+        return;
+      }
+      var insightsBar = h('p', 'errbar local-error', plainError(insightsFailure));
+      insightsBar.title = insightsFailure.code || '';
+      panelReadError(root, insightsBar, true, null);
     }
-    var insights = state.reviewInsights[runId];
     if (!insights) {
       root.appendChild(h('p', 'muted', 'Đang tải AI và nhãn chủ đề…'));
       return;
