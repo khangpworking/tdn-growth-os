@@ -1193,6 +1193,38 @@ class ConnectionTests(FlowTest):
         self.assertEqual((sha_folder(self.runs), sha_folder(self.state)), before)
         self.assert_no_subprocess()
 
+    def test_app_latest(self):
+        """| ~/.local/state/tdn-shopee-modules/app-latest.json        | app-latest prints                        |
+        |-----------------------------------------------------------|------------------------------------------|
+        | missing                                                   | {"format":"app-latest-v1","version":null}|
+        | {"version":"1.10.0"} (READONLY on too)                    | that version, exit 0                     |
+        | bad JSON / "1.0" / "01.0.0" / an extra key / over 4 KB    | FLOW_INPUT_INVALID, exit 2               |
+        """
+        env = self.env()
+        env['HOME'] = env['USERPROFILE'] = self._tmp.name
+        latest = pathlib.Path(self._tmp.name) / '.local/state/tdn-shopee-modules/app-latest.json'
+
+        def app_latest():
+            proc = subprocess.run([sys.executable, str(SCRIPT), 'app-latest'], capture_output=True,
+                                  text=True, env=env, timeout=90)
+            return proc.returncode, json.loads(proc.stdout)
+
+        latest.unlink(missing_ok=True)
+        self.assertEqual(app_latest(), (0, {'format': 'app-latest-v1', 'version': None}))
+        latest.parent.mkdir(parents=True, exist_ok=True)
+        latest.write_text('{"version":"1.10.0"}', encoding='utf8')
+        guard = self.state / 'shopee-flow' / 'READONLY'
+        guard.parent.mkdir(parents=True, exist_ok=True)
+        guard.write_text('on', encoding='utf8')
+        self.assertEqual(app_latest(), (0, {'format': 'app-latest-v1', 'version': '1.10.0'}))
+        for text in ('{"version":', '{"version":"1.0"}', '{"version":"01.0.0"}', '{"version":"1.0.0","x":1}',
+                     '{"version":"1.0.0"}' + ' ' * 4096):
+            with self.subTest(text[:30]):
+                latest.write_text(text, encoding='utf8')
+                rc, payload = app_latest()
+                self.assertEqual((rc, payload.get('code')), (2, 'FLOW_INPUT_INVALID'))
+        self.assert_no_subprocess()
+
 
 class RunTests(FlowTest):
     def test_run_stops_at_entry_and_does_not_call_m1(self):
