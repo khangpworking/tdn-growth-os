@@ -109,6 +109,7 @@ function harness(options: {
   saveShotResult?: (runId: string) => any;
   deleteRunResult?: (runId: string) => any;
   runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
+  runViewCopyHold?: () => Promise<void> | undefined;   // the disk copy answers when this settles
   reviewDataError?: (runId: string) => any; // the review data read fails with this reply
 } = {}) {
   const state: {
@@ -342,6 +343,8 @@ function harness(options: {
     },
     runViewCached: async (runId: string) => {
       state.runViewCachedCalls.push(runId);
+      const copyHeld = options.runViewCopyHold && options.runViewCopyHold();
+      if (copyHeld) await copyHeld;
       const copy = options.runViewCopy ? options.runViewCopy(runId) : null;
       return { ok: true, data: copy ? clone(copy) : null };
     },
@@ -5253,6 +5256,8 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
 // |   |                                                                  | (`join`); the poll's reads do not                 |
 // | 5 | the fresh read answers info but its review data fails            | delete stays held: a part is still from the copy  |
 // | 6 | the status filter changes (to none of the rows, then back)       | the prefetch queue is sent again: [] then the rows |
+// | 7 | the copy shows, then run-view answers USAGE (a server rollback)  | the single calls' answers replace it; delete back |
+// |   | a late copy answer after that                                    | changes nothing                                   |
 test('an old run opens from its disk copy at once, the fresh read replaces it, and the list is prefetched', async () => {
   const runId = 'run-copy';
   const copyName = 'Bản lưu trên máy';
@@ -5371,4 +5376,35 @@ test('an old run opens from its disk copy at once, the fresh read replaces it, a
     await new Promise((resolve) => setTimeout(resolve, 30));
     assert.equal(held(run.doc), true, '5: delete still held: the review data is from the copy');
   } finally { hold?.resolve(); run.dom.window.close(); }
+
+  // 7
+  hold = deferred<void>();
+  let copyHold: Deferred<void> | null = null;
+  const rollback = () => harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    runViewCopy: copy, oldServer: true,
+    runViewHold: () => hold?.promise,
+    runViewCopyHold: () => copyHold?.promise,
+  });
+  run = rollback();
+  try {
+    trackTab(run.doc);
+    await waitFor(() => outputs(run.doc).includes(copyName), '7: the copy');
+    hold.resolve();
+    await waitFor(() => !outputs(run.doc).includes(copyName) && /DHC Kẽm 60 ngày/.test(outputs(run.doc)), '7: the single calls');
+    await waitFor(() => held(run.doc) === false, '7: delete back');
+  } finally { hold?.resolve(); run.dom.window.close(); }
+  hold = null;
+  copyHold = deferred<void>();
+  run = rollback();
+  try {
+    trackTab(run.doc);
+    await waitFor(() => /DHC Kẽm 60 ngày/.test(outputs(run.doc)) && held(run.doc) === false, '7: the single calls first');
+    copyHold.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.ok(!outputs(run.doc).includes(copyName), '7: the late copy changes nothing');
+    assert.equal(held(run.doc), false);
+  } finally { copyHold?.resolve(); run.dom.window.close(); }
 });

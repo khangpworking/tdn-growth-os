@@ -3192,7 +3192,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     newDateSuggestion: null,
     preferredRunId: null,
     flowDialogBinding: null,
-    prefetchSent: '[]',       // the visible prefetch queue last sent to the bridge (JSON)
+    prefetchSent: '[]',
+    copiesOff: false,         // true after a run-view USAGE: the disk copy is not used again this session       // the visible prefetch queue last sent to the bridge (JSON)
     runFilters: { track: 'all', result: 'all' },   // «Lọc theo trạng thái», per tab
     runSort: 'newest',      // «Mới tạo trước» | «Cũ nhất trước», one choice for both run lists
     runSortChosen: false,   // a click before the saved choice is read wins
@@ -4393,6 +4394,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.samplingSeq[runId] || 0) + 1;
     state.samplingSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var previous = state.sampling[runId];
     var res = await (pending || api.reviewSampling(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
@@ -4400,6 +4402,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (res.ok) {
       state.sampling[runId] = res.data;
       delete state.samplingErrors[runId];
+      if (live) markLive(runId, 'sampling', live);
     } else {
       state.samplingErrors[runId] = res.error;
     }
@@ -4430,6 +4433,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewDataSeq[runId] || 0) + 1;
     state.reviewDataSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || api.reviewData(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewDataSeq[runId]) return;
@@ -4438,6 +4442,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (res.ok) {
       state.reviewData[runId] = res.data;
       delete state.reviewDataErrors[runId];
+      if (live) markLive(runId, 'reviewData', live);
     } else {
       state.reviewDataErrors[runId] = res.error;
     }
@@ -4456,6 +4461,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function loadModuleOutputsView(runId, pending) {
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || api.moduleOutputs(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.moduleOutputsSeq[runId] || state.selectedRunId !== runId) return;
@@ -4467,6 +4473,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     } else {
       state.moduleOutputs[runId] = res.data;
       delete state.moduleOutputsErrors[runId];
+      if (live) markLive(runId, 'outputs', live);
     }
     if (state.selectedRunId === runId) renderDetail();
   }
@@ -4476,6 +4483,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewStatsSeq[runId] || 0) + 1;
     state.reviewStatsSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || api.reviewStats(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewStatsSeq[runId] || state.selectedRunId !== runId) return;
@@ -4487,6 +4495,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     } else {
       state.reviewStats[runId] = res.data;
       delete state.reviewStatsErrors[runId];
+      if (live) markLive(runId, 'stats', live);
     }
     renderResult();
   }
@@ -4507,6 +4516,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewInsightsSeq[runId] || 0) + 1;
     state.reviewInsightsSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || askReviewInsights(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (seq !== state.reviewInsightsSeq[runId] || state.selectedRunId !== runId) return;
@@ -4521,6 +4531,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       state.reviewInsights[runId] = res.data;
       forgetChangedBuckets(runId, before, insightBucketTexts(res.data));
       delete state.reviewInsightsErrors[runId];
+      if (live) markLive(runId, 'insights', live);
     }
     renderResult();
   }
@@ -6780,6 +6791,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (viewed && await viewed) return;
     var seq = (state.reviewProcessSeq[runId] || 0) + 1;
     state.reviewProcessSeq[runId] = seq;
+    var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var before = step4Kind(runId);
     var res = await (pending || api.reviewProcess(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
@@ -6788,6 +6800,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         Array.isArray(res.data.sources)) {
       state.reviewProcess[runId] = res.data;
       delete state.reviewProcessErrors[runId];
+      if (live) markLive(runId, 'process', live);
     } else {
       state.reviewProcessErrors[runId] = res.ok ? { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } : res.error;
     }
@@ -7699,7 +7712,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       answered.settle(!usage);
     }
     if (isGone(runId)) return;   // a late reply for a deleted run
-    if (usage) return loadInfoSingles(runId);
+    if (usage) {
+      state.copiesOff = true;    // the server cannot refresh a copy: none is shown for the rest of the session
+      return loadInfoSingles(runId);
+    }
     return applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
   }
 
@@ -7830,6 +7846,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   async function loadInfoSingles(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
+    var live = claimLiveSeq(runId);
     var status = trackLoad('info', runId, state.infoSeq, runStatus);
     trackLoad('sampling', runId, state.samplingSeq, loadSampling);
     trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
@@ -7839,7 +7856,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
       trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
     }
-    applyInfo(runId, seq, await status);
+    var res = await status;
+    applyInfo(runId, seq, res);
+    if (res && res.ok && seq === state.infoSeq[runId]) markLive(runId, 'info', live);
   }
 
   // «Đang cập nhật…» follows the LATEST request of each kind for the open run (open and 10 s poll alike): a
@@ -7886,12 +7905,26 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   // the fresh read always replaces it, and a failed fresh read keeps it with the error line.
   var COPY_SEQ = 0.5;
   async function showDiskCopy(runId) {
-    if (state.runViewSupported === false) return;
+    if (state.copiesOff || state.runViewSupported === false) return;
     var res = await api.runViewCached(runId);
+    if (state.copiesOff || state.runViewSupported === false) return;     // a late answer after USAGE
     if (!res || !res.ok || !res.data || !res.data.parts || isGone(runId) || state.selectedRunId !== runId) return;
     var kinds = Object.keys(runViewPartRules(runId)).filter(function (name) { return name in res.data.parts; });
     if (kinds.indexOf('info') === -1) return;
     await applyRunViewAnswer(runId, COPY_SEQ, { reply: res, kinds: kinds });
+  }
+
+  // Every live write of a part (a run-view answer, or an older server's single call) takes the next number of the
+  // run's one sequence, so the copy (COPY_SEQ) never overwrites it and the write hold ends for both paths.
+  function claimLiveSeq(runId) {
+    var seq = (state.runViewSent[runId] || 0) + 1;
+    state.runViewSent[runId] = seq;
+    return seq;
+  }
+
+  function markLive(runId, name, seq) {
+    var seqs = state.runViewPartSeq[runId] || (state.runViewPartSeq[runId] = {});
+    if ((seqs[name] || 0) < seq) seqs[name] = seq;
   }
 
   // True while any part of the run still comes from the disk copy (not yet applied from a live read).

@@ -722,6 +722,8 @@ class Api:
         self._user_calls = 0               # page calls out (the prefetch waits for none)
         self._mutations = 0                # write/start/save/delete commands sent (each moves it, before and after)
         self._copy_generation = {}         # runId -> times its copy was removed (a read started before saves nothing)
+        self._reads_out = {}               # runId -> run-view reads out (the list removes their copy-to-be too)
+        self._copies_off = False           # a run-view answered USAGE: no copy is given for the rest of the session
         self._transport = None
         self._transport_key = None
         self._transport_lock = threading.Lock()
@@ -1025,6 +1027,9 @@ class Api:
         data = result.get('data') if result['ok'] else None
         if isinstance(data, dict) and data.get('format') == 'runs-v1' and isinstance(data.get('runs'), list):
             listed = {row.get('runId') for row in data['runs'] if isinstance(row, dict)}
+            with self._prefetch:                  # a read still out for an unlisted run saves nothing either
+                for run_id in [run_id for run_id in self._reads_out if run_id not in listed]:
+                    self._copy_generation[run_id] = self._copy_generation.get(run_id, 0) + 1
             self._drop_copies(lambda run_id: run_id not in listed)       # runs gone from the newest list
         return result
 
@@ -1740,10 +1745,22 @@ class Api:
         settled run is kept as the disk copy; RUN_NOT_FOUND removes it."""
         with self._prefetch:
             generation = self._copy_generation.get(run_id, 0)
+            self._reads_out[run_id] = self._reads_out.get(run_id, 0) + 1
+        try:
+            return self._read_run_view_now(run_id, with_result, generation)
+        finally:
+            with self._prefetch:
+                self._reads_out[run_id] -= 1
+                if not self._reads_out[run_id]:
+                    del self._reads_out[run_id]
+
+    def _read_run_view_now(self, run_id, with_result, generation):
         reply = self._remote('runView', run_id=run_id, flags=('--result',) if with_result else ())
         if not reply['ok']:
             if reply['error'].get('code') == 'RUN_NOT_FOUND':
                 self._forget_copy(run_id)
+            if reply['error'].get('code') == 'USAGE':
+                self._copies_off = True       # the server cannot refresh a copy: none is given again
             return reply                  # the info error is the command error (RUN_NOT_FOUND, USAGE, …)
         data = reply['data']
         names = _RUN_VIEW_PARTS + (_RUN_VIEW_RESULT_PARTS if with_result else ())
@@ -1908,7 +1925,7 @@ class Api:
 
     def _run_view_cached(self, run_id):
         run_id = self._run_id(run_id)
-        record = self._read_copy(run_id)
+        record = None if self._copies_off else self._read_copy(run_id)
         return {'ok': True, 'data': None if record is None else record['view']}
 
     # ---- Prefetch: the visible settled rows, one read at a time, into the disk copy ----

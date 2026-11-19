@@ -256,6 +256,8 @@ class RunViewCopyTest(unittest.TestCase):
         | a row open (`join`) after a write/start sent since the       | its own read, not the prefetch's            |
         | prefetch read started                                        |                                             |
         | the run deleted while its prefetch read is out               | the late read saves no copy                 |
+        | the newest list omits a run whose first prefetch read is out | the late read saves no copy                 |
+        | (no copy on disk yet)                                        |                                             |
         """
         with self.subTest('no join'):
             release = self.held_prefetch('run-5')
@@ -282,6 +284,23 @@ class RunViewCopyTest(unittest.TestCase):
             release.set()
             self.wait_prefetch()
             self.assertNotIn('run-7.json', ' '.join(self.files()))
+        with self.subTest('unlisted while out'):
+            release = self.held_prefetch('run-8')
+            self.answers[('runs', None)] = {'ok': True, 'data': {'format': 'runs-v1', 'runs': [{'runId': 'run-1'}]}}
+            self.api.listRuns()
+            release.set()
+            self.wait_prefetch()
+            self.assertNotIn('run-8.json', ' '.join(self.files()))
+
+    def test_no_copy_after_usage(self):
+        """| situation                                                   | expected                                    |
+        |--------------------------------------------------------------|---------------------------------------------|
+        | a copy on disk, then a run-view answers USAGE (a rollback)   | runViewCached gives no copy any more        |
+        """
+        self.save('run-1')
+        self.answers[('runView', 'run-2')] = {'ok': False, 'error': {'code': 'USAGE', 'message': 'USAGE'}}
+        self.api.runView('run-2', True)
+        self.assertEqual(self.api.runViewCached('run-1'), {'ok': True, 'data': None})
 
 
 if __name__ == '__main__':
