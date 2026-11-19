@@ -77,7 +77,6 @@ select, input { font: inherit; color: var(--fg); background: var(--panel); borde
 .abtn.danger { background: var(--stop); border-color: var(--stop); color: var(--on-solid); }
 .dhead .abtn.danger { margin-left: auto; }
 .toast { position: fixed; right: 16px; bottom: 16px; z-index: 60; background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--ok); border-radius: 10px; padding: 10px 14px; box-shadow: 0 6px 20px var(--shadow); font-size: 14px; font-weight: 600; }
-.top-count { width: 5.5em; }
 .abtn:disabled { opacity: .5; cursor: not-allowed; }
 .hint { font-size: 12.5px; font-weight: 600; color: var(--need); }
 .muted { color: var(--muted); font-size: 13.5px; }
@@ -299,6 +298,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .rs-group > legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 0 4px; }
 .rs-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
 .rs-opt input { width: auto; margin-top: 3px; flex: none; }
+/* «Sản phẩm bán chạy»: «Top [N] Lọc trùng» and «Tất cả Không lọc trùng» each on one line, same height. The global
+   input rule (padding 8px 10px) and .rs-opt input (width auto, margin-top 3px) made the number box tall and wide. */
+.pick-opt { align-items: center; flex-wrap: nowrap; gap: 6px; min-height: 28px; white-space: nowrap; }
+.pick-opt > label { display: inline-flex; align-items: center; gap: 6px; }
+.pick-opt input { margin-top: 0; }
+.pick-opt input.top-count { width: 4.5em; height: 28px; padding: 2px 6px; box-sizing: border-box; }
 .rs-stars { display: flex; flex-wrap: wrap; gap: 6px 12px; padding-left: 4px; }
 .rs-stars label { display: flex; gap: 4px; align-items: center; font-size: 13.5px; font-weight: 600; }
 .rs-stars input { width: auto; flex: none; }
@@ -595,10 +600,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
             </fieldset>
             <fieldset class="policy-group" id="newSelectionGroup">
               <legend>Sản phẩm bán chạy</legend>
-              <div class="rs-opt"><label><input type="radio" name="newSelection" value="top" checked> Top</label>
+              <div class="rs-opt pick-opt"><label><input type="radio" name="newSelection" value="top" checked> Top</label>
                 <input type="number" class="top-count" id="newTopCount" min="1" max="100" step="1" value="5" aria-label="Top">
                 <span class="chip s-ready">Lọc trùng</span></div>
-              <div class="rs-opt"><label><input type="radio" name="newSelection" value="all"> Tất cả</label>
+              <div class="rs-opt pick-opt"><label><input type="radio" name="newSelection" value="all"> Tất cả</label>
                 <span class="chip s-idle">Không lọc trùng</span></div>
             </fieldset>
             <label class="field" id="newTotalField"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
@@ -3182,7 +3187,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     newDateSuggestion: null,
     preferredRunId: null,
     flowDialogBinding: null,
-    runFilter: 'all',
+    runFilters: { track: 'all', result: 'all' },   // «Lọc theo trạng thái», per tab
     runSort: 'newest',      // «Mới tạo trước» | «Cũ nhất trước», one choice for both run lists
     runSortChosen: false,   // a click before the saved choice is read wins
     savedProduct: null,
@@ -7310,8 +7315,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   };
 
   function renderRunList() {
-    // The filter control lives on the history tab only, so the results tab lists every run.
-    var allowed = state.screen === 'result' ? null : RUN_FILTERS[state.runFilter] || null;
+    var allowed = RUN_FILTERS[state.runFilters[state.screen === 'result' ? 'result' : 'track']] || null;
     var shown = state.runs.filter(function (run) {
       return !allowed || allowed.indexOf(effectiveStatus(run.runId, run.status)) !== -1;
     }).sort(compareRuns);
@@ -7341,6 +7345,22 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         list.appendChild(h('li', 'muted', 'Không có lượt phù hợp với bộ lọc.'));
       }
       $(ids[1]).hidden = state.runs.length > 0;
+    });
+  }
+
+  // «Lọc theo trạng thái» on both run lists: the track tab's control is THE one (labels, states); the result
+  // tab gets a copy of it at boot. Each tab keeps its own choice.
+  function mountRunFilters() {
+    var copy = document.querySelector('#scr-track .run-filter').cloneNode(true);
+    copy.querySelector('select').id = 'resultRunFilter';
+    var aside = document.querySelector('#scr-result .runs');
+    aside.insertBefore(copy, aside.querySelector('.run-sort'));
+    [['runFilter', 'track'], ['resultRunFilter', 'result']].forEach(function (pair) {
+      var select = $(pair[0]);
+      select.addEventListener('change', function () {
+        state.runFilters[pair[1]] = select.value || 'all';
+        renderRunList();
+      });
     });
   }
 
@@ -9653,10 +9673,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     Array.prototype.forEach.call(document.querySelectorAll('[data-run-sort]'), function (btn) {
       btn.addEventListener('click', function () { chooseRunSort(btn.dataset.runSort); });
     });
-    $('runFilter').addEventListener('change', function () {
-      state.runFilter = $('runFilter').value || 'all';
-      renderRunList();
-    });
+    mountRunFilters();
     window.addEventListener('beforeunload', function () {
       clearReconnectTimer();
       clearHealthPoll();

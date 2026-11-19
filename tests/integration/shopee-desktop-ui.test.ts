@@ -4239,6 +4239,8 @@ test('opening a run and overlapping lists follow the latest successful list', as
 // | 2 | «Cũ nhất trước»                                               | A, B, C on both tabs; kept on this PC     |
 // | 3 | «Cũ nhất trước» with «Lọc theo trạng thái» = done             | A, C                                      |
 // | 4 | the app opened again                                          | «Cũ nhất trước» pressed: A, B, C          |
+// | 5 | «Kết quả chạy»: «Lọc theo trạng thái» (the same choices) =    | B there; the track tab keeps done: A, C   |
+// |   | running, with «Cũ nhất trước»                                 |                                           |
 test('the run lists sort newest or oldest first, with the status filter, and keep the choice', async () => {
   const runs = [
     { runId: 'run-b', product: 'Sản phẩm B', status: 'RUNNING', createdAt: '2026-11-02T03:00:00.000Z' },
@@ -4272,6 +4274,18 @@ test('the run lists sort newest or oldest first, with the status filter, and kee
     filter.value = 'done';
     filter.dispatchEvent(new (run.dom.window as any).Event('change', { bubbles: true }));
     await waitFor(() => order(run.doc, 'runList') === 'ac', '3: filter and order together');
+    // 5
+    tab(run.doc, 2);
+    const resultFilter = element<HTMLSelectElement>(run.doc, 'resultRunFilter');
+    const choices = (select: HTMLSelectElement) => [...select.options].map((option) => option.value + '=' + option.textContent);
+    assert.deepEqual(choices(resultFilter), choices(filter), '5: the same choices');
+    assert.equal(resultFilter.value, 'all', '5: its own choice');
+    await waitFor(() => order(run.doc, 'resultRunList') === 'abc', '5: every run until chosen');
+    resultFilter.value = 'running';
+    resultFilter.dispatchEvent(new (run.dom.window as any).Event('change', { bubbles: true }));
+    await waitFor(() => order(run.doc, 'resultRunList') === 'b', '5: filtered');
+    tab(run.doc, 1);
+    await waitFor(() => order(run.doc, 'runList') === 'ac', '5: the track tab keeps its choice');
   } finally { run.dom.window.close(); }
 
   // 4
