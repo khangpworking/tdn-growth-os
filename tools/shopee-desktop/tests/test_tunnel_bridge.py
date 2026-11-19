@@ -4,6 +4,7 @@ import http.server
 import json
 import pathlib
 import shutil
+import socket
 import ssl
 import struct
 import subprocess
@@ -126,8 +127,9 @@ class TunnelBridgeTest(unittest.TestCase):
         | nobody listening                                     | SSH_FAILED                                |
         | the answer ends when the relay closes (HTTP/1.1      | ok                                        |
         | Connection: close, and HTTP/1.0)                     |                                           |
-        | frames stop past the call's time limit               | SSH_TIMEOUT                               |
+        | frames stop past the call's time limit               | SSH_TIMEOUT, at the limit                 |
         | bytes keep coming slowly past the call's time limit  | SSH_TIMEOUT, at the limit                 |
+        | the name lookup takes longer than the time limit     | SSH_TIMEOUT, at the limit                 |
         | run-view: X 2, nothing on stdout (an older server)   | USAGE                                     |
         | (any of the above)                                   | the token is in no reply                  |
         """
@@ -154,7 +156,6 @@ class TunnelBridgeTest(unittest.TestCase):
                 replies.append(self.call())
                 self.assertEqual(replies[-1]['error']['code'], 'SSH_FAILED')
             with self.subTest('nobody listening'):
-                import socket
                 spare = socket.socket()
                 spare.bind(('127.0.0.1', 0))
                 port = spare.getsockname()[1]
@@ -166,18 +167,22 @@ class TunnelBridgeTest(unittest.TestCase):
                     self.server.reply = ('close', version, [frame(b'O', text), frame(b'X', struct.pack('>i', 0))])
                     replies.append(self.call())
                     self.assertEqual(replies[-1], {'ok': True, 'data': CONNECTION})
-            with self.subTest('slow bytes'):
-                self.server.reply = [(0.1, frame(b'O', b'x' * 40))]
-                started = time.monotonic()
-                replies.append(self.call(timeout=1))
-                self.assertEqual(replies[-1]['error']['code'], 'SSH_TIMEOUT')
-                self.assertLess(time.monotonic() - started, 2.0)
-            with self.subTest('time limit'):
-                self.server.reply = [frame(b'K'), 2.5, frame(b'X', struct.pack('>i', 0))]
-                started = time.monotonic()
-                replies.append(self.call(timeout=1))
-                self.assertEqual(replies[-1]['error']['code'], 'SSH_TIMEOUT')
-                self.assertLess(time.monotonic() - started, 2.0)
+            lookup = socket.getaddrinfo
+
+            def slow_lookup(*args, **kwargs):
+                time.sleep(2.5)
+                return lookup(*args, **kwargs)
+
+            ok_reply = [frame(b'O', text), frame(b'X', struct.pack('>i', 0))]
+            for name, reply, resolver in (('frames stop', [frame(b'K'), 2.5] + ok_reply, lookup),
+                                          ('slow bytes', [(0.1, frame(b'O', b'x' * 40))], lookup),
+                                          ('slow name lookup', ok_reply, slow_lookup)):
+                with self.subTest(name), mock.patch.object(tdn_shopee_app.socket, 'getaddrinfo', resolver):
+                    self.server.reply = reply
+                    started = time.monotonic()
+                    replies.append(self.call(timeout=1))
+                    self.assertEqual(replies[-1]['error']['code'], 'SSH_TIMEOUT')
+                    self.assertLess(time.monotonic() - started, 1.3)    # the limit plus a small margin
             with self.subTest('older server'):
                 self.server.reply = [frame(b'E', b'usage: ...'), frame(b'X', struct.pack('>i', 2))]
                 replies.append(self.call('runView', run_id='run-1'))

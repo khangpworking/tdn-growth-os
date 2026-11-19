@@ -3161,7 +3161,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     runViewInFlight: {},      // runId -> { promise, withResult, viewSeq } of the run-view read on its way (loadInfo)
     runViewAgain: {},         // runId -> { promise, resolve } of the one follow-up read asked while it was out
     runViewSent: {},          // runId -> run-view calls started
-    runViewApplied: {},       // runId -> the newest started run-view whose answer was applied
+    runViewApplied: {},       // runId -> part -> the newest started run-view that gave that part in a success
     renderHold: 0,            // > 0 while one run-view answer is applied: its renders become one
     renderWanted: null,       // 'detail' or 'result' asked during the hold
     runViewProbe: null,       // { promise, settle } while the first run-view of this connection is unanswered
@@ -7596,9 +7596,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // One run-view call (--result on «Kết quả chạy»). Only a real combined answer feeds the loaders a `pending`
   // part; USAGE switches to the single calls for this session (until the next connect). A transport failure keeps
-  // the last good copy of every part and shows its error line. An answer older than one already applied (the
-  // track read after its --result follow-up) applies nothing. Resolves with the info part's reply (none on the
-  // single-call path).
+  // the last good copy of every part and shows its error line; it is never counted as applied. An older answer
+  // still fills the parts no newer SUCCESS gave (the track read after a failed --result follow-up fills them all;
+  // after a good one, none). Resolves with the info part's reply (none on the single-call path).
   async function runViewRefresh(runId) {
     var seq = (state.infoSeq[runId] || 0) + 1;
     state.infoSeq[runId] = seq;
@@ -7623,9 +7623,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return Promise.resolve(part && typeof part === 'object' && 'ok' in part ? part
         : { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } });
     };
-    if ((state.runViewApplied[runId] || 0) > viewSeq) return reply('info');   // a newer read was applied
-    state.runViewApplied[runId] = viewSeq;
-    if (!res.ok && isTransportError(res.error)) {
+    if (!res.ok && isTransportError(res.error)) {    // never counts as applied: the last copies stay
       if (state.selectedRunId === runId && seq === state.infoSeq[runId]) {
         state.loadingRunId = null;
         showError(res.error);
@@ -7649,18 +7647,26 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       stats: ['stats', state.reviewStatsSeq, function () { return loadReviewStats(runId, reply('stats')); }],
       insights: ['insights', state.reviewInsightsSeq, function () { return loadReviewInsights(runId, reply('insights')); }]
     };
-    var started;
-    var info;
+    // Each part takes this answer unless a NEWER successful answer already gave it that part; only a success
+    // counts as applied (a command error still shows on the parts it reaches).
+    var partApplied = state.runViewApplied[runId] || (state.runViewApplied[runId] = {});
+    kinds = kinds.filter(function (name) { return (partApplied[name] || 0) < viewSeq; });
+    if (res.ok) kinds.forEach(function (name) { partApplied[name] = viewSeq; });
+    var started = [];
+    var info = reply('info');
     state.renderHold += 1;                            // every part of this answer applied: one redraw for all
     try {
-      started = kinds.map(function (name) {
+      kinds.forEach(function (name) {
         var loader = loaders[name];
         var promise = trackLoad(loader[0], runId, loader[1], loader[2]);
         if (name !== 'outputs') applied.push(promise);
-        return promise;
+        started.push(promise);
+        if (name === 'info') {
+          info = promise;
+          applied.push(promise.then(function (status) { applyInfo(runId, state.infoSeq[runId], status); }));
+        }
       });
-      info = await started[0];
-      applyInfo(runId, seq, info);
+      info = await info;
       await Promise.all(applied);
     } finally {
       releaseRenders();

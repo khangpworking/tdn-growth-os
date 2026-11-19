@@ -4923,6 +4923,7 @@ test('a read asked while a run-view is out is answered by the follow-up', async 
 // | 2 | the connection is made again while the first run-view is out and a notice waits | the notice goes on once that read answers  |
 // | 3 | a run-view fails on the way (SSH_TIMEOUT)                                       | the open run keeps its last copy and shows |
 // |   |                                                                                 | the error line                             |
+// | 4 | the --result read fails (SSH_TIMEOUT) BEFORE the first read of the run answers  | that first read's answer still shows       |
 test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal comments, redraws once and survives failures', async () => {
   const runId = 'run-w3';
   const sha = 'e'.repeat(64);
@@ -5109,4 +5110,29 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
     assert.notEqual(run.doc.getElementById('btnDeleteRun'), null, '3: the open run stays');
     assert.equal(run.doc.getElementById('moduleOutputsPanel')!.textContent, outputs, '3: its parts stay');
   } finally { run.dom.window.close(); }
+
+  // 4
+  failing = false;
+  listed = false;
+  run = base({
+    statusError: () => (failing ? { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } } : undefined),
+    listRunsReply: async () => (listed ? undefined : { ok: true, data: { format: 'runs-v1', runs: [] } }),
+  });
+  try {
+    await booted(run.doc);
+    assert.equal(run.state.runViewCalls.length, 0, '4: no copy of the run yet');
+    hold = deferred<void>();
+    holdTrackOnly = true;
+    listed = true;
+    tab(run.doc, 1);                                      // the first read of the run, held
+    await waitFor(() => run.state.runViewCalls.length >= 1, '4: the first read out');
+    assert.doesNotMatch(run.doc.getElementById('runDetail')?.textContent || '', /Kết quả các bước/);
+    failing = true;
+    tab(run.doc, 2);                                      // the --result read, which fails
+    await waitFor(() => run.state.runViewCalls.some((call) => call.result), '4: the --result read out');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    release();
+    await waitFor(() => /Kết quả các bước/.test(run.doc.getElementById('runDetail')?.textContent || ''),
+      '4: the first read shows');
+  } finally { release(); holdTrackOnly = false; run.dom.window.close(); }
 });

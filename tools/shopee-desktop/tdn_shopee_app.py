@@ -400,12 +400,87 @@ class _TunnelBody:
         return data
 
 
+class _TunnelCall:
+    """One tunnel call run on a worker thread. The caller waits once, until the deadline; past it the call is
+    abandoned: its socket is shut and closed, and a socket the worker opens later is closed at once."""
+
+    def __init__(self, deadline):
+        self.deadline = deadline
+        self.abandoned = False
+        self.lock = threading.Lock()
+        self.sock = None
+        self.done = threading.Event()
+        self.result = None
+
+    def wait(self):
+        """The time a blocking step may take (a backstop: the caller's deadline is the limit)."""
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0 or self.abandoned:
+            raise _TunnelTimeout()
+        return min(_TUNNEL_SILENCE_SECONDS, remaining)
+
+    def keep(self, sock):
+        with self.lock:
+            if self.abandoned:
+                sock.close()
+                raise _TunnelTimeout()
+            self.sock = sock
+
+    def abandon(self):
+        with self.lock:
+            self.abandoned = True
+            sock, self.sock = self.sock, None
+        if sock is not None:
+            try:
+                socket.socket.shutdown(sock, socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def close(self):
+        with self.lock:
+            sock, self.sock = self.sock, None
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
 def _tunnel_run(target, script, timeout):
     """(exit code, stdout bytes) of one tunnel call; raises _TunnelTimeout at the call's time limit.
 
-    The time limit is one wall-clock deadline for the whole call: connect, TLS, request, headers and every
-    frame. Each blocking step waits only the time left, and a timer shuts the socket at the deadline for a
-    step that keeps receiving a few bytes (a slow TLS handshake)."""
+    The whole call (name lookup, connect, TLS, request, headers, every frame) runs on a daemon worker thread;
+    this thread waits for it once, until one wall-clock deadline. Past it the call is abandoned and
+    SSH_TIMEOUT comes back at once; the worker's late result is dropped."""
+    call = _TunnelCall(time.monotonic() + timeout)
+
+    def work():
+        try:
+            call.result = ('ok', _tunnel_exchange(target, script, call))
+        except _TunnelTimeout:
+            call.result = ('timeout', None)
+        except Exception:        # never let a worker error escape: it is a transport failure
+            call.result = ('ok', (255, b''))
+        finally:
+            call.close()
+            call.done.set()
+
+    threading.Thread(target=work, name='tdn-tunnel-call', daemon=True).start()
+    if not call.done.wait(max(0.0, call.deadline - time.monotonic())):
+        call.abandon()
+        raise _TunnelTimeout()
+    kind, value = call.result
+    if kind == 'timeout':
+        raise _TunnelTimeout()
+    return value
+
+
+def _tunnel_exchange(target, script, call):
+    """The worker's part of one tunnel call: (exit code, stdout bytes)."""
     url = urlsplit(target['--url'])
     if url.scheme != 'https' or not url.hostname:
         return 255, b''
@@ -413,44 +488,22 @@ def _tunnel_run(target, script, timeout):
         port = url.port or 443
     except ValueError:
         return 255, b''
-    deadline = time.monotonic() + timeout
-    expired = threading.Event()
-
-    def wait():
-        remaining = deadline - time.monotonic()
-        if remaining <= 0 or expired.is_set():
-            raise _TunnelTimeout()
-        return min(_TUNNEL_SILENCE_SECONDS, remaining)
-
-    sockets = []
-
-    def stop():
-        expired.set()
-        for sock in list(sockets):
-            try:
-                socket.socket.shutdown(sock, socket.SHUT_RDWR)
-            except OSError:
-                pass
-
-    timer = threading.Timer(timeout, stop)
-    timer.daemon = True
-    timer.start()
     host = url.hostname if port == 443 else '%s:%d' % (url.hostname, port)
     request = ('POST /run HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\n'
                'Content-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n'
                % (host, target['--token'], len(script))).encode('latin-1') + script
     out = []
     try:
-        raw = socket.create_connection((target.get('--resolve-ip') or url.hostname, port), wait())
-        sockets.append(raw)
+        raw = socket.create_connection((target.get('--resolve-ip') or url.hostname, port), call.wait())
+        call.keep(raw)
         sock = ssl.create_default_context().wrap_socket(raw, server_hostname=url.hostname,
                                                         do_handshake_on_connect=False)
-        sockets[:] = [sock]
-        sock.settimeout(wait())
+        call.keep(sock)
+        sock.settimeout(call.wait())
         sock.do_handshake()
-        sock.settimeout(wait())
+        sock.settimeout(call.wait())
         sock.sendall(request)
-        stream = _TunnelStream(sock, wait)
+        stream = _TunnelStream(sock, call.wait)
         status = stream.line().split(None, 2)
         if len(status) < 2 or not status[0].startswith(b'HTTP/') or status[1] != b'200':
             return 255, b''
@@ -472,19 +525,10 @@ def _tunnel_run(target, script, timeout):
                 return (code if 0 <= code <= 254 else 1), b''.join(out)
             elif kind not in (b'E', b'K'):
                 return 255, b''
-    except _TunnelTimeout:
-        raise
     except (OSError, EOFError, struct.error, ValueError):
-        if expired.is_set() or deadline - time.monotonic() <= 0.05:
+        if call.abandoned or call.deadline - time.monotonic() <= 0.05:
             raise _TunnelTimeout() from None
         return 255, b''          # a dead link (60 s without a byte), a refusal or a broken answer
-    finally:
-        timer.cancel()
-        for sock in sockets:
-            try:
-                sock.close()
-            except OSError:
-                pass
 
 
 def _config_path():
