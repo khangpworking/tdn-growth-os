@@ -27,7 +27,9 @@ def frame(kind, data=b''):
 
 
 class Relay(http.server.BaseHTTPRequestHandler):
-    """Answers with the frames the test sets in `server.reply` (a list, or an int HTTP status)."""
+    """Answers with the frames the test sets in `server.reply`: a list (chunked; a float pauses, a tuple
+    (delay, bytes) sends the bytes one by one), an int HTTP status, or ('close', version, frames): an answer
+    whose end is the relay closing the connection (HTTP/1.0, or HTTP/1.1 with Connection: close)."""
 
     protocol_version = 'HTTP/1.1'
 
@@ -35,6 +37,12 @@ class Relay(http.server.BaseHTTPRequestHandler):
         body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
         self.server.seen.append({'path': self.path, 'auth': self.headers.get('Authorization'), 'body': body})
         reply = self.server.reply
+        if isinstance(reply, tuple) and reply[0] == 'close':
+            self.close_connection = True
+            head = reply[1] + ' 200 OK\r\n' + ('Connection: close\r\n' if reply[1] == 'HTTP/1.1' else '') + '\r\n'
+            self.wfile.write(head.encode('latin-1') + b''.join(reply[2]))
+            self.wfile.flush()
+            return
         if isinstance(reply, int):
             self.send_response(reply)
             self.send_header('Content-Length', '0')
@@ -46,6 +54,15 @@ class Relay(http.server.BaseHTTPRequestHandler):
         for item in reply:
             if isinstance(item, float):
                 time.sleep(item)
+                continue
+            if isinstance(item, tuple):
+                for byte in item[1]:
+                    time.sleep(item[0])
+                    try:
+                        self.wfile.write(b'1\r\n%c\r\n' % byte)
+                        self.wfile.flush()
+                    except OSError:
+                        return
                 continue
             self.wfile.write(b'%x\r\n%s\r\n' % (len(item), item))
             self.wfile.flush()
@@ -107,7 +124,10 @@ class TunnelBridgeTest(unittest.TestCase):
         | a frame of an unknown kind                           | SSH_FAILED                                |
         | HTTP 503                                             | SSH_FAILED                                |
         | nobody listening                                     | SSH_FAILED                                |
+        | the answer ends when the relay closes (HTTP/1.1      | ok                                        |
+        | Connection: close, and HTTP/1.0)                     |                                           |
         | frames stop past the call's time limit               | SSH_TIMEOUT                               |
+        | bytes keep coming slowly past the call's time limit  | SSH_TIMEOUT, at the limit                 |
         | run-view: X 2, nothing on stdout (an older server)   | USAGE                                     |
         | (any of the above)                                   | the token is in no reply                  |
         """
@@ -141,6 +161,17 @@ class TunnelBridgeTest(unittest.TestCase):
                 spare.close()
                 replies.append(self.call(port=port))
                 self.assertEqual(replies[-1]['error']['code'], 'SSH_FAILED')
+            for version in ('HTTP/1.1', 'HTTP/1.0'):
+                with self.subTest('closed by the relay', version=version):
+                    self.server.reply = ('close', version, [frame(b'O', text), frame(b'X', struct.pack('>i', 0))])
+                    replies.append(self.call())
+                    self.assertEqual(replies[-1], {'ok': True, 'data': CONNECTION})
+            with self.subTest('slow bytes'):
+                self.server.reply = [(0.1, frame(b'O', b'x' * 40))]
+                started = time.monotonic()
+                replies.append(self.call(timeout=1))
+                self.assertEqual(replies[-1]['error']['code'], 'SSH_TIMEOUT')
+                self.assertLess(time.monotonic() - started, 2.0)
             with self.subTest('time limit'):
                 self.server.reply = [frame(b'K'), 2.5, frame(b'X', struct.pack('>i', 0))]
                 started = time.monotonic()

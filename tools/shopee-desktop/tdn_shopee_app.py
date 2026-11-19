@@ -4,7 +4,6 @@ import base64
 import datetime as dt
 import hashlib
 import hmac
-import http.client
 import json
 import os
 from pathlib import Path
@@ -335,58 +334,137 @@ def _tunnel_target(argv):
     return values
 
 
-class _PinnedHTTPSConnection(http.client.HTTPSConnection):
-    def __init__(self, host, port, address, timeout):
-        super().__init__(host, port, timeout=timeout, context=ssl.create_default_context())
-        self.address = address
+class _TunnelStream:
+    """The bytes of one TLS socket. Every blocking read waits at most until the call's deadline (`wait`)."""
 
-    def connect(self):
-        sock = socket.create_connection((self.address or self.host, self.port), self.timeout)
-        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+    def __init__(self, sock, wait):
+        self.sock, self.wait, self.buf = sock, wait, b''
+
+    def more(self):
+        self.sock.settimeout(self.wait())
+        data = self.sock.recv(65536)
+        if not data:
+            raise EOFError
+        self.buf += data
+
+    def line(self):
+        while b'\r\n' not in self.buf:
+            if len(self.buf) > 65536:
+                raise ValueError('header line too long')
+            self.more()
+        line, _, self.buf = self.buf.partition(b'\r\n')
+        return line
+
+    def exact(self, size):
+        while len(self.buf) < size:
+            self.more()
+        data, self.buf = self.buf[:size], self.buf[size:]
+        return data
+
+
+class _TunnelBody:
+    """The HTTP body of the answer: chunked, Content-Length, or read until the relay closes (HTTP/1.0 or
+    Connection: close). Only the bytes already received are taken, so a slow relay still meets the deadline."""
+
+    def __init__(self, stream, headers):
+        self.stream, self.buf, self.left = stream, b'', 0
+        if 'chunked' in headers.get('transfer-encoding', '').lower():
+            self.mode = 'chunked'
+        elif 'content-length' in headers:
+            self.mode, self.left = 'length', int(headers['content-length'])
+        else:
+            self.mode = 'close'
+
+    def more(self):
+        stream = self.stream
+        if self.mode == 'chunked' and not self.left:
+            self.left = int(stream.line().split(b';')[0].strip(), 16)
+            if not self.left:
+                raise EOFError
+        if self.mode == 'length' and not self.left:
+            raise EOFError
+        if not stream.buf:
+            stream.more()
+        take = stream.buf if self.mode == 'close' else stream.buf[:self.left]
+        stream.buf = stream.buf[len(take):]
+        self.buf += take
+        if self.mode != 'close':
+            self.left -= len(take)
+            if self.mode == 'chunked' and not self.left:
+                stream.exact(2)              # the CRLF after a chunk
+
+    def exact(self, size):
+        while len(self.buf) < size:
+            self.more()
+        data, self.buf = self.buf[:size], self.buf[size:]
+        return data
 
 
 def _tunnel_run(target, script, timeout):
-    """(exit code, stdout bytes) of one tunnel call; raises _TunnelTimeout at the call's time limit."""
+    """(exit code, stdout bytes) of one tunnel call; raises _TunnelTimeout at the call's time limit.
+
+    The time limit is one wall-clock deadline for the whole call: connect, TLS, request, headers and every
+    frame. Each blocking step waits only the time left, and a timer shuts the socket at the deadline for a
+    step that keeps receiving a few bytes (a slow TLS handshake)."""
     url = urlsplit(target['--url'])
     if url.scheme != 'https' or not url.hostname:
         return 255, b''
-    deadline = time.monotonic() + timeout
-
-    def wait():
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise _TunnelTimeout()
-        return min(_TUNNEL_SILENCE_SECONDS, remaining)
-
     try:
         port = url.port or 443
     except ValueError:
         return 255, b''
+    deadline = time.monotonic() + timeout
+    expired = threading.Event()
+
+    def wait():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or expired.is_set():
+            raise _TunnelTimeout()
+        return min(_TUNNEL_SILENCE_SECONDS, remaining)
+
+    sockets = []
+
+    def stop():
+        expired.set()
+        for sock in list(sockets):
+            try:
+                socket.socket.shutdown(sock, socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    timer = threading.Timer(timeout, stop)
+    timer.daemon = True
+    timer.start()
+    host = url.hostname if port == 443 else '%s:%d' % (url.hostname, port)
+    request = ('POST /run HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\n'
+               'Content-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n'
+               % (host, target['--token'], len(script))).encode('latin-1') + script
     out = []
-    conn = None
     try:
-        conn = _PinnedHTTPSConnection(url.hostname, port, target.get('--resolve-ip'), timeout=wait())
-        conn.request('POST', '/run', body=script, headers={
-            'Authorization': 'Bearer ' + target['--token'],
-            'Content-Type': 'text/plain; charset=utf-8',
-        })
-        response = conn.getresponse()
-        if response.status != 200:
+        raw = socket.create_connection((target.get('--resolve-ip') or url.hostname, port), wait())
+        sockets.append(raw)
+        sock = ssl.create_default_context().wrap_socket(raw, server_hostname=url.hostname,
+                                                        do_handshake_on_connect=False)
+        sockets[:] = [sock]
+        sock.settimeout(wait())
+        sock.do_handshake()
+        sock.settimeout(wait())
+        sock.sendall(request)
+        stream = _TunnelStream(sock, wait)
+        status = stream.line().split(None, 2)
+        if len(status) < 2 or not status[0].startswith(b'HTTP/') or status[1] != b'200':
             return 255, b''
-
-        def read_exact(size):
-            data = b''
-            while len(data) < size:
-                conn.sock.settimeout(wait())
-                chunk = response.read(size - len(data))
-                if not chunk:
-                    raise EOFError
-                data += chunk
-            return data
-
+        headers = {}
         while True:
-            kind, size = struct.unpack('>cI', read_exact(5))
-            data = read_exact(size) if size else b''
+            line = stream.line()
+            if not line:
+                break
+            name, _, value = line.decode('latin-1').partition(':')
+            headers[name.strip().lower()] = value.strip()
+        body = _TunnelBody(stream, headers)
+        while True:
+            kind, size = struct.unpack('>cI', body.exact(5))
+            data = body.exact(size) if size else b''
             if kind == b'O':
                 out.append(data)
             elif kind == b'X':
@@ -394,15 +472,19 @@ def _tunnel_run(target, script, timeout):
                 return (code if 0 <= code <= 254 else 1), b''.join(out)
             elif kind not in (b'E', b'K'):
                 return 255, b''
-    except socket.timeout:
-        if deadline - time.monotonic() <= 0.05:
+    except _TunnelTimeout:
+        raise
+    except (OSError, EOFError, struct.error, ValueError):
+        if expired.is_set() or deadline - time.monotonic() <= 0.05:
             raise _TunnelTimeout() from None
-        return 255, b''          # 60 s without a frame: the link is dead
-    except (OSError, EOFError, struct.error, http.client.HTTPException, ValueError):
-        return 255, b''
+        return 255, b''          # a dead link (60 s without a byte), a refusal or a broken answer
     finally:
-        if conn is not None:
-            conn.close()
+        timer.cancel()
+        for sock in sockets:
+            try:
+                sock.close()
+            except OSError:
+                pass
 
 
 def _config_path():
