@@ -298,7 +298,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .rs-group > legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 0 4px; }
 .rs-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; }
 .rs-opt input { width: auto; margin-top: 3px; flex: none; }
-/* «Sản phẩm bán chạy»: «Top [N] Lọc trùng» and «Tất cả Không lọc trùng» each on one line, same height. The global
+/* «Sản phẩm bán chạy»: «Top [N]» and «Tất cả» each on one line, same height. The global
    input rule (padding 8px 10px) and .rs-opt input (width auto, margin-top 3px) made the number box tall and wide. */
 .pick-opt { align-items: center; flex-wrap: nowrap; gap: 6px; min-height: 28px; white-space: nowrap; }
 .pick-opt > label { display: inline-flex; align-items: center; gap: 6px; }
@@ -607,10 +607,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
             <fieldset class="policy-group" id="newSelectionGroup">
               <legend>Sản phẩm bán chạy</legend>
               <div class="rs-opt pick-opt"><label><input type="radio" name="newSelection" value="top" checked> Top</label>
-                <input type="number" class="top-count" id="newTopCount" min="1" max="100" step="1" value="5" aria-label="Top">
-                <span class="chip s-ready">Lọc trùng</span></div>
-              <div class="rs-opt pick-opt"><label><input type="radio" name="newSelection" value="all"> Tất cả</label>
-                <span class="chip s-idle">Không lọc trùng</span></div>
+                <input type="number" class="top-count" id="newTopCount" min="1" max="100" step="1" value="5" aria-label="Top"></div>
+              <div class="rs-opt pick-opt"><label><input type="radio" name="newSelection" value="all"> Tất cả</label></div>
             </fieldset>
             <label class="field" id="newTotalField"><span>Số bình luận tối đa cho mỗi link sản phẩm (1–2.000)</span><input type="number" id="newTotal" min="1" max="2000" step="1" value="300"></label>
             <label class="field" id="newPagesField" hidden><span>Số trang tối đa cho mỗi link sản phẩm</span><input type="number" id="newPages" min="1" max="100" step="1" value="10"></label>
@@ -806,6 +804,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     links_match_source_order: 'Link đúng thứ tự doanh thu của nguồn',
     five_distinct_products: 'Đủ 5 sản phẩm khác nhau',
     requested_distinct_products: 'Đủ số sản phẩm khác nhau đã chọn',
+    requested_products: 'Đủ số sản phẩm đã chọn',
     links_1_to_5: 'Chọn được từ 1 đến 5 link sản phẩm',
     ids_numeric: 'Mã shop và mã sản phẩm hợp lệ',
     no_duplicate_shop: 'Mỗi shop chỉ có 1 link',
@@ -933,11 +932,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return OUTPUT_ERROR_TEXT[code] || 'Có lỗi kỹ thuật chưa xác định.';
   }
 
-  // FEWER_PRODUCTS_THAN_REQUESTED, detail {requested: N, found: k}.
+  // FEWER_PRODUCTS_THAN_REQUESTED, detail {requested: N, found: k}; the page adds `topV3` for a v3 run.
   function fewerProductsText(error) {
     var n = error && error.detail && typeof error.detail.requested === 'number' ? error.detail.requested : null;
+    var v3 = !!(error && error.detail && error.detail.topV3);
     return 'Không đủ ' + (n === null ? '' : fmtInt(n) + ' ') +
-      'sản phẩm khác nhau. Giảm số Top hoặc mở rộng bộ lọc.';
+      (v3 ? 'sản phẩm Shopee' : 'sản phẩm khác nhau') + '. Giảm số Top hoặc mở rộng bộ lọc.';
+  }
+
+  // F656: rule metric-products-top-v3 (new runs) has no duplicate filter in step 2.
+  var PICK_POLICY_V3 = 'metric-products-top-v3';
+  function isTopV3(info) {
+    return !!(info && info.request && info.request.selectionPolicy === PICK_POLICY_V3);
   }
 
   function blockText(blockedBy) {
@@ -1837,7 +1843,19 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     ri.gates.m2 = m2Slip(ri.runId);
     ri.state = finishState(ri.runId, 'IDLE', 'M2', null, null);
 
-    [ra, rb, rc, rd, re, rf, rg, rh, ri].forEach(function (run) {
+    // A rule-v3 run (F656): Top 5 without the duplicate filter, step 2 passed.
+    var rj = makeRun('d0e1f2a3', '2026-11-19T02:00:00Z', 'Sản phẩm mẫu J', { keywords: ['áo thun mẫu'], endDate: '2026-11-18', cap: 300 });
+    rj.request.selectionPolicy = 'metric-products-top-v3';
+    rj.request.productSelection = { mode: 'top', count: 5 };
+    rj.gates.entry = entrySlip(rj.runId, 300);
+    rj.gates.m1 = m1Slip(rj.runId);
+    rj.selection = selectionFor(rj.runId);
+    rj.gates.m2 = m2Slip(rj.runId);
+    rj.gates.m2.checks = [{ id: 'links_match_source_order', ok: true, got: 5 },
+      { id: 'requested_products', ok: true, got: { requested: 5, found: 5 }, want: 5 }];
+    rj.state = finishState(rj.runId, 'IDLE', 'M2', null, null);
+
+    [ra, rb, rc, rd, re, rf, rg, rh, ri, rj].forEach(function (run) {
       run.seeded = true;
       seedLegacyExecution(run);
     });
@@ -2004,7 +2022,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         else if (m.id === 'M3' && run.automaticM3Attempt) blockedBy = { code: 'AUTOMATIC_COLLECTION_EXISTS' };
         else if (own && (own.errorCode === 'GATE_INPUT_CHANGED' || own.errorCode === 'READONLY_ON')) blockedBy = { code: own.errorCode };
         else if (m.outputGate === 'm1' && run.gates.m1) blockedBy = { code: 'M1_OUTPUT_EXISTS', gate: null };
-        else if (m.outputGate === 'm2' && run.request.selectionPolicy === 'metric-products-unique-v2' && isPass(run.gates.m2)) blockedBy = { code: 'M2_ALREADY_PASSED', gate: null };
+        else if (m.outputGate === 'm2' && (run.request.selectionPolicy === 'metric-products-unique-v2' ||
+            run.request.selectionPolicy === 'metric-products-top-v3') && isPass(run.gates.m2)) blockedBy = { code: 'M2_ALREADY_PASSED', gate: null };
         else if (!isPass(run.gates[m.inputGate])) blockedBy = { code: 'GATE_NOT_PASSED', gate: m.inputGate };
         return {
           id: m.id, title: m.title, skill: m.skill, inputGate: m.inputGate, outputGate: m.outputGate,
@@ -2467,6 +2486,21 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return view;
     }
 
+    // A rule-v3 run: the first five Shopee rows; a repeated listing id is one link, no other skip.
+    function mockV3ModuleOutputs(run) {
+      var view = mockV2ModuleOutputs(run);
+      view.m2.policy = 'metric-products-top-v3';
+      view.m2.requested = 5;
+      view.m2.requestedDistinct = true;
+      view.m2.links.forEach(function (link, index) {
+        link.sourceRank = index + 1;
+        link.metricProduct.rank = index + 1;
+        link.reason = 'Hạng nguồn ' + (index + 1) + '; sản phẩm Shopee theo thứ tự bước 1.';
+      });
+      view.m2.skipped = [];
+      return view;
+    }
+
     return {
       connection: function () {
         return Promise.resolve(ok({ connected: true, readonly: false, runsRoot: 'runs (mock)' }));
@@ -2703,7 +2737,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         var run = store.get(runId);
         if (!run) return Promise.resolve(err('RUN_NOT_FOUND', 'Không thấy lượt ' + runId + '.'));
         return Promise.resolve(ok(run.request.selectionPolicy === 'metric-products-unique-v2'
-          ? mockV2ModuleOutputs(run) : mockModuleOutputs(run)));
+          ? mockV2ModuleOutputs(run) : run.request.selectionPolicy === 'metric-products-top-v3'
+            ? mockV3ModuleOutputs(run) : mockModuleOutputs(run)));
       },
       openModuleEvidence: function () {
         return Promise.resolve(err('EVIDENCE_FILES_MISSING', 'EVIDENCE_FILES_MISSING'));
@@ -3741,7 +3776,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       : 'Chưa có bằng chứng đã lưu cho lượt này.');
   }
 
-  function moduleM1Output(m1, runId) {
+  function moduleM1Output(m1, runId, info) {
     m1 = m1 || {};
     var card = h('article', 'mod');
     var head = h('div', 'mh');
@@ -3782,7 +3817,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     if (capture === true && valid === true) {
       card.appendChild(h('p', 'rs-note',
-        'Bước này chỉ xác nhận số liệu. Việc đủ 5 sản phẩm khác nhau do bước 2 xác định.'));
+        isTopV3(info) ? 'Bước này chỉ xác nhận số liệu. Việc chọn sản phẩm do bước 2 xác định.'
+          : 'Bước này chỉ xác nhận số liệu. Việc đủ 5 sản phẩm khác nhau do bước 2 xác định.'));
     }
     return card;
   }
@@ -4031,13 +4067,14 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   // The run's frozen «Sản phẩm bán chạy» choice and step 2 target. Absent (old runs): top 5, old wording.
-  // The m2 gate check is `requested_distinct_products` (with `want`), on old runs `five_distinct_products`.
+  // The m2 gate check is `requested_distinct_products` (with `want`), on old runs `five_distinct_products`,
+  // on v3 runs `requested_products`.
   function m2Target(info) {
     var selection = info && info.request && info.request.productSelection;
     var all = !!selection && selection.mode === 'all';
     var checks = info && info.gates && info.gates.m2 && Array.isArray(info.gates.m2.checks) ? info.gates.m2.checks : [];
     var check = checks.find(function (c) {
-      return c && (c.id === 'requested_distinct_products' || c.id === 'five_distinct_products');
+      return c && (c.id === 'requested_distinct_products' || c.id === 'five_distinct_products' || c.id === 'requested_products');
     }) || null;
     var want = check && typeof check.want === 'number' ? check.want
       : all ? 1 : selection && typeof selection.count === 'number' ? selection.count : 5;
@@ -4052,7 +4089,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var head = h('div', 'mh');
     head.appendChild(h('h3', null, moduleTitle('M2')));
     var legacy = m2.policy === 'legacy';
-    var unknownPolicy = !legacy && m2.policy !== 'metric-products-unique-v1' && m2.policy !== 'metric-products-unique-v2';
+    var v3 = m2.policy === PICK_POLICY_V3;
+    var unknownPolicy = !legacy && !v3 && m2.policy !== 'metric-products-unique-v1' && m2.policy !== 'metric-products-unique-v2';
     var legacyLabels = { PASS: 'Đạt', FAIL: 'Không đạt', WAIT_OWNER: 'Cần bạn xử lý' };
     var chipText, chipCls;
     if (legacy) {
@@ -4086,7 +4124,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       var shopeeRow = outputResultRow(m2.linksMatchSourceOrder, 'Chỉ lấy sản phẩm bán trên Shopee');
       shopeeRow.id = 'moM2Shopee';
       var sameRow = null;
-      if (!target.all) {          // «Tất cả» keeps duplicates: no duplicate-filter line
+      if (!target.all && !v3) {   // «Tất cả» and v3 keep duplicates: no duplicate-filter line
         sameRow = outputResultRow(m2.linksMatchSourceOrder, 'Không lấy các sản phẩm giống nhau');
         sameRow.id = 'moM2Same';
         var sameLabel = sameRow.querySelector('.cl');
@@ -4100,7 +4138,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         distinctRow = h('li', 'ck c-warn');
         distinctRow.appendChild(h('span', 'ci', '!'));
         distinctRow.appendChild(h('div', 'cl', 'Chỉ chọn được ' + fmtInt(count) + '/' + fmtInt(target.want) + ' sản phẩm: ' +
-          (M2_SHORTAGE_TEXT[m2.shortageReason] || 'chưa rõ lý do')));
+          (v3 ? 'nguồn không đủ sản phẩm Shopee' : M2_SHORTAGE_TEXT[m2.shortageReason] || 'chưa rõ lý do')));
+      } else if (v3 && target.all) {
+        distinctRow = outputResultRow(distinctOk, 'Đã lấy ' + (typeof count === 'number' ? fmtInt(count) + ' ' : '') + 'sản phẩm Shopee');
+      } else if (v3) {
+        distinctRow = outputResultRow(distinctOk, 'Đã chọn đủ ' + fmtInt(target.want) + '/' + fmtInt(target.want) + ' sản phẩm');
       } else if (target.all) {
         distinctRow = outputResultRow(distinctOk, 'Đã chọn ' + (typeof count === 'number' ? fmtInt(count) + ' ' : '') + 'sản phẩm');
       } else if (target.explicit) {
@@ -4119,7 +4161,8 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
     // FEWER_PRODUCTS_THAN_REQUESTED is also the shortage reason, but its own text (with N) is always shown.
     if (m2.errorCode && (m2.errorCode !== m2.shortageReason || m2.errorCode === 'FEWER_PRODUCTS_THAN_REQUESTED')) {
-      card.appendChild(outputErrorBar(m2.errorCode, m2.errorDetail || { requested: target.want }));
+      var detail = m2.errorDetail || { requested: target.want };
+      card.appendChild(outputErrorBar(m2.errorCode, v3 ? Object.assign({}, detail, { topV3: true }) : detail));
     }
 
     var links = Array.isArray(m2.links) ? m2.links : [];
@@ -4186,7 +4229,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       panel.appendChild(h('p', 'rs-note', state.moduleEvidenceNotice[runId]));
     }
 
-    if (m1Started) panel.appendChild(moduleM1Output(data.m1, runId));
+    if (m1Started) panel.appendChild(moduleM1Output(data.m1, runId, info));
     if (m2Started) panel.appendChild(moduleM2Output(data.m2, runId, info));
     return panel;
   }
@@ -7306,7 +7349,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       if (failure) {
         var reasonText = failure === 'GATE_FAILED'
           ? 'Một bước không đạt kiểm tra. Mở chi tiết kỹ thuật để xem bước nào.'
-          : plainError({ code: failure });
+          : plainError(isTopV3(info) ? { code: failure, detail: { topV3: true } } : { code: failure });
         var reason = h('p', 'errbar local-error', reasonText);
         reason.title = failure;
         root.appendChild(reason);

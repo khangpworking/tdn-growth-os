@@ -41,7 +41,8 @@ MODULE_DATA = HOME / '.local/state/tdn-shopee-modules'
 APP_LATEST = MODULE_DATA / 'app-latest.json'   # {"version": "X.Y.Z"} of the newest desktop app; written at each release
 APP_LATEST_MAX_BYTES = 4096
 APP_SEMVER = re.compile(r'(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})')
-MODULE_PICK_POLICIES = ('metric-products-unique-v1', 'metric-products-unique-v2')   # M2 rules with a saved-source proof; new runs use v2
+MODULE_PICK_POLICY_NEW = 'metric-products-top-v3'   # F656: new runs; step 2 has no duplicate filter and no Jev
+MODULE_PICK_POLICIES = ('metric-products-unique-v1', 'metric-products-unique-v2', MODULE_PICK_POLICY_NEW)   # M2 rules with a saved-source proof
 RECOVERY = TOOL / 'recovery.json'
 CAP_ENV = 'TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT'
 TEST_ENV = 'TDN_RESEARCH_AUTORUN_TEST_REVIEWS'
@@ -880,11 +881,18 @@ def evaluate_gate(run, gate, *, readonly_file=None):
             choice = request.get('productSelection')
             # F644: the check's want is N for top N and 1 for "all"; absent on historical checks.
             want = (1 if choice.get('mode') == 'all' else choice.get('count')) if isinstance(choice, dict) else None
+            # F656: a v3 run always has the check `requested_products` (top 5 when productSelection is absent).
+            v3 = request.get('selectionPolicy') == MODULE_PICK_POLICY_NEW
+            if v3 and want is None:
+                want = 5
             try:
                 proof = metric_output_script(run, 'verify-selection')
                 check('links_match_source_order', proof.get('linksMatchSourceOrder') is True, proof.get('selectedCount'))
+                if v3:
+                    check('requested_products', proof.get('requestedDistinct') is True,
+                          {'requested': proof.get('requested'), 'found': proof.get('selectedCount')}, want=want)
                 # A request created without productSelection keeps the historical check name and shape.
-                if 'productSelection' in request:
+                elif 'productSelection' in request:
                     check('requested_distinct_products', proof.get('requestedDistinct') is True,
                           {'requested': proof.get('requested'), 'found': proof.get('selectedCount')}, want=want)
                 else:
@@ -892,7 +900,9 @@ def evaluate_gate(run, gate, *, readonly_file=None):
                 code = proof.get('errorCode')
             except ModuleFailure as failure:
                 check('links_match_source_order', False, failure.code)
-                if 'productSelection' in request:
+                if v3:
+                    check('requested_products', False, 'UNVERIFIED', want=want)
+                elif 'productSelection' in request:
                     check('requested_distinct_products', False, 'UNVERIFIED', want=want)
                 else:
                     check('five_distinct_products', False, 'UNVERIFIED')
@@ -1181,9 +1191,10 @@ def module_readonly():
 
 
 def module_m2_passed(run):
-    """Owner decision 13/11/2026 (K2): a v2 run keeps its passed step 2; a second run would ask Jev again."""
+    """Owner decision 13/11/2026 (K2): a v2 run keeps its passed step 2; a second run would ask Jev again.
+    F656: a v3 run too, so its link checks are not repeated."""
     request = gate_read(gate_path(run, 'request.json'))
-    if not isinstance(request, dict) or request.get('selectionPolicy') != 'metric-products-unique-v2':
+    if not isinstance(request, dict) or request.get('selectionPolicy') not in ('metric-products-unique-v2', MODULE_PICK_POLICY_NEW):
         return False
     slip = gate_read(gate_path(run, 'gates/m2.json'))
     return (isinstance(slip, dict) and slip.get('format') == 'handoff-v1' and slip.get('runId') == run.name
@@ -2756,7 +2767,7 @@ def flow_new_run():
                'collectionPolicy': policy, 'principalTitles': titles, 'captureSpec': spec}
     if metric_input is not None:
         request['metricInput'] = metric_input
-        request['selectionPolicy'] = 'metric-products-unique-v2'
+        request['selectionPolicy'] = MODULE_PICK_POLICY_NEW
     flow_assert_capture(request)
     run = flow_create_run(request, spec['preset']['keywords'][0])
     return {'format': 'new-run-v1', 'runId': run.name}
@@ -2985,7 +2996,7 @@ def flow_m1_import():
               'intervalDays': 7}
     request = {'format': 'request-v2', 'preset': {'keywords': [fields['keyword']]}, 'windows': [window],
                'collectionPolicy': fields['policy'], 'principalTitles': [],
-               'selectionPolicy': 'metric-products-unique-v2',
+               'selectionPolicy': MODULE_PICK_POLICY_NEW,
                'metricSource': {'format': 'user-page-v1', 'scope': fields['scope'],
                                 'importId': fields['importId']}}
     if fields['productSelection'] is not None:

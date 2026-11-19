@@ -85,8 +85,9 @@ export async function buildModuleRun(t: TestContext, options: { rows?: Row[]; pi
   await writeFile(join(run, 'gates/m1.json'), jsonBytes({ format: 'handoff-v1', module: 'M1', runId: basename(run),
     skillVersion: '1.0.0', verdict: 'PASS', inputSha256: null, outputSha256: await hashFolder(run, 'm1'),
     checks: [], errorCode: null, next: null }));
-  // A v2 walk checks every pick with a count job; synthetic runs answer it locally.
-  const collector = options.linkCollector ?? (options.policy === 'metric-products-unique-v2' ? fakeLinkCollector().collector : undefined);
+  // A v2 or v3 walk checks every pick with a count job; synthetic runs answer it locally.
+  const collector = options.linkCollector ?? (options.policy === 'metric-products-unique-v2' || options.policy === 'metric-products-top-v3'
+    ? fakeLinkCollector().collector : undefined);
   await main(run, { ...(options.jev ? { jev: () => options.jev!, sleep: async () => {} } : {}),
     ...(collector ? { linkCollector: () => collector } : {}) });
   if (options.legacyGate) {

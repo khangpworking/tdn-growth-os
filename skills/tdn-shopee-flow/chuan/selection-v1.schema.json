@@ -440,7 +440,8 @@
           "pickRuleVersion": {
             "enum": [
               "metric-products-unique-v1",
-              "metric-products-unique-v2"
+              "metric-products-unique-v2",
+              "metric-products-top-v3"
             ]
           }
         }
@@ -555,6 +556,30 @@
             "properties": {
               "matcher": {},
               "decisions": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "pickRuleVersion": {
+            "const": "metric-products-top-v3"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "selectionProof": {
+            "type": "object",
+            "required": [
+              "linkChecksSha256"
+            ],
+            "properties": {
+              "matcher": false,
+              "decisions": false,
+              "linkChecksSha256": {}
             }
           }
         }

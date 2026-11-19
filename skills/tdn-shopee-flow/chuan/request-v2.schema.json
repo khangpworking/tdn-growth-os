@@ -54,11 +54,12 @@
     "selectionPolicy": {
       "enum": [
         "metric-products-unique-v1",
-        "metric-products-unique-v2"
+        "metric-products-unique-v2",
+        "metric-products-top-v3"
       ]
     },
     "productSelection": {
-      "description": "How many distinct products M2 links. Absent means top 5.",
+      "description": "How many products M2 links. Absent means top 5.",
       "anyOf": [
         {
           "type": "object",

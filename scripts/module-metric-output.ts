@@ -8,8 +8,8 @@ import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { lazyValidator } from '../src/platform/lazy-validator.js';
 import { ModuleError, hashFile, hashFolder, object, prerequisite, readJson, readPickSource, readRequest, safePath, sha256, validateModuleValue } from './module-pick.js';
 import type { LinkCheckEntry } from './module-link-check.js';
-import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, ProductPickError, derivePeriodProductPick, rankedMetricProducts, replayJevProductPick,
-  selectionRequested, type ProductSelection } from './module-product-pick.js';
+import { MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, MODULE_PICK_POLICY_V3, ProductPickError, derivePeriodProductPick, rankedMetricProducts,
+  replayJevProductPick, replayTopProductPick, selectionRequested, type ProductSelection } from './module-product-pick.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -140,7 +140,8 @@ async function savedLinkChecks(run: string) {
 
 export async function verifyModuleSelection(run: string) {
   const { request, source } = await verifyModuleCapture(run);
-  const v2 = request.selectionPolicy === MODULE_PICK_POLICY_V2;
+  const v3 = request.selectionPolicy === MODULE_PICK_POLICY_V3;
+  const v2 = request.selectionPolicy === MODULE_PICK_POLICY_V2 || v3;
   if ((request.selectionPolicy !== MODULE_PICK_POLICY && !v2) || !source.part || !source.rawBytes) throw new ModuleError('PICK_POLICY_MISMATCH');
   const metricInputSha256 = await prerequisite(run, 'm1');
   const selection = object(await readJson(run, 'm2/selection.json'));
@@ -156,11 +157,15 @@ export async function verifyModuleSelection(run: string) {
       throw new ModuleError('PICK_PROOF_MISMATCH');
     // F644 round-2: a declared selection was link-checked, so its log and saved digest are required evidence.
     // Requests without productSelection keep the historical path where an absent log is not an error.
-    if (request.productSelection !== undefined &&
+    // F656: a v3 selection is always link-checked, so its log is required evidence too.
+    if ((v3 || request.productSelection !== undefined) &&
         (!checks || typeof proof.linkChecksSha256 !== 'string' || proof.linkChecksSha256 !== checks.sha256))
       throw new ModuleError('PICK_PROOF_MISMATCH');
-    try { expected = await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), matcher ? String(matcher.model) : '',
-      proof.decisions, checks?.entries, productSelection); }
+    try {
+      expected = v3 ? await replayTopProductPick(source.raw, source.part, sha256(source.rawBytes), checks!.entries, productSelection)
+        : await replayJevProductPick(source.raw, source.part, sha256(source.rawBytes), matcher ? String(matcher.model) : '',
+          proof.decisions, checks?.entries, productSelection);
+    }
     catch (error) { throw error instanceof ProductPickError && error.message === 'PICK_PROOF_MISMATCH' ? new ModuleError('PICK_PROOF_MISMATCH') : error; }
   } else expected = derivePeriodProductPick(source.raw, source.part, sha256(source.rawBytes));
   const exact = { format: 'selection-v1', runId: basename(run), source: 'auto', pickRuleVersion: request.selectionPolicy,

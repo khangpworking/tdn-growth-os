@@ -574,3 +574,71 @@ test('F644 round-2: a selection with productSelection requires the link log and 
   const oldProof = await verifyModuleSelection(old) as any;
   assert.deepEqual([oldProof.requested, oldProof.requestedDistinct, oldProof.selectedCount], [5, true, 5]);
 });
+
+// F656: rule metric-products-top-v3, step 2 without the duplicate filter. No `jev` option is given, so a Jev call
+// would stop the walk with PICK_JEV_UNAVAILABLE. Row 5 (a saved v2 run still verifies) is the v2 tests above.
+// | step 1 rows (Shopee)                          | choice | link check     | links                 | gate requested_products         |
+// |-----------------------------------------------|--------|----------------|-----------------------|---------------------------------|
+// | A, A' (same title), B, B (same listing id), C | top 3  | all ok         | A, A', B              | -                               |
+// | A, B (dead), C, D                             | top 3  | B dead         | A, C, D               | ok, want 3, {requested 3, found 3} |
+// | the same run, link log or link edited         | -      | -              | PICK_PROOF_MISMATCH   | -                               |
+// | A, B, C                                       | all    | all ok         | A, B, C               | ok, want 1, {requested 1, found 3} |
+// | A, B, C                                       | top 8  | all ok         | A, B, C (FEWER_PRODUCTS_THAN_REQUESTED) | not ok, want 8, {requested 8, found 3} |
+const V3 = 'metric-products-top-v3';
+const m2Gate = (run: string, state: string) => {
+  const gate = spawnSync(process.platform === 'win32' ? 'python' : 'python3',
+    ['skills/tdn-shopee-flow/scripts/shopee_flow.py', 'gate', 'm2', '--run', basename(run)],
+    { env: { ...process.env, SHOPEE_FLOW_RUNS: dirname(run), SHOPEE_FLOW_STATE: state }, encoding: 'utf8', timeout: 60_000 });
+  return JSON.parse(gate.stdout);
+};
+
+test('F656 v3 top N keeps listings with the same name, takes one link per listing id, and asks no Jev question', async t => {
+  const rows = distinct(1);
+  const sameName = { ...product(String(rows[0]!.product_name), 802, 9_950) };
+  const b = product('DHC Biotin 60 ngày', 801, 9_900);
+  const all = [rows[0]!, sameName, b, { ...b, revenue_custom: 9_800 }, product('DHC Canxi 60 ngày', 801, 9_700)];
+  const collector = fakeLinkCollector();
+  const { run } = await buildRun(t, { rows: all, policy: V3, productSelection: { mode: 'top', count: 3 }, linkCollector: collector.collector });
+  const saved = JSON.parse(await readFile(join(run, 'm2/selection.json'), 'utf8'));
+  assert.deepEqual(saved.links.map((link: any) => link.productBaseId), [rows[0]!.product_base_id, sameName.product_base_id, b.product_base_id]);
+  assert.deepEqual([saved.pickRuleVersion, saved.selectionProof.skipped, collector.asked.length], [V3, [], 3]);
+  assert.equal('matcher' in saved.selectionProof || 'decisions' in saved.selectionProof, false, 'no Jev proof');
+});
+
+test('F656 v3: a dead link takes the next Shopee row; replay uses the saved verdicts; the gate check is requested_products', async t => {
+  const rows = Array.from({ length: 4 }, (_, i) => product('Synthetic listing ' + (i + 1), 801, 10_000 - i * 100));
+  const dead = linkUrl(rows[1]);
+  const { collector } = fakeLinkCollector(url => url === dead ? { errorCode: 'PRODUCT_UNAVAILABLE' } : {});
+  const top = await buildRun(t, { rows, policy: V3, productSelection: { mode: 'top', count: 3 }, linkCollector: collector });
+  const proof = await verifyModuleSelection(top.run) as any;
+  assert.deepEqual(proof.links.map((link: any) => link.sourceRank), [1, 3, 4]);
+  assert.deepEqual(proof.skipped.map((skip: any) => [skip.sourceRank, skip.reason]), [[2, 'PRODUCT_UNAVAILABLE']]);
+  const state = await mkdtemp(join(tmpdir(), 'shopee-flow-state-'));
+  t.after(() => rm(state, { recursive: true, force: true }));
+  const requested = (slip: any) => {
+    const found = slip.checks.find((c: any) => c.id === 'requested_products');
+    return [slip.verdict, found.ok, found.want, found.got, slip.checks.some((c: any) => /distinct/.test(c.id))];
+  };
+  assert.deepEqual(requested(m2Gate(top.run, state)), ['PASS', true, 3, { requested: 3, found: 3 }, false]);
+
+  const logPath = join(top.run, 'm2/link-checks.json'), logText = await readFile(logPath, 'utf8');
+  const revived = JSON.parse(logText);
+  Object.assign(revived.entries[1], { result: 'ok', reason: null });
+  await writeFile(logPath, `${JSON.stringify(revived, null, 2)}\n`);
+  await assert.rejects(verifyModuleSelection(top.run), (error: any) => error?.code === 'PICK_PROOF_MISMATCH', 'an edited verdict');
+  await writeFile(logPath, logText);
+  const selectionPath = join(top.run, 'm2/selection.json'), selectionText = await readFile(selectionPath, 'utf8');
+  const swapped = JSON.parse(selectionText);
+  swapped.links[1] = { ...swapped.links[1], productBaseId: rows[1]!.product_base_id, itemId: String(rows[1]!.product_base_id).split('__')[1],
+    url: dead, sourceRank: 2, productName: rows[1]!.product_name };
+  await writeFile(selectionPath, jsonBytes(swapped));
+  await assert.rejects(verifyModuleSelection(top.run), (error: any) => error?.code === 'PICK_PROOF_MISMATCH', 'an edited link');
+
+  const three = rows.slice(0, 3);
+  const all = await buildRun(t, { rows: three, policy: V3, productSelection: { mode: 'all' } });
+  assert.deepEqual(requested(m2Gate(all.run, state)), ['PASS', true, 1, { requested: 1, found: 3 }, false]);
+  const short = await buildRun(t, { rows: three, policy: V3, productSelection: { mode: 'top', count: 8 } });
+  const shortSlip = m2Gate(short.run, state);
+  assert.deepEqual([...requested(shortSlip), shortSlip.errorCode], ['FAIL', false, 8, { requested: 8, found: 3 }, false,
+    'FEWER_PRODUCTS_THAN_REQUESTED']);
+});
