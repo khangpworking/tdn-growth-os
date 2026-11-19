@@ -5249,15 +5249,19 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
 // |---|------------------------------------------------------------------|---------------------------------------------------|
 // | 1 | open a settled run with a disk copy while the fresh read is slow | the copy shows at once; its delete button is      |
 // |   |                                                                  | held; the fresh read (--result) replaces the copy |
-// | 2 | the fresh read fails (SSH_TIMEOUT)                               | the copy stays, the error line shows, still held  |
+// | 2 | the fresh read fails (SSH_TIMEOUT)                               | the error line; the copy goes; nothing held       |
 // | 3 | a list answer                                                    | the first 12 visible settled rows go to prefetch  |
 // |   |                                                                  | in screen order, with status:revision; no running |
 // | 4 | a row open, then the 10 s poll                                   | the open's read may join a prefetch read          |
 // |   |                                                                  | (`join`); the poll's reads do not                 |
-// | 5 | the fresh read answers info but its review data fails            | delete stays held: a part is still from the copy  |
+// | 5 | the fresh read answers info but its review data fails            | the copy hold ends: delete back                   |
 // | 6 | the status filter changes (to none of the rows, then back)       | the prefetch queue is sent again: [] then the rows |
 // | 7 | the copy shows, then run-view answers USAGE (a server rollback)  | the single calls' answers replace it; delete back |
 // |   | a late copy answer after that                                    | changes nothing                                   |
+// | 8 | a full 7-part copy on «Chi tiết lịch sử lượt chạy», then USAGE   | delete back; stats and insights of the copy are   |
+// |   | and the 5 single calls                                           | gone (not shown on «Kết quả chạy»)                |
+// | 9 | connected on another run; the server rolls back; the copy run    | one redraw after it, with delete back; no part    |
+// |   | opens, its single run-info answering last                        | from the copy                                     |
 test('an old run opens from its disk copy at once, the fresh read replaces it, and the list is prefetched', async () => {
   const runId = 'run-copy';
   const copyName = 'Bản lưu trên máy';
@@ -5308,8 +5312,9 @@ test('an old run opens from its disk copy at once, the fresh read replaces it, a
     hold.resolve();
     await waitFor(() => shown === 'SSH_TIMEOUT', '2: the error line');
     watch.disconnect();
-    assert.ok(outputs(run.doc).includes(copyName), '2: the copy stays');
-    assert.equal(held(run.doc), true, '2: still held');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.ok(!outputs(run.doc).includes(copyName), '2: the copy goes');
+    assert.notEqual(held(run.doc), true, '2: nothing held');
   } finally { hold?.resolve(); failing = false; run.dom.window.close(); }
 
   // 3
@@ -5374,7 +5379,7 @@ test('an old run opens from its disk copy at once, the fresh read replaces it, a
     hold.resolve();
     await waitFor(() => !outputs(run.doc).includes(copyName), '5: info and outputs from the fresh read');
     await new Promise((resolve) => setTimeout(resolve, 30));
-    assert.equal(held(run.doc), true, '5: delete still held: the review data is from the copy');
+    assert.equal(held(run.doc), false, '5: delete back');
   } finally { hold?.resolve(); run.dom.window.close(); }
 
   // 7
@@ -5407,4 +5412,71 @@ test('an old run opens from its disk copy at once, the fresh read replaces it, a
     assert.ok(!outputs(run.doc).includes(copyName), '7: the late copy changes nothing');
     assert.equal(held(run.doc), false);
   } finally { copyHold?.resolve(); run.dom.window.close(); }
+
+  // 8 and 9: a full copy, as the bridge saves it (the 7 parts of a --result read)
+  const live = { runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }], runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 2) }),
+    reviewInsightsResult: () => ({ ok: true, data: { format: 'review-insights-v1', runId, codebookVersion: 'synthetic',
+      sources: [] } }) };
+  const source = harness(live);
+  const full: any = await source.api.runView(runId, true);
+  source.dom.window.close();
+  assert.equal(full.ok, true);
+  assert.deepEqual(Object.keys(full.data.parts).sort(), ['info', 'insights', 'outputs', 'process', 'reviewData', 'sampling', 'stats']);
+  full.data.parts.outputs = copy(runId).parts.outputs;
+  full.data.parts.stats = { ok: true, data: syntheticReviewStats(runId, 777) };
+  let infoHold: Deferred<void> | null = null;
+  hold = deferred<void>();
+  const fullCopy = () => harness({ ...live, oldServer: true, runViewCopy: () => full.data, runViewHold: () => hold?.promise,
+    statusGate: () => infoHold || undefined });
+  run = fullCopy();
+  try {
+    trackTab(run.doc);
+    await waitFor(() => outputs(run.doc).includes(copyName), '8: the copy');
+    hold.resolve();
+    await waitFor(() => held(run.doc) === false && /DHC Kẽm 60 ngày/.test(outputs(run.doc)), '8: delete back');
+    [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+    assert.doesNotMatch(run.doc.getElementById('resultDetail')!.textContent || '', /777/, '8: the copy stats are gone');
+  } finally { hold?.resolve(); run.dom.window.close(); }
+
+  // 9: connected on another run first (the connect redraws are not this row's); then the server rolls back
+  const other = 'run-other';
+  let copyOn = false;
+  const rolling: any = { ...live, runs: [{ runId: other, product: 'Sản phẩm khác', status: 'DONE' }, ...live.runs],
+    runInfoByRun: { ...live.runInfoByRun, [other]: syntheticRunInfo(other) },
+    runViewCopy: (id: string) => (copyOn && id === runId ? full.data : null), runViewHold: () => hold?.promise,
+    statusGate: (id: string) => (id === runId ? infoHold || undefined : undefined) };
+  hold = null;
+  run = harness(rolling);
+  try {
+    trackTab(run.doc);
+    await booted(run.doc);
+    runListButton(run.doc, other).click();
+    await waitFor(() => /Sản phẩm khác/.test(run.doc.querySelector('#runDetail h2')?.textContent || '') &&
+      held(run.doc) === false, '9: the other run open, connected');
+    rolling.oldServer = true;
+    copyOn = true;
+    hold = deferred<void>();
+    infoHold = deferred<void>();
+    runListButton(run.doc, runId).click();
+    await waitFor(() => outputs(run.doc).includes(copyName), '9: the copy');
+    hold.resolve();
+    await waitFor(() => run.state.statusCalls.includes(runId), '9: the single run-info out');
+    await new Promise((resolve) => setTimeout(resolve, 60));      // every other single call has answered
+    assert.equal(held(run.doc), true, '9: still held');
+    const draws: (boolean | undefined)[] = [];        // delete held, at each redraw of the run
+    const watch = new (run.dom.window as any).MutationObserver((records: MutationRecord[]) => {
+      records.forEach((record) => record.addedNodes.forEach((node: any) => {
+        if (node.classList && node.classList.contains('dhead')) draws.push(held(run.doc));
+      }));
+    });
+    watch.observe(run.doc.getElementById('runDetail')!, { childList: true });
+    infoHold.resolve();
+    await waitFor(() => held(run.doc) === false, '9: delete back');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    watch.disconnect();
+    assert.deepEqual(draws, [false], '9: one redraw, with delete back');
+    assert.ok(!outputs(run.doc).includes(copyName), '9: no part from the copy');
+  } finally { hold?.resolve(); infoHold?.resolve(); run.dom.window.close(); }
 });

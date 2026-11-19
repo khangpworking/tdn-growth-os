@@ -255,6 +255,7 @@ class RunViewCopyTest(unittest.TestCase):
         | a read that is not a row open (no `join`), prefetch out      | its own read, at once                       |
         | a row open (`join`) after a write/start sent since the       | its own read, not the prefetch's            |
         | prefetch read started                                        |                                             |
+        | a row open joins, and a save is sent while it waits          | a fresh read after the wait                 |
         | the run deleted while its prefetch read is out               | the late read saves no copy                 |
         | the newest list omits a run whose first prefetch read is out | the late read saves no copy                 |
         | (no copy on disk yet)                                        |                                             |
@@ -275,6 +276,21 @@ class RunViewCopyTest(unittest.TestCase):
             self.assertEqual(len(self.run_views()) - before, 1, 'its own read, not the older prefetch read')
             release.set()
             self.wait_prefetch()
+        with self.subTest('a save during the wait'):
+            release = self.held_prefetch('run-9')
+            self.answers[('saveReviewPlan', 'run-9')] = {'ok': True, 'data': {'format': 'review-plan-saved-v1'}}
+            before = len(self.run_views())
+            clicked = {}
+            user = threading.Thread(target=lambda: clicked.update(self.api.runView('run-9', True, True)))
+            user.start()
+            time.sleep(0.1)
+            self.assertEqual(len(self.run_views()), before, 'joined: waiting on the prefetch read')
+            self.api._remote('saveReviewPlan', run_id='run-9', payload={})
+            release.set()
+            user.join(5)
+            self.wait_prefetch()
+            self.assertTrue(clicked.get('ok'), clicked)
+            self.assertEqual(len(self.run_views()) - before, 1, 'a fresh read after the wait')
         with self.subTest('deleted while out'):
             release = self.held_prefetch('run-7')
             self.answers[('deleteRun', 'run-7')] = {'ok': True, 'data': {'format': 'run-delete-v1', 'runId': 'run-7',

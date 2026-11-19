@@ -3193,7 +3193,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     preferredRunId: null,
     flowDialogBinding: null,
     prefetchSent: '[]',
-    copiesOff: false,         // true after a run-view USAGE: the disk copy is not used again this session       // the visible prefetch queue last sent to the bridge (JSON)
+    copiesOff: false,         // true after a run-view USAGE: the disk copy is not used again this session
+    copyWait: {},             // runId -> an open waits for its disk copy (until its first live answer)
+    copyHold: {},             // runId -> its disk copy is shown: start/save/delete held       // the visible prefetch queue last sent to the bridge (JSON)
     runFilters: { track: 'all', result: 'all' },   // «Lọc theo trạng thái», per tab
     runSort: 'newest',      // «Mới tạo trước» | «Cũ nhất trước», one choice for both run lists
     runSortChosen: false,   // a click before the saved choice is read wins
@@ -7200,10 +7202,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
   }
 
-  // While any part of the open run is still from its disk copy (it can be days old, and its hashes go into write
-  // commands), every action button of the run is held disabled; the live reads (always sent) redraw them.
+  // While the open run shows its disk copy (it can be days old, and its hashes go into write commands), every
+  // action button of the run is held disabled until the first live answer settles the copy.
   function holdCopyWrites(rootId) {
-    if (!state.selectedRunId || !shownFromCopy(state.selectedRunId)) return;
+    if (!state.selectedRunId || !state.copyHold[state.selectedRunId]) return;
     Array.prototype.forEach.call($(rootId).querySelectorAll('button.abtn'), function (button) {
       button.disabled = true;
     });
@@ -7712,11 +7714,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       answered.settle(!usage);
     }
     if (isGone(runId)) return;   // a late reply for a deleted run
-    if (usage) {
-      state.copiesOff = true;    // the server cannot refresh a copy: none is shown for the rest of the session
-      return loadInfoSingles(runId);
+    // The first live answer of an open settles its disk copy hold; while one is held, everything this answer
+    // applies and the settle draw once.
+    var holding = !!state.copyHold[runId];
+    if (holding) state.renderHold += 1;
+    try {
+      if (usage) {
+        state.copiesOff = true;    // the server cannot refresh a copy: none is shown for the rest of the session
+        return await loadInfoSingles(runId);    // settles once every single call has answered
+      }
+      return await applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
+    } finally {
+      settleCopy(runId);
+      if (holding) releaseRenders();
     }
-    return applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
   }
 
   var RUN_VIEW_INVALID = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
@@ -7848,17 +7859,20 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.infoSeq[runId] = seq;
     var live = claimLiveSeq(runId);
     var status = trackLoad('info', runId, state.infoSeq, runStatus);
-    trackLoad('sampling', runId, state.samplingSeq, loadSampling);
-    trackLoad('data', runId, state.reviewDataSeq, loadReviewData);
-    trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs);
-    trackLoad('process', runId, state.reviewProcessSeq, loadReviewProcess);
+    var others = [
+      trackLoad('sampling', runId, state.samplingSeq, loadSampling),
+      trackLoad('data', runId, state.reviewDataSeq, loadReviewData),
+      trackLoad('outputs', runId, state.moduleOutputsSeq, loadModuleOutputs),
+      trackLoad('process', runId, state.reviewProcessSeq, loadReviewProcess)
+    ];
     if (state.screen === 'result') {
-      trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats);
-      trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights);
+      others.push(trackLoad('stats', runId, state.reviewStatsSeq, loadReviewStats));
+      others.push(trackLoad('insights', runId, state.reviewInsightsSeq, loadReviewInsights));
     }
     var res = await status;
     applyInfo(runId, seq, res);
     if (res && res.ok && seq === state.infoSeq[runId]) markLive(runId, 'info', live);
+    await Promise.all(others.map(function (call) { return call.then(null, function () { return undefined; }); }));
   }
 
   // «Đang cập nhật…» follows the LATEST request of each kind for the open run (open and 10 s poll alike): a
@@ -7897,25 +7911,50 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     state.info = state.infoByRun[runId] || null;   // the last copy at once; the fresh one replaces it
     renderRunList();
     renderDetail();
-    if (!state.info) showDiskCopy(runId);          // none in memory: the bridge's disk copy, same time as the read
+    if (!state.info && !state.copiesOff) {         // none in memory: the bridge's disk copy, same time as the read
+      state.copyWait[runId] = true;
+      showDiskCopy(runId);
+    }
     await loadInfo(runId, true);                   // a row open: the one read that may join a prefetch read
   }
 
-  // The disk copy goes through applyRunViewAnswer with a sequence below every live read (they start at 1), so
-  // the fresh read always replaces it, and a failed fresh read keeps it with the error line.
+  // The disk copy of a run: shown only while this open waits for its first live answer and no live part is in.
+  // Showing it holds the run's start/save/delete buttons (copyHold). The first live answer (run-view of any kind,
+  // or the single calls after USAGE once all have answered) settles it in one step: every part still from the
+  // copy is removed, the hold ends, one redraw. A copy answer after that is dropped.
   var COPY_SEQ = 0.5;
   async function showDiskCopy(runId) {
-    if (state.copiesOff || state.runViewSupported === false) return;
     var res = await api.runViewCached(runId);
-    if (state.copiesOff || state.runViewSupported === false) return;     // a late answer after USAGE
-    if (!res || !res.ok || !res.data || !res.data.parts || isGone(runId) || state.selectedRunId !== runId) return;
+    if (!state.copyWait[runId] || state.copiesOff || isGone(runId) || state.selectedRunId !== runId) return;
+    var seqs = state.runViewPartSeq[runId] || {};
+    if (Object.keys(seqs).some(function (name) { return seqs[name] >= 1; })) return;   // a live part is in
+    if (!res || !res.ok || !res.data || !res.data.parts) return;
     var kinds = Object.keys(runViewPartRules(runId)).filter(function (name) { return name in res.data.parts; });
     if (kinds.indexOf('info') === -1) return;
+    delete state.copyWait[runId];
+    state.copyHold[runId] = true;
     await applyRunViewAnswer(runId, COPY_SEQ, { reply: res, kinds: kinds });
   }
 
+  var COPY_PART_STATE = { info: 'infoByRun', sampling: 'sampling', reviewData: 'reviewData', outputs: 'moduleOutputs',
+    process: 'reviewProcess', stats: 'reviewStats', insights: 'reviewInsights' };
+
+  function settleCopy(runId) {
+    delete state.copyWait[runId];                  // a copy answering later is dropped
+    if (!state.copyHold[runId]) return;
+    delete state.copyHold[runId];
+    var seqs = state.runViewPartSeq[runId] || {};
+    Object.keys(seqs).forEach(function (name) {
+      if (seqs[name] !== COPY_SEQ) return;
+      delete seqs[name];
+      delete state[COPY_PART_STATE[name]][runId];  // never kept after a live read: its normal empty or error state
+      if (name === 'info' && state.selectedRunId === runId) state.info = null;
+    });
+    if (state.selectedRunId === runId) renderDetail();
+  }
+
   // Every live write of a part (a run-view answer, or an older server's single call) takes the next number of the
-  // run's one sequence, so the copy (COPY_SEQ) never overwrites it and the write hold ends for both paths.
+  // run's one sequence, which orders the live answers.
   function claimLiveSeq(runId) {
     var seq = (state.runViewSent[runId] || 0) + 1;
     state.runViewSent[runId] = seq;
@@ -7925,12 +7964,6 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   function markLive(runId, name, seq) {
     var seqs = state.runViewPartSeq[runId] || (state.runViewPartSeq[runId] = {});
     if ((seqs[name] || 0) < seq) seqs[name] = seq;
-  }
-
-  // True while any part of the run still comes from the disk copy (not yet applied from a live read).
-  function shownFromCopy(runId) {
-    var seqs = state.runViewPartSeq[runId] || {};
-    return Object.keys(seqs).some(function (name) { return seqs[name] === COPY_SEQ; });
   }
 
   // Every status/info call goes through here: RUN_NOT_FOUND makes the run gone FIRST (rule b), before any

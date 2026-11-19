@@ -1724,7 +1724,9 @@ class Api:
                                      current['mutations'] == self._mutations) else None
             if joined is not None:
                 joined['done'].wait()
-                if joined['reply'] is not None and joined['reply']['ok']:
+                with self._prefetch:          # a write begun or ended during the wait: that read is older
+                    fresh = joined['mutations'] == self._mutations
+                if fresh and joined['reply'] is not None and joined['reply']['ok']:
                     return joined['reply']
         return self._read_run_view(run_id, with_result)
 
