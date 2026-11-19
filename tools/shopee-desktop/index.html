@@ -4003,12 +4003,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return 'Bỏ qua, chưa rõ lý do.';
   }
 
-  function moduleSkippedTable(skipped) {
+  // A v3 run (F656) has no duplicate filter, so its table has no «Trùng với thứ tự» column.
+  function moduleSkippedTable(skipped, v3) {
     var wrap = h('div', 'tw');
     var table = h('table');
     var thead = h('thead');
     var head = h('tr');
-    ['Hạng nguồn', 'Mã sản phẩm', 'Lý do', 'Trùng với thứ tự']
+    (v3 ? ['Hạng nguồn', 'Mã sản phẩm', 'Lý do'] : ['Hạng nguồn', 'Mã sản phẩm', 'Lý do', 'Trùng với thứ tự'])
       .forEach(function (label) { head.appendChild(h('th', null, label)); });
     thead.appendChild(head);
     table.appendChild(thead);
@@ -4019,7 +4020,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         ? 'Chưa có' : String(item.sourceRank)));
       row.appendChild(h('td', null, item.productBaseId ? String(item.productBaseId) : 'Chưa có'));
       row.appendChild(h('td', null, outputSkippedReason(item)));
-      row.appendChild(h('td', 'num', item.duplicateOfRank === null || item.duplicateOfRank === undefined
+      if (!v3) row.appendChild(h('td', 'num', item.duplicateOfRank === null || item.duplicateOfRank === undefined
         ? 'Không' : String(item.duplicateOfRank)));
       body.appendChild(row);
     });
@@ -4139,6 +4140,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         distinctRow.appendChild(h('span', 'ci', '!'));
         distinctRow.appendChild(h('div', 'cl', 'Chỉ chọn được ' + fmtInt(count) + '/' + fmtInt(target.want) + ' sản phẩm: ' +
           (v3 ? 'nguồn không đủ sản phẩm Shopee' : M2_SHORTAGE_TEXT[m2.shortageReason] || 'chưa rõ lý do')));
+      } else if (v3 && (typeof count !== 'number' || distinctOk !== true)) {
+        // Still running, or stopped before a selection: no «đủ» text without a passed check.
+        distinctRow = outputResultRow(distinctOk === false ? false : null, 'Chưa có kết quả chọn sản phẩm');
       } else if (v3 && target.all) {
         distinctRow = outputResultRow(distinctOk, 'Đã lấy ' + (typeof count === 'number' ? fmtInt(count) + ' ' : '') + 'sản phẩm Shopee');
       } else if (v3) {
@@ -4177,7 +4181,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     if (skipped.length) {
       var details = h('details', 'tech-details');
       details.appendChild(h('summary', null, 'Mục bị bỏ qua và lý do'));
-      details.appendChild(moduleSkippedTable(skipped));
+      details.appendChild(moduleSkippedTable(skipped, v3));
       card.appendChild(details);
     }
     var issues = linkIssuesNode(runId, 'm2');
