@@ -92,6 +92,7 @@ class RunViewCopyTest(unittest.TestCase):
         |                                                              | the token is in neither the path nor the file|
         | no --result / a part error / execution RUNNING / state       | not saved                                   |
         | UNCERTAIN / an older server (USAGE)                          |                                             |
+        | the config moves to another server while the read is out     | not saved (under neither server's key)      |
         """
         with self.subTest('saved'):
             fresh = self.save('run-1')
@@ -124,6 +125,17 @@ class RunViewCopyTest(unittest.TestCase):
             with self.subTest(name):
                 call()
                 self.assertEqual(len(self.files()), 1, name)
+        with self.subTest('another server during the read'):
+            config = self.root / 'config.json'
+
+            def moved():
+                data = json.loads(config.read_text(encoding='utf-8'))
+                data['sshCommand'][2] = 'https://relay-b.example:8443'
+                config.write_text(json.dumps(data), encoding='utf-8')
+                return server_view('run-7', parts('run-7'))
+            self.answers[('runView', 'run-7')] = moved
+            self.assertTrue(self.api.runView('run-7', True)['ok'])
+            self.assertNotIn('run-7.json', ' '.join(self.files()))
 
     def test_copy_removed(self):
         """| event                                                       | disk copy                                   |
@@ -259,6 +271,8 @@ class RunViewCopyTest(unittest.TestCase):
         | the run deleted while its prefetch read is out               | the late read saves no copy                 |
         | the newest list omits a run whose first prefetch read is out | the late read saves no copy                 |
         | (no copy on disk yet)                                        |                                             |
+        | the worker held between taking its rows and their reads: the | no read of the unlisted run; the other read |
+        | newest list omits one, and a page call goes out              | only after the page call ends               |
         """
         with self.subTest('no join'):
             release = self.held_prefetch('run-5')
@@ -307,6 +321,41 @@ class RunViewCopyTest(unittest.TestCase):
             release.set()
             self.wait_prefetch()
             self.assertNotIn('run-8.json', ' '.join(self.files()))
+        with self.subTest('held between taking a row and its read'):
+            taken, go = threading.Event(), threading.Event()
+            read_copy = self.api._read_copy
+
+            def held_copy(run_id):
+                if threading.current_thread().name == 'tdn-run-view-prefetch' and not go.is_set():
+                    taken.set()
+                    go.wait(5)
+                return read_copy(run_id)
+            out, done = threading.Event(), threading.Event()
+
+            def held_presets():
+                out.set()
+                done.wait(5)
+                return {'ok': True, 'data': {'format': 'presets-v1', 'presets': []}}
+            self.answers[('runView', 'run-10')] = server_view('run-10', parts('run-10'))
+            self.answers[('runView', 'run-11')] = server_view('run-11', parts('run-11'))
+            self.answers[('runs', None)] = {'ok': True, 'data': {'format': 'runs-v1', 'runs': [{'runId': 'run-11'}]}}
+            self.answers[('presets', None)] = held_presets
+            with mock.patch.object(self.api, '_read_copy', held_copy):
+                self.api.prefetchRunViews([{'runId': 'run-10', 'sig': 'DONE:3'}, {'runId': 'run-11', 'sig': 'DONE:3'}])
+                self.assertTrue(taken.wait(5))
+                self.api.listRuns()
+                page = threading.Thread(target=lambda: self.api._remote('presets'))
+                page.start()
+                self.assertTrue(out.wait(5))
+                before = len(self.run_views())
+                go.set()
+                time.sleep(0.2)
+                self.assertEqual(len(self.run_views()), before, 'no read while the page call is out')
+                done.set()
+                page.join(5)
+                self.wait_prefetch()
+            self.assertEqual([call[:3] for call in self.run_views()[before:]], [('runView', 'run-11', True)])
+            self.assertNotIn('run-10.json', ' '.join(self.files()))
 
     def test_no_copy_after_usage(self):
         """| situation                                                   | expected                                    |

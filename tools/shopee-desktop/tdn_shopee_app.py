@@ -723,6 +723,7 @@ class Api:
         self._mutations = 0                # write/start/save/delete commands sent (each moves it, before and after)
         self._copy_generation = {}         # runId -> times its copy was removed (a read started before saves nothing)
         self._reads_out = {}               # runId -> run-view reads out (the list removes their copy-to-be too)
+        self._listed = None                # runIds of the newest run list (None: no list yet)
         self._copies_off = False           # a run-view answered USAGE: no copy is given for the rest of the session
         self._transport = None
         self._transport_key = None
@@ -1028,6 +1029,7 @@ class Api:
         if isinstance(data, dict) and data.get('format') == 'runs-v1' and isinstance(data.get('runs'), list):
             listed = {row.get('runId') for row in data['runs'] if isinstance(row, dict)}
             with self._prefetch:                  # a read still out for an unlisted run saves nothing either
+                self._listed = listed
                 for run_id in [run_id for run_id in self._reads_out if run_id not in listed]:
                     self._copy_generation[run_id] = self._copy_generation.get(run_id, 0) + 1
             self._drop_copies(lambda run_id: run_id not in listed)       # runs gone from the newest list
@@ -1745,19 +1747,28 @@ class Api:
         """One call for a run open: each part goes through the same check as its single call, and a part in
         `errors` comes back as that call's error. The page gets {part: single-call reply}. A --result answer of a
         settled run is kept as the disk copy; RUN_NOT_FOUND removes it."""
+        config = _load_config()            # one config for the call and for its copy's server key
+        key = _server_key(config)
         with self._prefetch:
-            generation = self._copy_generation.get(run_id, 0)
-            self._reads_out[run_id] = self._reads_out.get(run_id, 0) + 1
+            generation = self._reserve_read(run_id)
         try:
-            return self._read_run_view_now(run_id, with_result, generation)
+            return self._read_run_view_now(run_id, with_result, generation, config, key)
         finally:
-            with self._prefetch:
-                self._reads_out[run_id] -= 1
-                if not self._reads_out[run_id]:
-                    del self._reads_out[run_id]
+            self._end_read(run_id)
 
-    def _read_run_view_now(self, run_id, with_result, generation):
-        reply = self._remote('runView', run_id=run_id, flags=('--result',) if with_result else ())
+    def _reserve_read(self, run_id):
+        """Under self._prefetch: the read is out (a newest list without the run moves its generation)."""
+        self._reads_out[run_id] = self._reads_out.get(run_id, 0) + 1
+        return self._copy_generation.get(run_id, 0)
+
+    def _end_read(self, run_id):
+        with self._prefetch:
+            self._reads_out[run_id] -= 1
+            if not self._reads_out[run_id]:
+                del self._reads_out[run_id]
+
+    def _read_run_view_now(self, run_id, with_result, generation, config, key):
+        reply = self._remote('runView', run_id=run_id, config=config, flags=('--result',) if with_result else ())
         if not reply['ok']:
             if reply['error'].get('code') == 'RUN_NOT_FOUND':
                 self._forget_copy(run_id)
@@ -1788,14 +1799,14 @@ class Api:
             out[name] = self._safe(lambda check=checks[name], single=single: check(single))
         view = {'format': 'run-view-v1', 'runId': run_id, 'parts': out}
         if with_result:
-            self._save_copy(run_id, view, generation)
+            self._save_copy(run_id, view, generation, key)
         return {'ok': True, 'data': view}
 
     # ---- The disk copy ----
 
-    def _copy_path(self, run_id, config=None):
-        config = _load_config() if config is None else config
-        return _run_view_copy_root() / _server_key(config) / (run_id + '.json')
+    def _copy_path(self, run_id, key=None):
+        key = _server_key(_load_config()) if key is None else key
+        return _run_view_copy_root() / key / (run_id + '.json')
 
     def _checked_copy(self, run_id, view):
         """The view's parts after the same checks as a fresh read, or None (a part missing or failing)."""
@@ -1819,9 +1830,10 @@ class Api:
             return None
         return out
 
-    def _save_copy(self, run_id, view, generation):
+    def _save_copy(self, run_id, view, generation, key):
         """Best effort: keep the checked --result answer of a settled run (all parts ok, nothing RUNNING or
-        UNCERTAIN). Temp file + os.replace; a failed write only means no copy."""
+        UNCERTAIN) under the server key of the config its read used (`key`). Temp file + os.replace; a failed
+        write only means no copy."""
         parts = self._checked_copy(run_id, view)
         if parts is None:
             return
@@ -1835,12 +1847,14 @@ class Api:
                   'view': {'format': 'run-view-v1', 'runId': run_id, 'parts': parts}}
         temp = None
         try:
-            path = self._copy_path(run_id)
+            path = self._copy_path(run_id, key)
             with _RUN_VIEW_COPY_LOCK:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 handle, temp = tempfile.mkstemp(prefix='.copy-', suffix='.part', dir=str(path.parent))
                 with os.fdopen(handle, 'w', encoding='utf-8') as out:
                     out.write(json.dumps(record, ensure_ascii=False, separators=(',', ':')))
+                if _server_key(_load_config()) != key:
+                    return                     # the config moved to another server during the read
                 with self._prefetch:
                     if self._copy_generation.get(run_id, 0) != generation:
                         return                 # removed (deleted, gone, unlisted) since this read started
@@ -1957,23 +1971,41 @@ class Api:
     def _prefetch_worker(self):
         while True:
             with self._prefetch:
-                while self._prefetch_queue and self._user_calls > 0:
-                    self._prefetch.wait(1.0)          # never while a page call is out
                 if not self._prefetch_queue:
                     self._prefetch_running = False
                     return
-                row = self._prefetch_queue.pop(0)
+                row = self._prefetch_queue[0]
+                generation = self._copy_generation.get(row['runId'], 0)
+            # Read only, before the reserve step: is the copy already of this status:revision?
             saved = self._read_copy(row['runId'])
-            if saved is not None and saved['sig'] == row['sig']:
-                continue
+            try:
+                config = _load_config()
+                key = _server_key(config)
+            except _BridgeFailure:
+                config = key = None
             with self._prefetch:
+                # The one reserve step, just before the remote call: no page call out, the row still first in
+                # the newest queue, the run still listed, its copy not removed since; then the read is out.
+                while self._prefetch_queue and self._user_calls > 0:
+                    self._prefetch.wait(1.0)
+                if not self._prefetch_queue or self._prefetch_queue[0] is not row:
+                    continue                           # a newer queue: start again from its first row
+                self._prefetch_queue.pop(0)
+                if (config is None or (saved is not None and saved['sig'] == row['sig']) or
+                        (self._listed is not None and row['runId'] not in self._listed) or
+                        self._copy_generation.get(row['runId'], 0) != generation):
+                    continue
+                self._reserve_read(row['runId'])
                 entry = {'runId': row['runId'], 'done': threading.Event(), 'reply': None, 'mutations': self._mutations}
                 self._prefetch_current = entry
             try:
-                entry['reply'] = self._safe(lambda: self._read_run_view(row['runId'], True))
+                entry['reply'] = self._safe(
+                    lambda: self._read_run_view_now(row['runId'], True, generation, config, key))
             finally:
+                self._end_read(row['runId'])
                 with self._prefetch:
-                    if entry['reply'] is not None and not entry['reply']['ok'] and                             entry['reply']['error'].get('code') == 'USAGE':
+                    if entry['reply'] is not None and not entry['reply']['ok'] and \
+                            entry['reply']['error'].get('code') == 'USAGE':
                         self._prefetch_queue = []      # an older server: no run-view, nothing to keep
                     self._prefetch_current = None
                     self._prefetch.notify_all()
