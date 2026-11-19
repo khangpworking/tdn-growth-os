@@ -8,8 +8,12 @@ import json
 import os
 from pathlib import Path
 import re
+from urllib.parse import urlsplit
 import shutil
+import socket
+import ssl
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -297,6 +301,236 @@ def _choose_save_folder():
     return os.fspath(selected)
 
 
+# ---- The HTTPS tunnel, inside this process -------------------------------------------------------------
+# A config whose sshCommand starts with the tunnel client (tdn-tunnel-client.exe --url ... --token ...) is sent
+# here as that client sends it: one POST of the script to <url>/run on a new connection, no retry, and the
+# answer read as frames of 1 byte kind + 4 byte big-endian length + data (O stdout, E stderr, K keepalive,
+# X exit code). Starting the client program costs about 0.5 s per call; this does not. A transport failure is
+# exit 255 (SSH_FAILED) as with the client; the call's time limit is SSH_TIMEOUT. The token is only sent in the
+# Authorization header; it is never logged or put in an error.
+_TUNNEL_CLIENT_NAMES = frozenset({'tdn-tunnel-client', 'tdn-tunnel-client.exe'})
+_TUNNEL_SILENCE_SECONDS = 60     # keepalives come every 15 s; 60 s of silence means the link is dead
+
+
+class _TunnelTimeout(Exception):
+    pass
+
+
+def _tunnel_target(argv):
+    """The --url / --token / --resolve-ip of a tunnel client argv, or None (not the tunnel client)."""
+    if not argv or Path(argv[0].replace('\\', '/')).name.lower() not in _TUNNEL_CLIENT_NAMES:
+        return None
+    values = {}
+    rest = list(argv[1:])
+    while rest:
+        word = rest.pop(0)
+        for name in ('--url', '--token', '--resolve-ip'):
+            if word == name and rest:
+                values[name] = rest.pop(0)
+            elif word.startswith(name + '='):
+                values[name] = word[len(name) + 1:]
+    if not values.get('--url') or not values.get('--token'):
+        return None          # the client itself would stop on its arguments: keep running it as before
+    return values
+
+
+class _TunnelStream:
+    """The bytes of one TLS socket. Every blocking read waits at most until the call's deadline (`wait`)."""
+
+    def __init__(self, sock, wait):
+        self.sock, self.wait, self.buf = sock, wait, b''
+
+    def more(self):
+        self.sock.settimeout(self.wait())
+        data = self.sock.recv(65536)
+        if not data:
+            raise EOFError
+        self.buf += data
+
+    def line(self):
+        while b'\r\n' not in self.buf:
+            if len(self.buf) > 65536:
+                raise ValueError('header line too long')
+            self.more()
+        line, _, self.buf = self.buf.partition(b'\r\n')
+        return line
+
+    def exact(self, size):
+        while len(self.buf) < size:
+            self.more()
+        data, self.buf = self.buf[:size], self.buf[size:]
+        return data
+
+
+class _TunnelBody:
+    """The HTTP body of the answer: chunked, Content-Length, or read until the relay closes (HTTP/1.0 or
+    Connection: close). Only the bytes already received are taken, so a slow relay still meets the deadline."""
+
+    def __init__(self, stream, headers):
+        self.stream, self.buf, self.left = stream, b'', 0
+        if 'chunked' in headers.get('transfer-encoding', '').lower():
+            self.mode = 'chunked'
+        elif 'content-length' in headers:
+            self.mode, self.left = 'length', int(headers['content-length'])
+        else:
+            self.mode = 'close'
+
+    def more(self):
+        stream = self.stream
+        if self.mode == 'chunked' and not self.left:
+            self.left = int(stream.line().split(b';')[0].strip(), 16)
+            if not self.left:
+                raise EOFError
+        if self.mode == 'length' and not self.left:
+            raise EOFError
+        if not stream.buf:
+            stream.more()
+        take = stream.buf if self.mode == 'close' else stream.buf[:self.left]
+        stream.buf = stream.buf[len(take):]
+        self.buf += take
+        if self.mode != 'close':
+            self.left -= len(take)
+            if self.mode == 'chunked' and not self.left:
+                stream.exact(2)              # the CRLF after a chunk
+
+    def exact(self, size):
+        while len(self.buf) < size:
+            self.more()
+        data, self.buf = self.buf[:size], self.buf[size:]
+        return data
+
+
+class _TunnelCall:
+    """One tunnel call run on a worker thread. The caller waits once, until the deadline; past it the call is
+    abandoned: its socket is shut and closed, and a socket the worker opens later is closed at once."""
+
+    def __init__(self, deadline):
+        self.deadline = deadline
+        self.abandoned = False
+        self.lock = threading.Lock()
+        self.sock = None
+        self.done = threading.Event()
+        self.result = None
+
+    def wait(self):
+        """The time a blocking step may take (a backstop: the caller's deadline is the limit)."""
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0 or self.abandoned:
+            raise _TunnelTimeout()
+        return min(_TUNNEL_SILENCE_SECONDS, remaining)
+
+    def keep(self, sock):
+        with self.lock:
+            if self.abandoned:
+                sock.close()
+                raise _TunnelTimeout()
+            self.sock = sock
+
+    def abandon(self):
+        with self.lock:
+            self.abandoned = True
+            sock, self.sock = self.sock, None
+        if sock is not None:
+            try:
+                socket.socket.shutdown(sock, socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def close(self):
+        with self.lock:
+            sock, self.sock = self.sock, None
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+
+def _tunnel_run(target, script, timeout):
+    """(exit code, stdout bytes) of one tunnel call; raises _TunnelTimeout at the call's time limit.
+
+    The whole call (name lookup, connect, TLS, request, headers, every frame) runs on a daemon worker thread;
+    this thread waits for it once, until one wall-clock deadline. Past it the call is abandoned and
+    SSH_TIMEOUT comes back at once; the worker's late result is dropped."""
+    call = _TunnelCall(time.monotonic() + timeout)
+
+    def work():
+        try:
+            call.result = ('ok', _tunnel_exchange(target, script, call))
+        except _TunnelTimeout:
+            call.result = ('timeout', None)
+        except Exception:        # never let a worker error escape: it is a transport failure
+            call.result = ('ok', (255, b''))
+        finally:
+            call.close()
+            call.done.set()
+
+    threading.Thread(target=work, name='tdn-tunnel-call', daemon=True).start()
+    if not call.done.wait(max(0.0, call.deadline - time.monotonic())):
+        call.abandon()
+        raise _TunnelTimeout()
+    kind, value = call.result
+    if kind == 'timeout':
+        raise _TunnelTimeout()
+    return value
+
+
+def _tunnel_exchange(target, script, call):
+    """The worker's part of one tunnel call: (exit code, stdout bytes)."""
+    url = urlsplit(target['--url'])
+    if url.scheme != 'https' or not url.hostname:
+        return 255, b''
+    try:
+        port = url.port or 443
+    except ValueError:
+        return 255, b''
+    host = url.hostname if port == 443 else '%s:%d' % (url.hostname, port)
+    request = ('POST /run HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\n'
+               'Content-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n'
+               % (host, target['--token'], len(script))).encode('latin-1') + script
+    out = []
+    try:
+        raw = socket.create_connection((target.get('--resolve-ip') or url.hostname, port), call.wait())
+        call.keep(raw)
+        sock = ssl.create_default_context().wrap_socket(raw, server_hostname=url.hostname,
+                                                        do_handshake_on_connect=False)
+        call.keep(sock)
+        sock.settimeout(call.wait())
+        sock.do_handshake()
+        sock.settimeout(call.wait())
+        sock.sendall(request)
+        stream = _TunnelStream(sock, call.wait)
+        status = stream.line().split(None, 2)
+        if len(status) < 2 or not status[0].startswith(b'HTTP/') or status[1] != b'200':
+            return 255, b''
+        headers = {}
+        while True:
+            line = stream.line()
+            if not line:
+                break
+            name, _, value = line.decode('latin-1').partition(':')
+            headers[name.strip().lower()] = value.strip()
+        body = _TunnelBody(stream, headers)
+        while True:
+            kind, size = struct.unpack('>cI', body.exact(5))
+            data = body.exact(size) if size else b''
+            if kind == b'O':
+                out.append(data)
+            elif kind == b'X':
+                code = struct.unpack('>i', data)[0]
+                return (code if 0 <= code <= 254 else 1), b''.join(out)
+            elif kind not in (b'E', b'K'):
+                return 255, b''
+    except (OSError, EOFError, struct.error, ValueError):
+        if call.abandoned or call.deadline - time.monotonic() <= 0.05:
+            raise _TunnelTimeout() from None
+        return 255, b''          # a dead link (60 s without a byte), a refusal or a broken answer
+
+
 def _config_path():
     override = os.environ.get('TDN_SHOPEE_APP_CONFIG')
     if override is not None:
@@ -516,8 +750,16 @@ class Api:
                        150 if action in ('metricDateAvailability', 'm1Import') else config['timeoutSeconds'])}
         if sys.platform == 'win32':
             options['creationflags'] = subprocess.CREATE_NO_WINDOW
+        tunnel = _tunnel_target(argv)
         try:
-            result = subprocess.run(argv, **options)
+            if tunnel is not None:
+                try:
+                    code, stdout = _tunnel_run(tunnel, options['input'], options['timeout'])
+                except _TunnelTimeout:
+                    raise subprocess.TimeoutExpired(argv[:1], options['timeout']) from None
+                result = subprocess.CompletedProcess(argv[:1], code, stdout=stdout, stderr=b'')
+            else:
+                result = subprocess.run(argv, **options)
         except subprocess.TimeoutExpired:
             self._invalidate_native(token)
             raise _BridgeFailure('SSH_TIMEOUT') from None

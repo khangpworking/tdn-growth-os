@@ -332,6 +332,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 
 /* Plain-language surfaces: local errors, technical disclosures, progress and confirmation. */
 .local-error { margin: 0; }
+.errbar.stale-error { padding: 4px 10px; font-size: 12px; font-weight: 500; }
 .capture-spec-review { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .capture-spec-review > summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--accent); width: fit-content; }
 .capture-spec-review[open] > summary { padding-bottom: 4px; }
@@ -3157,9 +3158,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     runViewSupported: null,   // false after an older server answered USAGE to run-view
     insightComments: {},      // runId -> 'bucketKey|theme' -> { status: loading|ok|error, comments, error }
     insightOpen: {},          // runId -> 'bucketKey|theme' -> true while its comments are open
-    insightSummarySeq: {},    // runId -> number of insights summaries applied; a new one empties the comments
-    runViewInFlight: {},      // runId -> the run-view read on its way (loadInfo)
-    runViewAgain: {},         // runId -> the one follow-up read asked while it was out
+    insightBucketSeq: {},     // runId -> bucket key -> times that bucket changed; a change empties its comments
+    runViewInFlight: {},      // runId -> { promise, withResult, viewSeq } of the run-view read on its way (loadInfo)
+    runViewAgain: {},         // runId -> { promise, resolve } of the one follow-up read asked while it was out
+    runViewSent: {},          // runId -> run-view calls started
+    runViewPartSeq: {},       // runId -> part -> the run-view seq of that part's newest applied valid answer
+    renderHold: 0,            // > 0 while one run-view answer is applied: its renders become one
+    renderWanted: null,       // 'detail' or 'result' asked during the hold
     runViewProbe: null,       // { promise, settle } while the first run-view of this connection is unanswered
     refreshRunId: null,  // the open run whose refresh is tracked for «Đang cập nhật…»
     refreshTasks: {},    // kind -> sequence of its latest request (run-info, sampling, outputs + picture, …)
@@ -4127,22 +4132,18 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     head.appendChild(h('h4', null, 'Kết quả các bước'));
     panel.appendChild(head);
 
+    var data = state.moduleOutputs[runId];
     if (state.moduleOutputsErrors[runId]) {
       var loadError = outputErrorBar(state.moduleOutputsErrors[runId].code || 'MODULE_OUTPUT_INVALID');
       loadError.id = 'moduleOutputsErr';
-      panel.appendChild(loadError);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại kết quả');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadModuleOutputs(runId); });
-      retryRow.appendChild(retry);
-      panel.appendChild(retryRow);
-      var errorShot = localShotRow(runId);
-      if (errorShot) panel.appendChild(errorShot);
-      return panel;
+      if (panelReadError(panel, loadError, !!data,
+          { label: 'Tải lại kết quả', run: function () { loadModuleOutputs(runId); } })) {
+        var errorShot = localShotRow(runId);
+        if (errorShot) panel.appendChild(errorShot);
+        return panel;
+      }
     }
 
-    var data = state.moduleOutputs[runId];
     if (!data) {
       panel.appendChild(h('p', 'muted', 'Đang tải kết quả các bước…'));
       var loadingShot = localShotRow(runId);
@@ -4505,10 +4506,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
         typeof res.data.codebookVersion !== 'string' || !Array.isArray(res.data.sources)) {
       state.reviewInsightsErrors[runId] = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
     } else {
+      var before = insightBucketTexts(state.reviewInsights[runId]);
       state.reviewInsights[runId] = res.data;
-      state.insightSummarySeq[runId] = (state.insightSummarySeq[runId] || 0) + 1;
-      delete state.insightComments[runId];      // read again on the next click, from this summary
-      delete state.insightOpen[runId];
+      forgetChangedBuckets(runId, before, insightBucketTexts(res.data));
       delete state.reviewInsightsErrors[runId];
     }
     renderResult();
@@ -4711,6 +4711,26 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return box;
   }
 
+  // Every per-run panel's failed read follows one rule: with a last good copy the copy stays and only the small
+  // error mark `node` goes above it; without one the panel is the error (with its retry button) alone. Returns
+  // true when the panel stops there (no copy).
+  function panelReadError(parent, node, hasCopy, retry) {
+    parent.appendChild(node);
+    if (hasCopy) {
+      node.classList.add('stale-error');
+      return false;
+    }
+    if (retry) {
+      var row = h('div', 'rs-actions');
+      var button = h('button', 'abtn', retry.label);
+      button.type = 'button';
+      button.addEventListener('click', retry.run);
+      row.appendChild(button);
+      parent.appendChild(row);
+    }
+    return true;
+  }
+
   function reviewSamplingPanel(info) {
     var runId = info.runId;
     var view = state.sampling[runId];
@@ -4732,14 +4752,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       loadErr.id = 'samplingErr';
       loadErr.setAttribute('role', 'alert');
       loadErr.title = errorCode(state.samplingErrors[runId]);
-      panel.appendChild(loadErr);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadSampling(runId); });
-      retryRow.appendChild(retry);
-      panel.appendChild(retryRow);
-      return panel;
+      if (panelReadError(panel, loadErr, !!view, { label: 'Tải lại', run: function () { loadSampling(runId); } })) {
+        return panel;
+      }
     }
     if (!view) {
       panel.appendChild(h('p', 'muted', 'Đang tải thiết lập đã lưu…'));
@@ -5492,14 +5507,9 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       loadError.id = 'reviewDataErr';
       loadError.setAttribute('role', 'alert');
       loadError.title = errorCode(state.reviewDataErrors[runId]);
-      panel.appendChild(loadError);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadReviewData(runId); });
-      retryRow.appendChild(retry);
-      panel.appendChild(retryRow);
-      return panel;
+      if (panelReadError(panel, loadError, !!view, { label: 'Tải lại', run: function () { loadReviewData(runId); } })) {
+        return panel;
+      }
     }
     if (!view) {
       panel.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
@@ -6160,17 +6170,46 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     return box;
   }
 
-  // A v2 theme's comments, read once per run and kept while the summary still has the same count.
+  // Every bucket of an insights view (each source's whole result and each link), by its key, as JSON text.
+  function insightBucketTexts(view) {
+    var texts = {};
+    ((view && view.sources) || []).forEach(function (source) {
+      [source && source.all].concat((source && source.links || []).map(function (link) { return link && link.insights; }))
+        .forEach(function (bucket) {
+          if (bucket && typeof bucket.key === 'string') texts[bucket.key] = JSON.stringify(bucket);
+        });
+    });
+    return texts;
+  }
+
+  // A new summary keeps the read comments and the open sections of each bucket that is equal to the one before;
+  // a changed (or gone) bucket loses them, and a comment read still out for it is dropped.
+  function forgetChangedBuckets(runId, before, after) {
+    var seqs = state.insightBucketSeq[runId] || (state.insightBucketSeq[runId] = {});
+    var changed = {};
+    Object.keys(before).concat(Object.keys(after)).forEach(function (key) {
+      if (before[key] !== after[key]) changed[key] = true;
+    });
+    Object.keys(changed).forEach(function (key) { seqs[key] = (seqs[key] || 0) + 1; });
+    [state.insightComments[runId], state.insightOpen[runId]].forEach(function (map) {
+      Object.keys(map || {}).forEach(function (entryKey) {
+        var bucketKey = entryKey.slice(0, entryKey.lastIndexOf('|'));
+        if (changed[bucketKey] || !(bucketKey in after)) delete map[entryKey];
+      });
+    });
+  }
+
+  // A v2 theme's comments, read on a click and kept while its bucket in the summary stays the same.
   async function loadInsightComments(runId, bucketKey, theme) {
     var cache = state.insightComments[runId] || (state.insightComments[runId] = {});
     var key = bucketKey + '|' + theme;
-    var summarySeq = state.insightSummarySeq[runId] || 0;
+    var bucketSeq = (state.insightBucketSeq[runId] || {})[bucketKey] || 0;
     var entry = { status: 'loading', comments: null };
     cache[key] = entry;
     renderResult();
     var res = await api.reviewInsightComments(runId, bucketKey, theme);
     if (isGone(runId)) return;   // a late reply for a deleted run
-    if ((state.insightSummarySeq[runId] || 0) !== summarySeq) return;   // asked for an older summary
+    if (((state.insightBucketSeq[runId] || {})[bucketKey] || 0) !== bucketSeq) return;   // its bucket changed
     if (!state.insightComments[runId] || state.insightComments[runId][key] !== entry) return;
     if (res.ok && res.data && res.data.format === 'review-insight-comments-v1' && res.data.bucket === bucketKey &&
         res.data.theme === theme && Array.isArray(res.data.comments)) {
@@ -6507,20 +6546,15 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     head.appendChild(h('h3', null, STEP4_TITLE));
     card.appendChild(head);
 
+    var view = state.reviewProcess[runId];
     if (state.reviewProcessErrors[runId]) {
-      head.appendChild(h('span', 'chip s-idle', 'Chưa có kết quả'));
       var loadError = h('p', 'errbar local-error', plainError(state.reviewProcessErrors[runId]));
       loadError.title = errorCode(state.reviewProcessErrors[runId]);
-      card.appendChild(loadError);
-      var retryRow = h('div', 'rs-actions');
-      var retry = h('button', 'abtn', 'Tải lại');
-      retry.type = 'button';
-      retry.addEventListener('click', function () { loadReviewProcess(runId); });
-      retryRow.appendChild(retry);
-      card.appendChild(retryRow);
-      return card;
+      if (panelReadError(card, loadError, !!view, { label: 'Tải lại', run: function () { loadReviewProcess(runId); } })) {
+        head.appendChild(h('span', 'chip s-idle', 'Chưa có kết quả'));
+        return card;
+      }
     }
-    var view = state.reviewProcess[runId];
     if (!view) {
       head.appendChild(h('span', 'chip s-idle', 'Đang tải kết quả…'));
       card.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
@@ -7078,6 +7112,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   function renderResult() {
+    if (state.renderHold) {
+      if (state.renderWanted !== 'detail') state.renderWanted = 'result';
+      return;
+    }
     var root = $('resultDetail');
     clear(root);
     var info = state.info;
@@ -7097,14 +7135,13 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     var step4Line = step4ResultLine(runId);
     if (step4Line) root.appendChild(step4Line);
 
+    var view = state.reviewStats[runId];
     var failure = state.reviewStatsErrors[runId];
     if (failure) {
       var bar = h('p', 'errbar local-error', plainError(failure));
       bar.title = failure.code || '';
-      root.appendChild(bar);
-      return;
+      if (panelReadError(root, bar, !!view, null)) return;
     }
-    var view = state.reviewStats[runId];
     if (!view) {
       root.appendChild(h('p', 'muted', 'Đang tải kết quả…'));
       return;
@@ -7117,12 +7154,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       return;
     }
     root.appendChild(reviewOverviewCard(source, runId));
+    var insights = state.reviewInsights[runId];
     var insightsFailure = state.reviewInsightsErrors[runId];
     if (insightsFailure) {
-      root.appendChild(reviewInsightsErrorCard(insightsFailure));
-      return;
+      if (!insights) {
+        root.appendChild(reviewInsightsErrorCard(insightsFailure));
+        return;
+      }
+      var insightsBar = h('p', 'errbar local-error', plainError(insightsFailure));
+      insightsBar.title = insightsFailure.code || '';
+      panelReadError(root, insightsBar, true, null);
     }
-    var insights = state.reviewInsights[runId];
     if (!insights) {
       root.appendChild(h('p', 'muted', 'Đang tải AI và nhãn chủ đề…'));
       return;
@@ -7137,6 +7179,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   }
 
   function renderDetail() {
+    if (state.renderHold) {
+      state.renderWanted = 'detail';
+      return;
+    }
     renderRefreshMark();
     renderResult();
     var root = $('runDetail');
@@ -7485,34 +7531,60 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   // THE one read of the open run: an open, the 10 s poll, a progress change, a step 4 / step 2 notice and a
   // finished attempt all come here. With run-view it is ONE tracked call per run at a time: a read asked while
-  // one is out shares one follow-up sent when it ends. On an older server (USAGE) it is the single calls of
-  // before (loadInfoSingles), unchanged.
+  // one is out shares one follow-up sent when it ends. One exception: on «Kết quả chạy» a read out without
+  // --result does not hold back the --result read, which is sent at once as that follow-up (and becomes the read
+  // out). On an older server (USAGE) it is the single calls of before (loadInfoSingles), unchanged.
   function loadInfo(runId) {
     if (state.runViewSupported === false) return loadInfoSingles(runId);
     var current = state.runViewInFlight[runId];
-    if (current) {
-      if (!state.runViewAgain[runId]) {
-        var again = current.then(function () {
-          if (state.runViewAgain[runId] === again) delete state.runViewAgain[runId];
-          return isGone(runId) || state.selectedRunId !== runId ? undefined : loadInfo(runId);
-        }, function () { return undefined; });
-        state.runViewAgain[runId] = again;
-      }
-      return state.runViewAgain[runId];
+    if (!current || (state.screen === 'result' && !current.withResult)) return startRunView(runId);
+    var queued = state.runViewAgain[runId];
+    if (!queued) {
+      queued = { promise: null, resolve: null };
+      queued.promise = new Promise(function (resolve) { queued.resolve = resolve; });
+      state.runViewAgain[runId] = queued;
     }
+    return queued.promise;
+  }
+
+  function startRunView(runId) {
     var refresh = runViewRefresh(runId);
-    state.runViewInFlight[runId] = refresh;
-    var clear = function () {
-      if (state.runViewInFlight[runId] === refresh) delete state.runViewInFlight[runId];
+    var entry = { promise: refresh, withResult: state.screen === 'result' };
+    state.runViewInFlight[runId] = entry;
+    var answered = refresh.then(null, function () { return undefined; });
+    var queued = state.runViewAgain[runId];
+    if (queued) {                               // asked before this read started: it answers them
+      delete state.runViewAgain[runId];
+      queued.resolve(answered);
+    }
+    var settle = function () {                 // after an answer or a failure alike
+      if (state.runViewInFlight[runId] !== entry) return;
+      delete state.runViewInFlight[runId];
+      var next = state.runViewAgain[runId];
+      if (!next) return;
+      delete state.runViewAgain[runId];
+      next.resolve(isGone(runId) || state.selectedRunId !== runId ? undefined
+        : startRunView(runId).then(null, function () { return undefined; }));
     };
-    refresh.then(clear, clear);
+    refresh.then(settle, settle);
     return refresh;
+  }
+
+  function newRunViewProbe() {
+    var probe = { promise: null, settle: null };
+    probe.promise = new Promise(function (resolve) { probe.settle = resolve; });
+    state.runViewProbe = probe;
+    return probe;
   }
 
   // Resolves true or false once the first run-view of this connection answers (USAGE = false); pending until then.
   function runViewSupport(runId) {
     if (state.runViewSupported === true || state.runViewSupported === false) return Promise.resolve(state.runViewSupported);
-    if (!state.runViewProbe) loadInfo(runId);   // sends the probe
+    if (!state.runViewProbe) {
+      var probe = newRunViewProbe();          // settled by the next run-view answer (this one, or one still out)
+      loadInfo(runId);
+      return probe.promise;
+    }
     return state.runViewProbe.promise;
   }
 
@@ -7528,20 +7600,17 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }).then(function (info) { return info || null; });
   }
 
-  // One run-view call (--result on «Kết quả chạy»). Only a real combined answer feeds the loaders a `pending`
-  // part; USAGE switches to the single calls for this session (until the next connect). Resolves with the info
-  // part's reply (none on the single-call path).
+  // One run-view call (--result on «Kết quả chạy»). USAGE switches to the single calls for this session (until
+  // the next connect); every other answer goes to applyRunViewAnswer. Resolves with the info part's reply (none
+  // on the single-call path).
   async function runViewRefresh(runId) {
-    var seq = (state.infoSeq[runId] || 0) + 1;
-    state.infoSeq[runId] = seq;
+    state.infoSeq[runId] = (state.infoSeq[runId] || 0) + 1;     // a single-call status still out is now older
+    var viewSeq = (state.runViewSent[runId] || 0) + 1;
+    state.runViewSent[runId] = viewSeq;
     var withResult = state.screen === 'result';
     var kinds = runViewKinds();
-    if (state.runViewSupported !== true && !state.runViewProbe) {
-      var probe = { promise: null, settle: null };
-      probe.promise = new Promise(function (resolve) { probe.settle = resolve; });
-      state.runViewProbe = probe;
-    }
-    var res = await trackLoad('view', runId, state.infoSeq, function () { return api.runView(runId, withResult); });
+    if (state.runViewSupported !== true && !state.runViewProbe) newRunViewProbe();
+    var res = await trackLoad('view', runId, state.runViewSent, function () { return api.runView(runId, withResult); });
     var usage = !res.ok && isUsage(res.error);
     state.runViewSupported = !usage;
     if (state.runViewProbe) {
@@ -7551,29 +7620,114 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (usage) return loadInfoSingles(runId);
-    var reply = function (name) {
-      if (!res.ok) return Promise.resolve(res);     // the info error is the command error: every part gets it
-      var part = res.data && res.data.parts ? res.data.parts[name] : null;
-      return Promise.resolve(part && typeof part === 'object' && 'ok' in part ? part
-        : { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } });
+    return applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
+  }
+
+  var RUN_VIEW_INVALID = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
+
+  // Each run-view part: its check, the map of its error mark, and its loader (which writes the part's state).
+  function runViewPartRules(runId) {
+    var data = function (part) { return part.ok === true && !!part.data && typeof part.data === 'object'; };
+    return {
+      info: { valid: function (part) { return data(part) && Array.isArray(part.data.modules); } },
+      sampling: { valid: data, errors: state.samplingErrors, task: 'sampling', seqMap: state.samplingSeq, load: loadSampling },
+      reviewData: { valid: data, errors: state.reviewDataErrors, task: 'data', seqMap: state.reviewDataSeq, load: loadReviewData },
+      outputs: { valid: function (part) {
+        return data(part) && part.data.format === 'module-outputs-v1' && part.data.runId === runId &&
+          !!part.data.m1 && typeof part.data.m1 === 'object' && !!part.data.m2 && typeof part.data.m2 === 'object';
+      }, errors: state.moduleOutputsErrors, task: 'outputs', seqMap: state.moduleOutputsSeq, load: loadModuleOutputsView },
+      process: { valid: function (part) {
+        return data(part) && part.data.format === 'review-process-view-v1' && part.data.runId === runId &&
+          Array.isArray(part.data.sources);
+      }, errors: state.reviewProcessErrors, task: 'process', seqMap: state.reviewProcessSeq, load: loadReviewProcess },
+      stats: { valid: function (part) {
+        return data(part) && part.data.format === 'review-stats-v1' && part.data.runId === runId &&
+          Array.isArray(part.data.sources);
+      }, errors: state.reviewStatsErrors, task: 'stats', seqMap: state.reviewStatsSeq, load: loadReviewStats },
+      insights: { valid: function (part) {
+        return data(part) && (part.data.format === 'review-insights-v1' || part.data.format === 'review-insights-v2') &&
+          part.data.runId === runId && typeof part.data.codebookVersion === 'string' && Array.isArray(part.data.sources);
+      }, errors: state.reviewInsightsErrors, task: 'insights', seqMap: state.reviewInsightsSeq, load: loadReviewInsights }
     };
-    var loaders = {
-      info: ['info', state.infoSeq, function () { return runStatus(runId, reply('info')); }],
-      sampling: ['sampling', state.samplingSeq, function () { return loadSampling(runId, reply('sampling')); }],
-      reviewData: ['data', state.reviewDataSeq, function () { return loadReviewData(runId, reply('reviewData')); }],
-      outputs: ['outputs', state.moduleOutputsSeq, function () { return loadModuleOutputs(runId, reply('outputs')); }],
-      process: ['process', state.reviewProcessSeq, function () { return loadReviewProcess(runId, reply('process')); }],
-      stats: ['stats', state.reviewStatsSeq, function () { return loadReviewStats(runId, reply('stats')); }],
-      insights: ['insights', state.reviewInsightsSeq, function () { return loadReviewInsights(runId, reply('insights')); }]
+  }
+
+  // THE one path that writes the open run's parts from a run-view answer. A part is applied only when it is
+  // present, passes its check and comes from a read newer than the one that last applied that part
+  // (runViewPartSeq); then its seq is kept. Anything else (a part error, a failed call of any kind, an envelope
+  // that fails its check, an older read) never clears or overwrites a part: it only sets the error mark of that
+  // part, or of the call (the error line). RUN_NOT_FOUND still makes the run gone. One redraw at the end.
+  async function applyRunViewAnswer(runId, seq, answer) {
+    var res = answer.reply;
+    var callError = !res.ok ? res.error
+      : !res.data || res.data.format !== 'run-view-v1' || !res.data.parts || typeof res.data.parts !== 'object'
+        ? RUN_VIEW_INVALID : null;
+    var partOf = function (name) {
+      if (callError) return { ok: false, error: callError };
+      var part = res.data.parts[name];
+      return part && typeof part === 'object' && 'ok' in part ? part : { ok: false, error: RUN_VIEW_INVALID };
     };
-    var started = kinds.map(function (name) {
-      var loader = loaders[name];
-      return trackLoad(loader[0], runId, loader[1], loader[2]);
-    });
-    var info = await started[0];
-    applyInfo(runId, seq, info);
-    await Promise.all(started);                       // every part applied before a caller reads the state
+    var info = partOf('info');
+    if (!info.ok && errorCode(info.error) === 'RUN_NOT_FOUND') {
+      if (!isGone(runId)) runGone(runId);
+      return info;
+    }
+    var partSeq = state.runViewPartSeq[runId] || (state.runViewPartSeq[runId] = {});
+    var rules = runViewPartRules(runId);
+    var selected = state.selectedRunId === runId;
+    var applied = [];
+    var shot = null;
+    state.renderHold += 1;                            // every part of this answer: one redraw for all
+    try {
+      answer.kinds.forEach(function (name) {
+        var rule = rules[name];
+        var part = partOf(name);
+        var newer = seq > (partSeq[name] || 0);
+        if (name === 'outputs') shot = loadLocalShot(runId);   // a local file lookup, not a part: it may answer later
+        if (part.ok && rule.valid(part) && newer) {
+          partSeq[name] = seq;
+          if (name === 'info') {
+            state.infoByRun[runId] = part.data;
+            if (selected) {
+              state.loadingRunId = null;
+              state.info = part.data;
+              renderDetail();
+              managePoll();
+            }
+            return;
+          }
+          applied.push(trackLoad(rule.task, runId, rule.seqMap, function () {
+            return rule.load(runId, Promise.resolve(part));
+          }));
+          return;
+        }
+        if (!newer || callError) return;              // an older read, or the call's own mark below
+        if (name === 'info') {
+          if (selected) showError(part.ok ? RUN_VIEW_INVALID : part.error);
+        } else {
+          rule.errors[runId] = part.ok ? RUN_VIEW_INVALID : part.error;
+        }
+      });
+      if (callError && selected && seq >= (partSeq.info || 0)) showError(callError);
+      if (selected) {
+        state.loadingRunId = null;
+        if (!state.info && state.infoByRun[runId]) state.info = state.infoByRun[runId];
+        renderDetail();
+      }
+      await Promise.all(applied);
+    } finally {
+      releaseRenders();
+    }
+    if (shot) await shot;                             // every part applied before a caller reads the state
     return info;
+  }
+
+  function releaseRenders() {
+    state.renderHold -= 1;
+    if (state.renderHold) return;
+    var wanted = state.renderWanted;
+    state.renderWanted = null;
+    if (wanted === 'detail') renderDetail();
+    else if (wanted === 'result') renderResult();
   }
 
   function applyInfo(runId, seq, res) {
@@ -7845,6 +7999,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 
   async function hydrateAfterConnect(epoch, first) {
     state.runViewSupported = null;              // the server may have changed: try run-view again
+    if (state.runViewProbe) state.runViewProbe.settle(true);   // its waiters ask again (USAGE still falls back)
     state.runViewProbe = null;
     var presAsked = api.presets();
     var runsAsked = fetchRuns();
