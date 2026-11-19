@@ -36,7 +36,8 @@ class Relay(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
-        self.server.seen.append({'path': self.path, 'auth': self.headers.get('Authorization'), 'body': body})
+        self.server.seen.append({'path': self.path, 'auth': self.headers.get('Authorization'), 'body': body,
+                                 'resumed': self.connection.session_reused})
         reply = self.server.reply
         if isinstance(reply, tuple) and reply[0] == 'close':
             self.close_connection = True
@@ -103,9 +104,11 @@ class TunnelBridgeTest(unittest.TestCase):
 
     def setUp(self):
         self.server.seen.clear()
-        trust = mock.patch.object(tdn_shopee_app.ssl, 'create_default_context', return_value=self.trusted)
-        trust.start()
-        self.addCleanup(trust.stop)
+        self.contexts = mock.patch.object(tdn_shopee_app.ssl, 'create_default_context', return_value=self.trusted)
+        self.contexts = self.contexts.start()
+        self.addCleanup(mock.patch.stopall)
+        fresh = mock.patch.object(tdn_shopee_app, '_TUNNEL_TLS', {'context': None, 'sessions': {}})
+        fresh.start()
         self.api = tdn_shopee_app.Api()
 
     def config(self, client='C:\\TDN\\tdn-tunnel-client.exe', port=None, timeout=5):
@@ -188,6 +191,19 @@ class TunnelBridgeTest(unittest.TestCase):
                 replies.append(self.call('runView', run_id='run-1'))
                 self.assertEqual(replies[-1]['error']['code'], 'USAGE')
         self.assertNotIn(TOKEN, json.dumps(replies))
+
+    def test_one_tls_context_and_a_resumed_session(self):
+        """| calls in one app process | expected                                                         |
+        |--------------------------|------------------------------------------------------------------|
+        | 3 tunnel calls           | one SSL context made; calls 2 and 3 resume the TLS session of the |
+        |                          | call before (the relay sees a reused session)                    |
+        """
+        text = json.dumps(CONNECTION).encode('utf-8')
+        self.server.reply = [frame(b'O', text), frame(b'X', struct.pack('>i', 0))]
+        for _ in range(3):
+            self.assertEqual(self.call(), {'ok': True, 'data': CONNECTION})
+        self.assertEqual(self.contexts.call_count, 1)
+        self.assertEqual([seen['resumed'] for seen in self.server.seen], [False, True, True])
 
     def test_a_real_ssh_config_still_runs_its_program(self):
         done = subprocess.CompletedProcess([], 0, stdout=json.dumps(CONNECTION).encode('utf-8'), stderr=b'')

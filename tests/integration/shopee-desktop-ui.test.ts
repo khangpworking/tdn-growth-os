@@ -108,6 +108,7 @@ function harness(options: {
   localShots?: Record<string, boolean>;
   saveShotResult?: (runId: string) => any;
   deleteRunResult?: (runId: string) => any;
+  runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -149,6 +150,8 @@ function harness(options: {
     runSortCalls: string[];
     runViewCalls: { runId: string; result: boolean }[];
     runViewMaxOut: number;    // the most run-view calls out at once
+    runViewCachedCalls: string[];
+    prefetchCalls: { runId: string; sig: string }[][];
     insightCommentCalls: { runId: string; bucket: string; theme: string | null }[];
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
@@ -187,6 +190,8 @@ function harness(options: {
     runSortCalls: [],
     runViewCalls: [],
     runViewMaxOut: 0,
+    runViewCachedCalls: [],
+    prefetchCalls: [],
     insightCommentCalls: [],
   };
   let runViewOut = 0;
@@ -331,6 +336,15 @@ function harness(options: {
       const comments = v1.ok ? insightCommentsOf(v1.data, bucket, theme) : null;
       return comments ? { ok: true, data: { format: 'review-insight-comments-v1', bucket, theme, comments } }
         : { ok: false, error: { code: 'REVIEW_DATA_INVALID', message: 'REVIEW_DATA_INVALID' } };
+    },
+    runViewCached: async (runId: string) => {
+      state.runViewCachedCalls.push(runId);
+      const copy = options.runViewCopy ? options.runViewCopy(runId) : null;
+      return { ok: true, data: copy ? clone(copy) : null };
+    },
+    prefetchRunViews: async (rows: { runId: string; sig: string }[]) => {
+      state.prefetchCalls.push(clone(rows));
+      return { ok: true, data: { format: 'run-view-prefetch-v1', queued: rows.length } };
     },
     runView: async (runId: string, result: boolean) => {
       state.runViewCalls.push({ runId, result });
@@ -2707,7 +2721,8 @@ test('the comment card downloads every collected comment and its button shows th
     [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
     await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 1, 'result run list');
     doc.querySelector<HTMLButtonElement>('#resultRunList button')!.click();
-    await waitFor(() => doc.getElementById('resultCommentDownload') !== null, 'comment download');
+    await waitFor(() => doc.getElementById('resultCommentDownload') !== null &&
+      [...doc.querySelectorAll<HTMLElement>('.refresh-mark')].every((mark) => mark.hidden), 'comment download, no read out');
     return opened;
   };
 
@@ -4495,8 +4510,8 @@ test('the sort save keeps the last click and the refresh mark follows only the l
 // F647 wave 2: one run-view per open, insights summary first (CONTRACT-F647-wave2 §4), one row each:
 // | # | situation                                                         | expected                                                  |
 // |---|-------------------------------------------------------------------|-----------------------------------------------------------|
-// | 1 | open a run on «Chi tiết lịch sử lượt chạy»                        | one run-view, no --result; run-info asked once            |
-// | 2 | open it on «Kết quả chạy»                                         | one run-view --result; no comment list read yet           |
+// | 1 | open a settled run on «Chi tiết lịch sử lượt chạy»                | one run-view, with --result; run-info asked once          |
+// | 2 | open it on «Kết quả chạy»                                         | its themes at once (same read); no comment list read yet  |
 // | 3 | open «Xem 2 bình luận mẫu» of a theme, close, open again          | its comments read once (bucket key + theme), then kept    |
 // | 4 | the outputs part fails                                            | the same panel text as the single call's failure          |
 // | 5 | an older server (USAGE)                                           | the single calls; run-view not asked again; v1 inline     |
@@ -4531,12 +4546,11 @@ test('a run opens with one run-view, insights summary first and theme comments o
   try {
     tab(run.doc, 1);
     await waitFor(() => run.doc.getElementById('btnDeleteRun') !== null, '1: open');
-    assert.deepEqual(run.state.runViewCalls, [{ runId, result: false }], '1: one run-view');
+    assert.deepEqual(run.state.runViewCalls, [{ runId, result: true }], '1: one run-view (--result: a settled run)');
     assert.deepEqual(run.state.statusCalls, [runId], '1: run-info once, inside it');
     tab(run.doc, 2);
-    await waitFor(() => themeDetails(run.doc) !== null, '2: themes shown');
-    assert.deepEqual(run.state.runViewCalls.at(-1), { runId, result: true }, '2: --result on «Kết quả chạy»');
-    assert.equal(run.state.runViewCalls.length, 2);
+    assert.notEqual(themeDetails(run.doc), null, '2: themes at once, from the --result read of the open');
+    assert.ok(run.state.runViewCalls.every((call) => call.result), '2: --result on «Kết quả chạy»');
     assert.deepEqual(run.state.insightCommentCalls, [], '2: no comment list yet');
     // 3
     const summaryOf = () => themeDetails(run.doc)!.querySelector<HTMLElement>('summary')!;
@@ -4928,7 +4942,7 @@ test('a read asked while a run-view is out is answered by the follow-up', async 
 // F647 wave 3, the open run's reads (UI), one row each:
 // | # | situation                                                                       | expected                                   |
 // |---|---------------------------------------------------------------------------------|--------------------------------------------|
-// | A | «Kết quả chạy» clicked while a read without --result is out                     | the --result read is sent at once; its     |
+// | A | «Kết quả chạy» clicked while a read without --result (a run in progress) is out | the --result read is sent at once; its     |
 // |   |                                                                                 | parts show before the older read answers   |
 // | B | a new summary whose bucket is equal to the one before, after its comments were  | the comments and the open section stay; no |
 // |   | read                                                                            | comment read again                         |
@@ -4972,7 +4986,7 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
   const release = () => { const held = hold; hold = null; held?.resolve(); };
 
   // A
-  let run = base();
+  let run = base({ runs: [{ runId, product: 'Sản phẩm', status: 'RUNNING' }] });
   try {
     await booted(run.doc);
     tab(run.doc, 1);
@@ -5134,6 +5148,7 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
   failing = false;
   listed = false;
   run = base({
+    runs: [{ runId, product: 'Sản phẩm', status: 'RUNNING' }],      // its first read has no --result
     statusError: () => (failing ? { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } } : undefined),
     listRunsReply: async () => (listed ? undefined : { ok: true, data: { format: 'runs-v1', runs: [] } }),
   });
@@ -5159,6 +5174,7 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
   let outputsFail = false;
   listed = false;
   run = base({
+    runs: [{ runId, product: 'Sản phẩm', status: 'RUNNING' }],      // its first read has no --result
     listRunsReply: async () => (listed ? undefined : { ok: true, data: { format: 'runs-v1', runs: [] } }),
     moduleOutputsResult: (id: string) => (outputsFail
       ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } }
@@ -5216,5 +5232,85 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
     const panel = run.doc.getElementById('moduleOutputsPanel')!.cloneNode(true) as HTMLElement;
     panel.querySelector('#moduleOutputsErr')!.remove();
     assert.equal(panel.textContent, shown, '7: the last good outputs stay under the mark');
+  } finally { run.dom.window.close(); }
+});
+
+// F651 (rank 1 and 2): an old run opens from the bridge's disk copy, one row each:
+// | # | situation                                                        | expected                                          |
+// |---|------------------------------------------------------------------|---------------------------------------------------|
+// | 1 | open a settled run with a disk copy while the fresh read is slow | the copy shows at once; its delete button is      |
+// |   |                                                                  | held; the fresh read (--result) replaces the copy |
+// | 2 | the fresh read fails (SSH_TIMEOUT)                               | the copy stays, the error line shows, still held  |
+// | 3 | a list answer                                                    | the first 12 visible settled rows go to prefetch  |
+// |   |                                                                  | in screen order, with status:revision; no running |
+test('an old run opens from its disk copy at once, the fresh read replaces it, and the list is prefetched', async () => {
+  const runId = 'run-copy';
+  const copyName = 'Bản lưu trên máy';
+  const copy = (id: string) => ({ format: 'run-view-v1', runId: id, parts: {
+    info: { ok: true, data: syntheticRunInfo(id) },
+    outputs: { ok: true, data: moduleOutputView(id, {}, { links: moduleOutputView(id).m2.links.map((link: any, i: number) =>
+      (i === 0 ? { ...link, productName: copyName } : link)) }) },
+  } });
+  let hold: Deferred<void> | null = null;
+  let failing = false;
+  const open = () => harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    runViewCopy: copy,
+    runViewHold: () => hold?.promise,
+    statusError: () => (failing ? { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } } : undefined),
+  });
+  const outputs = (doc: Document) => doc.getElementById('moduleOutputsPanel')?.textContent || '';
+  const held = (doc: Document) => (doc.getElementById('btnDeleteRun') as HTMLButtonElement | null)?.disabled;
+  const trackTab = (doc: Document) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+
+  // 1
+  hold = deferred<void>();
+  let run = open();
+  try {
+    trackTab(run.doc);
+    await waitFor(() => outputs(run.doc).includes(copyName), '1: the copy at once');
+    assert.equal(held(run.doc), true, '1: delete held on the copy');
+    assert.deepEqual(run.state.runViewCalls, [{ runId, result: true }], '1: the fresh read is out, with --result');
+    hold.resolve();
+    await waitFor(() => !outputs(run.doc).includes(copyName) && /DHC Kẽm 60 ngày/.test(outputs(run.doc)), '1: replaced');
+    assert.equal(held(run.doc), false, '1: delete back');
+  } finally { hold?.resolve(); run.dom.window.close(); }
+
+  // 2
+  hold = deferred<void>();
+  failing = true;
+  run = open();
+  try {
+    let shown = '';
+    const watch = new (run.dom.window as any).MutationObserver(() => {
+      if (!element(run.doc, 'errbar').hidden) shown = element(run.doc, 'errbar').title;
+    });
+    watch.observe(element(run.doc, 'errbar'), { attributes: true, childList: true });
+    trackTab(run.doc);
+    await waitFor(() => outputs(run.doc).includes(copyName), '2: the copy');
+    hold.resolve();
+    await waitFor(() => shown === 'SSH_TIMEOUT', '2: the error line');
+    watch.disconnect();
+    assert.ok(outputs(run.doc).includes(copyName), '2: the copy stays');
+    assert.equal(held(run.doc), true, '2: still held');
+  } finally { hold?.resolve(); failing = false; run.dom.window.close(); }
+
+  // 3
+  const row = (id: string, status: string, createdAt: string, revision: number) =>
+    ({ runId: id, product: id, status, createdAt, execution: { status, revision } });
+  const runs = [row('run-r', 'RUNNING', '2026-11-05T00:00:00Z', 9), row('run-a', 'DONE', '2026-11-01T00:00:00Z', 3),
+    row('run-b', 'FAILED', '2026-11-04T00:00:00Z', 5),
+    ...Array.from({ length: 12 }, (_, i) =>
+      row('run-o' + String(i).padStart(2, '0'), 'DONE', '2026-10-' + String(10 + i) + 'T00:00:00Z', i))];
+  run = harness({ runs });
+  try {
+    await waitFor(() => run.state.prefetchCalls.length > 0, '3: prefetch asked');
+    const rows = run.state.prefetchCalls.at(-1)!;
+    assert.equal(rows.length, 12, '3: at most 12');
+    assert.deepEqual(rows.slice(0, 3), [{ runId: 'run-b', sig: 'FAILED:5' }, { runId: 'run-a', sig: 'DONE:3' },
+      { runId: 'run-o11', sig: 'DONE:11' }], '3: newest first, the running row left out');
+    assert.ok(!rows.some((entry) => entry.runId === 'run-r'));
   } finally { run.dom.window.close(); }
 });
