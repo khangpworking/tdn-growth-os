@@ -177,7 +177,7 @@ test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choic
     await waitFor(() => p.$('btnTakeReviews').disabled === false && p.$('newTopCount').value === '8', 'last choice');
     const group = p.$('newSelectionGroup');
     assert.equal(group.querySelector('legend')!.textContent, 'Sản phẩm bán chạy');
-    assert.deepEqual([...group.querySelectorAll('.chip')].map((c) => c.textContent), ['Lọc trùng', 'Không lọc trùng']);
+    assert.deepEqual([...group.querySelectorAll('.chip')].map((c) => c.textContent), [], 'F656: no duplicate-filter chips');
     p.$('btnTakeReviews').click();
     await waitFor(() => p.calls.filter((c) => c.method === 'takeMetricReviews').length === 1, 'top 8 sent');
     assert.deepEqual(p.calls.find((c) => c.method === 'takeMetricReviews')!.args[0].productSelection, { mode: 'top', count: 8 });

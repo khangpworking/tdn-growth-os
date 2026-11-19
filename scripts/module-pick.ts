@@ -1,5 +1,5 @@
-import { derivePeriodProductPick, linksToCheckCount, MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, pickAllShopeeProducts,
-  pickProductsWithJev, ProductPickError, type ProductSelection } from './module-product-pick.js';
+import { derivePeriodProductPick, deriveTopProductPick, linksToCheckCount, MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2,
+  MODULE_PICK_POLICY_V3, pickAllShopeeProducts, pickProductsWithJev, ProductPickError, type ProductSelection } from './module-product-pick.js';
 import { pickJevFromEnvironment, type PickJev } from './module-product-pick-jev.js';
 import { createM2LinkCheck, linkCheckBudgetMs, LinkCheckStop, linkCollectorFromEnvironment, reconcileLinkJournals,
   type LinkCheckEntry, type LinkCollector } from './module-link-check.js';
@@ -132,7 +132,7 @@ export async function readRequest(run: string) {
       w.id !== captureSpec.windows[i]?.id || w.period.startDate !== captureSpec.windows[i]?.period.startDate ||
       w.period.endDate !== captureSpec.windows[i]?.period.endDate ||
       (object(w).intervalDays !== undefined && object(w).intervalDays !== captureSpec.windows[i]?.intervalDays)))) throw new ModuleError('CAPTURE_SPEC_MISMATCH');
-  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: value.selectionPolicy === MODULE_PICK_POLICY || value.selectionPolicy === MODULE_PICK_POLICY_V2 ? value.selectionPolicy as string : null,
+  return { keywords, principalTitles: (value.principalTitles ?? []) as string[], reviewCapPerLink: collectionPolicy?.totalPerLink ?? value.reviewCapPerLink as number, collectionPolicy, captureSpec, selectionPolicy: [MODULE_PICK_POLICY, MODULE_PICK_POLICY_V2, MODULE_PICK_POLICY_V3].includes(value.selectionPolicy as string) ? value.selectionPolicy as string : null,
     productSelection: value.productSelection as ProductSelection | undefined,
     windows, metricSource: value.metricSource as UserPageMetricSource | undefined };
 }
@@ -280,7 +280,7 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
     if (!source.part || !source.rawBytes) throw new ModuleError('PICK_WINDOW_MISSING');
     let linkChecksSha256: string | null = null;
     try {
-      if (request.selectionPolicy === MODULE_PICK_POLICY_V2) {
+      if (request.selectionPolicy === MODULE_PICK_POLICY_V2 || request.selectionPolicy === MODULE_PICK_POLICY_V3) {
         const publishLog = async (entries: readonly LinkCheckEntry[]) => {
           const log = { format: 'link-check-log-v1', runId: basename(run), entries };
           await validateModuleValue('link-check-log-v1', log);
@@ -304,7 +304,10 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
         await reconcileLinkJournals({ collector, journalDir, deadline, now: clock });
         // Each completed verdict is published before the next check starts, so an interrupted walk keeps it.
         const { check } = createM2LinkCheck({ collector, policy: request.collectionPolicy, journalDir, deadline, now: clock, publish: publishLog });
-        if (selection?.mode === 'all') picked = await pickAllShopeeProducts(source.raw, source.part, sha256(source.rawBytes), check, selection);
+        // v3 (contract F656): no Jev and no duplicate filter, so it never needs the Jev key.
+        if (request.selectionPolicy === MODULE_PICK_POLICY_V3)
+          picked = await deriveTopProductPick(source.raw, source.part, sha256(source.rawBytes), check, selection);
+        else if (selection?.mode === 'all') picked = await pickAllShopeeProducts(source.raw, source.part, sha256(source.rawBytes), check, selection);
         else {
           let jev: PickJev;
           try { jev = options.jev!(); } catch { throw new ModuleError('PICK_JEV_UNAVAILABLE'); }

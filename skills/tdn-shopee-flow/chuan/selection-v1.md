@@ -11,7 +11,7 @@
 | `source` | `"auto"` do máy chọn, hoặc `"manual"` do người soạn. |
 | `pickRuleVersion` | Bản luật chọn. `"autorun-pick-v3"` khi máy chọn; `"manual"` khi người soạn. Cổng M2 so giá trị này với `modules.json`. |
 | `metricInputSha256` | Mã băm thư mục `m1/` mà máy đã đọc. `null` với file `manual`. |
-| `links[]` | 1 link trở lên, sắp theo thứ hạng. Tối đa 5 với lượt cũ và v1; tối đa 100 với `metric-products-unique-v2`. |
+| `links[]` | 1 link trở lên, sắp theo thứ hạng. Tối đa 5 với lượt cũ và v1; tối đa 100 với `metric-products-unique-v2` và `metric-products-top-v3`. |
 | `links[].rank` | Thứ hạng, bắt đầu từ 1. |
 | `links[].productBaseId` | Mã sản phẩm của bản thu Metric: `1__<itemId>__<shopId>` — phần đầu là mã sản phẩm, phần sau là mã gian hàng (D1; code quyết định). |
 | `links[].shopId` | Mã gian hàng, chỉ gồm chữ số. |
@@ -71,7 +71,7 @@ Lượt tạo bằng `new-run` chọn theo cửa sổ `30d` (`modules.json` → 
 
 ## Quy tắc `metric-products-unique-v2`
 
-Lượt mới tạo bằng `new-run` (một kỳ) ghi `request.selectionPolicy` = `"metric-products-unique-v2"`. Lượt đã tạo với `metric-products-unique-v1` và lượt cũ giữ nguyên cách chọn và cách đọc. Các trường ở trên giữ nguyên nghĩa.
+Lượt tạo trước F656 bằng `new-run` (một kỳ) ghi `request.selectionPolicy` = `"metric-products-unique-v2"`; lượt mới dùng `metric-products-top-v3` (mục dưới). Lượt đã tạo với `metric-products-unique-v1` và lượt cũ giữ nguyên cách chọn và cách đọc. Các trường ở trên giữ nguyên nghĩa.
 
 Trình tự: duyệt bảng Top Products đã lưu ở bước 1 theo doanh số kỳ giảm dần, như v1. Dòng sàn khác (`2__`, `3__`, `8__`) bị bỏ qua, không ghi lại. Dòng Shopee hợp lệ đầu tiên được chọn mà không hỏi. Mỗi dòng Shopee sau đó: lệnh M2 hỏi Jev (TypeSafe System One) một câu «tin đăng này là sản phẩm nào đã chọn, hay sản phẩm mới?» với lựa chọn `SP1`…`SPn` (sản phẩm đã chọn, theo thứ tự chọn) và `MOI`. Đủ số link yêu cầu thì dừng, không hỏi thêm. Số link yêu cầu lấy từ `request.json` → `productSelection`: top N (mặc định 5 khi vắng), hoặc `all` lấy mọi sản phẩm Shopee, tối đa 100, không gọi Jev và không lọc trùng. Câu hỏi đúng từng chữ nằm trong `scripts/module-product-pick-jev.ts`.
 
@@ -100,3 +100,13 @@ Cổng M2 và tab kết quả không gọi Jev. Chúng chạy lại trình tự 
 Cổng bước 2 chạy lại trình tự chọn trên dữ liệu bước 1 đã lưu với các câu trả lời đã lưu trong `decisions`, rồi so với file này. Cách kiểm đó chứng minh kết quả chọn suy ra đúng từ các câu trả lời đã lưu. Nó không chứng minh các câu trả lời đó do Jev trả về, và không kiểm `matcher.model`. Cổng không hỏi lại Jev. Không có cơ chế nào ngăn việc sửa tay file của lượt trước khi cổng kiểm. Sau khi cổng đã ghi phiếu, mã băm trong phiếu cổng phát hiện file bị đổi (`GATE_INPUT_CHANGED`).
 
 Lượt v2 có phiếu cổng bước 2 (`gates/m2.json`) với `verdict` = `PASS` không chạy lại bước 2: lệnh M2 dừng với `M2_ALREADY_PASSED` trước khi hỏi Jev, và không đổi file này hay phiếu cổng. Bước 2 lỗi hoặc chưa có kết quả thì chạy lại được; lượt v1 và lượt cũ giữ cách cũ.
+
+## Quy tắc `metric-products-top-v3` (F656)
+
+Lượt mới tạo bằng `new-run` (một kỳ) hoặc nhập từ trang Metric ghi `request.selectionPolicy` = `"metric-products-top-v3"`. Lượt v1 và v2 đã tạo giữ nguyên cách chọn, cách kiểm và cách hiển thị ở trên.
+
+Trình tự: duyệt bảng Top Products đã lưu ở bước 1 theo thứ tự bước 1. Dòng sàn khác (`2__`, `3__`, `8__`) bị bỏ qua, không ghi lại. Không hỏi Jev và không gộp theo tên: hai tin đăng cùng tên là hai link. Cùng một mã tin đăng xuất hiện hai lần là một link: giữ lần đầu, bỏ qua các lần sau và không ghi lại. Mỗi link được kiểm như v2 (`m2/link-checks.json`); link chết bị bỏ qua (`skipped[]` ghi mã lỗi) và lấy dòng Shopee tiếp theo.
+
+Dừng: top N khi đủ N link (mặc định 5 khi vắng `productSelection`); `all` khi đã duyệt hết dòng Shopee, tối đa 100. Thiếu link: top N ít hơn N link, hoặc `all` không có link nào, là `FEWER_PRODUCTS_THAN_REQUESTED` với `shortageDetail` (`requested`, `found`).
+
+`selectionProof` của v3 không có `matcher` và `decisions`, và luôn có `linkChecksSha256`. Cổng M2 chạy lại trình tự chỉ với các kết quả kiểm link đã lưu, không gọi Jev hay trình kiểm link; khác file này là `PICK_PROOF_MISMATCH`. Phép kiểm của cổng là `requested_products`: `ok` khi số link ≥ `want`, `want` = N (1 với `all`), `got` = `{requested, found}`. Lượt v3 có phiếu cổng bước 2 `PASS` không chạy lại bước 2 (`M2_ALREADY_PASSED`), nên link không bị kiểm lại.

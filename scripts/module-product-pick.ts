@@ -197,15 +197,9 @@ export async function replayJevProductPick(raw: unknown, part: Row, rawSha256: s
   const all = selection?.mode === 'all';
   const mismatch = () => new ProductPickError('PICK_PROOF_MISMATCH');
   if (all ? saved !== undefined && (!Array.isArray(saved) || saved.length !== 0) : !Array.isArray(saved)) throw mismatch();
-  let next = 0, nextCheck = 0;
-  // Replay reads the saved link verdicts; it never calls the collector (owner F640).
-  const check = checks && (async ({ productBaseId, url }: { productBaseId: string; url: string }): Promise<LinkCheckDecision> => {
-    const entry = checks![nextCheck++];
-    if (!entry || entry.productBaseId !== productBaseId || entry.url !== url ||
-        (entry.result === 'rejected' && entry.reason === null)) throw mismatch();
-    return entry.result === 'ok' ? { result: 'ok', starCounts: entry.starCounts }
-      : { result: 'rejected', reason: entry.reason as LinkRejectCode };
-  });
+  let next = 0;
+  const savedChecks = checks && savedCheckReplay(checks);
+  const check = savedChecks?.check;
   const decisions = all ? undefined : saved as Row[];
   const replay = await deriveJevProductPick(raw, part, rawSha256, all ? null : model,
     all ? null : async ({ sourceRank, productBaseId, picked }) => {
@@ -217,6 +211,84 @@ export async function replayJevProductPick(raw: unknown, part: Row, rawSha256: s
       return { choice: decision.choice, probabilities: decision.probabilities };
     }, check, selection);
   if ((all ? saved !== undefined && (saved as unknown[]).length !== 0 : next !== decisions!.length) ||
-      nextCheck !== (checks?.length ?? 0)) throw mismatch();
+      (savedChecks?.used() ?? 0) !== (checks?.length ?? 0)) throw mismatch();
+  return replay;
+}
+
+/** Replay reads the saved link verdicts in order; it never calls the collector (owner F640). */
+function savedCheckReplay(checks: readonly LinkCheckEntry[]) {
+  let nextCheck = 0;
+  const check = async ({ productBaseId, url }: { productBaseId: string; url: string }): Promise<LinkCheckDecision> => {
+    const entry = checks[nextCheck++];
+    if (!entry || entry.productBaseId !== productBaseId || entry.url !== url ||
+        (entry.result === 'rejected' && entry.reason === null)) throw new ProductPickError('PICK_PROOF_MISMATCH');
+    return entry.result === 'ok' ? { result: 'ok', starCounts: entry.starCounts }
+      : { result: 'rejected', reason: entry.reason as LinkRejectCode };
+  };
+  return { check, used: () => nextCheck };
+}
+
+/**
+ * Rule v3 (contract F656): the step-1 Shopee rows in step-1 order, with no duplicate filter. The same listing id
+ * twice is one link (the first is kept, the others are skipped silently); a dead link is skipped. Top N stops at N
+ * links; "all" stops after every Shopee row, at most 100. No Jev question, so the proof has no matcher or decisions.
+ * A request without productSelection is top 5, as for v2.
+ */
+export const MODULE_PICK_POLICY_V3 = 'metric-products-top-v3';
+export async function deriveTopProductPick(raw: unknown, part: Row, rawSha256: string, check: LinkCheck,
+    selection?: ProductSelection) {
+  const all = selection?.mode === 'all';
+  const limit = selectionLimit(selection);
+  const { rows, sourceMap } = rankedMetricProducts(raw, part);
+  const links: { rank: number; sourceRank: number; productBaseId: string; shopId: string; itemId: string; url: string;
+    productName: string; shopName: string | null; brand: string | null; revenue: number; reason: string }[] = [];
+  const skipped: { sourceRank: number; productBaseId: string | null; reason: string; duplicateOfRank: number | null }[] = [];
+  const listingIds = new Set<string>();
+  let unresolvedCount = 0, shopeeConsidered = 0;
+  for (const [i, row] of rows.entries()) {
+    if (!all && links.length === limit) break;
+    const sourceRank = i + 1, id = typeof row.product_base_id === 'string' ? row.product_base_id : null;
+    if (id && /^[238]__/.test(id)) continue;
+    const match = id && /^1__([1-9][0-9]{0,19})__([1-9][0-9]{0,19})$/.exec(id);
+    if (!match || (row.platform_id != null && row.platform_id !== 1) ||
+        (row.shop_base_id != null && String(row.shop_base_id) !== `1__${match[2]}` && String(row.shop_base_id) !== match[2])) {
+      unresolvedCount++;
+      skipped.push({ sourceRank, productBaseId: id, reason: 'PICK_LISTING_ID_UNRESOLVED', duplicateOfRank: null });
+      continue;
+    }
+    if (listingIds.has(id!)) continue;
+    // "All" counts every Shopee row it walked, dead links included, as for v2.
+    if (all && shopeeConsidered >= limit) break;
+    shopeeConsidered++;
+    listingIds.add(id!);
+    if (typeof row.product_name !== 'string' || !row.product_name.trim()) throw new ProductPickError('PICK_CANDIDATE_INVALID');
+    const url = `https://shopee.vn/product/${match[2]}/${match[1]}`;
+    const decision = await check({ productBaseId: id!, shopId: match[2]!, itemId: match[1]!, url });
+    if (decision.result === 'rejected') {
+      skipped.push({ sourceRank, productBaseId: id, reason: decision.reason, duplicateOfRank: null });
+      continue;
+    }
+    const brand = row.final_brand ?? row.brand;
+    links.push({ rank: links.length + 1, sourceRank, productBaseId: id!, itemId: match[1]!, shopId: match[2]!,
+      url, productName: row.product_name, shopName: typeof row.shop_name === 'string' ? row.shop_name : null,
+      brand: typeof brand === 'string' ? brand : null, revenue: Number(row.revenue_custom),
+      reason: `Hạng nguồn ${sourceRank}; sản phẩm Shopee theo thứ tự bước 1.` });
+  }
+  const shortageReason = (all ? links.length > 0 : links.length === limit) ? null : 'FEWER_PRODUCTS_THAN_REQUESTED';
+  return { links, pickRuleVersion: MODULE_PICK_POLICY_V3,
+    counts: { walked: rows.length, eligible: rows.filter(r => typeof r.product_base_id === 'string' && r.product_base_id.startsWith('1__')).length,
+      picked: links.length, deleted: 0, notIncluded: 0, tokenGuardRejected: 0, maskedRows: 0, maskedAboveLowestPick: 0 },
+    selectionProof: { sourceMap, rawSha256, windowId: (part.window as Row).id, sortBy: 'revenue_custom__desc',
+      candidateCount: rows.length, distinctCount: links.length, unresolvedCount, shortageReason, skipped,
+      ...(shortageReason ? { shortageDetail: { requested: selectionRequested(selection), found: links.length } } : {}),
+      ...(selection ? { productSelection: selection } : {}) } };
+}
+
+/** The v3 replay: the same walk with the saved link verdicts only; every saved verdict must be used. */
+export async function replayTopProductPick(raw: unknown, part: Row, rawSha256: string, checks: readonly LinkCheckEntry[],
+    selection?: ProductSelection) {
+  const saved = savedCheckReplay(checks);
+  const replay = await deriveTopProductPick(raw, part, rawSha256, saved.check, selection);
+  if (saved.used() !== checks.length) throw new ProductPickError('PICK_PROOF_MISMATCH');
   return replay;
 }

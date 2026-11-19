@@ -143,7 +143,8 @@
     ],
     "m2": [
       "links_match_source_order",
-      "requested_distinct_products"
+      "requested_distinct_products",
+      "requested_products"
     ],
     "m3": [
       "verdict_ok",

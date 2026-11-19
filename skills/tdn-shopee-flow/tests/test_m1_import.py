@@ -90,7 +90,7 @@ class M1ImportTest(unittest.TestCase):
         request = json.loads((run / 'request.json').read_text())
         self.assertEqual(request, {'format': 'request-v2', 'preset': {'keywords': ['synthetic term']},
                                    'windows': [WINDOW], 'collectionPolicy': FULL_POLICY, 'principalTitles': [],
-                                   'selectionPolicy': 'metric-products-unique-v2',
+                                   'selectionPolicy': 'metric-products-top-v3',
                                    'metricSource': {'format': 'user-page-v1', 'scope': SCOPE, 'importId': IMPORT_ID}})
         raw_path, part_path = run / 'm1/selected/raw-responses.json', run / 'm1/selected/manifest.json'
         raw = json.loads(raw_path.read_text())
