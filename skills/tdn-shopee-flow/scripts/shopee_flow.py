@@ -38,6 +38,9 @@ HOME = pathlib.Path.home()
 STATE = pathlib.Path(os.environ.get('SHOPEE_FLOW_STATE', str(HOME / '.local/state/tdn-growth-os'))).expanduser()
 TOOL = STATE / 'shopee-flow'
 MODULE_DATA = HOME / '.local/state/tdn-shopee-modules'
+APP_LATEST = MODULE_DATA / 'app-latest.json'   # {"version": "X.Y.Z"} of the newest desktop app; written at each release
+APP_LATEST_MAX_BYTES = 4096
+APP_SEMVER = re.compile(r'(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})')
 MODULE_PICK_POLICIES = ('metric-products-unique-v1', 'metric-products-unique-v2')   # M2 rules with a saved-source proof; new runs use v2
 RECOVERY = TOOL / 'recovery.json'
 CAP_ENV = 'TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT'
@@ -3416,8 +3419,26 @@ def cmd_run_view(ns):
         sys.exit(2)
 
 
+def flow_app_latest():
+    """The newest desktop app version, or None when no release was written. Read only; never a node call."""
+    try:
+        raw = APP_LATEST.read_bytes()
+    except FileNotFoundError:
+        return {'format': 'app-latest-v1', 'version': None}
+    if len(raw) > APP_LATEST_MAX_BYTES:
+        raise ValueError('app-latest too large')
+    value = json.loads(raw.decode('utf-8'))
+    if (not isinstance(value, dict) or set(value) != {'version'} or not isinstance(value['version'], str) or
+            not APP_SEMVER.fullmatch(value['version'])):
+        raise ValueError('app-latest invalid')
+    return {'format': 'app-latest-v1', 'version': value['version']}
+
+
 def cmd_flow_query(ns):
     try:
+        if ns.cmd == 'app-latest':
+            print(json.dumps(flow_app_latest()))
+            return
         if ns.cmd == 'connection':
             root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().absolute()
             try:
@@ -3499,7 +3520,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'run-view', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'review-insight-comments', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'run-view', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'review-insight-comments', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress', 'app-latest'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -3547,7 +3568,7 @@ def main():
         if name == 'review-attempt-worker':
             x.add_argument('--reconcile', action='store_true'); x.add_argument('--worker-lock-fd', type=int); x.add_argument('--worker-ready-fd', type=int)
         x.set_defaults(f=cmd_review_sampling)
-    for name in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'runs', 'runs-progress', 'run-info', 'capture-specs', 'outputs', 'library'):
+    for name in ('connection', 'app-latest', 'presets', 'add-product', 'new-run', 'm1-import', 'runs', 'runs-progress', 'run-info', 'capture-specs', 'outputs', 'library'):
         x = sp.add_parser(name)
         if name in ('new-run', 'add-product', 'm1-import'): x.add_argument('--stdin', action='store_true', required=True)
         if name in ('run-info', 'capture-specs', 'outputs'): x.add_argument('--run', dest='run_id', required=True)

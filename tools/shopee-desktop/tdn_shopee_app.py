@@ -70,15 +70,17 @@ _COMMANDS = {
     'runView': ('run-view', '--run'),
     'reviewInsightsSummary': ('review-insights', '--run'),
     'reviewInsightComments': ('review-insight-comments', '--run'),
+    # F654: the newest desktop app version the server knows of (notify only).
+    'appLatest': ('app-latest',),
 }
 # Commands an older server does not know: argparse exits 2 with nothing on stdout -> USAGE.
-_WAVE2_COMMANDS = frozenset({'runView', 'reviewInsightsSummary', 'reviewInsightComments'})
+_WAVE2_COMMANDS = frozenset({'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'appLatest'})
 # Commands that only read. Every other command (a write, start, save, delete, detached run, gate) moves the
 # mutation counter: a prefetch read started before it is never joined.
 _READ_ONLY_COMMANDS = frozenset({
     'connection', 'presets', 'runs', 'library', 'status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence',
     'metricDateAvailability', 'reviewSampling', 'reviewData', 'reviewStats', 'reviewInsights', 'reviewProcess',
-    'runsProgress', 'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'readReviewExport'})
+    'runsProgress', 'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'readReviewExport', 'appLatest'})
 _RUN_VIEW_PARTS = ('info', 'sampling', 'reviewData', 'outputs', 'process')
 _RUN_VIEW_RESULT_PARTS = ('stats', 'insights')
 # Step 4 formats (review-process-view-v1, review-process-start-v1, runs-progress-v1).
@@ -572,6 +574,29 @@ def _run_sort_path():
 
 
 RUN_SORTS = ('newest', 'oldest')
+_SEMVER = re.compile(r'(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})\.(0|[1-9][0-9]{0,5})')
+
+
+def _update_dismissed_path():
+    """The app version whose «Có bản mới» banner was closed, next to config.json."""
+    return _config_path().parent / 'app-update-dismissed.json'
+
+
+def _app_build():
+    """This app's own version: app-version.json baked in by the build (version + short git sha), or the VERSION
+    file when run from source. A missing or bad value is None (no label, no update check)."""
+    try:
+        if getattr(sys, 'frozen', False):
+            value = json.loads((Path(sys._MEIPASS) / 'app-version.json').read_text(encoding='utf-8'))
+        else:
+            value = {'version': (Path(__file__).resolve().parent / 'VERSION').read_text(encoding='utf-8').strip(),
+                     'commit': None}
+    except (OSError, ValueError):
+        value = {}
+    version = value.get('version') if isinstance(value, dict) else None
+    commit = value.get('commit') if isinstance(value, dict) else None
+    return {'version': version if isinstance(version, str) and _SEMVER.fullmatch(version) else None,
+            'commit': commit if isinstance(commit, str) and re.fullmatch(r'[0-9a-f]{4,40}', commit) else None}
 
 
 def _write_choice(path, value, prefix):
@@ -2510,6 +2535,51 @@ class Api:
             return {'ok': True, 'data': {'productSelection': value}}
         _write_choice(path, value, '.product-selection-')
         return {'ok': True, 'data': {'productSelection': value}}
+
+    # ---- F654: the app version, and the newest one on the server (notify only) ----
+
+    def appVersion(self):
+        return self._safe(self._app_version_view)
+
+    @staticmethod
+    def _app_version_view():
+        try:
+            dismissed = json.loads(_update_dismissed_path().read_text(encoding='utf-8'))
+        except (OSError, ValueError, _BridgeFailure):
+            dismissed = None
+        build = _app_build()
+        return {'ok': True, 'data': {'version': build['version'], 'commit': build['commit'],
+                                     'dismissed': dismissed if isinstance(dismissed, str) and
+                                     _SEMVER.fullmatch(dismissed) else None}}
+
+    def appLatest(self):
+        return self._safe(self._app_latest)
+
+    def _app_latest(self):
+        result = self._remote('appLatest')
+        if not result['ok']:
+            return result
+        data = result['data']
+        version = data.get('version')
+        if (set(data) != {'format', 'version'} or data['format'] != 'app-latest-v1' or
+                not (version is None or (isinstance(version, str) and _SEMVER.fullmatch(version)))):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return result
+
+    def dismissAppUpdate(self, version=None):
+        return self._safe(lambda: self._dismiss_app_update(version))
+
+    @staticmethod
+    def _dismiss_app_update(version):
+        """The banner of this version stays closed (a newer version shows it again). Best effort."""
+        if not isinstance(version, str) or not _SEMVER.fullmatch(version):
+            raise _BridgeFailure('ARG_INVALID')
+        try:
+            path = _update_dismissed_path()
+        except _BridgeFailure:
+            return {'ok': True, 'data': {'dismissed': version}}
+        _write_choice(path, version, '.app-update-')
+        return {'ok': True, 'data': {'dismissed': version}}
 
     def lastRunSort(self):
         return self._safe(self._last_run_sort)

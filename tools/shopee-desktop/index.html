@@ -338,6 +338,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 /* Plain-language surfaces: local errors, technical disclosures, progress and confirmation. */
 .local-error { margin: 0; }
 .errbar.stale-error { padding: 4px 10px; font-size: 12px; font-weight: 500; }
+.update-bar { display: flex; align-items: center; gap: 10px; background: var(--band); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px 4px 12px; font-size: 13px; }
+.update-bar[hidden] { display: none; }
+.update-bar span { flex: 1; }
+.update-bar button { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; cursor: pointer; }
+.app-ver { position: fixed; right: 8px; bottom: 4px; font-size: 11px; color: var(--muted); pointer-events: none; }
 .capture-spec-review { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .capture-spec-review > summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--accent); width: fit-content; }
 .capture-spec-review[open] > summary { padding-bottom: 4px; }
@@ -438,6 +443,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
   </header>
 
   <div class="errbar" id="errbar" role="alert" hidden></div>
+  <div class="update-bar" id="updateBar" role="status" hidden><span id="updateText"></span><button type="button" id="updateClose" aria-label="Đóng">×</button></div>
 
   <nav class="tabs" role="tablist" aria-label="Màn hình">
     <button type="button" role="tab" data-screen="new" aria-selected="true">Tạo lượt mới</button>
@@ -749,6 +755,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
 </dialog>
 
 <div class="notice-box" id="noticeBox"></div>
+<div class="app-ver" id="appVer"></div>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script>
@@ -3122,6 +3129,10 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       // F651: the bridge's disk copy of a run's view, and its background read of the visible settled rows.
       runViewCached: function (runId) { return callWave2('runViewCached', [runId]); },
       prefetchRunViews: function (rows) { return callWave2('prefetchRunViews', [rows]); },
+      // F654: the app's own version, the newest one on the server, and the closed banner's version.
+      appVersion: function () { return callWave2('appVersion', []); },
+      appLatest: function () { return callWave2('appLatest', []); },
+      dismissAppUpdate: function (version) { return callWave2('dismissAppUpdate', [version]); },
       reviewInsightsSummary: function (runId) { return callWave2('reviewInsightsSummary', [runId]); },
       reviewInsightComments: function (runId, bucket, theme) {
         return callWave2('reviewInsightComments', [runId, bucket, theme === undefined ? null : theme]);
@@ -8156,6 +8167,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
       if (state.info) renderDetail();
       scheduleHealthPoll();
       pollProgress();
+      startAppLatest();
     } else if (epoch === state.connectionEpoch) {
       scheduleReconnect();
     }
@@ -9830,8 +9842,67 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     });
   }
 
+  // ---- F654: the version label, and «Có bản mới» (notify only: nothing is downloaded) ----
+  var APP_LATEST_MS = 30 * 60 * 1000;
+  var app = { asked: null, own: null, dismissed: null, latest: null, timer: null };
+
+  function semver(value) {
+    var m = typeof value === 'string' ? /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/.exec(value) : null;
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  }
+
+  function newerVersion(a, b) {          // a > b, number by number (1.10.0 > 1.9.0)
+    var x = semver(a), y = semver(b);
+    if (!x || !y) return false;
+    for (var i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+    return false;
+  }
+
+  function loadAppVersion() {
+    if (!app.asked) {
+      app.asked = api.appVersion().then(function (res) {
+        var data = res && res.ok && res.data ? res.data : {};
+        app.own = semver(data.version) ? data.version : null;
+        app.dismissed = semver(data.dismissed) ? data.dismissed : null;
+        var label = $('appVer');
+        label.textContent = app.own ? 'v' + app.own : '';
+        label.title = app.own && typeof data.commit === 'string' ? data.commit : '';
+      });
+    }
+    return app.asked;
+  }
+
+  function renderUpdateBar() {
+    var show = !!app.latest && app.latest !== app.dismissed;
+    $('updateText').textContent = show ? 'Có bản mới ' + app.latest + '. Liên hệ để lấy file cài.' : '';
+    $('updateBar').hidden = !show;
+  }
+
+  // Any error (an older server or relay: USAGE; no release written: null) shows nothing.
+  async function checkAppLatest() {
+    await loadAppVersion();
+    if (!app.own) return;
+    var res = await api.appLatest();
+    var latest = res && res.ok && res.data ? res.data.version : null;
+    app.latest = newerVersion(latest, app.own) ? latest : null;
+    renderUpdateBar();
+  }
+
+  function startAppLatest() {           // after the first connect, then every 30 minutes
+    if (app.timer) return;
+    app.timer = setInterval(checkAppLatest, APP_LATEST_MS);
+    checkAppLatest();
+  }
+
   async function boot() {
     bindEvents();
+    loadAppVersion();
+    $('updateClose').addEventListener('click', function () {
+      if (!app.latest) return;
+      app.dismissed = app.latest;
+      renderUpdateBar();
+      api.dismissAppUpdate(app.latest);
+    });
     $('startDate').max = yesterdayIso();
     $('endDate').max = yesterdayIso();
     $('endDate').value = yesterdayIso();

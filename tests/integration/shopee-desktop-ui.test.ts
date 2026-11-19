@@ -111,6 +111,8 @@ function harness(options: {
   runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
   runViewCopyHold?: () => Promise<void> | undefined;   // the disk copy answers when this settles
   reviewDataError?: (runId: string) => any; // the review data read fails with this reply
+  appBuild?: { version: string | null; dismissed?: string | null };   // the bridge's appVersion (none: USAGE)
+  appLatestResult?: () => any;              // the bridge's appLatest reply (none: USAGE, an older server)
 } = {}) {
   const state: {
     addCalls: number; presetsCalls: number; newRunCalls: number; listRunsCalls: number;
@@ -156,6 +158,8 @@ function harness(options: {
     runViewJoins: boolean[];  // the `join` flag of each run-view call
     prefetchCalls: { runId: string; sig: string }[][];
     insightCommentCalls: { runId: string; bucket: string; theme: string | null }[];
+    appLatestCalls: number;
+    dismissCalls: string[];
   } = {
     addCalls: 0, presetsCalls: 0, newRunCalls: 0, listRunsCalls: 0, refreshCountCalls: 0, connectionCalls: 0,
     newRunInputs: [], flowCalls: [], statusCalls: [],
@@ -197,6 +201,8 @@ function harness(options: {
     runViewJoins: [],
     prefetchCalls: [],
     insightCommentCalls: [],
+    appLatestCalls: 0,
+    dismissCalls: [],
   };
   let runViewOut = 0;
   const planSha = () => (state.sampling.plans.length + 1).toString(16).padStart(64, '0');
@@ -347,6 +353,16 @@ function harness(options: {
       if (copyHeld) await copyHeld;
       const copy = options.runViewCopy ? options.runViewCopy(runId) : null;
       return { ok: true, data: copy ? clone(copy) : null };
+    },
+    appVersion: async () => (options.appBuild ? { ok: true, data: { commit: 'abc1234', dismissed: null, ...options.appBuild } }
+      : { ok: false, error: { code: 'USAGE', message: 'USAGE' } }),
+    appLatest: async () => {
+      state.appLatestCalls += 1;
+      return options.appLatestResult ? clone(options.appLatestResult()) : { ok: false, error: { code: 'USAGE', message: 'USAGE' } };
+    },
+    dismissAppUpdate: async (version: string) => {
+      state.dismissCalls.push(version);
+      return { ok: true, data: { dismissed: version } };
     },
     prefetchRunViews: async (rows: { runId: string; sig: string }[]) => {
       state.prefetchCalls.push(clone(rows));
@@ -5479,4 +5495,50 @@ test('an old run opens from its disk copy at once, the fresh read replaces it, a
     assert.deepEqual(draws, [false], '9: one redraw, with delete back');
     assert.ok(!outputs(run.doc).includes(copyName), '9: no part from the copy');
   } finally { hold?.resolve(); infoHold?.resolve(); run.dom.window.close(); }
+});
+
+// F654: «Có bản mới» (notify only), checked after the connect.
+// | own   | server says (app-latest)                  | closed before | shown                                      |
+// |-------|-------------------------------------------|---------------|--------------------------------------------|
+// | 1.9.0 | 1.10.0                                    | -             | «v1.9.0»; «Có bản mới 1.10.0. Liên hệ …» |
+// | 1.9.0 | 1.10.0, × clicked                         | -             | gone; the bridge keeps 1.10.0              |
+// | 1.9.0 | 1.10.0                                    | 1.10.0        | nothing                                    |
+// | 1.9.0 | 1.11.0                                    | 1.10.0        | the banner (closing hides one version)     |
+// | 1.10.0| 1.10.0 (equal) / 1.9.0 / null             | -             | nothing                                    |
+// | 1.9.0 | USAGE (older server or relay) / SSH_FAILED | -             | nothing, and no error line                 |
+test('a newer app version on the server shows one banner, closed per version; anything else shows nothing', async () => {
+  const bar = (doc: Document) => (doc.getElementById('updateBar')!.hidden ? null : doc.getElementById('updateText')!.textContent);
+  const shown = async (build: { version: string; dismissed?: string | null }, reply: (() => any) | undefined) => {
+    const run = harness({ appBuild: build, ...(reply ? { appLatestResult: reply } : {}) });
+    await booted(run.doc);
+    await waitFor(() => run.state.appLatestCalls > 0, 'the check after the connect');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    return run;
+  };
+  const latest = (version: string | null) => () => ({ ok: true, data: { format: 'app-latest-v1', version } });
+
+  let run = await shown({ version: '1.9.0' }, latest('1.10.0'));
+  try {
+    assert.equal(run.doc.getElementById('appVer')!.textContent, 'v1.9.0');
+    assert.equal(bar(run.doc), 'Có bản mới 1.10.0. Liên hệ để lấy file cài.');
+    run.doc.getElementById('updateClose')!.click();
+    assert.equal(bar(run.doc), null, 'closed');
+    await waitFor(() => run.state.dismissCalls.join(' ') === '1.10.0', 'the bridge keeps the closed version');
+  } finally { run.dom.window.close(); }
+
+  for (const [build, reply, expected] of [
+    [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.10.0'), null],
+    [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.11.0'), 'Có bản mới 1.11.0. Liên hệ để lấy file cài.'],
+    [{ version: '1.10.0' }, latest('1.10.0'), null],
+    [{ version: '1.10.0' }, latest('1.9.0'), null],
+    [{ version: '1.10.0' }, latest(null), null],
+    [{ version: '1.9.0' }, undefined, null],
+    [{ version: '1.9.0' }, () => ({ ok: false, error: { code: 'SSH_FAILED', message: 'SSH_FAILED' } }), null],
+  ] as const) {
+    run = await shown(build, reply);
+    try {
+      assert.equal(bar(run.doc), expected, JSON.stringify(build) + ' ' + JSON.stringify(reply && reply()));
+      assert.equal(run.doc.getElementById('errbar')!.hidden, true, 'no error line');
+    } finally { run.dom.window.close(); }
+  }
 });

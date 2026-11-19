@@ -140,14 +140,16 @@ class RunViewBridgeTest(unittest.TestCase):
 
 class OlderServerTest(unittest.TestCase):
     def test_an_unknown_command_is_usage(self):
-        """An older server's argparse exits 2 with nothing on stdout: run-view answers USAGE (the page falls back)."""
+        """An older server's argparse exits 2 with nothing on stdout: run-view and app-latest answer USAGE (the page
+        falls back / shows no update banner)."""
         api = tdn_shopee_app.Api()
         config = {'timeoutSeconds': 30}
         done = subprocess.CompletedProcess([], 2, stdout=b'', stderr=b'usage: ...')
         with mock.patch.object(tdn_shopee_app.subprocess, 'run', return_value=done):
-            with self.assertRaises(tdn_shopee_app._BridgeFailure) as raised:
-                api._invoke('runView', config, [], ['ssh'])
-            self.assertEqual(raised.exception.code, 'USAGE')
+            for action in ('runView', 'appLatest'):
+                with self.assertRaises(tdn_shopee_app._BridgeFailure) as raised:
+                    api._invoke(action, config, [], ['ssh'])
+                self.assertEqual(raised.exception.code, 'USAGE', action)
             with self.assertRaises(tdn_shopee_app._BridgeFailure) as raised:
                 api._invoke('reviewData', config, [], ['ssh'])     # an old command keeps its rule
             self.assertEqual(raised.exception.code, 'REMOTE_OUTPUT_INVALID')
