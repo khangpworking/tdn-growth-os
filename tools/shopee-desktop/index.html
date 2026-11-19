@@ -3161,7 +3161,7 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     runViewInFlight: {},      // runId -> { promise, withResult, viewSeq } of the run-view read on its way (loadInfo)
     runViewAgain: {},         // runId -> { promise, resolve } of the one follow-up read asked while it was out
     runViewSent: {},          // runId -> run-view calls started
-    runViewApplied: {},       // runId -> part -> the newest started run-view that gave that part in a success
+    runViewPartSeq: {},       // runId -> part -> the run-view seq of that part's newest applied valid answer
     renderHold: 0,            // > 0 while one run-view answer is applied: its renders become one
     renderWanted: null,       // 'detail' or 'result' asked during the hold
     runViewProbe: null,       // { promise, settle } while the first run-view of this connection is unanswered
@@ -7594,14 +7594,11 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }).then(function (info) { return info || null; });
   }
 
-  // One run-view call (--result on «Kết quả chạy»). Only a real combined answer feeds the loaders a `pending`
-  // part; USAGE switches to the single calls for this session (until the next connect). A transport failure keeps
-  // the last good copy of every part and shows its error line; it is never counted as applied. An older answer
-  // still fills the parts no newer SUCCESS gave (the track read after a failed --result follow-up fills them all;
-  // after a good one, none). Resolves with the info part's reply (none on the single-call path).
+  // One run-view call (--result on «Kết quả chạy»). USAGE switches to the single calls for this session (until
+  // the next connect); every other answer goes to applyRunViewAnswer. Resolves with the info part's reply (none
+  // on the single-call path).
   async function runViewRefresh(runId) {
-    var seq = (state.infoSeq[runId] || 0) + 1;
-    state.infoSeq[runId] = seq;
+    state.infoSeq[runId] = (state.infoSeq[runId] || 0) + 1;     // a single-call status still out is now older
     var viewSeq = (state.runViewSent[runId] || 0) + 1;
     state.runViewSent[runId] = viewSeq;
     var withResult = state.screen === 'result';
@@ -7617,61 +7614,104 @@ dialog::backdrop { background: rgba(15, 24, 28, .5); }
     }
     if (isGone(runId)) return;   // a late reply for a deleted run
     if (usage) return loadInfoSingles(runId);
-    var reply = function (name) {
-      if (!res.ok) return Promise.resolve(res);     // the info error is the command error: every part gets it
-      var part = res.data && res.data.parts ? res.data.parts[name] : null;
-      return Promise.resolve(part && typeof part === 'object' && 'ok' in part ? part
-        : { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } });
+    return applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
+  }
+
+  var RUN_VIEW_INVALID = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
+
+  // Each run-view part: its check, the map of its error mark, and its loader (which writes the part's state).
+  function runViewPartRules(runId) {
+    var data = function (part) { return part.ok === true && !!part.data && typeof part.data === 'object'; };
+    return {
+      info: { valid: function (part) { return data(part) && Array.isArray(part.data.modules); } },
+      sampling: { valid: data, errors: state.samplingErrors, task: 'sampling', seqMap: state.samplingSeq, load: loadSampling },
+      reviewData: { valid: data, errors: state.reviewDataErrors, task: 'data', seqMap: state.reviewDataSeq, load: loadReviewData },
+      outputs: { valid: function (part) {
+        return data(part) && part.data.format === 'module-outputs-v1' && part.data.runId === runId &&
+          !!part.data.m1 && typeof part.data.m1 === 'object' && !!part.data.m2 && typeof part.data.m2 === 'object';
+      }, errors: state.moduleOutputsErrors, task: 'outputs', seqMap: state.moduleOutputsSeq, load: loadModuleOutputsView },
+      process: { valid: function (part) {
+        return data(part) && part.data.format === 'review-process-view-v1' && part.data.runId === runId &&
+          Array.isArray(part.data.sources);
+      }, errors: state.reviewProcessErrors, task: 'process', seqMap: state.reviewProcessSeq, load: loadReviewProcess },
+      stats: { valid: function (part) {
+        return data(part) && part.data.format === 'review-stats-v1' && part.data.runId === runId &&
+          Array.isArray(part.data.sources);
+      }, errors: state.reviewStatsErrors, task: 'stats', seqMap: state.reviewStatsSeq, load: loadReviewStats },
+      insights: { valid: function (part) {
+        return data(part) && (part.data.format === 'review-insights-v1' || part.data.format === 'review-insights-v2') &&
+          part.data.runId === runId && typeof part.data.codebookVersion === 'string' && Array.isArray(part.data.sources);
+      }, errors: state.reviewInsightsErrors, task: 'insights', seqMap: state.reviewInsightsSeq, load: loadReviewInsights }
     };
-    if (!res.ok && isTransportError(res.error)) {    // never counts as applied: the last copies stay
-      if (state.selectedRunId === runId && seq === state.infoSeq[runId]) {
+  }
+
+  // THE one path that writes the open run's parts from a run-view answer. A part is applied only when it is
+  // present, passes its check and comes from a read newer than the one that last applied that part
+  // (runViewPartSeq); then its seq is kept. Anything else (a part error, a failed call of any kind, an envelope
+  // that fails its check, an older read) never clears or overwrites a part: it only sets the error mark of that
+  // part, or of the call (the error line). RUN_NOT_FOUND still makes the run gone. One redraw at the end.
+  async function applyRunViewAnswer(runId, seq, answer) {
+    var res = answer.reply;
+    var callError = !res.ok ? res.error
+      : !res.data || res.data.format !== 'run-view-v1' || !res.data.parts || typeof res.data.parts !== 'object'
+        ? RUN_VIEW_INVALID : null;
+    var partOf = function (name) {
+      if (callError) return { ok: false, error: callError };
+      var part = res.data.parts[name];
+      return part && typeof part === 'object' && 'ok' in part ? part : { ok: false, error: RUN_VIEW_INVALID };
+    };
+    var info = partOf('info');
+    if (!info.ok && errorCode(info.error) === 'RUN_NOT_FOUND') {
+      if (!isGone(runId)) runGone(runId);
+      return info;
+    }
+    var partSeq = state.runViewPartSeq[runId] || (state.runViewPartSeq[runId] = {});
+    var rules = runViewPartRules(runId);
+    var selected = state.selectedRunId === runId;
+    var applied = [];
+    var shot = null;
+    state.renderHold += 1;                            // every part of this answer: one redraw for all
+    try {
+      answer.kinds.forEach(function (name) {
+        var rule = rules[name];
+        var part = partOf(name);
+        var newer = seq > (partSeq[name] || 0);
+        if (name === 'outputs') shot = loadLocalShot(runId);   // a local file lookup, not a part: it may answer later
+        if (part.ok && rule.valid(part) && newer) {
+          partSeq[name] = seq;
+          if (name === 'info') {
+            state.infoByRun[runId] = part.data;
+            if (selected) {
+              state.loadingRunId = null;
+              state.info = part.data;
+              renderDetail();
+              managePoll();
+            }
+            return;
+          }
+          applied.push(trackLoad(rule.task, runId, rule.seqMap, function () {
+            return rule.load(runId, Promise.resolve(part));
+          }));
+          return;
+        }
+        if (!newer || callError) return;              // an older read, or the call's own mark below
+        if (name === 'info') {
+          if (selected) showError(part.ok ? RUN_VIEW_INVALID : part.error);
+        } else {
+          rule.errors[runId] = part.ok ? RUN_VIEW_INVALID : part.error;
+        }
+      });
+      if (callError && selected && seq >= (partSeq.info || 0)) showError(callError);
+      if (selected) {
         state.loadingRunId = null;
-        showError(res.error);
         if (!state.info && state.infoByRun[runId]) state.info = state.infoByRun[runId];
         renderDetail();
       }
-      return res;
-    }
-    var applied = [];
-    var loaders = {
-      info: ['info', state.infoSeq, function () { return runStatus(runId, reply('info')); }],
-      sampling: ['sampling', state.samplingSeq, function () { return loadSampling(runId, reply('sampling')); }],
-      reviewData: ['data', state.reviewDataSeq, function () { return loadReviewData(runId, reply('reviewData')); }],
-      outputs: ['outputs', state.moduleOutputsSeq, function () {
-        var shot = loadLocalShot(runId);           // a local file lookup: it may answer after the parts
-        var view = loadModuleOutputsView(runId, reply('outputs'));
-        applied.push(view);
-        return view.then(function () { return shot; });
-      }],
-      process: ['process', state.reviewProcessSeq, function () { return loadReviewProcess(runId, reply('process')); }],
-      stats: ['stats', state.reviewStatsSeq, function () { return loadReviewStats(runId, reply('stats')); }],
-      insights: ['insights', state.reviewInsightsSeq, function () { return loadReviewInsights(runId, reply('insights')); }]
-    };
-    // Each part takes this answer unless a NEWER successful answer already gave it that part; only a success
-    // counts as applied (a command error still shows on the parts it reaches).
-    var partApplied = state.runViewApplied[runId] || (state.runViewApplied[runId] = {});
-    kinds = kinds.filter(function (name) { return (partApplied[name] || 0) < viewSeq; });
-    if (res.ok) kinds.forEach(function (name) { partApplied[name] = viewSeq; });
-    var started = [];
-    var info = reply('info');
-    state.renderHold += 1;                            // every part of this answer applied: one redraw for all
-    try {
-      kinds.forEach(function (name) {
-        var loader = loaders[name];
-        var promise = trackLoad(loader[0], runId, loader[1], loader[2]);
-        if (name !== 'outputs') applied.push(promise);
-        started.push(promise);
-        if (name === 'info') {
-          info = promise;
-          applied.push(promise.then(function (status) { applyInfo(runId, state.infoSeq[runId], status); }));
-        }
-      });
-      info = await info;
       await Promise.all(applied);
     } finally {
       releaseRenders();
     }
-    await Promise.all(started);                       // every part applied before a caller reads the state
+    if (shot) await shot;                             // every part applied before a caller reads the state
     return info;
   }
 

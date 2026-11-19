@@ -4924,6 +4924,10 @@ test('a read asked while a run-view is out is answered by the follow-up', async 
 // | 3 | a run-view fails on the way (SSH_TIMEOUT)                                       | the open run keeps its last copy and shows |
 // |   |                                                                                 | the error line                             |
 // | 4 | the --result read fails (SSH_TIMEOUT) BEFORE the first read of the run answers  | that first read's answer still shows       |
+// | 5 | the --result read answers good info but an outputs error BEFORE the first read  | the first read's outputs show              |
+// |   | (good outputs) answers                                                          |                                            |
+// | 6 | a run-view fails with a non-transport error (REMOTE_OUTPUT_INVALID) after a     | the run detail stays; the error line shows |
+// |   | good open                                                                       |                                            |
 test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal comments, redraws once and survives failures', async () => {
   const runId = 'run-w3';
   const sha = 'e'.repeat(64);
@@ -5135,4 +5139,46 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
     await waitFor(() => /Kết quả các bước/.test(run.doc.getElementById('runDetail')?.textContent || ''),
       '4: the first read shows');
   } finally { release(); holdTrackOnly = false; run.dom.window.close(); }
+
+  // 5
+  let outputsFail = false;
+  listed = false;
+  run = base({
+    listRunsReply: async () => (listed ? undefined : { ok: true, data: { format: 'runs-v1', runs: [] } }),
+    moduleOutputsResult: (id: string) => (outputsFail
+      ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } }
+      : { ok: true, data: moduleOutputView(id) }),
+  });
+  try {
+    await booted(run.doc);
+    hold = deferred<void>();
+    holdTrackOnly = true;
+    listed = true;
+    tab(run.doc, 1);                                      // the first read of the run, held (its outputs are good)
+    await waitFor(() => run.state.runViewCalls.length >= 1, '5: the first read out');
+    outputsFail = true;
+    tab(run.doc, 2);                                      // the --result read: info good, outputs an error
+    await waitFor(() => run.state.runViewCalls.some((call) => call.result), '5: the --result read out');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    release();
+    await waitFor(() => run.doc.getElementById('moduleOutputsErr') === null &&
+      !/Đang tải/.test(run.doc.getElementById('moduleOutputsPanel')?.textContent || 'Đang tải'), '5: the outputs show');
+  } finally { release(); holdTrackOnly = false; run.dom.window.close(); }
+
+  // 6
+  failing = false;
+  run = base({ statusError: () => (failing
+    ? { ok: false, error: { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } } : undefined) });
+  try {
+    await booted(run.doc);
+    tab(run.doc, 1);
+    await waitFor(() => /Kết quả các bước/.test(run.doc.getElementById('runDetail')?.textContent || ''), '6: open');
+    const views = run.state.runViewCalls.length;
+    failing = true;
+    runListButton(run.doc, runId).click();
+    await waitFor(() => run.state.runViewCalls.length >= views + 1 && element(run.doc, 'errbar').title === 'REMOTE_OUTPUT_INVALID',
+      '6: the error line');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.match(run.doc.getElementById('runDetail')?.textContent || '', /Kết quả các bước/, '6: the detail stays');
+  } finally { run.dom.window.close(); }
 });
