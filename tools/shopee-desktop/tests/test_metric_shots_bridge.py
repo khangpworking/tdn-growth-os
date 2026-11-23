@@ -16,6 +16,10 @@ import tdn_shopee_app as app
 RUN_ID = 'run-synthetic'
 DELETE_AFTER = '2099-01-11T00:00:00Z'
 PICTURE = b'synthetic picture bytes'
+OLD_DIGEST = 'b' * 64       # an old run's server full-page.png
+OLD_OUTPUTS = {'ok': True, 'data': {'format': 'module-outputs-v1', 'runId': RUN_ID, 'm1': {'evidence': {'fullPage': {
+    'available': True, 'kind': 'full-page', 'sha256': OLD_DIGEST, 'byteSize': 4, 'mediaType': 'image/png',
+    'fileName': 'full-page.png', 'errorCode': None}}}}}
 
 
 def signed_url(extension='webp', token='synthetic'):
@@ -70,6 +74,21 @@ class MetricShotBridgeTest(unittest.TestCase):
         path = self.shots / f'{RUN_ID}-metric-full-page.{extension}'
         path.write_bytes(PICTURE)
         return path
+
+    def relay(self, view):
+        """The relay answers ``view`` (or raises it) for the online copy and the old picture's descriptor for the
+        outputs. Returns the list of relay actions, in order."""
+        actions = []
+
+        def answer(action, **_):
+            actions.append(action)
+            if action == 'moduleOutputs':
+                return OLD_OUTPUTS
+            if isinstance(view, Exception):
+                raise view
+            return view
+        self.remote.side_effect = answer
+        return actions
 
     def test_upload_metric_shot_contract(self):
         digest = hashlib.sha256(PICTURE).hexdigest()
@@ -336,6 +355,31 @@ class MetricShotBridgeTest(unittest.TestCase):
                 self.assertEqual(self.api.viewMetricShot(RUN_ID), {'ok': True, 'data': expected})
         self.assertEqual(list(self.root.rglob('*')), [self.root / 'evidence', self.shots])
         self.http.assert_not_called()
+        # The page sends an old run's full-page.png digest with every click: local, then online, then the old picture.
+        opened, streamed = [], []
+        self.enterContext(mock.patch.object(app, '_evidence_folder', return_value=self.root / 'opened'))
+        self.enterContext(mock.patch.object(app, '_open_local_file', side_effect=opened.append))
+        self.enterContext(mock.patch.object(self.api, '_stream_export',
+            side_effect=lambda run_id, digest, size, destination, **_: streamed.append(digest) or destination))
+        for label, view in (('local', None), ('online', online()), ('expired', online('EXPIRED')),
+                            ('not uploaded', online('NOT_UPLOADED')), ('server cannot answer', app._BridgeFailure('SSH_TIMEOUT'))):
+            with self.subTest(old_evidence=label):
+                path = self.local() if label == 'local' else None
+                actions = self.relay(view)
+                opened.clear()
+                streamed.clear()
+                result = self.api.viewMetricShot(RUN_ID, OLD_DIGEST)
+                if label in ('local', 'online'):
+                    self.assertEqual(result['data'].get('state'), 'LOCAL' if path else 'AVAILABLE', result)
+                    self.assertEqual(result['data']['src'][:5], 'data:' if path else 'https')
+                    self.assertEqual((actions, streamed, opened), ([] if path else ['metricShotViewUrl'], [], []))
+                else:
+                    self.assertEqual(result, {'ok': True, 'data': dict(format='module-evidence-open-v1', runId=RUN_ID,
+                        kind='full-page', sha256=OLD_DIGEST, opened=True)})
+                    self.assertEqual((actions, streamed, opened), (['metricShotViewUrl', 'moduleOutputs'], [OLD_DIGEST],
+                                                                   [self.root / 'opened' / 'full-page.png']))
+                if path:
+                    path.unlink()
 
     def test_save_metric_shot_online_contract(self):
         out = self.root / 'chosen'
@@ -353,9 +397,9 @@ class MetricShotBridgeTest(unittest.TestCase):
                 self.http.return_value = io.BytesIO(payload)
                 with mock.patch.object(app, '_choose_save_path', return_value=str(destination)) as dialog, \
                         mock.patch.object(app, '_downloads_folder', return_value=str(out)):
-                    result = self.api.saveMetricShot(RUN_ID, 'Synthetic picture', None, online=True)
-                self.assertEqual(dialog.call_args.args[0], f'Synthetic picture-{RUN_ID}.{extension}')
+                    result = self.api.saveMetricShot(RUN_ID, 'Synthetic picture', OLD_DIGEST, online=True)   # online wins
                 self.http.assert_called_with(fresh_url, timeout=60)
+                self.assertEqual(dialog.call_args.args[0], f'Synthetic picture-{RUN_ID}.{extension}')
                 if payload == PICTURE:
                     self.assertEqual(result, {'ok': True, 'data': dict(format='metric-shot-save-v1',
                         runId=RUN_ID, saved=True, cancelled=False, fileName=destination.name)})
@@ -366,3 +410,19 @@ class MetricShotBridgeTest(unittest.TestCase):
                     self.assertEqual(destination.read_bytes(), b'existing user file')
                 self.assertEqual(list(out.glob('*.part')), [])
                 destination.unlink()
+        streamed = []
+        self.enterContext(mock.patch.object(self.api, '_stream_export',
+            side_effect=lambda run_id, digest, size, destination, **_: streamed.append((digest, destination))))
+        destination = out / 'old.png'
+        for label, view in (('expired', online('EXPIRED')), ('not uploaded', online('NOT_UPLOADED')),
+                            ('server cannot answer', app._BridgeFailure('SSH_TIMEOUT'))):
+            with self.subTest(old_evidence=label):
+                actions = self.relay(view)
+                streamed.clear()
+                self.http.reset_mock()
+                with mock.patch.object(app, '_choose_save_path', return_value=str(destination)),                         mock.patch.object(app, '_downloads_folder', return_value=str(out)):
+                    result = self.api.saveMetricShot(RUN_ID, 'Synthetic picture', OLD_DIGEST, online=True)
+                self.assertEqual(result, {'ok': True, 'data': dict(format='metric-shot-save-v1', runId=RUN_ID,
+                    saved=True, cancelled=False, fileName='old.png')})
+                self.assertEqual((actions, streamed), (['metricShotViewUrl', 'moduleOutputs'], [(OLD_DIGEST, destination)]))
+                self.http.assert_not_called()
