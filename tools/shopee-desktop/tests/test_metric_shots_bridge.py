@@ -20,6 +20,10 @@ OLD_DIGEST = 'b' * 64       # an old run's server full-page.png
 OLD_OUTPUTS = {'ok': True, 'data': {'format': 'module-outputs-v1', 'runId': RUN_ID, 'm1': {'evidence': {'fullPage': {
     'available': True, 'kind': 'full-page', 'sha256': OLD_DIGEST, 'byteSize': 4, 'mediaType': 'image/png',
     'fileName': 'full-page.png', 'errorCode': None}}}}}
+NO_OLD_OUTPUTS = {'ok': True, 'data': {'format': 'module-outputs-v1', 'runId': RUN_ID, 'm1': {'evidence': {'fullPage': {
+    'available': False, 'kind': 'full-page', 'sha256': None, 'byteSize': None, 'mediaType': None,
+    'fileName': 'full-page.png', 'errorCode': 'EVIDENCE_FILES_MISSING'}}}}}     # a run with no server full-page.png
+OUTPUTS_FAIL = {'ok': False, 'error': {'code': 'SSH_TIMEOUT', 'message': 'SSH_TIMEOUT'}}
 
 
 def signed_url(extension='webp', token='synthetic'):
@@ -75,18 +79,17 @@ class MetricShotBridgeTest(unittest.TestCase):
         path.write_bytes(PICTURE)
         return path
 
-    def relay(self, view):
-        """The relay answers ``view`` (or raises it) for the online copy and the old picture's descriptor for the
-        outputs. Returns the list of relay actions, in order."""
+    def relay(self, view, outputs=OLD_OUTPUTS):
+        """The relay answers ``view`` for the online copy and ``outputs`` (default: the old picture's descriptor)
+        for the step results; an exception is raised. Returns the list of relay actions, in order."""
         actions = []
 
         def answer(action, **_):
             actions.append(action)
-            if action == 'moduleOutputs':
-                return OLD_OUTPUTS
-            if isinstance(view, Exception):
-                raise view
-            return view
+            reply = outputs if action == 'moduleOutputs' else view
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
         self.remote.side_effect = answer
         return actions
 
@@ -343,10 +346,9 @@ class MetricShotBridgeTest(unittest.TestCase):
                 self.assertEqual({str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}, before)
                 self.remote.assert_not_called()
                 path.unlink()
-        self.remote.side_effect = None
         for server_state in ('AVAILABLE', 'EXPIRED', 'NOT_UPLOADED'):
             with self.subTest(remote=server_state):
-                self.remote.return_value = online(server_state)
+                self.relay(online(server_state), NO_OLD_OUTPUTS)     # a run with no old server picture
                 expected = dict(format='metric-shot-open-v1', runId=RUN_ID, state=server_state)
                 if server_state != 'NOT_UPLOADED':
                     expected['deleteAfter'] = DELETE_AFTER
@@ -380,6 +382,20 @@ class MetricShotBridgeTest(unittest.TestCase):
                                                                    [self.root / 'opened' / 'full-page.png']))
                 if path:
                     path.unlink()
+        # No digest (the page's step results are loading or failed): the bridge looks for the old picture itself.
+        for label, outputs in (('found', OLD_OUTPUTS), ('outputs read fails', OUTPUTS_FAIL)):
+            with self.subTest(old_evidence_without_digest=label):
+                self.relay(online('NOT_UPLOADED'), outputs)
+                opened.clear()
+                streamed.clear()
+                result = self.api.viewMetricShot(RUN_ID)
+                if outputs is OLD_OUTPUTS:
+                    self.assertEqual(result, {'ok': True, 'data': dict(format='module-evidence-open-v1', runId=RUN_ID,
+                        kind='full-page', sha256=OLD_DIGEST, opened=True)})
+                    self.assertEqual((streamed, opened), ([OLD_DIGEST], [self.root / 'opened' / 'full-page.png']))
+                else:
+                    self.assertEqual(result, app._error('SSH_TIMEOUT'), 'the read error, never «không có ảnh»')
+                    self.assertEqual((streamed, opened), ([], []))
 
     def test_save_metric_shot_online_contract(self):
         out = self.root / 'chosen'
@@ -415,7 +431,8 @@ class MetricShotBridgeTest(unittest.TestCase):
             side_effect=lambda run_id, digest, size, destination, **_: streamed.append((digest, destination))))
         destination = out / 'old.png'
         for label, view in (('expired', online('EXPIRED')), ('not uploaded', online('NOT_UPLOADED')),
-                            ('server cannot answer', app._BridgeFailure('SSH_TIMEOUT'))):
+                            ('server cannot answer', app._BridgeFailure('SSH_TIMEOUT')),
+                            ('server answer invalid', {'ok': True, 'data': {'format': 'unexpected', 'runId': RUN_ID}})):
             with self.subTest(old_evidence=label):
                 actions = self.relay(view)
                 streamed.clear()
@@ -425,4 +442,21 @@ class MetricShotBridgeTest(unittest.TestCase):
                 self.assertEqual(result, {'ok': True, 'data': dict(format='metric-shot-save-v1', runId=RUN_ID,
                     saved=True, cancelled=False, fileName='old.png')})
                 self.assertEqual((actions, streamed), (['metricShotViewUrl', 'moduleOutputs'], [(OLD_DIGEST, destination)]))
+                self.http.assert_not_called()
+        # No digest (the page's step results are loading or failed): the bridge looks for the old picture itself.
+        for label, outputs, expected in (('found', OLD_OUTPUTS, None), ('outputs read fails', OUTPUTS_FAIL, 'SSH_TIMEOUT'),
+                                         ('none', NO_OLD_OUTPUTS, 'METRIC_SHOT_NOT_UPLOADED')):
+            with self.subTest(old_evidence_without_digest=label):
+                self.relay(online('NOT_UPLOADED'), outputs)
+                streamed.clear()
+                with mock.patch.object(app, '_choose_save_path', return_value=str(destination)), \
+                        mock.patch.object(app, '_downloads_folder', return_value=str(out)):
+                    result = self.api.saveMetricShot(RUN_ID, 'Synthetic picture', None, online=True)
+                if expected is None:
+                    self.assertEqual(result, {'ok': True, 'data': dict(format='metric-shot-save-v1', runId=RUN_ID,
+                        saved=True, cancelled=False, fileName='old.png')})
+                    self.assertEqual(streamed, [(OLD_DIGEST, destination)])
+                else:
+                    self.assertEqual(result, app._error(expected))
+                    self.assertEqual(streamed, [])
                 self.http.assert_not_called()

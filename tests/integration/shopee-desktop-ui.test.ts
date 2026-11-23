@@ -3871,6 +3871,7 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
 
 // The actions do not wait for the step results: shown while they load or after they fail, whenever there is
 // a picture here or the app is connected (the upload may finish after the opening read said NOT_UPLOADED).
+// An old run (server full-page.png, no online copy) opens its old picture through the bridge, never «không có ảnh».
 test('the Metric picture actions stay reachable while the step results load or fail', async () => {
   const cases = [
     { label: 'local picture, outputs failed', local: true, outputs: 'failed', opens: 'LOCAL',
@@ -3879,6 +3880,8 @@ test('the Metric picture actions stay reachable while the step results load or f
       src: 'https://synthetic.invalid/uploaded.webp' },
     { label: 'connected, outputs loading', local: false, outputs: 'loading', opens: 'AVAILABLE',
       src: 'https://synthetic.invalid/uploaded.webp' },
+    { label: 'old picture, outputs failed', local: false, outputs: 'failed', opens: 'OLD', src: null },
+    { label: 'old picture, outputs loading', local: false, outputs: 'loading', opens: 'OLD', src: null },
   ] as const;
   for (const item of cases) {
     const held = deferred<unknown>();
@@ -3888,8 +3891,10 @@ test('the Metric picture actions stay reachable while the step results load or f
       localShots: { 'run-synthetic': item.local }, oldServer: item.outputs === 'loading',
       metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
         local: item.local, uploading: false, state: item.local ? null : 'NOT_UPLOADED' } }),
-      viewShotResult: (runId) => ({ ok: true, data: { format: 'metric-shot-open-v1', runId, state: item.opens,
-        src: item.src, deleteAfter: '2099-01-11T00:00:00Z' } }),
+      viewShotResult: (runId) => (item.opens === 'OLD'      // what the bridge answers after it opened the old picture
+        ? { ok: true, data: { format: 'module-evidence-open-v1', runId, kind: 'full-page', sha256: 'a'.repeat(64), opened: true } }
+        : { ok: true, data: { format: 'metric-shot-open-v1', runId, state: item.opens, src: item.src,
+          deleteAfter: '2099-01-11T00:00:00Z' } }),
       moduleOutputsResult: (runId) => (runId === 'run-other' ? { ok: true, data: moduleOutputView(runId) }
         : item.outputs === 'loading' ? held.promise : { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } }),
     });
@@ -3903,8 +3908,16 @@ test('the Metric picture actions stay reachable while the step results load or f
         assert.equal(element<HTMLButtonElement>(run.doc, id).disabled, false, item.label + ': ' + id + ' enabled');
       }
       element<HTMLButtonElement>(run.doc, 'moM1FullPage').click();
-      await waitFor(() => element<HTMLDialogElement>(run.doc, 'shotDialog').open, item.label + ': picture opened');
-      assert.equal(element<HTMLImageElement>(run.doc, 'shotImg').getAttribute('src'), item.src, item.label);
+      if (item.src === null) {
+        await waitFor(() => run.state.viewShotCalls.length === 1 &&
+          run.doc.getElementById('moM1FullPage')?.textContent === 'Xem ảnh Metric', item.label + ': click answered');
+        assert.doesNotMatch(run.doc.getElementById('runDetail')?.textContent ?? '', /Lượt này không có ảnh Metric\./,
+          item.label + ': no «không có ảnh»');
+        assert.equal(element<HTMLDialogElement>(run.doc, 'shotDialog').open, false, item.label + ': no viewer');
+      } else {
+        await waitFor(() => element<HTMLDialogElement>(run.doc, 'shotDialog').open, item.label + ': picture opened');
+        assert.equal(element<HTMLImageElement>(run.doc, 'shotImg').getAttribute('src'), item.src, item.label);
+      }
       assert.deepEqual(run.state.viewShotCalls, [['run-synthetic', null]], item.label);
       assert.deepEqual(run.state.openLocalShotCalls, [], item.label);
       assert.deepEqual(run.state.openEvidenceCalls, [], item.label);
