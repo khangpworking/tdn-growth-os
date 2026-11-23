@@ -1206,22 +1206,26 @@ class Api:
         """One worker per run, and at most one attempt per run every 60 s on every start path. The first
         attempt after the run was created is always allowed (``_send_metric_import`` clears the time)."""
         with self._shot_uploads_lock:
-            now = time.monotonic()
-            last = self._shot_attempts.get(run_id)
-            started = (run_id not in self._shot_uploads and
-                       (last is None or now - last >= _SHOT_RETRY_SECONDS) and
-                       self._local_metric_shot(run_id) is not None)
-            if started:
-                self._shot_uploads.add(run_id)
-                self._shot_attempts[run_id] = now
+            started = self._claim_shot_upload(run_id)
         if started:
-            threading.Thread(target=self._metric_shot_upload_worker, args=(run_id,),
-                             name='tdn-metric-shot-upload', daemon=True).start()
+            self._spawn_shot_upload(run_id)
         return {'ok': True, 'data': {'format': 'metric-shot-upload-start-v1', 'runId': run_id, 'started': started}}
 
-    def _metric_shot_uploading(self, run_id):
-        with self._shot_uploads_lock:
-            return run_id in self._shot_uploads
+    def _claim_shot_upload(self, run_id):
+        """Caller holds ``_shot_uploads_lock``. True (and the run marked as uploading) when a start is allowed."""
+        now = time.monotonic()
+        last = self._shot_attempts.get(run_id)
+        started = (run_id not in self._shot_uploads and
+                   (last is None or now - last >= _SHOT_RETRY_SECONDS) and
+                   self._local_metric_shot(run_id) is not None)
+        if started:
+            self._shot_uploads.add(run_id)
+            self._shot_attempts[run_id] = now
+        return started
+
+    def _spawn_shot_upload(self, run_id):
+        threading.Thread(target=self._metric_shot_upload_worker, args=(run_id,),
+                         name='tdn-metric-shot-upload', daemon=True).start()
 
     def metricShotUpload(self, runId=None):
         """Cheap, local only (no server call): is this run's picture being sent now, and is it still here."""
@@ -1330,17 +1334,19 @@ class Api:
                     self._shot_generation.get(run_id, 0))
 
     def _metric_shot_state(self, run_id, retry):
-        _, _, before = self._shot_snapshot(run_id)
         online = self._metric_shot_online(run_id)
-        uploading, local, generation = self._shot_snapshot(run_id)
-        if generation != before:
-            # An upload ended while the server was asked: ask again so local and online agree.
-            online = self._metric_shot_online(run_id)
-            uploading, local, generation = self._shot_snapshot(run_id)
-        if (retry and local and not uploading and online is not None and
-                online['state'] in ('NOT_UPLOADED', 'AVAILABLE')):
-            started = self._start_metric_shot_upload(run_id)['data']['started']
-            uploading = uploading or started
+        # The retry decision and the local/uploading/generation snapshot happen in one locked step, after
+        # the server read: no start or finish can fall between them. ``uploading`` is true whenever an
+        # upload for the run runs now, whoever started it. A state that is still moving is settled by the
+        # page's passive re-reads.
+        with self._shot_uploads_lock:
+            started = (retry and online is not None and online['state'] in ('NOT_UPLOADED', 'AVAILABLE') and
+                       self._claim_shot_upload(run_id))
+            uploading = run_id in self._shot_uploads
+            local = self._local_metric_shot(run_id) is not None
+            generation = self._shot_generation.get(run_id, 0)
+        if started:
+            self._spawn_shot_upload(run_id)
         data = {'format': 'metric-shot-state-v1', 'runId': run_id, 'local': local,
                 'state': online['state'] if online is not None else None,
                 'uploading': uploading, 'generation': generation}

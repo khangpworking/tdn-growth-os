@@ -2780,11 +2780,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       },
       uploadMetricShot: function (runId) {
         return Promise.resolve(ok({ format: 'metric-shot-upload-start-v1', runId: runId, started: false }));
-      },
-      metricShotUpload: function (runId) {
-        return Promise.resolve(ok({ format: 'metric-shot-upload-status-v1', runId: runId, uploading: false, local: false }));
-      },
-      lastProductSelection: function () { return Promise.resolve(ok({ productSelection: null })); },
+      },      lastProductSelection: function () { return Promise.resolve(ok({ productSelection: null })); },
       rememberProductSelection: function (value) { return Promise.resolve(ok({ productSelection: value })); },
       lastRunSort: function () { return Promise.resolve(ok({ runSort: null })); },
       rememberRunSort: function (value) { return Promise.resolve(ok({ runSort: value })); },
@@ -3168,9 +3164,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       metricShotState: function (runId) { return call('metricShotState', [runId]); },
       metricShotStatePassive: function (runId) { return call('metricShotStatePassive', [runId]); },
       viewMetricShot: function (runId) { return call('viewMetricShot', [runId]); },
-      uploadMetricShot: function (runId) { return call('uploadMetricShot', [runId]); },
-      metricShotUpload: function (runId) { return call('metricShotUpload', [runId]); },
-      deleteRun: function (runId) { return call('deleteRun', [runId]); },
+      uploadMetricShot: function (runId) { return call('uploadMetricShot', [runId]); },      deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
       rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
       lastRunSort: function () { return call('lastRunSort', []); },
@@ -3313,7 +3307,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     moduleOutputs: {},
     localShots: {},
     metricShots: {},      // runId -> {state: AVAILABLE|EXPIRED|NOT_UPLOADED|null, deleteAfter} of the online copy
-    shotWatch: {},        // runId -> true while the page follows an upload
+    shotRefresh: {},      // runId -> {opening, count, timer}: passive re-reads while the state is not settled
     shotExpiry: {},       // runId -> timer that redraws the row when the online copy expires
     moduleOutputsErrors: {},
     moduleOutputsSeq: {},
@@ -3867,47 +3861,60 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return row;
   }
 
-  // The online copy of the Metric picture: asked again on every details load, at most once per 60 s per run
-  // (``force``: right after an upload ended). Local and online state are read together. Never awaited.
-  async function loadShotState(runId, force) {
+  // The online copy of the Metric picture, read together with the local state. A details load asks at most
+  // once per 60 s per run (``passive`` false: the bridge may start a retry). Passive reads never start an
+  // upload. A read asked while one is out is queued once (run right after it), never dropped. Never awaited.
+  async function loadShotState(runId, passive) {
     var known = state.metricShots[runId];
-    if (known && (known.busy || (!force && Date.now() - known.at < 60000))) return;
-    state.metricShots[runId] = Object.assign({}, known || {}, { busy: true, at: Date.now() });
-    // ``force`` (after an upload ended) is a passive read: it never starts another upload, so failed
-    // uploads cannot loop; only a details load may start a retry (and the bridge limits it to once per 60 s).
-    var res = await (force ? api.metricShotStatePassive(runId) : api.metricShotState(runId));
+    if (known && known.busy) { known.queued = true; return; }
+    if (!passive && known && Date.now() - known.at < 60000) return;
+    state.metricShots[runId] = Object.assign({}, known || {}, { busy: true, queued: false, at: Date.now() });
+    var res = await (passive ? api.metricShotStatePassive(runId) : api.metricShotState(runId));
     if (isGone(runId)) return;
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
+    var before = known || {};
+    var queued = state.metricShots[runId].queued;
     var next = { busy: false, at: Date.now(), local: !!(data && data.local),
       state: data && typeof data.state === 'string' ? data.state : null,
-      deleteAfter: data && typeof data.deleteAfter === 'string' ? data.deleteAfter : null };
-    var before = known || {};
+      deleteAfter: data && typeof data.deleteAfter === 'string' ? data.deleteAfter : null,
+      generation: data && typeof data.generation === 'number' ? data.generation : before.generation };
     state.metricShots[runId] = next;
     var localBefore = state.localShots[runId];
     if (data) state.localShots[runId] = next.local;
-    if (data && data.uploading === true) watchShotUpload(runId, data.generation);
     if (before.state !== next.state || before.deleteAfter !== next.deleteAfter || localBefore !== state.localShots[runId]) {
       if (state.selectedRunId === runId) renderDetail();
     }
+    var moved = typeof before.generation === 'number' && next.generation !== before.generation;
+    if (queued) loadShotState(runId, true);
+    else scheduleShotRefresh(runId, moved || !shotSettled(data));
   }
 
-  // While the picture is being sent: a cheap local check every 3 s (no server call). When it ends (sent or
-  // failed: ``uploading`` false, or the finished-attempt ``generation`` moved on) the local and online
-  // state are read again together, once, passively.
-  function watchShotUpload(runId, generation) {
-    if (state.shotWatch[runId]) return;
-    state.shotWatch[runId] = true;
-    (async function () {
-      for (;;) {
-        await new Promise(function (done) { setTimeout(done, 3000); });
-        if (isGone(runId)) break;
-        var res = await api.metricShotUpload(runId);
-        if (!(res.ok && res.data && res.data.uploading === true)) break;
-        if (typeof generation === 'number' && res.data.generation !== generation) break;
+  // Settled: nothing on this PC and a final server answer, or no answer (offline / not set up).
+  function shotSettled(data) {
+    if (!data || data.state === null) return true;
+    return data.uploading !== true && data.local !== true;
+  }
+
+  // Not settled while the run's details stay open: one passive read every 10 s, at most 12 per opening.
+  function scheduleShotRefresh(runId, again) {
+    var plan = state.shotRefresh[runId];
+    if (plan && plan.opening !== state.selectionSeq) {
+      clearTimeout(plan.timer);
+      plan = null;
+    }
+    if (!again || state.selectedRunId !== runId) {     // settled, or another run shown: stop
+      if (plan) { clearTimeout(plan.timer); plan.timer = null; }
+      return;
+    }
+    if (!plan) plan = state.shotRefresh[runId] = { opening: state.selectionSeq, count: 0, timer: null };
+    if (plan.timer || plan.count >= 12) return;
+    plan.count += 1;
+    plan.timer = setTimeout(function () {
+      plan.timer = null;
+      if (state.selectedRunId === runId && state.selectionSeq === plan.opening && !isGone(runId)) {
+        loadShotState(runId, true);
       }
-      delete state.shotWatch[runId];
-      if (!isGone(runId)) loadShotState(runId, true);
-    })();
+    }, 10000);
   }
 
   async function loadLocalShot(runId) {
@@ -9921,10 +9928,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (isGone(data.runId)) return;
     state.metricRunId = data.runId;
     state.preferredRunId = data.runId;
-    // The picture goes online in the background; never awaited. The page follows it when it started.
-    api.uploadMetricShot(data.runId).then(function (up) {
-      if (up.ok && up.data && up.data.started === true && !isGone(data.runId)) watchShotUpload(data.runId);
-    });
+    api.uploadMetricShot(data.runId);    // the picture goes online in the background; never awaited
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
       : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';
     if (data.step2 && data.step2.ok) {
