@@ -1191,12 +1191,16 @@ class Api:
                     signed['key'] != key or signed['contentType'] != content_type or
                     not isinstance(signed['url'], str) or not _R2_URL.fullmatch(signed['url'])):
                 return False
-            import urllib.request
+            import urllib.error, urllib.request
             request = urllib.request.Request(signed['url'], data=data, method='PUT',
                                              headers={'Content-Type': content_type})
-            with urllib.request.urlopen(request, timeout=_SHOT_PUT_SECONDS) as response:
-                if not 200 <= response.status < 300:
-                    return False
+            try:
+                with urllib.request.urlopen(request, timeout=_SHOT_PUT_SECONDS) as response:
+                    if not 200 <= response.status < 300:
+                        return False
+            except urllib.error.HTTPError as error:
+                error.close()        # refused by storage: release its body; the picture stays here
+                return False
         elif result['error'].get('code') != 'METRIC_SHOT_ALREADY_UPLOADED':
             return False      # R2_NOT_CONFIGURED, an older server, offline...: the picture stays on this PC
         confirmed = self._remote('metricShotConfirm', run_id=run_id,
@@ -1353,7 +1357,7 @@ class Api:
     @staticmethod
     def _download_metric_shot(url, byte_size, destination):
         """GET the online picture into a temp file next to ``destination``; exactly ``byte_size`` bytes."""
-        import urllib.request
+        import urllib.error, urllib.request
         folder = destination.parent
         if not folder.is_dir():
             raise _BridgeFailure('SAVE_FAILED')
@@ -1378,7 +1382,9 @@ class Api:
             if written != byte_size:
                 raise ValueError('short')
             os.replace(temp_path, destination)
-        except (OSError, ValueError):
+        except (OSError, ValueError) as failure:
+            if isinstance(failure, urllib.error.HTTPError):
+                failure.close()      # release the refused response's body
             try:
                 temp_path.unlink()
             except OSError:

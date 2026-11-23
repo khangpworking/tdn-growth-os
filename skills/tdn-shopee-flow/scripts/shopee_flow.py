@@ -3207,7 +3207,10 @@ def r2_call(config, method, key):
             length = response.headers.get('Content-Length')
             return response.status, int(length) if length is not None and length.isdigit() else None
     except urllib.error.HTTPError as error:
-        return error.code, None
+        try:
+            return error.code, None
+        finally:
+            error.close()        # its body is never read: release it now (no ResourceWarning)
     except (OSError, ValueError):
         raise ModuleFailure('R2_UNAVAILABLE') from None
 
