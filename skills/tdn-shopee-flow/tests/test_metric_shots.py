@@ -21,7 +21,7 @@ DIGEST = '0' * 64
 SECRET = 'NOT_A_SECRET_SYNTHETIC_TEST_ONLY'
 
 
-def expected_signature(url, method, secret, content_type=None):
+def expected_signature(url, method, secret, content_type=None, payload_sha256=None):
     """Independent protocol oracle, checked against AWS's published answer in row 5."""
     parsed = urllib.parse.urlsplit(url)
     query = dict(urllib.parse.parse_qsl(parsed.query))
@@ -31,7 +31,11 @@ def expected_signature(url, method, secret, content_type=None):
                                for k, v in sorted(query.items()))
     headers = (('content-type:' + content_type + '\n') if content_type else '') + 'host:' + parsed.netloc + '\n'
     signed_headers = 'content-type;host' if content_type else 'host'
-    canonical = '\n'.join((method, parsed.path, canonical_query, headers, signed_headers, 'UNSIGNED-PAYLOAD'))
+    if payload_sha256:
+        headers += 'x-amz-content-sha256:' + payload_sha256 + '\n'
+        signed_headers += ';x-amz-content-sha256'
+    canonical = '\n'.join((method, parsed.path, canonical_query, headers, signed_headers,
+                           payload_sha256 or 'UNSIGNED-PAYLOAD'))
     text = '\n'.join(('AWS4-HMAC-SHA256', query['X-Amz-Date'], scope,
                       hashlib.sha256(canonical.encode('ascii')).hexdigest()))
     signing_key = ('AWS4' + secret).encode('ascii')
@@ -84,7 +88,7 @@ class MetricShotTest(unittest.TestCase):
         self.assertEqual(result, (exit_code, {'format': 'error-v1', 'code': code, 'message': code}))
 
     def record(self, **overrides):
-        value = dict(key=f'metric-shots/{RUN_ID}/full-page.webp', sha256=DIGEST, byteSize=23,
+        value = dict(key=f'metric-shots/{RUN_ID}/{DIGEST}.webp', sha256=DIGEST, byteSize=23,
                      contentType='image/webp', uploadedAt='2099-01-01T00:00:00Z',
                      deleteAfter='2099-01-11T00:00:00Z')
         value.update(overrides)
@@ -109,14 +113,14 @@ class MetricShotTest(unittest.TestCase):
                 self.assertEqual(code, 0, output)
                 url = output.pop('url')
                 self.assertEqual(output, dict(format='metric-shot-upload-v1', runId=RUN_ID,
-                    key=f'metric-shots/{RUN_ID}/full-page.{extension}', contentType=content_type, expiresInSeconds=600))
+                    key=f'metric-shots/{RUN_ID}/{DIGEST}.{extension}', contentType=content_type, expiresInSeconds=600))
                 parsed = urllib.parse.urlsplit(url)
                 self.assertEqual((parsed.scheme, parsed.netloc, parsed.path), ('https',
-                    'synthetic.r2.cloudflarestorage.com', f'/synthetic-bucket/metric-shots/{RUN_ID}/full-page.{extension}'))
+                    'synthetic.r2.cloudflarestorage.com', f'/synthetic-bucket/metric-shots/{RUN_ID}/{DIGEST}.{extension}'))
                 query = urllib.parse.parse_qs(parsed.query)
                 self.assertEqual(query['X-Amz-Expires'], ['600'])
-                self.assertEqual(query['X-Amz-SignedHeaders'], ['content-type;host'])
-                self.assertEqual(query['X-Amz-Signature'], [expected_signature(url, 'PUT', SECRET, content_type)])
+                self.assertEqual(query['X-Amz-SignedHeaders'], ['content-type;host;x-amz-content-sha256'])
+                self.assertEqual(query['X-Amz-Signature'], [expected_signature(url, 'PUT', SECRET, content_type, DIGEST)])
         valid = dict(content_type='image/webp', bytes=23, sha256=DIGEST)
         for bad in ({'content_type': 'image/jpeg'}, {'bytes': 0}, {'bytes': 33554433}, {'sha256': 'not-a-digest'}):
             with self.subTest(bad=bad):
@@ -129,9 +133,9 @@ class MetricShotTest(unittest.TestCase):
         self.http.assert_not_called()
 
     def test_confirm_contract(self):
-        flags = dict(key=f'metric-shots/{RUN_ID}/full-page.webp', bytes=23, sha256=DIGEST)
+        flags = dict(key=f'metric-shots/{RUN_ID}/{DIGEST}.webp', bytes=23, sha256=DIGEST)
         path = self.run / 'm1' / 'metric-shot-r2.json'
-        # Refusals also run on Windows; the durable writer below requires POSIX paths and directory fsync.
+        # Refusals and existing-record cases run on Windows; new records need directory fsync on Linux.
         for label, status, size, error in (('missing', 404, 23, 'METRIC_SHOT_NOT_FOUND'),
                                           ('wrong size', 200, 22, 'METRIC_SHOT_SIZE_MISMATCH')):
             with self.subTest(label=label):
@@ -141,13 +145,34 @@ class MetricShotTest(unittest.TestCase):
                 request = self.http.call_args.args[0]
                 self.assertEqual(request.get_method(), 'HEAD')
                 self.assertEqual(urllib.parse.urlsplit(request.full_url).path,
-                                 f'/synthetic-bucket/metric-shots/{RUN_ID}/full-page.webp')
+                                 f'/synthetic-bucket/metric-shots/{RUN_ID}/{DIGEST}.webp')
         self.http.reset_mock()
-        self.error(self.command('metric-shot-confirm', **dict(flags, key='metric-shots/other-run/full-page.webp')),
-                   'ARG_INVALID', 2)
-        self.http.assert_not_called()
+        for key in (f'metric-shots/other-run/{DIGEST}.webp', f'metric-shots/{RUN_ID}/{"1" * 64}.webp'):
+            with self.subTest(invalid_key=key):
+                self.head()
+                self.http.reset_mock()
+                self.error(self.command('metric-shot-confirm', **dict(flags, key=key)), 'ARG_INVALID', 2)
+                self.http.assert_not_called()
+
+        stored = self.record()
+        original = path.read_bytes()
+        self.head()
+        self.assertEqual(self.command('metric-shot-confirm', **flags),
+                         (0, dict(format='metric-shot-r2-v1', runId=RUN_ID, **stored)))
+        self.assertEqual(path.read_bytes(), original)
+        self.http.reset_mock()
+        for change in (dict(key=f'metric-shots/{RUN_ID}/{"1" * 64}.webp', sha256='1' * 64),
+                       dict(bytes=24), dict(key=f'metric-shots/{RUN_ID}/{DIGEST}.png')):
+            with self.subTest(second_confirm=change):
+                self.head()
+                self.http.reset_mock()
+                self.error(self.command('metric-shot-confirm', **dict(flags, **change)),
+                           'METRIC_SHOT_ALREADY_UPLOADED')
+                self.assertEqual(path.read_bytes(), original)
+                self.http.assert_not_called()
+        path.unlink()
         if os.name != 'posix':
-            self.skipTest('confirm persistence requires Linux: gate_path and directory fsync; refusals checked above')
+            self.skipTest('new-record persistence needs Linux directory fsync; existing-record/refusal rows checked')
         self.head()
         code, confirmed = self.command('metric-shot-confirm', **flags)
         self.assertEqual(code, 0, confirmed)
@@ -165,6 +190,25 @@ class MetricShotTest(unittest.TestCase):
         self.assertEqual(path.read_bytes(), original)
         self.assertEqual(self.http.call_count, 2, 'both successful confirmations HEAD the object')
 
+        # A competing client confirms while our HEAD is in flight. Exercise both real writers;
+        # the later writer must not replace the complete record the first client already stored.
+        path.unlink()
+        competing = dict(flags, key=f'metric-shots/{RUN_ID}/{"2" * 64}.webp', sha256='2' * 64)
+        first = []
+
+        def head_with_competing_confirm(*args, **kwargs):
+            self.head()
+            first.append(self.command('metric-shot-confirm', **flags))
+            self.head()
+            return self.http.return_value
+
+        self.http.side_effect = head_with_competing_confirm
+        self.error(self.command('metric-shot-confirm', **competing), 'METRIC_SHOT_ALREADY_UPLOADED')
+        self.assertEqual(first[0][0], 0, first)
+        self.assertEqual(json.loads(path.read_text(encoding='utf-8')),
+                         {k: v for k, v in first[0][1].items() if k not in ('format', 'runId')})
+        self.assertEqual(list(path.parent.iterdir()), [path], 'no incomplete confirmation file remains')
+
     def test_view_url_contract(self):
         self.credentials.unlink()
         self.assertEqual(self.command('metric-shot-view-url'),
@@ -180,7 +224,7 @@ class MetricShotTest(unittest.TestCase):
         self.assertEqual(output, dict(format='metric-shot-view-v1', runId=RUN_ID, state='AVAILABLE',
             contentType='image/webp', byteSize=23, uploadedAt=record['uploadedAt'], deleteAfter=record['deleteAfter']))
         parsed = urllib.parse.urlsplit(url)
-        self.assertEqual(parsed.path, f'/synthetic-bucket/metric-shots/{RUN_ID}/full-page.webp')
+        self.assertEqual(parsed.path, f'/synthetic-bucket/metric-shots/{RUN_ID}/{DIGEST}.webp')
         query = urllib.parse.parse_qs(parsed.query)
         self.assertEqual(query['X-Amz-Expires'], ['900'])
         self.assertEqual(query['X-Amz-SignedHeaders'], ['host'])

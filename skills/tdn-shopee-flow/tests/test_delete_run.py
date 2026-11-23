@@ -101,7 +101,7 @@ class DeleteRunTest(unittest.TestCase):
                 run_id = 'run-r2'
                 run = self.make_run(run_id)
                 write_json(run / 'm1' / 'metric-shot-r2.json', {
-                    'key': f'metric-shots/{run_id}/full-page.webp', 'sha256': '0' * 64, 'byteSize': 23,
+                    'key': f'metric-shots/{run_id}/{"0" * 64}.webp', 'sha256': '0' * 64, 'byteSize': 23,
                     'contentType': 'image/webp', 'uploadedAt': '2099-01-01T00:00:00Z',
                     'deleteAfter': '2099-01-11T00:00:00Z'})
                 credentials = self.base / 'synthetic-r2.env'
@@ -131,7 +131,7 @@ class DeleteRunTest(unittest.TestCase):
                     request = http.call_args.args[0]
                     self.assertEqual(request.get_method(), 'DELETE')
                     self.assertEqual(request.full_url, f'https://synthetic.r2.cloudflarestorage.com/'
-                        f'synthetic-bucket/metric-shots/{run_id}/full-page.webp')
+                        f'synthetic-bucket/metric-shots/{run_id}/{"0" * 64}.webp')
 
     def test_delete_refuses_a_run_whose_state_is_running(self):
         run = self.make_run('run-c3', state={**finished_state('run-c3'), 'status': 'RUNNING'})

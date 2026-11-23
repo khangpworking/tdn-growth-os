@@ -107,6 +107,8 @@ function harness(options: {
   bridge?: 'complete' | 'partial';
   localShots?: Record<string, boolean>;
   metricShotStateResult?: (runId: string) => any;
+  metricShotUploadResult?: (runId: string) => any;
+  shotClock?: { now: number };
   saveShotResult?: (runId: string) => any;
   deleteRunResult?: (runId: string) => any;
   runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
@@ -145,6 +147,8 @@ function harness(options: {
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
     openLocalShotCalls: string[];
     viewShotCalls: string[];
+    shotStateCalls: string[];
+    shotUploadCalls: string[];
     saveShotCalls: any[][];
     deleteRunCalls: string[];
     openLinkCalls: string[];
@@ -189,6 +193,8 @@ function harness(options: {
     openEvidenceCalls: [],
     openLocalShotCalls: [],
     viewShotCalls: [],
+    shotStateCalls: [],
+    shotUploadCalls: [],
     saveShotCalls: [],
     deleteRunCalls: [],
     openLinkCalls: [],
@@ -286,9 +292,18 @@ function harness(options: {
       state.openLocalShotCalls.push(runId);
       return { ok: true, data: { format: 'local-metric-shot-open-v1', runId, opened: true } };
     },
-    metricShotState: async (runId: string) => options.metricShotStateResult ? options.metricShotStateResult(runId)
-      : { ok: true, data: { format: 'metric-shot-state-v1', runId,
-        local: !!options.localShots?.[runId], state: null } },
+    metricShotState: async (runId: string) => {
+      state.shotStateCalls.push(runId);
+      return options.metricShotStateResult ? options.metricShotStateResult(runId)
+        : { ok: true, data: { format: 'metric-shot-state-v1', runId,
+          local: !!options.localShots?.[runId], state: null, uploading: false } };
+    },
+    metricShotUpload: async (runId: string) => {
+      state.shotUploadCalls.push(runId);
+      return options.metricShotUploadResult ? options.metricShotUploadResult(runId)
+        : { ok: true, data: { format: 'metric-shot-upload-status-v1', runId,
+          local: !!options.localShots?.[runId], uploading: false } };
+    },
     viewMetricShot: async (runId: string) => {
       state.viewShotCalls.push(runId);
       if (options.localShots?.[runId]) return { ok: true, data: { format: 'metric-shot-open-v1', runId,
@@ -542,11 +557,26 @@ function harness(options: {
       return res;
     },
   };
+  const shotTimers = new Map<number, { at: number; fire: () => void }>();
+  let nextShotTimer = -1;
   const dom = new JSDOM(html, {
     url: 'file:///shopee-desktop/index.html',
     runScripts: 'dangerously',
     beforeParse(window) {
       (window as any).pywebview = { api: options.bridge === 'partial' ? {} : api };
+      if (options.shotClock) {
+        const clock = options.shotClock;
+        window.Date.now = () => clock.now;
+        const nativeSetTimeout = window.setTimeout.bind(window);
+        const nativeClearTimeout = window.clearTimeout.bind(window);
+        window.setTimeout = (handler: any, delay = 0, ...args: any[]) => {
+          if (delay < 3000) return nativeSetTimeout(handler, delay, ...args);
+          const id = nextShotTimer--;
+          shotTimers.set(id, { at: clock.now + delay, fire: () => handler(...args) });
+          return id;
+        };
+        window.clearTimeout = (id) => { if (!shotTimers.delete(id)) nativeClearTimeout(id); };
+      }
       if (options.fastPoll) {
         const nativeSetInterval = window.setInterval.bind(window);
         (window as any).setInterval = (handler: any, delay?: number, ...args: any[]) =>
@@ -583,7 +613,16 @@ function harness(options: {
       }
     },
   });
-  return { dom, doc: dom.window.document, window: dom.window, state, api };
+  const advanceShotTime = (ms: number) => {
+    assert.ok(options.shotClock);
+    options.shotClock.now += ms;
+    for (const [id, timer] of shotTimers) {
+      if (timer.at > options.shotClock.now) continue;
+      shotTimers.delete(id);
+      timer.fire();
+    }
+  };
+  return { dom, doc: dom.window.document, window: dom.window, state, api, advanceShotTime };
 }
 
 const element = <T extends HTMLElement>(doc: Document, id: string): T => doc.getElementById(id) as T;
@@ -3617,8 +3656,10 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
     const run = harness({
       runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
       runInfo: syntheticRunInfo(), localShots: { 'run-synthetic': row.local },
+      shotClock: { now: Date.parse('2026-11-24T12:00:00Z') },
       metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
-        local: row.local, state: row.state || null, deleteAfter: row.state ? '2026-12-04T12:00:00Z' : undefined } }),
+        local: row.local, uploading: false, state: row.state || null,
+        deleteAfter: row.state ? '2026-12-04T12:00:00Z' : undefined } }),
       moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
         { evidence: { fullPage: row.fullPage, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
     });
@@ -3636,7 +3677,7 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
       if (row.opens) {
         await waitFor(() => run.state.saveShotCalls.length === 1 && !run.doc.getElementById('toast')!.hidden, row.label + ': saved');
         assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp',
-          row.opens === 'server' ? row.fullPage.sha256 : null, row.opens === 'online']], row.label + ': save source');
+          row.opens === 'server' ? row.fullPage.sha256 : null, true]], row.label + ': save source');
         assert.equal(run.doc.getElementById('toast')!.textContent, 'Đã lưu ảnh');
       } else {
         assert.equal(run.state.saveShotCalls.length, 0, row.label + ': nothing saved');
@@ -3669,6 +3710,70 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
         assert.equal(image.hasAttribute('src'), false, row.label + ': image released');
       } else {
         assert.equal(dialog.open, false, row.label + ': no viewer');
+      }
+    } finally { run.dom.window.close(); }
+  }
+
+  for (const lifecycle of ['later upload elsewhere', 'later removal elsewhere', 'retention deadline',
+                            'upload finishes', 'local disappears before save']) {
+    const clock = { now: Date.parse('2026-11-24T12:00:00Z') };
+    const localShots = { 'run-synthetic': lifecycle === 'upload finishes' || lifecycle === 'local disappears before save' };
+    let remoteState = lifecycle === 'later removal elsewhere' || lifecycle === 'retention deadline'
+      ? 'AVAILABLE' : 'NOT_UPLOADED';
+    let uploading = lifecycle === 'upload finishes';
+    const deleteAfter = lifecycle === 'retention deadline'
+      ? new Date(clock.now + 2000).toISOString() : '2099-01-11T00:00:00Z';
+    const run = harness({
+      runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+      runInfo: syntheticRunInfo(), localShots, shotClock: clock,
+      metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
+        local: localShots['run-synthetic'], state: remoteState, deleteAfter, uploading } }),
+      metricShotUploadResult: (runId) => ({ ok: true, data: { format: 'metric-shot-upload-status-v1', runId,
+        local: localShots['run-synthetic'], uploading } }),
+      moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
+        { evidence: { fullPage: missing, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
+    });
+    const hint = () => run.doc.getElementById('moM1FullPageHint')?.textContent;
+    const enabled = () => run.doc.getElementById('moM1FullPage') !== null &&
+      !element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled;
+    try {
+      await waitFor(() => run.state.shotStateCalls.length === 1 &&
+        run.doc.getElementById('moM1FullPage') !== null &&
+        (localShots['run-synthetic'] ? enabled() : hint() !== undefined), lifecycle + ': loaded');
+      if (lifecycle.startsWith('later ')) {
+        const loaded = run.state.moduleOutputsCalls.length;
+        runListButton(run.doc, 'run-synthetic').click();
+        await waitFor(() => run.state.moduleOutputsCalls.length > loaded, lifecycle + ': early reopen');
+        assert.equal(run.state.shotStateCalls.length, 1, lifecycle + ': bounded refresh');
+        remoteState = lifecycle === 'later upload elsewhere' ? 'AVAILABLE' : 'EXPIRED';
+        run.advanceShotTime(60001);
+        runListButton(run.doc, 'run-synthetic').click();
+        await waitFor(() => run.state.shotStateCalls.length === 2 && hint() ===
+          (remoteState === 'AVAILABLE' ? 'Ảnh lưu đến 11/01/2099' : 'Ảnh Metric đã tự xóa sau 10 ngày.'),
+        lifecycle + ': refreshed non-local state');
+        assert.equal(enabled(), remoteState === 'AVAILABLE', lifecycle);
+      } else if (lifecycle === 'retention deadline') {
+        assert.equal(enabled(), true, lifecycle + ': initially available');
+        run.advanceShotTime(3001);
+        await waitFor(() => hint() === 'Ảnh Metric đã tự xóa sau 10 ngày.', lifecycle + ': expired in place');
+        assert.equal(enabled(), false, lifecycle);
+        assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, true);
+        assert.equal(run.state.shotStateCalls.length, 1, lifecycle + ': no detail reload required');
+      } else if (lifecycle === 'upload finishes') {
+        remoteState = 'AVAILABLE';
+        uploading = false;
+        localShots['run-synthetic'] = false;
+        run.advanceShotTime(3000);
+        await waitFor(() => run.state.shotUploadCalls.length === 1 && run.state.shotStateCalls.length === 2 &&
+          hint() === 'Ảnh lưu đến 11/01/2099', lifecycle + ': refreshed within 60 seconds');
+        assert.equal(enabled(), true, lifecycle);
+        assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, false);
+      } else {
+        localShots['run-synthetic'] = false;
+        remoteState = 'AVAILABLE';
+        element<HTMLButtonElement>(run.doc, 'moM1SaveShot').click();
+        await waitFor(() => run.state.saveShotCalls.length === 1, lifecycle + ': save online fallback');
+        assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', null, true]]);
       }
     } finally { run.dom.window.close(); }
   }

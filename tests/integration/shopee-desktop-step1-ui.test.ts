@@ -44,7 +44,7 @@ function page(views: any[], take?: (input: any) => Promise<any>, lastSelection: 
     uploadMetricShot: record('uploadMetricShot', (runId: string) => ({ ok: true,
       data: { format: 'metric-shot-upload-start-v1', runId, started: false } })),
     metricShotState: record('metricShotState', (runId: string) => ({ ok: true,
-      data: { format: 'metric-shot-state-v1', runId, local: false, state: 'NOT_UPLOADED' } })),
+      data: { format: 'metric-shot-state-v1', runId, local: false, state: 'NOT_UPLOADED', uploading: false } })),
     lastProductSelection: record('lastProductSelection', () => ({ ok: true, data: { productSelection: lastSelection } })),
     rememberProductSelection: record('rememberProductSelection', (value: any) => ({ ok: true, data: { productSelection: value } })),
     newRun: record('newRun', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
