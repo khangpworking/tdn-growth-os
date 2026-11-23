@@ -3838,10 +3838,13 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var res = await api.metricShotState(runId);
     if (isGone(runId) || state.selectedRunId !== runId || state.selectionSeq !== opening) return;
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
+    var before = state.metricShots[runId] || {};
+    var localBefore = state.localShots[runId];
     state.metricShots[runId] = { state: data && typeof data.state === 'string' ? data.state : null,
       deleteAfter: data && typeof data.deleteAfter === 'string' ? data.deleteAfter : null };
     if (data) state.localShots[runId] = data.local === true;
-    renderDetail();
+    if (before.state !== state.metricShots[runId].state || before.deleteAfter !== state.metricShots[runId].deleteAfter ||
+        localBefore !== state.localShots[runId]) renderDetail();     // redraw only when the note can change
   }
 
   async function loadLocalShot(runId) {
