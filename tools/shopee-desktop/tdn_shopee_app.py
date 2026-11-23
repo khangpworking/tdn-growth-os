@@ -233,7 +233,9 @@ def _delete_sent_shot(path, digest):
     through the same handle, and its lstat identity (inode / Windows file index + device) must equal the
     handle's fstat: a link or a replaced file fails here. 4. The chain is checked again, then the hidden name
     is deleted. Any mismatch or error moves the file back (never over a file that appeared meanwhile).
-    Returns True when deleted."""
+    Residual (accepted for a single-user desktop app): a same-user process able to swap the folder in the
+    final instant between the last check and the unlink could still redirect the unlink. Returns True when
+    deleted."""
     path = Path(path)
     folder, root = path.parent, path.parent.parent
     try:
@@ -823,6 +825,7 @@ class Api:
         self._metric_lock = threading.Lock()
         self._shot_uploads = set()         # runIds whose Metric picture is being sent online
         self._shot_attempts = {}           # runId -> monotonic time of the last upload attempt
+        self._shot_generation = {}         # runId -> number of finished upload attempts (sent or failed)
         self._shot_uploads_lock = threading.Lock()
 
     def _connection_backoff(self):
@@ -1225,9 +1228,9 @@ class Api:
         return self._safe(lambda: self._metric_shot_upload_status(self._run_id(runId)))
 
     def _metric_shot_upload_status(self, run_id):
+        uploading, local, generation = self._shot_snapshot(run_id)
         return {'ok': True, 'data': {'format': 'metric-shot-upload-status-v1', 'runId': run_id,
-                                     'uploading': self._metric_shot_uploading(run_id),
-                                     'local': self._local_metric_shot(run_id) is not None}}
+                                     'uploading': uploading, 'local': local, 'generation': generation}}
 
     def _metric_shot_upload_worker(self, run_id):
         try:
@@ -1237,6 +1240,7 @@ class Api:
         finally:
             with self._shot_uploads_lock:
                 self._shot_uploads.discard(run_id)
+                self._shot_generation[run_id] = self._shot_generation.get(run_id, 0) + 1   # one per finished attempt
 
     def _upload_metric_shot(self, run_id):
         """upload-url -> PUT straight to storage -> confirm -> delete the local file. True when kept online."""
@@ -1308,18 +1312,38 @@ class Api:
                 'contentType': view['contentType'], 'byteSize': view['byteSize']}
 
     def metricShotState(self, runId=None):
-        """For the run details: is there a picture on this PC, and what the server keeps online. A local
-        picture of a run with no online copy yet is sent again in the background."""
-        return self._safe(lambda: self._metric_shot_state(self._run_id(runId)))
+        """For a run details load: is there a picture on this PC, and what the server keeps online. A local
+        picture of a run with no online copy yet is sent again in the background (refused within 60 s of
+        the last attempt). Only a details load calls this one."""
+        return self._safe(lambda: self._metric_shot_state(self._run_id(runId), retry=True))
 
-    def _metric_shot_state(self, run_id):
-        local = self._local_metric_shot(run_id) is not None
+    def metricShotStatePassive(self, runId=None):
+        """The same answer as ``metricShotState`` but it never starts an upload: the page's refresh after an
+        upload ended uses this, so failed uploads cannot loop without a new details load."""
+        return self._safe(lambda: self._metric_shot_state(self._run_id(runId), retry=False))
+
+    def _shot_snapshot(self, run_id):
+        """(uploading, local, generation) read under the worker's lock: the worker deletes the local file
+        before it leaves ``_shot_uploads`` and bumps the generation in the same locked step."""
+        with self._shot_uploads_lock:
+            return (run_id in self._shot_uploads, self._local_metric_shot(run_id) is not None,
+                    self._shot_generation.get(run_id, 0))
+
+    def _metric_shot_state(self, run_id, retry):
+        _, _, before = self._shot_snapshot(run_id)
         online = self._metric_shot_online(run_id)
-        if local and online is not None and online['state'] in ('NOT_UPLOADED', 'AVAILABLE'):
-            self._start_metric_shot_upload(run_id)         # refused within 60 s of the last attempt
+        uploading, local, generation = self._shot_snapshot(run_id)
+        if generation != before:
+            # An upload ended while the server was asked: ask again so local and online agree.
+            online = self._metric_shot_online(run_id)
+            uploading, local, generation = self._shot_snapshot(run_id)
+        if (retry and local and not uploading and online is not None and
+                online['state'] in ('NOT_UPLOADED', 'AVAILABLE')):
+            started = self._start_metric_shot_upload(run_id)['data']['started']
+            uploading = uploading or started
         data = {'format': 'metric-shot-state-v1', 'runId': run_id, 'local': local,
                 'state': online['state'] if online is not None else None,
-                'uploading': self._metric_shot_uploading(run_id)}
+                'uploading': uploading, 'generation': generation}
         if online is not None and 'deleteAfter' in online:
             data['deleteAfter'] = online['deleteAfter']
         return {'ok': True, 'data': data}
@@ -1496,7 +1520,7 @@ class Api:
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         self._forget_copy(run_id)
         # The run is gone on the server (its online picture too, best effort there): its picture on this PC
-        # goes too, never through a link/junction.
+        # goes too (its path is checked for links/junctions first).
         for _ in tdn_metric_browser.SHOT_EXTENSIONS:
             local = self._local_metric_shot(run_id)
             if local is None:

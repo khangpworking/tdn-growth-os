@@ -2772,6 +2772,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       metricShotState: function (runId) {
         return Promise.resolve(ok({ format: 'metric-shot-state-v1', runId: runId, local: false, state: 'NOT_UPLOADED' }));
       },
+      metricShotStatePassive: function (runId) {
+        return Promise.resolve(ok({ format: 'metric-shot-state-v1', runId: runId, local: false, state: 'NOT_UPLOADED' }));
+      },
       viewMetricShot: function () {
         return Promise.resolve(err('EVIDENCE_LOCAL_MISSING', 'EVIDENCE_LOCAL_MISSING'));
       },
@@ -3163,6 +3166,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       openLocalMetricShot: function (runId) { return call('openLocalMetricShot', [runId]); },
       saveMetricShot: function (runId, name, sha256, online) { return call('saveMetricShot', [runId, name, sha256, !!online]); },
       metricShotState: function (runId) { return call('metricShotState', [runId]); },
+      metricShotStatePassive: function (runId) { return call('metricShotStatePassive', [runId]); },
       viewMetricShot: function (runId) { return call('viewMetricShot', [runId]); },
       uploadMetricShot: function (runId) { return call('uploadMetricShot', [runId]); },
       metricShotUpload: function (runId) { return call('metricShotUpload', [runId]); },
@@ -3869,7 +3873,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var known = state.metricShots[runId];
     if (known && (known.busy || (!force && Date.now() - known.at < 60000))) return;
     state.metricShots[runId] = Object.assign({}, known || {}, { busy: true, at: Date.now() });
-    var res = await api.metricShotState(runId);
+    // ``force`` (after an upload ended) is a passive read: it never starts another upload, so failed
+    // uploads cannot loop; only a details load may start a retry (and the bridge limits it to once per 60 s).
+    var res = await (force ? api.metricShotStatePassive(runId) : api.metricShotState(runId));
     if (isGone(runId)) return;
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
     var next = { busy: false, at: Date.now(), local: !!(data && data.local),
@@ -3879,15 +3885,16 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     state.metricShots[runId] = next;
     var localBefore = state.localShots[runId];
     if (data) state.localShots[runId] = next.local;
-    if (data && data.uploading === true) watchShotUpload(runId);
+    if (data && data.uploading === true) watchShotUpload(runId, data.generation);
     if (before.state !== next.state || before.deleteAfter !== next.deleteAfter || localBefore !== state.localShots[runId]) {
       if (state.selectedRunId === runId) renderDetail();
     }
   }
 
-  // While the picture is being sent: a cheap local check every 3 s (no server call); when it ends
-  // (sent or failed) the local and online state are read again together.
-  function watchShotUpload(runId) {
+  // While the picture is being sent: a cheap local check every 3 s (no server call). When it ends (sent or
+  // failed: ``uploading`` false, or the finished-attempt ``generation`` moved on) the local and online
+  // state are read again together, once, passively.
+  function watchShotUpload(runId, generation) {
     if (state.shotWatch[runId]) return;
     state.shotWatch[runId] = true;
     (async function () {
@@ -3896,6 +3903,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         if (isGone(runId)) break;
         var res = await api.metricShotUpload(runId);
         if (!(res.ok && res.data && res.data.uploading === true)) break;
+        if (typeof generation === 'number' && res.data.generation !== generation) break;
       }
       delete state.shotWatch[runId];
       if (!isGone(runId)) loadShotState(runId, true);
