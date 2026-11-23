@@ -1335,12 +1335,25 @@ class Api:
             data['deleteAfter'] = online['deleteAfter']
         return {'ok': True, 'data': data}
 
-    def viewMetricShot(self, runId=None):
-        """«Xem ảnh Metric» in the app's own viewer: the local picture (as a data URL, nothing written), else a
-        15-minute online link. No OS viewer and no file on disk."""
-        return self._safe(lambda: self._view_metric_shot(self._run_id(runId)))
+    def viewMetricShot(self, runId=None, sha256=None):
+        """«Xem ảnh Metric», source chosen now: the local picture in the app's own viewer (a data URL, nothing
+        written), else a 15-minute online link, else the server's old full-page picture (``sha256``, opened as
+        before). The page passes the old picture's digest whenever the run has one."""
+        return self._safe(lambda: self._view_metric_shot(self._run_id(runId), sha256))
 
-    def _view_metric_shot(self, run_id):
+    def _view_metric_shot(self, run_id, digest=None):
+        try:
+            result = self._view_metric_shot_new(run_id)
+        except _BridgeFailure:
+            if digest is None:
+                raise
+            result = {'ok': False}
+        state = result['data']['state'] if result.get('ok') else None
+        if digest is not None and state not in ('LOCAL', 'AVAILABLE'):
+            return self._open_module_evidence(run_id, 'full-page', digest)      # an old run's server picture
+        return result
+
+    def _view_metric_shot_new(self, run_id):
         base = {'format': 'metric-shot-open-v1', 'runId': run_id}
         local = self._local_metric_shot(run_id)
         if local is not None:

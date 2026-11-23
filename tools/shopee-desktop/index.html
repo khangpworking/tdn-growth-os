@@ -3157,7 +3157,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       localMetricShot: function (runId) { return call('localMetricShot', [runId]); },
       openLocalMetricShot: function (runId) { return call('openLocalMetricShot', [runId]); },
       saveMetricShot: function (runId, name, sha256, online) { return call('saveMetricShot', [runId, name, sha256, !!online]); },
-      metricShotState: function (runId) { return call('metricShotState', [runId]); },      viewMetricShot: function (runId) { return call('viewMetricShot', [runId]); },
+      metricShotState: function (runId) { return call('metricShotState', [runId]); },      viewMetricShot: function (runId, sha256) { return call('viewMetricShot', [runId, sha256 || null]); },
       uploadMetricShot: function (runId) { return call('uploadMetricShot', [runId]); },      deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
       rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
@@ -3702,24 +3702,21 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var label = 'Xem ảnh Metric';
     var wrap = h('span', 'rs-actions');
     var local = state.localShots[runId] === true;
-    if (!local && outputEvidenceAvailable(descriptor)) {        // an old run with the server's full-page.png
-      wrap.appendChild(outputEvidenceButton('moM1FullPage', label, runId, descriptor));
-      wrap.appendChild(saveShotButton(runId, descriptor.sha256, !state.connected));
-      return wrap;
-    }
+    // The old run's server full-page.png digest goes with every click; the bridge uses it last.
+    var oldDigest = outputEvidenceAvailable(descriptor) ? descriptor.sha256 : null;
     var off = !(local || state.connected);
     var btn = h('button', 'abtn', state.moduleEvidenceBusy[runId] ? 'Đang mở…' : label);
     btn.type = 'button';
     btn.id = 'moM1FullPage';
     btn.disabled = off || !!state.moduleEvidenceBusy[runId];
-    btn.addEventListener('click', function () { openShot(runId); });
+    btn.addEventListener('click', function () { openShot(runId, oldDigest); });
     wrap.appendChild(btn);
-    wrap.appendChild(saveShotButton(runId, null, off));
+    wrap.appendChild(saveShotButton(runId, oldDigest, off));
     if (!local && descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
       wrap.appendChild(outputEvidenceAction('moM1FullPage', label, runId, descriptor));   // the error note
       return wrap;
     }
-    var text = shotNoteText(runId, local);
+    var text = oldDigest ? '' : shotNoteText(runId, local);
     if (text) {
       var note = h('span', 'rs-note', text);
       note.id = 'moM1FullPageHint';
@@ -3765,19 +3762,21 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     $('shotImg').removeAttribute('src');    // let go of the picture (a large data URL or a short-lived link)
   }
 
-  async function openShot(runId) {
+  async function openShot(runId, oldDigest) {
     if (state.moduleEvidenceBusy[runId]) return;
     state.moduleEvidenceBusy[runId] = true;
     delete state.moduleEvidenceErrors[runId];
     delete state.moduleEvidenceNotice[runId];
     if (state.selectedRunId === runId) renderDetail();
-    var res = await api.viewMetricShot(runId);
+    var res = await api.viewMetricShot(runId, oldDigest || null);
     if (isGone(runId)) return;
     delete state.moduleEvidenceBusy[runId];
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
     if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
       if (errorCode(res.error) === 'EVIDENCE_LOCAL_MISSING') state.localShots[runId] = false;
+    } else if (data && data.format === 'module-evidence-open-v1') {
+      state.moduleEvidenceNotice[runId] = 'Đã mở bằng chứng đã lưu.';     // an old run's server picture
     } else if (data) {
       state.localShots[runId] = data.state === 'LOCAL';
       if (data.state !== 'LOCAL') state.metricShots[runId] = { state: data.state, deleteAfter: data.deleteAfter || null };
@@ -3824,7 +3823,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
 
   // The picture on this PC does not depend on the server's step results: shown even when they fail.
   function localShotRow(runId) {
-    if (state.localShots[runId] !== true && (state.metricShots[runId] || {}).state !== 'AVAILABLE') return null;
+    if (state.localShots[runId] !== true && !state.connected) return null;     // same rule as the actions
     var row = h('div', 'rs-actions');
     row.appendChild(metricFullPageAction(runId, null));
     return row;
@@ -3849,8 +3848,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
 
   async function loadLocalShot(runId) {
     loadShotState(runId);
+    var opening = state.selectionSeq;
     var res = await api.localMetricShot(runId);
-    if (isGone(runId)) return;
+    if (isGone(runId) || state.selectedRunId !== runId || state.selectionSeq !== opening) return;   // an older opening's answer
     var exists = !!(res.ok && res.data && res.data.runId === runId && res.data.exists === true);
     if (state.localShots[runId] === exists) return;
     state.localShots[runId] = exists;
