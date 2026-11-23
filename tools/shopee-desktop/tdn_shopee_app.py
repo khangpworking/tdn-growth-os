@@ -1227,15 +1227,6 @@ class Api:
         threading.Thread(target=self._metric_shot_upload_worker, args=(run_id,),
                          name='tdn-metric-shot-upload', daemon=True).start()
 
-    def metricShotUpload(self, runId=None):
-        """Cheap, local only (no server call): is this run's picture being sent now, and is it still here."""
-        return self._safe(lambda: self._metric_shot_upload_status(self._run_id(runId)))
-
-    def _metric_shot_upload_status(self, run_id):
-        uploading, local, generation = self._shot_snapshot(run_id)
-        return {'ok': True, 'data': {'format': 'metric-shot-upload-status-v1', 'runId': run_id,
-                                     'uploading': uploading, 'local': local, 'generation': generation}}
-
     def _metric_shot_upload_worker(self, run_id):
         try:
             self._upload_metric_shot(run_id)
@@ -1316,40 +1307,30 @@ class Api:
                 'contentType': view['contentType'], 'byteSize': view['byteSize']}
 
     def metricShotState(self, runId=None):
-        """For a run details load: is there a picture on this PC, and what the server keeps online. A local
-        picture of a run with no online copy yet is sent again in the background (refused within 60 s of
-        the last attempt). Only a details load calls this one."""
-        return self._safe(lambda: self._metric_shot_state(self._run_id(runId), retry=True))
+        """One read per opening of the run's details: is there a picture on this PC, and what the server keeps
+        online. A local picture of a run with no online copy yet is sent again in the background (refused
+        within 60 s of the last attempt)."""
+        return self._safe(lambda: self._metric_shot_state(self._run_id(runId)))
 
-    def metricShotStatePassive(self, runId=None):
-        """The same answer as ``metricShotState`` but it never starts an upload: the page's refresh after an
-        upload ended uses this, so failed uploads cannot loop without a new details load."""
-        return self._safe(lambda: self._metric_shot_state(self._run_id(runId), retry=False))
-
-    def _shot_snapshot(self, run_id):
-        """(uploading, local, generation) read under the worker's lock: the worker deletes the local file
-        before it leaves ``_shot_uploads`` and bumps the generation in the same locked step."""
+    def _metric_shot_state(self, run_id):
         with self._shot_uploads_lock:
-            return (run_id in self._shot_uploads, self._local_metric_shot(run_id) is not None,
-                    self._shot_generation.get(run_id, 0))
-
-    def _metric_shot_state(self, run_id, retry):
+            before = self._shot_generation.get(run_id, 0)
         online = self._metric_shot_online(run_id)
-        # The retry decision and the local/uploading/generation snapshot happen in one locked step, after
-        # the server read: no start or finish can fall between them. ``uploading`` is true whenever an
-        # upload for the run runs now, whoever started it. A state that is still moving is settled by the
-        # page's passive re-reads.
+        # The retry decision and the local/uploading snapshot are one locked step after the server read.
         with self._shot_uploads_lock:
-            started = (retry and online is not None and online['state'] in ('NOT_UPLOADED', 'AVAILABLE') and
+            started = (online is not None and online['state'] in ('NOT_UPLOADED', 'AVAILABLE') and
                        self._claim_shot_upload(run_id))
-            uploading = run_id in self._shot_uploads
-            local = self._local_metric_shot(run_id) is not None
-            generation = self._shot_generation.get(run_id, 0)
+            changed = self._shot_generation.get(run_id, 0) != before
+            uploading, local = run_id in self._shot_uploads, self._local_metric_shot(run_id) is not None
         if started:
             self._spawn_shot_upload(run_id)
+        if changed:
+            # An upload finished while the server was asked: ask once more so the one answer is coherent.
+            online = self._metric_shot_online(run_id)
+            with self._shot_uploads_lock:
+                uploading, local = run_id in self._shot_uploads, self._local_metric_shot(run_id) is not None
         data = {'format': 'metric-shot-state-v1', 'runId': run_id, 'local': local,
-                'state': online['state'] if online is not None else None,
-                'uploading': uploading, 'generation': generation}
+                'state': online['state'] if online is not None else None, 'uploading': uploading}
         if online is not None and 'deleteAfter' in online:
             data['deleteAfter'] = online['deleteAfter']
         return {'ok': True, 'data': data}
@@ -1414,15 +1395,19 @@ class Api:
         descriptor = None
         remote = None
         extension = local.suffix.lower()[1:] if local is not None else 'png'
+        online_state = None
         if local is None and online:
             remote = self._metric_shot_online(run_id)
-            if remote is not None and remote['state'] == 'AVAILABLE':
+            online_state = remote['state'] if remote is not None else None
+            if online_state == 'AVAILABLE':
                 extension = 'webp' if remote['contentType'] == 'image/webp' else 'png'
             else:
                 remote = None
         if local is None and remote is None:
             if digest is None:
-                raise _BridgeFailure('EVIDENCE_LOCAL_MISSING')
+                # Nothing to save; the page shows why («đã tự xóa sau 10 ngày» / «không có ảnh Metric»).
+                raise _BridgeFailure('METRIC_SHOT_' + online_state if online_state in ('EXPIRED', 'NOT_UPLOADED')
+                                     else 'EVIDENCE_LOCAL_MISSING')
             digest = self._sha256(digest)
             descriptor = self._evidence_descriptor(run_id, 'full-page', digest)
         # Clean the name first, then cut it so the whole «-<runId>.<ext>» always fits in 120 characters.

@@ -2771,11 +2771,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       },
       metricShotState: function (runId) {
         return Promise.resolve(ok({ format: 'metric-shot-state-v1', runId: runId, local: false, state: 'NOT_UPLOADED' }));
-      },
-      metricShotStatePassive: function (runId) {
-        return Promise.resolve(ok({ format: 'metric-shot-state-v1', runId: runId, local: false, state: 'NOT_UPLOADED' }));
-      },
-      viewMetricShot: function () {
+      },      viewMetricShot: function () {
         return Promise.resolve(err('EVIDENCE_LOCAL_MISSING', 'EVIDENCE_LOCAL_MISSING'));
       },
       uploadMetricShot: function (runId) {
@@ -3161,9 +3157,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       localMetricShot: function (runId) { return call('localMetricShot', [runId]); },
       openLocalMetricShot: function (runId) { return call('openLocalMetricShot', [runId]); },
       saveMetricShot: function (runId, name, sha256, online) { return call('saveMetricShot', [runId, name, sha256, !!online]); },
-      metricShotState: function (runId) { return call('metricShotState', [runId]); },
-      metricShotStatePassive: function (runId) { return call('metricShotStatePassive', [runId]); },
-      viewMetricShot: function (runId) { return call('viewMetricShot', [runId]); },
+      metricShotState: function (runId) { return call('metricShotState', [runId]); },      viewMetricShot: function (runId) { return call('viewMetricShot', [runId]); },
       uploadMetricShot: function (runId) { return call('uploadMetricShot', [runId]); },      deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
       rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
@@ -3307,8 +3301,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     moduleOutputs: {},
     localShots: {},
     metricShots: {},      // runId -> {state: AVAILABLE|EXPIRED|NOT_UPLOADED|null, deleteAfter} of the online copy
-    shotRefresh: {},      // runId -> {opening, count, timer}: passive re-reads while the state is not settled
-    shotExpiry: {},       // runId -> timer that redraws the row when the online copy expires
+    shotOpening: {},      // runId -> selectionSeq of the opening whose one state read was asked
     moduleOutputsErrors: {},
     moduleOutputsSeq: {},
     reviewStats: {},
@@ -3702,81 +3695,55 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return 'Ảnh lưu đến ' + pad(at.getDate()) + '/' + pad(at.getMonth() + 1) + '/' + at.getFullYear();
   }
 
-  // «Xem ảnh Metric» and «Tải ảnh»: the shot this PC took at «Lấy bình luận Shopee» first, else the copy
-  // kept online for 10 days, else the server's old saved picture, else disabled buttons with why.
+  // «Xem ảnh Metric» and «Tải ảnh» choose their source at click time in the app (this PC's picture, else the
+  // online copy, else the server's old picture), never from what the page read before. They are on whenever
+  // there is a picture here or the app is connected. The note next to them is information only.
   function metricFullPageAction(runId, descriptor) {
     var label = 'Xem ảnh Metric';
     var wrap = h('span', 'rs-actions');
-    var online = shotOnline(runId);
     var local = state.localShots[runId] === true;
-    var oldDigest = outputEvidenceAvailable(descriptor) ? descriptor.sha256 : null;
-    if (local || online.state === 'AVAILABLE') {
-      var btn = h('button', 'abtn', state.moduleEvidenceBusy[runId] ? 'Đang mở…' : label);
-      btn.type = 'button';
-      btn.id = 'moM1FullPage';
-      btn.disabled = !!state.moduleEvidenceBusy[runId] || (!local && !state.connected);
-      btn.addEventListener('click', function () { openShot(runId); });
-      wrap.appendChild(btn);
-      wrap.appendChild(saveShotButton(runId, oldDigest, true, !local));
-      if (!local) {
-        var kept = shotKeptUntilText(online.deleteAfter);
-        if (kept) {
-          var keptNote = h('span', 'rs-note', kept);
-          keptNote.id = 'moM1FullPageHint';
-          wrap.appendChild(keptNote);
-        }
-      }
-      return wrap;
-    }
-    if (outputEvidenceAvailable(descriptor)) {
+    if (!local && outputEvidenceAvailable(descriptor)) {        // an old run with the server's full-page.png
       wrap.appendChild(outputEvidenceButton('moM1FullPage', label, runId, descriptor));
-      wrap.appendChild(saveShotButton(runId, oldDigest, true, true));
+      wrap.appendChild(saveShotButton(runId, descriptor.sha256, !state.connected));
       return wrap;
     }
-    var off = h('button', 'abtn', label);
-    off.type = 'button';
-    off.id = 'moM1FullPage';
-    off.disabled = true;
-    wrap.appendChild(off);
-    wrap.appendChild(saveShotButton(runId, null, false, false));
-    if (descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
+    var off = !(local || state.connected);
+    var btn = h('button', 'abtn', state.moduleEvidenceBusy[runId] ? 'Đang mở…' : label);
+    btn.type = 'button';
+    btn.id = 'moM1FullPage';
+    btn.disabled = off || !!state.moduleEvidenceBusy[runId];
+    btn.addEventListener('click', function () { openShot(runId); });
+    wrap.appendChild(btn);
+    wrap.appendChild(saveShotButton(runId, null, off));
+    if (!local && descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
       wrap.appendChild(outputEvidenceAction('moM1FullPage', label, runId, descriptor));   // the error note
       return wrap;
     }
-    var hint = h('span', 'rs-note', online.state === 'EXPIRED' ? 'Ảnh Metric đã tự xóa sau 10 ngày.'
-      : online.state === 'NOT_UPLOADED' ? 'Lượt này không có ảnh Metric.'
-        : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu');
-    hint.id = 'moM1FullPageHint';
-    wrap.appendChild(hint);
+    var text = shotNoteText(runId, local);
+    if (text) {
+      var note = h('span', 'rs-note', text);
+      note.id = 'moM1FullPageHint';
+      wrap.appendChild(note);
+    }
     return wrap;
   }
 
-  // The online state, with AVAILABLE turned into EXPIRED once deleteAfter has passed (a timer redraws the
-  // row at that moment while it is shown).
-  function shotOnline(runId) {
+  // The note: from the one state read of this opening, or from the last click's answer.
+  function shotNoteText(runId, local) {
+    if (local) return '';
+    if (!state.connected) return 'Ảnh chỉ lưu trên máy đã lấy dữ liệu';
     var online = state.metricShots[runId] || {};
-    if (online.state !== 'AVAILABLE' || !online.deleteAfter) return online;
-    var left = Date.parse(online.deleteAfter) - Date.now();
-    if (!(left > 0)) {
-      online.state = 'EXPIRED';
-      return online;
-    }
-    if (!state.shotExpiry[runId]) {
-      state.shotExpiry[runId] = setTimeout(function () {
-        delete state.shotExpiry[runId];
-        if (state.selectedRunId === runId) renderDetail();
-      }, Math.min(left + 1000, 2147483000));
-    }
-    return online;
+    if (online.state === 'AVAILABLE' && Date.parse(online.deleteAfter) > Date.now()) return shotKeptUntilText(online.deleteAfter);
+    if (online.state === 'AVAILABLE' || online.state === 'EXPIRED') return 'Ảnh Metric đã tự xóa sau 10 ngày.';
+    if (online.state === 'NOT_UPLOADED') return 'Lượt này không có ảnh Metric.';
+    return '';
   }
 
-  // «Tải ảnh»: the source is chosen by the app at click time: this PC's picture if still there, else the
-  // online copy, else the server's old picture (oldDigest), else «Ảnh chỉ lưu…».
-  function saveShotButton(runId, oldDigest, enabled, needsServer) {
+  function saveShotButton(runId, oldDigest, off) {
     var btn = h('button', 'abtn', 'Tải ảnh');
     btn.type = 'button';
     btn.id = 'moM1SaveShot';
-    btn.disabled = !enabled || !!state.moduleEvidenceBusy[runId] || (needsServer && !state.connected);
+    btn.disabled = off || !!state.moduleEvidenceBusy[runId];
     btn.addEventListener('click', function () { saveShot(runId, oldDigest); });
     return btn;
   }
@@ -3811,17 +3778,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
       if (errorCode(res.error) === 'EVIDENCE_LOCAL_MISSING') state.localShots[runId] = false;
-    } else if (data && (data.state === 'LOCAL' || data.state === 'AVAILABLE') && typeof data.src === 'string') {
-      if (data.state === 'AVAILABLE') {
-        state.localShots[runId] = false;
-        state.metricShots[runId] = Object.assign({}, state.metricShots[runId] || {},
-          { state: 'AVAILABLE', deleteAfter: data.deleteAfter || null, local: false });
-      }
-      showShotViewer(data.src, data.state === 'AVAILABLE' ? shotKeptUntilText(data.deleteAfter) : '');
     } else if (data) {
-      state.localShots[runId] = false;
-      state.metricShots[runId] = Object.assign({}, state.metricShots[runId] || {},
-        { state: data.state, deleteAfter: data.deleteAfter || null, local: false });
+      state.localShots[runId] = data.state === 'LOCAL';
+      if (data.state !== 'LOCAL') state.metricShots[runId] = { state: data.state, deleteAfter: data.deleteAfter || null };
+      if ((data.state === 'LOCAL' || data.state === 'AVAILABLE') && typeof data.src === 'string') {
+        showShotViewer(data.src, data.state === 'AVAILABLE' ? shotKeptUntilText(data.deleteAfter) : '');
+      }
     }
     if (state.selectedRunId === runId) renderDetail();
   }
@@ -3840,8 +3802,15 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       return;
     }
     delete state.moduleEvidenceBusy[runId];
-    if (!res.ok) state.moduleEvidenceErrors[runId] = res.error;
-    else if (res.data && res.data.saved) showToast('Đã lưu ảnh');
+    var code = res.ok ? null : errorCode(res.error);
+    if (code === 'METRIC_SHOT_EXPIRED' || code === 'METRIC_SHOT_NOT_UPLOADED') {
+      state.localShots[runId] = false;                       // nothing to save: the note says why
+      state.metricShots[runId] = { state: code.slice('METRIC_SHOT_'.length), deleteAfter: null };
+    } else if (!res.ok) {
+      state.moduleEvidenceErrors[runId] = res.error;
+    } else if (res.data && res.data.saved) {
+      showToast('Đã lưu ảnh');
+    }
     if (state.selectedRunId === runId) renderDetail();
   }
 
@@ -3861,68 +3830,18 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return row;
   }
 
-  // The online copy of the Metric picture, read together with the local state. A details load asks at most
-  // once per 60 s per run (``passive`` false: the bridge may start a retry). Passive reads never start an
-  // upload. A read asked while one is out is queued once (run right after it), never dropped. Never awaited.
-  async function loadShotState(runId, passive) {
-    var known = state.metricShots[runId];
-    if (known && known.busy) { known.queued = true; return; }
-    if (!passive && known && Date.now() - known.at < 60000) return;
-    state.metricShots[runId] = Object.assign({}, known || {}, { busy: true, queued: false, at: Date.now() });
-    var res = await (passive ? api.metricShotStatePassive(runId) : api.metricShotState(runId));
-    if (isGone(runId)) return;
+  // Exactly one state read per opening of the run's details (it may start a retry in the bridge, which
+  // limits upload starts to one per 60 s). A late answer for a run no longer open is ignored. Never awaited.
+  async function loadShotState(runId) {
+    if (state.shotOpening[runId] === state.selectionSeq) return;
+    var opening = state.shotOpening[runId] = state.selectionSeq;
+    var res = await api.metricShotState(runId);
+    if (isGone(runId) || state.selectedRunId !== runId || state.selectionSeq !== opening) return;
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
-    var before = known || {};
-    var queued = state.metricShots[runId].queued;
-    var next = { busy: false, at: Date.now(), local: !!(data && data.local),
-      state: data && typeof data.state === 'string' ? data.state : null,
-      deleteAfter: data && typeof data.deleteAfter === 'string' ? data.deleteAfter : null,
-      generation: data && typeof data.generation === 'number' ? data.generation : before.generation };
-    state.metricShots[runId] = next;
-    var localBefore = state.localShots[runId];
-    if (data) state.localShots[runId] = next.local;
-    if (before.state !== next.state || before.deleteAfter !== next.deleteAfter || localBefore !== state.localShots[runId]) {
-      if (state.selectedRunId === runId) renderDetail();
-    }
-    var moved = typeof before.generation === 'number' && next.generation !== before.generation;
-    if (queued && state.selectedRunId === runId) loadShotState(runId, true);
-    else scheduleShotRefresh(runId, moved || !shotSettled(data));
-  }
-
-  // The run's details closed or another run opened: its queued picture read and re-read timer go.
-  function dropShotRefresh(runId) {
-    if (!runId) return;
-    if (state.metricShots[runId]) state.metricShots[runId].queued = false;
-    var plan = state.shotRefresh[runId];
-    if (plan) { clearTimeout(plan.timer); plan.timer = null; }
-  }
-
-  // Settled: nothing on this PC and a final server answer, or no answer (offline / not set up).
-  function shotSettled(data) {
-    if (!data || data.state === null) return true;
-    return data.uploading !== true && data.local !== true;
-  }
-
-  // Not settled while the run's details stay open: one passive read every 10 s, at most 12 per opening.
-  function scheduleShotRefresh(runId, again) {
-    var plan = state.shotRefresh[runId];
-    if (plan && plan.opening !== state.selectionSeq) {
-      clearTimeout(plan.timer);
-      plan = null;
-    }
-    if (!again || state.selectedRunId !== runId) {     // settled, or another run shown: stop
-      if (plan) { clearTimeout(plan.timer); plan.timer = null; }
-      return;
-    }
-    if (!plan) plan = state.shotRefresh[runId] = { opening: state.selectionSeq, count: 0, timer: null };
-    if (plan.timer || plan.count >= 12) return;
-    plan.count += 1;
-    plan.timer = setTimeout(function () {
-      plan.timer = null;
-      if (state.selectedRunId === runId && state.selectionSeq === plan.opening && !isGone(runId)) {
-        loadShotState(runId, true);
-      }
-    }, 10000);
+    state.metricShots[runId] = { state: data && typeof data.state === 'string' ? data.state : null,
+      deleteAfter: data && typeof data.deleteAfter === 'string' ? data.deleteAfter : null };
+    if (data) state.localShots[runId] = data.local === true;
+    renderDetail();
   }
 
   async function loadLocalShot(runId) {
@@ -7735,7 +7654,6 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   // The empty detail: no run open, its polls stopped.
   function closeDetail() {
     dropRefresh();
-    dropShotRefresh(state.selectedRunId);
     state.selectedRunId = null;
     state.loadingRunId = null;
     state.info = null;
@@ -8131,7 +8049,6 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     stopSamplingPoll();
     stopStep4Poll();
     state.selectionSeq += 1;
-    if (state.selectedRunId !== runId) dropShotRefresh(state.selectedRunId);
     state.selectedRunId = runId;
     state.loadingRunId = runId;
     state.info = state.infoByRun[runId] || null;   // the last copy at once; the fresh one replaces it
