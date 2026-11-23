@@ -3154,9 +3154,11 @@ def _r2_quote(value, safe='-_.~'):
     return urllib.parse.quote(value, safe=safe)
 
 
-def r2_signed(config, method, key, *, expires=None, content_type=None, now=None):
+def r2_signed(config, method, key, *, expires=None, content_type=None, payload_sha256=None, now=None):
     """AWS SigV4 for R2 (region auto, service s3, path style). With ``expires``: a presigned URL (query
-    signature, nothing else returned). Without: (url, headers) with an Authorization header."""
+    signature, nothing else returned). Without: (url, headers) with an Authorization header.
+    ``payload_sha256`` (presigned PUT): the body hash is signed as ``x-amz-content-sha256``, so storage
+    refuses any other bytes, and the client must send that header with that value."""
     import hashlib, hmac
     now = now or dt.datetime.now(dt.timezone.utc)
     stamp = now.strftime('%Y%m%dT%H%M%SZ')
@@ -3170,6 +3172,8 @@ def r2_signed(config, method, key, *, expires=None, content_type=None, now=None)
     query = {}
     if expires is not None:
         payload = 'UNSIGNED-PAYLOAD'
+        if payload_sha256 is not None:
+            payload = headers['x-amz-content-sha256'] = payload_sha256
         query = {'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
                  'X-Amz-Credential': f"{config['R2_ACCESS_KEY_ID']}/{scope}",
                  'X-Amz-Date': stamp, 'X-Amz-Expires': str(int(expires)),
@@ -3215,8 +3219,9 @@ def r2_call(config, method, key):
         raise ModuleFailure('R2_UNAVAILABLE') from None
 
 
-def metric_shot_key(run_id, content_type):
-    return f'metric-shots/{run_id}/full-page.{METRIC_SHOT_TYPES[content_type]}'
+def metric_shot_key(run_id, content_type, sha256):
+    """Immutable, content-bound object name: one key per picture content."""
+    return f'metric-shots/{run_id}/{sha256}.{METRIC_SHOT_TYPES[content_type]}'
 
 
 def metric_shot_record(run):
@@ -3231,9 +3236,37 @@ def metric_shot_record(run):
     if (not isinstance(record, dict) or
             set(record) != {'key', 'sha256', 'byteSize', 'contentType', 'uploadedAt', 'deleteAfter'} or
             record['contentType'] not in METRIC_SHOT_TYPES or
-            record['key'] != metric_shot_key(run.name, record['contentType'])):
+            not isinstance(record['sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', record['sha256']) or
+            record['key'] != metric_shot_key(run.name, record['contentType'], record['sha256'])):
         return None
     return record
+
+
+def metric_shot_record_create(run, record):
+    """Create the record exclusively (a hard link of a complete temp file never replaces a record).
+    Returns the record now on disk: ours, or the one an earlier confirm wrote."""
+    path = gate_path(run, METRIC_SHOT_RECORD)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temp = gate_path(run, METRIC_SHOT_RECORD + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        write_new(temp, json.dumps(record, ensure_ascii=True) + '\n')
+        with open(temp, 'rb') as written:
+            os.fsync(written.fileno())
+        try:
+            os.link(temp, path)
+        except FileExistsError:
+            existing = metric_shot_record(run)
+            if existing is None:
+                raise ModuleFailure('METRIC_SHOT_FAILED', 20)
+            return existing
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+        return record
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def _metric_shot_args(ns, need_type):
@@ -3261,15 +3294,17 @@ def cmd_metric_shot(ns):
             if metric_shot_record(run) is not None:
                 raise ModuleFailure('METRIC_SHOT_ALREADY_UPLOADED', 20)
             config = metric_shot_r2_config()
-            key = metric_shot_key(run.name, ns.content_type)
-            url = r2_signed(config, 'PUT', key, expires=METRIC_SHOT_PUT_SECONDS, content_type=ns.content_type)
+            key = metric_shot_key(run.name, ns.content_type, ns.sha256)
+            url = r2_signed(config, 'PUT', key, expires=METRIC_SHOT_PUT_SECONDS, content_type=ns.content_type,
+                            payload_sha256=ns.sha256)
             output = {'format': 'metric-shot-upload-v1', 'runId': run.name, 'url': url, 'key': key,
                       'contentType': ns.content_type, 'expiresInSeconds': METRIC_SHOT_PUT_SECONDS}
         elif ns.cmd == 'metric-shot-confirm':
             if module_readonly():
                 raise ModuleFailure('READONLY_ON', 20)
             run, size = _metric_shot_args(ns, False)
-            content_type = next((t for t in METRIC_SHOT_TYPES if ns.key == metric_shot_key(run.name, t)), None)
+            # The key names the content: it must be this run's key for exactly --sha256.
+            content_type = next((t for t in METRIC_SHOT_TYPES if ns.key == metric_shot_key(run.name, t, ns.sha256)), None)
             if content_type is None:
                 raise ModuleFailure('ARG_INVALID', 2)
             existing = metric_shot_record(run)
@@ -3288,7 +3323,9 @@ def cmd_metric_shot(ns):
                 existing = {'key': ns.key, 'sha256': ns.sha256, 'byteSize': size, 'contentType': content_type,
                             'uploadedAt': _utc_text(uploaded),
                             'deleteAfter': _utc_text(uploaded + dt.timedelta(days=METRIC_SHOT_KEEP_DAYS))}
-                module_atomic_json(run, METRIC_SHOT_RECORD, existing)
+                existing = metric_shot_record_create(run, existing)      # first confirm wins
+                if (existing['key'], existing['sha256'], existing['byteSize']) != (ns.key, ns.sha256, size):
+                    raise ModuleFailure('METRIC_SHOT_ALREADY_UPLOADED', 20)
             output = {'format': 'metric-shot-r2-v1', 'runId': run.name, **existing}
         else:   # metric-shot-view-url
             run = module_run_folder(ns.run_id)

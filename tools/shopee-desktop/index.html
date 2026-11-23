@@ -2778,6 +2778,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       uploadMetricShot: function (runId) {
         return Promise.resolve(ok({ format: 'metric-shot-upload-start-v1', runId: runId, started: false }));
       },
+      metricShotUpload: function (runId) {
+        return Promise.resolve(ok({ format: 'metric-shot-upload-status-v1', runId: runId, uploading: false, local: false }));
+      },
       lastProductSelection: function () { return Promise.resolve(ok({ productSelection: null })); },
       rememberProductSelection: function (value) { return Promise.resolve(ok({ productSelection: value })); },
       lastRunSort: function () { return Promise.resolve(ok({ runSort: null })); },
@@ -3162,6 +3165,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       metricShotState: function (runId) { return call('metricShotState', [runId]); },
       viewMetricShot: function (runId) { return call('viewMetricShot', [runId]); },
       uploadMetricShot: function (runId) { return call('uploadMetricShot', [runId]); },
+      metricShotUpload: function (runId) { return call('metricShotUpload', [runId]); },
       deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
       rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
@@ -3305,6 +3309,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     moduleOutputs: {},
     localShots: {},
     metricShots: {},      // runId -> {state: AVAILABLE|EXPIRED|NOT_UPLOADED|null, deleteAfter} of the online copy
+    shotWatch: {},        // runId -> true while the page follows an upload
+    shotExpiry: {},       // runId -> timer that redraws the row when the online copy expires
     moduleOutputsErrors: {},
     moduleOutputsSeq: {},
     reviewStats: {},
@@ -3703,8 +3709,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function metricFullPageAction(runId, descriptor) {
     var label = 'Xem ảnh Metric';
     var wrap = h('span', 'rs-actions');
-    var online = state.metricShots[runId] || {};
+    var online = shotOnline(runId);
     var local = state.localShots[runId] === true;
+    var oldDigest = outputEvidenceAvailable(descriptor) ? descriptor.sha256 : null;
     if (local || online.state === 'AVAILABLE') {
       var btn = h('button', 'abtn', state.moduleEvidenceBusy[runId] ? 'Đang mở…' : label);
       btn.type = 'button';
@@ -3712,7 +3719,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       btn.disabled = !!state.moduleEvidenceBusy[runId] || (!local && !state.connected);
       btn.addEventListener('click', function () { openShot(runId); });
       wrap.appendChild(btn);
-      wrap.appendChild(saveShotButton(runId, null, !local));
+      wrap.appendChild(saveShotButton(runId, oldDigest, true, !local));
       if (!local) {
         var kept = shotKeptUntilText(online.deleteAfter);
         if (kept) {
@@ -3725,7 +3732,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     }
     if (outputEvidenceAvailable(descriptor)) {
       wrap.appendChild(outputEvidenceButton('moM1FullPage', label, runId, descriptor));
-      wrap.appendChild(saveShotButton(runId, descriptor.sha256, false));
+      wrap.appendChild(saveShotButton(runId, oldDigest, true, true));
       return wrap;
     }
     var off = h('button', 'abtn', label);
@@ -3733,7 +3740,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     off.id = 'moM1FullPage';
     off.disabled = true;
     wrap.appendChild(off);
-    wrap.appendChild(saveShotButton(runId, undefined, false));
+    wrap.appendChild(saveShotButton(runId, null, false, false));
     if (descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
       wrap.appendChild(outputEvidenceAction('moM1FullPage', label, runId, descriptor));   // the error note
       return wrap;
@@ -3746,15 +3753,33 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return wrap;
   }
 
-  // «Tải ảnh»: sha256 null = this PC's picture or the online copy (online true), a digest = the server's old
-  // picture, undefined = none.
-  function saveShotButton(runId, sha256, online) {
+  // The online state, with AVAILABLE turned into EXPIRED once deleteAfter has passed (a timer redraws the
+  // row at that moment while it is shown).
+  function shotOnline(runId) {
+    var online = state.metricShots[runId] || {};
+    if (online.state !== 'AVAILABLE' || !online.deleteAfter) return online;
+    var left = Date.parse(online.deleteAfter) - Date.now();
+    if (!(left > 0)) {
+      online.state = 'EXPIRED';
+      return online;
+    }
+    if (!state.shotExpiry[runId]) {
+      state.shotExpiry[runId] = setTimeout(function () {
+        delete state.shotExpiry[runId];
+        if (state.selectedRunId === runId) renderDetail();
+      }, Math.min(left + 1000, 2147483000));
+    }
+    return online;
+  }
+
+  // «Tải ảnh»: the source is chosen by the app at click time: this PC's picture if still there, else the
+  // online copy, else the server's old picture (oldDigest), else «Ảnh chỉ lưu…».
+  function saveShotButton(runId, oldDigest, enabled, needsServer) {
     var btn = h('button', 'abtn', 'Tải ảnh');
     btn.type = 'button';
     btn.id = 'moM1SaveShot';
-    btn.disabled = sha256 === undefined || !!state.moduleEvidenceBusy[runId] ||
-      ((sha256 !== null || online) && !state.connected);
-    btn.addEventListener('click', function () { saveShot(runId, sha256, online); });
+    btn.disabled = !enabled || !!state.moduleEvidenceBusy[runId] || (needsServer && !state.connected);
+    btn.addEventListener('click', function () { saveShot(runId, oldDigest); });
     return btn;
   }
 
@@ -3803,7 +3828,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (state.selectedRunId === runId) renderDetail();
   }
 
-  async function saveShot(runId, sha256, online) {
+  async function saveShot(runId, oldDigest) {
     if (state.moduleEvidenceBusy[runId]) return;
     state.moduleEvidenceBusy[runId] = true;
     delete state.moduleEvidenceErrors[runId];
@@ -3811,7 +3836,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (state.selectedRunId === runId) renderDetail();
     var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
     var name = runDisplayName(item.tracking || null, item.product || '');
-    var res = await api.saveMetricShot(runId, name, sha256, online);
+    var res = await api.saveMetricShot(runId, name, oldDigest, true);
     if (isGone(runId)) {
       if (res.ok && res.data && res.data.saved) showToast('Đã lưu ảnh');   // the file was saved all the same
       return;
@@ -3838,11 +3863,11 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return row;
   }
 
-  // The online copy of the Metric picture: asked once per run open (again after 60 s while a picture is
-  // still only on this PC, which also sends it again). Never awaited: the details never wait for it.
-  async function loadShotState(runId) {
+  // The online copy of the Metric picture: asked again on every details load, at most once per 60 s per run
+  // (``force``: right after an upload ended). Local and online state are read together. Never awaited.
+  async function loadShotState(runId, force) {
     var known = state.metricShots[runId];
-    if (known && (known.busy || (!known.local && known.state) || Date.now() - known.at < 60000)) return;
+    if (known && (known.busy || (!force && Date.now() - known.at < 60000))) return;
     state.metricShots[runId] = Object.assign({}, known || {}, { busy: true, at: Date.now() });
     var res = await api.metricShotState(runId);
     if (isGone(runId)) return;
@@ -3852,9 +3877,29 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       deleteAfter: data && typeof data.deleteAfter === 'string' ? data.deleteAfter : null };
     var before = known || {};
     state.metricShots[runId] = next;
-    if (before.state !== next.state || before.deleteAfter !== next.deleteAfter) {
+    var localBefore = state.localShots[runId];
+    if (data) state.localShots[runId] = next.local;
+    if (data && data.uploading === true) watchShotUpload(runId);
+    if (before.state !== next.state || before.deleteAfter !== next.deleteAfter || localBefore !== state.localShots[runId]) {
       if (state.selectedRunId === runId) renderDetail();
     }
+  }
+
+  // While the picture is being sent: a cheap local check every 3 s (no server call); when it ends
+  // (sent or failed) the local and online state are read again together.
+  function watchShotUpload(runId) {
+    if (state.shotWatch[runId]) return;
+    state.shotWatch[runId] = true;
+    (async function () {
+      for (;;) {
+        await new Promise(function (done) { setTimeout(done, 3000); });
+        if (isGone(runId)) break;
+        var res = await api.metricShotUpload(runId);
+        if (!(res.ok && res.data && res.data.uploading === true)) break;
+      }
+      delete state.shotWatch[runId];
+      if (!isGone(runId)) loadShotState(runId, true);
+    })();
   }
 
   async function loadLocalShot(runId) {
@@ -9868,7 +9913,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (isGone(data.runId)) return;
     state.metricRunId = data.runId;
     state.preferredRunId = data.runId;
-    api.uploadMetricShot(data.runId);    // the picture goes online in the background; never awaited
+    // The picture goes online in the background; never awaited. The page follows it when it started.
+    api.uploadMetricShot(data.runId).then(function (up) {
+      if (up.ok && up.data && up.data.started === true && !isGone(data.runId)) watchShotUpload(data.runId);
+    });
     var text = data.reused ? 'Lượt ' + data.runId + ' đã có từ lần gửi trước.'
       : 'Đã tạo lượt ' + data.runId + ' từ số liệu Metric.';
     if (data.step2 && data.step2.ok) {
