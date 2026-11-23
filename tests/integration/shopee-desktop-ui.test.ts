@@ -108,7 +108,6 @@ function harness(options: {
   localShots?: Record<string, boolean>;
   metricShotStateResult?: (runId: string) => any;
   metricShotStatePassiveResult?: (runId: string) => unknown;
-  metricShotUploadResult?: (runId: string) => any;
   shotClock?: { now: number };
   saveShotResult?: (runId: string) => any;
   deleteRunResult?: (runId: string) => any;
@@ -150,7 +149,6 @@ function harness(options: {
     viewShotCalls: string[];
     shotStateCalls: string[];
     shotStatePassiveCalls: string[];
-    shotUploadCalls: string[];
     shotStartCalls: string[];
     saveShotCalls: any[][];
     deleteRunCalls: string[];
@@ -198,7 +196,6 @@ function harness(options: {
     viewShotCalls: [],
     shotStateCalls: [],
     shotStatePassiveCalls: [],
-    shotUploadCalls: [],
     shotStartCalls: [],
     saveShotCalls: [],
     deleteRunCalls: [],
@@ -309,12 +306,6 @@ function harness(options: {
       return result ? result(runId)
         : { ok: true, data: { format: 'metric-shot-state-v1', runId,
           local: !!options.localShots?.[runId], state: null, uploading: false, generation: 0 } };
-    },
-    metricShotUpload: async (runId: string) => {
-      state.shotUploadCalls.push(runId);
-      return options.metricShotUploadResult ? options.metricShotUploadResult(runId)
-        : { ok: true, data: { format: 'metric-shot-upload-status-v1', runId,
-          local: !!options.localShots?.[runId], uploading: false, generation: 0 } };
     },
     viewMetricShot: async (runId: string) => {
       state.viewShotCalls.push(runId);
@@ -3727,30 +3718,26 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
       } else {
         assert.equal(dialog.open, false, row.label + ': no viewer');
       }
+      run.advanceShotTime(130000);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      assert.deepEqual(run.state.shotStatePassiveCalls, [], row.label + ': settled state does not refresh');
+      assert.deepEqual(run.state.shotStartCalls, [], row.label + ': no upload start');
     } finally { run.dom.window.close(); }
   }
 
   for (const lifecycle of ['later upload elsewhere', 'later removal elsewhere', 'retention deadline',
-                            'upload finishes', 'upload generation changes', 'slow upload fails',
                             'local disappears before save']) {
     const clock = { now: Date.parse('2026-11-24T12:00:00Z') };
-    const watched = lifecycle.startsWith('upload ') || lifecycle === 'slow upload fails';
-    const localShots = { 'run-synthetic': watched || lifecycle === 'local disappears before save' };
+    const localShots = { 'run-synthetic': lifecycle === 'local disappears before save' };
     let remoteState = lifecycle === 'later removal elsewhere' || lifecycle === 'retention deadline'
       ? 'AVAILABLE' : 'NOT_UPLOADED';
-    let uploading = watched;
-    let generation = 0;
     const deleteAfter = lifecycle === 'retention deadline'
       ? new Date(clock.now + 2000).toISOString() : '2099-01-11T00:00:00Z';
     const run = harness({
       runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
       runInfo: syntheticRunInfo(), localShots, shotClock: clock,
       metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
-        local: localShots['run-synthetic'], state: remoteState, deleteAfter, uploading, generation } }),
-      metricShotStatePassiveResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
-        local: localShots['run-synthetic'], state: remoteState, deleteAfter, uploading: false, generation } }),
-      metricShotUploadResult: (runId) => ({ ok: true, data: { format: 'metric-shot-upload-status-v1', runId,
-        local: localShots['run-synthetic'], uploading, generation } }),
+        local: localShots['run-synthetic'], state: remoteState, deleteAfter, uploading: false, generation: 0 } }),
       moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
         { evidence: { fullPage: missing, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
     });
@@ -3780,28 +3767,6 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
         assert.equal(enabled(), false, lifecycle);
         assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, true);
         assert.equal(run.state.shotStateCalls.length, 1, lifecycle + ': no detail reload required');
-      } else if (watched) {
-        const failed = lifecycle === 'slow upload fails';
-        remoteState = failed ? 'NOT_UPLOADED' : 'AVAILABLE';
-        uploading = lifecycle === 'upload generation changes';
-        generation++;
-        localShots['run-synthetic'] = failed;
-        run.advanceShotTime(failed ? 61000 : 3000);
-        await waitFor(() => run.state.shotUploadCalls.length === 1 && run.state.shotStatePassiveCalls.length === 1 &&
-          (failed || hint() === 'Ảnh lưu đến 11/01/2099'), lifecycle + ': one passive completion refresh');
-        assert.deepEqual(run.state.shotStateCalls, ['run-synthetic'], lifecycle + ': no details-load retry');
-        assert.deepEqual(run.state.shotStartCalls, [], lifecycle + ': no explicit upload start');
-        assert.equal(enabled(), true, lifecycle);
-        assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, false);
-        // Advance past both the poll interval and retry guard without opening the details again.
-        for (let poll = 0; poll < 2; poll++) {
-          run.advanceShotTime(61000);
-          await new Promise((resolve) => setTimeout(resolve, 5));
-          assert.deepEqual(run.state.shotStatePassiveCalls, ['run-synthetic'], lifecycle + ': refresh is once only');
-          assert.deepEqual(run.state.shotStateCalls, ['run-synthetic'], lifecycle + ': no automatic retry loop');
-          assert.equal(run.state.shotUploadCalls.length, 1, lifecycle + ': watcher stopped');
-          assert.deepEqual(run.state.shotStartCalls, [], lifecycle + ': still no upload start');
-        }
       } else {
         localShots['run-synthetic'] = false;
         remoteState = 'AVAILABLE';
@@ -3810,6 +3775,147 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
         assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', null, true]]);
       }
     } finally { run.dom.window.close(); }
+  }
+
+  for (const scenario of ['upload finishes', 'generation changes', 'local NOT_UPLOADED', 'local AVAILABLE',
+                          'local EXPIRED', 'offline response', 'offline initially', 'close pending timer',
+                          'queued refresh', 'close pending read']) {
+    const clock = { now: Date.parse('2026-11-24T12:00:00Z') };
+    const localShots = { 'run-synthetic': scenario !== 'upload finishes' && scenario !== 'generation changes' };
+    let remoteState: string | null = scenario.startsWith('local ') ? scenario.slice(6) : 'NOT_UPLOADED';
+    let uploading = !scenario.startsWith('local ') && scenario !== 'queued refresh';
+    let generation = 0;
+    if (scenario === 'offline initially') remoteState = null;
+    const detailGate = deferred<unknown>();
+    const passiveGate = deferred<unknown>();
+    let holdPassive = scenario === 'queued refresh' || scenario === 'close pending read';
+    const reply = (runId = 'run-synthetic') => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
+      local: localShots['run-synthetic'], state: remoteState, uploading, generation,
+      deleteAfter: remoteState === 'AVAILABLE' || remoteState === 'EXPIRED' ? '2099-01-11T00:00:00Z' : null } });
+    const run = harness({
+      runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+      runInfo: syntheticRunInfo(), localShots, shotClock: clock,
+      metricShotStateResult: (runId) => scenario === 'queued refresh' ? detailGate.promise : reply(runId),
+      metricShotStatePassiveResult: (runId) => {
+        if (holdPassive) { holdPassive = false; return passiveGate.promise; }
+        return reply(runId);
+      },
+      moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
+        { evidence: { fullPage: missing, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
+    });
+    const advance = async (ms: number) => {
+      run.advanceShotTime(ms);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    };
+    const reopen = async () => {
+      const loaded = run.state.moduleOutputsCalls.length;
+      runListButton(run.doc, 'run-synthetic').click();
+      await waitFor(() => run.state.moduleOutputsCalls.length > loaded, scenario + ': details requested');
+    };
+    const closeDetails = async () => {
+      run.state.runsView = [];
+      // The tab requests current details before the refreshed list removes this run. Any queued
+      // picture read must stop with those details, even if its earlier response arrives later.
+      [...run.doc.querySelectorAll<HTMLButtonElement>('.tabs button')][1]!.click();
+      await waitFor(() => element(run.doc, 'runDetail').textContent === 'Chọn một lượt bên trái.',
+        scenario + ': details closed');
+    };
+    try {
+      await waitFor(() => run.state.shotStateCalls.length === 1 && run.doc.getElementById('moM1FullPage') !== null,
+        scenario + ': initial details read');
+      await advance(0);
+      if (scenario === 'queued refresh') {
+        // Repeated real details loads while the first read is held must coalesce into one passive read.
+        for (let request = 0; request < 3; request++) await reopen();
+        assert.equal(run.state.shotStateCalls.length, 1, scenario + ': one details read in flight');
+        assert.equal(run.state.shotStatePassiveCalls.length, 0, scenario + ': no overlapping passive read');
+        detailGate.resolve(reply());
+        await waitFor(() => run.state.shotStatePassiveCalls.length === 1, scenario + ': queued read runs immediately');
+        // The same rule also applies to a passive read already in flight.
+        for (let request = 0; request < 3; request++) await reopen();
+        assert.equal(run.state.shotStatePassiveCalls.length, 1, scenario + ': repeated refreshes queue once');
+        localShots['run-synthetic'] = false;
+        uploading = false;
+        remoteState = 'AVAILABLE';
+        generation = 1;
+        passiveGate.resolve(reply());
+        await waitFor(() => run.state.shotStatePassiveCalls.length === 2 &&
+          run.doc.getElementById('moM1FullPageHint')?.textContent === 'Ảnh lưu đến 11/01/2099',
+        scenario + ': follow-up uses the completed upload state');
+        await advance(60001);
+        assert.equal(run.state.shotStatePassiveCalls.length, 2, scenario + ': exactly one read per queued burst');
+      } else if (scenario.startsWith('close ')) {
+        if (scenario === 'close pending read') {
+          await advance(10000);
+          assert.equal(run.state.shotStatePassiveCalls.length, 1, scenario + ': passive read held');
+        }
+        await closeDetails();
+        passiveGate.resolve(reply());
+        await advance(0);
+        await advance(130000);
+        assert.equal(run.state.shotStatePassiveCalls.length, scenario === 'close pending read' ? 1 : 0,
+          scenario + ': no read after closing, including after a late answer');
+      } else if (scenario === 'offline initially') {
+        await advance(130000);
+        assert.equal(run.state.shotStatePassiveCalls.length, 0, scenario + ': null settles even with local/uploading true');
+      } else {
+        await advance(9999);
+        assert.equal(run.state.shotStatePassiveCalls.length, 0, scenario + ': no refresh before ten seconds');
+        if (scenario === 'upload finishes' || scenario === 'generation changes') {
+          uploading = false;
+          remoteState = scenario === 'generation changes' ? 'NOT_UPLOADED' : 'AVAILABLE';
+          generation = 1;
+        } else if (scenario === 'offline response') remoteState = null;
+        await advance(1);
+        assert.equal(run.state.shotStatePassiveCalls.length, 1, scenario + ': refresh at ten seconds');
+        if (scenario.startsWith('local ')) {
+          // A failed upload leaves a local file in any online state. Continue passively past the
+          // bridge's 60 s retry window, stopping at the per-opening budget without starting uploads.
+          for (let count = 2; count <= 12; count++) {
+            await advance(9999);
+            assert.equal(run.state.shotStatePassiveCalls.length, count - 1, scenario + ': interval boundary');
+            await advance(1);
+            assert.equal(run.state.shotStatePassiveCalls.length, count, scenario + ': one refresh per interval');
+          }
+          await advance(61000);
+          assert.equal(run.state.shotStatePassiveCalls.length, 12, scenario + ': twelve per opening');
+          if (scenario === 'local NOT_UPLOADED') {
+            await reopen();
+            await advance(0);
+            assert.equal(run.state.shotStateCalls.length, 2, scenario + ': new opening permits a details retry');
+            for (let count = 13; count <= 24; count++) {
+              await advance(10000);
+              assert.equal(run.state.shotStatePassiveCalls.length, count, scenario + ': budget resets on opening');
+            }
+            await advance(61000);
+            assert.equal(run.state.shotStatePassiveCalls.length, 24, scenario + ': new opening remains bounded');
+          }
+          assert.equal(element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, false, scenario + ': local view remains');
+        } else if (scenario === 'offline response') {
+          await advance(130000);
+          assert.equal(run.state.shotStatePassiveCalls.length, 1, scenario + ': null stops refreshing');
+        } else {
+          // A moved generation gets one more passive read even if the first answer looks settled.
+          remoteState = 'AVAILABLE';
+          await advance(9999);
+          assert.equal(run.state.shotStatePassiveCalls.length, 1, scenario + ': generation refresh waits ten seconds');
+          await advance(1);
+          assert.equal(run.state.shotStatePassiveCalls.length, 2, scenario + ': changed generation rechecked');
+          assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent, 'Ảnh lưu đến 11/01/2099');
+          assert.equal(element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, false);
+          assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, false);
+          await advance(130000);
+          assert.equal(run.state.shotStatePassiveCalls.length, 2, scenario + ': stable settled state stops refreshing');
+        }
+      }
+      assert.equal(run.state.shotStateCalls.length, scenario === 'local NOT_UPLOADED' ? 2 : 1,
+        scenario + ': automatic refresh never uses the retrying details method');
+      assert.deepEqual(run.state.shotStartCalls, [], scenario + ': passive refresh never starts an upload');
+    } finally {
+      detailGate.resolve(reply());
+      passiveGate.resolve(reply());
+      run.dom.window.close();
+    }
   }
 });
 
