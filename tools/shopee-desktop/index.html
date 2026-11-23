@@ -3885,8 +3885,16 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       if (state.selectedRunId === runId) renderDetail();
     }
     var moved = typeof before.generation === 'number' && next.generation !== before.generation;
-    if (queued) loadShotState(runId, true);
+    if (queued && state.selectedRunId === runId) loadShotState(runId, true);
     else scheduleShotRefresh(runId, moved || !shotSettled(data));
+  }
+
+  // The run's details closed or another run opened: its queued picture read and re-read timer go.
+  function dropShotRefresh(runId) {
+    if (!runId) return;
+    if (state.metricShots[runId]) state.metricShots[runId].queued = false;
+    var plan = state.shotRefresh[runId];
+    if (plan) { clearTimeout(plan.timer); plan.timer = null; }
   }
 
   // Settled: nothing on this PC and a final server answer, or no answer (offline / not set up).
@@ -7727,6 +7735,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   // The empty detail: no run open, its polls stopped.
   function closeDetail() {
     dropRefresh();
+    dropShotRefresh(state.selectedRunId);
     state.selectedRunId = null;
     state.loadingRunId = null;
     state.info = null;
@@ -8122,6 +8131,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     stopSamplingPoll();
     stopStep4Poll();
     state.selectionSeq += 1;
+    if (state.selectedRunId !== runId) dropShotRefresh(state.selectedRunId);
     state.selectedRunId = runId;
     state.loadingRunId = runId;
     state.info = state.infoByRun[runId] || null;   // the last copy at once; the fresh one replaces it
