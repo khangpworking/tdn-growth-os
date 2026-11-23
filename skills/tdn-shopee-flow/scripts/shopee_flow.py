@@ -3103,6 +3103,270 @@ def flow_delete_leftovers(root):
             continue
 
 
+# ---------------------------------------------------------------- Metric picture on Cloudflare R2 (app 1.2.0)
+# The desktop app sends the click's full-page Metric picture straight to R2 with a short presigned PUT;
+# the server only signs, checks and records. A bucket lifecycle rule removes objects after 10 days.
+METRIC_SHOT_R2_FILE = '~/.config/tdn-shopee/r2-metric-shots.env'   # override: env TDN_METRIC_SHOTS_R2_FILE
+METRIC_SHOT_R2_NAMES = ('R2_ACCOUNT_ID', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY')
+METRIC_SHOT_TYPES = {'image/webp': 'webp', 'image/png': 'png'}
+METRIC_SHOT_MAX_BYTES = 32 * 1024 * 1024
+METRIC_SHOT_KEEP_DAYS = 10
+METRIC_SHOT_PUT_SECONDS = 600
+METRIC_SHOT_GET_SECONDS = 900
+METRIC_SHOT_HTTP_SECONDS = 20
+METRIC_SHOT_RECORD = 'm1/metric-shot-r2.json'
+_EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+
+
+def metric_shot_r2_config():
+    """The four R2 values from the credential file. Missing, unreadable or incomplete: R2_NOT_CONFIGURED.
+    The values are never printed or returned."""
+    path = pathlib.Path(os.environ.get('TDN_METRIC_SHOTS_R2_FILE') or METRIC_SHOT_R2_FILE).expanduser()
+    try:
+        if path.stat().st_size > 16 * 1024:
+            raise ModuleFailure('R2_NOT_CONFIGURED')
+        text = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeError, ValueError):
+        raise ModuleFailure('R2_NOT_CONFIGURED') from None
+    values = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith('export '):
+            line = line[7:].lstrip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        name, value = line.split('=', 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
+            value = value[1:-1]
+        values[name.strip()] = value
+    config = {name: values.get(name, '') for name in METRIC_SHOT_R2_NAMES}
+    if (not re.fullmatch(r'[A-Za-z0-9]{1,64}', config['R2_ACCOUNT_ID']) or
+            not re.fullmatch(r'[a-z0-9][a-z0-9-]{1,62}', config['R2_BUCKET']) or
+            not re.fullmatch(r'[A-Za-z0-9]{1,128}', config['R2_ACCESS_KEY_ID']) or
+            not config['R2_SECRET_ACCESS_KEY'] or any(c in config['R2_SECRET_ACCESS_KEY'] for c in '\r\n\x00')):
+        raise ModuleFailure('R2_NOT_CONFIGURED')
+    return config
+
+
+def _r2_quote(value, safe='-_.~'):
+    import urllib.parse
+    return urllib.parse.quote(value, safe=safe)
+
+
+def r2_signed(config, method, key, *, expires=None, content_type=None, payload_sha256=None, now=None):
+    """AWS SigV4 for R2 (region auto, service s3, path style). With ``expires``: a presigned URL (query
+    signature, nothing else returned). Without: (url, headers) with an Authorization header.
+    ``payload_sha256`` (presigned PUT): the body hash is signed as ``x-amz-content-sha256``, so storage
+    refuses any other bytes, and the client must send that header with that value."""
+    import hashlib, hmac
+    now = now or dt.datetime.now(dt.timezone.utc)
+    stamp = now.strftime('%Y%m%dT%H%M%SZ')
+    day = stamp[:8]
+    host = f"{config['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com"
+    path = '/' + _r2_quote(f"{config['R2_BUCKET']}/{key}", safe='/-_.~')
+    scope = f'{day}/auto/s3/aws4_request'
+    headers = {'host': host}
+    if content_type is not None:
+        headers['content-type'] = content_type
+    query = {}
+    if expires is not None:
+        payload = 'UNSIGNED-PAYLOAD'
+        if payload_sha256 is not None:
+            payload = headers['x-amz-content-sha256'] = payload_sha256
+        query = {'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+                 'X-Amz-Credential': f"{config['R2_ACCESS_KEY_ID']}/{scope}",
+                 'X-Amz-Date': stamp, 'X-Amz-Expires': str(int(expires)),
+                 'X-Amz-SignedHeaders': ';'.join(sorted(headers))}
+    else:
+        payload = _EMPTY_SHA256
+        headers['x-amz-content-sha256'] = payload
+        headers['x-amz-date'] = stamp
+    signed_headers = ';'.join(sorted(headers))
+    if expires is not None:
+        query['X-Amz-SignedHeaders'] = signed_headers
+    canonical_query = '&'.join(f'{_r2_quote(k)}={_r2_quote(v)}' for k, v in sorted(query.items()))
+    canonical_headers = ''.join(f'{name}:{headers[name].strip()}\n' for name in sorted(headers))
+    canonical = '\n'.join((method, path, canonical_query, canonical_headers, signed_headers, payload))
+    to_sign = '\n'.join(('AWS4-HMAC-SHA256', stamp, scope, hashlib.sha256(canonical.encode('utf-8')).hexdigest()))
+    signing = ('AWS4' + config['R2_SECRET_ACCESS_KEY']).encode('utf-8')
+    for part in (day, 'auto', 's3', 'aws4_request'):
+        signing = hmac.new(signing, part.encode('utf-8'), hashlib.sha256).digest()
+    signature = hmac.new(signing, to_sign.encode('utf-8'), hashlib.sha256).hexdigest()
+    url = f'https://{host}{path}'
+    if expires is not None:
+        return f'{url}?{canonical_query}&X-Amz-Signature={signature}'
+    out = {name: value for name, value in headers.items() if name != 'host'}
+    out['authorization'] = (f"AWS4-HMAC-SHA256 Credential={config['R2_ACCESS_KEY_ID']}/{scope}, "
+                            f'SignedHeaders={signed_headers}, Signature={signature}')
+    return url, out
+
+
+def r2_call(config, method, key):
+    """HEAD or DELETE one object: (HTTP status, Content-Length or None). Network failure: R2_UNAVAILABLE."""
+    url, headers = r2_signed(config, method, key)
+    request = urllib.request.Request(url, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=METRIC_SHOT_HTTP_SECONDS) as response:
+            length = response.headers.get('Content-Length')
+            return response.status, int(length) if length is not None and length.isdigit() else None
+    except urllib.error.HTTPError as error:
+        try:
+            return error.code, None
+        finally:
+            error.close()        # its body is never read: release it now (no ResourceWarning)
+    except (OSError, ValueError):
+        raise ModuleFailure('R2_UNAVAILABLE') from None
+
+
+def metric_shot_key(run_id, content_type, sha256):
+    """Immutable, content-bound object name: one key per picture content."""
+    return f'metric-shots/{run_id}/{sha256}.{METRIC_SHOT_TYPES[content_type]}'
+
+
+def metric_shot_record(run):
+    """The run's R2 record (dict) or None. A record that is not the expected shape counts as none."""
+    path = gate_path(run, METRIC_SHOT_RECORD)
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        record = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return None
+    if (not isinstance(record, dict) or
+            set(record) != {'key', 'sha256', 'byteSize', 'contentType', 'uploadedAt', 'deleteAfter'} or
+            record['contentType'] not in METRIC_SHOT_TYPES or
+            not isinstance(record['sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', record['sha256']) or
+            record['key'] != metric_shot_key(run.name, record['contentType'], record['sha256'])):
+        return None
+    return record
+
+
+def metric_shot_record_create(run, record):
+    """Create the record exclusively (a hard link of a complete temp file never replaces a record).
+    Returns the record now on disk: ours, or the one an earlier confirm wrote."""
+    path = gate_path(run, METRIC_SHOT_RECORD)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temp = gate_path(run, METRIC_SHOT_RECORD + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        write_new(temp, json.dumps(record, ensure_ascii=True) + '\n')
+        with open(temp, 'rb') as written:
+            os.fsync(written.fileno())
+        try:
+            os.link(temp, path)
+        except FileExistsError:
+            existing = metric_shot_record(run)
+            if existing is None:
+                raise ModuleFailure('METRIC_SHOT_FAILED', 20)
+            return existing
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+        return record
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def _metric_shot_args(ns, need_type):
+    run = module_run_folder(ns.run_id)
+    if not re.fullmatch(r'[a-f0-9]{64}', ns.sha256 or ''):
+        raise ModuleFailure('ARG_INVALID', 2)
+    if not re.fullmatch(r'[1-9][0-9]{0,9}', ns.bytes or '') or int(ns.bytes) > METRIC_SHOT_MAX_BYTES:
+        raise ModuleFailure('ARG_INVALID', 2)
+    if need_type and ns.content_type not in METRIC_SHOT_TYPES:
+        raise ModuleFailure('ARG_INVALID', 2)
+    return run, int(ns.bytes)
+
+
+def _utc_text(value):
+    return value.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+
+
+def cmd_metric_shot(ns):
+    """metric-shot-upload-url / metric-shot-confirm / metric-shot-view-url. One JSON object on stdout."""
+    try:
+        if ns.cmd == 'metric-shot-upload-url':
+            if module_readonly():
+                raise ModuleFailure('READONLY_ON', 20)
+            run, size = _metric_shot_args(ns, True)
+            if metric_shot_record(run) is not None:
+                raise ModuleFailure('METRIC_SHOT_ALREADY_UPLOADED', 20)
+            config = metric_shot_r2_config()
+            key = metric_shot_key(run.name, ns.content_type, ns.sha256)
+            url = r2_signed(config, 'PUT', key, expires=METRIC_SHOT_PUT_SECONDS, content_type=ns.content_type,
+                            payload_sha256=ns.sha256)
+            output = {'format': 'metric-shot-upload-v1', 'runId': run.name, 'url': url, 'key': key,
+                      'contentType': ns.content_type, 'expiresInSeconds': METRIC_SHOT_PUT_SECONDS}
+        elif ns.cmd == 'metric-shot-confirm':
+            if module_readonly():
+                raise ModuleFailure('READONLY_ON', 20)
+            run, size = _metric_shot_args(ns, False)
+            # The key names the content: it must be this run's key for exactly --sha256.
+            content_type = next((t for t in METRIC_SHOT_TYPES if ns.key == metric_shot_key(run.name, t, ns.sha256)), None)
+            if content_type is None:
+                raise ModuleFailure('ARG_INVALID', 2)
+            existing = metric_shot_record(run)
+            if existing is not None and (existing['key'], existing['sha256'], existing['byteSize']) != (ns.key, ns.sha256, size):
+                raise ModuleFailure('METRIC_SHOT_ALREADY_UPLOADED', 20)
+            config = metric_shot_r2_config()
+            status, length = r2_call(config, 'HEAD', ns.key)
+            if status == 404:
+                raise ModuleFailure('METRIC_SHOT_NOT_FOUND', 20)
+            if status != 200:
+                raise ModuleFailure('R2_UNAVAILABLE', 20)
+            if length != size:
+                raise ModuleFailure('METRIC_SHOT_SIZE_MISMATCH', 20)
+            if existing is None:
+                uploaded = dt.datetime.now(dt.timezone.utc)
+                existing = {'key': ns.key, 'sha256': ns.sha256, 'byteSize': size, 'contentType': content_type,
+                            'uploadedAt': _utc_text(uploaded),
+                            'deleteAfter': _utc_text(uploaded + dt.timedelta(days=METRIC_SHOT_KEEP_DAYS))}
+                existing = metric_shot_record_create(run, existing)      # first confirm wins
+                if (existing['key'], existing['sha256'], existing['byteSize']) != (ns.key, ns.sha256, size):
+                    raise ModuleFailure('METRIC_SHOT_ALREADY_UPLOADED', 20)
+            output = {'format': 'metric-shot-r2-v1', 'runId': run.name, **existing}
+        else:   # metric-shot-view-url
+            run = module_run_folder(ns.run_id)
+            record = metric_shot_record(run)
+            output = {'format': 'metric-shot-view-v1', 'runId': run.name}
+            if record is None:
+                output['state'] = 'NOT_UPLOADED'
+            else:
+                times = {'uploadedAt': record['uploadedAt'], 'deleteAfter': record['deleteAfter']}
+                expired = dt.datetime.fromisoformat(record['deleteAfter'].replace('Z', '+00:00')) <= dt.datetime.now(dt.timezone.utc)
+                status = None
+                if not expired:
+                    config = metric_shot_r2_config()
+                    status, _ = r2_call(config, 'HEAD', record['key'])
+                    if status not in (200, 404):
+                        raise ModuleFailure('R2_UNAVAILABLE', 20)
+                if expired or status == 404:
+                    output.update(state='EXPIRED', **times)
+                else:
+                    output.update(state='AVAILABLE',
+                                  url=r2_signed(config, 'GET', record['key'], expires=METRIC_SHOT_GET_SECONDS),
+                                  contentType=record['contentType'], byteSize=record['byteSize'], **times)
+        print(json.dumps(output, ensure_ascii=True))
+    except ModuleFailure as failure:
+        print(json.dumps({'format': 'error-v1', 'code': failure.code, 'message': failure.code}))
+        sys.exit(failure.exit_code)
+    except (OSError, ValueError, TypeError, KeyError):
+        print(json.dumps({'format': 'error-v1', 'code': 'METRIC_SHOT_FAILED', 'message': 'METRIC_SHOT_FAILED'}))
+        sys.exit(20)
+
+
+def metric_shot_delete_quietly(record):
+    """delete-run: best effort; a failure never blocks the run deletion (the 10-day rule removes it anyway)."""
+    if record is None:
+        return
+    try:
+        r2_call(metric_shot_r2_config(), 'DELETE', record['key'])
+    except Exception:
+        pass
+
+
 def cmd_delete_run(ns):
     """Delete one run folder and the .imports records that point at it, under the imports lock.
     The run's own module admission lock is taken non-blockingly, so no module, count refresh or
@@ -3130,6 +3394,7 @@ def cmd_delete_run(ns):
             if run.is_symlink() or not run.is_dir() or run.resolve().parent != root:
                 raise ModuleFailure('RUN_NOT_FOUND', 2)
             run = run.resolve()
+            shot_record = metric_shot_record(run)   # read before the folder moves away
             # Same admission lock every module, count refresh and step 4 take: a live owner keeps
             # it, and holding it here keeps a new owner out until the run is renamed away.
             module_lock = os.open(gate_path(run, '.module.lock'),
@@ -3220,6 +3485,7 @@ def cmd_delete_run(ns):
                 shutil.rmtree(deleted)
             except OSError:
                 leftover = True  # Hidden and unlisted, with its reservation gone; it may be retried.
+        metric_shot_delete_quietly(shot_record)
         output = {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True}
         if leftover:
             output['leftover'] = True
@@ -3531,7 +3797,7 @@ class FlowArgumentParser(argparse.ArgumentParser):
         if len(sys.argv) > 1 and sys.argv[1] == 'read-review-export':
             print('USAGE', file=sys.stderr)
             self.exit(2)
-        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'run-view', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'review-insight-comments', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress', 'app-latest'):
+        if len(sys.argv) > 1 and sys.argv[1] in ('connection', 'presets', 'add-product', 'new-run', 'm1-import', 'delete-run', 'metric-date-availability', 'runs', 'run-info', 'run-view', 'capture-specs', 'library', 'run', 'm1', 'm2', 'm3', 'review-sampling', 'save-review-plan', 'review-counts', 'stop-review-attempt', 'reconcile-review-attempt', 'review-attempt-worker', 'review-data', 'review-stats', 'review-insights', 'review-insight-comments', 'save-review-data', 'export-review-data', 'review-process', 'process-review-data', 'review-process-worker', 'runs-progress', 'app-latest', 'metric-shot-upload-url', 'metric-shot-confirm', 'metric-shot-view-url'):
             print(json.dumps({'format': 'error-v1', 'code': 'USAGE', 'message': 'Invalid command arguments.'}))
             self.exit(2)
         super().error(message)
@@ -3588,6 +3854,12 @@ def main():
     x.set_defaults(f=cmd_flow_query)
     x = sp.add_parser('delete-run'); x.add_argument('--run', dest='run_id', required=True)
     x.set_defaults(f=cmd_delete_run)
+    for name in ('metric-shot-upload-url', 'metric-shot-confirm', 'metric-shot-view-url'):
+        x = sp.add_parser(name); x.add_argument('--run', dest='run_id', required=True)
+        if name == 'metric-shot-upload-url': x.add_argument('--content-type', required=True)
+        if name == 'metric-shot-confirm': x.add_argument('--key', required=True)
+        if name != 'metric-shot-view-url': x.add_argument('--sha256', required=True); x.add_argument('--bytes', required=True)
+        x.set_defaults(f=cmd_metric_shot)
     x = sp.add_parser('evidence'); x.add_argument('--run', dest='run_id', required=True)
     x.add_argument('--kind', choices=['full-page', 'top-products', 'raw'], required=True); x.add_argument('--output-sha256', required=True)
     x.set_defaults(f=cmd_metric_evidence)

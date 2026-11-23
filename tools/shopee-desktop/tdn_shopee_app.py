@@ -72,15 +72,29 @@ _COMMANDS = {
     'reviewInsightComments': ('review-insight-comments', '--run'),
     # F654: the newest desktop app version the server knows of (notify only).
     'appLatest': ('app-latest',),
+    # App 1.2.0: the Metric picture is kept online for 10 days (signed by the server, sent straight from here).
+    'metricShotUploadUrl': ('metric-shot-upload-url', '--run'),
+    'metricShotConfirm': ('metric-shot-confirm', '--run'),
+    'metricShotViewUrl': ('metric-shot-view-url', '--run'),
 }
 # Commands an older server does not know: argparse exits 2 with nothing on stdout -> USAGE.
-_WAVE2_COMMANDS = frozenset({'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'appLatest'})
+_WAVE2_COMMANDS = frozenset({'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'appLatest',
+                             'metricShotUploadUrl', 'metricShotConfirm', 'metricShotViewUrl'})
 # Commands that only read. Every other command (a write, start, save, delete, detached run, gate) moves the
 # mutation counter: a prefetch read started before it is never joined.
 _READ_ONLY_COMMANDS = frozenset({
     'connection', 'presets', 'runs', 'library', 'status', 'captureSpecs', 'moduleOutputs', 'readModuleEvidence',
     'metricDateAvailability', 'reviewSampling', 'reviewData', 'reviewStats', 'reviewInsights', 'reviewProcess',
-    'runsProgress', 'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'readReviewExport', 'appLatest'})
+    'runsProgress', 'runView', 'reviewInsightsSummary', 'reviewInsightComments', 'readReviewExport', 'appLatest',
+    'metricShotViewUrl'})
+# The online Metric picture (app 1.2.0).
+_SHOT_TYPES = {'.webp': 'image/webp', '.png': 'image/png'}
+_SHOT_MAX_BYTES = 32 * 1024 * 1024
+_SHOT_PUT_SECONDS = 60
+_SHOT_RETRY_SECONDS = 60          # at most one upload attempt per run in this time
+_SHOT_STATES = frozenset({'AVAILABLE', 'EXPIRED', 'NOT_UPLOADED'})
+_R2_URL = re.compile(r'https://[A-Za-z0-9]{1,64}\.r2\.cloudflarestorage\.com/[A-Za-z0-9._~/%-]{1,600}\?[A-Za-z0-9._~%&=-]{1,2000}')
+_UTC_TEXT = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z')
 _RUN_VIEW_PARTS = ('info', 'sampling', 'reviewData', 'outputs', 'process')
 _RUN_VIEW_RESULT_PARTS = ('stats', 'insights')
 # Step 4 formats (review-process-view-v1, review-process-start-v1, runs-progress-v1).
@@ -210,6 +224,54 @@ def _prepare_metric_shot_folder():
         return folder if tdn_metric_browser.plain_path(folder.parent, folder) else None
     except (OSError, _BridgeFailure):
         return None
+
+
+def _delete_sent_shot(path, digest):
+    """Delete the local picture only when it is still the very file whose bytes were sent online.
+    1. The folder chain has no link/junction. 2. The file is moved atomically to a unique hidden name in the
+    same folder, so the user-visible name can no longer be swapped under us. 3. That name is opened, hashed
+    through the same handle, and its lstat identity (inode / Windows file index + device) must equal the
+    handle's fstat: a link or a replaced file fails here. 4. The chain is checked again, then the hidden name
+    is deleted. Any mismatch or error moves the file back (never over a file that appeared meanwhile).
+    Residual (accepted for a single-user desktop app): a same-user process able to swap the folder in the
+    final instant between the last check and the unlink could still redirect the unlink. Returns True when
+    deleted."""
+    path = Path(path)
+    folder, root = path.parent, path.parent.parent
+    try:
+        if not (tdn_metric_browser.plain_path(root, path) and path.is_file()):
+            return False
+    except OSError:
+        return False
+    hidden = folder / f'.sent-{os.urandom(8).hex()}{path.suffix}'
+    try:
+        os.rename(path, hidden)
+    except OSError:
+        return False
+    deleted = False
+    try:
+        with open(hidden, 'rb') as handle:
+            pinned = os.fstat(handle.fileno())
+            hasher = hashlib.sha256()
+            for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                hasher.update(chunk)
+        current = os.lstat(hidden)
+        same = (hasher.hexdigest() == digest and stat.S_ISREG(current.st_mode) and current.st_ino != 0 and
+                (current.st_ino, current.st_dev) == (pinned.st_ino, pinned.st_dev) and
+                not getattr(current, 'st_file_attributes', 0) & 0x400)
+        if same and tdn_metric_browser.plain_path(root, hidden):
+            os.unlink(hidden)
+            deleted = True
+    except OSError:
+        deleted = False
+    finally:
+        if not deleted:
+            try:
+                if not os.path.lexists(path):
+                    os.rename(hidden, path)
+            except OSError:
+                pass
+    return deleted
 
 
 def _open_local_file(path):
@@ -761,6 +823,10 @@ class Api:
         self._connection_attempts = 0
         self._metric = None
         self._metric_lock = threading.Lock()
+        self._shot_uploads = set()         # runIds whose Metric picture is being sent online
+        self._shot_attempts = {}           # runId -> monotonic time of the last upload attempt
+        self._shot_generation = {}         # runId -> number of finished upload attempts (sent or failed)
+        self._shot_uploads_lock = threading.Lock()
 
     def _connection_backoff(self):
         return min(15, 2 ** min(self._connection_attempts, 4))
@@ -824,7 +890,8 @@ class Api:
                       'reviewSampling', 'refreshReviewCounts', 'saveReviewPlan',
                       'stopReviewAttempt', 'reconcileReviewAttempt', 'reviewData', 'reviewStats', 'reviewInsights',
                       'saveReviewData', 'exportReviewData', 'readReviewExport', 'reviewProcess',
-                      'processReviewData', 'deleteRun', 'runView', 'reviewInsightsSummary', 'reviewInsightComments'):
+                      'processReviewData', 'deleteRun', 'runView', 'reviewInsightsSummary', 'reviewInsightComments',
+                      'metricShotUploadUrl', 'metricShotConfirm', 'metricShotViewUrl'):
             words.append(self._run_id(run_id))
         words.extend(flags)              # wave 2 flags, built and checked by the caller
         if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
@@ -1115,16 +1182,217 @@ class Api:
         return {'ok': True, 'data': {'format': 'module-evidence-open-v1', 'runId': run_id,
                                      'kind': kind, 'sha256': digest, 'opened': True}}
 
-    # ---- The full-page Metric shot kept on this PC at the click (never sent to the server) ----
+    # ---- The full-page Metric shot taken on this PC at the click; kept online 10 days once the run exists ----
 
     def _local_metric_shot(self, run_id):
-        """The run's local picture, or None: missing, or any part from evidence/ down is a link/junction."""
+        """The run's local picture (``.webp``, else an older ``.png``), or None: missing, or any part from
+        evidence/ down is a link/junction."""
         folder = _metric_shot_folder()
-        path = folder / tdn_metric_browser.run_shot_name(self._run_id(run_id))
+        run_id = self._run_id(run_id)
+        for extension in tdn_metric_browser.SHOT_EXTENSIONS:
+            path = folder / tdn_metric_browser.run_shot_name(run_id, extension)
+            try:
+                if tdn_metric_browser.plain_path(folder.parent, path) and path.is_file():
+                    return path
+            except OSError:
+                continue
+        return None
+
+    def uploadMetricShot(self, runId=None):
+        """Send the run's local picture online in the background (never blocks the page). Returns at once."""
+        return self._safe(lambda: self._start_metric_shot_upload(self._run_id(runId)))
+
+    def _start_metric_shot_upload(self, run_id):
+        """One worker per run, and at most one attempt per run every 60 s on every start path. The first
+        attempt after the run was created is always allowed (``_send_metric_import`` clears the time)."""
+        with self._shot_uploads_lock:
+            started = self._claim_shot_upload(run_id)
+        if started:
+            self._spawn_shot_upload(run_id)
+        return {'ok': True, 'data': {'format': 'metric-shot-upload-start-v1', 'runId': run_id, 'started': started}}
+
+    def _claim_shot_upload(self, run_id):
+        """Caller holds ``_shot_uploads_lock``. True (and the run marked as uploading) when a start is allowed."""
+        now = time.monotonic()
+        last = self._shot_attempts.get(run_id)
+        started = (run_id not in self._shot_uploads and
+                   (last is None or now - last >= _SHOT_RETRY_SECONDS) and
+                   self._local_metric_shot(run_id) is not None)
+        if started:
+            self._shot_uploads.add(run_id)
+            self._shot_attempts[run_id] = now
+        return started
+
+    def _spawn_shot_upload(self, run_id):
+        threading.Thread(target=self._metric_shot_upload_worker, args=(run_id,),
+                         name='tdn-metric-shot-upload', daemon=True).start()
+
+    def _metric_shot_upload_worker(self, run_id):
         try:
-            return path if tdn_metric_browser.plain_path(folder.parent, path) and path.is_file() else None
-        except OSError:
+            self._upload_metric_shot(run_id)
+        except Exception:
+            pass          # any failure: the local picture stays; a later details load tries again
+        finally:
+            with self._shot_uploads_lock:
+                self._shot_uploads.discard(run_id)
+                self._shot_generation[run_id] = self._shot_generation.get(run_id, 0) + 1   # one per finished attempt
+
+    def _upload_metric_shot(self, run_id):
+        """upload-url -> PUT straight to storage -> confirm -> delete the local file. True when kept online."""
+        local = self._local_metric_shot(run_id)
+        content_type = _SHOT_TYPES.get(local.suffix.lower()) if local is not None else None
+        if content_type is None:
+            return False
+        data = local.read_bytes()
+        if not 1 <= len(data) <= _SHOT_MAX_BYTES:
+            return False
+        digest = hashlib.sha256(data).hexdigest()
+        key = f'metric-shots/{run_id}/{digest}.{local.suffix.lower()[1:]}'     # one immutable key per content
+        size = str(len(data))
+        result = self._remote('metricShotUploadUrl', run_id=run_id,
+                              flags=('--content-type', content_type, '--bytes', size, '--sha256', digest))
+        if result['ok']:
+            signed = result['data']
+            if (set(signed) != {'format', 'runId', 'url', 'key', 'contentType', 'expiresInSeconds'} or
+                    signed['format'] != 'metric-shot-upload-v1' or signed['runId'] != run_id or
+                    signed['key'] != key or signed['contentType'] != content_type or
+                    not isinstance(signed['url'], str) or not _R2_URL.fullmatch(signed['url'])):
+                return False
+            import urllib.error, urllib.request
+            # The URL signs the body hash: storage refuses any other bytes under this key.
+            request = urllib.request.Request(signed['url'], data=data, method='PUT',
+                                             headers={'Content-Type': content_type,
+                                                      'x-amz-content-sha256': digest})
+            try:
+                with urllib.request.urlopen(request, timeout=_SHOT_PUT_SECONDS) as response:
+                    if not 200 <= response.status < 300:
+                        return False
+            except urllib.error.HTTPError as error:
+                error.close()        # refused by storage: release its body; the picture stays here
+                return False
+        elif result['error'].get('code') != 'METRIC_SHOT_ALREADY_UPLOADED':
+            return False      # R2_NOT_CONFIGURED, an older server, offline...: the picture stays on this PC
+        confirmed = self._remote('metricShotConfirm', run_id=run_id,
+                                 flags=('--key', key, '--sha256', digest, '--bytes', size))
+        record = confirmed.get('data') if confirmed['ok'] else None
+        if (not isinstance(record, dict) or record.get('format') != 'metric-shot-r2-v1' or
+                record.get('runId') != run_id or record.get('key') != key or
+                record.get('sha256') != digest or record.get('byteSize') != len(data)):
+            return False
+        _delete_sent_shot(local, digest)      # kept online: the local copy goes, only if it is that very file
+        return True
+
+    def _metric_shot_online(self, run_id):
+        """``metric-shot-view-v1`` checked, or None when the server cannot say (offline, not set up, older)."""
+        try:
+            result = self._remote('metricShotViewUrl', run_id=run_id)
+        except _BridgeFailure:
             return None
+        if not result['ok']:
+            return None
+        view = result['data']
+        if view.get('format') != 'metric-shot-view-v1' or view.get('runId') != run_id or view.get('state') not in _SHOT_STATES:
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        if view['state'] == 'NOT_UPLOADED':
+            return {'state': 'NOT_UPLOADED'}
+        if not isinstance(view.get('deleteAfter'), str) or not _UTC_TEXT.fullmatch(view['deleteAfter']):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        if view['state'] == 'EXPIRED':
+            return {'state': 'EXPIRED', 'deleteAfter': view['deleteAfter']}
+        if (not isinstance(view.get('url'), str) or not _R2_URL.fullmatch(view['url']) or
+                view.get('contentType') not in _SHOT_TYPES.values() or
+                type(view.get('byteSize')) is not int or not 1 <= view['byteSize'] <= _SHOT_MAX_BYTES):
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        return {'state': 'AVAILABLE', 'deleteAfter': view['deleteAfter'], 'url': view['url'],
+                'contentType': view['contentType'], 'byteSize': view['byteSize']}
+
+    def metricShotState(self, runId=None):
+        """One read per opening of the run's details: is there a picture on this PC, and what the server keeps
+        online. A local picture of a run with no online copy yet is sent again in the background (refused
+        within 60 s of the last attempt)."""
+        return self._safe(lambda: self._metric_shot_state(self._run_id(runId)))
+
+    def _metric_shot_state(self, run_id):
+        with self._shot_uploads_lock:
+            before = self._shot_generation.get(run_id, 0)
+        online = self._metric_shot_online(run_id)
+        # The retry decision and the local/uploading snapshot are one locked step after the server read.
+        with self._shot_uploads_lock:
+            started = (online is not None and online['state'] in ('NOT_UPLOADED', 'AVAILABLE') and
+                       self._claim_shot_upload(run_id))
+            changed = self._shot_generation.get(run_id, 0) != before
+            uploading, local = run_id in self._shot_uploads, self._local_metric_shot(run_id) is not None
+        if started:
+            self._spawn_shot_upload(run_id)
+        if changed:
+            # An upload finished while the server was asked: ask once more so the one answer is coherent.
+            online = self._metric_shot_online(run_id)
+            with self._shot_uploads_lock:
+                uploading, local = run_id in self._shot_uploads, self._local_metric_shot(run_id) is not None
+        data = {'format': 'metric-shot-state-v1', 'runId': run_id, 'local': local,
+                'state': online['state'] if online is not None else None, 'uploading': uploading}
+        if online is not None and 'deleteAfter' in online:
+            data['deleteAfter'] = online['deleteAfter']
+        return {'ok': True, 'data': data}
+
+    def viewMetricShot(self, runId=None, sha256=None):
+        """«Xem ảnh Metric», source chosen now: the local picture in the app's own viewer (a data URL, nothing
+        written), else a 15-minute online link, else the server's old full-page picture (``sha256``, opened as
+        before). The page passes the old picture's digest whenever the run has one."""
+        return self._safe(lambda: self._view_metric_shot(self._run_id(runId), sha256))
+
+    def _view_metric_shot(self, run_id, digest=None):
+        failure = None
+        try:
+            result = self._view_metric_shot_new(run_id)
+        except _BridgeFailure as error:
+            failure, result = error, {'ok': False}
+        if result.get('ok') and result['data']['state'] in ('LOCAL', 'AVAILABLE'):
+            return result
+        if digest is None:
+            digest = self._old_full_page_digest(run_id)     # the page had no outputs: look for it here
+        if digest is not None:
+            return self._open_module_evidence(run_id, 'full-page', digest)      # an old run's server picture
+        if failure is not None:
+            raise failure
+        return result
+
+    def _old_full_page_digest(self, run_id):
+        """The old server full-page picture's sha256 from one ``moduleOutputs`` read, or None when the run has
+        none. A failed read raises its own error code (never «no picture»)."""
+        result = self._remote('moduleOutputs', run_id=run_id)
+        if not result['ok']:
+            raise _BridgeFailure(result['error'].get('code') or 'REMOTE_OUTPUT_INVALID')
+        data = result['data']
+        if not isinstance(data, dict) or data.get('format') != 'module-outputs-v1' or data.get('runId') != run_id:
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        m1 = data.get('m1') if isinstance(data.get('m1'), dict) else {}
+        evidence = m1.get('evidence') if isinstance(m1.get('evidence'), dict) else {}
+        descriptor = evidence.get('fullPage')
+        if (isinstance(descriptor, dict) and descriptor.get('available') is True and
+                isinstance(descriptor.get('sha256'), str) and _PLAN_SHA.fullmatch(descriptor['sha256'])):
+            return descriptor['sha256']
+        return None
+
+    def _view_metric_shot_new(self, run_id):
+        base = {'format': 'metric-shot-open-v1', 'runId': run_id}
+        local = self._local_metric_shot(run_id)
+        if local is not None:
+            content_type = _SHOT_TYPES.get(local.suffix.lower())
+            try:
+                data = local.read_bytes()
+            except OSError:
+                raise _BridgeFailure('EVIDENCE_OPEN_FAILED') from None
+            if content_type is not None and 1 <= len(data) <= _SHOT_MAX_BYTES:
+                src = f'data:{content_type};base64,' + base64.b64encode(data).decode('ascii')
+                return {'ok': True, 'data': dict(base, state='LOCAL', src=src)}
+        online = self._metric_shot_online(run_id)
+        if online is None:
+            raise _BridgeFailure('EVIDENCE_LOCAL_MISSING')
+        if online['state'] != 'AVAILABLE':
+            return {'ok': True, 'data': dict(base, state=online['state'], **(
+                {'deleteAfter': online['deleteAfter']} if 'deleteAfter' in online else {}))}
+        return {'ok': True, 'data': dict(base, state='AVAILABLE', src=online['url'], deleteAfter=online['deleteAfter'])}
 
     def localMetricShot(self, runId=None):
         return self._safe(lambda: {'ok': True, 'data': {'format': 'local-metric-shot-v1', 'runId': self._run_id(runId),
@@ -1145,28 +1413,48 @@ class Api:
 
     # ---- «Tải ảnh»: a copy of the Metric picture, same source order as «Xem ảnh Metric» ----
 
-    def saveMetricShot(self, runId=None, name=None, sha256=None):
-        return self._safe(lambda: self._save_metric_shot(runId, name, sha256))
+    def saveMetricShot(self, runId=None, name=None, sha256=None, online=False):
+        return self._safe(lambda: self._save_metric_shot(runId, name, sha256, online))
 
-    def _save_metric_shot(self, run_id, name, digest):
-        """The run's local picture, else the server's full-page picture (``digest``), saved where the user
-        picks. Default name ``<run name>-<runId>.png`` in Downloads. The original stays."""
+    def _save_metric_shot(self, run_id, name, digest, online=False):
+        """The run's local picture, else the online copy (``online`` true), else the server's old full-page
+        picture (``digest``), saved where the user picks. Default name ``<run name>-<runId>.<webp|png>`` in
+        Downloads. The original stays."""
         run_id = self._run_id(run_id)
         if name is not None and not isinstance(name, str):
             raise _BridgeFailure('ARG_INVALID')
+        if type(online) is not bool:
+            raise _BridgeFailure('ARG_INVALID')
         local = self._local_metric_shot(run_id)
         descriptor = None
-        if local is None:
+        remote = None
+        extension = local.suffix.lower()[1:] if local is not None else 'png'
+        online_state = None
+        if local is None and online:
+            try:
+                remote = self._metric_shot_online(run_id)
+            except _BridgeFailure:
+                remote = None            # an invalid answer: fall back to the old picture, as «Xem ảnh» does
+            online_state = remote['state'] if remote is not None else None
+            if online_state == 'AVAILABLE':
+                extension = 'webp' if remote['contentType'] == 'image/webp' else 'png'
+            else:
+                remote = None
+        if local is None and remote is None:
+            if digest is None and online:
+                digest = self._old_full_page_digest(run_id)     # the page had no outputs: look for it here
             if digest is None:
-                raise _BridgeFailure('EVIDENCE_LOCAL_MISSING')
+                # Nothing to save; the page shows why («đã tự xóa sau 10 ngày» / «không có ảnh Metric»).
+                raise _BridgeFailure('METRIC_SHOT_' + online_state if online_state in ('EXPIRED', 'NOT_UPLOADED')
+                                     else 'EVIDENCE_LOCAL_MISSING')
             digest = self._sha256(digest)
             descriptor = self._evidence_descriptor(run_id, 'full-page', digest)
-        # Clean the name first, then cut it so the whole «-<runId>.png» always fits in 120 characters.
-        suffix = f'-{run_id}.png'
+        # Clean the name first, then cut it so the whole «-<runId>.<ext>» always fits in 120 characters.
+        suffix = f'-{run_id}.{extension}'
         name = re.sub(r'[\\/]', '_', name.strip()) if isinstance(name, str) else ''
-        stem = os.path.splitext(_safe_filename(name, 'png'))[0] if name else ''
+        stem = os.path.splitext(_safe_filename(name, extension))[0] if name else ''
         stem = stem[:120 - len(suffix)].rstrip('. ')
-        suggested = stem + suffix if stem else _safe_filename(run_id, 'png')
+        suggested = stem + suffix if stem else _safe_filename(run_id, extension)
         selected = _choose_save_path(suggested, _downloads_folder())
         if selected is None:
             return {'ok': True, 'data': {'format': 'metric-shot-save-v1', 'runId': run_id,
@@ -1174,10 +1462,52 @@ class Api:
         destination = Path(selected)
         if descriptor is not None:
             self._stream_export(run_id, digest, descriptor['byteSize'], destination, evidence_kind='full-page')
+        elif remote is not None:
+            fresh = self._metric_shot_online(run_id)       # a new 15-minute link: the dialog may have stayed open
+            if fresh is None or fresh['state'] != 'AVAILABLE':
+                raise _BridgeFailure('SAVE_FAILED')
+            self._download_metric_shot(fresh['url'], fresh['byteSize'], destination)
         else:
             self._copy_local_file(local, destination)
         return {'ok': True, 'data': {'format': 'metric-shot-save-v1', 'runId': run_id,
                                      'saved': True, 'cancelled': False, 'fileName': destination.name}}
+
+    @staticmethod
+    def _download_metric_shot(url, byte_size, destination):
+        """GET the online picture into a temp file next to ``destination``; exactly ``byte_size`` bytes."""
+        import urllib.error, urllib.request
+        folder = destination.parent
+        if not folder.is_dir():
+            raise _BridgeFailure('SAVE_FAILED')
+        try:
+            handle, temp_name = tempfile.mkstemp(prefix='.tdn-shopee-', suffix='.part', dir=str(folder))
+        except OSError:
+            raise _BridgeFailure('SAVE_FAILED') from None
+        temp_path = Path(temp_name)
+        try:
+            written = 0
+            with os.fdopen(handle, 'wb') as out, urllib.request.urlopen(url, timeout=_SHOT_PUT_SECONDS) as response:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > byte_size:
+                        raise ValueError('too long')
+                    out.write(chunk)
+                out.flush()
+                os.fsync(out.fileno())
+            if written != byte_size:
+                raise ValueError('short')
+            os.replace(temp_path, destination)
+        except (OSError, ValueError) as failure:
+            if isinstance(failure, urllib.error.HTTPError):
+                failure.close()      # release the refused response's body
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+            raise _BridgeFailure('SAVE_FAILED') from None
 
     @staticmethod
     def _copy_local_file(source, destination):
@@ -1219,13 +1549,16 @@ class Api:
                 ('leftover' in data and data['leftover'] is not True)):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         self._forget_copy(run_id)
-        # The run is gone on the server: its picture on this PC goes too (never through a link/junction).
-        local = self._local_metric_shot(run_id)
-        if local is not None:
+        # The run is gone on the server (its online picture too, best effort there): its picture on this PC
+        # goes too (its path is checked for links/junctions first).
+        for _ in tdn_metric_browser.SHOT_EXTENSIONS:
+            local = self._local_metric_shot(run_id)
+            if local is None:
+                break
             try:
                 local.unlink()
             except OSError:
-                pass
+                break
         return {'ok': True, 'data': dict(data, localShotDeleted=self._local_metric_shot(run_id) is None)}
 
     def newRun(self, input=None):
@@ -2690,7 +3023,9 @@ class Api:
             return {'ok': False, 'error': {'code': 'REMOTE_OUTPUT_INVALID', 'message': 'REMOTE_OUTPUT_INVALID',
                                            'detail': {'pending': True}}}
         run_id = data['runId']
-        session.link_shot(run_id)        # the click's shot becomes <runId>-metric-full-page.png
+        session.link_shot(run_id)        # the click's shot becomes <runId>-metric-full-page.webp|png
+        with self._shot_uploads_lock:    # the first upload after the run exists is always allowed
+            self._shot_attempts.pop(run_id, None)
         session.confirmed()
         try:
             # The whole flow (`run --run <id> --detach`): on a user-page run the server runs M2 -> M3 -> step 4.

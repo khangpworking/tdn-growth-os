@@ -747,15 +747,30 @@ class FreezeAndRequestTest(unittest.TestCase):
     def test_the_full_page_shot_covers_the_whole_page_and_never_raises(self):
         self.tab.products_request(page_body())
         frozen = self.listener.freeze()
-        self.tab.answers['Page.getLayoutMetrics'] = {'cssContentSize': {'x': 0, 'y': 0, 'width': 1280, 'height': 5400}}
-        self.tab.answers['Page.captureScreenshot'] = {'data': base64.b64encode(b'\x89PNG fake').decode()}
+        self.tab.answers['Page.captureScreenshot'] = {'data': base64.b64encode(b'synthetic screenshot').decode()}
         with tempfile.TemporaryDirectory() as folder:
-            path = self.listener.full_page_shot(frozen['targetId'], pathlib.Path(folder) / 'metric')
-            self.assertRegex(path.name, r'^metric-\d{4}-\d\d-\d\d-\d{6}\.png$')
-            self.assertEqual(path.read_bytes(), b'\x89PNG fake')
-            shot = [params for method, params in self.tab.calls if method == 'Page.captureScreenshot'][0]
-            self.assertEqual(shot, {'format': 'png', 'captureBeyondViewport': True,
-                                    'clip': {'x': 0, 'y': 0, 'width': 1280.0, 'height': 5400.0, 'scale': 1}})
+            for width, height, ratio, extension in ((1280, 5400, 1, 'webp'), (1280, 16383, 1, 'webp'),
+                    (1280, 16384, 1, 'png'), (16384, 5400, 1, 'png'),
+                    (1280, 8191, 2, 'webp'), (1280, 8192, 2, 'png'), (8192, 4000, 2, 'png')):
+                with self.subTest(width=width, height=height, ratio=ratio):
+                    self.tab.answers['Page.getLayoutMetrics'] = {
+                        'cssContentSize': {'x': 0, 'y': 0, 'width': width, 'height': height},
+                        'contentSize': {'width': width * ratio, 'height': height * ratio}}
+                    path = self.listener.full_page_shot(frozen['targetId'], pathlib.Path(folder) / 'metric')
+                    self.assertRegex(path.name, r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.' + extension + '$')
+                    self.assertEqual(path.read_bytes(), b'synthetic screenshot')
+                    shot = [params for method, params in self.tab.calls if method == 'Page.captureScreenshot'][-1]
+                    expected = {'format': extension, 'captureBeyondViewport': True,
+                                'clip': {'x': 0, 'y': 0, 'width': width, 'height': height, 'scale': 1}}
+                    if extension == 'webp':
+                        expected['quality'] = 80
+                    self.assertEqual(shot, expected)
+                    session = mb.MetricSession(folder)
+                    session.pending_shot = path
+                    linked = session.link_shot('run-synthetic')
+                    self.assertEqual(linked.name, f'run-synthetic-metric-full-page.{extension}')
+                    self.assertEqual(linked.read_bytes(), b'synthetic screenshot')
+                    linked.unlink()
 
             def broken(**_):
                 raise RuntimeError('capture failed')
@@ -1242,22 +1257,22 @@ class BridgeTest(unittest.TestCase):
                     self.assertLessEqual(len(suggested), 120)
 
     def shot_files(self):
-        return sorted(path.name for path in self.shots.glob('*.png')) if self.shots.exists() else []
+        return sorted(path.name for path in self.shots.iterdir() if path.suffix in ('.webp', '.png')) if self.shots.exists() else []
 
     def test_every_click_keeps_one_full_page_shot_on_this_pc(self):
         """| click outcome                     | shots on this PC                  | sent to the server       |
         |-----------------------------------|-----------------------------------|--------------------------|
-        | run created                       | <runId>-metric-full-page.png      | payload without the shot |
-        | fewer than 5 Shopee products      | metric-<time>.png                 | nothing                  |
-        | Metric stops (page error)         | metric-<time>.png, said in error  | nothing                  |
+        | run created                       | <runId>-metric-full-page.webp      | payload without the shot |
+        | fewer than 5 Shopee products      | metric-<time>.webp                 | nothing                  |
+        | Metric stops (page error)         | metric-<time>.webp, said in error  | nothing                  |
         | send fails, then «Gửi lại»        | the same shot, linked on success  | same payload             |
         | the shot itself fails             | none; the capture still works     | payload                  |"""
-        stamped = r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$'
+        stamped = r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.webp$'
         with self.subTest('run created'):
             self.answers = [self.OK_IMPORT, self.OK_FLOW]
             self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
-            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
-            self.assertEqual((self.shots / 'a1b2c3d4-metric-full-page.png').read_bytes(), b'\x89PNG click')
+            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.webp'])
+            self.assertEqual((self.shots / 'a1b2c3d4-metric-full-page.webp').read_bytes(), b'\x89PNG click')
             sent = json.dumps(self.remote_calls[0][2])
             self.assertNotIn('png', sent)
             self.assertNotIn('shot', sent.lower())
@@ -1282,7 +1297,7 @@ class BridgeTest(unittest.TestCase):
             self.assertRegex(self.shot_files()[0], stamped)
             self.answers = [self.OK_IMPORT, self.OK_FLOW]
             self.assertTrue(self.api.resendMetricImport()['ok'])
-            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
+            self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.webp'])
             self.assertEqual(self.session.tab.methods().count('Page.captureScreenshot'), 1)
         with self.subTest('the shot fails'):
             self.setUp_fresh()
@@ -1303,7 +1318,7 @@ class BridgeTest(unittest.TestCase):
         | 3 | evidence/metric is a junction/symlink           | no picture written there; import goes on         |
         | 4 | page size unknown (getLayoutMetrics fails)      | no picture (never a viewport one); import goes on |
         | 5 | the shot folder cannot be made (OSError)        | no picture; import goes on                       |"""
-        stamped = r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$'
+        stamped = r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.webp$'
         with self.subTest('1 filter still loading'):
             release = threading.Event()
             self.addCleanup(release.set)
@@ -1332,7 +1347,7 @@ class BridgeTest(unittest.TestCase):
                 self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
             self.assertEqual((evidence / 'full-page.png').read_bytes(), b'old evidence')
             self.assertEqual(sorted(p.name for p in (evidence / 'metric').iterdir()),
-                             ['a1b2c3d4-metric-full-page.png', 'run1-metric-full-page.png'])
+                             ['a1b2c3d4-metric-full-page.webp', 'run1-metric-full-page.png'])
         with self.subTest('3 linked shot folder'):
             self.setUp_fresh()
             elsewhere = pathlib.Path(self.tmp.name) / 'elsewhere'
@@ -1396,9 +1411,9 @@ class BridgeTest(unittest.TestCase):
             self.assertEqual(sent['scope']['start_date'], '20261001')          # the click's filter
             self.assertEqual(sent['response']['requestBody']['start_date'], '20261001')
             files = self.shot_files()
-            self.assertNotIn('a1b2c3d4-metric-full-page.png', files)       # never linked to this run
+            self.assertNotIn('a1b2c3d4-metric-full-page.webp', files)       # never linked to this run
             self.assertEqual(len(files), 1)
-            self.assertRegex(files[0], r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$')
+            self.assertRegex(files[0], r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.webp$')
             self.assertEqual(self.api.localMetricShot('a1b2c3d4')['data']['exists'], False)
         with self.subTest('1b later request between the click record and the shot'):
             self.setUp_fresh()
@@ -1415,7 +1430,7 @@ class BridgeTest(unittest.TestCase):
             self.assertEqual(self.remote_calls[0][2]['scope']['start_date'], '20261001')
             files = self.shot_files()
             self.assertEqual(len(files), 1)
-            self.assertNotIn('a1b2c3d4-metric-full-page.png', files)
+            self.assertNotIn('a1b2c3d4-metric-full-page.webp', files)
         with self.subTest('2 junction on metric'):
             self.setUp_fresh()
             elsewhere = pathlib.Path(self.tmp.name) / 'elsewhere'
@@ -1444,12 +1459,12 @@ class BridgeTest(unittest.TestCase):
             result = self.api.takeMetricReviews({'collectionPolicy': POLICY})
         self.assertEqual(result['error']['code'], 'CONFIG_INVALID')
         self.assertEqual(len(self.shot_files()), 1)
-        self.assertRegex(self.shot_files()[0], r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.png$')
+        self.assertRegex(self.shot_files()[0], r'^metric-\d{4}-\d\d-\d\d-\d{6}(-\d+)?\.webp$')
         self.assertEqual(self.remote_calls, [])
         self.assertIsNotNone(self.session.pending)
         self.answers = [self.OK_IMPORT, self.OK_FLOW]
         self.assertTrue(self.api.resendMetricImport()['ok'])
-        self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.png'])
+        self.assertEqual(self.shot_files(), ['a1b2c3d4-metric-full-page.webp'])
 
     def setUp_fresh(self):
         """A new click world in the same test: new session, empty shot folder, no remote calls."""

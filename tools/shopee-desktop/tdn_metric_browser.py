@@ -80,9 +80,26 @@ def plain_path(root, path):
         return False
 
 
-def run_shot_name(run_id):
-    """The local full-page Metric shot linked to a run (never sent to the server)."""
-    return f'{run_id}-metric-full-page.png'
+SHOT_EXTENSIONS = ('webp', 'png')   # app 1.2.0 takes WebP; PNG when the page is too big for WebP (and older pictures)
+SHOT_WEBP_QUALITY = 80
+SHOT_WEBP_MAX_SIDE = 16383          # WebP cannot be larger than this on either side (pixels)
+
+
+def run_shot_name(run_id, extension='webp'):
+    """The local full-page Metric shot linked to a run (until it is kept online)."""
+    return f'{run_id}-metric-full-page.{extension}'
+
+
+def shot_format(metrics, width, height):
+    """'webp', or 'png' when the picture would be larger than WebP allows on one side (device pixels)."""
+    try:
+        css = metrics.get('cssContentSize') or {}
+        device = metrics.get('contentSize') or {}
+        ratio = float(device['width']) / float(css['width']) if css.get('width') and device.get('width') else 1.0
+        ratio = ratio if 0 < ratio < 16 else 1.0
+    except (TypeError, ValueError, KeyError, ZeroDivisionError):
+        ratio = 1.0
+    return 'png' if max(width, height) * ratio > SHOT_WEBP_MAX_SIDE else 'webp'
 
 
 class MetricFailure(Exception):
@@ -874,7 +891,7 @@ class MetricListener:
 
     def full_page_shot(self, target_id, folder):
         """At the click: one full-page picture of that Metric tab, saved on this PC only as
-        ``metric-<local YYYY-MM-DD-HHMMSS>.png``. Never raises; a failed shot never blocks the capture.
+        ``metric-<local YYYY-MM-DD-HHMMSS>.webp`` (WebP quality 80; ``.png`` when a side is over 16383 px). Never raises; a failed shot never blocks the capture.
         Failed shot (None): no folder, a linked folder, no attached tab, or no valid full-page size."""
         if folder is None or target_id is None:
             return None
@@ -894,14 +911,16 @@ class MetricListener:
             width, height = float(size['width']), float(size['height'])
             if not (0 < width < 1e6 and 0 < height < 1e6):
                 return None
-            shot = tab.call_method('Page.captureScreenshot', format='png', captureBeyondViewport=True,
+            kind = shot_format(metrics, width, height)
+            options = {'quality': SHOT_WEBP_QUALITY} if kind == 'webp' else {}
+            shot = tab.call_method('Page.captureScreenshot', format=kind, captureBeyondViewport=True,
                                    clip={'x': 0, 'y': 0, 'width': width, 'height': height, 'scale': 1},
-                                   _timeout=SHOT_TIMEOUT)
+                                   _timeout=SHOT_TIMEOUT, **options)
             data = base64.b64decode(shot['data'], validate=True)
             folder.mkdir(exist_ok=True)
             stamp = dt.datetime.now().strftime('%Y-%m-%d-%H%M%S')
             for number in range(100):
-                path = folder / (f'metric-{stamp}.png' if number == 0 else f'metric-{stamp}-{number}.png')
+                path = folder / (f'metric-{stamp}.{kind}' if number == 0 else f'metric-{stamp}-{number}.{kind}')
                 if not plain_path(root, path):
                     return None
                 try:
@@ -1014,11 +1033,11 @@ class MetricSession:
         self.pending_shot = None
 
     def link_shot(self, run_id):
-        """The server returned the run: the kept shot becomes ``<runId>-metric-full-page.png``. Never raises."""
+        """The server returned the run: the kept shot becomes ``<runId>-metric-full-page.<webp|png>``. Never raises."""
         shot, self.pending_shot = self.pending_shot, None
         if shot is None:
             return None
-        target = shot.with_name(run_shot_name(run_id))
+        target = shot.with_name(run_shot_name(run_id, shot.suffix.lstrip('.') or 'png'))
         try:
             root = shot.parent.parent
             if not (plain_path(root, shot) and plain_path(root, target)):

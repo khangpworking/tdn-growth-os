@@ -106,6 +106,10 @@ function harness(options: {
   fastPoll?: boolean;
   bridge?: 'complete' | 'partial';
   localShots?: Record<string, boolean>;
+  localShotResult?: (runId: string) => any | Promise<any> | undefined;   // localMetricShot's own answer
+  metricShotStateResult?: (runId: string) => any;
+  viewShotResult?: (runId: string, sha256: string | null) => unknown;
+  shotClock?: { now: number };
   saveShotResult?: (runId: string) => any;
   deleteRunResult?: (runId: string) => any;
   runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
@@ -143,6 +147,9 @@ function harness(options: {
     moduleOutputsCalls: string[];
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
     openLocalShotCalls: string[];
+    viewShotCalls: [string, string | null][];
+    shotStateCalls: string[];
+    shotStartCalls: string[];
     saveShotCalls: any[][];
     deleteRunCalls: string[];
     openLinkCalls: string[];
@@ -186,6 +193,9 @@ function harness(options: {
     moduleOutputsCalls: [],
     openEvidenceCalls: [],
     openLocalShotCalls: [],
+    viewShotCalls: [],
+    shotStateCalls: [],
+    shotStartCalls: [],
     saveShotCalls: [],
     deleteRunCalls: [],
     openLinkCalls: [],
@@ -277,14 +287,35 @@ function harness(options: {
       if (options.openModuleEvidenceResult) return options.openModuleEvidenceResult(runId, kind, sha256);
       return { ok: true, data: { format: 'module-evidence-open-v1', runId, kind, sha256, opened: true } };
     },
-    localMetricShot: async (runId: string) => ({ ok: true,
-      data: { format: 'local-metric-shot-v1', runId, exists: !!(options.localShots && options.localShots[runId]) } }),
+    localMetricShot: async (runId: string) => {
+      const own = options.localShotResult && await options.localShotResult(runId);
+      return own || { ok: true,
+        data: { format: 'local-metric-shot-v1', runId, exists: !!(options.localShots && options.localShots[runId]) } };
+    },
     openLocalMetricShot: async (runId: string) => {
       state.openLocalShotCalls.push(runId);
       return { ok: true, data: { format: 'local-metric-shot-open-v1', runId, opened: true } };
     },
-    saveMetricShot: async (runId: string, name: string, sha256: string | null) => {
-      state.saveShotCalls.push([runId, name, sha256]);
+    metricShotState: async (runId: string) => {
+      state.shotStateCalls.push(runId);
+      return options.metricShotStateResult ? options.metricShotStateResult(runId)
+        : { ok: true, data: { format: 'metric-shot-state-v1', runId,
+          local: !!options.localShots?.[runId], state: null, uploading: false } };
+    },
+    viewMetricShot: async (runId: string, sha256: string | null) => {
+      state.viewShotCalls.push([runId, sha256]);
+      if (options.viewShotResult) return options.viewShotResult(runId, sha256);
+      if (options.localShots?.[runId]) return { ok: true, data: { format: 'metric-shot-open-v1', runId,
+        state: 'LOCAL', src: 'data:image/webp;base64,c3ludGhldGlj' } };
+      if (sha256) return { ok: true, data: { format: 'module-evidence-open-v1', runId, kind: 'full-page', sha256, opened: true } };
+      return { ok: true, data: { format: 'metric-shot-open-v1', runId, state: 'NOT_UPLOADED' } };
+    },
+    uploadMetricShot: async (runId: string) => {
+      state.shotStartCalls.push(runId);
+      return { ok: true, data: { format: 'metric-shot-upload-start-v1', runId, started: false } };
+    },
+    saveMetricShot: async (runId: string, name: string, sha256: string | null, online: boolean) => {
+      state.saveShotCalls.push([runId, name, sha256, online]);
       if (options.saveShotResult) return options.saveShotResult(runId);
       return { ok: true, data: { format: 'metric-shot-save-v1', runId, saved: true, cancelled: false, fileName: 'a.png' } };
     },
@@ -526,11 +557,28 @@ function harness(options: {
       return res;
     },
   };
+  const shotTimers = new Map<number, { at: number; fire: () => void }>();
+  let nextShotTimer = -1;
   const dom = new JSDOM(html, {
     url: 'file:///shopee-desktop/index.html',
     runScripts: 'dangerously',
     beforeParse(window) {
       (window as any).pywebview = { api: options.bridge === 'partial' ? {} : api };
+      if (options.shotClock) {
+        const clock = options.shotClock;
+        window.Date.now = () => clock.now;
+        const nativeSetTimeout = window.setTimeout.bind(window);
+        const nativeClearTimeout = window.clearTimeout.bind(window);
+        window.setTimeout = (handler: any, delay = 0, ...args: any[]) => {
+          if (delay < 3000) return nativeSetTimeout(handler, delay, ...args);
+          const id = nextShotTimer--;
+          shotTimers.set(id, { at: clock.now + delay, fire: () => handler(...args) });
+          return id;
+        };
+        window.clearTimeout = (id) => {
+          if (id !== undefined && !shotTimers.delete(id)) nativeClearTimeout(id);
+        };
+      }
       if (options.fastPoll) {
         const nativeSetInterval = window.setInterval.bind(window);
         (window as any).setInterval = (handler: any, delay?: number, ...args: any[]) =>
@@ -567,7 +615,16 @@ function harness(options: {
       }
     },
   });
-  return { dom, doc: dom.window.document, window: dom.window, state, api };
+  const advanceShotTime = (ms: number) => {
+    assert.ok(options.shotClock);
+    options.shotClock.now += ms;
+    for (const [id, timer] of shotTimers) {
+      if (timer.at > options.shotClock.now) continue;
+      shotTimers.delete(id);
+      timer.fire();
+    }
+  };
+  return { dom, doc: dom.window.document, window: dom.window, state, api, advanceShotTime };
 }
 
 const element = <T extends HTMLElement>(doc: Document, id: string): T => doc.getElementById(id) as T;
@@ -2495,9 +2552,9 @@ test('a new-policy run shows both M1 results, the five picks and opens only the 
     assert.match(skipped.textContent!, /Trùng với sản phẩm đã chọn ở thứ tự 1/);
     assert.equal(doc.getElementById('moM2Evidence'), null, 'the step-2 image button is gone');
     element<HTMLButtonElement>(doc, 'moM1FullPage').click();
-    await waitFor(() => state.openEvidenceCalls.length === 1, 'evidence open');
-    assert.deepEqual(state.openEvidenceCalls[0],
-      { runId: 'run-synthetic', kind: 'full-page', sha256: 'a'.repeat(64) });
+    await waitFor(() => state.viewShotCalls.length === 1, 'evidence open');
+    assert.deepEqual(state.viewShotCalls, [['run-synthetic', 'a'.repeat(64)]], 'the bridge gets the old picture digest');
+    assert.deepEqual(state.openEvidenceCalls, []);
     await waitFor(() => /Đã mở bằng chứng đã lưu/.test(doc.getElementById('moduleOutputsPanel')!.textContent || ''),
       'saved evidence notice');
   } finally { dom.window.close(); }
@@ -3577,82 +3634,298 @@ test('dead links: an attempt that finishes while the run is open shows its group
   } finally { run.dom.window.close(); }
 });
 
-// «Xem ảnh Metric» (F642) and «Tải ảnh» (F644 §3): the shot this PC took at «Lấy bình luận Shopee» comes first.
-// | local shot for the run | server picture (m1.evidence.fullPage) | buttons                         | view opens         | «Tải ảnh» saves      |
-// |------------------------|---------------------------------------|---------------------------------|--------------------|----------------------|
-// | yes                    | missing (user-page run)               | enabled                         | the local file     | the local file (null)|
-// | no                     | available                             | enabled                         | the server picture | its sha256           |
-// | no                     | missing                               | disabled + «Ảnh chỉ lưu trên máy đã lấy dữ liệu» | nothing | nothing   |
-// | no                     | error (hash mismatch)                 | disabled + the error note (r2 #4)                | nothing | nothing   |
-test('the full-page Metric picture: local shot first, then the server picture, else a hint', async () => {
+/** Lets the start-up opening of `first` finish (the app counts as connected only after it), then opens `runId`. */
+async function openAfterStartup(run: ReturnType<typeof harness>, first: string, runId: string): Promise<void> {
+  await waitFor(() => run.state.shotStateCalls.includes(first), 'start-up opening of ' + first);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  runListButton(run.doc, runId).click();
+}
+
+// One owner for picture actions, click answers and the per-opening state lifecycle.
+test('the full-page Metric picture: local viewer, online retention, old evidence and missing states', async () => {
   const missing = { available: false, kind: 'full-page', sha256: null, byteSize: null, mediaType: 'image/png',
     fileName: 'full-page.png', errorCode: 'EVIDENCE_FILES_MISSING' };
-  const broken = { ...missing, errorCode: 'EVIDENCE_HASH_MISMATCH' };
-  const rows: { label: string; local: boolean; fullPage: any; enabled: boolean; opens: 'local' | 'server' | null; note?: string }[] = [
+  const outputs = (runId: string, fullPage = missing) => ({ ok: true, data: moduleOutputView(runId,
+    { evidence: { fullPage, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) });
+  const old = evidenceDescriptor('full-page', 'full-page.png', 'image/png');
+  // `opens` is the bridge's click answer; the page always sends the old picture's digest when the run has one.
+  const rows: { label: string; local: boolean; fullPage: any; enabled: boolean; offline?: boolean;
+    opens: 'local' | 'online' | 'server' | null; state?: string; hint?: string; note?: string }[] = [
     { label: 'local shot', local: true, fullPage: missing, enabled: true, opens: 'local' },
-    { label: 'server picture', local: false, fullPage: evidenceDescriptor('full-page', 'full-page.png', 'image/png'),
-      enabled: true, opens: 'server' },
-    { label: 'neither', local: false, fullPage: missing, enabled: false, opens: null },
-    { label: 'server error', local: false, fullPage: broken, enabled: false, opens: null,
-      note: 'Tệp bằng chứng đã lưu không khớp mã kiểm tra.' },
+    { label: 'local shot with old evidence', local: true, fullPage: old, enabled: true, opens: 'local' },
+    { label: 'server picture', local: false, fullPage: old, enabled: true, opens: 'server' },
+    { label: 'neither', local: false, fullPage: missing, enabled: true, opens: null },
+    { label: 'online picture', local: false, fullPage: missing, enabled: true, opens: 'online',
+      state: 'AVAILABLE', hint: 'Ảnh lưu đến 04/12/2026' },
+    { label: 'expired picture', local: false, fullPage: missing, enabled: true, opens: null,
+      state: 'EXPIRED', hint: 'Ảnh Metric đã tự xóa sau 10 ngày.' },
+    { label: 'no uploaded picture', local: false, fullPage: missing, enabled: true, opens: null,
+      state: 'NOT_UPLOADED', hint: 'Lượt này không có ảnh Metric.' },
+    { label: 'server error', local: false, fullPage: { ...missing, errorCode: 'EVIDENCE_HASH_MISMATCH' },
+      enabled: true, opens: null, note: 'Tệp bằng chứng đã lưu không khớp mã kiểm tra.' },
+    { label: 'offline without local', local: false, fullPage: missing, enabled: false, opens: null, offline: true,
+      hint: 'Ảnh chỉ lưu trên máy đã lấy dữ liệu' },
+    { label: 'offline local', local: true, fullPage: missing, enabled: true, opens: 'local', offline: true },
   ];
   for (const row of rows) {
     const run = harness({
       runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
       runInfo: syntheticRunInfo(), localShots: { 'run-synthetic': row.local },
-      moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
-        { evidence: { fullPage: row.fullPage, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
+      connectionResultFor: (call) => ({ ok: true,
+        data: { connected: !(row.offline && call > 1), readonly: false, runsRoot: '/synthetic/runs' } }),
+      shotClock: { now: Date.parse('2026-11-24T12:00:00Z') },
+      metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
+        local: row.local, uploading: false, state: row.state || null, deleteAfter: '2026-12-04T12:00:00Z' } }),
+      viewShotResult: (runId, sha256) => row.opens === 'server'
+        ? { ok: true, data: { format: 'module-evidence-open-v1', runId, kind: 'full-page', sha256, opened: true } }
+        : { ok: true, data: { format: 'metric-shot-open-v1', runId,
+          state: row.opens === 'local' ? 'LOCAL' : row.opens === 'online' ? 'AVAILABLE' : row.state || 'NOT_UPLOADED',
+          src: row.opens === 'local' ? 'data:image/webp;base64,c3ludGhldGlj' : 'https://synthetic.invalid/picture.webp',
+          deleteAfter: '2026-12-04T12:00:00Z' } },
+      saveShotResult: () => row.opens
+        ? { ok: true, data: { saved: true } }
+        : { ok: false, error: { code: row.state === 'EXPIRED' ? 'METRIC_SHOT_EXPIRED' : 'METRIC_SHOT_NOT_UPLOADED' } },
+      moduleOutputsResult: (runId) => outputs(runId, row.fullPage),
     });
     try {
-      await waitFor(() => run.doc.getElementById('moM1FullPage') !== null, row.label);
-      if (row.local) await waitFor(() => !(run.doc.getElementById('moM1FullPage') as HTMLButtonElement).disabled, 'local shot found');
-      const button = element<HTMLButtonElement>(run.doc, 'moM1FullPage');
-      assert.equal(button.textContent, 'Xem ảnh Metric', row.label);
-      assert.equal(button.disabled, !row.enabled, row.label + ': enabled');
-      const save = element<HTMLButtonElement>(run.doc, 'moM1SaveShot');
-      assert.equal(save.textContent, 'Tải ảnh', row.label);
-      assert.equal(save.disabled, !row.enabled, row.label + ': save enabled');
-      save.click();
-      if (row.opens) {
-        await waitFor(() => run.state.saveShotCalls.length === 1 && !run.doc.getElementById('toast')!.hidden, row.label + ': saved');
-        assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp',
-          row.opens === 'local' ? null : row.fullPage.sha256]], row.label + ': save source');
-        assert.equal(run.doc.getElementById('toast')!.textContent, 'Đã lưu ảnh');
-      } else {
-        assert.equal(run.state.saveShotCalls.length, 0, row.label + ': nothing saved');
+      await waitFor(() => run.doc.getElementById('moM1FullPage') !== null && run.state.shotStateCalls.length === 1,
+        row.label + ': loaded');
+      if (row.local) await waitFor(() => !element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, row.label + ': local');
+      if (row.offline) {
+        run.advanceShotTime(15000);
+        await waitFor(() => element(run.doc, 'connText').textContent === 'Chưa kết nối máy chủ.', row.label + ': disconnected');
       }
-      assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent ?? null,
-        row.enabled || row.note ? null : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu', row.label + ': hint');
-      if (row.note) assert.equal(button.parentElement!.querySelector('.rs-note')!.textContent, row.note, row.label + ': note');
-      button.click();
-      if (row.opens) {
-        await waitFor(() => run.state.openLocalShotCalls.length + run.state.openEvidenceCalls.length === 1, row.label + ': opened');
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 30));
+      if (row.hint) await waitFor(() => run.doc.getElementById('moM1FullPageHint')?.textContent === row.hint, row.label + ': hint');
+      assert.equal(element(run.doc, 'moM1FullPage').textContent, 'Xem ảnh Metric', row.label);
+      assert.equal(element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, !row.enabled, row.label + ': enabled');
+      assert.equal(element(run.doc, 'moM1SaveShot').textContent, 'Tải ảnh', row.label);
+      assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, !row.enabled, row.label + ': save enabled');
+      if (row.note) {
+        assert.equal(element(run.doc, 'moM1FullPage').parentElement!.querySelector('.rs-note')!.textContent, row.note);
+        continue;
       }
-      assert.deepEqual(run.state.openLocalShotCalls, row.opens === 'local' ? ['run-synthetic'] : [], row.label + ': local open');
-      assert.equal(run.state.openEvidenceCalls.length, row.opens === 'server' ? 1 : 0, row.label + ': server open');
+      const clickHint = row.state === 'EXPIRED' ? 'Ảnh Metric đã tự xóa sau 10 ngày.' : 'Lượt này không có ảnh Metric.';
+      element<HTMLButtonElement>(run.doc, 'moM1SaveShot').click();
+      if (row.enabled) {
+        await waitFor(() => run.state.saveShotCalls.length === 1 &&
+          !element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, row.label + ': save answered');
+        assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', row.fullPage.sha256, true]],
+          row.label + ': save source');
+        if (row.opens) assert.equal(element(run.doc, 'toast').textContent, 'Đã lưu ảnh');
+        else assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent, clickHint, row.label + ': save note');
+      } else assert.equal(run.state.saveShotCalls.length, 0, row.label + ': disabled save');
+      element<HTMLButtonElement>(run.doc, 'moM1FullPage').click();
+      if (row.enabled) await waitFor(() => run.state.viewShotCalls.length === 1 &&
+        !element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, row.label + ': view answered');
+      assert.deepEqual(run.state.openLocalShotCalls, [], row.label + ': stays in app');
+      assert.deepEqual(run.state.viewShotCalls, row.enabled ? [['run-synthetic', row.fullPage.sha256]] : [], row.label + ': viewer source');
+      assert.deepEqual(run.state.openEvidenceCalls, [], row.label + ': the bridge chooses the old evidence');
+      const dialog = element<HTMLDialogElement>(run.doc, 'shotDialog');
+      if (row.opens === 'local' || row.opens === 'online') {
+        await waitFor(() => dialog.open, row.label + ': viewer visible');
+        assert.equal(element(run.doc, 'shotDialogTitle').textContent, 'Ảnh Metric');
+        assert.equal(element(run.doc, 'shotCloseBtn').textContent, 'Đóng');
+        assert.equal(element(run.doc, 'shotDialogNote').textContent, row.opens === 'online' ? row.hint : '');
+        const image = element<HTMLImageElement>(run.doc, 'shotImg');
+        assert.equal(image.alt, 'Ảnh toàn trang Metric');
+        assert.equal(image.getAttribute('src'), row.opens === 'local'
+          ? 'data:image/webp;base64,c3ludGhldGlj' : 'https://synthetic.invalid/picture.webp');
+        if (row.opens === 'local') element<HTMLButtonElement>(run.doc, 'shotCloseBtn').click();
+        else dialog.dispatchEvent(new run.dom.window.Event('cancel', { cancelable: true }));
+        assert.equal(dialog.open, false, row.label + ': close or Esc');
+        assert.equal(image.hasAttribute('src'), false, row.label + ': image released');
+      } else {
+        assert.equal(dialog.open, false, row.label + ': no viewer');
+        if (row.enabled && !row.opens) assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent, clickHint, row.label + ': view note');
+      }
     } finally { run.dom.window.close(); }
+  }
+
+  const localShots = { 'run-synthetic': true };
+  let remoteState = 'NOT_UPLOADED';
+  let clickState = 'AVAILABLE';
+  const lifecycle = harness({
+    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfo: syntheticRunInfo(), localShots, shotClock: { now: Date.parse('2026-11-24T12:00:00Z') },
+    metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
+      local: localShots['run-synthetic'], state: remoteState, uploading: localShots['run-synthetic'],
+      deleteAfter: '2099-01-11T00:00:00Z' } }),
+    viewShotResult: (runId) => ({ ok: true, data: { format: 'metric-shot-open-v1', runId, state: clickState,
+      src: 'https://synthetic.invalid/fresh-click.webp', deleteAfter: '2099-01-11T00:00:00Z' } }),
+    saveShotResult: () => clickState === 'AVAILABLE' ? { ok: true, data: { saved: true } }
+      : { ok: false, error: { code: 'METRIC_SHOT_' + clickState } },
+    moduleOutputsResult: (runId) => outputs(runId),
+  });
+  try {
+    await waitFor(() => lifecycle.state.shotStateCalls.length === 1 &&
+      lifecycle.doc.getElementById('moM1FullPage') !== null &&
+      !element<HTMLButtonElement>(lifecycle.doc, 'moM1FullPage').disabled, 'opening: local picture');
+    lifecycle.advanceShotTime(130000);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.deepEqual(lifecycle.state.shotStateCalls, ['run-synthetic'], 'no read without an opening');
+    localShots['run-synthetic'] = false;               // upload removed it since the opening
+    remoteState = 'AVAILABLE';
+    element<HTMLButtonElement>(lifecycle.doc, 'moM1SaveShot').click();
+    await waitFor(() => lifecycle.state.saveShotCalls.length === 1 &&
+      !element<HTMLButtonElement>(lifecycle.doc, 'moM1FullPage').disabled, 'click-time save');
+    assert.deepEqual(lifecycle.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', null, true]],
+      'local gone: save still asks the bridge for online fallback');
+    element<HTMLButtonElement>(lifecycle.doc, 'moM1FullPage').click();
+    await waitFor(() => element<HTMLDialogElement>(lifecycle.doc, 'shotDialog').open, 'click-time online view');
+    assert.equal(element<HTMLImageElement>(lifecycle.doc, 'shotImg').getAttribute('src'),
+      'https://synthetic.invalid/fresh-click.webp', 'local gone: use the fresh click answer');
+    element<HTMLButtonElement>(lifecycle.doc, 'shotCloseBtn').click();
+    for (const [action, state] of [['view', 'EXPIRED'], ['save', 'NOT_UPLOADED'],
+      ['save', 'EXPIRED'], ['view', 'NOT_UPLOADED']] as const) {
+      clickState = state;
+      element<HTMLButtonElement>(lifecycle.doc, action === 'view' ? 'moM1FullPage' : 'moM1SaveShot').click();
+      const hint = state === 'EXPIRED' ? 'Ảnh Metric đã tự xóa sau 10 ngày.' : 'Lượt này không có ảnh Metric.';
+      await waitFor(() => lifecycle.doc.getElementById('moM1FullPageHint')?.textContent === hint &&
+        !element<HTMLButtonElement>(lifecycle.doc, 'moM1FullPage').disabled, action + ': click-time ' + state);
+      assert.equal(element<HTMLDialogElement>(lifecycle.doc, 'shotDialog').open, false, action + ': no picture');
+      assert.equal(element<HTMLButtonElement>(lifecycle.doc, 'moM1SaveShot').disabled, false, action + ': still clickable');
+    }
+    assert.equal(lifecycle.state.shotStateCalls.length, 1, 'clicks do not reload the opening state');
+    for (const [index, state] of ['AVAILABLE', 'EXPIRED'].entries()) {
+      remoteState = state;
+      runListButton(lifecycle.doc, 'run-synthetic').click();
+      await waitFor(() => lifecycle.state.shotStateCalls.length === index + 2 &&
+        lifecycle.doc.getElementById('moM1FullPageHint')?.textContent ===
+          (state === 'AVAILABLE' ? 'Ảnh lưu đến 11/01/2099' : 'Ảnh Metric đã tự xóa sau 10 ngày.'),
+      'one fresh read on each opening');
+    }
+    lifecycle.advanceShotTime(130000);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.deepEqual(lifecycle.state.shotStateCalls, ['run-synthetic', 'run-synthetic', 'run-synthetic'],
+      'no throttle on reopening and no automatic re-read');
+    assert.deepEqual(lifecycle.state.shotStartCalls, [], 'page never starts an upload from the state answer');
+  } finally { lifecycle.dom.window.close(); }
+
+  const oldAnswer = deferred<unknown>();
+  const freshAnswer = deferred<unknown>();
+  let first = true;
+  const late = harness({
+    runs: ['run-synthetic', 'run-other'].map((runId) => ({ runId, product: runId, status: 'DONE' })),
+    runInfoByRun: { 'run-synthetic': syntheticRunInfo(), 'run-other': { ...syntheticRunInfo(), runId: 'run-other' } },
+    metricShotStateResult: (runId) => {
+      if (runId === 'run-other') return { ok: true, data: { runId, local: false, state: 'EXPIRED' } };
+      if (first) { first = false; return oldAnswer.promise; }
+      return freshAnswer.promise;
+    },
+    moduleOutputsResult: (runId) => outputs(runId),
+  });
+  try {
+    await waitFor(() => late.state.shotStateCalls.length === 1 && late.doc.getElementById('moM1FullPage') !== null, 'late: first opening held');
+    runListButton(late.doc, 'run-other').click();
+    await waitFor(() => late.doc.getElementById('moM1FullPageHint')?.textContent === 'Ảnh Metric đã tự xóa sau 10 ngày.',
+      'late: another run is open');
+    oldAnswer.resolve({ ok: true, data: { runId: 'run-synthetic', local: false, state: 'NOT_UPLOADED' } });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(element(late.doc, 'moM1FullPageHint').textContent, 'Ảnh Metric đã tự xóa sau 10 ngày.', 'late: current run unchanged');
+    runListButton(late.doc, 'run-synthetic').click();
+    await waitFor(() => late.state.shotStateCalls.length === 3 && late.doc.getElementById('moM1FullPage') !== null, 'late: new opening held');
+    assert.equal(late.doc.getElementById('moM1FullPageHint'), null, 'late answer for the closed run was not cached');
+    freshAnswer.resolve({ ok: true, data: { runId: 'run-synthetic', local: false, state: 'AVAILABLE', deleteAfter: '2099-01-11T00:00:00Z' } });
+    await waitFor(() => late.doc.getElementById('moM1FullPageHint')?.textContent === 'Ảnh lưu đến 11/01/2099', 'late: fresh opening wins');
+    assert.deepEqual(late.state.shotStateCalls, ['run-synthetic', 'run-other', 'run-synthetic']);
+  } finally {
+    oldAnswer.resolve(null);
+    freshAnswer.resolve(null);
+    late.dom.window.close();
+  }
+
+  // The first opening's local-file lookup answers «no file» only after a reopening found the file, offline.
+  // Single calls (an older server): a reopening does not wait for the first opening's lookup.
+  const heldLocal = deferred<unknown>();
+  let localLookups = 0;
+  let offline = false;
+  const stale = harness({
+    runs: ['run-other', 'run-synthetic'].map((runId) => ({ runId, product: runId, status: 'DONE' })),
+    runInfoByRun: { 'run-synthetic': syntheticRunInfo(), 'run-other': { ...syntheticRunInfo(), runId: 'run-other' } },
+    localShots: { 'run-synthetic': true }, shotClock: { now: Date.parse('2026-11-24T12:00:00Z') },
+    connectionResultFor: () => ({ ok: true, data: { connected: !offline, readonly: false, runsRoot: '/synthetic/runs' } }),
+    localShotResult: (runId) => (runId === 'run-synthetic' && ++localLookups === 1 ? heldLocal.promise : undefined),
+    moduleOutputsResult: (runId) => outputs(runId), oldServer: true,
+  });
+  const reads = () => stale.state.shotStateCalls.filter((runId) => runId === 'run-synthetic').length;
+  try {
+    await openAfterStartup(stale, 'run-other', 'run-synthetic');
+    await waitFor(() => localLookups === 1 && reads() === 1 && stale.doc.getElementById('moM1FullPage') !== null,
+      'stale: first lookup held');
+    runListButton(stale.doc, 'run-synthetic').click();
+    await waitFor(() => localLookups >= 2 && reads() === 2 &&
+      !element<HTMLButtonElement>(stale.doc, 'moM1FullPage').disabled, 'stale: reopening found the local file');
+    offline = true;
+    stale.advanceShotTime(15000);
+    await waitFor(() => element(stale.doc, 'connText').textContent === 'Chưa kết nối máy chủ.', 'stale: disconnected');
+    heldLocal.resolve({ ok: true, data: { format: 'local-metric-shot-v1', runId: 'run-synthetic', exists: false } });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    for (const id of ['moM1FullPage', 'moM1SaveShot']) {
+      assert.equal(element<HTMLButtonElement>(stale.doc, id).disabled, false, 'stale: older lookup dropped, ' + id + ' stays on offline');
+    }
+  } finally {
+    heldLocal.resolve(null);
+    stale.dom.window.close();
   }
 });
 
-test('the local Metric picture stays reachable when the step results fail to load', async () => {
-  const run = harness({
-    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
-    runInfo: syntheticRunInfo(), localShots: { 'run-synthetic': true },
-    moduleOutputsResult: () => ({ ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } }),
-  });
-  try {
-    await waitFor(() => run.doc.getElementById('moduleOutputsErr') !== null &&
-      run.doc.getElementById('moM1FullPage') !== null, 'outputs error with the local picture');
-    const button = element<HTMLButtonElement>(run.doc, 'moM1FullPage');
-    assert.equal(button.textContent, 'Xem ảnh Metric');
-    assert.equal(button.disabled, false);
-    button.click();
-    await waitFor(() => run.state.openLocalShotCalls.length === 1, 'local picture opened');
-    assert.deepEqual(run.state.openLocalShotCalls, ['run-synthetic']);
-    assert.equal(run.state.openEvidenceCalls.length, 0);
-  } finally { run.dom.window.close(); }
+// The actions do not wait for the step results: shown while they load or after they fail, whenever there is
+// a picture here or the app is connected (the upload may finish after the opening read said NOT_UPLOADED).
+// An old run (server full-page.png, no online copy) opens its old picture through the bridge, never «không có ảnh».
+test('the Metric picture actions stay reachable while the step results load or fail', async () => {
+  const cases = [
+    { label: 'local picture, outputs failed', local: true, outputs: 'failed', opens: 'LOCAL',
+      src: 'data:image/webp;base64,c3ludGhldGlj' },
+    { label: 'connected, outputs failed', local: false, outputs: 'failed', opens: 'AVAILABLE',
+      src: 'https://synthetic.invalid/uploaded.webp' },
+    { label: 'connected, outputs loading', local: false, outputs: 'loading', opens: 'AVAILABLE',
+      src: 'https://synthetic.invalid/uploaded.webp' },
+    { label: 'old picture, outputs failed', local: false, outputs: 'failed', opens: 'OLD', src: null },
+    { label: 'old picture, outputs loading', local: false, outputs: 'loading', opens: 'OLD', src: null },
+  ] as const;
+  for (const item of cases) {
+    const held = deferred<unknown>();
+    const run = harness({
+      runs: ['run-other', 'run-synthetic'].map((runId) => ({ runId, product: runId, status: 'DONE' })),
+      runInfoByRun: { 'run-synthetic': syntheticRunInfo(), 'run-other': { ...syntheticRunInfo(), runId: 'run-other' } },
+      localShots: { 'run-synthetic': item.local }, oldServer: item.outputs === 'loading',
+      metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
+        local: item.local, uploading: false, state: item.local ? null : 'NOT_UPLOADED' } }),
+      viewShotResult: (runId) => (item.opens === 'OLD'      // what the bridge answers after it opened the old picture
+        ? { ok: true, data: { format: 'module-evidence-open-v1', runId, kind: 'full-page', sha256: 'a'.repeat(64), opened: true } }
+        : { ok: true, data: { format: 'metric-shot-open-v1', runId, state: item.opens, src: item.src,
+          deleteAfter: '2099-01-11T00:00:00Z' } }),
+      moduleOutputsResult: (runId) => (runId === 'run-other' ? { ok: true, data: moduleOutputView(runId) }
+        : item.outputs === 'loading' ? held.promise : { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } }),
+    });
+    try {
+      await openAfterStartup(run, 'run-other', 'run-synthetic');   // outputs loading: only after start-up
+      const panelReady = () => item.outputs === 'failed' ? run.doc.getElementById('moduleOutputsErr') !== null
+        : /Đang tải kết quả các bước/.test(run.doc.getElementById('moduleOutputsPanel')?.textContent ?? '');
+      await waitFor(() => panelReady() && run.state.shotStateCalls.includes('run-synthetic') &&
+        run.doc.getElementById('moM1FullPage') !== null, item.label + ': actions shown');
+      for (const id of ['moM1FullPage', 'moM1SaveShot']) {
+        assert.equal(element<HTMLButtonElement>(run.doc, id).disabled, false, item.label + ': ' + id + ' enabled');
+      }
+      element<HTMLButtonElement>(run.doc, 'moM1FullPage').click();
+      if (item.src === null) {
+        await waitFor(() => run.state.viewShotCalls.length === 1 &&
+          run.doc.getElementById('moM1FullPage')?.textContent === 'Xem ảnh Metric', item.label + ': click answered');
+        assert.doesNotMatch(run.doc.getElementById('runDetail')?.textContent ?? '', /Lượt này không có ảnh Metric\./,
+          item.label + ': no «không có ảnh»');
+        assert.equal(element<HTMLDialogElement>(run.doc, 'shotDialog').open, false, item.label + ': no viewer');
+      } else {
+        await waitFor(() => element<HTMLDialogElement>(run.doc, 'shotDialog').open, item.label + ': picture opened');
+        assert.equal(element<HTMLImageElement>(run.doc, 'shotImg').getAttribute('src'), item.src, item.label);
+      }
+      assert.deepEqual(run.state.viewShotCalls, [['run-synthetic', null]], item.label);
+      assert.deepEqual(run.state.openLocalShotCalls, [], item.label);
+      assert.deepEqual(run.state.openEvidenceCalls, [], item.label);
+    } finally {
+      held.resolve(null);
+      run.dom.window.close();
+    }
+  }
 });
 
 // «Xóa lượt» (F644 §4), one row each:
