@@ -3698,7 +3698,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   // «Xem ảnh Metric» and «Tải ảnh» choose their source at click time in the app (this PC's picture, else the
   // online copy, else the server's old picture), never from what the page read before. They are on whenever
   // there is a picture here or the app is connected. The note next to them is information only.
-  function metricFullPageAction(runId, descriptor) {
+  function metricFullPageAction(runId, descriptor, outputsUnknown) {
     var label = 'Xem ảnh Metric';
     var wrap = h('span', 'rs-actions');
     var local = state.localShots[runId] === true;
@@ -3716,7 +3716,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       wrap.appendChild(outputEvidenceAction('moM1FullPage', label, runId, descriptor));   // the error note
       return wrap;
     }
-    var text = oldDigest ? '' : shotNoteText(runId, local);
+    var text = oldDigest ? '' : shotNoteText(runId, local, outputsUnknown);
     if (text) {
       var note = h('span', 'rs-note', text);
       note.id = 'moM1FullPageHint';
@@ -3726,11 +3726,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   }
 
   // The note: from the one state read of this opening, or from the last click's answer.
-  function shotNoteText(runId, local) {
+  function shotNoteText(runId, local, outputsUnknown) {
     if (local) return '';
     if (!state.connected) return 'Ảnh chỉ lưu trên máy đã lấy dữ liệu';
     var online = state.metricShots[runId] || {};
     if (online.state === 'AVAILABLE' && Date.parse(online.deleteAfter) > Date.now()) return shotKeptUntilText(online.deleteAfter);
+    if (outputsUnknown) return '';      // an old server picture may still exist: say nothing until the click
     if (online.state === 'AVAILABLE' || online.state === 'EXPIRED') return 'Ảnh Metric đã tự xóa sau 10 ngày.';
     if (online.state === 'NOT_UPLOADED') return 'Lượt này không có ảnh Metric.';
     return '';
@@ -3776,6 +3777,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       state.moduleEvidenceErrors[runId] = res.error;
       if (errorCode(res.error) === 'EVIDENCE_LOCAL_MISSING') state.localShots[runId] = false;
     } else if (data && data.format === 'module-evidence-open-v1') {
+      delete state.metricShots[runId];                                     // no stale «không có ảnh» note
       state.moduleEvidenceNotice[runId] = 'Đã mở bằng chứng đã lưu.';     // an old run's server picture
     } else if (data) {
       state.localShots[runId] = data.state === 'LOCAL';
@@ -3825,7 +3827,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function localShotRow(runId) {
     if (state.localShots[runId] !== true && !state.connected) return null;     // same rule as the actions
     var row = h('div', 'rs-actions');
-    row.appendChild(metricFullPageAction(runId, null));
+    row.appendChild(metricFullPageAction(runId, null, true));    // the step results are loading or failed
     return row;
   }
 
