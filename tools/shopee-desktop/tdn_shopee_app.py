@@ -1342,16 +1342,37 @@ class Api:
         return self._safe(lambda: self._view_metric_shot(self._run_id(runId), sha256))
 
     def _view_metric_shot(self, run_id, digest=None):
+        failure = None
         try:
             result = self._view_metric_shot_new(run_id)
-        except _BridgeFailure:
-            if digest is None:
-                raise
-            result = {'ok': False}
-        state = result['data']['state'] if result.get('ok') else None
-        if digest is not None and state not in ('LOCAL', 'AVAILABLE'):
+        except _BridgeFailure as error:
+            failure, result = error, {'ok': False}
+        if result.get('ok') and result['data']['state'] in ('LOCAL', 'AVAILABLE'):
+            return result
+        if digest is None:
+            digest = self._old_full_page_digest(run_id)     # the page had no outputs: look for it here
+        if digest is not None:
             return self._open_module_evidence(run_id, 'full-page', digest)      # an old run's server picture
+        if failure is not None:
+            raise failure
         return result
+
+    def _old_full_page_digest(self, run_id):
+        """The old server full-page picture's sha256 from one ``moduleOutputs`` read, or None when the run has
+        none. A failed read raises its own error code (never «no picture»)."""
+        result = self._remote('moduleOutputs', run_id=run_id)
+        if not result['ok']:
+            raise _BridgeFailure(result['error'].get('code') or 'REMOTE_OUTPUT_INVALID')
+        data = result['data']
+        if not isinstance(data, dict) or data.get('format') != 'module-outputs-v1' or data.get('runId') != run_id:
+            raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
+        m1 = data.get('m1') if isinstance(data.get('m1'), dict) else {}
+        evidence = m1.get('evidence') if isinstance(m1.get('evidence'), dict) else {}
+        descriptor = evidence.get('fullPage')
+        if (isinstance(descriptor, dict) and descriptor.get('available') is True and
+                isinstance(descriptor.get('sha256'), str) and _PLAN_SHA.fullmatch(descriptor['sha256'])):
+            return descriptor['sha256']
+        return None
 
     def _view_metric_shot_new(self, run_id):
         base = {'format': 'metric-shot-open-v1', 'runId': run_id}
@@ -1410,13 +1431,18 @@ class Api:
         extension = local.suffix.lower()[1:] if local is not None else 'png'
         online_state = None
         if local is None and online:
-            remote = self._metric_shot_online(run_id)
+            try:
+                remote = self._metric_shot_online(run_id)
+            except _BridgeFailure:
+                remote = None            # an invalid answer: fall back to the old picture, as «Xem ảnh» does
             online_state = remote['state'] if remote is not None else None
             if online_state == 'AVAILABLE':
                 extension = 'webp' if remote['contentType'] == 'image/webp' else 'png'
             else:
                 remote = None
         if local is None and remote is None:
+            if digest is None and online:
+                digest = self._old_full_page_digest(run_id)     # the page had no outputs: look for it here
             if digest is None:
                 # Nothing to save; the page shows why («đã tự xóa sau 10 ngày» / «không có ảnh Metric»).
                 raise _BridgeFailure('METRIC_SHOT_' + online_state if online_state in ('EXPIRED', 'NOT_UPLOADED')
