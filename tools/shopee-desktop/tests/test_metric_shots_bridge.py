@@ -214,8 +214,8 @@ class MetricShotBridgeTest(unittest.TestCase):
             with self.subTest(state=server_state):
                 self.remote.side_effect = None
                 self.remote.return_value = online(server_state)
-                expected = dict(format='metric-shot-state-v1', runId=RUN_ID, local=False, state=server_state,
-                                uploading=False, generation=0)
+                expected = dict(format='metric-shot-state-v1', runId=RUN_ID, local=False,
+                                state=server_state, uploading=False)
                 if server_state != 'NOT_UPLOADED':
                     expected['deleteAfter'] = DELETE_AFTER
                 self.assertEqual(self.api.metricShotState(RUN_ID), {'ok': True, 'data': expected})
@@ -223,13 +223,16 @@ class MetricShotBridgeTest(unittest.TestCase):
             with self.subTest(error=code):
                 self.remote.return_value = {'ok': False, 'error': {'code': code}}
                 self.assertEqual(self.api.metricShotState(RUN_ID), {'ok': True, 'data': dict(
-                    format='metric-shot-state-v1', runId=RUN_ID, local=False, state=None, uploading=False, generation=0)})
+                    format='metric-shot-state-v1', runId=RUN_ID, local=False, state=None, uploading=False)})
         self.remote.side_effect = app._BridgeFailure('SSH_TIMEOUT')
         self.assertIsNone(self.api.metricShotState(RUN_ID)['data']['state'])
-        path = self.local()
-        calls = []
+
         digest = hashlib.sha256(PICTURE).hexdigest()
         key = f'metric-shots/{RUN_ID}/{digest}.webp'
+        path = self.local()
+        entered, release = threading.Event(), threading.Event()
+        self.addCleanup(release.set)
+        calls = []
 
         def retry(action, **kwargs):
             calls.append(action)
@@ -240,200 +243,75 @@ class MetricShotBridgeTest(unittest.TestCase):
                     key=key, url=signed_url(), contentType='image/webp', expiresInSeconds=600)}
             raise AssertionError('a failed PUT must not confirm')
 
-        self.remote.side_effect = retry
-        self.assertEqual(self.api.metricShotStatePassive(RUN_ID), {'ok': True, 'data': dict(
-            format='metric-shot-state-v1', runId=RUN_ID, local=True, state='NOT_UPLOADED',
-            uploading=False, generation=0)})
-        self.assertEqual(calls, ['metricShotViewUrl'], 'a passive read cannot start an upload')
-        self.http.assert_not_called()
+        def failed_put(*args, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError('the test did not release the synthetic PUT')
+            raise urllib.error.URLError('synthetic PUT failure')
 
-        with mock.patch.object(app.time, 'monotonic', return_value=1000) as clock:
-            for generation in range(2):
-                with self.subTest(slow_failed_attempt=generation + 1):
-                    entered, release = threading.Event(), threading.Event()
-                    self.addCleanup(release.set)
+        self.remote.side_effect, self.http.side_effect = retry, failed_put
+        try:
+            self.assertEqual(self.api.metricShotState(RUN_ID), {'ok': True, 'data': dict(
+                format='metric-shot-state-v1', runId=RUN_ID, local=True, state='NOT_UPLOADED', uploading=True)},
+                'the retry decision and its uploading/local snapshot must agree')
+            self.assertTrue(entered.wait(5), 'the details read must start a real PUT worker')
+            self.assertEqual(calls, ['metricShotViewUrl', 'metricShotUploadUrl'])
+            self.assertEqual(self.api.metricShotState(RUN_ID), {'ok': True, 'data': dict(
+                format='metric-shot-state-v1', runId=RUN_ID, local=True, state='NOT_UPLOADED', uploading=True)},
+                'a read during an existing upload must also report uploading')
+            self.assertEqual(calls, ['metricShotViewUrl', 'metricShotUploadUrl', 'metricShotViewUrl'])
+        finally:
+            release.set()
+            self.drain()
+        self.assertEqual(path.read_bytes(), PICTURE)
 
-                    def slow_failure(*args, **kwargs):
-                        entered.set()
-                        if not release.wait(5):
-                            raise AssertionError('the test did not release the synthetic PUT')
-                        raise urllib.error.URLError('synthetic slow PUT failure')
+        # Complete a real upload after the server captured NOT_UPLOADED, before it answers.
+        self.api = app.Api()
+        self.remote = self.enterContext(mock.patch.object(self.api, '_remote'))
+        entered, release, confirmed = threading.Event(), threading.Event(), threading.Event()
+        self.addCleanup(release.set)
+        views = []
 
-                    self.http.side_effect = slow_failure
-                    self.assertEqual(self.api.metricShotState(RUN_ID), {'ok': True, 'data': dict(
-                        format='metric-shot-state-v1', runId=RUN_ID, local=True, state='NOT_UPLOADED',
-                        uploading=True, generation=generation)})
-                    self.assertTrue(entered.wait(5), 'the details load must reach PUT')
-                    self.assertEqual(self.api.metricShotUpload(RUN_ID), {'ok': True, 'data': dict(
-                        format='metric-shot-upload-status-v1', runId=RUN_ID, local=True,
-                        uploading=True, generation=generation)})
-                    clock.return_value += 61
+        def relay(action, **kwargs):
+            if action == 'metricShotUploadUrl':
+                return {'ok': True, 'data': dict(format='metric-shot-upload-v1', runId=RUN_ID,
+                    key=key, url=signed_url(), contentType='image/webp', expiresInSeconds=600)}
+            if action == 'metricShotConfirm':
+                confirmed.set()
+                return {'ok': True, 'data': dict(format='metric-shot-r2-v1', runId=RUN_ID,
+                    key=key, sha256=digest, byteSize=len(PICTURE), contentType='image/webp',
+                    uploadedAt='2099-01-01T00:00:00Z', deleteAfter=DELETE_AFTER)}
+            if action == 'metricShotViewUrl':
+                response = online('AVAILABLE' if confirmed.is_set() else 'NOT_UPLOADED')
+                views.append(response['data']['state'])
+                if len(views) == 1:
                     release.set()
                     self.drain()
-                    for elapsed in (0, 61, 600):
-                        clock.return_value += elapsed
-                        self.assertEqual(self.api.metricShotStatePassive(RUN_ID), {'ok': True, 'data': dict(
-                            format='metric-shot-state-v1', runId=RUN_ID, local=True, state='NOT_UPLOADED',
-                            uploading=False, generation=generation + 1)})
-                        self.drain()
-                        self.assertEqual(calls.count('metricShotUploadUrl'), generation + 1,
-                                         'completion reads must wait for a new details load to retry')
-                    self.assertEqual(self.api.metricShotUpload(RUN_ID), {'ok': True, 'data': dict(
-                        format='metric-shot-upload-status-v1', runId=RUN_ID, local=True,
-                        uploading=False, generation=generation + 1)})
-                    self.assertEqual(path.read_bytes(), PICTURE)
-        self.assertEqual(self.http.call_count, 2)
+                return response
+            raise AssertionError('unexpected relay action: ' + action)
 
-        # Finish a real worker during the server read, after that read captured NOT_UPLOADED.
-        for entry in ('metricShotState', 'metricShotStatePassive'):
-            with self.subTest(completion_during=entry):
-                self.api = app.Api()
-                self.remote = self.enterContext(mock.patch.object(self.api, '_remote'))
-                path = self.local()
-                entered, release, confirmed = threading.Event(), threading.Event(), threading.Event()
-                self.addCleanup(release.set)
-                views = []
+        def put(*args, **kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError('the test did not release the synthetic PUT')
+            response = io.BytesIO()
+            response.status = 200
+            return response
 
-                def relay(action, **kwargs):
-                    if action == 'metricShotUploadUrl':
-                        return {'ok': True, 'data': dict(format='metric-shot-upload-v1', runId=RUN_ID,
-                            key=key, url=signed_url(), contentType='image/webp', expiresInSeconds=600)}
-                    if action == 'metricShotConfirm':
-                        confirmed.set()
-                        return {'ok': True, 'data': dict(format='metric-shot-r2-v1', runId=RUN_ID,
-                            key=key, sha256=digest, byteSize=len(PICTURE), contentType='image/webp',
-                            uploadedAt='2099-01-01T00:00:00Z', deleteAfter=DELETE_AFTER)}
-                    if action == 'metricShotViewUrl':
-                        response = online('AVAILABLE' if confirmed.is_set() else 'NOT_UPLOADED')
-                        views.append(response['data']['state'])
-                        if len(views) == 1:
-                            release.set()
-                            self.drain()
-                        return response
-                    raise AssertionError('unexpected relay action: ' + action)
-
-                def put(*args, **kwargs):
-                    entered.set()
-                    if not release.wait(5):
-                        raise AssertionError('the test did not release the synthetic PUT')
-                    response = io.BytesIO()
-                    response.status = 200
-                    return response
-
-                self.remote.side_effect, self.http.side_effect = relay, put
-                self.assertTrue(self.api.uploadMetricShot(RUN_ID)['data']['started'])
-                self.assertTrue(entered.wait(5), 'the worker must be active before the state read')
-                result = getattr(self.api, entry)(RUN_ID)
-                self.assertTrue(confirmed.is_set(), 'the interleaving must finish confirmation')
-                self.assertFalse(path.exists(), 'the real worker must delete its confirmed local picture')
-                self.assertNotEqual((result['data']['local'], result['data']['state'], result['data']['uploading']),
-                                    (True, 'NOT_UPLOADED', False), 'completion must not return the stale mixed snapshot')
-                self.assertEqual(result, {'ok': True, 'data': dict(format='metric-shot-state-v1', runId=RUN_ID,
-                    local=False, state='NOT_UPLOADED', uploading=False, generation=1)})
-                self.assertEqual(views, ['NOT_UPLOADED'], 'the state response uses one server read')
-                self.assertEqual(self.api.metricShotStatePassive(RUN_ID), {'ok': True, 'data': dict(
-                    format='metric-shot-state-v1', runId=RUN_ID, local=False, state='AVAILABLE',
-                    uploading=False, generation=1, deleteAfter=DELETE_AFTER)})
-                self.assertEqual(self.api.metricShotUpload(RUN_ID), {'ok': True, 'data': dict(
-                    format='metric-shot-upload-status-v1', runId=RUN_ID, local=False, uploading=False, generation=1)})
-
-        for timing in ('running before snapshot', 'start after snapshot', 'finish after snapshot'):
-            with self.subTest(competing_upload=timing):
-                self.api = app.Api()
-                self.remote = self.enterContext(mock.patch.object(self.api, '_remote'))
-                path = self.local()
-                entered, release, confirmed = threading.Event(), threading.Event(), threading.Event()
-                online_read, yielded, competing_done = threading.Event(), threading.Event(), threading.Event()
-                self.addCleanup(release.set)
-                self.addCleanup(yielded.set)
-                caller = threading.get_ident()
-                starts, failures = [], []
-                real_lock = self.api._shot_uploads_lock
-
-                class SnapshotBoundary:
-                    # Yield immediately after the read's locked step. This is the old gap between
-                    # snapshot and retry; the new decision/snapshot must already describe any claim.
-                    def __enter__(inner):
-                        real_lock.acquire()
-
-                    def __exit__(inner, *args):
-                        real_lock.release()
-                        if (timing != 'running before snapshot' and threading.get_ident() == caller and
-                                online_read.is_set() and not yielded.is_set()):
-                            yielded.set()
-                            self.assertTrue(competing_done.wait(5), 'the competing start must finish its decision')
-
-                def compete():
-                    try:
-                        if not yielded.wait(5):
-                            raise AssertionError('the state read did not reach its snapshot boundary')
-                        result = self.api.uploadMetricShot(RUN_ID)
-                        starts.append(result)
-                        if result['data']['started']:
-                            self.assertTrue(entered.wait(5), 'the competing worker must reach PUT')
-                            if timing == 'finish after snapshot':
-                                release.set()
-                                for worker in list(self.threads):
-                                    if worker is not threading.current_thread():
-                                        worker.join(5)
-                                        self.assertFalse(worker.is_alive(), 'the competing upload must complete')
-                    except Exception as failure:
-                        failures.append(str(failure))
-                    finally:
-                        competing_done.set()
-
-                def relay(action, **kwargs):
-                    if action == 'metricShotViewUrl':
-                        response = online('AVAILABLE' if confirmed.is_set() else 'NOT_UPLOADED')
-                        if not online_read.is_set():
-                            online_read.set()
-                            if timing == 'running before snapshot':
-                                yielded.set()
-                                self.assertTrue(competing_done.wait(5), 'the import upload must start before sampling')
-                        return response
-                    if action == 'metricShotUploadUrl':
-                        return {'ok': True, 'data': dict(format='metric-shot-upload-v1', runId=RUN_ID,
-                            key=key, url=signed_url(), contentType='image/webp', expiresInSeconds=600)}
-                    if action == 'metricShotConfirm':
-                        confirmed.set()
-                        return {'ok': True, 'data': dict(format='metric-shot-r2-v1', runId=RUN_ID,
-                            key=key, sha256=digest, byteSize=len(PICTURE), contentType='image/webp',
-                            uploadedAt='2099-01-01T00:00:00Z', deleteAfter=DELETE_AFTER)}
-                    raise AssertionError('unexpected relay action: ' + action)
-
-                def put(*args, **kwargs):
-                    entered.set()
-                    if not release.wait(5):
-                        raise AssertionError('the test did not release the synthetic PUT')
-                    response = io.BytesIO()
-                    response.status = 200
-                    return response
-
-                self.remote.side_effect, self.http.side_effect = relay, put
-                with mock.patch.object(self.api, '_shot_uploads_lock', SnapshotBoundary()):
-                    competitor = threading.Thread(target=compete)
-                    competitor.start()
-                    try:
-                        result = self.api.metricShotState(RUN_ID)
-                        competitor.join(5)
-                        self.assertFalse(competitor.is_alive())
-                        self.assertEqual(failures, [])
-                        self.assertTrue(result['ok'])
-                        data = result['data']
-                        self.assertTrue(data['uploading'] or
-                                        (not data['local'] and data['state'] == 'AVAILABLE'),
-                                        'a competing start/finish must never leave a stale settled response')
-                        self.assertEqual(starts, [{'ok': True, 'data': dict(format='metric-shot-upload-start-v1',
-                            runId=RUN_ID, started=timing == 'running before snapshot')}])
-                    finally:
-                        release.set()
-                        yielded.set()
-                        self.drain()
-                self.assertTrue(confirmed.is_set())
-                self.assertFalse(path.exists())
-                self.assertEqual(self.api.metricShotStatePassive(RUN_ID), {'ok': True, 'data': dict(
-                    format='metric-shot-state-v1', runId=RUN_ID, local=False, state='AVAILABLE',
-                    uploading=False, generation=1, deleteAfter=DELETE_AFTER)})
+        self.remote.side_effect, self.http.side_effect = relay, put
+        try:
+            self.assertTrue(self.api.uploadMetricShot(RUN_ID)['data']['started'])
+            self.assertTrue(entered.wait(5), 'the worker must be active before the state read')
+            result = self.api.metricShotState(RUN_ID)
+            self.assertTrue(confirmed.is_set(), 'the interleaving must finish confirmation')
+            self.assertFalse(path.exists(), 'the real worker must delete its confirmed local picture')
+            self.assertEqual(result, {'ok': True, 'data': dict(format='metric-shot-state-v1', runId=RUN_ID,
+                local=False, state='AVAILABLE', uploading=False, deleteAfter=DELETE_AFTER)},
+                'completion during the read must return one coherent answer')
+            self.assertEqual(views, ['NOT_UPLOADED', 'AVAILABLE'], 'completion needs exactly one server re-read')
+        finally:
+            release.set()
+            self.drain()
 
     def test_view_metric_shot_contract(self):
         for extension in ('webp', 'png'):
