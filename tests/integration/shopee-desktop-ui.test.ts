@@ -106,6 +106,7 @@ function harness(options: {
   fastPoll?: boolean;
   bridge?: 'complete' | 'partial';
   localShots?: Record<string, boolean>;
+  metricShotStateResult?: (runId: string) => any;
   saveShotResult?: (runId: string) => any;
   deleteRunResult?: (runId: string) => any;
   runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
@@ -143,6 +144,7 @@ function harness(options: {
     moduleOutputsCalls: string[];
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
     openLocalShotCalls: string[];
+    viewShotCalls: string[];
     saveShotCalls: any[][];
     deleteRunCalls: string[];
     openLinkCalls: string[];
@@ -186,6 +188,7 @@ function harness(options: {
     moduleOutputsCalls: [],
     openEvidenceCalls: [],
     openLocalShotCalls: [],
+    viewShotCalls: [],
     saveShotCalls: [],
     deleteRunCalls: [],
     openLinkCalls: [],
@@ -283,8 +286,21 @@ function harness(options: {
       state.openLocalShotCalls.push(runId);
       return { ok: true, data: { format: 'local-metric-shot-open-v1', runId, opened: true } };
     },
-    saveMetricShot: async (runId: string, name: string, sha256: string | null) => {
-      state.saveShotCalls.push([runId, name, sha256]);
+    metricShotState: async (runId: string) => options.metricShotStateResult ? options.metricShotStateResult(runId)
+      : { ok: true, data: { format: 'metric-shot-state-v1', runId,
+        local: !!options.localShots?.[runId], state: null } },
+    viewMetricShot: async (runId: string) => {
+      state.viewShotCalls.push(runId);
+      if (options.localShots?.[runId]) return { ok: true, data: { format: 'metric-shot-open-v1', runId,
+        state: 'LOCAL', src: 'data:image/webp;base64,c3ludGhldGlj' } };
+      const shot = options.metricShotStateResult?.(runId)?.data;
+      return { ok: true, data: { format: 'metric-shot-open-v1', runId, state: shot?.state || 'NOT_UPLOADED',
+        src: 'https://synthetic.invalid/picture.webp', deleteAfter: shot?.deleteAfter } };
+    },
+    uploadMetricShot: async (runId: string) => ({ ok: true,
+      data: { format: 'metric-shot-upload-start-v1', runId, started: false } }),
+    saveMetricShot: async (runId: string, name: string, sha256: string | null, online: boolean) => {
+      state.saveShotCalls.push([runId, name, sha256, online]);
       if (options.saveShotResult) return options.saveShotResult(runId);
       return { ok: true, data: { format: 'metric-shot-save-v1', runId, saved: true, cancelled: false, fileName: 'a.png' } };
     },
@@ -3577,22 +3593,23 @@ test('dead links: an attempt that finishes while the run is open shows its group
   } finally { run.dom.window.close(); }
 });
 
-// «Xem ảnh Metric» (F642) and «Tải ảnh» (F644 §3): the shot this PC took at «Lấy bình luận Shopee» comes first.
-// | local shot for the run | server picture (m1.evidence.fullPage) | buttons                         | view opens         | «Tải ảnh» saves      |
-// |------------------------|---------------------------------------|---------------------------------|--------------------|----------------------|
-// | yes                    | missing (user-page run)               | enabled                         | the local file     | the local file (null)|
-// | no                     | available                             | enabled                         | the server picture | its sha256           |
-// | no                     | missing                               | disabled + «Ảnh chỉ lưu trên máy đã lấy dữ liệu» | nothing | nothing   |
-// | no                     | error (hash mismatch)                 | disabled + the error note (r2 #4)                | nothing | nothing   |
-test('the full-page Metric picture: local shot first, then the server picture, else a hint', async () => {
+// One owner for the picture action states, viewer copy and source selection.
+test('the full-page Metric picture: local viewer, online retention, old evidence and missing states', async () => {
   const missing = { available: false, kind: 'full-page', sha256: null, byteSize: null, mediaType: 'image/png',
     fileName: 'full-page.png', errorCode: 'EVIDENCE_FILES_MISSING' };
   const broken = { ...missing, errorCode: 'EVIDENCE_HASH_MISMATCH' };
-  const rows: { label: string; local: boolean; fullPage: any; enabled: boolean; opens: 'local' | 'server' | null; note?: string }[] = [
+  const rows: { label: string; local: boolean; fullPage: any; enabled: boolean;
+    opens: 'local' | 'online' | 'server' | null; state?: string; hint?: string; note?: string }[] = [
     { label: 'local shot', local: true, fullPage: missing, enabled: true, opens: 'local' },
     { label: 'server picture', local: false, fullPage: evidenceDescriptor('full-page', 'full-page.png', 'image/png'),
       enabled: true, opens: 'server' },
     { label: 'neither', local: false, fullPage: missing, enabled: false, opens: null },
+    { label: 'online picture', local: false, fullPage: missing, enabled: true, opens: 'online',
+      state: 'AVAILABLE', hint: 'Ảnh lưu đến 04/12/2026' },
+    { label: 'expired picture', local: false, fullPage: missing, enabled: false, opens: null,
+      state: 'EXPIRED', hint: 'Ảnh Metric đã tự xóa sau 10 ngày.' },
+    { label: 'no uploaded picture', local: false, fullPage: missing, enabled: false, opens: null,
+      state: 'NOT_UPLOADED', hint: 'Lượt này không có ảnh Metric.' },
     { label: 'server error', local: false, fullPage: broken, enabled: false, opens: null,
       note: 'Tệp bằng chứng đã lưu không khớp mã kiểm tra.' },
   ];
@@ -3600,12 +3617,15 @@ test('the full-page Metric picture: local shot first, then the server picture, e
     const run = harness({
       runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
       runInfo: syntheticRunInfo(), localShots: { 'run-synthetic': row.local },
+      metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
+        local: row.local, state: row.state || null, deleteAfter: row.state ? '2026-12-04T12:00:00Z' : undefined } }),
       moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
         { evidence: { fullPage: row.fullPage, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
     });
     try {
       await waitFor(() => run.doc.getElementById('moM1FullPage') !== null, row.label);
       if (row.local) await waitFor(() => !(run.doc.getElementById('moM1FullPage') as HTMLButtonElement).disabled, 'local shot found');
+      if (row.hint) await waitFor(() => run.doc.getElementById('moM1FullPageHint')?.textContent === row.hint, row.label + ': state loaded');
       const button = element<HTMLButtonElement>(run.doc, 'moM1FullPage');
       assert.equal(button.textContent, 'Xem ảnh Metric', row.label);
       assert.equal(button.disabled, !row.enabled, row.label + ': enabled');
@@ -3616,22 +3636,40 @@ test('the full-page Metric picture: local shot first, then the server picture, e
       if (row.opens) {
         await waitFor(() => run.state.saveShotCalls.length === 1 && !run.doc.getElementById('toast')!.hidden, row.label + ': saved');
         assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp',
-          row.opens === 'local' ? null : row.fullPage.sha256]], row.label + ': save source');
+          row.opens === 'server' ? row.fullPage.sha256 : null, row.opens === 'online']], row.label + ': save source');
         assert.equal(run.doc.getElementById('toast')!.textContent, 'Đã lưu ảnh');
       } else {
         assert.equal(run.state.saveShotCalls.length, 0, row.label + ': nothing saved');
       }
       assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent ?? null,
-        row.enabled || row.note ? null : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu', row.label + ': hint');
+        row.hint || (row.enabled || row.note ? null : 'Ảnh chỉ lưu trên máy đã lấy dữ liệu'), row.label + ': hint');
       if (row.note) assert.equal(button.parentElement!.querySelector('.rs-note')!.textContent, row.note, row.label + ': note');
       button.click();
       if (row.opens) {
-        await waitFor(() => run.state.openLocalShotCalls.length + run.state.openEvidenceCalls.length === 1, row.label + ': opened');
+        await waitFor(() => run.state.viewShotCalls.length + run.state.openEvidenceCalls.length === 1, row.label + ': opened');
       } else {
         await new Promise((resolve) => setTimeout(resolve, 30));
       }
-      assert.deepEqual(run.state.openLocalShotCalls, row.opens === 'local' ? ['run-synthetic'] : [], row.label + ': local open');
+      assert.deepEqual(run.state.openLocalShotCalls, [], row.label + ': stays in app');
+      assert.deepEqual(run.state.viewShotCalls, row.opens === 'local' || row.opens === 'online' ? ['run-synthetic'] : [], row.label + ': viewer source');
       assert.equal(run.state.openEvidenceCalls.length, row.opens === 'server' ? 1 : 0, row.label + ': server open');
+      const dialog = element<HTMLDialogElement>(run.doc, 'shotDialog');
+      if (row.opens === 'local' || row.opens === 'online') {
+        await waitFor(() => dialog.open, row.label + ': viewer visible');
+        assert.equal(element(run.doc, 'shotDialogTitle').textContent, 'Ảnh Metric');
+        assert.equal(element(run.doc, 'shotCloseBtn').textContent, 'Đóng');
+        assert.equal(element(run.doc, 'shotDialogNote').textContent, row.opens === 'online' ? row.hint : '');
+        const image = element<HTMLImageElement>(run.doc, 'shotImg');
+        assert.equal(image.alt, 'Ảnh toàn trang Metric');
+        assert.equal(image.getAttribute('src'), row.opens === 'local'
+          ? 'data:image/webp;base64,c3ludGhldGlj' : 'https://synthetic.invalid/picture.webp');
+        if (row.opens === 'local') element<HTMLButtonElement>(run.doc, 'shotCloseBtn').click();
+        else dialog.dispatchEvent(new run.dom.window.Event('cancel', { cancelable: true }));
+        assert.equal(dialog.open, false, row.label + ': close button or Esc closes');
+        assert.equal(image.hasAttribute('src'), false, row.label + ': image released');
+      } else {
+        assert.equal(dialog.open, false, row.label + ': no viewer');
+      }
     } finally { run.dom.window.close(); }
   }
 });
@@ -3649,8 +3687,9 @@ test('the local Metric picture stays reachable when the step results fail to loa
     assert.equal(button.textContent, 'Xem ảnh Metric');
     assert.equal(button.disabled, false);
     button.click();
-    await waitFor(() => run.state.openLocalShotCalls.length === 1, 'local picture opened');
-    assert.deepEqual(run.state.openLocalShotCalls, ['run-synthetic']);
+    await waitFor(() => run.state.viewShotCalls.length === 1, 'local picture opened');
+    assert.deepEqual(run.state.viewShotCalls, ['run-synthetic']);
+    assert.deepEqual(run.state.openLocalShotCalls, []);
     assert.equal(run.state.openEvidenceCalls.length, 0);
   } finally { run.dom.window.close(); }
 });

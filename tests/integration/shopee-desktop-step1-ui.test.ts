@@ -41,6 +41,10 @@ function page(views: any[], take?: (input: any) => Promise<any>, lastSelection: 
     takeMetricReviews: record('takeMetricReviews', (input: any) => (take ? take(input) : { ok: false, error: { code: 'X', message: 'X' } })),
     resendMetricImport: record('resendMetricImport', () => ({ ok: true, data: { runId: 'a1b2c3d4', reused: true, step2: { ok: true } } })),
     discardMetricImport: record('discardMetricImport', () => ({ ok: true, data: { pending: null } })),
+    uploadMetricShot: record('uploadMetricShot', (runId: string) => ({ ok: true,
+      data: { format: 'metric-shot-upload-start-v1', runId, started: false } })),
+    metricShotState: record('metricShotState', (runId: string) => ({ ok: true,
+      data: { format: 'metric-shot-state-v1', runId, local: false, state: 'NOT_UPLOADED' } })),
     lastProductSelection: record('lastProductSelection', () => ({ ok: true, data: { productSelection: lastSelection } })),
     rememberProductSelection: record('rememberProductSelection', (value: any) => ({ ok: true, data: { productSelection: value } })),
     newRun: record('newRun', () => ({ ok: false, error: { code: 'NO', message: 'NO' } })),
@@ -99,6 +103,7 @@ test('the open pill and one click send the frozen policy once, then step 2 is re
       productSelection: { mode: 'top', count: 5 } }]);
     assert.match(p.$('metricNotice').textContent!, /Đã tạo lượt a1b2c3d4 từ số liệu Metric\. App đang chạy bước 2 \(chọn link Shopee\), rồi tự chạy bước 3 và bước 4/);
     assert.equal(p.$('metricDone').hidden, false);
+    assert.deepEqual(p.calls.filter((c) => c.method === 'uploadMetricShot').map((c) => c.args), [['a1b2c3d4']]);
     for (const name of ['newRun', 'runFlow', 'runModule']) assert.ok(!p.names().includes(name), name);
   } finally {
     p.dom.window.close();

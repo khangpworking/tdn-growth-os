@@ -4,6 +4,9 @@ Each test owns temp runs and state roots and calls the real command line.
 Deletion is pure Python, so no node subprocess is involved.
 """
 import fcntl
+import contextlib
+import importlib.util
+import io
 import json
 import os
 import pathlib
@@ -12,7 +15,9 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.error
 import uuid
+from unittest import mock
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[1] / 'scripts' / 'shopee_flow.py'
 
@@ -88,6 +93,45 @@ class DeleteRunTest(unittest.TestCase):
         listed = {run['runId'] for run in out['runs']}
         self.assertNotIn('run-a1', listed)
         self.assertIn('run-b2', listed)
+
+        # R2 cleanup is part of this deletion contract; it cannot change the receipt above.
+        # Execute in-process so the actual urllib HTTP layer is replaced, including on failure.
+        for case in ('deleted', 'http failure', 'not configured'):
+            with self.subTest(r2=case):
+                run_id = 'run-r2'
+                run = self.make_run(run_id)
+                write_json(run / 'm1' / 'metric-shot-r2.json', {
+                    'key': f'metric-shots/{run_id}/full-page.webp', 'sha256': '0' * 64, 'byteSize': 23,
+                    'contentType': 'image/webp', 'uploadedAt': '2099-01-01T00:00:00Z',
+                    'deleteAfter': '2099-01-11T00:00:00Z'})
+                credentials = self.base / 'synthetic-r2.env'
+                credentials.write_text('R2_ACCOUNT_ID=synthetic\nR2_BUCKET=synthetic-bucket\n'
+                    'R2_ACCESS_KEY_ID=SYNTHETICKEY\nR2_SECRET_ACCESS_KEY=NOT_A_SECRET_SYNTHETIC_TEST_ONLY\n',
+                    encoding='utf-8')
+                if case == 'not configured':
+                    credentials.unlink()
+                response = io.BytesIO()
+                response.status, response.headers = 204, {}
+                failure = urllib.error.URLError('synthetic storage failure') if case == 'http failure' else None
+                output = io.StringIO()
+                with mock.patch.dict(os.environ, self.env({'TDN_METRIC_SHOTS_R2_FILE': str(credentials)}), clear=True):
+                    spec = importlib.util.spec_from_file_location('delete_run_r2', SCRIPT)
+                    flow = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(flow)
+                    with mock.patch('urllib.request.urlopen', return_value=response, side_effect=failure) as http, \
+                            mock.patch.object(sys, 'argv', [str(SCRIPT), 'delete-run', '--run', run_id]), \
+                            contextlib.redirect_stdout(output):
+                        flow.main()
+                self.assertEqual(json.loads(output.getvalue()), {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True})
+                self.assertFalse(run.exists())
+                if case == 'not configured':
+                    http.assert_not_called()
+                else:
+                    self.assertEqual(http.call_count, 1)
+                    request = http.call_args.args[0]
+                    self.assertEqual(request.get_method(), 'DELETE')
+                    self.assertEqual(request.full_url, f'https://synthetic.r2.cloudflarestorage.com/'
+                        f'synthetic-bucket/metric-shots/{run_id}/full-page.webp')
 
     def test_delete_refuses_a_run_whose_state_is_running(self):
         run = self.make_run('run-c3', state={**finished_state('run-c3'), 'status': 'RUNNING'})
