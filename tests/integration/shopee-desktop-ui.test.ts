@@ -107,6 +107,7 @@ function harness(options: {
   bridge?: 'complete' | 'partial';
   localShots?: Record<string, boolean>;
   metricShotStateResult?: (runId: string) => any;
+  metricShotStatePassiveResult?: (runId: string) => unknown;
   metricShotUploadResult?: (runId: string) => any;
   shotClock?: { now: number };
   saveShotResult?: (runId: string) => any;
@@ -148,7 +149,9 @@ function harness(options: {
     openLocalShotCalls: string[];
     viewShotCalls: string[];
     shotStateCalls: string[];
+    shotStatePassiveCalls: string[];
     shotUploadCalls: string[];
+    shotStartCalls: string[];
     saveShotCalls: any[][];
     deleteRunCalls: string[];
     openLinkCalls: string[];
@@ -194,7 +197,9 @@ function harness(options: {
     openLocalShotCalls: [],
     viewShotCalls: [],
     shotStateCalls: [],
+    shotStatePassiveCalls: [],
     shotUploadCalls: [],
+    shotStartCalls: [],
     saveShotCalls: [],
     deleteRunCalls: [],
     openLinkCalls: [],
@@ -296,13 +301,20 @@ function harness(options: {
       state.shotStateCalls.push(runId);
       return options.metricShotStateResult ? options.metricShotStateResult(runId)
         : { ok: true, data: { format: 'metric-shot-state-v1', runId,
-          local: !!options.localShots?.[runId], state: null, uploading: false } };
+          local: !!options.localShots?.[runId], state: null, uploading: false, generation: 0 } };
+    },
+    metricShotStatePassive: async (runId: string) => {
+      state.shotStatePassiveCalls.push(runId);
+      const result = options.metricShotStatePassiveResult || options.metricShotStateResult;
+      return result ? result(runId)
+        : { ok: true, data: { format: 'metric-shot-state-v1', runId,
+          local: !!options.localShots?.[runId], state: null, uploading: false, generation: 0 } };
     },
     metricShotUpload: async (runId: string) => {
       state.shotUploadCalls.push(runId);
       return options.metricShotUploadResult ? options.metricShotUploadResult(runId)
         : { ok: true, data: { format: 'metric-shot-upload-status-v1', runId,
-          local: !!options.localShots?.[runId], uploading: false } };
+          local: !!options.localShots?.[runId], uploading: false, generation: 0 } };
     },
     viewMetricShot: async (runId: string) => {
       state.viewShotCalls.push(runId);
@@ -312,8 +324,10 @@ function harness(options: {
       return { ok: true, data: { format: 'metric-shot-open-v1', runId, state: shot?.state || 'NOT_UPLOADED',
         src: 'https://synthetic.invalid/picture.webp', deleteAfter: shot?.deleteAfter } };
     },
-    uploadMetricShot: async (runId: string) => ({ ok: true,
-      data: { format: 'metric-shot-upload-start-v1', runId, started: false } }),
+    uploadMetricShot: async (runId: string) => {
+      state.shotStartCalls.push(runId);
+      return { ok: true, data: { format: 'metric-shot-upload-start-v1', runId, started: false } };
+    },
     saveMetricShot: async (runId: string, name: string, sha256: string | null, online: boolean) => {
       state.saveShotCalls.push([runId, name, sha256, online]);
       if (options.saveShotResult) return options.saveShotResult(runId);
@@ -575,7 +589,9 @@ function harness(options: {
           shotTimers.set(id, { at: clock.now + delay, fire: () => handler(...args) });
           return id;
         };
-        window.clearTimeout = (id) => { if (!shotTimers.delete(id)) nativeClearTimeout(id); };
+        window.clearTimeout = (id) => {
+          if (id !== undefined && !shotTimers.delete(id)) nativeClearTimeout(id);
+        };
       }
       if (options.fastPoll) {
         const nativeSetInterval = window.setInterval.bind(window);
@@ -3658,7 +3674,7 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
       runInfo: syntheticRunInfo(), localShots: { 'run-synthetic': row.local },
       shotClock: { now: Date.parse('2026-11-24T12:00:00Z') },
       metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
-        local: row.local, uploading: false, state: row.state || null,
+        local: row.local, uploading: false, generation: 0, state: row.state || null,
         deleteAfter: row.state ? '2026-12-04T12:00:00Z' : undefined } }),
       moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
         { evidence: { fullPage: row.fullPage, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
@@ -3715,21 +3731,26 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
   }
 
   for (const lifecycle of ['later upload elsewhere', 'later removal elsewhere', 'retention deadline',
-                            'upload finishes', 'local disappears before save']) {
+                            'upload finishes', 'upload generation changes', 'slow upload fails',
+                            'local disappears before save']) {
     const clock = { now: Date.parse('2026-11-24T12:00:00Z') };
-    const localShots = { 'run-synthetic': lifecycle === 'upload finishes' || lifecycle === 'local disappears before save' };
+    const watched = lifecycle.startsWith('upload ') || lifecycle === 'slow upload fails';
+    const localShots = { 'run-synthetic': watched || lifecycle === 'local disappears before save' };
     let remoteState = lifecycle === 'later removal elsewhere' || lifecycle === 'retention deadline'
       ? 'AVAILABLE' : 'NOT_UPLOADED';
-    let uploading = lifecycle === 'upload finishes';
+    let uploading = watched;
+    let generation = 0;
     const deleteAfter = lifecycle === 'retention deadline'
       ? new Date(clock.now + 2000).toISOString() : '2099-01-11T00:00:00Z';
     const run = harness({
       runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'DONE' }],
       runInfo: syntheticRunInfo(), localShots, shotClock: clock,
       metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
-        local: localShots['run-synthetic'], state: remoteState, deleteAfter, uploading } }),
+        local: localShots['run-synthetic'], state: remoteState, deleteAfter, uploading, generation } }),
+      metricShotStatePassiveResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
+        local: localShots['run-synthetic'], state: remoteState, deleteAfter, uploading: false, generation } }),
       metricShotUploadResult: (runId) => ({ ok: true, data: { format: 'metric-shot-upload-status-v1', runId,
-        local: localShots['run-synthetic'], uploading } }),
+        local: localShots['run-synthetic'], uploading, generation } }),
       moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
         { evidence: { fullPage: missing, raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json') } }) }),
     });
@@ -3759,15 +3780,28 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
         assert.equal(enabled(), false, lifecycle);
         assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, true);
         assert.equal(run.state.shotStateCalls.length, 1, lifecycle + ': no detail reload required');
-      } else if (lifecycle === 'upload finishes') {
-        remoteState = 'AVAILABLE';
-        uploading = false;
-        localShots['run-synthetic'] = false;
-        run.advanceShotTime(3000);
-        await waitFor(() => run.state.shotUploadCalls.length === 1 && run.state.shotStateCalls.length === 2 &&
-          hint() === 'Ảnh lưu đến 11/01/2099', lifecycle + ': refreshed within 60 seconds');
+      } else if (watched) {
+        const failed = lifecycle === 'slow upload fails';
+        remoteState = failed ? 'NOT_UPLOADED' : 'AVAILABLE';
+        uploading = lifecycle === 'upload generation changes';
+        generation++;
+        localShots['run-synthetic'] = failed;
+        run.advanceShotTime(failed ? 61000 : 3000);
+        await waitFor(() => run.state.shotUploadCalls.length === 1 && run.state.shotStatePassiveCalls.length === 1 &&
+          (failed || hint() === 'Ảnh lưu đến 11/01/2099'), lifecycle + ': one passive completion refresh');
+        assert.deepEqual(run.state.shotStateCalls, ['run-synthetic'], lifecycle + ': no details-load retry');
+        assert.deepEqual(run.state.shotStartCalls, [], lifecycle + ': no explicit upload start');
         assert.equal(enabled(), true, lifecycle);
         assert.equal(element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, false);
+        // Advance past both the poll interval and retry guard without opening the details again.
+        for (let poll = 0; poll < 2; poll++) {
+          run.advanceShotTime(61000);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          assert.deepEqual(run.state.shotStatePassiveCalls, ['run-synthetic'], lifecycle + ': refresh is once only');
+          assert.deepEqual(run.state.shotStateCalls, ['run-synthetic'], lifecycle + ': no automatic retry loop');
+          assert.equal(run.state.shotUploadCalls.length, 1, lifecycle + ': watcher stopped');
+          assert.deepEqual(run.state.shotStartCalls, [], lifecycle + ': still no upload start');
+        }
       } else {
         localShots['run-synthetic'] = false;
         remoteState = 'AVAILABLE';
