@@ -3156,8 +3156,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       openShopeeLink: function (url) { return call('openShopeeLink', [url]); },
       localMetricShot: function (runId) { return call('localMetricShot', [runId]); },
       openLocalMetricShot: function (runId) { return call('openLocalMetricShot', [runId]); },
-      saveMetricShot: function (runId, name, sha256, online) { return call('saveMetricShot', [runId, name, sha256, !!online]); },
-      metricShotState: function (runId) { return call('metricShotState', [runId]); },      viewMetricShot: function (runId, sha256) { return call('viewMetricShot', [runId, sha256 || null]); },
+      saveMetricShot: function (runId, name, sha256, online, oldKnown) { return call('saveMetricShot', [runId, name, sha256, !!online, oldKnown === true]); },
+      metricShotState: function (runId) { return call('metricShotState', [runId]); },      viewMetricShot: function (runId, sha256, oldKnown) { return call('viewMetricShot', [runId, sha256 || null, oldKnown === true]); },
       uploadMetricShot: function (runId) { return call('uploadMetricShot', [runId]); },      deleteRun: function (runId) { return call('deleteRun', [runId]); },
       lastProductSelection: function () { return call('lastProductSelection', []); },
       rememberProductSelection: function (value) { return call('rememberProductSelection', [value]); },
@@ -3709,9 +3709,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     btn.type = 'button';
     btn.id = 'moM1FullPage';
     btn.disabled = off || !!state.moduleEvidenceBusy[runId];
-    btn.addEventListener('click', function () { openShot(runId, oldDigest); });
+    // oldKnown: the page has the step results, so a null digest means «no old picture» (no lookup).
+    btn.addEventListener('click', function () { openShot(runId, oldDigest, !outputsUnknown); });
     wrap.appendChild(btn);
-    wrap.appendChild(saveShotButton(runId, oldDigest, off));
+    wrap.appendChild(saveShotButton(runId, oldDigest, off, !outputsUnknown));
     if (!local && descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
       wrap.appendChild(outputEvidenceAction('moM1FullPage', label, runId, descriptor));   // the error note
       return wrap;
@@ -3731,18 +3732,19 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (!state.connected) return 'Ảnh chỉ lưu trên máy đã lấy dữ liệu';
     var online = state.metricShots[runId] || {};
     if (online.state === 'AVAILABLE' && Date.parse(online.deleteAfter) > Date.now()) return shotKeptUntilText(online.deleteAfter);
-    if (outputsUnknown) return '';      // an old server picture may still exist: say nothing until the click
+    // An old server picture may still exist: say nothing until a click, whose answer is final.
+    if (outputsUnknown && !online.fromClick) return '';
     if (online.state === 'AVAILABLE' || online.state === 'EXPIRED') return 'Ảnh Metric đã tự xóa sau 10 ngày.';
     if (online.state === 'NOT_UPLOADED') return 'Lượt này không có ảnh Metric.';
     return '';
   }
 
-  function saveShotButton(runId, oldDigest, off) {
+  function saveShotButton(runId, oldDigest, off, oldKnown) {
     var btn = h('button', 'abtn', 'Tải ảnh');
     btn.type = 'button';
     btn.id = 'moM1SaveShot';
     btn.disabled = off || !!state.moduleEvidenceBusy[runId];
-    btn.addEventListener('click', function () { saveShot(runId, oldDigest); });
+    btn.addEventListener('click', function () { saveShot(runId, oldDigest, oldKnown); });
     return btn;
   }
 
@@ -3763,13 +3765,13 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     $('shotImg').removeAttribute('src');    // let go of the picture (a large data URL or a short-lived link)
   }
 
-  async function openShot(runId, oldDigest) {
+  async function openShot(runId, oldDigest, oldKnown) {
     if (state.moduleEvidenceBusy[runId]) return;
     state.moduleEvidenceBusy[runId] = true;
     delete state.moduleEvidenceErrors[runId];
     delete state.moduleEvidenceNotice[runId];
     if (state.selectedRunId === runId) renderDetail();
-    var res = await api.viewMetricShot(runId, oldDigest || null);
+    var res = await api.viewMetricShot(runId, oldDigest || null, oldKnown === true);
     if (isGone(runId)) return;
     delete state.moduleEvidenceBusy[runId];
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
@@ -3781,7 +3783,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       state.moduleEvidenceNotice[runId] = 'Đã mở bằng chứng đã lưu.';     // an old run's server picture
     } else if (data) {
       state.localShots[runId] = data.state === 'LOCAL';
-      if (data.state !== 'LOCAL') state.metricShots[runId] = { state: data.state, deleteAfter: data.deleteAfter || null };
+      if (data.state !== 'LOCAL') state.metricShots[runId] = { state: data.state, deleteAfter: data.deleteAfter || null, fromClick: true };
       if ((data.state === 'LOCAL' || data.state === 'AVAILABLE') && typeof data.src === 'string') {
         showShotViewer(data.src, data.state === 'AVAILABLE' ? shotKeptUntilText(data.deleteAfter) : '');
       }
@@ -3789,7 +3791,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (state.selectedRunId === runId) renderDetail();
   }
 
-  async function saveShot(runId, oldDigest) {
+  async function saveShot(runId, oldDigest, oldKnown) {
     if (state.moduleEvidenceBusy[runId]) return;
     state.moduleEvidenceBusy[runId] = true;
     delete state.moduleEvidenceErrors[runId];
@@ -3797,7 +3799,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (state.selectedRunId === runId) renderDetail();
     var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
     var name = runDisplayName(item.tracking || null, item.product || '');
-    var res = await api.saveMetricShot(runId, name, oldDigest, true);
+    var res = await api.saveMetricShot(runId, name, oldDigest, true, oldKnown === true);
     if (isGone(runId)) {
       if (res.ok && res.data && res.data.saved) showToast('Đã lưu ảnh');   // the file was saved all the same
       return;
@@ -3806,7 +3808,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var code = res.ok ? null : errorCode(res.error);
     if (code === 'METRIC_SHOT_EXPIRED' || code === 'METRIC_SHOT_NOT_UPLOADED') {
       state.localShots[runId] = false;                       // nothing to save: the note says why
-      state.metricShots[runId] = { state: code.slice('METRIC_SHOT_'.length), deleteAfter: null };
+      state.metricShots[runId] = { state: code.slice('METRIC_SHOT_'.length), deleteAfter: null, fromClick: true };
     } else if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
     } else if (res.data && res.data.saved) {
@@ -3845,7 +3847,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       deleteAfter: data && typeof data.deleteAfter === 'string' ? data.deleteAfter : null };
     if (data) state.localShots[runId] = data.local === true;
     if (before.state !== state.metricShots[runId].state || before.deleteAfter !== state.metricShots[runId].deleteAfter ||
-        localBefore !== state.localShots[runId]) renderDetail();     // redraw only when the note can change
+        localBefore !== state.localShots[runId] || before.fromClick) renderDetail();     // redraw only when the note can change
   }
 
   async function loadLocalShot(runId) {

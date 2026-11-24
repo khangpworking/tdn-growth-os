@@ -108,9 +108,9 @@ function harness(options: {
   localShots?: Record<string, boolean>;
   localShotResult?: (runId: string) => any | Promise<any> | undefined;   // localMetricShot's own answer
   metricShotStateResult?: (runId: string) => any;
-  viewShotResult?: (runId: string, sha256: string | null) => unknown;
+  viewShotResult?: (runId: string, sha256: string | null, oldKnown: boolean) => unknown;
   shotClock?: { now: number };
-  saveShotResult?: (runId: string) => any;
+  saveShotResult?: (runId: string, name: string, sha256: string | null, online: boolean, oldKnown: boolean) => any;
   deleteRunResult?: (runId: string) => any;
   runViewCopy?: (runId: string) => any;     // the bridge's disk copy of a run's view (null: none)
   runViewCopyHold?: () => Promise<void> | undefined;   // the disk copy answers when this settles
@@ -147,10 +147,10 @@ function harness(options: {
     moduleOutputsCalls: string[];
     openEvidenceCalls: { runId: string; kind: string; sha256: string }[];
     openLocalShotCalls: string[];
-    viewShotCalls: [string, string | null][];
+    viewShotCalls: [string, string | null, boolean][];
     shotStateCalls: string[];
     shotStartCalls: string[];
-    saveShotCalls: any[][];
+    saveShotCalls: [string, string, string | null, boolean, boolean][];
     deleteRunCalls: string[];
     openLinkCalls: string[];
     reviewProcessCalls: string[];
@@ -302,9 +302,9 @@ function harness(options: {
         : { ok: true, data: { format: 'metric-shot-state-v1', runId,
           local: !!options.localShots?.[runId], state: null, uploading: false } };
     },
-    viewMetricShot: async (runId: string, sha256: string | null) => {
-      state.viewShotCalls.push([runId, sha256]);
-      if (options.viewShotResult) return options.viewShotResult(runId, sha256);
+    viewMetricShot: async (runId: string, sha256: string | null, oldKnown: boolean) => {
+      state.viewShotCalls.push([runId, sha256, oldKnown]);
+      if (options.viewShotResult) return options.viewShotResult(runId, sha256, oldKnown);
       if (options.localShots?.[runId]) return { ok: true, data: { format: 'metric-shot-open-v1', runId,
         state: 'LOCAL', src: 'data:image/webp;base64,c3ludGhldGlj' } };
       if (sha256) return { ok: true, data: { format: 'module-evidence-open-v1', runId, kind: 'full-page', sha256, opened: true } };
@@ -314,9 +314,9 @@ function harness(options: {
       state.shotStartCalls.push(runId);
       return { ok: true, data: { format: 'metric-shot-upload-start-v1', runId, started: false } };
     },
-    saveMetricShot: async (runId: string, name: string, sha256: string | null, online: boolean) => {
-      state.saveShotCalls.push([runId, name, sha256, online]);
-      if (options.saveShotResult) return options.saveShotResult(runId);
+    saveMetricShot: async (runId: string, name: string, sha256: string | null, online: boolean, oldKnown: boolean) => {
+      state.saveShotCalls.push([runId, name, sha256, online, oldKnown]);
+      if (options.saveShotResult) return options.saveShotResult(runId, name, sha256, online, oldKnown);
       return { ok: true, data: { format: 'metric-shot-save-v1', runId, saved: true, cancelled: false, fileName: 'a.png' } };
     },
     deleteRun: async (runId: string) => {
@@ -2553,7 +2553,7 @@ test('a new-policy run shows both M1 results, the five picks and opens only the 
     assert.equal(doc.getElementById('moM2Evidence'), null, 'the step-2 image button is gone');
     element<HTMLButtonElement>(doc, 'moM1FullPage').click();
     await waitFor(() => state.viewShotCalls.length === 1, 'evidence open');
-    assert.deepEqual(state.viewShotCalls, [['run-synthetic', 'a'.repeat(64)]], 'the bridge gets the old picture digest');
+    assert.deepEqual(state.viewShotCalls, [['run-synthetic', 'a'.repeat(64), true]], 'the bridge gets the known old picture digest');
     assert.deepEqual(state.openEvidenceCalls, []);
     await waitFor(() => /Đã mở bằng chứng đã lưu/.test(doc.getElementById('moduleOutputsPanel')!.textContent || ''),
       'saved evidence notice');
@@ -3709,7 +3709,7 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
       if (row.enabled) {
         await waitFor(() => run.state.saveShotCalls.length === 1 &&
           !element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, row.label + ': save answered');
-        assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', row.fullPage.sha256, true]],
+        assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', row.fullPage.sha256, true, true]],
           row.label + ': save source');
         if (row.opens) assert.equal(element(run.doc, 'toast').textContent, 'Đã lưu ảnh');
         else assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent, clickHint, row.label + ': save note');
@@ -3718,7 +3718,7 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
       if (row.enabled) await waitFor(() => run.state.viewShotCalls.length === 1 &&
         !element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, row.label + ': view answered');
       assert.deepEqual(run.state.openLocalShotCalls, [], row.label + ': stays in app');
-      assert.deepEqual(run.state.viewShotCalls, row.enabled ? [['run-synthetic', row.fullPage.sha256]] : [], row.label + ': viewer source');
+      assert.deepEqual(run.state.viewShotCalls, row.enabled ? [['run-synthetic', row.fullPage.sha256, true]] : [], row.label + ': viewer source');
       assert.deepEqual(run.state.openEvidenceCalls, [], row.label + ': the bridge chooses the old evidence');
       const dialog = element<HTMLDialogElement>(run.doc, 'shotDialog');
       if (row.opens === 'local' || row.opens === 'online') {
@@ -3768,7 +3768,7 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
     element<HTMLButtonElement>(lifecycle.doc, 'moM1SaveShot').click();
     await waitFor(() => lifecycle.state.saveShotCalls.length === 1 &&
       !element<HTMLButtonElement>(lifecycle.doc, 'moM1FullPage').disabled, 'click-time save');
-    assert.deepEqual(lifecycle.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', null, true]],
+    assert.deepEqual(lifecycle.state.saveShotCalls, [['run-synthetic', 'Sản phẩm tổng hợp', null, true, true]],
       'local gone: save still asks the bridge for online fallback');
     element<HTMLButtonElement>(lifecycle.doc, 'moM1FullPage').click();
     await waitFor(() => element<HTMLDialogElement>(lifecycle.doc, 'shotDialog').open, 'click-time online view');
@@ -3882,19 +3882,27 @@ test('the Metric picture actions stay reachable while the step results load or f
       src: 'https://synthetic.invalid/uploaded.webp' },
     { label: 'old picture, outputs failed', local: false, outputs: 'failed', opens: 'OLD', src: null },
     { label: 'old picture, outputs loading', local: false, outputs: 'loading', opens: 'OLD', src: null },
+    { label: 'no picture, outputs failed', local: false, outputs: 'failed', opens: 'NOT_UPLOADED', src: null },
+    { label: 'no picture, outputs loading', local: false, outputs: 'loading', opens: 'NOT_UPLOADED', src: null },
+    { label: 'expired picture, outputs failed', local: false, outputs: 'failed', opens: 'EXPIRED', src: null },
+    { label: 'expired picture, outputs loading', local: false, outputs: 'loading', opens: 'EXPIRED', src: null },
   ] as const;
   for (const item of cases) {
     const held = deferred<unknown>();
+    const missing = item.opens === 'NOT_UPLOADED' || item.opens === 'EXPIRED';
+    const hint = item.opens === 'EXPIRED' ? 'Ảnh Metric đã tự xóa sau 10 ngày.' : 'Lượt này không có ảnh Metric.';
     const run = harness({
       runs: ['run-other', 'run-synthetic'].map((runId) => ({ runId, product: runId, status: 'DONE' })),
       runInfoByRun: { 'run-synthetic': syntheticRunInfo(), 'run-other': { ...syntheticRunInfo(), runId: 'run-other' } },
       localShots: { 'run-synthetic': item.local }, oldServer: item.outputs === 'loading',
       metricShotStateResult: (runId) => ({ ok: true, data: { format: 'metric-shot-state-v1', runId,
-        local: item.local, uploading: false, state: item.local ? null : 'NOT_UPLOADED' } }),
+        local: item.local, uploading: false, state: item.local ? null : missing ? item.opens : 'NOT_UPLOADED' } }),
       viewShotResult: (runId) => (item.opens === 'OLD'      // what the bridge answers after it opened the old picture
         ? { ok: true, data: { format: 'module-evidence-open-v1', runId, kind: 'full-page', sha256: 'a'.repeat(64), opened: true } }
         : { ok: true, data: { format: 'metric-shot-open-v1', runId, state: item.opens, src: item.src,
-          deleteAfter: '2099-01-11T00:00:00Z' } }),
+          deleteAfter: missing ? null : '2099-01-11T00:00:00Z' } }),
+      saveShotResult: () => missing ? { ok: false, error: { code: 'METRIC_SHOT_' + item.opens } }
+        : { ok: true, data: { saved: true } },
       moduleOutputsResult: (runId) => (runId === 'run-other' ? { ok: true, data: moduleOutputView(runId) }
         : item.outputs === 'loading' ? held.promise : { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } }),
     });
@@ -3907,8 +3915,21 @@ test('the Metric picture actions stay reachable while the step results load or f
       for (const id of ['moM1FullPage', 'moM1SaveShot']) {
         assert.equal(element<HTMLButtonElement>(run.doc, id).disabled, false, item.label + ': ' + id + ' enabled');
       }
+      assert.equal(run.doc.getElementById('moM1FullPageHint'), null, item.label + ': opening read alone stays silent');
+      const reopen = async () => {
+        const reads = run.state.shotStateCalls.length;
+        runListButton(run.doc, 'run-synthetic').click();
+        await waitFor(() => panelReady() && run.state.shotStateCalls.length === reads + 1 &&
+          run.doc.getElementById('moM1FullPage') !== null && run.doc.getElementById('moM1FullPageHint') === null,
+        item.label + ': reopening clears the click note');
+      };
       element<HTMLButtonElement>(run.doc, 'moM1FullPage').click();
-      if (item.src === null) {
+      if (missing) {
+        await waitFor(() => run.doc.getElementById('moM1FullPageHint')?.textContent === hint &&
+          !element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, item.label + ': view click note');
+        assert.equal(element<HTMLDialogElement>(run.doc, 'shotDialog').open, false, item.label + ': no viewer');
+        await reopen();
+      } else if (item.src === null) {
         await waitFor(() => run.state.viewShotCalls.length === 1 &&
           run.doc.getElementById('moM1FullPage')?.textContent === 'Xem ảnh Metric', item.label + ': click answered');
         assert.doesNotMatch(run.doc.getElementById('runDetail')?.textContent ?? '', /Lượt này không có ảnh Metric\./,
@@ -3917,8 +3938,17 @@ test('the Metric picture actions stay reachable while the step results load or f
       } else {
         await waitFor(() => element<HTMLDialogElement>(run.doc, 'shotDialog').open, item.label + ': picture opened');
         assert.equal(element<HTMLImageElement>(run.doc, 'shotImg').getAttribute('src'), item.src, item.label);
+        element<HTMLButtonElement>(run.doc, 'shotCloseBtn').click();
       }
-      assert.deepEqual(run.state.viewShotCalls, [['run-synthetic', null]], item.label);
+      assert.deepEqual(run.state.viewShotCalls, [['run-synthetic', null, false]], item.label + ': outputs unknown');
+      element<HTMLButtonElement>(run.doc, 'moM1SaveShot').click();
+      await waitFor(() => run.state.saveShotCalls.length === 1 &&
+        !element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, item.label + ': save answered');
+      assert.deepEqual(run.state.saveShotCalls, [['run-synthetic', 'run-synthetic', null, true, false]], item.label + ': outputs unknown');
+      if (missing) {
+        assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent, hint, item.label + ': save click note');
+        await reopen();
+      }
       assert.deepEqual(run.state.openLocalShotCalls, [], item.label);
       assert.deepEqual(run.state.openEvidenceCalls, [], item.label);
     } finally {
