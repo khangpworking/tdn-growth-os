@@ -1722,8 +1722,7 @@ def flow_execution_view(run, config, view=None, sampling=_SAMPLING_UNSET):
                     'attemptId': attempt['attemptId'], 'startedAt': attempt.get('createdAt'),
                     'endedAt': record.get('endedAt') if record else None, 'status': status,
                     'currentGate': attempt['gate'] if matched else None, 'basis': 'custom-attempt',
-                    'errorCode': attempt.get('errorCode'), 'kind': record.get('kind') if record else None,
-                    'stopRequested': attempt.get('stopRequested') is True})
+                    'errorCode': attempt.get('errorCode'), 'kind': record.get('kind') if record else None})
                 if attempt.get('gate'):
                     history.append((attempt.get('executionId') or attempt['attemptId'], attempt['gate']))
             # A missing/deleted attempt must never revive an old successful receipt.
@@ -1752,9 +1751,9 @@ def flow_execution_view(run, config, view=None, sampling=_SAMPLING_UNSET):
         if current['status'] == 'SUCCEEDED' and not current.get('currentGate'):
             current = {**current, 'status': 'UNKNOWN', 'errorCode': 'EXECUTION_RECEIPT_CHANGED'}
         modules[module] = {key: current.get(key) for key in ('status', 'executionId', 'sequence', 'attemptId', 'startedAt', 'endedAt', 'basis', 'currentGate', 'errorCode')}
-        # Run-level «Đã dừng»: the work was stopped (process ended unfinished, or the user stopped the step-3 attempt).
+        # Run-level «Đã dừng»: the process ended part-way (RUN_INTERRUPTED or a dead worker). A user stop is not mapped yet.
         stopped_by[module] = (current['status'] == 'UNCERTAIN' and current.get('deadWorker') is True) or (
-            current['status'] == 'FAILED' and (current.get('errorCode') in ('RUN_INTERRUPTED', 'REVIEW_STOPPED')))
+            current['status'] == 'FAILED' and current.get('errorCode') == 'RUN_INTERRUPTED')
         modules[module]['historicalGate'] = next((gate for identity, gate in reversed(history)
             if identity != (current.get('executionId') or current.get('attemptId')) and gate != current.get('currentGate')), None)
     active = [(m, v) for m, v in modules.items() if v['status'] in ('RUNNING', 'UNCERTAIN')]

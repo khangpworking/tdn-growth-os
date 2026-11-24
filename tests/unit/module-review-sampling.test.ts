@@ -6,7 +6,7 @@ import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
 import test from 'node:test';
 import { ModuleError } from '../../scripts/module-pick.js';
-import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingCommand, reviewSamplingView, samplingContext, saveReviewPlan, stopReviewAttempt } from '../../scripts/module-review-sampling.js';
+import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingCommand, reviewSamplingView, samplingContext, saveReviewPlan } from '../../scripts/module-review-sampling.js';
 import { reviewPolicy, samplingDigest, validateSamplingResult, ReviewSamplingError, type ShopeeReviewPlan } from '../../src/modules/foundation/shopee-review-sampling.js';
 import type { SamplingJobInput, SamplingJournal, SamplingResult, ReviewLink } from '../../contracts/foundation/shopee-review-sampling.generated.js';
 import { moduleRow } from '../fixtures/shopee-module-review-data.js';
@@ -220,57 +220,6 @@ async function runLinks(run: string, respond: (request: SamplingJobInput, link: 
   return { result, requests, gate: JSON.parse(await readFile(join(base, 'gate.json'), 'utf8')),
     outcome: JSON.parse(await readFile(join(base, 'output/outcome.json'), 'utf8')) };
 }
-
-test('sampling terminal codes distinguish a stop-caused abort from failures racing a stop request', async () => {
-  const observed: unknown[] = [];
-  const expected: unknown[] = [];
-  for (const [cause, code] of [
-    ['stop', 'REVIEW_STOPPED'],
-    ['provider', 'PROVIDER_BLOCKED'],
-    ['check', 'M3_GATE_FAILED'],
-    ['provider-after-abort', 'PROVIDER_BLOCKED'],
-    ['check-after-abort', 'M3_GATE_FAILED'],
-    ['inputs', 'REVIEW_PLAN_CHANGED'],
-    ['readonly', 'OWNER_ABORTED'],
-  ] as const) {
-    await withFixture(async ({ run, state }) => {
-      const started = await reserveConfiguredAttempt(run, { executionId: EXECUTION, sequence: 1 });
-      const base = join(run, 'm3-custom/attempts', started.attemptId);
-      const result = await executeSamplingAttempt({ runDir: run, kind: 'custom', attemptId: started.attemptId, collector: {
-        run: async (_file, request, link, plan, _reconcile, signal) => {
-          if (cause === 'readonly') {
-            await mkdir(join(state, 'shopee-flow'), { recursive: true });
-            await writeFile(join(state, 'shopee-flow/READONLY'), 'synthetic readonly switch');
-          } else {
-            const stop = await stopReviewAttempt(run, 'custom', started.attemptId);
-            assert.equal(stop.status, 'STOP_REQUESTED');
-          }
-          if (cause === 'provider') return failedJournal(request, link, 'PROVIDER_BLOCKED');
-          if (cause === 'check') return terminalJournal(request, link, plan!, 0, 'exhausted');
-          if (cause === 'inputs') await writeFile(join(run, 'request.json'), '\n', { flag: 'a' });
-          assert.ok(signal, 'the collector receives the execution abort signal');
-          await new Promise<void>((resolve, reject) => {
-            if (signal.aborted) { resolve(); return; }
-            const timer = setTimeout(() => reject(new Error('collector did not receive an abort')), 5000);
-            signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
-          });
-          if (cause === 'provider-after-abort') return failedJournal(request, link, 'PROVIDER_BLOCKED');
-          if (cause === 'check-after-abort') return terminalJournal(request, link, plan!, 0, 'exhausted');
-          return failedJournal(request, link, 'OWNER_ABORTED');
-        },
-      } });
-      const stored = JSON.parse(await readFile(join(base, 'state.json'), 'utf8'));
-      const gate = JSON.parse(await readFile(join(base, 'gate.json'), 'utf8'));
-      const outcome = JSON.parse(await readFile(join(base, 'output/outcome.json'), 'utf8'));
-      const view = await reviewSamplingView(run);
-      const attempt = view.attempts.find(value => value.attemptId === started.attemptId);
-      observed.push([cause, result.status, result.errorCode, stored.status, stored.errorCode,
-        gate.verdict, gate.errorCode, outcome.errorCode, attempt?.status, attempt?.errorCode, attempt?.stopRequested]);
-      expected.push([cause, 'FAILED', code, 'FAILED', code, 'FAIL', code, code, 'FAILED', code, cause !== 'readonly']);
-    }, COUNT_INPUT);
-  }
-  assert.deepEqual(observed, expected, 'the terminal cause survives in the command, persisted evidence and sampling view');
-});
 
 for (const code of ['PRODUCT_UNAVAILABLE', 'RATINGS_MISSING'] as const) {
   test(`a ${code} link is skipped and the next link is still collected`, () => withFixture(async ({ run }) => {

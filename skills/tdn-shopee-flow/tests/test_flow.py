@@ -684,7 +684,7 @@ class ReadOnlyCommandTests(FlowTest):
         rows = (
             ('dead-worker', 'RUNNING', None, False, 'STOPPED', 'FAILED'),
             ('interrupted', 'FAILED', 'RUN_INTERRUPTED', False, 'STOPPED', 'FAILED'),
-            ('owner-stop', 'FAILED', 'REVIEW_STOPPED', True, 'STOPPED', 'FAILED'),
+            ('owner-stop', 'FAILED', 'REVIEW_STOPPED', True, 'FAILED', 'FAILED'),
             ('provider-racing-stop', 'FAILED', 'PROVIDER_BLOCKED', True, 'FAILED', 'FAILED'),
             ('check-racing-stop', 'FAILED', 'M3_GATE_FAILED', True, 'FAILED', 'FAILED'),
             ('abort-racing-stop', 'FAILED', 'OWNER_ABORTED', True, 'FAILED', 'FAILED'),
