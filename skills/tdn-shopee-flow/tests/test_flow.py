@@ -684,13 +684,17 @@ class ReadOnlyCommandTests(FlowTest):
         rows = (
             ('dead-worker', 'RUNNING', None, False, 'STOPPED', 'FAILED'),
             ('interrupted', 'FAILED', 'RUN_INTERRUPTED', False, 'STOPPED', 'FAILED'),
-            ('owner-stop', 'FAILED', 'REVIEW_ABORTED', True, 'STOPPED', 'FAILED'),
+            ('owner-stop', 'FAILED', 'REVIEW_STOPPED', True, 'STOPPED', 'FAILED'),
+            ('provider-racing-stop', 'FAILED', 'PROVIDER_BLOCKED', True, 'FAILED', 'FAILED'),
+            ('check-racing-stop', 'FAILED', 'M3_GATE_FAILED', True, 'FAILED', 'FAILED'),
+            ('abort-racing-stop', 'FAILED', 'OWNER_ABORTED', True, 'FAILED', 'FAILED'),
             ('gate-fail', 'FAILED', 'GATE_FAILED', False, 'FAILED', 'FAILED'),
             ('provider-fail', 'FAILED', 'PROVIDER_BLOCKED', False, 'FAILED', 'FAILED'),
             ('uncertain-stop', 'UNCERTAIN', 'SUBMISSION_UNCERTAIN', True, 'UNCERTAIN', 'UNCERTAIN'),
             ('wait-owner', 'WAIT_OWNER', 'HUMAN_LOGIN_REQUIRED', False, 'WAIT_OWNER', 'WAIT_OWNER'),
             ('live-stop-request', 'RUNNING', None, True, 'RUNNING', 'RUNNING'),
             ('legacy-interrupted', None, 'RUN_INTERRUPTED', False, 'STOPPED', 'FAILED'),
+            ('legacy-dead-worker', None, None, False, 'STOPPED', 'UNCERTAIN'),
         )
         for name, module_status, error, stop_requested, expected, expected_module in rows:
             with self.subTest(case=name):
@@ -698,7 +702,7 @@ class ReadOnlyCommandTests(FlowTest):
                 module = 'M3' if custom else 'M1'
                 run = self.make_run(name, state={
                     'format': 'state-v1', 'runId': name,
-                    'status': 'RUNNING' if module_status == 'RUNNING' else 'STOPPED',
+                    'status': 'RUNNING' if module_status == 'RUNNING' or name == 'legacy-dead-worker' else 'STOPPED',
                     'pid': os.getpid() if name == 'live-stop-request' else self.dead_pid,
                     'module': module, 'errorCode': error,
                 })
@@ -971,6 +975,47 @@ class RunsSamplingStreamTests(FlowTest):
                                  ('UNKNOWN', None, code))
                 self.assertIsNone(rows['badrun']['tracking'], 'unreadable tracking does not discard the row')
                 self.assertEqual(rows['aaaaaaaa']['status'], 'IDLE')
+
+    def test_damaged_request_fields_and_stat_keep_an_unknown_row_beside_a_good_run(self):
+        self.make_run('goodrun')
+        bad = self.make_run('damaged')
+        unreadable = self.make_run('unreadable')
+        (unreadable / 'request.json').write_text('{', encoding='utf8')
+        flow = load_flow_script()
+        real_stat = pathlib.Path.stat
+
+        for label, request, stat_fails in (
+                ('null-preset', {'preset': None}, False),
+                ('non-string-keyword', {'preset': {'keywords': [1]}}, False),
+                ('null-keywords', {'preset': {'keywords': None}}, False),
+                ('stat-failure', request_payload(), True)):
+            with self.subTest(case=label):
+                write_json(bad / 'request.json', request)
+                created = dt.datetime.fromtimestamp(
+                    (bad / 'request.json').stat().st_mtime, dt.timezone.utc).isoformat()
+                before = sha_folder(self.runs)
+
+                def stat(path, *args, **kwargs):
+                    if stat_fails and path == bad / 'request.json' and kwargs.get('follow_symlinks', True):
+                        raise OSError('synthetic request stat failure')
+                    return real_stat(path, *args, **kwargs)
+
+                with mock.patch.object(pathlib.Path, 'stat', stat):
+                    rc, payload = self.command_in_process(flow, order=['damaged', 'unreadable', 'goodrun'])
+                self.assertEqual(rc, 0, payload)
+                self.assertEqual(payload['format'], 'runs-v1')
+                rows = {row['runId']: row for row in payload['runs']}
+                self.assertEqual(set(rows), {'damaged', 'goodrun'}, 'only unreadable requests are skipped')
+                row = rows['damaged']
+                self.assertEqual((row['status'], row['execution'], row['errorCode'],
+                                  row['lastGate'], row['lastVerdict']),
+                                 ('UNKNOWN', None, 'RUN_VIEW_INVALID', None, None))
+                self.assertEqual(row['createdAt'], None if stat_fails else created)
+                self.assertEqual(row['request'], {k: v for k, v in request.items() if k != 'captureSpec'})
+                self.assertEqual(row['product'], 'kem chống nắng' if stat_fails else None)
+                self.assertEqual(rows['goodrun']['status'], 'IDLE')
+                self.assertEqual(rows['goodrun']['execution']['format'], 'run-execution-view-v1')
+                self.assertEqual(sha_folder(self.runs), before, 'listing never repairs damaged inputs')
 
     def test_receipt_and_record_errors_do_not_hide_later_sampling_or_good_rows(self):
         receipt_id = '11111111-1111-4111-8111-111111111111'

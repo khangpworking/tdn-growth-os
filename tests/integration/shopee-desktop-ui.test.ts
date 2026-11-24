@@ -4189,45 +4189,63 @@ test('«Xóa lượt» asks first, explains a running run, and leaves the delete
   } finally { run.dom.window.close(); }
 });
 
-test('a null-execution UNKNOWN row stays listed, opens despite its damaged view and can be deleted', async () => {
+test('a null-execution UNKNOWN row stays listed, filters as unknown, opens and can be deleted despite progress', async (t) => {
   const good = 'run-good';
   const damaged = 'run-damaged';
-  const run = harness({
-    runs: [
-      { runId: good, product: 'Sản phẩm tốt', status: 'IDLE' },
-      { runId: damaged, product: 'Sản phẩm hỏng', status: 'UNKNOWN', execution: null,
-        tracking: null, lastGate: null, lastVerdict: null, errorCode: 'EXECUTION_RECORD_INVALID' },
-    ],
-    runInfoByRun: { [good]: syntheticRunInfo(good) },
-    statusError: (runId) => runId === damaged
-      ? { ok: false, error: { code: 'EXECUTION_RECORD_INVALID', message: 'EXECUTION_RECORD_INVALID' } }
-      : undefined,
-  });
-  try {
-    await waitFor(() => run.doc.querySelectorAll('#runList .runbtn').length === 2, 'both rows');
-    const bad = runListButton(run.doc, damaged);
-    assert.equal(bad.querySelector('.chip')?.textContent, 'Chưa xác định được trạng thái');
-    assert.ok(runListButton(run.doc, good));
-    assert.deepEqual(run.state.notifyCalls, [], 'an unreadable view is not a completion event');
-    assert.ok(run.state.prefetchCalls.every((rows) => rows.every((row) => row.runId !== damaged)),
-      'a null execution never supplies a prefetch signature');
-    bad.click();
-    await waitFor(() => run.state.statusCalls.includes(damaged) &&
-      run.doc.getElementById('btnDeleteRun') !== null, 'damaged run opened');
-    assert.match(element(run.doc, 'runDetail').textContent || '', /Sản phẩm hỏng/);
-    const remove = element<HTMLButtonElement>(run.doc, 'btnDeleteRun');
-    assert.equal(remove.disabled, false, 'damaged execution does not disable delete');
-    remove.click();
-    assert.equal(element<HTMLDialogElement>(run.doc, 'deleteDialog').open, true);
-    assert.deepEqual(run.state.deleteRunCalls, [], 'opening the confirmation never deletes');
-    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
-    await waitFor(() => run.state.deleteRunCalls.length === 1 &&
-      run.doc.querySelectorAll('#runList .runbtn').length === 1, 'damaged run deleted');
-    assert.deepEqual(run.state.deleteRunCalls, [damaged]);
-    assert.ok(runListButton(run.doc, good), 'the good row survives');
-    assert.deepEqual(run.state.launchCalls, []);
-    assert.deepEqual(run.state.controlCalls, []);
-  } finally { run.dom.window.close(); }
+  for (const steps of [null, ['PASS', 'PASS', 'RUNNING', 'IDLE'], ['PASS', 'PASS', 'PASS', 'FAIL']]) {
+    await t.test(steps ? steps.join('/') : 'no progress', async () => {
+      const run = harness({
+        runs: [
+          { runId: good, product: 'Sản phẩm tốt', status: 'IDLE' },
+          { runId: damaged, product: 'Sản phẩm hỏng', status: 'UNKNOWN', execution: null,
+            tracking: null, lastGate: null, lastVerdict: null, errorCode: 'EXECUTION_RECORD_INVALID' },
+        ],
+        runInfoByRun: { [good]: syntheticRunInfo(good) },
+        runsProgressResults: [progressReply(steps ? [progressRun(damaged, steps)] : [])],
+        statusError: (runId) => runId === damaged
+          ? { ok: false, error: { code: 'EXECUTION_RECORD_INVALID', message: 'EXECUTION_RECORD_INVALID' } }
+          : undefined,
+      });
+      try {
+        await waitFor(() => run.doc.querySelectorAll('#runList .runbtn').length === 2 &&
+          run.state.runsProgressCalls > 0, 'both rows and progress');
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        const bad = runListButton(run.doc, damaged);
+        assert.equal(bad.querySelector('.chip')?.textContent, 'Chưa xác định được trạng thái');
+        assert.ok(runListButton(run.doc, good));
+        const filter = element<HTMLSelectElement>(run.doc, 'runFilter');
+        for (const value of ['running', 'failed']) {
+          filter.value = value;
+          fire(run.window, filter, 'change');
+          assert.equal(run.doc.querySelectorAll('#runList .runbtn').length, 0,
+            'an UNKNOWN row never enters the ' + value + ' filter: ' + steps);
+        }
+        filter.value = 'all';
+        fire(run.window, filter, 'change');
+        assert.deepEqual(run.state.notifyCalls, [], 'an unreadable view is not a completion event');
+        assert.ok(run.state.prefetchCalls.every((rows) => rows.every((row) => row.runId !== damaged)),
+          'a null execution never supplies a prefetch signature');
+        runListButton(run.doc, damaged).click();
+        await waitFor(() => run.state.statusCalls.includes(damaged) &&
+          run.doc.getElementById('btnDeleteRun') !== null, 'damaged run opened');
+        assert.match(element(run.doc, 'runDetail').textContent || '', /Sản phẩm hỏng/);
+        assert.equal(run.doc.querySelector('#runDetail .dhead .chip')?.textContent, 'Chưa xác định được trạng thái',
+          'the fallback detail preserves UNKNOWN: ' + steps);
+        const remove = element<HTMLButtonElement>(run.doc, 'btnDeleteRun');
+        assert.equal(remove.disabled, false, 'damaged execution does not disable delete');
+        remove.click();
+        assert.equal(element<HTMLDialogElement>(run.doc, 'deleteDialog').open, true);
+        assert.deepEqual(run.state.deleteRunCalls, [], 'opening the confirmation never deletes');
+        element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+        await waitFor(() => run.state.deleteRunCalls.length === 1 &&
+          run.doc.querySelectorAll('#runList .runbtn').length === 1, 'damaged run deleted');
+        assert.deepEqual(run.state.deleteRunCalls, [damaged]);
+        assert.ok(runListButton(run.doc, good), 'the good row survives');
+        assert.deepEqual(run.state.launchCalls, []);
+        assert.deepEqual(run.state.controlCalls, []);
+      } finally { run.dom.window.close(); }
+    });
+  }
 });
 
 // Step 2 card from the run's frozen productSelection (F644, Terra r1 #1 and #2), one row each:

@@ -7014,6 +7014,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function effectiveStatus(runId, status) {
     var progress = state.progressByRun[runId];
     if (!progress) return status;
+    // A damaged run (list row with execution null) stays «Chưa xác định» whatever progress says.
+    if (status === 'UNKNOWN' && state.runs.some(function (r) { return r.runId === runId && r.execution === null; })) return status;
     // «Đang chạy» only while a step really runs; a run that stopped part-way is «Chưa xong».
     if (progress.steps.indexOf('RUNNING') !== -1 || progress.active) return 'RUNNING';
     if (progress.steps[3] === 'FAIL') return 'FAILED';

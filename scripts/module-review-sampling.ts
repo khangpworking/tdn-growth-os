@@ -276,13 +276,17 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   if(inputsChanged&&!deps.reconcileOnly)throw new ModuleError('REVIEW_PLAN_CHANGED',23);
   await assertSamplingIdle(run,{kind:deps.kind,id:deps.attemptId});
   const controller=new AbortController(),onStop=()=>controller.abort();process.once('SIGTERM',onStop);process.once('SIGINT',onStop);
-  const stopped=async()=>{
-    try{if(await hashFile(run,'request.json')!==attempt.requestSha256||await hashFile(run,'m2/selection.json')!==attempt.m2Digest)inputsChanged=true;}catch{inputsChanged=true;}
-    if(inputsChanged||await optional(run,`${base}/stop.json`)!==null||await readonly())controller.abort();
-  };
-  await stopped();const timer=setInterval(()=>{void stopped().catch(()=>controller.abort());},500);
   const journals:(SamplingJournal|null)[]=attempt.links.map(()=>null);
   let errorCode:string|null=null;
+  // stopCaused: the first abort came from the user's stop.json (not changed inputs, readonly or a signal).
+  let stopCaused=false;
+  const stopped=async()=>{
+    try{if(await hashFile(run,'request.json')!==attempt.requestSha256||await hashFile(run,'m2/selection.json')!==attempt.m2Digest)inputsChanged=true;}catch{inputsChanged=true;}
+    if(inputsChanged){controller.abort();return;}
+    if(await optional(run,`${base}/stop.json`)!==null){if(!controller.signal.aborted&&errorCode===null)stopCaused=true;controller.abort();return;}
+    if(await readonly())controller.abort();
+  };
+  await stopped();const timer=setInterval(()=>{void stopped().catch(()=>controller.abort());},500);
   try {
     await atomicJson(run,`${base}/state.json`,{...prior,status:'RUNNING',pid:process.pid,errorCode:null});
     let collector=deps.collector;
@@ -297,6 +301,7 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
     }
   }catch(error){errorCode=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_ATTEMPT_FAILED';}
   finally{clearInterval(timer);process.removeListener('SIGTERM',onStop);process.removeListener('SIGINT',onStop);}
+  const stopCause=stopCaused;
   // Include prior terminal journals on exact-attempt reconciliation; never synthesize missing observations.
   for(let index=0;index<attempt.links.length;index++)journals[index]??=await readSamplingJournal(await safePath(run,`${base}/journal/${samplingDigest(attempt.links[index]!)}.json`));
   const unresolved=journals.some(j=>j!==null&&(!j.terminal||j.job&&['queued','running','needs_login','needs_verification'].includes(j.job.state)));
@@ -304,6 +309,10 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
   // Cleanup remains possible after upstream drift, but changed inputs never publish.
   inputsChanged ||= !await currentInputsMatch(run,attempt);
   if(inputsChanged)errorCode='REVIEW_PLAN_CHANGED';
+  // REVIEW_STOPPED only when the terminal error is the collector's own abort and stop.json fired that abort.
+  // Any other terminal failure (provider error, failed check) keeps its own code even if a stop was requested.
+  const failCode=()=>errorCode??'M3_GATE_FAILED';
+  if(stopCause&&!inputsChanged&&errorCode==='OWNER_ABORTED')errorCode='REVIEW_STOPPED';
   let gate:Record<string,unknown>|null=null;
   if(plan){
     // Every present result binds to its frozen link and inputs before a skip can exclude it; R1 review finding.
@@ -320,10 +329,10 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
       {id:'links_skipped',level:'warn',ok:skipped===0,got:skipped}];
     const pass=checks.every(check=>check.ok||check.level==='warn');
     await atomicJson(run,`${base}/output/reviews.json`,pass?rows:[]);
-    await atomicJson(run,`${base}/output/outcome.json`,{format:'m3-custom-outcome-v1',planSha256:attempt.planSha256,verdict:pass?(skipped>0?'PARTIAL_LINKS':pagesPerLink(plan.policy)===null&&summaries.some(s=>s.shortfall!==0)?'PARTIAL_LISTINGS':'OK'):'FAILED',errorCode:pass?null:errorCode??'M3_GATE_FAILED',links:summaries});
-    gate={format:'handoff-v1',module:'M3',runId:basename(run),skillVersion:'custom-review-sampling-v1',verdict:pass?'PASS':['HUMAN_LOGIN_REQUIRED','HUMAN_VERIFICATION_REQUIRED'].includes(errorCode??'')?'WAIT_OWNER':'FAIL',inputSha256:attempt.planSha256,outputSha256:await hashFolder(run,`${base}/output`),checks,errorCode:pass?null:errorCode??'M3_GATE_FAILED',next:null};
+    await atomicJson(run,`${base}/output/outcome.json`,{format:'m3-custom-outcome-v1',planSha256:attempt.planSha256,verdict:pass?(skipped>0?'PARTIAL_LINKS':pagesPerLink(plan.policy)===null&&summaries.some(s=>s.shortfall!==0)?'PARTIAL_LISTINGS':'OK'):'FAILED',errorCode:pass?null:failCode(),links:summaries});
+    gate={format:'handoff-v1',module:'M3',runId:basename(run),skillVersion:'custom-review-sampling-v1',verdict:pass?'PASS':['HUMAN_LOGIN_REQUIRED','HUMAN_VERIFICATION_REQUIRED'].includes(errorCode??'')?'WAIT_OWNER':'FAIL',inputSha256:attempt.planSha256,outputSha256:await hashFolder(run,`${base}/output`),checks,errorCode:pass?null:failCode(),next:null};
     await atomicJson(run,`${base}/gate.json`,gate);
-    if(!pass)errorCode??='M3_GATE_FAILED';
+    if(!pass)errorCode=failCode();
   }else if(journals.some(j=>!j?.result||j.result.format!=='shopee-review-counts-v1'))errorCode??='REVIEW_COUNTS_INCOMPLETE';
   const status=unresolved?'UNCERTAIN':errorCode?'FAILED':'SUCCEEDED';
   const outputSha256=gate?.outputSha256??samplingDigest(journals.map(j=>j?.result??null));
