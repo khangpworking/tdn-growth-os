@@ -40,7 +40,7 @@ def finished_state(run_id):
 
 class DeleteRunTest(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        self._tmp = tempfile.TemporaryDirectory(dir=SCRIPT.parents[3])
         self.addCleanup(self._tmp.cleanup)
         base = pathlib.Path(self._tmp.name)
         self.runs, self.state = base / 'runs', base / 'state'
@@ -134,11 +134,24 @@ class DeleteRunTest(unittest.TestCase):
                         f'synthetic-bucket/metric-shots/{run_id}/{"0" * 64}.webp')
 
     def test_delete_refuses_a_run_whose_state_is_running(self):
-        run = self.make_run('run-c3', state={**finished_state('run-c3'), 'status': 'RUNNING'})
-        rc, out = self.command('delete-run', '--run', 'run-c3')
-        self.assertEqual(rc, 20, out)
-        self.assertEqual((out.get('code'), out.get('message')), ('RUN_ACTIVE', 'RUN_ACTIVE'))
-        self.assertTrue(run.is_dir(), 'a refused delete must not remove anything')
+        with subprocess.Popen([sys.executable, '-c', 'pass'], env=self.env()) as child:
+            self.assertEqual(child.wait(timeout=10), 0)
+        for worker, pid in (('live', os.getpid()), ('dead', child.pid), ('null', None)):
+            with self.subTest(worker=worker):
+                run_id = f'run-c3-{worker}'
+                run = self.make_run(run_id, state={**finished_state(run_id), 'status': 'RUNNING',
+                                                   'pid': pid, 'endedAt': None})
+                state_bytes = (run / 'state.json').read_bytes()
+                rc, out = self.command('delete-run', '--run', run_id)
+                if worker == 'live':
+                    self.assertEqual(rc, 20, out)
+                    self.assertEqual((out.get('code'), out.get('message')), ('RUN_ACTIVE', 'RUN_ACTIVE'))
+                    self.assertTrue(run.is_dir(), 'a refused delete must not remove anything')
+                    self.assertEqual((run / 'state.json').read_bytes(), state_bytes)
+                else:
+                    self.assertEqual(rc, 0, out)
+                    self.assertEqual(out, {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True})
+                    self.assertFalse(run.exists(), 'a stale RUNNING state must not block deletion')
 
     def test_delete_refuses_a_live_m3_attempt(self):
         run = self.make_run('run-d4')

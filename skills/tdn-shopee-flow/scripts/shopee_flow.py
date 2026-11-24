@@ -2281,8 +2281,11 @@ def progress_steps(run):
             steps.append('RUNNING')
         elif record:
             status = record.get('status')
-            live = status == 'RUNNING' and (module_pid_live(record.get('pid')) or module == 'M3' and record.get('attemptId') and
-                                           (gate_read(gate_path(run, f'm3-custom/attempts/{record["attemptId"]}/state.json')) or {}).get('status') == 'RUNNING')
+            attempt = (gate_read(gate_path(run, f'm3-custom/attempts/{record["attemptId"]}/state.json')) or {}) if (
+                status == 'RUNNING' and module == 'M3' and record.get('attemptId')) else {}
+            # Round 13: an M3 attempt is live only when RUNNING with a live pid (as TS readAttempt: dead RUNNING = UNCERTAIN).
+            live = status == 'RUNNING' and (module_pid_live(record.get('pid')) or
+                                           attempt.get('status') == 'RUNNING' and module_pid_live(attempt.get('pid')))
             if not live and module == 'M3' and flow_passed_before_extra(m3):
                 status = 'SUCCEEDED'  # owner L5: a failed «lấy thêm» keeps step 3 = PASS
             steps.append('RUNNING' if live else {'SUCCEEDED': 'PASS', 'WAIT_OWNER': 'WAIT_OWNER'}.get(status, 'FAIL'))
@@ -3062,7 +3065,8 @@ def flow_run_active(run):
             return None
 
     state = record('state.json')
-    if isinstance(state, dict) and state.get('status') == 'RUNNING':
+    # Round 13: a RUNNING state.json counts only while its worker pid is alive (a dead worker must not block delete).
+    if isinstance(state, dict) and state.get('status') == 'RUNNING' and module_pid_live(state.get('pid')):
         return True
     executions = gate_path(run, 'executions')
     for child in executions.iterdir() if executions.is_dir() else []:

@@ -193,6 +193,33 @@ class RunsProgressTests(ReviewProcessFlowTest):
         self.assertEqual(rc, 0, (payload, stderr))
         return payload
 
+    def test_step3_is_running_only_while_its_attempt_worker_is_live(self):
+        for worker, pid, expected in (('dead', self.dead_pid, 'FAIL'), ('live', os.getpid(), 'RUNNING')):
+            with self.subTest(worker=worker):
+                run_id = f'run-m3-{worker}'
+                run = self.make_run(run_id=run_id)
+                for module in ('M1', 'M2'):
+                    write_json(run / 'gates' / f'{module.lower()}.json', slip(module, run_id))
+                write_json(run / 'executions' / 'm3.json', {
+                    'module': 'M3', 'sequence': 1, 'status': 'RUNNING', 'pid': self.dead_pid,
+                    'attemptId': ATTEMPT})
+                write_json(run / 'm3-custom' / 'attempts' / ATTEMPT / 'state.json', {
+                    'format': 'review-attempt-state-v1', 'runId': run_id, 'status': 'RUNNING', 'pid': pid})
+                state_bytes = (run / 'state.json').read_bytes()
+                attempt = run / 'm3-custom' / 'attempts' / ATTEMPT / 'state.json'
+                attempt_bytes = attempt.read_bytes()
+
+                progress = next(row for row in self.progress()['runs'] if row['runId'] == run_id)
+                self.assertEqual(progress['steps'], ['PASS', 'PASS', expected, 'NOT_APPLICABLE'])
+                self.assertFalse(progress['finished'])
+                if worker == 'live':
+                    self.assertEqual(progress['active']['step'], 3)
+                else:
+                    self.assertIsNone(progress['active'])
+                self.assertEqual((run / 'state.json').read_bytes(), state_bytes)
+                self.assertEqual(attempt.read_bytes(), attempt_bytes)
+        self.assertEqual(self.step4_calls(), [])
+
     def test_runs_progress_reports_four_steps_the_active_stage_and_finished(self):
         old, done, live, saving, labelling = (self.make_run(run_id=r) for r in ('old00001', 'done0001', 'live0001', 'save0001', 'labl0001'))
         for run in (old, done, live, saving, labelling):
