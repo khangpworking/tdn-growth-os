@@ -273,25 +273,28 @@ class RunsProgressTests(ReviewProcessFlowTest):
         self.assertEqual(self.step4_calls(), [])
 
     def test_step3_matches_the_lock_inode_and_mount_device(self):
-        mountinfo = ('22 1 0:9 / /home rw - btrfs /dev/synthetic rw\n'
-                     '21 1 0:35 / /home/sample rw - btrfs /dev/synthetic rw\n'
-                     '23 1 0:7 / / rw - rootfs rootfs rw\n'
-                     '24 1 0:99 / /home/sample/ru rw - btrfs /dev/synthetic rw\n')
+        # Mount 24 is hidden beneath the newer mount 52 at its ancestor.
+        mountinfo = ('23 1 0:7 / / rw - rootfs rootfs rw\n'
+                     '21 23 0:9 / /home/sample rw - btrfs /dev/synthetic rw\n'
+                     '24 21 0:99 / /home/sample/run rw - btrfs /dev/synthetic rw\n'
+                     '52 23 0:35 / /home/sample rw - btrfs /dev/synthetic rw\n')
+        fdinfo = 'pos:\t0\nflags:\t02100000\nmnt_id:\t52\nino:\t12366030\n'
         holder = '1: FLOCK ADVISORY WRITE 1234 00:23:12366030 0 EOF\n'
         cases = (
-            ('other-device', holder.replace('00:23:', '00:24:'), mountinfo, 'FAIL'),
-            ('other-major', holder.replace('00:23:', '01:23:'), mountinfo, 'FAIL'),
-            ('matching-hex-device', holder, mountinfo, 'RUNNING'),
-            ('other-inode', holder.replace(':12366030 ', ':12366031 '), mountinfo, 'FAIL'),
-            ('waiter', holder.replace('1: FLOCK', '1: -> FLOCK'), mountinfo, 'FAIL'),
-            ('missing-lock', holder, mountinfo, 'FAIL'),
-            ('unreadable-locks', PermissionError('synthetic locks denied'), mountinfo, 'RUNNING'),
-            ('unreadable-mountinfo', '', PermissionError('synthetic mountinfo denied'), 'RUNNING'),
-            ('no-mount', '', '25 1 0:35 / /elsewhere rw - btrfs /dev/synthetic rw\n', 'RUNNING'),
-            ('escaped-mount', holder, mountinfo.replace('/home/sample', r'/home/sample\040mount'), 'RUNNING'),
+            ('hidden-mount', holder, fdinfo, mountinfo, 'RUNNING'),
+            ('other-device', holder.replace('00:23:', '00:63:'), fdinfo, mountinfo, 'FAIL'),
+            ('other-major', holder.replace('00:23:', '01:23:'), fdinfo, mountinfo, 'FAIL'),
+            ('other-inode', holder.replace(':12366030 ', ':12366031 '), fdinfo, mountinfo, 'FAIL'),
+            ('waiter', holder.replace('1: FLOCK', '1: -> FLOCK'), fdinfo, mountinfo, 'FAIL'),
+            ('missing-lock', holder, fdinfo, mountinfo, 'FAIL'),
+            ('no-mnt-id', '', 'pos:\t0\nflags:\t02100000\n', mountinfo, 'RUNNING'),
+            ('unknown-mount-id', '', fdinfo.replace('52', '999'), mountinfo, 'RUNNING'),
+            ('unreadable-fdinfo', '', PermissionError('synthetic fdinfo denied'), mountinfo, 'RUNNING'),
+            ('unreadable-locks', PermissionError('synthetic locks denied'), fdinfo, mountinfo, 'RUNNING'),
+            ('unreadable-mountinfo', '', fdinfo, PermissionError('synthetic mountinfo denied'), 'RUNNING'),
         )
         flow = load_flow_script()
-        for case, locks, mounts, expected in cases:
+        for case, locks, descriptor_info, mounts, expected in cases:
             with self.subTest(case=case):
                 run = self.make_run(run_id=f'run-lock-{case}')
                 for module in ('M1', 'M2'):
@@ -306,9 +309,19 @@ class RunsProgressTests(ReviewProcessFlowTest):
                 lock_path = run / '.module.lock'
                 if case != 'missing-lock':
                     lock_path.touch()
+                actual_identity = lock_path.stat() if case != 'missing-lock' else None
                 # Fedora btrfs: stat's anonymous 0:42 differs from mountinfo's 0:35.
                 identity = mock.Mock(st_ino=12366030, st_dev=42)
-                real_stat, real_open, real_path = pathlib.Path.stat, pathlib.Path.open, os.path.realpath
+                real_stat, real_fstat = pathlib.Path.stat, os.fstat
+                real_open, real_path = pathlib.Path.open, os.path.realpath
+
+                def is_lock_fd(fd):
+                    actual = real_fstat(fd)
+                    return actual_identity is not None and (actual.st_dev, actual.st_ino) == (
+                        actual_identity.st_dev, actual_identity.st_ino)
+
+                def fstat_fd(fd):
+                    return identity if is_lock_fd(fd) else real_fstat(fd)
 
                 def stat_path(path, *args, **kwargs):
                     if path == lock_path and case != 'missing-lock' and kwargs.get('follow_symlinks', True):
@@ -316,7 +329,10 @@ class RunsProgressTests(ReviewProcessFlowTest):
                     return real_stat(path, *args, **kwargs)
 
                 def open_path(path, *args, **kwargs):
-                    for proc, value in (('/proc/locks', locks), ('/proc/self/mountinfo', mounts)):
+                    proc_values = [('/proc/locks', locks), ('/proc/self/mountinfo', mounts)]
+                    if path.parent == pathlib.Path('/proc/self/fdinfo') and is_lock_fd(int(path.name)):
+                        proc_values.append((path, descriptor_info))
+                    for proc, value in proc_values:
                         if path == pathlib.Path(proc):
                             if isinstance(value, OSError):
                                 raise value
@@ -325,14 +341,14 @@ class RunsProgressTests(ReviewProcessFlowTest):
 
                 def resolved_path(path, *args, **kwargs):
                     if pathlib.Path(path) == lock_path:
-                        point = 'sample mount' if case == 'escaped-mount' else 'sample'
-                        return f'/home/{point}/run/.module.lock'
+                        return '/home/sample/run/.module.lock'
                     return real_path(path, *args, **kwargs)
 
                 output = io.StringIO()
                 with mock.patch.dict(os.environ, self.env(), clear=True), \
                         mock.patch.object(sys, 'argv', [str(SCRIPT), 'runs-progress']), \
                         mock.patch.object(pathlib.Path, 'stat', stat_path), \
+                        mock.patch.object(os, 'fstat', fstat_fd), \
                         mock.patch.object(pathlib.Path, 'open', open_path), \
                         mock.patch.object(os.path, 'realpath', resolved_path), contextlib.redirect_stdout(output):
                     flow.main()

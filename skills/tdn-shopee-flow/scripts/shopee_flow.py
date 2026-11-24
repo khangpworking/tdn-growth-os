@@ -1102,43 +1102,48 @@ def module_pid_live(pid):
         return True
 
 
-def _mount_device(real_path):
-    """(major, minor) of the superblock holding real_path: longest containing mount point in
-    /proc/self/mountinfo (field 3, decimal; mount points octal-escaped). None when no mount matches."""
-    best, best_len = None, -1
+def _fd_mount_device(fd):
+    """(major, minor) of the mount the kernel resolved for fd: mnt_id from /proc/self/fdinfo/<fd>, then the
+    /proc/self/mountinfo line with that mount ID (field 1) gives field 3 (decimal). None when fdinfo has no
+    mnt_id or no mountinfo line has that ID."""
+    mnt_id = None
+    for line in pathlib.Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines():
+        if line.startswith('mnt_id:'):
+            mnt_id = line.split(':', 1)[1].strip()
+            break
+    if not mnt_id:
+        return None
     for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines():
         fields = line.split()
-        if len(fields) < 5:
-            continue
-        point = re.sub(r'\\([0-7]{3})', lambda m: chr(int(m.group(1), 8)), fields[4])
-        contained = point == '/' or real_path == point or real_path.startswith(point.rstrip('/') + '/')
-        if contained and len(point) >= best_len:
-            try:
-                major, minor = fields[2].split(':')
-                best, best_len = (int(major), int(minor)), len(point)
-            except ValueError:
-                continue
-    return best
+        if len(fields) >= 3 and fields[0] == mnt_id:
+            major, minor = fields[2].split(':')
+            return int(major), int(minor)
+    return None
 
 
 def module_lock_held(run):
     """Is the run's admission flock held, read from /proc/locks without taking it (a probe would make a
-    concurrent LOCK_EX|LOCK_NB starter fail with RUN_BUSY)? Matched by inode and superblock device: btrfs stat
-    st_dev differs from the /proc/locks device, so the device comes from the longest mount point in mountinfo
-    (decimal) and is compared with the hex MAJ:MIN of the line. Waiters ('->') are not holders. Unreadable
-    state or no matching mount counts as held."""
+    concurrent LOCK_EX|LOCK_NB starter fail with RUN_BUSY)? Matched by inode and superblock device. The lock is
+    opened read-only (open never takes or touches a flock); the inode comes from fstat and the device from the
+    fd's own mount (fdinfo mnt_id -> mountinfo, decimal), so stacked or hidden mounts cannot mislead it. The
+    device is compared with the hex MAJ:MIN of each FLOCK line. Waiters ('->') are not holders. Missing lock
+    file = free; no mnt_id, unknown mount ID or any read error = held."""
     lock = gate_path(run, '.module.lock')
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_CLOEXEC', 0)
     try:
-        inode = lock.stat().st_ino
+        fd = os.open(lock, flags)
     except FileNotFoundError:
         return False
     except (OSError, ValueError):
         return True
     try:
+        inode = os.fstat(fd).st_ino
+        device = _fd_mount_device(fd)
         lines = pathlib.Path('/proc/locks').read_text().splitlines()
-        device = _mount_device(os.path.realpath(lock))
     except (OSError, ValueError):
         return True
+    finally:
+        os.close(fd)
     if device is None:
         return True
     for line in lines:
