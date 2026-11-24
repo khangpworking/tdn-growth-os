@@ -7014,6 +7014,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function effectiveStatus(runId, status) {
     var progress = state.progressByRun[runId];
     if (!progress) return status;
+    // A damaged run (list row with execution null) stays «Chưa xác định» whatever progress says.
+    if (status === 'UNKNOWN' && state.runs.some(function (r) { return r.runId === runId && r.execution === null; })) return status;
     // «Đang chạy» only while a step really runs; a run that stopped part-way is «Chưa xong».
     if (progress.steps.indexOf('RUNNING') !== -1 || progress.active) return 'RUNNING';
     if (progress.steps[3] === 'FAIL') return 'FAILED';
@@ -7402,6 +7404,25 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       var root = $('runDetail');
       clear(root);
       var info = state.info;
+      var row = !info && state.selectedRunId && state.loadingRunId !== state.selectedRunId
+        ? state.runs.find(function (r) { return r.runId === state.selectedRunId && r.execution === null; }) : null;
+      if (row) {
+        // A damaged run (list row UNKNOWN, no execution view) whose details cannot load: still named and deletable.
+        var rowHead = h('div', 'dhead');
+        rowHead.appendChild(h('h2', null, runDisplayName(runTracking(row), row.product || row.runId)));
+        rowHead.appendChild(statusChip(effectiveStatus(row.runId, row.status), runTracking(row)));
+        var rowDel = h('button', 'abtn danger', 'Xóa lượt');
+        rowDel.type = 'button';
+        rowDel.id = 'btnDeleteRun';
+        rowDel.disabled = !state.connected;
+        rowDel.addEventListener('click', function () { onDeleteRun(row.runId); });
+        rowHead.appendChild(rowDel);
+        root.appendChild(rowHead);
+        var rowError = h('p', 'errbar local-error', plainError({ code: row.errorCode || 'RUN_VIEW_INVALID' }));
+        rowError.title = row.errorCode || 'RUN_VIEW_INVALID';
+        root.appendChild(rowError);
+        return;
+      }
       if (!info) {
         root.appendChild(h('p', 'muted', emptyRunText()));
         return;
@@ -7483,7 +7504,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
           return !!(slip && slip.verdict && slip.verdict !== 'PASS');
         });
       }
-      var failed = status === 'FAILED' || status === 'UNCERTAIN' || failedGate ||
+      var failed = status === 'FAILED' || status === 'STOPPED' || status === 'UNCERTAIN' || failedGate ||
         !!(currentView && currentView.status === 'FAILED') || (m3Started && step4Kind(info.runId) === 'fail');
       var tech = h('details', 'tech-details');
       tech.id = 'techDetails';

@@ -74,6 +74,8 @@ A request-v2 run stores its collection policy when the run is created. After ver
 
 ## Run names
 
+Run status (app 1.2.2): one damaged run never fails the run list; its row shows «Chưa xác định được trạng thái» (`status` `UNKNOWN`, `execution` null, its error code) and stays openable and deletable. A run whose process ended part-way (dead worker or `RUN_INTERRUPTED`) has run status `STOPPED` («Đã dừng») in both the list and the details. A user stop of the step-3 attempt is not mapped to `STOPPED` yet (it stays `FAILED`); that comes with the step-3 stop button.
+
 The run list and detail title show the primary search keyword and the first accepted launch time in Vietnam time (`Asia/Ho_Chi_Minh`), for example `viên uống kẽm: 11/11/2026 11:26` (24-hour clock). The opaque run ID stays visible as secondary text. A rerun or later attempt never renames the run. A completed legacy run with an unproven first launch shows `chưa rõ giờ bắt đầu`; only a run with honest no-launch evidence shows `Chưa chạy`.
 
 ## Save and export collected comments

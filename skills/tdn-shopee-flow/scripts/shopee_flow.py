@@ -1415,7 +1415,10 @@ def flow_accept_launch(run, at):
 def flow_tracking(run):
     record = flow_tracking_record(run)
     request = gate_read(gate_path(run, 'request.json'))
-    keywords = request.get('preset', {}).get('keywords', []) if isinstance(request, dict) else []
+    preset = request.get('preset', {}) if isinstance(request, dict) else {}
+    keywords = preset.get('keywords', []) if isinstance(preset, dict) else []
+    if not isinstance(keywords, list) or not keywords or not isinstance(keywords[0], str):
+        keywords = []
     state = gate_read(gate_path(run, 'state.json'))
     last = state.get('startedAt') if isinstance(state, dict) else None
     return {'primaryKeyword': record['primaryKeyword'] if record else (keywords[0] if keywords else None),
@@ -1685,7 +1688,7 @@ def flow_execution_view(run, config, view=None, sampling=_SAMPLING_UNSET):
                 sampling = view(run)
     attempts = sampling.get('attempts', []) if sampling else []
     state = gate_read(gate_path(run, 'state.json')) or {}
-    modules, revision = {}, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
+    modules, stopped_by, revision = {}, {}, max([v['sequence'] for v in records] + [v.get('sequence') or 0 for v in attempts] + [0])
     for module in ('M1', 'M2', 'M3'):
         candidates = []
         previous = gate_read(gate_path(run, f'gates/{module.lower()}.json'))
@@ -1739,19 +1742,25 @@ def flow_execution_view(run, config, view=None, sampling=_SAMPLING_UNSET):
                        'startedAt': state.get('startedAt') if live or stopped else None,
                        'endedAt': state.get('endedAt') if stopped else None,
                        'errorCode': state.get('errorCode') if live or stopped else None,
-                       'basis': 'legacy-gate' if previous else 'none', 'currentGate': previous if matched else None}
+                       'basis': 'legacy-gate' if previous else 'none', 'currentGate': previous if matched else None,
+                       # Legacy dead worker (no execution record): module stays UNCERTAIN, the run is «Đã dừng».
+                       'deadWorker': live and not module_pid_live(state.get('pid'))}
         # Owner L5: after step 3 passed, a failed «lấy thêm» shows only in the attempt list, never as the step's status.
         if module == 'M3' and not active:
             current = flow_passed_before_extra(candidates) or current
         if current['status'] == 'SUCCEEDED' and not current.get('currentGate'):
             current = {**current, 'status': 'UNKNOWN', 'errorCode': 'EXECUTION_RECEIPT_CHANGED'}
         modules[module] = {key: current.get(key) for key in ('status', 'executionId', 'sequence', 'attemptId', 'startedAt', 'endedAt', 'basis', 'currentGate', 'errorCode')}
+        # Run-level «Đã dừng»: the process ended part-way (RUN_INTERRUPTED or a dead worker). A user stop is not mapped yet.
+        stopped_by[module] = (current['status'] == 'UNCERTAIN' and current.get('deadWorker') is True) or (
+            current['status'] == 'FAILED' and current.get('errorCode') == 'RUN_INTERRUPTED')
         modules[module]['historicalGate'] = next((gate for identity, gate in reversed(history)
             if identity != (current.get('executionId') or current.get('attemptId')) and gate != current.get('currentGate')), None)
     active = [(m, v) for m, v in modules.items() if v['status'] in ('RUNNING', 'UNCERTAIN')]
     candidates = [(m, v) for m, v in modules.items() if v['status'] != 'IDLE']
     chosen = max(active or candidates, key=lambda pair: (pair[1].get('sequence') or 0, pair[0])) if candidates else (None, {'status': 'IDLE'})
-    return {'format': 'run-execution-view-v1', 'revision': revision, 'status': chosen[1]['status'],
+    status = 'STOPPED' if chosen[0] and stopped_by.get(chosen[0]) else chosen[1]['status']
+    return {'format': 'run-execution-view-v1', 'revision': revision, 'status': status,
             'currentModule': chosen[0], 'currentExecutionId': chosen[1].get('executionId'), 'modules': modules}
 
 
@@ -3829,23 +3838,50 @@ def cmd_flow_query(ns):
                 for path in root.iterdir() if root.is_dir() else []:
                     if path.is_symlink() or not path.is_dir() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', path.name):
                         continue
+                    # The path guard stays outside the per-run guard: a symlinked request fails the command.
                     request_path = gate_path(path, 'request.json')
-                    request = gate_read(request_path)
+                    try:
+                        request = gate_read(request_path)
+                    except (ModuleFailure, OSError, ValueError, KeyError, TypeError):
+                        continue
                     if not isinstance(request, dict):
                         continue
-                    execution = flow_execution_view(path, config, view=server.view)
-                    current = execution['modules'].get(execution['currentModule'], {})
-                    last = current.get('currentGate') or {}
-                    created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
-                    values.append({'runId': path.name, 'createdAt': created, 'product': ' / '.join(request.get('preset', {}).get('keywords', [])),
-                                   'tracking': flow_tracking(path),
-                                   'request': {k: v for k, v in request.items() if k != 'captureSpec'},
-                                   'execution': execution, 'status': execution['status'],
-                                   'lastGate': execution['currentModule'].lower() if execution['currentModule'] else None,
-                                   'lastVerdict': last.get('verdict'), 'errorCode': current.get('errorCode') or last.get('errorCode')})
+                    # A readable but malformed request, or a stat failure, gives this run the UNKNOWN row only.
+                    request_ok = True
+                    try:
+                        created = dt.datetime.fromtimestamp(request_path.stat().st_mtime, dt.timezone.utc).isoformat()
+                    except (OSError, ValueError, OverflowError):
+                        created, request_ok = None, False
+                    preset = request.get('preset', {})
+                    keywords = preset.get('keywords', []) if isinstance(preset, dict) else None
+                    if isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
+                        product = ' / '.join(keywords)
+                    else:
+                        product, request_ok = None, False
+                    row = {'runId': path.name, 'createdAt': created, 'product': product,
+                           'request': {k: v for k, v in request.items() if k != 'captureSpec'}}
+                    # One damaged run must not fail the whole list: it shows as UNKNOWN with its error code.
+                    try:
+                        try:
+                            row['tracking'] = flow_tracking(path)
+                        except (ModuleFailure, OSError, ValueError, KeyError, TypeError, AttributeError):
+                            row['tracking'] = None
+                        if not request_ok:
+                            raise ValueError('run request invalid')
+                        execution = flow_execution_view(path, config, view=server.view)
+                        current = execution['modules'].get(execution['currentModule'], {})
+                        last = current.get('currentGate') or {}
+                        row.update({'execution': execution, 'status': execution['status'],
+                                    'lastGate': execution['currentModule'].lower() if execution['currentModule'] else None,
+                                    'lastVerdict': last.get('verdict'), 'errorCode': current.get('errorCode') or last.get('errorCode')})
+                    except (ModuleFailure, OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+                        code = getattr(error, 'code', None)
+                        row.update({'execution': None, 'status': 'UNKNOWN', 'lastGate': None, 'lastVerdict': None,
+                                    'errorCode': code if isinstance(error, ModuleFailure) and isinstance(code, str) and re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', code) else 'RUN_VIEW_INVALID'})
+                    values.append(row)
             finally:
                 server.close()
-            result = {'format': 'runs-v1', 'runs': sorted(values, key=lambda v: (v['createdAt'], v['runId']), reverse=True)}
+            result = {'format': 'runs-v1', 'runs': sorted(values, key=lambda v: (v['createdAt'] or '', v['runId']), reverse=True)}
         else:
             skills = []
             for m in (config['flow'], *config['modules']):
