@@ -1335,13 +1335,16 @@ class Api:
             data['deleteAfter'] = online['deleteAfter']
         return {'ok': True, 'data': data}
 
-    def viewMetricShot(self, runId=None, sha256=None):
+    def viewMetricShot(self, runId=None, sha256=None, oldKnown=False):
         """«Xem ảnh Metric», source chosen now: the local picture in the app's own viewer (a data URL, nothing
         written), else a 15-minute online link, else the server's old full-page picture (``sha256``, opened as
-        before). The page passes the old picture's digest whenever the run has one."""
-        return self._safe(lambda: self._view_metric_shot(self._run_id(runId), sha256))
+        before). The page passes the old picture's digest whenever the run has one; ``oldKnown`` true = the page
+        has the step results, so a null digest means «no old picture» and nothing is looked up here."""
+        return self._safe(lambda: self._view_metric_shot(self._run_id(runId), sha256, oldKnown))
 
-    def _view_metric_shot(self, run_id, digest=None):
+    def _view_metric_shot(self, run_id, digest=None, old_known=False):
+        if type(old_known) is not bool:
+            raise _BridgeFailure('ARG_INVALID')
         failure = None
         try:
             result = self._view_metric_shot_new(run_id)
@@ -1349,7 +1352,7 @@ class Api:
             failure, result = error, {'ok': False}
         if result.get('ok') and result['data']['state'] in ('LOCAL', 'AVAILABLE'):
             return result
-        if digest is None:
+        if digest is None and not old_known:
             digest = self._old_full_page_digest(run_id)     # the page had no outputs: look for it here
         if digest is not None:
             return self._open_module_evidence(run_id, 'full-page', digest)      # an old run's server picture
@@ -1413,17 +1416,17 @@ class Api:
 
     # ---- «Tải ảnh»: a copy of the Metric picture, same source order as «Xem ảnh Metric» ----
 
-    def saveMetricShot(self, runId=None, name=None, sha256=None, online=False):
-        return self._safe(lambda: self._save_metric_shot(runId, name, sha256, online))
+    def saveMetricShot(self, runId=None, name=None, sha256=None, online=False, oldKnown=False):
+        return self._safe(lambda: self._save_metric_shot(runId, name, sha256, online, oldKnown))
 
-    def _save_metric_shot(self, run_id, name, digest, online=False):
+    def _save_metric_shot(self, run_id, name, digest, online=False, old_known=False):
         """The run's local picture, else the online copy (``online`` true), else the server's old full-page
         picture (``digest``), saved where the user picks. Default name ``<run name>-<runId>.<webp|png>`` in
         Downloads. The original stays."""
         run_id = self._run_id(run_id)
         if name is not None and not isinstance(name, str):
             raise _BridgeFailure('ARG_INVALID')
-        if type(online) is not bool:
+        if type(online) is not bool or type(old_known) is not bool:
             raise _BridgeFailure('ARG_INVALID')
         local = self._local_metric_shot(run_id)
         descriptor = None
@@ -1441,7 +1444,7 @@ class Api:
             else:
                 remote = None
         if local is None and remote is None:
-            if digest is None and online:
+            if digest is None and online and not old_known:
                 digest = self._old_full_page_digest(run_id)     # the page had no outputs: look for it here
             if digest is None:
                 # Nothing to save; the page shows why («đã tự xóa sau 10 ngày» / «không có ảnh Metric»).
