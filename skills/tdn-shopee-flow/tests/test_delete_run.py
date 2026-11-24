@@ -4,6 +4,7 @@ Each test owns temp runs and state roots and calls the real command line.
 Deletion is pure Python, so no node subprocess is involved.
 """
 import fcntl
+import hashlib
 import contextlib
 import importlib.util
 import io
@@ -18,6 +19,8 @@ import unittest
 import urllib.error
 import uuid
 from unittest import mock
+
+from test_sampling import sampling_child
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[1] / 'scripts' / 'shopee_flow.py'
 
@@ -40,7 +43,7 @@ def finished_state(run_id):
 
 class DeleteRunTest(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        self._tmp = tempfile.TemporaryDirectory(dir=SCRIPT.parents[3])
         self.addCleanup(self._tmp.cleanup)
         base = pathlib.Path(self._tmp.name)
         self.runs, self.state = base / 'runs', base / 'state'
@@ -134,11 +137,24 @@ class DeleteRunTest(unittest.TestCase):
                         f'synthetic-bucket/metric-shots/{run_id}/{"0" * 64}.webp')
 
     def test_delete_refuses_a_run_whose_state_is_running(self):
-        run = self.make_run('run-c3', state={**finished_state('run-c3'), 'status': 'RUNNING'})
-        rc, out = self.command('delete-run', '--run', 'run-c3')
-        self.assertEqual(rc, 20, out)
-        self.assertEqual((out.get('code'), out.get('message')), ('RUN_ACTIVE', 'RUN_ACTIVE'))
-        self.assertTrue(run.is_dir(), 'a refused delete must not remove anything')
+        with subprocess.Popen([sys.executable, '-c', 'pass'], env=self.env()) as child:
+            self.assertEqual(child.wait(timeout=10), 0)
+        for worker, pid in (('live', os.getpid()), ('dead', child.pid), ('null', None)):
+            with self.subTest(worker=worker):
+                run_id = f'run-c3-{worker}'
+                run = self.make_run(run_id, state={**finished_state(run_id), 'status': 'RUNNING',
+                                                   'pid': pid, 'endedAt': None})
+                state_bytes = (run / 'state.json').read_bytes()
+                rc, out = self.command('delete-run', '--run', run_id)
+                if worker == 'live':
+                    self.assertEqual(rc, 20, out)
+                    self.assertEqual((out.get('code'), out.get('message')), ('RUN_ACTIVE', 'RUN_ACTIVE'))
+                    self.assertTrue(run.is_dir(), 'a refused delete must not remove anything')
+                    self.assertEqual((run / 'state.json').read_bytes(), state_bytes)
+                else:
+                    self.assertEqual(rc, 0, out)
+                    self.assertEqual(out, {'format': 'run-delete-v1', 'runId': run_id, 'deleted': True})
+                    self.assertFalse(run.exists(), 'a stale RUNNING state must not block deletion')
 
     def test_delete_refuses_a_live_m3_attempt(self):
         run = self.make_run('run-d4')
@@ -183,6 +199,31 @@ class DeleteRunTest(unittest.TestCase):
         self.assertEqual(rc, 20, out)
         self.assertEqual(out.get('code'), 'RUN_ACTIVE')
         self.assertTrue(run.is_dir(), 'a run whose admission lock is held must stay intact')
+
+        # The collector has not published its PID: every durable owner still names Python.
+        write_json(run / 'm2' / 'selection.json', {'format': 'selection-v1', 'runId': run.name})
+        digest = hashlib.sha256((run / 'm2' / 'selection.json').read_bytes()).hexdigest()
+        write_json(run / 'gates' / 'm2.json', {'format': 'handoff-v1', 'module': 'M2',
+                   'runId': run.name, 'verdict': 'PASS', 'outputSha256': digest})
+        with sampling_child(run, self.base, self.env()) as child:
+            child.parent.kill()
+            child.parent.wait(timeout=10)
+            self.assertEqual(child.info['parentPid'], child.parent.pid)
+            marks = [run / 'state.json', *sorted((run / 'executions').glob('*.json')),
+                     *sorted((run / 'm3-custom' / 'attempts').glob('*/state.json'))]
+            self.assertEqual(len(marks), 3, 'run, execution and attempt owners must all exist')
+            before = {path: path.read_bytes() for path in marks}
+            for path in marks:
+                self.assertEqual(json.loads(before[path])['pid'], child.parent.pid)
+            os.kill(child.info['pid'], 0)
+            rc, out = self.command('delete-run', '--run', run.name)
+            self.assertEqual((rc, out.get('code')), (20, 'RUN_ACTIVE'), out)
+            self.assertEqual({path: path.read_bytes() for path in marks}, before)
+            child.finish()
+            rc, out = self.command('delete-run', '--run', run.name)
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(out, {'format': 'run-delete-v1', 'runId': run.name, 'deleted': True})
+            self.assertFalse(run.exists())
 
     def test_delete_refuses_a_symlinked_imports_folder(self):
         run = self.make_run('run-h8')

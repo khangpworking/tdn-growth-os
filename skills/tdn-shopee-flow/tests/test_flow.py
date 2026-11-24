@@ -187,7 +187,7 @@ _datetime.datetime = _FrozenDatetime
 
 class FlowTest(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        self._tmp = tempfile.TemporaryDirectory(dir=SCRIPT.parents[3])
         self.addCleanup(self._tmp.cleanup)
         base = pathlib.Path(self._tmp.name)
         self.runs = base / 'runs'

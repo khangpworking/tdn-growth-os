@@ -1102,6 +1102,65 @@ def module_pid_live(pid):
         return True
 
 
+def _fd_mount_device(fd):
+    """(major, minor) of the mount the kernel resolved for fd: mnt_id from /proc/self/fdinfo/<fd>, then the
+    /proc/self/mountinfo line with that mount ID (field 1) gives field 3 (decimal). None when fdinfo has no
+    mnt_id or no mountinfo line has that ID."""
+    mnt_id = None
+    for line in pathlib.Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines():
+        if line.startswith('mnt_id:'):
+            mnt_id = line.split(':', 1)[1].strip()
+            break
+    if not mnt_id:
+        return None
+    for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines():
+        fields = line.split()
+        if len(fields) >= 3 and fields[0] == mnt_id:
+            major, minor = fields[2].split(':')
+            return int(major), int(minor)
+    return None
+
+
+def module_lock_held(run):
+    """Is the run's admission flock held, read from /proc/locks without taking it (a probe would make a
+    concurrent LOCK_EX|LOCK_NB starter fail with RUN_BUSY)? Matched by inode and superblock device. The lock is
+    opened read-only (open never takes or touches a flock); the inode comes from fstat and the device from the
+    fd's own mount (fdinfo mnt_id -> mountinfo, decimal), so stacked or hidden mounts cannot mislead it. The
+    device is compared with the hex MAJ:MIN of each FLOCK line. Waiters ('->') are not holders. Missing lock
+    file = free; no mnt_id, unknown mount ID or any read error = held."""
+    lock = gate_path(run, '.module.lock')
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_CLOEXEC', 0)
+    try:
+        fd = os.open(lock, flags)
+    except FileNotFoundError:
+        return False
+    except (OSError, ValueError):
+        return True
+    try:
+        inode = os.fstat(fd).st_ino
+        device = _fd_mount_device(fd)
+        lines = pathlib.Path('/proc/locks').read_text().splitlines()
+    except (OSError, ValueError):
+        return True
+    finally:
+        os.close(fd)
+    if device is None:
+        return True
+    for line in lines:
+        fields = line.split()
+        if len(fields) < 6 or fields[1] != 'FLOCK':
+            continue
+        parts = fields[5].split(':')
+        if len(parts) != 3 or parts[2] != str(inode):
+            continue
+        try:
+            if (int(parts[0], 16), int(parts[1], 16)) == device:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def module_busy_check(run):
     state = gate_read(gate_path(run, 'state.json'))
     if isinstance(state, dict) and state.get('status') == 'RUNNING':
@@ -1697,14 +1756,14 @@ def flow_execution_view(run, config, view=None, sampling=_SAMPLING_UNSET):
 
 
 
-def module_admit(run, module, ns, repo, config, mode):
+def module_admit(run, module, ns, repo, config, mode, lock=None):
     module_barrier(run, module, bool(getattr(ns, 'manual', None)), os.getpid())
     admission = module_launch_admission(run, module, ns, repo, config)
     identity = flow_execution_identity(run)
     started, attempt_id, kind = flow_now(), None, 'module'
     request = admission[2]
     if module == 'm3' and isinstance(request, dict) and request.get('format') == 'request-v2':
-        value = review_sampling_script(repo, config, 'configured-reserve', run, identity['executionId'], str(identity['sequence']))
+        value = review_sampling_script(repo, config, 'configured-reserve', run, identity['executionId'], str(identity['sequence']), lock=lock)
         attempt_id, kind = value['attemptId'], 'automatic'
     execution = flow_execution_begin(run, module, identity, started, attempt_id, kind)
     flow_accept_launch(run, started)
@@ -1712,12 +1771,12 @@ def module_admit(run, module, ns, repo, config, mode):
     return execution, admission
 
 
-def module_execute(run, module, ns, repo, config, execution, admission=None):
+def module_execute(run, module, ns, repo, config, execution, admission=None, lock=None):
     """One admitted execution under the inherited run flock, with no retry."""
     manual, custom = bool(getattr(ns, 'manual', None)), execution['attemptId'] is not None
     try:
         if custom:
-            value = review_sampling_script(repo, config, 'execute', run, 'custom', execution['attemptId'], 'initial')
+            value = review_sampling_script(repo, config, 'execute', run, 'custom', execution['attemptId'], 'initial', lock=lock)
             slip = gate_read(gate_path(run, f'm3-custom/attempts/{execution["attemptId"]}/gate.json'))
             if not isinstance(slip, dict):
                 raise ModuleFailure('REVIEW_RESULT_MISSING')
@@ -1848,16 +1907,16 @@ def cmd_module(ns):
                 else:
                     pending = ['m1', 'm2', 'm3'] if ns.cmd == 'run' else [ns.cmd]
             if code == 0 and pending and getattr(ns, 'detach', False):
-                execution, _ = module_admit(run, module, ns, repo, config, mode)
+                execution, _ = module_admit(run, module, ns, repo, config, mode, lock)
                 print(json.dumps(flow_detach(run, ns, lock, execution)))
                 return
         if code == 0:
             for module in pending:
                 admission = None
                 if execution is None:
-                    execution, admission = module_admit(run, module, ns, repo, config, mode)
+                    execution, admission = module_admit(run, module, ns, repo, config, mode, lock)
                 last_execution = execution
-                slip, code = module_execute(run, module, ns, repo, config, execution, admission)
+                slip, code = module_execute(run, module, ns, repo, config, execution, admission, lock)
                 failed = flow_failed(slip)
                 module_atomic_json(run, 'state.json', {**flow_state(run, ('DONE' if module == 'm3' else 'IDLE') if code == 0 else 'STOPPED',
                     mode, module.upper(), os.getpid(), execution['startedAt'], slip['errorCode'], failed[0] if failed else None),
@@ -1894,15 +1953,18 @@ def cmd_module(ns):
     sys.exit(code)
 
 
-def review_sampling_script(repo, config, action, run, *args, input_text=None):
-    """The canonical TS boundary owns validation; never relay subprocess diagnostics."""
+def review_sampling_script(repo, config, action, run, *args, input_text=None, lock=None):
+    """The canonical TS boundary owns validation; never relay subprocess diagnostics.
+    Round 14: a caller holding the run's admission lock passes it; Node inherits the fd, so the flock
+    stays held until both this process and the collector are gone (the TS side never touches it)."""
     import shlex
     command = config['params'].get('nodeCommand', ['node', '--import', 'tsx'])
     command = shlex.split(command) if isinstance(command, str) else command
     if not isinstance(command, list) or not command or not all(isinstance(c, str) and c for c in command):
         raise ModuleFailure('NODE_COMMAND_INVALID')
     result = subprocess.run([*command, str(repo / 'scripts/module-review-sampling.ts'), action, str(run), *args],
-                            cwd=repo, input=input_text, capture_output=True, text=True)
+                            cwd=repo, input=input_text, capture_output=True, text=True,
+                            pass_fds=(lock.fileno(),) if lock is not None else ())
     return review_sampling_result(result.returncode, result.stdout)
 
 
@@ -1961,7 +2023,7 @@ def cmd_review_sampling(ns):
             if worker:
                 execution = flow_execution_from_attempt(run, ns.attempt) if ns.kind == 'custom' else None
                 value = review_sampling_script(repo, config, 'execute', run, ns.kind, ns.attempt,
-                                               'reconcile' if ns.reconcile else 'initial')
+                                               'reconcile' if ns.reconcile else 'initial', lock=lock)
                 flow_custom_finish(run, execution, value)
                 if ns.kind == 'custom':
                     review_process_after_m3(run, repo, config, ns.attempt, value)
@@ -1969,7 +2031,7 @@ def cmd_review_sampling(ns):
                 reconcile = ns.cmd == 'reconcile-review-attempt'
                 kind = ns.kind if reconcile else 'counts' if ns.cmd == 'review-counts' else 'custom'
                 if reconcile:
-                    value = review_sampling_script(repo, config, 'reconcile-check', run, kind, ns.attempt)
+                    value = review_sampling_script(repo, config, 'reconcile-check', run, kind, ns.attempt, lock=lock)
                     execution = flow_execution_from_attempt(run, ns.attempt) if kind == 'custom' else None
                     if value.get('status') != 'RUNNING':
                         flow_custom_finish(run, execution, value)
@@ -1980,7 +2042,7 @@ def cmd_review_sampling(ns):
                 else:
                     identity = flow_execution_identity(run) if kind == 'custom' else None
                     value = review_sampling_script(repo, config, 'reserve', run, kind,
-                                                   *([ns.plan_sha256, identity['executionId'], str(identity['sequence'])] if identity else []))
+                                                   *([ns.plan_sha256, identity['executionId'], str(identity['sequence'])] if identity else []), lock=lock)
                     if identity:
                         execution = flow_execution_begin(run, 'm3', identity, flow_now(), value['attemptId'], 'custom')
                         flow_accept_launch(run, execution['startedAt'])
@@ -2012,7 +2074,7 @@ def cmd_review_sampling(ns):
                         os.close(read_fd); os.close(write_fd)
                 else:
                     value = review_sampling_script(repo, config, 'execute', run, kind, attempt_id,
-                                                   'reconcile' if reconcile else 'initial')
+                                                   'reconcile' if reconcile else 'initial', lock=lock)
                     flow_custom_finish(run, execution, value)
                     if kind == 'custom':
                         review_process_after_m3(run, repo, config, attempt_id, value)
@@ -2281,8 +2343,12 @@ def progress_steps(run):
             steps.append('RUNNING')
         elif record:
             status = record.get('status')
-            live = status == 'RUNNING' and (module_pid_live(record.get('pid')) or module == 'M3' and record.get('attemptId') and
-                                           (gate_read(gate_path(run, f'm3-custom/attempts/{record["attemptId"]}/state.json')) or {}).get('status') == 'RUNNING')
+            attempt = (gate_read(gate_path(run, f'm3-custom/attempts/{record["attemptId"]}/state.json')) or {}) if (
+                status == 'RUNNING' and module == 'M3' and record.get('attemptId')) else {}
+            # Round 13: an M3 attempt is live only when RUNNING with a live pid (as TS readAttempt: dead RUNNING = UNCERTAIN).
+            # Round 14: or the run's admission lock is held (a collector that outlived its Python owner keeps it).
+            live = status == 'RUNNING' and (module_pid_live(record.get('pid')) or attempt.get('status') == 'RUNNING' and (
+                module_pid_live(attempt.get('pid')) or module_lock_held(run)))
             if not live and module == 'M3' and flow_passed_before_extra(m3):
                 status = 'SUCCEEDED'  # owner L5: a failed «lấy thêm» keeps step 3 = PASS
             steps.append('RUNNING' if live else {'SUCCEEDED': 'PASS', 'WAIT_OWNER': 'WAIT_OWNER'}.get(status, 'FAIL'))
@@ -3062,7 +3128,8 @@ def flow_run_active(run):
             return None
 
     state = record('state.json')
-    if isinstance(state, dict) and state.get('status') == 'RUNNING':
+    # Round 13: a RUNNING state.json counts only while its worker pid is alive (a dead worker must not block delete).
+    if isinstance(state, dict) and state.get('status') == 'RUNNING' and module_pid_live(state.get('pid')):
         return True
     executions = gate_path(run, 'executions')
     for child in executions.iterdir() if executions.is_dir() else []:
