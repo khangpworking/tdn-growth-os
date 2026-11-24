@@ -3158,7 +3158,9 @@ def r2_signed(config, method, key, *, expires=None, content_type=None, payload_s
     """AWS SigV4 for R2 (region auto, service s3, path style). With ``expires``: a presigned URL (query
     signature, nothing else returned). Without: (url, headers) with an Authorization header.
     ``payload_sha256`` (presigned PUT): the body hash is signed as ``x-amz-content-sha256``, so storage
-    refuses any other bytes, and the client must send that header with that value."""
+    refuses any other bytes, and the client must send that header with that value. A query-signed
+    request always uses ``UNSIGNED-PAYLOAD`` as the canonical payload line (R2 builds it so; a digest
+    there gives 403 SignatureDoesNotMatch); storage then compares the body with the signed header."""
     import hashlib, hmac
     now = now or dt.datetime.now(dt.timezone.utc)
     stamp = now.strftime('%Y%m%dT%H%M%SZ')
@@ -3171,9 +3173,9 @@ def r2_signed(config, method, key, *, expires=None, content_type=None, payload_s
         headers['content-type'] = content_type
     query = {}
     if expires is not None:
-        payload = 'UNSIGNED-PAYLOAD'
+        payload = 'UNSIGNED-PAYLOAD'     # always, for query signing; the digest goes in the signed header
         if payload_sha256 is not None:
-            payload = headers['x-amz-content-sha256'] = payload_sha256
+            headers['x-amz-content-sha256'] = payload_sha256
         query = {'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
                  'X-Amz-Credential': f"{config['R2_ACCESS_KEY_ID']}/{scope}",
                  'X-Amz-Date': stamp, 'X-Amz-Expires': str(int(expires)),
