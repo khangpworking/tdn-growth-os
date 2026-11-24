@@ -1102,24 +1102,57 @@ def module_pid_live(pid):
         return True
 
 
+def _mount_device(real_path):
+    """(major, minor) of the superblock holding real_path: longest containing mount point in
+    /proc/self/mountinfo (field 3, decimal; mount points octal-escaped). None when no mount matches."""
+    best, best_len = None, -1
+    for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines():
+        fields = line.split()
+        if len(fields) < 5:
+            continue
+        point = re.sub(r'\\([0-7]{3})', lambda m: chr(int(m.group(1), 8)), fields[4])
+        contained = point == '/' or real_path == point or real_path.startswith(point.rstrip('/') + '/')
+        if contained and len(point) >= best_len:
+            try:
+                major, minor = fields[2].split(':')
+                best, best_len = (int(major), int(minor)), len(point)
+            except ValueError:
+                continue
+    return best
+
+
 def module_lock_held(run):
     """Is the run's admission flock held, read from /proc/locks without taking it (a probe would make a
-    concurrent LOCK_EX|LOCK_NB starter fail with RUN_BUSY)? Matched by inode only (btrfs stat st_dev can differ
-    from the /proc/locks device); waiters ('->') are not holders. Unreadable state counts as held."""
+    concurrent LOCK_EX|LOCK_NB starter fail with RUN_BUSY)? Matched by inode and superblock device: btrfs stat
+    st_dev differs from the /proc/locks device, so the device comes from the longest mount point in mountinfo
+    (decimal) and is compared with the hex MAJ:MIN of the line. Waiters ('->') are not holders. Unreadable
+    state or no matching mount counts as held."""
+    lock = gate_path(run, '.module.lock')
     try:
-        inode = gate_path(run, '.module.lock').stat().st_ino
+        inode = lock.stat().st_ino
     except FileNotFoundError:
         return False
     except (OSError, ValueError):
         return True
     try:
         lines = pathlib.Path('/proc/locks').read_text().splitlines()
-    except OSError:
+        device = _mount_device(os.path.realpath(lock))
+    except (OSError, ValueError):
+        return True
+    if device is None:
         return True
     for line in lines:
         fields = line.split()
-        if len(fields) >= 6 and fields[1] == 'FLOCK' and fields[5].rsplit(':', 1)[-1] == str(inode):
-            return True
+        if len(fields) < 6 or fields[1] != 'FLOCK':
+            continue
+        parts = fields[5].split(':')
+        if len(parts) != 3 or parts[2] != str(inode):
+            continue
+        try:
+            if (int(parts[0], 16), int(parts[1], 16)) == device:
+                return True
+        except ValueError:
+            continue
     return False
 
 

@@ -203,8 +203,7 @@ class RunsProgressTests(ReviewProcessFlowTest):
         cases = (('dead', self.dead_pid, 'RUNNING', False, 'FAIL'),
                  ('live', os.getpid(), 'RUNNING', False, 'RUNNING'),
                  ('held', self.dead_pid, 'RUNNING', True, 'RUNNING'),
-                 ('terminal', self.dead_pid, 'FAILED', True, 'FAIL'),
-                 ('unreadable', self.dead_pid, 'RUNNING', False, 'RUNNING'))
+                 ('terminal', self.dead_pid, 'FAILED', True, 'FAIL'))
         flow = load_flow_script()
         for worker, pid, status, held, expected in cases:
             with self.subTest(worker=worker):
@@ -225,18 +224,13 @@ class RunsProgressTests(ReviewProcessFlowTest):
                 lock_path.touch()
                 identity = lock_path.stat()
                 flock_calls = []
-                real_flock, real_open = fcntl.flock, pathlib.Path.open
+                real_flock = fcntl.flock
 
                 def observe_flock(fd, operation):
                     actual = os.fstat(fd)
                     if (actual.st_dev, actual.st_ino) == (identity.st_dev, identity.st_ino):
                         flock_calls.append(operation)
                     return real_flock(fd, operation)
-
-                def open_path(path, *args, **kwargs):
-                    if worker == 'unreadable' and str(path) == '/proc/locks':
-                        raise PermissionError('synthetic unreadable flock state')
-                    return real_open(path, *args, **kwargs)
 
                 holder = None
                 try:
@@ -253,8 +247,7 @@ class RunsProgressTests(ReviewProcessFlowTest):
                     output = io.StringIO()
                     with mock.patch.dict(os.environ, self.env(), clear=True), \
                             mock.patch.object(sys, 'argv', [str(SCRIPT), 'runs-progress']), \
-                            mock.patch('fcntl.flock', side_effect=observe_flock), \
-                            mock.patch.object(pathlib.Path, 'open', open_path), contextlib.redirect_stdout(output):
+                            mock.patch('fcntl.flock', side_effect=observe_flock), contextlib.redirect_stdout(output):
                         flow.main()
                     self.assertEqual(flock_calls, [], 'progress must never flock the admission inode, even briefly')
                     progress = next(row for row in json.loads(output.getvalue())['runs'] if row['runId'] == run_id)
@@ -277,6 +270,78 @@ class RunsProgressTests(ReviewProcessFlowTest):
                     self.assertIsNone(progress['active'])
                 self.assertEqual((run / 'state.json').read_bytes(), state_bytes)
                 self.assertEqual(attempt.read_bytes(), attempt_bytes)
+        self.assertEqual(self.step4_calls(), [])
+
+    def test_step3_matches_the_lock_inode_and_mount_device(self):
+        mountinfo = ('22 1 0:9 / /home rw - btrfs /dev/synthetic rw\n'
+                     '21 1 0:35 / /home/sample rw - btrfs /dev/synthetic rw\n'
+                     '23 1 0:7 / / rw - rootfs rootfs rw\n'
+                     '24 1 0:99 / /home/sample/ru rw - btrfs /dev/synthetic rw\n')
+        holder = '1: FLOCK ADVISORY WRITE 1234 00:23:12366030 0 EOF\n'
+        cases = (
+            ('other-device', holder.replace('00:23:', '00:24:'), mountinfo, 'FAIL'),
+            ('other-major', holder.replace('00:23:', '01:23:'), mountinfo, 'FAIL'),
+            ('matching-hex-device', holder, mountinfo, 'RUNNING'),
+            ('other-inode', holder.replace(':12366030 ', ':12366031 '), mountinfo, 'FAIL'),
+            ('waiter', holder.replace('1: FLOCK', '1: -> FLOCK'), mountinfo, 'FAIL'),
+            ('missing-lock', holder, mountinfo, 'FAIL'),
+            ('unreadable-locks', PermissionError('synthetic locks denied'), mountinfo, 'RUNNING'),
+            ('unreadable-mountinfo', '', PermissionError('synthetic mountinfo denied'), 'RUNNING'),
+            ('no-mount', '', '25 1 0:35 / /elsewhere rw - btrfs /dev/synthetic rw\n', 'RUNNING'),
+            ('escaped-mount', holder, mountinfo.replace('/home/sample', r'/home/sample\040mount'), 'RUNNING'),
+        )
+        flow = load_flow_script()
+        for case, locks, mounts, expected in cases:
+            with self.subTest(case=case):
+                run = self.make_run(run_id=f'run-lock-{case}')
+                for module in ('M1', 'M2'):
+                    write_json(run / 'gates' / f'{module.lower()}.json', slip(module, run.name))
+                write_json(run / 'executions' / 'm3.json', {
+                    'module': 'M3', 'sequence': 1, 'status': 'RUNNING', 'pid': self.dead_pid,
+                    'attemptId': ATTEMPT})
+                write_json(run / 'm3-custom' / 'attempts' / ATTEMPT / 'state.json', {
+                    'format': 'review-attempt-state-v1', 'runId': run.name,
+                    'status': 'RUNNING', 'pid': self.dead_pid})
+                evidence = {path: path.read_bytes() for path in run.rglob('*.json')}
+                lock_path = run / '.module.lock'
+                if case != 'missing-lock':
+                    lock_path.touch()
+                # Fedora btrfs: stat's anonymous 0:42 differs from mountinfo's 0:35.
+                identity = mock.Mock(st_ino=12366030, st_dev=42)
+                real_stat, real_open, real_path = pathlib.Path.stat, pathlib.Path.open, os.path.realpath
+
+                def stat_path(path, *args, **kwargs):
+                    if path == lock_path and case != 'missing-lock' and kwargs.get('follow_symlinks', True):
+                        return identity
+                    return real_stat(path, *args, **kwargs)
+
+                def open_path(path, *args, **kwargs):
+                    for proc, value in (('/proc/locks', locks), ('/proc/self/mountinfo', mounts)):
+                        if path == pathlib.Path(proc):
+                            if isinstance(value, OSError):
+                                raise value
+                            return io.StringIO(value)
+                    return real_open(path, *args, **kwargs)
+
+                def resolved_path(path, *args, **kwargs):
+                    if pathlib.Path(path) == lock_path:
+                        point = 'sample mount' if case == 'escaped-mount' else 'sample'
+                        return f'/home/{point}/run/.module.lock'
+                    return real_path(path, *args, **kwargs)
+
+                output = io.StringIO()
+                with mock.patch.dict(os.environ, self.env(), clear=True), \
+                        mock.patch.object(sys, 'argv', [str(SCRIPT), 'runs-progress']), \
+                        mock.patch.object(pathlib.Path, 'stat', stat_path), \
+                        mock.patch.object(pathlib.Path, 'open', open_path), \
+                        mock.patch.object(os.path, 'realpath', resolved_path), contextlib.redirect_stdout(output):
+                    flow.main()
+                progress = next(row for row in json.loads(output.getvalue())['runs'] if row['runId'] == run.name)
+                self.assertEqual(progress['steps'], ['PASS', 'PASS', expected, 'NOT_APPLICABLE'])
+                self.assertFalse(progress['finished'])
+                self.assertEqual(progress['active']['step'] if progress['active'] else None,
+                                 3 if expected == 'RUNNING' else None)
+                self.assertEqual({path: path.read_bytes() for path in run.rglob('*.json')}, evidence)
         self.assertEqual(self.step4_calls(), [])
 
     def test_runs_progress_reports_four_steps_the_active_stage_and_finished(self):
