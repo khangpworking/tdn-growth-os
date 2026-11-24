@@ -34,8 +34,9 @@ def expected_signature(url, method, secret, content_type=None, payload_sha256=No
     if payload_sha256:
         headers += 'x-amz-content-sha256:' + payload_sha256 + '\n'
         signed_headers += ';x-amz-content-sha256'
+    # Live R2 canonical request (24/11/2026, BRIEF-fix10.md): UNSIGNED-PAYLOAD, with the digest header still signed.
     canonical = '\n'.join((method, parsed.path, canonical_query, headers, signed_headers,
-                           payload_sha256 or 'UNSIGNED-PAYLOAD'))
+                           'UNSIGNED-PAYLOAD'))
     text = '\n'.join(('AWS4-HMAC-SHA256', query['X-Amz-Date'], scope,
                       hashlib.sha256(canonical.encode('ascii')).hexdigest()))
     signing_key = ('AWS4' + secret).encode('ascii')
