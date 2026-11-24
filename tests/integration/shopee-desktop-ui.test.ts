@@ -3867,6 +3867,79 @@ test('the full-page Metric picture: local viewer, online retention, old evidence
     heldLocal.resolve(null);
     stale.dom.window.close();
   }
+
+  // A click started in an earlier opening must leave the newer opening's picture alone.
+  for (const row of [
+    { action: 'view', answer: 'NOT_UPLOADED', unknown: true, local: false },
+    { action: 'view', answer: 'EXPIRED', unknown: false, local: false },
+    { action: 'save', answer: 'NOT_UPLOADED', unknown: true, local: false },
+    { action: 'save', answer: 'EXPIRED', unknown: false, local: true },
+    { action: 'view', answer: 'AVAILABLE', unknown: false, local: false },
+    { action: 'view', answer: 'LOCAL', unknown: true, local: false },
+    { action: 'view', answer: 'EVIDENCE_LOCAL_MISSING', unknown: true, local: true },
+    { action: 'save', answer: 'saved', unknown: true, local: false },
+  ] as const) {
+    const answer = deferred<unknown>();
+    const freshState = deferred<unknown>();
+    const local = { 'run-synthetic': false };
+    let openings = 0;
+    let offline = false;
+    const label = 'reopened ' + row.action + ' ' + row.answer;
+    const run = harness({
+      runs: ['run-other', 'run-synthetic'].map((runId) => ({ runId, product: runId, status: 'DONE' })),
+      runInfoByRun: { 'run-synthetic': syntheticRunInfo(), 'run-other': syntheticRunInfo('run-other') },
+      localShots: local, shotClock: { now: Date.parse('2026-11-24T12:00:00Z') },
+      connectionResultFor: () => ({ ok: true, data: { connected: !offline, readonly: false, runsRoot: '/synthetic/runs' } }),
+      metricShotStateResult: (runId) => runId === 'run-synthetic' && ++openings === 2 ? freshState.promise
+        : { ok: true, data: { runId, local: false, state: 'NOT_UPLOADED' } },
+      moduleOutputsResult: (runId) => runId === 'run-synthetic' && row.unknown
+        ? { ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } } : outputs(runId),
+      viewShotResult: () => answer.promise,
+      saveShotResult: () => answer.promise,
+    });
+    try {
+      await openAfterStartup(run, 'run-other', 'run-synthetic');
+      await waitFor(() => openings === 1 && run.doc.getElementById('moM1FullPage') !== null &&
+        (row.unknown ? run.doc.getElementById('moduleOutputsErr') !== null : run.doc.getElementById('moM1Capture') !== null),
+      label + ': first opening');
+      element<HTMLButtonElement>(run.doc, row.action === 'view' ? 'moM1FullPage' : 'moM1SaveShot').click();
+      await waitFor(() => run.state.viewShotCalls.length + run.state.saveShotCalls.length === 1, label + ': click held');
+      local['run-synthetic'] = row.local;
+      runListButton(run.doc, 'run-synthetic').click();
+      await waitFor(() => openings === 2, label + ': fresh state read started');
+      freshState.resolve({ ok: true, data: { runId: 'run-synthetic', local: row.local,
+        state: row.unknown ? 'NOT_UPLOADED' : 'AVAILABLE', deleteAfter: '2099-01-11T00:00:00Z' } });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const hint = !row.unknown && !row.local ? 'Ảnh lưu đến 11/01/2099' : null;
+      assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent ?? null, hint, label + ': fresh opening note');
+      answer.resolve(row.action === 'save'
+        ? row.answer === 'saved' ? { ok: true, data: { saved: true } }
+          : { ok: false, error: { code: 'METRIC_SHOT_' + row.answer } }
+        : row.answer === 'EVIDENCE_LOCAL_MISSING' ? { ok: false, error: { code: row.answer } }
+          : { ok: true, data: { format: 'metric-shot-open-v1', runId: 'run-synthetic', state: row.answer,
+            src: row.answer === 'LOCAL' ? 'data:image/webp;base64,c3ludGhldGlj' : 'https://synthetic.invalid/stale.webp',
+            deleteAfter: '2099-02-11T00:00:00Z' } });
+      await waitFor(() => !element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, label + ': click completed');
+      assert.equal(run.doc.getElementById('moM1FullPageHint')?.textContent ?? null, hint, label + ': fresh note survives');
+      assert.equal(element<HTMLDialogElement>(run.doc, 'shotDialog').open, false, label + ': stale answer cannot open viewer');
+      assert.equal(element<HTMLImageElement>(run.doc, 'shotImg').hasAttribute('src'), false, label + ': no stale image');
+      if (row.answer === 'saved') {
+        assert.equal(element(run.doc, 'toast').textContent, 'Đã lưu ảnh', label + ': completed file save is acknowledged');
+        assert.equal(element(run.doc, 'toast').hidden, false);
+      }
+      offline = true;
+      run.advanceShotTime(15000);
+      await waitFor(() => element(run.doc, 'connText').textContent === 'Chưa kết nối máy chủ.', label + ': disconnected');
+      for (const id of ['moM1FullPage', 'moM1SaveShot']) {
+        const button = run.doc.getElementById(id) as HTMLButtonElement | null;
+        assert.equal(button !== null && !button.disabled, row.local, label + ': fresh local-file state survives, ' + id);
+      }
+    } finally {
+      answer.resolve(null);
+      freshState.resolve(null);
+      run.dom.window.close();
+    }
+  }
 });
 
 // The actions do not wait for the step results: shown while they load or after they fail, whenever there is
@@ -3953,6 +4026,69 @@ test('the Metric picture actions stay reachable while the step results load or f
       assert.deepEqual(run.state.openEvidenceCalls, [], item.label);
     } finally {
       held.resolve(null);
+      run.dom.window.close();
+    }
+  }
+
+  // Cached no-picture results stay visible while their replacement is pending or has failed.
+  for (const oldServer of [false, true]) {
+    const refresh = deferred<unknown>();
+    const retry = deferred<unknown>();
+    let nextRead: Promise<unknown> | null = null;
+    const label = oldServer ? 'single reads' : 'run-view reads';
+    const noPicture = (runId: string) => ({ ok: true, data: moduleOutputView(runId, { evidence: {
+      fullPage: { available: false, kind: 'full-page', sha256: null, byteSize: null, mediaType: 'image/png',
+        fileName: 'full-page.png', errorCode: 'EVIDENCE_FILES_MISSING' },
+      raw: evidenceDescriptor('raw', 'raw-responses.json', 'application/json'),
+    } }) });
+    const run = harness({
+      runs: ['run-other', 'run-synthetic'].map((runId) => ({ runId, product: runId, status: 'DONE' })),
+      runInfoByRun: { 'run-synthetic': syntheticRunInfo(), 'run-other': syntheticRunInfo('run-other') }, oldServer,
+      moduleOutputsResult: (runId) => runId === 'run-synthetic' && nextRead ? nextRead : noPicture(runId),
+      metricShotStateResult: (runId) => ({ ok: true, data: { runId, local: false, state: 'NOT_UPLOADED' } }),
+      viewShotResult: (runId) => ({ ok: true, data: { format: 'module-evidence-open-v1', runId,
+        kind: 'full-page', sha256: 'b'.repeat(64), opened: true } }),
+      saveShotResult: () => ({ ok: true, data: { saved: true } }),
+    });
+    const clicks = async (phase: string, known: boolean) => {
+      const count = run.state.viewShotCalls.length;
+      element<HTMLButtonElement>(run.doc, 'moM1FullPage').click();
+      await waitFor(() => run.state.viewShotCalls.length === count + 1 &&
+        !element<HTMLButtonElement>(run.doc, 'moM1FullPage').disabled, label + ': ' + phase + ' view answered');
+      assert.deepEqual(run.state.viewShotCalls.at(-1), ['run-synthetic', null, known], label + ': ' + phase + ' View oldKnown');
+      element<HTMLButtonElement>(run.doc, 'moM1SaveShot').click();
+      await waitFor(() => run.state.saveShotCalls.length === count + 1 &&
+        !element<HTMLButtonElement>(run.doc, 'moM1SaveShot').disabled, label + ': ' + phase + ' save answered');
+      assert.deepEqual(run.state.saveShotCalls.at(-1), ['run-synthetic', 'run-synthetic', null, true, known],
+        label + ': ' + phase + ' Save oldKnown');
+    };
+    try {
+      await openAfterStartup(run, 'run-other', 'run-synthetic');
+      await waitFor(() => run.doc.getElementById('moM1Capture') !== null, label + ': initial no-picture results');
+      await clicks('fresh initial read', true);
+      nextRead = refresh.promise;
+      const outputReads = () => run.state.moduleOutputsCalls.filter((runId) => runId === 'run-synthetic').length;
+      const reads = outputReads();
+      runListButton(run.doc, 'run-synthetic').click();
+      await waitFor(() => outputReads() === reads + 1 &&
+        run.doc.getElementById('moM1FullPage') !== null, label + ': reopening refresh pending');
+      assert.notEqual(run.doc.getElementById('moM1Capture'), null, label + ': cached results remain shown');
+      await clicks('cached results, refresh pending', false);
+      refresh.resolve({ ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } });
+      await waitFor(() => run.doc.getElementById('moduleOutputsErr') !== null, label + ': refresh failed');
+      assert.notEqual(run.doc.getElementById('moM1Capture'), null, label + ': failed refresh keeps cached results');
+      await clicks('cached results, refresh failed', false);
+      nextRead = retry.promise;
+      runListButton(run.doc, 'run-synthetic').click();
+      await waitFor(() => outputReads() === reads + 2, label + ': retry pending');
+      await clicks('cached results, retry pending', false);
+      retry.resolve(noPicture('run-synthetic'));
+      await waitFor(() => run.doc.getElementById('moduleOutputsErr') === null &&
+        run.doc.getElementById('moM1Capture') !== null, label + ': fresh read succeeded');
+      await clicks('fresh successful retry', true);
+    } finally {
+      refresh.resolve(null);
+      retry.resolve(null);
       run.dom.window.close();
     }
   }

@@ -3302,6 +3302,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     localShots: {},
     metricShots: {},      // runId -> {state: AVAILABLE|EXPIRED|NOT_UPLOADED|null, deleteAfter} of the online copy
     shotOpening: {},      // runId -> selectionSeq of the opening whose one state read was asked
+    outputsFresh: {},     // runId -> selectionSeq of the opening whose live step-results read was the last to succeed
     moduleOutputsErrors: {},
     moduleOutputsSeq: {},
     reviewStats: {},
@@ -3709,10 +3710,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     btn.type = 'button';
     btn.id = 'moM1FullPage';
     btn.disabled = off || !!state.moduleEvidenceBusy[runId];
-    // oldKnown: the page has the step results, so a null digest means «no old picture» (no lookup).
-    btn.addEventListener('click', function () { openShot(runId, oldDigest, !outputsUnknown); });
+    // oldKnown (checked at click time): the step results shown are current, so a null digest means «no old
+    // picture» (no lookup). A cached, pending or failed read sends false: the bridge looks it up itself.
+    var oldKnown = function () { return !outputsUnknown && outputsCurrent(runId); };
+    btn.addEventListener('click', function () { openShot(runId, oldDigest, oldKnown()); });
     wrap.appendChild(btn);
-    wrap.appendChild(saveShotButton(runId, oldDigest, off, !outputsUnknown));
+    wrap.appendChild(saveShotButton(runId, oldDigest, off, oldKnown));
     if (!local && descriptor && descriptor.errorCode && descriptor.errorCode !== 'EVIDENCE_FILES_MISSING') {
       wrap.appendChild(outputEvidenceAction('moM1FullPage', label, runId, descriptor));   // the error note
       return wrap;
@@ -3724,6 +3727,18 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       wrap.appendChild(note);
     }
     return wrap;
+  }
+
+  // The step results shown were read live and successfully in this opening, and no newer read is out or failed.
+  function outputsCurrent(runId) {
+    return state.outputsFresh[runId] === state.selectionSeq && !state.moduleOutputsErrors[runId] &&
+      !state.runViewInFlight[runId];
+  }
+
+  // The opening guard of the picture state: an answer asked in an older opening (or for a run no longer open)
+  // never writes this opening's picture state.
+  function sameShotOpening(runId, opening) {
+    return !isGone(runId) && state.selectedRunId === runId && state.selectionSeq === opening;
   }
 
   // The note: from the one state read of this opening, or from the last click's answer.
@@ -3744,7 +3759,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     btn.type = 'button';
     btn.id = 'moM1SaveShot';
     btn.disabled = off || !!state.moduleEvidenceBusy[runId];
-    btn.addEventListener('click', function () { saveShot(runId, oldDigest, oldKnown); });
+    btn.addEventListener('click', function () { saveShot(runId, oldDigest, oldKnown()); });
     return btn;
   }
 
@@ -3771,17 +3786,19 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     delete state.moduleEvidenceErrors[runId];
     delete state.moduleEvidenceNotice[runId];
     if (state.selectedRunId === runId) renderDetail();
+    var opening = state.selectionSeq;
     var res = await api.viewMetricShot(runId, oldDigest || null, oldKnown === true);
     if (isGone(runId)) return;
     delete state.moduleEvidenceBusy[runId];
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
+    var current = sameShotOpening(runId, opening);    // an older opening's answer: no picture state, no viewer
     if (!res.ok) {
       state.moduleEvidenceErrors[runId] = res.error;
-      if (errorCode(res.error) === 'EVIDENCE_LOCAL_MISSING') state.localShots[runId] = false;
+      if (current && errorCode(res.error) === 'EVIDENCE_LOCAL_MISSING') state.localShots[runId] = false;
     } else if (data && data.format === 'module-evidence-open-v1') {
-      delete state.metricShots[runId];                                     // no stale «không có ảnh» note
+      if (current) delete state.metricShots[runId];                        // no stale «không có ảnh» note
       state.moduleEvidenceNotice[runId] = 'Đã mở bằng chứng đã lưu.';     // an old run's server picture
-    } else if (data) {
+    } else if (data && current) {
       state.localShots[runId] = data.state === 'LOCAL';
       if (data.state !== 'LOCAL') state.metricShots[runId] = { state: data.state, deleteAfter: data.deleteAfter || null, fromClick: true };
       if ((data.state === 'LOCAL' || data.state === 'AVAILABLE') && typeof data.src === 'string') {
@@ -3799,6 +3816,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (state.selectedRunId === runId) renderDetail();
     var item = state.runs.find(function (r) { return r.runId === runId; }) || {};
     var name = runDisplayName(item.tracking || null, item.product || '');
+    var opening = state.selectionSeq;
     var res = await api.saveMetricShot(runId, name, oldDigest, true, oldKnown === true);
     if (isGone(runId)) {
       if (res.ok && res.data && res.data.saved) showToast('Đã lưu ảnh');   // the file was saved all the same
@@ -3806,7 +3824,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     }
     delete state.moduleEvidenceBusy[runId];
     var code = res.ok ? null : errorCode(res.error);
-    if (code === 'METRIC_SHOT_EXPIRED' || code === 'METRIC_SHOT_NOT_UPLOADED') {
+    if ((code === 'METRIC_SHOT_EXPIRED' || code === 'METRIC_SHOT_NOT_UPLOADED') && !sameShotOpening(runId, opening)) {
+      // an older opening's answer: nothing was saved, and this opening's picture state stays
+    } else if (code === 'METRIC_SHOT_EXPIRED' || code === 'METRIC_SHOT_NOT_UPLOADED') {
       state.localShots[runId] = false;                       // nothing to save: the note says why
       state.metricShots[runId] = { state: code.slice('METRIC_SHOT_'.length), deleteAfter: null, fromClick: true };
     } else if (!res.ok) {
@@ -3839,7 +3859,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (state.shotOpening[runId] === state.selectionSeq) return;
     var opening = state.shotOpening[runId] = state.selectionSeq;
     var res = await api.metricShotState(runId);
-    if (isGone(runId) || state.selectedRunId !== runId || state.selectionSeq !== opening) return;
+    if (!sameShotOpening(runId, opening)) return;
     var data = res.ok && res.data && res.data.runId === runId ? res.data : null;
     var before = state.metricShots[runId] || {};
     var localBefore = state.localShots[runId];
@@ -4610,9 +4630,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     await shot;
   }
 
-  async function loadModuleOutputsView(runId, pending) {
+  // `opening`: with `pending`, the opening in which that live read was sent (none for a disk copy).
+  async function loadModuleOutputsView(runId, pending, opening) {
     var seq = (state.moduleOutputsSeq[runId] || 0) + 1;
     state.moduleOutputsSeq[runId] = seq;
+    if (!pending) opening = state.selectionSeq;
+    delete state.outputsFresh[runId];               // a read is out: the results shown are not current
     var live = pending ? 0 : claimLiveSeq(runId);   // its own call: a live write of the part
     var res = await (pending || api.moduleOutputs(runId));
     if (isGone(runId)) return;   // a late reply for a deleted run
@@ -4626,6 +4649,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       state.moduleOutputs[runId] = res.data;
       delete state.moduleOutputsErrors[runId];
       if (live) markLive(runId, 'outputs', live);
+      if (opening === state.selectionSeq) state.outputsFresh[runId] = opening;
     }
     if (state.selectedRunId === runId) renderDetail();
   }
@@ -7849,6 +7873,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   // the next connect); every other answer goes to applyRunViewAnswer. Resolves with the info part's reply (none
   // on the single-call path).
   async function runViewRefresh(runId, join) {
+    var opening = state.selectionSeq;                           // the opening in which this read is sent
     state.infoSeq[runId] = (state.infoSeq[runId] || 0) + 1;     // a single-call status still out is now older
     var viewSeq = (state.runViewSent[runId] || 0) + 1;
     state.runViewSent[runId] = viewSeq;
@@ -7873,7 +7898,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         state.copiesOff = true;    // the server cannot refresh a copy: none is shown for the rest of the session
         return await loadInfoSingles(runId);    // settles once every single call has answered
       }
-      return await applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds });
+      return await applyRunViewAnswer(runId, viewSeq, { reply: res, kinds: kinds, opening: opening });
     } finally {
       settleCopy(runId);
       if (holding) releaseRenders();
@@ -7953,10 +7978,11 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
             return;
           }
           applied.push(trackLoad(rule.task, runId, rule.seqMap, function () {
-            return rule.load(runId, Promise.resolve(part));
+            return rule.load(runId, Promise.resolve(part), answer.opening);
           }));
           return;
         }
+        if (name === 'outputs' && newer) delete state.outputsFresh[runId];   // a failed refresh: not current
         if (!newer || callError) return;              // an older read, or the call's own mark below
         if (name === 'info') {
           if (selected) showError(part.ok ? RUN_VIEW_INVALID : part.error);
