@@ -1,16 +1,22 @@
 """Step 4 (save -> Jev filter -> Jev label) rows of shopee_flow.py: automatic start after an M3 PASS, the
 «Chạy tiếp» hand-off and runs-progress. A fake `node` records every step-4 call; no TS, DB writer or Jev runs."""
 import hashlib
+import fcntl
+import contextlib
+import io
 import json
 import os
 import pathlib
 import sqlite3
 import stat
 import shutil
+import select
+import subprocess
 import sys
 import time
+from unittest import mock
 
-from test_flow import FAKE_NODE, RUN_ID, SCRIPT, FlowTest, request_payload, write_json
+from test_flow import FAKE_NODE, RUN_ID, SCRIPT, FlowTest, load_flow_script, request_payload, write_json
 
 SHA = 'a' * 64
 ATTEMPT = '11111111-1111-4111-8111-111111111111'
@@ -194,7 +200,13 @@ class RunsProgressTests(ReviewProcessFlowTest):
         return payload
 
     def test_step3_is_running_only_while_its_attempt_worker_is_live(self):
-        for worker, pid, expected in (('dead', self.dead_pid, 'FAIL'), ('live', os.getpid(), 'RUNNING')):
+        cases = (('dead', self.dead_pid, 'RUNNING', False, 'FAIL'),
+                 ('live', os.getpid(), 'RUNNING', False, 'RUNNING'),
+                 ('held', self.dead_pid, 'RUNNING', True, 'RUNNING'),
+                 ('terminal', self.dead_pid, 'FAILED', True, 'FAIL'),
+                 ('unreadable', self.dead_pid, 'RUNNING', False, 'RUNNING'))
+        flow = load_flow_script()
+        for worker, pid, status, held, expected in cases:
             with self.subTest(worker=worker):
                 run_id = f'run-m3-{worker}'
                 run = self.make_run(run_id=run_id)
@@ -204,17 +216,64 @@ class RunsProgressTests(ReviewProcessFlowTest):
                     'module': 'M3', 'sequence': 1, 'status': 'RUNNING', 'pid': self.dead_pid,
                     'attemptId': ATTEMPT})
                 write_json(run / 'm3-custom' / 'attempts' / ATTEMPT / 'state.json', {
-                    'format': 'review-attempt-state-v1', 'runId': run_id, 'status': 'RUNNING', 'pid': pid})
+                    'format': 'review-attempt-state-v1', 'runId': run_id, 'status': status, 'pid': pid})
                 state_bytes = (run / 'state.json').read_bytes()
                 attempt = run / 'm3-custom' / 'attempts' / ATTEMPT / 'state.json'
                 attempt_bytes = attempt.read_bytes()
 
-                progress = next(row for row in self.progress()['runs'] if row['runId'] == run_id)
-                self.assertEqual(progress['steps'], ['PASS', 'PASS', expected, 'NOT_APPLICABLE'])
-                self.assertFalse(progress['finished'])
-                if worker == 'live':
-                    self.assertEqual(progress['active']['step'], 3)
-                else:
+                lock_path = run / '.module.lock'
+                lock_path.touch()
+                identity = lock_path.stat()
+                flock_calls = []
+                real_flock, real_open = fcntl.flock, pathlib.Path.open
+
+                def observe_flock(fd, operation):
+                    actual = os.fstat(fd)
+                    if (actual.st_dev, actual.st_ino) == (identity.st_dev, identity.st_ino):
+                        flock_calls.append(operation)
+                    return real_flock(fd, operation)
+
+                def open_path(path, *args, **kwargs):
+                    if worker == 'unreadable' and str(path) == '/proc/locks':
+                        raise PermissionError('synthetic unreadable flock state')
+                    return real_open(path, *args, **kwargs)
+
+                holder = None
+                try:
+                    if held:
+                        holder = subprocess.Popen([sys.executable, '-B', '-c',
+                            "import fcntl, sys\n"
+                            "with open(sys.argv[1], 'a') as lock:\n"
+                            " fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+                            " print('ready', flush=True)\n"
+                            " sys.stdin.buffer.read(1)\n", str(lock_path)],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env())
+                        self.assertTrue(select.select([holder.stdout], [], [], 10)[0], 'lock holder did not start')
+                        self.assertEqual(holder.stdout.readline(), b'ready\n')
+                    output = io.StringIO()
+                    with mock.patch.dict(os.environ, self.env(), clear=True), \
+                            mock.patch.object(sys, 'argv', [str(SCRIPT), 'runs-progress']), \
+                            mock.patch('fcntl.flock', side_effect=observe_flock), \
+                            mock.patch.object(pathlib.Path, 'open', open_path), contextlib.redirect_stdout(output):
+                        flow.main()
+                    self.assertEqual(flock_calls, [], 'progress must never flock the admission inode, even briefly')
+                    progress = next(row for row in json.loads(output.getvalue())['runs'] if row['runId'] == run_id)
+                    self.assertEqual(progress['steps'], ['PASS', 'PASS', expected, 'NOT_APPLICABLE'])
+                    self.assertFalse(progress['finished'])
+                    if expected == 'RUNNING':
+                        self.assertEqual(progress['active']['step'], 3)
+                    else:
+                        self.assertIsNone(progress['active'])
+                finally:
+                    if holder is not None:
+                        try:
+                            holder.communicate(input=b'1', timeout=10)
+                        except subprocess.TimeoutExpired:
+                            holder.kill()
+                            holder.communicate(timeout=10)
+                if held:
+                    progress = next(row for row in self.progress()['runs'] if row['runId'] == run_id)
+                    self.assertEqual(progress['steps'][2], 'FAIL', 'a released lock cannot keep a dead attempt running')
                     self.assertIsNone(progress['active'])
                 self.assertEqual((run / 'state.json').read_bytes(), state_bytes)
                 self.assertEqual(attempt.read_bytes(), attempt_bytes)

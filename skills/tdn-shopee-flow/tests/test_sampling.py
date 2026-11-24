@@ -5,12 +5,18 @@ validation, the read-only guard, a changed M2 digest, or a missing collector
 configuration, so no capture, browser, service or provider is reached.
 """
 import hashlib
+import contextlib
 import json
 import os
 import pathlib
 import subprocess
+import signal
+import select
+import shutil
 import sys
 import tempfile
+import time
+import types
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -41,9 +47,107 @@ def sampling_digest(value):
     return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
 
 
+@contextlib.contextmanager
+def sampling_child(run, base, env, command='m3', pause='execute'):
+    """Pause a synthetic collector at the real Python subprocess boundary, before PID publication."""
+    with tempfile.TemporaryDirectory(prefix='sampling-child-', dir=base) as directory:
+        folder = pathlib.Path(directory)
+        node = folder / 'node.py'
+        ready, release = folder / 'ready.json', folder / 'release'
+        node.write_text('''import json, os, pathlib, sys, time
+action, run = sys.argv[2], pathlib.Path(sys.argv[3])
+attempt = '11111111-1111-4111-8111-111111111111'
+if action == 'reserve':
+    kind = sys.argv[4]
+    root = 'review-counts' if kind == 'counts' else 'm3-custom/attempts'
+    state = run / root / attempt / 'state.json'
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(json.dumps({'format': 'shopee-review-attempt-state-v1',
+        'status': 'RUNNING', 'pid': os.getppid()}))
+if action == os.environ['SAMPLING_PAUSE']:
+    lock = (run / '.module.lock').stat() if (run / '.module.lock').exists() else None
+    inherited = False
+    for name in os.listdir('/proc/self/fd'):
+        try:
+            actual = os.fstat(int(name))
+        except OSError:
+            continue
+        inherited |= lock is not None and (actual.st_dev, actual.st_ino) == (lock.st_dev, lock.st_ino)
+    pathlib.Path(os.environ['SAMPLING_READY']).write_text(json.dumps({
+        'pid': os.getpid(), 'parentPid': os.getppid(), 'inherited': inherited}))
+    deadline = time.monotonic() + 60
+    while not pathlib.Path(os.environ['SAMPLING_RELEASE']).exists():
+        if time.monotonic() >= deadline:
+            raise SystemExit('synthetic collector was not released')
+        time.sleep(0.01)
+print(json.dumps({'format': 'review-attempt-control-v1', 'attemptId': attempt, 'status': 'RUNNING'}))
+''', encoding='utf-8')
+        driver = '''import importlib.util, json, os, pathlib, sys
+spec = importlib.util.spec_from_file_location('shopee_flow', sys.argv[1])
+flow = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(flow)
+repo, config = flow.module_config()
+config['params']['nodeCommand'] = [sys.executable, '-B', sys.argv[2]]
+flow.module_config = lambda: (repo, config)
+run = pathlib.Path(sys.argv[3])
+state = json.loads((run / 'state.json').read_text())
+(run / 'state.json').write_text(json.dumps({**state, 'status': 'RUNNING', 'pid': os.getpid()}))
+sys.argv = [sys.argv[1], *sys.argv[4:]]
+flow.main()
+'''
+        args = [command, '--run', run.name]
+        if command == 'm3':
+            args += ['--plan-sha256', 'a' * 64]
+        elif command == 'reconcile-review-attempt':
+            args += ['--kind', 'counts', '--attempt', '11111111-1111-4111-8111-111111111111']
+        child_env = dict(env, SAMPLING_PAUSE=pause, SAMPLING_READY=str(ready), SAMPLING_RELEASE=str(release))
+        parent = None
+        child_fd = None
+        try:
+            with open(folder / 'parent.log', 'w+') as log:
+                parent = subprocess.Popen([sys.executable, '-B', '-c', driver, str(SCRIPT), str(node), str(run), *args],
+                                          env=child_env, stdout=log, stderr=log, start_new_session=True)
+                deadline = time.monotonic() + 15
+                while not ready.exists() and parent.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                if not ready.exists():
+                    log.seek(0)
+                    raise AssertionError('collector did not reach its pause: ' + log.read())
+                # Publication can race the reader; wait for complete JSON, never for a guessed delay.
+                while True:
+                    try:
+                        info = json.loads(ready.read_text())
+                        break
+                    except ValueError:
+                        if time.monotonic() >= deadline:
+                            raise
+                        time.sleep(0.01)
+                child_fd = os.pidfd_open(info['pid'])
+
+                def finish():
+                    release.touch()
+                    if not select.select([child_fd], [], [], 15)[0]:
+                        raise AssertionError('synthetic collector did not exit')
+
+                yield types.SimpleNamespace(parent=parent, info=info, finish=finish)
+        finally:
+            if parent is not None:
+                try:
+                    os.killpg(parent.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                parent.wait(timeout=10)
+            if child_fd is not None:
+                try:
+                    if not select.select([child_fd], [], [], 10)[0]:
+                        raise AssertionError('synthetic collector survived cleanup')
+                finally:
+                    os.close(child_fd)
+
+
 class SamplingCliTest(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
+        self._tmp = tempfile.TemporaryDirectory(dir=ROOT)
         self.addCleanup(self._tmp.cleanup)
         base = pathlib.Path(self._tmp.name)
         self.runs, self.state = base / 'runs', base / 'state'
@@ -117,6 +221,21 @@ class SamplingCliTest(unittest.TestCase):
     def plans(self):
         folder = self.run / 'm3-custom/plans'
         return sorted(folder.glob('*.json')) if folder.is_dir() else []
+
+    @unittest.skipUnless(sys.platform == 'linux', 'requires inherited flock and /proc file descriptors')
+    def test_sampling_children_inherit_the_admission_lock_only_for_locked_commands(self):
+        cases = (('m3', 'reserve'), ('m3', 'execute'), ('review-counts', 'reserve'),
+                 ('review-counts', 'execute'), ('reconcile-review-attempt', 'reconcile-check'),
+                 ('reconcile-review-attempt', 'execute'), ('review-sampling', 'view'))
+        for command, pause in cases:
+            with self.subTest(command=command, action=pause):
+                # Each launch owns a fresh run, without another attempt's ledger or state.
+                for name in ('executions', 'm3-custom', 'review-counts'):
+                    shutil.rmtree(self.run / name, ignore_errors=True)
+                self.write_fixture()
+                with sampling_child(self.run, self._tmp.name, self.env(), command, pause) as child:
+                    self.assertEqual(child.info['inherited'], command != 'review-sampling',
+                                     'the actual child must inherit the lock only from an admitted caller')
 
     def test_view_and_save_are_offline_and_keep_upstream_bytes(self):
         request_bytes = (self.run / 'request.json').read_bytes()
