@@ -1875,17 +1875,23 @@ test('results stay above one closed step section and a failed run opens it', asy
       'raw diagnostics stay closed on a completed run');
   } finally { done.dom.window.close(); }
 
-  const failedInfo: any = syntheticRunInfo();
-  failedInfo.state = { status: 'FAILED', module: 'M3', errorCode: 'GATE_FAILED' };
-  const failed = harness({
-    runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status: 'FAILED' }],
-    runInfo: failedInfo, sampling: syntheticSampling(),
-  });
-  try {
-    await waitFor(() => failed.doc.getElementById('techDetails') !== null, 'failed detail');
-    assert.equal((failed.doc.getElementById('techDetails') as HTMLDetailsElement).open, true,
-      'a failed run opens the step section');
-  } finally { failed.dom.window.close(); }
+  for (const status of ['FAILED', 'STOPPED']) {
+    const failedInfo: any = syntheticRunInfo();
+    failedInfo.state = { status, module: 'M3', errorCode: 'RUN_INTERRUPTED' };
+    const failed = harness({
+      runs: [{ runId: 'run-synthetic', product: 'Sản phẩm tổng hợp', status }],
+      runInfo: failedInfo, sampling: syntheticSampling(),
+    });
+    try {
+      await waitFor(() => failed.doc.getElementById('techDetails') !== null, status + ' detail');
+      assert.equal((failed.doc.getElementById('techDetails') as HTMLDetailsElement).open, true,
+        status + ' opens the step section');
+      const notice = failed.doc.querySelector<HTMLElement>('#runDetail > .local-error');
+      assert.ok(notice, status + ' keeps the failure notice');
+      assert.equal(notice.title, 'RUN_INTERRUPTED');
+      assert.ok(notice.textContent?.trim(), status + ' explains why work stopped');
+    } finally { failed.dom.window.close(); }
+  }
 });
 
 test('progress uses only the current execution and same-attempt observed counts', async () => {
@@ -2010,15 +2016,21 @@ test('the run list shows the saved quantity and filters real failure states', as
     runs: [
       { runId: 'run-idle', product: 'Sản phẩm mới', status: 'IDLE', request: configuredRequest },
       { runId: 'run-failed', product: 'Sản phẩm lỗi', status: 'FAILED', request: configuredRequest },
+      { runId: 'run-stopped', product: 'Sản phẩm đã dừng', status: 'STOPPED', request: configuredRequest },
       { runId: 'run-owner', product: 'Sản phẩm chờ', status: 'WAIT_OWNER', request: { format: 'request-v1', reviewCapPerLink: 300 } },
     ],
     runInfoByRun: {
       'run-idle': syntheticRunInfo('run-idle'), 'run-failed': syntheticRunInfo('run-failed'),
       'run-owner': syntheticRunInfo('run-owner'),
+      'run-stopped': syntheticRunInfo('run-stopped'),
     },
+    runsProgressResults: [progressReply([
+      progressRun('run-stopped', ['PASS', 'PASS', 'FAIL', 'IDLE']),
+    ])],
   });
   try {
-    await waitFor(() => result.doc.querySelectorAll('#runList .runbtn').length === 3, 'run list');
+    await waitFor(() => result.doc.querySelectorAll('#runList .runbtn').length === 4 &&
+      result.state.runsProgressCalls > 0, 'run list and stopped progress');
     assert.match(runListButton(result.doc, 'run-failed').textContent!, /Tối đa 500 mỗi link/);
     assert.match(runListButton(result.doc, 'run-owner').textContent!, /Tối đa 300 mỗi link/);
     assert.deepEqual(result.state.statusCalls, ['run-idle'],
@@ -2027,6 +2039,14 @@ test('the run list shows the saved quantity and filters real failure states', as
     const labels = [...filter.options].map((option) => option.textContent);
     assert.ok(labels.includes('Bị lỗi'), 'the actual failure state is selectable');
     assert.ok(labels.includes('Cần bạn xử lý'), 'the needs-user state is selectable');
+    assert.ok(labels.includes('Đã dừng'), 'the stopped state is selectable');
+    assert.equal(runListButton(result.doc, 'run-stopped').querySelector('.chip')?.textContent, 'Đã dừng',
+      'a stopped collection keeps its run status');
+
+    filter.value = 'stopped';
+    fire(result.window, filter, 'change');
+    await waitFor(() => result.doc.querySelectorAll('#runList .runbtn').length === 1, 'stopped filter');
+    assert.match(runListButton(result.doc, 'run-stopped').title, /run-stopped/);
 
     filter.value = 'failed';
     fire(result.window, filter, 'change');
@@ -3228,6 +3248,32 @@ test('step 4 card follows step 3 and shows the running, pass, fail and old state
     await waitFor(() => state.processReviewDataCalls.length === 1, 'resume sent');
     assert.deepEqual(state.processReviewDataCalls, [{ runId: 'run-fail', sourceSha256: STEP4_SHA }]);
   } finally { dom.window.close(); }
+
+  for (const status of ['FAILED', 'STOPPED']) {
+    const runId = 'run-resumable';
+    const info: any = collectedRunInfo(runId);
+    info.state = { status: 'STOPPED', module: 'M3', errorCode: 'RUN_INTERRUPTED' };
+    info.execution = { format: 'run-execution-view-v1', revision: 1, status,
+      currentModule: 'M3', currentExecutionId: 'exec-resumable',
+      modules: { M3: { status: 'FAILED', errorCode: 'RUN_INTERRUPTED', currentGate: null } } };
+    const run = harness({
+      runs: [{ runId, product: 'Sản phẩm đã dừng', status, execution: info.execution }],
+      runInfo: info,
+      reviewProcessResult: (id) => reviewProcessReply(id, 'FAIL'),
+    });
+    try {
+      await waitFor(() => run.doc.getElementById('s4Resume') !== null, status + ' resumable detail');
+      const resume = element<HTMLButtonElement>(run.doc, 's4Resume');
+      assert.equal(resume.disabled, false, status + ' keeps «Chạy tiếp» enabled');
+      assert.match(step4Card(run.doc).textContent || '', /Phần đã xong được giữ lại/,
+        status + ' keeps the failure explanation');
+      assert.equal(run.doc.querySelector<HTMLElement>('#runDetail > .local-error')?.title, 'RUN_INTERRUPTED',
+        status + ' keeps the run failure notice');
+      resume.click();
+      await waitFor(() => run.state.processReviewDataCalls.length === 1, status + ' resume sent');
+      assert.deepEqual(run.state.processReviewDataCalls, [{ runId, sourceSha256: STEP4_SHA }]);
+    } finally { run.dom.window.close(); }
+  }
 });
 
 test('step 4 card with several sources: any stop wins and resumes that source, «Đạt kiểm tra» needs every source', async () => {
@@ -4140,6 +4186,47 @@ test('«Xóa lượt» asks first, explains a running run, and leaves the delete
     assert.ok(!(dialog.open || dialog.hasAttribute('open')));
     assert.equal(element(run.doc, 'toast').textContent, 'Đã xóa lượt');
     assert.equal(element(run.doc, 'toast').hidden, false);
+  } finally { run.dom.window.close(); }
+});
+
+test('a null-execution UNKNOWN row stays listed, opens despite its damaged view and can be deleted', async () => {
+  const good = 'run-good';
+  const damaged = 'run-damaged';
+  const run = harness({
+    runs: [
+      { runId: good, product: 'Sản phẩm tốt', status: 'IDLE' },
+      { runId: damaged, product: 'Sản phẩm hỏng', status: 'UNKNOWN', execution: null,
+        tracking: null, lastGate: null, lastVerdict: null, errorCode: 'EXECUTION_RECORD_INVALID' },
+    ],
+    runInfoByRun: { [good]: syntheticRunInfo(good) },
+    statusError: (runId) => runId === damaged
+      ? { ok: false, error: { code: 'EXECUTION_RECORD_INVALID', message: 'EXECUTION_RECORD_INVALID' } }
+      : undefined,
+  });
+  try {
+    await waitFor(() => run.doc.querySelectorAll('#runList .runbtn').length === 2, 'both rows');
+    const bad = runListButton(run.doc, damaged);
+    assert.equal(bad.querySelector('.chip')?.textContent, 'Chưa xác định được trạng thái');
+    assert.ok(runListButton(run.doc, good));
+    assert.deepEqual(run.state.notifyCalls, [], 'an unreadable view is not a completion event');
+    assert.ok(run.state.prefetchCalls.every((rows) => rows.every((row) => row.runId !== damaged)),
+      'a null execution never supplies a prefetch signature');
+    bad.click();
+    await waitFor(() => run.state.statusCalls.includes(damaged) &&
+      run.doc.getElementById('btnDeleteRun') !== null, 'damaged run opened');
+    assert.match(element(run.doc, 'runDetail').textContent || '', /Sản phẩm hỏng/);
+    const remove = element<HTMLButtonElement>(run.doc, 'btnDeleteRun');
+    assert.equal(remove.disabled, false, 'damaged execution does not disable delete');
+    remove.click();
+    assert.equal(element<HTMLDialogElement>(run.doc, 'deleteDialog').open, true);
+    assert.deepEqual(run.state.deleteRunCalls, [], 'opening the confirmation never deletes');
+    element<HTMLButtonElement>(run.doc, 'deleteConfirmBtn').click();
+    await waitFor(() => run.state.deleteRunCalls.length === 1 &&
+      run.doc.querySelectorAll('#runList .runbtn').length === 1, 'damaged run deleted');
+    assert.deepEqual(run.state.deleteRunCalls, [damaged]);
+    assert.ok(runListButton(run.doc, good), 'the good row survives');
+    assert.deepEqual(run.state.launchCalls, []);
+    assert.deepEqual(run.state.controlCalls, []);
   } finally { run.dom.window.close(); }
 });
 
