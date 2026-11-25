@@ -1706,6 +1706,27 @@ class BridgeTest(unittest.TestCase):
         self.assertIsNone(self.session.pending)
         self.assertNotIn('Runtime.enable', self.session.tab.methods())
 
+    def test_after_a_run_the_next_clicks_need_no_open_metric(self):
+        """Owner 25/11 «keep listening» + «Allow new run»; one click each, no «Mở Metric» between:
+        | click                          | sent to m1-import                         |
+        |--------------------------------|-------------------------------------------|
+        | 1. filter «canxi»              | keyword canxi, import id A                |
+        | 2. filter changed to «dau ca»  | keyword dau ca, import id B (new run)     |
+        | 3. same filter «dau ca» again  | keyword dau ca, import id C (new run)     |"""
+        self.answers = [self.OK_IMPORT, self.OK_FLOW]
+        self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+        self.session.tab.products_request(page_body(include_query={**page_body()['include_query'],
+                                                                   'queries': ['dau ca']}), request_id='r2')
+        for _ in range(2):
+            self.answers = [self.OK_IMPORT, self.OK_FLOW]
+            self.assertTrue(self.api.takeMetricReviews({'collectionPolicy': POLICY})['ok'])
+        imports = [c[2] for c in self.remote_calls if c[0] == 'm1Import']
+        self.assertEqual([p['keyword'] for p in imports], ['canxi', 'dau ca', 'dau ca'])
+        self.assertEqual(len({p['importId'] for p in imports}), 3)
+        self.assertEqual([c[0] for c in self.remote_calls], ['m1Import', 'flow'] * 3)
+        self.assertEqual(self.session.listener.attached_ids(), ['a'])
+        self.assertIsNone(self.session.pending)
+
     def test_a_failed_send_keeps_the_payload_and_resend_does_not_ask_metric_again(self):
         self.answers = [tdn_shopee_app._BridgeFailure('SSH_TIMEOUT')]
         first = self.api.takeMetricReviews({'collectionPolicy': POLICY})
