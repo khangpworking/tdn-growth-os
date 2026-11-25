@@ -226,7 +226,7 @@ class LifecycleTest(unittest.TestCase):
         self.assertFalse(listener._thread.is_alive())
         self.assertIsNone(listener._attach(target('b', 'https://metric.vn/analytics')))
 
-    def test_session_confirmed_drains_and_a_new_open_gets_a_new_listener(self):
+    def test_session_close_drains_and_a_new_open_gets_a_new_listener(self):
         world, listener, listing, release = self.blocked_world()
         launcher = mock.Mock(is_alive=lambda port: True, saved_port=lambda: 9)
         launcher.open_chrome.return_value = {'port': 9, 'browserName': 'Google Chrome', 'reused': True}
@@ -240,7 +240,7 @@ class LifecycleTest(unittest.TestCase):
         session.listener = listener
         listener.start(interval=0.01)
         self.assertTrue(listing.wait(5))
-        stopper = threading.Thread(target=session.confirmed)
+        stopper = threading.Thread(target=session.close)
         stopper.start()
         time.sleep(0.05)
         release.set()
@@ -325,15 +325,21 @@ class AutoWatchTest(unittest.TestCase):
         self.assertFalse(self.session.view()['listening'])
         self.assertEqual(self.made, [])
 
-    def test_after_a_run_is_created_only_open_metric_listens_again(self):
+    def test_after_a_run_is_created_listening_goes_on(self):
+        # Owner 25/11 «keep listening»: the next run needs no «Mở Metric».
         self.session.view()
-        self.session.confirmed()                             # listening stops once the run exists
-        for _ in range(3):
-            self.assertFalse(self.session.view()['listening'])
+        listener = self.made[0]
+        self.session.pending = {'keyword': 'k', 'scope': {}}
+        self.session.confirmed()
+        self.assertIsNone(self.session.pending)
+        state = self.session.view()
+        self.assertTrue(state['listening'])
+        self.assertIsNone(state['pending'])
+        self.assertIs(self.session.listener, listener)
+        self.assertFalse(listener.closed)
+        self.world.tabs[0].products_request(page_body(), request_id='r2')
+        self.assertTrue(self.session.view()['seen'])
         self.assertEqual(len(self.made), 1)
-        self.session.open_metric()
-        self.assertEqual(len(self.made), 2)
-        self.assertTrue(self.session.view()['listening'])
 
     def test_after_close_nothing_listens_again(self):
         self.session.close()
@@ -370,13 +376,6 @@ class AutoWatchTest(unittest.TestCase):
         self.assertEqual(self.made, [])
         self.session.view()
         self.assertEqual([listener.port for listener in self.made], [10])
-
-    def test_a_run_confirmed_during_the_check_is_not_attached(self):
-        self.on_identity = self.session.confirmed
-        self.session.view()
-        self.on_identity = None
-        self.session.view()
-        self.assertEqual(self.made, [])
 
     def test_a_state_read_while_open_metric_opens_chrome_never_auto_attaches(self):
         seen = []
@@ -423,8 +422,8 @@ class AutoWatchTest(unittest.TestCase):
         self.assertFalse(listener.closed)
         self.assertEqual(listener.attached_ids(), ['a'])
 
-    def test_a_run_confirmed_or_app_closed_while_the_auto_start_runs_ends_auto_watch(self):
-        for name in ('confirmed', 'close'):
+    def test_the_app_closed_while_the_auto_start_runs_ends_auto_watch(self):
+        for name in ('close',):
             with self.subTest(name):
                 self.setUp()
                 entered, release = threading.Event(), threading.Event()
@@ -1701,8 +1700,10 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(sent['keyword'], 'canxi')
         self.assertEqual(sent['collectionPolicy'], POLICY)
         self.assertIsNone(self.session.pending)
-        self.assertIsNone(self.session.listener)       # listening stopped once the run exists
-        self.assertTrue(self.session.tab.stopped)
+        self.assertIsNotNone(self.session.listener)    # owner 25/11 «keep listening»: it goes on after the run
+        self.assertFalse(self.session.tab.stopped)
+        self.assertEqual(self.session.listener.attached_ids(), ['a'])
+        self.assertIsNone(self.session.pending)
         self.assertNotIn('Runtime.enable', self.session.tab.methods())
 
     def test_a_failed_send_keeps_the_payload_and_resend_does_not_ask_metric_again(self):
