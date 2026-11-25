@@ -1084,15 +1084,10 @@ class MetricSession:
         return target
 
     def confirmed(self):
-        """The server created the run: drop the payload and stop listening. Chrome stays open."""
+        """The server created the run: drop the payload. Listening goes on (owner 25/11: «keep listening»),
+        so the next run needs no «Mở Metric». Chrome stays open."""
         self.pending = None
         self.pending_shot = None
-        with self._lock:
-            self._gen += 1
-            self._auto = False
-            listener, self.listener = self.listener, None
-        if listener is not None:
-            listener.stop_all()
 
     def close(self):
         with self._lock:
