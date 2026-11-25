@@ -6052,6 +6052,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       } else {
         var view = moduleExecution(info, step.key.toUpperCase());
         slip = view ? view.currentGate : null;
+        // A run made from the user's Metric page has no step 1 execution: its step 1 check is the saved slip.
+        if (!slip && step.key === 'm1' && (!view || !view.status || view.status === 'UNKNOWN') && info.gates && info.gates.m1) {
+          slip = info.gates.m1;
+        }
       }
       c.appendChild(h('b', null, GATE_TITLES[step.key]));
       c.appendChild(h('span', null, slip ? slip.verdict : 'Chưa có phiếu'));
