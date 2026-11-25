@@ -86,7 +86,8 @@ class DateRangeTextTest(unittest.TestCase):
             "return 'Từ ' + fmtDate(startDate) + ' đến ' + fmtDate(endDate) + ' (tính cả hai đầu)';",
             self.source,
         )
-        self.assertEqual(self.source.count('fmtDateRange('), 4)
+        # 5th use: the «Bộ lọc đã lấy trên Metric» box on runs made from the user's Metric page (PR #535).
+        self.assertEqual(self.source.count('fmtDateRange('), 5)
 
 
 class HistoryReadOnlyTest(unittest.TestCase):

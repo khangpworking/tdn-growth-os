@@ -2709,7 +2709,7 @@ test('B1: step 1 shows the revenue order line as passed, failed or unknown', asy
       const line = element(doc, 'moM1Order');
       assert.match(line.className, cls, runId);
       assert.equal(line.querySelector('.ci')!.textContent, icon, runId);
-      assert.equal(line.querySelector('.cl')!.textContent, 'Xếp doanh số top sản phẩm bán chạy theo thứ tự giảm dần');
+      assert.equal(line.querySelector('.cl')!.textContent, 'Metric trả sản phẩm theo doanh thu giảm dần');
       assert.equal(line.previousElementSibling!.id, 'moM1Data', 'third line, after the two existing lines');
     }
   } finally { dom.window.close(); }
@@ -6140,4 +6140,194 @@ test('a newer app version on the server shows one banner, closed per version; an
       assert.equal(run.doc.getElementById('errbar')!.hidden, true, 'no error line');
     } finally { run.dom.window.close(); }
   }
+});
+
+// Owner 25/11 (side chat «có, gửi đi»), steps 1–2 on runs made from the user's Metric page. The request and
+// the step 1 view below copy real runs: c35e93b0 (no keyword, category filter) and d6b4b951 (step 1 UNKNOWN).
+// | # | situation                                                     | expected                                                        |
+// |---|---------------------------------------------------------------|-----------------------------------------------------------------|
+// | 1 | user-page run, step 1 execution UNKNOWN, gates.m1 = PASS      | «Kiểm tra sau bước 1» card and step chip show the PASS slip      |
+// | 2 | same run, «Kiểm tra đầu vào»                                  | box «Bộ lọc đã lấy trên Metric»: period, keyword, Shopee, picture|
+// |   |                                                               | no «capture specs» text and no «?» rows anywhere in the detail   |
+// | 3 | keyword list from Metric / none                               | «thuốc mọc tóc biotin · biotin» / «Không có (chỉ lọc theo ngành hàng)» |
+// | 4 | an old preset run                                             | the old «Xem thông tin đã ghi trong capture specs» box stays     |
+function userPageRunInfo(runId: string, queries: string[], m1Status = 'UNKNOWN') {
+  const info: any = syntheticRunInfo(runId);
+  info.request = {
+    format: 'request-v2', preset: { keywords: [queries[0] ?? 'Metric 21/10–19/11/2026'] },
+    windows: [{ id: 'selected', period: { startDate: '2026-10-21', endDate: '2026-11-19' }, intervalDays: 7 }],
+    collectionPolicy: { format: 'shopee-review-policy-v1', mode: 'with-comments', stars: [], totalPerLink: 30, allocation: 'pooled' },
+    metricSource: { format: 'user-page-v1', scope: {
+      start_date: '20261021', end_date: '20261119', exclude_query: {}, fields: [], is_filter_gift: false,
+      include_query: { platforms: [1], queries, categories: ['1__100635', '1__100631'] },
+    } },
+  };
+  info.gates = { entry: { ...passSlip('ENTRY'), checks: [] }, m1: passSlip('M1'), m2: passSlip('M2'), m3: null };
+  info.execution = { format: 'run-execution-view-v1', revision: 2, status: 'SUCCEEDED', currentModule: 'M3',
+    modules: { M1: { status: m1Status, currentGate: null, historicalGate: null } } };
+  return info;
+}
+
+test('a run from the user\'s Metric page shows its saved step 1 check and the Metric filter, never capture specs', async () => {
+  const failM1 = { ...passSlip('M1'), verdict: 'FAIL', errorCode: 'M1_NOT_PASSED' };
+  // Terra r1: an older failed slip must not hide the saved one; a slip of the step's own run still wins.
+  const hist = userPageRunInfo('run-hist', []);
+  hist.execution.modules.M1.historicalGate = failM1;
+  const cur = userPageRunInfo('run-cur', [], 'SUCCEEDED');
+  cur.execution.modules.M1.currentGate = failM1;
+  // Terra r1: missing Metric data is «Chưa có», not «no keyword»; an unknown platform shows no number.
+  const missing = userPageRunInfo('run-missing', []);
+  missing.request.metricSource.scope.include_query = { platforms: [1, 99] };
+  // Terra r1: a failed entry check on a Metric-page run shows no technical words.
+  const entryFail = userPageRunInfo('run-entry-fail', []);
+  entryFail.gates.entry = { ...passSlip('ENTRY'), verdict: 'FAIL', errorCode: 'SOME_NEW_CODE', checks: [
+    { id: 'collection_policy', ok: false, got: false, errorCode: 'REVIEW_POLICY_INVALID' },
+    { id: 'some_new_check', ok: false, got: false, errorCode: 'SOME_NEW_CHECK_FAILED' }] };
+  // Terra r2: no execution record at all; all four Metric platforms; no requested window (the Metric filter dates are used).
+  const noExec = userPageRunInfo('run-bare', []);
+  noExec.execution = null;
+  const plat = userPageRunInfo('run-plat', []);
+  plat.request.windows = [];
+  plat.request.metricSource.scope.include_query.platforms = [1, 2, 3, 8];
+  // Terra r2: a failed entry slip with a known reason and no failed check shows that reason's wording.
+  const entryKnown = userPageRunInfo('run-entry-known', []);
+  entryKnown.gates.entry = { ...passSlip('ENTRY'), verdict: 'FAIL', errorCode: 'CONFIG_MISSING', checks: [] };
+  // An old preset run keeps main's behaviour: no saved-slip fallback.
+  const presetSaved: any = syntheticRunInfo('run-preset-saved');
+  presetSaved.execution = { format: 'run-execution-view-v1', revision: 1, status: 'SUCCEEDED', currentModule: 'M3',
+    modules: { M1: { status: 'UNKNOWN', currentGate: null, historicalGate: null } } };
+  const runs = { 'run-page': userPageRunInfo('run-page', []), 'run-kw': userPageRunInfo('run-kw', ['thuốc mọc tóc biotin', 'biotin']),
+    'run-old': syntheticRunInfo('run-old'), 'run-hist': hist, 'run-cur': cur, 'run-missing': missing,
+    'run-entry-fail': entryFail, 'run-preset-saved': presetSaved, 'run-bare': noExec, 'run-plat': plat,
+    'run-entry-known': entryKnown };
+  const { dom, doc, state } = harness({
+    runs: Object.keys(runs).map((runId) => ({ runId, product: runId, status: 'DONE' })),
+    runInfoByRun: runs, localShots: { 'run-page': true },
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
+  });
+  const detail = () => doc.getElementById('runDetail')!;
+  const open = async (runId: string) => {
+    runListButton(doc, runId).click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes(runId), runId);
+    await waitFor(() => detail().querySelector('.entry-summary') !== null, runId + ' entry card');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  };
+  const gateCardOf = (title: string) => [...detail().querySelectorAll<HTMLElement>('article.gate')]
+    .find((card) => card.querySelector('h3')?.textContent === title);
+  const chipText = () => [...detail().querySelectorAll('.seqch')]
+    .find((item) => item.querySelector('b')?.textContent === 'Kiểm tra sau bước 1')?.querySelector('span')?.textContent;
+  const m1Verdict = async (runId: string) => {
+    await open(runId);
+    const card = gateCardOf('Kiểm tra sau bước 1');
+    assert.ok(card, runId + ': step 1 check card');
+    return { card: card!.textContent!, chip: chipText(), previous: /Kết quả lần trước/.test(detail().textContent!) };
+  };
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === Object.keys(runs).length, 'run list');
+    // 1
+    for (const [runId, verdict, note] of [['run-page', 'Đạt', 'saved slip'], ['run-hist', 'Đạt', 'saved slip over an older one'],
+      ['run-cur', 'Không đạt', 'the step\'s own slip wins'], ['run-bare', 'Đạt', 'no execution record']] as const) {
+      const seen = await m1Verdict(runId);
+      assert.equal(seen.chip, verdict, '1 chip: ' + note);
+      assert.match(seen.card, new RegExp(verdict), '1 card: ' + note);
+      if (verdict === 'Đạt') assert.doesNotMatch(seen.card, /Không đạt|Chưa kiểm tra/, '1 card: ' + note);
+      assert.equal(seen.previous, false, '1: no «Kết quả lần trước» ' + note);
+    }
+    const preset = await m1Verdict('run-preset-saved');
+    assert.equal(preset.chip, 'Chưa có phiếu', '1: preset runs unchanged');
+    assert.match(preset.card, /Chưa kiểm tra/, '1: preset runs unchanged');
+    await open('run-page');
+    // 2
+    const box = element(doc, 'entryMetricFilters');
+    assert.equal(box.querySelector('h3')!.textContent, 'Bộ lọc đã lấy trên Metric', '2');
+    assert.match(box.textContent!, /21\/10\/2026/, '2: period start');
+    assert.match(box.textContent!, /19\/11\/2026/, '2: period end');
+    assert.match(box.textContent!, /Shopee/, '2: platform from include_query');
+    assert.doesNotMatch(box.textContent!, /Chưa có/, '2: every fact is filled');
+    assert.equal(element(doc, 'entryMetricShot').textContent, 'Xem ảnh Metric', '2');
+    element<HTMLButtonElement>(doc, 'entryMetricShot').click();
+    await waitFor(() => state.viewShotCalls.some(([runId]) => runId === 'run-page'), '2: the button opens this run\'s Metric picture');
+    assert.doesNotMatch(detail().textContent!, /capture specs/i, '2: no capture specs text anywhere');
+    assert.equal(detail().querySelector('.entry-summary .c-warn'), null, '2: no «?» rows');
+    // 3
+    assert.match(box.textContent!, /Không có \(chỉ lọc theo ngành hàng\)/, '3: no Metric keyword');
+    assert.doesNotMatch(box.textContent!, /Metric 21\/10–19\/11\/2026/, '3: the run name is not a keyword');
+    await open('run-kw');
+    assert.match(element(doc, 'entryMetricFilters').textContent!, /thuốc mọc tóc biotin · biotin/, '3');
+    await open('run-missing');
+    const missingBox = element(doc, 'entryMetricFilters');
+    const facts = Object.fromEntries([...missingBox.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
+    assert.equal(facts['Từ khóa'], 'Chưa có', '3: missing keyword data');
+    assert.equal(facts['Sàn'], 'Shopee · Sàn khác', '3: unknown platform, no number');
+    await open('run-plat');
+    const platFacts = Object.fromEntries([...element(doc, 'entryMetricFilters').querySelectorAll('dt')]
+      .map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
+    assert.equal(platFacts['Sàn'], 'Shopee · Lazada · Tiki · TikTok Shop', '3: platform names');
+    assert.match(platFacts['Khoảng thời gian']!, /21\/10\/2026.*19\/11\/2026/, '2: no requested window → the Metric filter dates');
+    await open('run-entry-known');
+    const knownText = detail().textContent!;
+    assert.match(knownText, /Máy này chưa được cài đặt để dùng app\./, '2: a known reason shows its wording');
+    assert.doesNotMatch(knownText, /CONFIG_MISSING|capture specs/i, '2: no code');
+    await open('run-entry-fail');
+    const failText = detail().textContent!;
+    assert.match(failText, /Điều kiện thu bình luận của bước 3 chưa đạt:/, '2: failed policy still shown');
+    assert.doesNotMatch(failText, /capture specs|SOME_NEW|REVIEW_POLICY|some_new_check/i, '2: no technical words on a failure');
+    // 4
+    await open('run-old');
+    assert.equal(doc.getElementById('entryMetricFilters'), null, '4');
+    assert.match(detail().textContent!, /Xem thông tin đã ghi trong capture specs/, '4: old runs keep the old box');
+  } finally { dom.window.close(); }
+});
+
+// | # | situation                                                     | expected                                                        |
+// |---|---------------------------------------------------------------|-----------------------------------------------------------------|
+// | 5 | step 1 result rows                                            | «Có sản phẩm Shopee trong dữ liệu đã lấy» / «Metric trả sản phẩm theo doanh thu giảm dần» |
+// | 6 | step 2 RUNNING, no saved selection yet (SELECTION_MISSING)    | chip «Đang chạy», no failure text                               |
+// | 7 | step 2 ended (FAILED) with SELECTION_MISSING                  | chip «Không đạt kiểm tra» (a real failure still shows)          |
+test('step 1 rows read as business text, and step 2 shows «Đang chạy» while it runs', async () => {
+  const running: any = syntheticRunInfo('run-m2-running');
+  running.state = { status: 'RUNNING', module: 'M2', errorCode: null };
+  running.execution = { format: 'run-execution-view-v1', revision: 1, status: 'RUNNING', currentModule: 'M2',
+    modules: { M2: { status: 'RUNNING', currentGate: null, historicalGate: null } } };
+  running.gates.m2 = null;
+  const ended: any = syntheticRunInfo('run-m2-failed');
+  ended.state = { status: 'FAILED', module: 'M2', errorCode: 'SELECTION_MISSING' };
+  ended.execution = { format: 'run-execution-view-v1', revision: 1, status: 'FAILED', currentModule: 'M2',
+    modules: { M2: { status: 'FAILED', currentGate: null, historicalGate: null } } };
+  ended.gates.m2 = null;
+  // Terra r1: a running step 2 with no execution record yet (only the run state says RUNNING).
+  const noExec: any = syntheticRunInfo('run-m2-noexec');
+  noExec.state = { status: 'RUNNING', module: 'M2', errorCode: null };
+  noExec.gates.m2 = null;
+  const missing = { errorCode: 'SELECTION_MISSING', selectedCount: 0, links: [], skipped: [] };
+  const { dom, doc } = harness({
+    runs: [{ runId: 'run-m2-running', product: 'Đang chạy', status: 'RUNNING' }, { runId: 'run-m2-failed', product: 'Hỏng', status: 'FAILED' },
+      { runId: 'run-m2-noexec', product: 'Chưa có bản ghi', status: 'RUNNING' }],
+    runInfoByRun: { 'run-m2-running': running, 'run-m2-failed': ended, 'run-m2-noexec': noExec },
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId, {}, missing) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 3, 'run list');
+    runListButton(doc, 'run-m2-running').click();
+    await waitFor(() => doc.getElementById('moM2Chip') !== null, 'step 2 card');
+    // 5
+    assert.equal(element(doc, 'moM1Data').querySelector('.cl')!.textContent, 'Có sản phẩm Shopee trong dữ liệu đã lấy', '5');
+    // 6
+    assert.equal(element(doc, 'moM2Chip').textContent, 'Đang chạy', '6');
+    const card = element(doc, 'moM2Chip').closest('article')!;
+    assert.doesNotMatch(card.textContent!, /Bước 2 chưa có kết quả đã lưu|Không đạt/, '6: no failure while it runs');
+    assert.equal([...card.querySelectorAll<HTMLElement>('.errbar')].filter((bar) => !bar.hidden).length, 0, '6: no error bar');
+    runListButton(doc, 'run-m2-noexec').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-m2-noexec'), 'no-execution run');
+    // No step 2 record yet: the card is not drawn (main's rule), so nothing reads as a failure.
+    await waitFor(() => doc.getElementById('moduleOutputsPanel')?.textContent?.includes('Bước 1') === true, 'no-execution panel');
+    assert.equal(doc.getElementById('moM2Chip'), null, '6: no step 2 card before step 2 has a record');
+    assert.doesNotMatch(element(doc, 'moduleOutputsPanel').textContent!, /Bước 2 chưa có kết quả đã lưu|Không đạt kiểm tra/,
+      '6: no failure, no execution record');
+    // 7
+    runListButton(doc, 'run-m2-failed').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-m2-failed'), 'failed run');
+    await waitFor(() => doc.getElementById('moM2Chip')?.textContent === 'Không đạt kiểm tra', '7: a real failure still shows');
+    assert.match(element(doc, 'moM2Chip').closest('article')!.textContent!, /Bước 2 chưa có kết quả đã lưu/, '7: the failure reason shows');
+  } finally { dom.window.close(); }
 });
