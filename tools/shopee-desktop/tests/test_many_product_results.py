@@ -105,6 +105,30 @@ class ManyProductResultsTest(unittest.TestCase):
             with self.subTest(call=call, products=101):
                 self.assertEqual(self.reply(call, make(101))['error']['code'], 'REMOTE_OUTPUT_INVALID')
 
+    def test_a_product_listed_twice_is_refused(self):
+        """| call (each of the three) | links of one source                          | page gets             |
+        |--------------------------|----------------------------------------------|-----------------------|
+        | any                      | one link repeated 6 times                    | REMOTE_OUTPUT_INVALID |
+        | any                      | two links, same shop and item, other address | REMOTE_OUTPUT_INVALID |
+        | any                      | two links, other shop and item, same address | REMOTE_OUTPUT_INVALID |
+        """
+        def repeated(links):
+            links[:] = [links[0]] * 6
+
+        def same_ids(links):
+            links[1] = dict(links[1], shopId=links[0]['shopId'], itemId=links[0]['itemId'])
+
+        def same_url(links):
+            links[1] = dict(links[1], url=links[0]['url'])
+
+        for call, make in (('reviewStats', stats), ('reviewInsights', insights_v1),
+                           ('reviewInsightsSummary', insights_v2)):
+            for name, change in (('repeated', repeated), ('same ids', same_ids), ('same address', same_url)):
+                with self.subTest(call=call, case=name):
+                    value = make(6)
+                    change(value['sources'][0]['links'])
+                    self.assertEqual(self.reply(call, value)['error']['code'], 'REMOTE_OUTPUT_INVALID')
+
     def test_run_view_of_a_ten_product_run_opens_its_result(self):
         """| run view --result of a 10-product run | the review counts and the insights parts are ok, unchanged |"""
         parts = dict(PARTS, stats=stats(10), insights=insights_v2(10))
