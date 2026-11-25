@@ -151,7 +151,7 @@ test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and 
   // A publish has fully finished (folder fsync done, no longer "running") when the timer closes the connection
   // that ran its backup. The snapshot file alone changes earlier, at the rename.
   const close = Database.prototype.close, backup = Database.prototype.backup;
-  let finished = 0, started = 0, hold: Promise<void> | null = null, failNext = false;
+  let finished = 0, started = 0, hold: Promise<void> | null = null, failNext = false, release = () => {};
   const publishers = new Set<Database.Database>();
   t.mock.method(Database.prototype, 'close', function(this: Database.Database) {
     const result = close.call(this);
@@ -186,7 +186,6 @@ test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and 
     f.db.exec("UPDATE a_timer SET value='second synthetic generation'");
     await oneInterval(2, 'next ten-minute snapshot');
     assert.equal(await generation(), 'second synthetic generation');
-    let release!: () => void;
     hold = new Promise<void>(resolve => { release = resolve; });
     f.db.exec("UPDATE a_timer SET value='third synthetic generation'");
     try {
@@ -207,5 +206,15 @@ test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and 
     await oneInterval(5, 'timer recovers after backup failure');
     assert.equal(await generation(), 'fourth synthetic generation');
     assert.equal(Number(f.db.prepare('SELECT count(*) FROM raw_db_autoload').pluck().get()), 0);
-  } finally { await application.close(); }
+  } finally {
+    // After a failed check a publish may still run (held, or not yet at its backup); stop the timer, then let every
+    // started publish end before teardown removes its folder. The test's own failure stays the reported one.
+    release(); hold = null; failNext = false;
+    await application.close();
+    const snapshotDir = path.dirname(snapshotPath(f));
+    const idle = async () => publishers.size === 0 &&
+      !(await fs.readdir(snapshotDir).catch(() => [] as string[])).some(name => name.startsWith('.tmp-'));
+    const settled = async () => await idle() && await new Promise<boolean>(resolve => setTimeout(() => resolve(idle()), 100));
+    await until(settled, 'publishes drained').catch(() => undefined);
+  }
 });
