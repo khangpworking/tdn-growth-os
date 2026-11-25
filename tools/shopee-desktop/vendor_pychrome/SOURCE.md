@@ -15,7 +15,7 @@ Original SHA-256 of the copied files:
 Changes made here:
 
 - `browser.py`: `requests` replaced by `urllib.request`. `new_tab`, `activate_tab` and `close_tab` removed, so the app cannot open, focus or close a tab through `/json/new`, `/json/activate` or `/json/close`.
-- `tab.py`: `DEBUG` environment printing switched off (`self.debug = False`), so CDP traffic (which holds page request bodies) is never printed. `_recv_loop` also catches `ValueError`: after `stop()` closes the socket, the last `recv()` can return an empty frame, which 0.2.4 turned into an uncaught `JSONDecodeError` in the receive thread. Nothing else changed.
+- `tab.py`: `DEBUG` environment printing switched off (`self.debug = False`), so CDP traffic (which holds page request bodies) is never printed. `_recv_loop` also catches `ValueError`: after `stop()` closes the socket, the last `recv()` can return an empty frame, which 0.2.4 turned into an uncaught `JSONDecodeError` in the receive thread. New public read `connection_lost()` (app 1.3.2): True when the tab was started, `stop()` was not called, and the receive loop stopped the tab because the socket died. Nothing else changed.
 - `cli.py` not copied (it needed `click`).
 - `exceptions.py`, `LICENSE`: unchanged.
 

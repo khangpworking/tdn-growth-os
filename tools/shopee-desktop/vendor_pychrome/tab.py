@@ -230,6 +230,11 @@ class Tab(object):
             self._ws.close()
         return True
 
+    def connection_lost(self):
+        # TDN change: True when the socket died by itself (the receive loop stopped the tab),
+        # not when stop() was called.
+        return self._started and self.status == self.status_started and self._stopped.is_set()
+
     def wait(self, timeout=None):
         if not self._started:
             raise RuntimeException("Tab is not running")

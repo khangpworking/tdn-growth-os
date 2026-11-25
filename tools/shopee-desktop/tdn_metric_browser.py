@@ -451,14 +451,15 @@ def _default_tab_factory(target):
 
 
 class _TabState:
-    __slots__ = ('target_id', 'tab', 'phase', 'token', 'last', 'away_since', 'seen_away')
+    __slots__ = ('target_id', 'tab', 'phase', 'token', 'last', 'away_since', 'seen_away', 'link')
 
     def __init__(self, target_id):
         self.target_id = target_id
         self.tab = None           # the one live connection (phase 'attached')
         self.phase = None         # None | 'attaching' | 'attached'
         self.token = None         # owner of an 'attaching' reservation
-        self.last = None          # {'body', 'seq', 'key', 'at'}
+        self.last = None          # {'body', 'seq', 'key', 'at', 'link'}
+        self.link = None          # number of the newest link attached to this tab (see _attach)
         self.away_since = None    # detached because the main frame left Metric
         self.seen_away = False
 
@@ -503,6 +504,10 @@ class MetricListener:
         # The click freezes exactly this one; it never falls back to an older request.
         self._newest = None
         self._tab_newest = {}      # targetId -> order key of that tab's newest user products request
+        # Every attached link gets a number; every record keeps the number of the link that saw it.
+        # A link that died by itself goes into _lost_links: no record it saw is frozen or sent again.
+        self._link_seq = 0
+        self._lost_links = set()
         self._body_state = threading.Condition(self._lock)
         self.body_wait_seconds = BODY_WAIT_SECONDS
         self._app_scripts = collections.deque(maxlen=64)   # sourceURLs of the app's own calls
@@ -552,6 +557,8 @@ class MetricListener:
             with self._lock:
                 entry = self._tabs.get(target_id)
                 if not self._closed and entry is not None and entry.token is token:
+                    self._link_seq += 1
+                    entry.link = self._link_seq
                     entry.tab = tab
                     entry.phase = 'attached'
                     entry.token = None
@@ -587,14 +594,21 @@ class MetricListener:
             pass
 
     def _detach(self, target_id, tab=None, away=False):
-        """Stop the target's connection (or the given stale one). Never blocks on CDP."""
+        """Stop the target's connection (or the given stale one). Never blocks on CDP.
+
+        One rule for every caller: when the connection being detached is the target's current one and its
+        socket already died by itself, the link is recorded as lost (``_mark_lost_link``), not «away», in
+        the same step that clears the entry. A live connection is detached as before."""
         with self._lock:
             entry = self._tabs.get(target_id)
             if entry is None or (tab is not None and entry.tab is not tab):
                 tab_to_stop = tab
             else:
                 tab_to_stop = entry.tab
-                if entry.phase == 'attached':
+                if entry.phase == 'attached' and self._link_lost(entry.tab):
+                    self._mark_lost_link(target_id, entry.tab)
+                    away = False
+                elif entry.phase == 'attached':
                     entry.tab = None
                     entry.phase = None
                 if away:
@@ -602,6 +616,35 @@ class MetricListener:
                     entry.seen_away = False
         if tab_to_stop is not None:
             self._stop_tab(tab_to_stop)
+
+    @staticmethod
+    def _link_lost(tab):
+        """The tab's socket died by itself (not stopped by the app). Never raises."""
+        try:
+            return tab is not None and tab.connection_lost() is True
+        except Exception:
+            return False
+
+    def _mark_lost_link(self, target_id, tab):
+        """The link to this tab died: detach it (not «away») and mark its number lost. While the link was
+        dead the user may have changed the filter on Metric, so no record seen on that link is frozen or
+        sent: ``freeze()`` and ``fetch_top_products()`` raise METRIC_FILTER_UNAVAILABLE for it until a new
+        request arrives on a new link. The tab's last body and order key go too; other links keep theirs."""
+        with self._lock:   # one step: a late body of the dead link can no longer be published
+            entry = self._tabs.get(target_id)
+            if entry is not None and entry.tab is tab:
+                if entry.phase == 'attached':
+                    entry.tab = None
+                    entry.phase = None
+                if entry.link is not None:
+                    self._lost_links.add(entry.link)
+                entry.last = None
+                self._tab_newest.pop(target_id, None)
+                self._body_state.notify_all()   # a click waiting on a body of that link stops waiting
+
+    def _drop_lost_link(self, target_id, tab):
+        self._mark_lost_link(target_id, tab)
+        self._stop_tab(tab)
 
     def attach_blank_and_open(self, start_url=START_URL):
         """Fresh Chrome: attach to its about:blank page, then navigate it to Metric."""
@@ -624,6 +667,13 @@ class MetricListener:
                 self.stop_all()
                 return False
             self.chrome_open = True
+            # A dead link never stays 'attached': detach it here; the loop below attaches again when
+            # the target is still listed and on Metric.
+            with self._lock:
+                lost = [(tid, entry.tab) for tid, entry in self._tabs.items()
+                        if entry.phase == 'attached' and self._link_lost(entry.tab)]
+            for target_id, tab in lost:
+                self._drop_lost_link(target_id, tab)
             now = self._clock()
             live = {}
             for target in targets if isinstance(targets, list) else []:
@@ -713,6 +763,7 @@ class MetricListener:
         request = event.get('request') if isinstance(event.get('request'), dict) else {}
         if event.get('type') == 'Document' and event.get('frameId') == target_id:
             if not is_metric_page(request.get('url'), self.hosts):
+                # A dead socket here is recorded as lost, not «away», by _detach itself.
                 self._detach(target_id, tab, away=True)
             return
         if request.get('method') != 'POST' or request.get('url') != self.products_url:
@@ -732,7 +783,7 @@ class MetricListener:
                 stamp = self._last_ts if self._last_ts is not None else 0.0
             key = (float(stamp), self._seq)
             record = {'targetId': target_id, 'key': key, 'requestId': event.get('requestId'),
-                      'state': 'pending', 'body': None}
+                      'state': 'pending', 'body': None, 'link': entry.link}
             if self._newest is None or key > self._newest['key']:
                 self._newest = record
             if target_id not in self._tab_newest or key > self._tab_newest[target_id]:
@@ -756,13 +807,14 @@ class MetricListener:
             body = None
         with self._lock:
             entry = self._tabs.get(target_id)
-            if not isinstance(body, dict) or self._closed or entry is None or entry.tab is not tab:
+            if (not isinstance(body, dict) or self._closed or entry is None or entry.tab is not tab or
+                    record['link'] in self._lost_links):
                 self._settle(record, 'failed')
                 return
             self._settle(record, 'resolved', body)
             key = record['key']
             if entry.last is None or key > entry.last['key']:
-                entry.last = {'body': body, 'seq': key[1], 'key': key, 'at': now_iso()}
+                entry.last = {'body': body, 'seq': key[1], 'key': key, 'at': now_iso(), 'link': record['link']}
 
     def _fetch_body_later(self, target_id, tab, record):
         with self._lock:
@@ -806,6 +858,8 @@ class MetricListener:
         with self._lock:
             best = None
             for entry in self._tabs.values():
+                if entry.last and entry.last['link'] in self._lost_links:
+                    continue
                 if entry.last and (best is None or entry.last['key'] > best.last['key']):
                     best = entry
             return None if best is None else {'targetId': best.target_id, 'seq': best.last['seq'],
@@ -822,25 +876,40 @@ class MetricListener:
 
         Its body may still be on the way (body worker): wait up to ``body_wait_seconds``
         (the caller's thread, never a CDP dispatch thread). Still pending, or the body could
-        not be read: refuse. Never fall back to another request."""
+        not be read: refuse. Never fall back to another request.
+
+        A record seen on a link that died is never frozen (METRIC_FILTER_UNAVAILABLE), also when the
+        link died after the last poll: then the link is dropped here first."""
+        dead = None
         with self._lock:
             if record is None:
                 record = self._newest
             if record is None:
                 raise MetricFailure('METRIC_NOT_SEEN')
             deadline = time.monotonic() + self.body_wait_seconds
-            while record['state'] == 'pending' and not self._closed:
+            while (record['state'] == 'pending' and not self._closed and
+                   record['link'] not in self._lost_links):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     break
                 self._body_state.wait(remaining)
-            if record['state'] == 'pending':
-                raise MetricFailure('METRIC_FILTER_PENDING')
-            if record['state'] != 'resolved':
-                raise MetricFailure('METRIC_FILTER_UNAVAILABLE')
-            frozen = {'targetId': record['targetId'], 'seq': record['key'][1], 'body': copy.deepcopy(record['body'])}
-            self._frozen = frozen
-            return copy.deepcopy(frozen)
+            entry = self._tabs.get(record['targetId'])
+            if (record['link'] not in self._lost_links and entry is not None and entry.phase == 'attached' and
+                    entry.link == record['link'] and self._link_lost(entry.tab)):
+                dead = entry.tab
+                self._mark_lost_link(record['targetId'], dead)
+            if record['link'] not in self._lost_links:
+                if record['state'] == 'pending':
+                    raise MetricFailure('METRIC_FILTER_PENDING')
+                if record['state'] != 'resolved':
+                    raise MetricFailure('METRIC_FILTER_UNAVAILABLE')
+                frozen = {'targetId': record['targetId'], 'seq': record['key'][1], 'link': record['link'],
+                          'body': copy.deepcopy(record['body'])}
+                self._frozen = frozen
+                return copy.deepcopy(frozen)
+        if dead is not None:
+            self._stop_tab(dead)   # outside the lock: stopping a socket may wait for its thread
+        raise MetricFailure('METRIC_FILTER_UNAVAILABLE')
 
     def fetch_top_products(self, frozen, source, screenshot_saved=False):
         """One in-page request on the frozen tab. Returns the response dict or raises MetricFailure.
@@ -849,10 +918,18 @@ class MetricListener:
         request = {'urlPath': PRODUCTS_PATH, 'requestBody': top_products_body(frozen['body'])}
         script = _APP_SCRIPT.format(uuid.uuid4().hex)
         with self._lock:
+            # A filter seen on a link that died is never sent: not while the tab is detached, and not
+            # on the new link that replaced it. A link that only left Metric is not lost (the «away» path).
+            if frozen.get('link') in self._lost_links:
+                raise self._failure(screenshot_saved, 'METRIC_FILTER_UNAVAILABLE')
             entry = self._tabs.get(frozen['targetId'])
             tab = entry.tab if entry is not None and entry.phase == 'attached' else None
             if tab is None:
                 raise MetricFailure('METRIC_TAB_GONE')
+        if self._link_lost(tab):
+            self._drop_lost_link(frozen['targetId'], tab)
+            raise self._failure(screenshot_saved, 'METRIC_FILTER_UNAVAILABLE')
+        with self._lock:
             # Unique per call and never reused, so it can stay listed: a late queued event of
             # this call is still recognised, and no user request ever carries it.
             self._app_scripts.append(script)
@@ -860,6 +937,9 @@ class MetricListener:
             answer = tab.call_method('Runtime.evaluate', expression=evaluate_expression(source, request, script),
                                      awaitPromise=True, returnByValue=True, _timeout=EVALUATE_TIMEOUT)
         except Exception:
+            if self._link_lost(tab):
+                self._drop_lost_link(frozen['targetId'], tab)
+                raise self._failure(screenshot_saved, 'METRIC_FILTER_UNAVAILABLE') from None
             raise self._failure(screenshot_saved, 'METRIC_EVALUATE_FAILED') from None
         result = answer.get('result') if isinstance(answer, dict) else None
         value = result.get('value') if isinstance(result, dict) else None

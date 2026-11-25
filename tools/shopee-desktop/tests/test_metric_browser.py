@@ -71,6 +71,11 @@ class FakeTab:
     def stop(self):
         self.stopped = True
 
+    lost = False    # the socket died by itself (set by a test)
+
+    def connection_lost(self):
+        return self.lost and not self.stopped
+
     def call_method(self, method, **params):
         params.pop('_timeout', None)
         self.calls.append((method, params))
@@ -1788,6 +1793,247 @@ class BridgeTest(unittest.TestCase):
         self.assertTrue(state['data']['seen'])
         self.assertTrue(state['data']['chromeOpen'])
         self.assertNotIn('body', json.dumps(state))
+
+
+class LostLinkTest(unittest.TestCase):
+    """The link to a Metric tab dies by itself (owner PC 25/11: 0 connections, the app still «attached»).
+
+    | row | situation                                              | expected                                             |
+    |-----|--------------------------------------------------------|------------------------------------------------------|
+    | 1   | link drops, tab still on Metric                        | next poll: old link stopped, a new link attached     |
+    | 2   | filter seen before the drop, nothing new after         | capture: METRIC_FILTER_UNAVAILABLE, Metric not asked |
+    | 3   | a new filter after the reconnect                       | capture uses that new filter                         |
+    | 4   | link drops between freeze and the Metric request       | METRIC_FILTER_UNAVAILABLE, nothing sent on dead link |
+    | 5   | link drops during the Metric request                   | METRIC_FILTER_UNAVAILABLE                            |
+    | 6   | live link, the request itself fails                    | METRIC_EVALUATE_FAILED (unchanged)                   |
+    | 7   | link drops on tab A, newest filter is on live tab B    | capture uses B                                       |
+    | 8   | real vendored Tab: socket closed by Chrome / by stop() | connection_lost() True / False                       |
+    """
+    FILTER_OLD = page_body(start_date='20260801')
+    FILTER_NEW = page_body(start_date='20260901')
+
+    def setUp(self):
+        self.world = World([target('a', 'https://metric.vn/analytics'), target('b', 'https://metric.vn/analytics')])
+        self.listener = self.world.listener()
+        self.listener.body_wait_seconds = 0.3
+        self.listener.poll()
+        self.a, self.b = self.world.tabs
+        self.answers = self.world.answers
+        self.a.answers = self.b.answers = self.answers
+        self.addCleanup(self.listener.stop_all)
+        self.session = mb.MetricSession(tempfile.gettempdir(),
+                                        launcher=mock.Mock(is_alive=lambda port: True, saved_port=lambda: 9))
+        self.session.listener = self.listener
+        self.evaluated = []
+
+        def evaluate(expression, awaitPromise, returnByValue):
+            arg, _ = parse_call(expression)
+            self.evaluated.append(arg['requestBody'])
+            return {'result': {'value': {'urlPath': arg['urlPath'], 'method': 'POST', 'status': 200,
+                                         'requestBody': arg['requestBody'],
+                                         'body': {'status': 'success', 'data': {'products': products(5)}}}}}
+        self.answers['Runtime.evaluate'] = evaluate
+
+    def capture_code(self):
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.session.capture(POLICY)
+        return caught.exception.code
+
+    def new_link(self, tid):
+        live = self.world.live(tid)
+        self.assertEqual(len(live), 1, tid + ': one live link')
+        return live[0]
+
+    def test_row1_a_dropped_link_is_replaced_on_the_next_poll(self):
+        self.a.lost = True
+        self.listener.poll()
+        self.assertTrue(self.a.stopped)
+        self.assertEqual(self.listener.attached_ids(), ['a', 'b'])
+        self.assertIsNot(self.new_link('a'), self.a)
+        self.assertEqual(self.new_link('a').methods(), ['Network.enable'])
+
+    def test_row2_3_the_filter_from_before_the_drop_is_never_used(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        self.a.lost = True
+        self.listener.poll()
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertIsNone(self.listener.latest())
+        self.assertEqual(self.evaluated, [])
+        self.new_link('a').products_request(self.FILTER_NEW, request_id='new')
+        self.assertEqual(self.session.capture(POLICY)['scope']['start_date'], '20260901')
+        self.assertEqual(self.evaluated[0]['start_date'], '20260901')
+
+    def test_row4_a_drop_after_the_freeze_never_asks_the_dead_link(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        frozen = self.listener.freeze()
+        self.a.lost = True
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(caught.exception.code, 'METRIC_FILTER_UNAVAILABLE')
+        self.assertNotIn('Runtime.evaluate', self.a.methods())
+        self.assertTrue(self.a.stopped)
+        self.assertEqual(self.listener.attached_ids(), ['b'])
+        self.listener.poll()
+        self.assertEqual(self.listener.attached_ids(), ['a', 'b'])
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+
+    def test_row5_6_a_failed_request_is_named_by_whether_the_link_died(self):
+        for dies, code in ((True, 'METRIC_FILTER_UNAVAILABLE'), (False, 'METRIC_EVALUATE_FAILED')):
+            with self.subTest(dies=dies):
+                tab = self.new_link('a')
+                tab.products_request(self.FILTER_OLD, request_id='r-' + str(dies))
+                frozen = self.listener.freeze()
+
+                def failing(expression, awaitPromise, returnByValue, tab=tab, dies=dies):
+                    tab.lost = dies
+                    raise RuntimeError('socket closed' if dies else 'Calling Runtime.evaluate timeout')
+                tab.answers = {'Runtime.evaluate': failing}
+                with self.assertRaises(mb.MetricFailure) as caught:
+                    self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+                self.assertEqual(caught.exception.code, code)
+                self.assertEqual(tab.stopped, dies)
+                self.listener.poll()
+
+    def test_row7_a_drop_on_one_tab_keeps_the_newer_filter_of_the_live_tab(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old', timestamp=1.0)
+        self.b.products_request(self.FILTER_NEW, request_id='new', timestamp=2.0)
+        self.a.lost = True
+        self.listener.poll()
+        self.assertEqual(self.session.capture(POLICY)['scope']['start_date'], '20260901')
+        self.assertNotIn('Runtime.evaluate', self.a.methods())
+
+    # Terra r1 on PR #536: the races around a drop.
+    # | row | situation                                                        | expected                                      |
+    # |-----|------------------------------------------------------------------|-----------------------------------------------|
+    # | 9   | click holds A's record, B sends a newer one, then A's link drops | A's record refused; B's filter still used      |
+    # | 10  | the link died, no poll yet, then the click                       | refused at freeze; the dead link is dropped    |
+    # | 11  | drop and reconnect between freeze and the Metric request         | refused; nothing sent on the new link          |
+    # | 12  | freeze, drop, reconnect not done yet                             | METRIC_FILTER_UNAVAILABLE, not METRIC_TAB_GONE |
+    # | 13  | «left Metric» event handled after the socket died, tab back  | the old filter is still refused after reattach |
+    def test_row13_a_late_navigation_event_from_a_dead_link_keeps_the_old_filter_refused(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        self.a.lost = True
+        self.a.emit(requestId='nav', type='Document', frameId='a',
+                    request={'url': 'https://accounts.google.com/', 'method': 'GET'})
+        self.world.now += 60
+        self.listener.poll()
+        self.assertEqual(self.listener.attached_ids(), ['a', 'b'])
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.evaluated, [])
+        live = self.world.live('a')[0]
+        live.emit(requestId='nav2', type='Document', frameId='a',
+                  request={'url': 'https://accounts.google.com/', 'method': 'GET'})
+        self.assertEqual(self.listener.attached_ids(), ['b'], 'a live link still leaves as «away»')
+
+    # | 14  | a link dies while it is being set up, after a filter was seen | the filter stays refused after the reconnect |
+    def test_row14_a_link_that_dies_during_its_setup_keeps_its_filter_refused(self):
+        holder = {}
+
+        def enable():
+            tab = holder['tab']
+            tab.products_request(self.FILTER_OLD, request_id='early')
+            tab.lost = True
+            raise RuntimeError('socket closed')
+        real_factory = self.listener._tab_factory
+
+        def factory(t):
+            tab = FakeTab(t, {**self.answers, 'Network.enable': enable})
+            holder['tab'] = tab
+            self.world.tabs.append(tab)
+            return tab
+        self.world.targets = self.world.targets + [target('c', 'https://metric.vn/analytics')]
+        self.listener._tab_factory = factory
+        self.listener.poll()
+        self.assertNotIn('c', self.listener.attached_ids())
+        self.listener._tab_factory = real_factory
+        self.listener.poll()
+        self.assertIn('c', self.listener.attached_ids())
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.evaluated, [])
+
+    def test_row9_a_held_click_record_from_a_dropped_link_is_refused(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old', timestamp=1.0)
+        held = self.listener.click_record()
+        self.b.products_request(self.FILTER_NEW, request_id='new', timestamp=2.0)
+        self.a.lost = True
+        self.listener.poll()
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.listener.freeze(held)
+        self.assertEqual(caught.exception.code, 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.listener.freeze()['body']['start_date'], '20260901')
+
+    def test_row10_a_link_that_died_before_the_poll_is_refused_at_the_click(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        self.a.lost = True
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertTrue(self.a.stopped)
+        self.assertEqual(self.evaluated, [])
+
+    def test_row11_a_reconnect_between_freeze_and_send_never_sends_the_old_filter(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        frozen = self.listener.freeze()
+        self.a.lost = True
+        self.listener.poll()
+        fresh = self.new_link('a')
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(caught.exception.code, 'METRIC_FILTER_UNAVAILABLE')
+        self.assertNotIn('Runtime.evaluate', fresh.methods())
+        self.assertEqual(self.evaluated, [])
+
+    def test_row12_a_send_while_the_reconnect_is_pending_names_the_filter(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        frozen = self.listener.freeze()
+        self.a.lost = True
+        real_factory = self.listener._tab_factory
+
+        def refuse(t):
+            raise OSError('Chrome busy')
+        self.listener._tab_factory = refuse
+        self.listener.poll()
+        self.assertEqual(self.listener.attached_ids(), ['b'])
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(caught.exception.code, 'METRIC_FILTER_UNAVAILABLE')
+        self.listener._tab_factory = real_factory
+        self.listener.poll()
+        self.assertEqual(self.listener.attached_ids(), ['a', 'b'])
+
+    @unittest.skipUnless(importlib.util.find_spec('websocket'), 'needs websocket-client for the vendored Tab')
+    def test_row8_the_vendored_tab_tells_a_dropped_socket_from_its_own_stop(self):
+        import websocket
+        from vendor_pychrome import Tab
+
+        class Socket:
+            def __init__(self):
+                self.closed = threading.Event()
+
+            def settimeout(self, _):
+                pass
+
+            def recv(self):
+                if self.closed.wait(0.05):
+                    raise websocket.WebSocketConnectionClosedException('closed')
+                raise websocket.WebSocketTimeoutException('idle')
+
+            def close(self):
+                self.closed.set()
+
+        for chrome_closes, expected in ((True, True), (False, False)):
+            with self.subTest(chrome_closes=chrome_closes):
+                sock = Socket()
+                with mock.patch.object(websocket, 'create_connection', return_value=sock), \
+                        mock.patch('vendor_pychrome.tab.logger'):
+                    tab = Tab(**target('a', 'https://metric.vn/analytics'))
+                    tab.start()
+                    self.assertFalse(tab.connection_lost())
+                    if chrome_closes:
+                        sock.close()
+                    else:
+                        tab.stop()
+                    wait_until(lambda: not tab._recv_th.is_alive(), 'receive loop ended')
+                    self.assertEqual(tab.connection_lost(), expected)
 
 
 if __name__ == '__main__':
