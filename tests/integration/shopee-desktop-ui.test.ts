@@ -6183,16 +6183,26 @@ test('a run from the user\'s Metric page shows its saved step 1 check and the Me
   entryFail.gates.entry = { ...passSlip('ENTRY'), verdict: 'FAIL', errorCode: 'SOME_NEW_CODE', checks: [
     { id: 'collection_policy', ok: false, got: false, errorCode: 'REVIEW_POLICY_INVALID' },
     { id: 'some_new_check', ok: false, got: false, errorCode: 'SOME_NEW_CHECK_FAILED' }] };
+  // Terra r2: no execution record at all; all four Metric platforms; no requested window (the Metric filter dates are used).
+  const noExec = userPageRunInfo('run-bare', []);
+  noExec.execution = null;
+  const plat = userPageRunInfo('run-plat', []);
+  plat.request.windows = [];
+  plat.request.metricSource.scope.include_query.platforms = [1, 2, 3, 8];
+  // Terra r2: a failed entry slip with a known reason and no failed check shows that reason's wording.
+  const entryKnown = userPageRunInfo('run-entry-known', []);
+  entryKnown.gates.entry = { ...passSlip('ENTRY'), verdict: 'FAIL', errorCode: 'CONFIG_MISSING', checks: [] };
   // An old preset run keeps main's behaviour: no saved-slip fallback.
   const presetSaved: any = syntheticRunInfo('run-preset-saved');
   presetSaved.execution = { format: 'run-execution-view-v1', revision: 1, status: 'SUCCEEDED', currentModule: 'M3',
     modules: { M1: { status: 'UNKNOWN', currentGate: null, historicalGate: null } } };
   const runs = { 'run-page': userPageRunInfo('run-page', []), 'run-kw': userPageRunInfo('run-kw', ['thuốc mọc tóc biotin', 'biotin']),
     'run-old': syntheticRunInfo('run-old'), 'run-hist': hist, 'run-cur': cur, 'run-missing': missing,
-    'run-entry-fail': entryFail, 'run-preset-saved': presetSaved };
+    'run-entry-fail': entryFail, 'run-preset-saved': presetSaved, 'run-bare': noExec, 'run-plat': plat,
+    'run-entry-known': entryKnown };
   const { dom, doc, state } = harness({
     runs: Object.keys(runs).map((runId) => ({ runId, product: runId, status: 'DONE' })),
-    runInfoByRun: runs,
+    runInfoByRun: runs, localShots: { 'run-page': true },
     moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
   });
   const detail = () => doc.getElementById('runDetail')!;
@@ -6216,7 +6226,7 @@ test('a run from the user\'s Metric page shows its saved step 1 check and the Me
     await waitFor(() => doc.querySelectorAll('#runList button').length === Object.keys(runs).length, 'run list');
     // 1
     for (const [runId, verdict, note] of [['run-page', 'Đạt', 'saved slip'], ['run-hist', 'Đạt', 'saved slip over an older one'],
-      ['run-cur', 'Không đạt', 'the step\'s own slip wins']] as const) {
+      ['run-cur', 'Không đạt', 'the step\'s own slip wins'], ['run-bare', 'Đạt', 'no execution record']] as const) {
       const seen = await m1Verdict(runId);
       assert.equal(seen.chip, verdict, '1 chip: ' + note);
       assert.match(seen.card, new RegExp(verdict), '1 card: ' + note);
@@ -6235,6 +6245,8 @@ test('a run from the user\'s Metric page shows its saved step 1 check and the Me
     assert.match(box.textContent!, /Shopee/, '2: platform from include_query');
     assert.doesNotMatch(box.textContent!, /Chưa có/, '2: every fact is filled');
     assert.equal(element(doc, 'entryMetricShot').textContent, 'Xem ảnh Metric', '2');
+    element<HTMLButtonElement>(doc, 'entryMetricShot').click();
+    await waitFor(() => state.viewShotCalls.some(([runId]) => runId === 'run-page'), '2: the button opens this run\'s Metric picture');
     assert.doesNotMatch(detail().textContent!, /capture specs/i, '2: no capture specs text anywhere');
     assert.equal(detail().querySelector('.entry-summary .c-warn'), null, '2: no «?» rows');
     // 3
@@ -6247,6 +6259,15 @@ test('a run from the user\'s Metric page shows its saved step 1 check and the Me
     const facts = Object.fromEntries([...missingBox.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
     assert.equal(facts['Từ khóa'], 'Chưa có', '3: missing keyword data');
     assert.equal(facts['Sàn'], 'Shopee · Sàn khác', '3: unknown platform, no number');
+    await open('run-plat');
+    const platFacts = Object.fromEntries([...element(doc, 'entryMetricFilters').querySelectorAll('dt')]
+      .map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
+    assert.equal(platFacts['Sàn'], 'Shopee · Lazada · Tiki · TikTok Shop', '3: platform names');
+    assert.match(platFacts['Khoảng thời gian']!, /21\/10\/2026.*19\/11\/2026/, '2: no requested window → the Metric filter dates');
+    await open('run-entry-known');
+    const knownText = detail().textContent!;
+    assert.match(knownText, /Máy này chưa được cài đặt để dùng app\./, '2: a known reason shows its wording');
+    assert.doesNotMatch(knownText, /CONFIG_MISSING|capture specs/i, '2: no code');
     await open('run-entry-fail');
     const failText = detail().textContent!;
     assert.match(failText, /Điều kiện thu bình luận của bước 3 chưa đạt:/, '2: failed policy still shown');
@@ -6255,7 +6276,6 @@ test('a run from the user\'s Metric page shows its saved step 1 check and the Me
     await open('run-old');
     assert.equal(doc.getElementById('entryMetricFilters'), null, '4');
     assert.match(detail().textContent!, /Xem thông tin đã ghi trong capture specs/, '4: old runs keep the old box');
-    assert.ok(state, 'harness state');
   } finally { dom.window.close(); }
 });
 
