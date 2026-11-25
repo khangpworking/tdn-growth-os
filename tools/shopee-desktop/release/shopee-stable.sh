@@ -54,11 +54,15 @@ run_active() {
   if printf '%s\n' "$procs" | grep -qE "shopee_flow.py|capture-metric-preset|shopee-cli.py"; then
     return 0
   fi
-  local files=() list
-  if [ -e "$RUNS" ]; then
+  local files=() list broken
+  if [ -e "$RUNS" ] || [ -L "$RUNS" ]; then   # a broken link to the runs folder is checked (and refused) too
     # An unreadable runs tree must not look like "no run".
     [ -d "$RUNS" ] && [ -r "$RUNS" ] && [ -x "$RUNS" ] || return 2
-    list="$(find "$RUNS" -mindepth 2 -maxdepth 2 -name state.json)" || return 2
+    # -L follows a linked runs root and linked run folders; a broken link makes find fail (refuse).
+    list="$(find -L "$RUNS" -mindepth 2 -maxdepth 2 -name state.json)" || return 2
+    # With -L, -type l matches only a broken link: a run folder we cannot reach is not "no run".
+    broken="$(find -L "$RUNS" -mindepth 1 -maxdepth 1 -type l)" || return 2
+    [ -z "$broken" ] || return 2
     [ -z "$list" ] || mapfile -t files <<< "$list"
   fi
   if [ "${#files[@]}" -gt 0 ]; then
