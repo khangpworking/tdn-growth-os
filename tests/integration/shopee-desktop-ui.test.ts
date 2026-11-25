@@ -6141,3 +6141,120 @@ test('a newer app version on the server shows one banner, closed per version; an
     } finally { run.dom.window.close(); }
   }
 });
+
+// Owner 25/11 (side chat «có, gửi đi»), steps 1–2 on runs made from the user's Metric page. The request and
+// the step 1 view below copy real runs: c35e93b0 (no keyword, category filter) and d6b4b951 (step 1 UNKNOWN).
+// | # | situation                                                     | expected                                                        |
+// |---|---------------------------------------------------------------|-----------------------------------------------------------------|
+// | 1 | user-page run, step 1 execution UNKNOWN, gates.m1 = PASS      | «Kiểm tra sau bước 1» card and step chip show the PASS slip      |
+// | 2 | same run, «Kiểm tra đầu vào»                                  | box «Bộ lọc đã lấy trên Metric»: period, keyword, Shopee, picture|
+// |   |                                                               | no «capture specs» text and no «?» rows anywhere in the detail   |
+// | 3 | keyword list from Metric / none                               | «thuốc mọc tóc biotin · biotin» / «Không có (chỉ lọc theo ngành hàng)» |
+// | 4 | an old preset run                                             | the old «Xem thông tin đã ghi trong capture specs» box stays     |
+function userPageRunInfo(runId: string, queries: string[], m1Status = 'UNKNOWN') {
+  const info: any = syntheticRunInfo(runId);
+  info.request = {
+    format: 'request-v2', preset: { keywords: [queries[0] ?? 'Metric 21/10–19/11/2026'] },
+    windows: [{ id: 'selected', period: { startDate: '2026-10-21', endDate: '2026-11-19' }, intervalDays: 7 }],
+    collectionPolicy: { format: 'shopee-review-policy-v1', mode: 'with-comments', stars: [], totalPerLink: 30, allocation: 'pooled' },
+    metricSource: { format: 'user-page-v1', scope: {
+      start_date: '20261021', end_date: '20261119', exclude_query: {}, fields: [], is_filter_gift: false,
+      include_query: { platforms: [1], queries, categories: ['1__100635', '1__100631'] },
+    } },
+  };
+  info.gates = { entry: { ...passSlip('ENTRY'), checks: [] }, m1: passSlip('M1'), m2: passSlip('M2'), m3: null };
+  info.execution = { format: 'run-execution-view-v1', revision: 2, status: 'SUCCEEDED', currentModule: 'M3',
+    modules: { M1: { status: m1Status, currentGate: null, historicalGate: null } } };
+  return info;
+}
+
+test('a run from the user\'s Metric page shows its saved step 1 check and the Metric filter, never capture specs', async () => {
+  const runs = { 'run-page': userPageRunInfo('run-page', []), 'run-kw': userPageRunInfo('run-kw', ['thuốc mọc tóc biotin', 'biotin']),
+    'run-old': syntheticRunInfo('run-old') };
+  const { dom, doc, state } = harness({
+    runs: Object.keys(runs).map((runId) => ({ runId, product: runId, status: 'DONE' })),
+    runInfoByRun: runs,
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId) }),
+  });
+  const detail = () => doc.getElementById('runDetail')!;
+  const open = async (runId: string) => {
+    runListButton(doc, runId).click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes(runId), runId);
+    await waitFor(() => detail().querySelector('.entry-summary') !== null, runId + ' entry card');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  };
+  const gateCardOf = (title: string) => [...detail().querySelectorAll<HTMLElement>('article.gate')]
+    .find((card) => card.querySelector('h3')?.textContent === title);
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 3, 'run list');
+    await open('run-page');
+    // 1
+    const m1 = gateCardOf('Kiểm tra sau bước 1');
+    assert.ok(m1, '1: step 1 check card');
+    assert.notEqual(m1!.dataset.tone, 'idle', '1: not «Chưa kiểm tra»');
+    assert.doesNotMatch(m1!.textContent!, /Chưa kiểm tra/, '1');
+    const chip = [...detail().querySelectorAll('.seqch')].find((item) => item.querySelector('b')?.textContent === 'Kiểm tra sau bước 1');
+    assert.ok(chip, '1: step chip');
+    assert.doesNotMatch(chip!.textContent!, /Chưa có phiếu/, '1: the step chip reads the saved slip too');
+    // 2
+    const box = element(doc, 'entryMetricFilters');
+    assert.equal(box.querySelector('h3')!.textContent, 'Bộ lọc đã lấy trên Metric', '2');
+    assert.match(box.textContent!, /21\/10\/2026/, '2: period start');
+    assert.match(box.textContent!, /19\/11\/2026/, '2: period end');
+    assert.match(box.textContent!, /Shopee/, '2: platform from include_query');
+    assert.doesNotMatch(box.textContent!, /Chưa có/, '2: every fact is filled');
+    assert.equal(element(doc, 'entryMetricShot').textContent, 'Xem ảnh Metric', '2');
+    assert.doesNotMatch(detail().textContent!, /capture specs/i, '2: no capture specs text anywhere');
+    assert.equal(detail().querySelector('.entry-summary .c-warn'), null, '2: no «?» rows');
+    // 3
+    assert.match(box.textContent!, /Không có \(chỉ lọc theo ngành hàng\)/, '3: no Metric keyword');
+    assert.doesNotMatch(box.textContent!, /Metric 21\/10–19\/11\/2026/, '3: the run name is not a keyword');
+    await open('run-kw');
+    assert.match(element(doc, 'entryMetricFilters').textContent!, /thuốc mọc tóc biotin · biotin/, '3');
+    // 4
+    await open('run-old');
+    assert.equal(doc.getElementById('entryMetricFilters'), null, '4');
+    assert.match(detail().textContent!, /Xem thông tin đã ghi trong capture specs/, '4: old runs keep the old box');
+    assert.ok(state, 'harness state');
+  } finally { dom.window.close(); }
+});
+
+// | # | situation                                                     | expected                                                        |
+// |---|---------------------------------------------------------------|-----------------------------------------------------------------|
+// | 5 | step 1 result rows                                            | «Có sản phẩm Shopee trong dữ liệu đã lấy» / «Metric trả sản phẩm theo doanh thu giảm dần» |
+// | 6 | step 2 RUNNING, no saved selection yet (SELECTION_MISSING)    | chip «Đang chạy», no failure text                               |
+// | 7 | step 2 ended (FAILED) with SELECTION_MISSING                  | chip «Không đạt kiểm tra» (a real failure still shows)          |
+test('step 1 rows read as business text, and step 2 shows «Đang chạy» while it runs', async () => {
+  const running: any = syntheticRunInfo('run-m2-running');
+  running.state = { status: 'RUNNING', module: 'M2', errorCode: null };
+  running.execution = { format: 'run-execution-view-v1', revision: 1, status: 'RUNNING', currentModule: 'M2',
+    modules: { M2: { status: 'RUNNING', currentGate: null, historicalGate: null } } };
+  running.gates.m2 = null;
+  const ended: any = syntheticRunInfo('run-m2-failed');
+  ended.state = { status: 'FAILED', module: 'M2', errorCode: 'SELECTION_MISSING' };
+  ended.execution = { format: 'run-execution-view-v1', revision: 1, status: 'FAILED', currentModule: 'M2',
+    modules: { M2: { status: 'FAILED', currentGate: null, historicalGate: null } } };
+  ended.gates.m2 = null;
+  const missing = { errorCode: 'SELECTION_MISSING', selectedCount: 0, links: [], skipped: [] };
+  const { dom, doc } = harness({
+    runs: [{ runId: 'run-m2-running', product: 'Đang chạy', status: 'RUNNING' }, { runId: 'run-m2-failed', product: 'Hỏng', status: 'FAILED' }],
+    runInfoByRun: { 'run-m2-running': running, 'run-m2-failed': ended },
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId, {}, missing) }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 2, 'run list');
+    runListButton(doc, 'run-m2-running').click();
+    await waitFor(() => doc.getElementById('moM2Chip') !== null, 'step 2 card');
+    // 5
+    assert.equal(element(doc, 'moM1Data').querySelector('.cl')!.textContent, 'Có sản phẩm Shopee trong dữ liệu đã lấy', '5');
+    assert.equal(element(doc, 'moM1Order').querySelector('.cl')!.textContent, 'Metric trả sản phẩm theo doanh thu giảm dần', '5');
+    // 6
+    assert.equal(element(doc, 'moM2Chip').textContent, 'Đang chạy', '6');
+    const card = element(doc, 'moM2Chip').closest('article')!;
+    assert.doesNotMatch(card.textContent!, /Bước 2 chưa có kết quả đã lưu|Không đạt/, '6: no failure while it runs');
+    // 7
+    runListButton(doc, 'run-m2-failed').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-m2-failed'), 'failed run');
+    await waitFor(() => doc.getElementById('moM2Chip')?.textContent === 'Không đạt kiểm tra', '7: a real failure still shows');
+  } finally { dom.window.close(); }
+});
