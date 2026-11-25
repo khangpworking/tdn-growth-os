@@ -6141,3 +6141,84 @@ test('a newer app version on the server shows one banner, closed per version; an
     } finally { run.dom.window.close(); }
   }
 });
+
+// Owner F697–F699 (app 1.4.0), approved texts (F698). One row each:
+// | # | situation                                          | expected                                                             |
+// |---|----------------------------------------------------|----------------------------------------------------------------------|
+// | 1 | READY theme with 3 points, 5 labels (1 unclear)    | 3 bullets ending «(N bình luận)»; chip «4 nhãn» + tooltip; no gray line|
+// | 2 | click «(2 bình luận)» of the 2nd point             | section open, comments read once, only its 2 comments; «Đang xem …»  |
+// | 3 | the page redraws (other tab, back)                 | still only those 2 comments                                          |
+// | 4 | «Hiện tất cả»                                       | every comment of the theme; the note is gone                         |
+// | 5 | READY without points (server before 1.4.0)         | the summary text as one paragraph, no bullets                        |
+test('theme points: bullets with counts, the «N nhãn» chip, and a count click shows only that point', async () => {
+  const runId = 'run-points';
+  const sha = 'd'.repeat(64);
+  const comment = (id: string, text: string) => ({ id, text, rating: 5, date: null, productName: null,
+    url: 'https://shopee.vn/product/801/100', tags: [] });
+  const comments = [comment('p1', 'Thấm nhanh không bết'), comment('p2', 'Mùi thơm nhẹ'), comment('p3', 'Mùi thơm dễ chịu'),
+    comment('p4', 'Giá rẻ'), comment('p5', 'Kem thấm nhanh')];
+  const points = [{ text: 'Thấm nhanh không bết', count: 2, commentIds: ['p1', 'p5'] },
+    { text: 'Mùi thơm nhẹ', count: 2, commentIds: ['p2', 'p3'] }, { text: 'Giá rẻ', count: 1, commentIds: ['p4'] }];
+  const themeWith = (summary: any) => ({ code: 'T-CONGDUNG', name: 'Công dụng', count: 5, unclearCount: 1, share: 1,
+    polarityCounts: { khen: 5, che: 0, ke: 0, khong_ro_huong: 0 }, summary, comments });
+  const insightsWith = (summary: any) => ({ format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [{
+    sourceSha256: sha, kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-25T08:00:00Z',
+    all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, themes: [themeWith(summary)], comments },
+    links: [] }] });
+  const ready = { status: 'READY', text: points.map((point) => point.text).join('; '), model: 'jev-grouped-theme-v1',
+    generatedAt: '2026-11-25T08:00:00Z' };
+  const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
+  const card = (doc: Document) => doc.querySelector<HTMLElement>('#resultThemeTags [data-theme-code="T-CONGDUNG"]');
+  const shown = (doc: Document) => [...card(doc)!.querySelectorAll('details.theme-comments .comment-row')]
+    .map((row) => comments.find((item) => row.textContent!.includes(item.text))!.id).sort();
+  const setup = (summary: any) => harness({
+    runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id: string) => ({ ok: true, data: moduleOutputView(id) }),
+    reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 5) }),
+    reviewInsightsResult: () => ({ ok: true, data: insightsWith(summary) }),
+  });
+
+  let run = setup({ ...ready, points });
+  try {
+    tab(run.doc, 2);
+    await waitFor(() => card(run.doc) !== null, 'themes shown');
+    // 1
+    const box = card(run.doc)!.querySelector<HTMLElement>('.theme-ai')!;
+    const bullets = [...box.querySelectorAll('ul li')].map((item) => item.textContent!.trim());
+    assert.deepEqual(bullets, ['Thấm nhanh không bết (2 bình luận)', 'Mùi thơm nhẹ (2 bình luận)', 'Giá rẻ (1 bình luận)'], '1');
+    const chip = box.querySelector<HTMLElement>('.theme-ai-head .chip')!;
+    assert.equal(chip.textContent, '4 nhãn', '1');
+    assert.equal(chip.title, 'Tóm tắt dựa trên 4 nhãn đã giữ cho chủ đề này. Không dùng dòng chưa gắn nhãn hoặc nhãn “không rõ phân loại”.', '1');
+    assert.equal(box.querySelector('p.meta'), null, '1: no gray line');
+    // 2
+    [...box.querySelectorAll<HTMLButtonElement>('ul li button')][1]!.click();
+    await waitFor(() => shown(run.doc).length === 2, '2: the point comments shown');
+    assert.deepEqual(shown(run.doc), ['p2', 'p3'], '2');
+    assert.equal(card(run.doc)!.querySelector<HTMLDetailsElement>('details.theme-comments')!.open, true, '2');
+    assert.equal(card(run.doc)!.querySelector('.point-filter span')!.textContent, 'Đang xem 2 bình luận của ý này.', '2');
+    assert.deepEqual(run.state.insightCommentCalls, [{ runId, bucket: sha + ':all', theme: 'T-CONGDUNG' }], '2: read once');
+    // 3
+    tab(run.doc, 1);
+    tab(run.doc, 2);
+    await waitFor(() => card(run.doc) !== null, '3: back');
+    assert.deepEqual(shown(run.doc), ['p2', 'p3'], '3');
+    // 4
+    const all = card(run.doc)!.querySelector<HTMLButtonElement>('.point-filter button')!;
+    assert.equal(all.textContent, 'Hiện tất cả', '4');
+    all.click();
+    await waitFor(() => shown(run.doc).length === 5, '4: every comment');
+    assert.equal(card(run.doc)!.querySelector('.point-filter'), null, '4: no note');
+    assert.equal(run.state.insightCommentCalls.length, 1, '4: no second read');
+  } finally { run.dom.window.close(); }
+
+  // 5
+  run = setup(ready);
+  try {
+    tab(run.doc, 2);
+    await waitFor(() => card(run.doc) !== null, '5: themes shown');
+    const box = card(run.doc)!.querySelector<HTMLElement>('.theme-ai')!;
+    assert.equal(box.querySelector('ul'), null, '5');
+    assert.ok([...box.querySelectorAll('p')].some((p) => p.textContent === ready.text), '5: the text paragraph');
+  } finally { run.dom.window.close(); }
+});

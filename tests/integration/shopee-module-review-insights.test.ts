@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import Database from 'better-sqlite3';
-import { prepareLabelledReviewExport, reviewInsightsView } from '../../scripts/module-review-data.js';
+import { prepareLabelledReviewExport, reviewDataCommand, reviewInsightsSummaryView, reviewInsightsView } from '../../scripts/module-review-data.js';
 import { readReviewExportBytes } from '../../src/modules/foundation/shopee-module-review-data.js';
 import { DEFAULT_CODEBOOK_FILE, codingText, parseLabelCodebook } from '../../src/modules/raw-db/review-labeller.js';
 import { LINKS, addCustomAttempt, addLegacySource, createModuleRun, moduleRow, sha256, type NativeRow } from '../fixtures/shopee-module-review-data.js';
@@ -555,4 +555,134 @@ test('the download reads labels like the result tab when two results share a rev
     assert.deepEqual(inFile, onScreen, source.kind + ': file and result tab agree');
     assert.deepEqual(inFile.map((tag: any) => tag.code), expected[source.kind], source.kind + ': the labelled text keeps its tag');
   }
+});
+
+// Owner F697–F699 (app 1.4.0): theme summaries as grouped points, asked with --points. One row each:
+// | # | situation                                              | expected                                                       |
+// |---|--------------------------------------------------------|----------------------------------------------------------------|
+// | 1 | 4 kept groups (4, 3, 2, 1 comments) + unclear + other  | 4 points, counts 4,3,2,1; ids = that group's kept comments      |
+// | 2 | the same view without --points (app 1.3.0)             | summary keys are exactly the v2 four; text = the points joined |
+// | 3 | 6 groups                                               | 5 points; the smallest group is left out                       |
+// | 4 | 205 kept comments of one theme                         | every cited id is one of the 200 listed comments               |
+// | 5 | an EMPTY theme / no label database (UNAVAILABLE)       | no points key                                                  |
+// | 6 | insights-summary with --points / another extra word    | accepted / USAGE                                               |
+type Point = { text: string; count: number; commentIds: string[] };
+
+function pointsOf(bucket: any, code: string): Point[] {
+  const summary = themeOf(bucket, code).summary;
+  assert.equal(summary.status, 'READY');
+  assert.ok(Array.isArray(summary.points), `${code}: points`);
+  const cited = new Set<string>();
+  for (const point of summary.points as Point[]) {
+    assert.deepEqual(Object.keys(point).sort(), ['commentIds', 'count', 'text']);
+    assert.equal(point.count, point.commentIds.length, point.text);
+    for (const id of point.commentIds) {
+      assert.ok(!cited.has(id), `${id} is cited by one point only`);
+      cited.add(id);
+    }
+    assert.ok(point.text.length >= 1 && point.text.length <= 160, point.text);
+    assert.ok(point.text.split(' ').length <= 20, point.text);
+    assert.ok(!/[“”"]/.test(point.text), `no quotes: ${point.text}`);
+  }
+  assert.ok(summary.points.length <= 5);
+  const counts = summary.points.map((point: Point) => point.count);
+  assert.deepEqual(counts, [...counts].sort((a: number, b: number) => b - a), 'largest point first');
+  return summary.points;
+}
+
+test('grouped points: similar kept comments share one point, unclear and other-theme comments are never cited', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points', links: [link] });
+  const texts: Record<string, string> = {
+    'g1-1': 'Kem thấm nhanh, không bết', 'g1-2': 'Thấm nhanh lắm, không bết da', 'g1-3': 'Kem thấm rất nhanh không bết',
+    'g1-4': 'Thấm nhanh, da không bết dính',
+    'g2-1': 'Mùi thơm nhẹ dễ chịu', 'g2-2': 'Mùi thơm dịu, dễ chịu', 'g2-3': 'Thơm nhẹ, mùi dễ chịu',
+    'g3-1': 'Giá rẻ hơn ngoài tiệm', 'g3-2': 'Giá rẻ so với ngoài tiệm',
+    'g4-1': 'Hộp giao bị móp',
+    unclear: 'Kem thấm nhanh không bết dính', other: 'Kem thấm nhanh nhưng giá cao',
+  };
+  const rows = Object.entries(texts).map(([id, comment]) => moduleRow(link, `pt-${id}`, { comment }));
+  await addLegacySource(run, { rowsByLink: [rows] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(row => labelRow(row, 'Kem A',
+    row.reviewId === 'pt-unclear' ? [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'unclear', choice: null }]
+      : row.reviewId === 'pt-other' ? [{ code: 'T-GIA', polarity: 'che', status: 'kept', choice: 'CHE' }]
+        : [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'KHEN' }])));
+  useDatabase(t, database);
+
+  const view = await reviewInsightsSummaryView(run.runDir, undefined, true) as any;
+  const points = pointsOf(view.sources[0].all, 'T-CONGDUNG');
+  const group = (prefix: string) => rows.map(row => row.reviewId!).filter(id => id.startsWith(`pt-${prefix}-`)).sort();
+  assert.deepEqual(points.map(point => [...point.commentIds].sort()), [group('g1'), group('g2'), group('g3'), group('g4')], '1');
+  for (const point of points) {
+    assert.ok(point.commentIds.map(id => texts[id.slice(3)]).includes(point.text), `1: ${point.text} is a cited sentence`);
+  }
+  assert.deepEqual(await reviewInsightsSummaryView(run.runDir, undefined, true), view, '1: deterministic');
+
+  const old = await reviewInsightsSummaryView(run.runDir) as any;
+  const summary = themeOf(old.sources[0].all, 'T-CONGDUNG').summary;
+  assert.deepEqual(Object.keys(summary).sort(), ['generatedAt', 'model', 'status', 'text'], '2');
+  assert.equal(summary.text, points.map(point => point.text).join('; '), '2');
+});
+
+test('grouped points: at most 5, the smallest group left out', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-five', links: [link] });
+  const pairs = [['Giao hàng nhanh chóng', 'Giao hàng rất nhanh chóng'], ['Đóng gói cẩn thận', 'Đóng gói rất cẩn thận'],
+    ['Giá rẻ hợp lý', 'Giá rẻ rất hợp lý'], ['Mùi thơm dễ chịu', 'Mùi thơm rất dễ chịu'], ['Kem thấm êm', 'Kem thấm rất êm']];
+  const rows = [...pairs.flatMap((pair, group) => pair.map((comment, index) => moduleRow(link, `five-${group}-${index}`, { comment }))),
+    moduleRow(link, 'five-single', { comment: 'Hộp móp méo' })];
+  await addLegacySource(run, { rowsByLink: [rows] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(row =>
+    labelRow(row, 'Kem A', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'KHEN' }])));
+  useDatabase(t, database);
+
+  const points = pointsOf((await reviewInsightsSummaryView(run.runDir, undefined, true) as any).sources[0].all, 'T-CONGDUNG');
+  assert.equal(points.length, 5, '3');
+  assert.deepEqual(points.map(point => point.count), [2, 2, 2, 2, 2], '3');
+  assert.ok(!points.some(point => point.commentIds.includes('five-single')), '3: the 1-comment group is left out');
+});
+
+test('grouped points cite only the 200 listed comments of a theme', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-cap', links: [link] });
+  const rows = Array.from({ length: 205 }, (_, index) =>
+    moduleRow(link, `pcap-${String(index).padStart(3, '0')}`, { comment: `Kem thấm nhanh lần ${index}` }));
+  await addLegacySource(run, { cap: 205, rowsByLink: [rows] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(row =>
+    labelRow(row, 'Kem Cap', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'OK' }])));
+  useDatabase(t, database);
+
+  const points = pointsOf((await reviewInsightsSummaryView(run.runDir, undefined, true) as any).sources[0].all, 'T-CONGDUNG');
+  const listed = new Set(rows.slice(0, 200).map(row => row.reviewId));
+  const cited = points.flatMap(point => point.commentIds);
+  assert.ok(cited.length > 0);
+  assert.ok(cited.every(id => listed.has(id)), '4: only listed comments are cited');
+});
+
+test('EMPTY and UNAVAILABLE theme summaries carry no points; insights-summary takes only --points', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-empty', links: [link] });
+  const row = moduleRow(link, 'pe-1', { comment: 'Chưa rõ kết quả' });
+  await addLegacySource(run, { rowsByLink: [[row]] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, [labelRow(row, 'Kem A', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'unclear', choice: null }])]);
+  useDatabase(t, database);
+
+  const viaCommand = await reviewDataCommand(['insights-summary', run.runDir, '--points']) as any;
+  assert.deepEqual(themeOf(viaCommand.sources[0].all, 'T-CONGDUNG').summary,
+    { status: 'EMPTY', text: null, model: null, generatedAt: null }, '5: EMPTY');
+  await assert.rejects(reviewDataCommand(['insights-summary', run.runDir, '--other']), { code: 'USAGE' }, '6');
+  await assert.rejects(reviewDataCommand(['insights-summary', run.runDir, '--points', '--points']), { code: 'USAGE' }, '6');
+
+  useDatabase(t, null);
+  const unavailable = await reviewInsightsSummaryView(run.runDir, undefined, true) as any;
+  assert.deepEqual(themeOf(unavailable.sources[0].all, 'T-CONGDUNG').summary,
+    { status: 'UNAVAILABLE', text: null, model: null, generatedAt: null }, '5: UNAVAILABLE');
 });
