@@ -148,6 +148,23 @@ test('RAWDB-A hook: committed SUCCEEDED/PARTIAL collection fires once despite la
 test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and surviving a failed backup without a run attempt', async t => {
   const f = await fixture(t, 'off');
   f.db.exec("CREATE TABLE a_timer(value TEXT); INSERT INTO a_timer VALUES ('first synthetic generation')");
+  // A publish has fully finished (folder fsync done, no longer "running") when the timer closes the connection
+  // that ran its backup. The snapshot file alone changes earlier, at the rename.
+  const close = Database.prototype.close, backup = Database.prototype.backup;
+  let finished = 0, started = 0, hold: Promise<void> | null = null, failNext = false, release = () => {};
+  const publishers = new Set<Database.Database>();
+  t.mock.method(Database.prototype, 'close', function(this: Database.Database) {
+    const result = close.call(this);
+    if (publishers.delete(this)) finished++;
+    return result;
+  });
+  t.mock.method(Database.prototype, 'backup', async function(this: Database.Database, ...args: Parameters<typeof backup>) {
+    started++;
+    publishers.add(this);
+    if (hold) await hold;
+    if (failNext) { failNext = false; throw new Error('A_SYNTHETIC_BACKUP_FAILURE'); }
+    return backup.apply(this, args);
+  });
   t.mock.timers.enable({ apis: ['setInterval'] });
   const application = openOperatorApp(await configuration(f, 'true'), { clock: now });
   const generation = async () => {
@@ -156,39 +173,48 @@ test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and 
     try { return copy.prepare('SELECT value FROM a_timer').pluck().get(); }
     finally { copy.close(); }
   };
+  // One tick of exactly ten minutes, then wait until that publish has fully finished.
+  const oneInterval = async (publishes: number, description: string) => {
+    t.mock.timers.tick(600_000);
+    await until(async () => finished === publishes, description);
+  };
   try {
     await new Promise<void>(resolve => setImmediate(resolve));
-    t.mock.timers.tick(600_000);
-    await until(async () => await generation() === 'first synthetic generation', 'ten-minute snapshot');
+    assert.equal(started, 0, 'nothing is published before ten minutes');
+    await oneInterval(1, 'ten-minute snapshot');
+    assert.equal(await generation(), 'first synthetic generation');
     f.db.exec("UPDATE a_timer SET value='second synthetic generation'");
-    t.mock.timers.tick(600_000);
-    await until(async () => await generation() === 'second synthetic generation', 'next ten-minute snapshot');
-    const backup = Database.prototype.backup;
-    let started = 0, release!: () => void, failNext = false;
-    const gate = new Promise<void>(resolve => { release = resolve; });
-    t.mock.method(Database.prototype, 'backup', async function(this: Database.Database, ...args: Parameters<typeof backup>) {
-      started++;
-      await gate;
-      if (failNext) { failNext = false; throw new Error('A_SYNTHETIC_BACKUP_FAILURE'); }
-      return backup.apply(this, args);
-    });
+    await oneInterval(2, 'next ten-minute snapshot');
+    assert.equal(await generation(), 'second synthetic generation');
+    hold = new Promise<void>(resolve => { release = resolve; });
     f.db.exec("UPDATE a_timer SET value='third synthetic generation'");
     try {
       t.mock.timers.tick(600_000);
-      await until(async () => started === 1, 'backup starts');
+      await until(async () => started === 3, 'backup starts');
       t.mock.timers.tick(1_200_000);
       await new Promise<void>(resolve => setImmediate(resolve));
-      assert.equal(started, 1, 'busy ticks must not queue or overlap another publish');
-    } finally { release(); }
-    await until(async () => await generation() === 'third synthetic generation', 'held backup finishes');
+      assert.equal(started, 3, 'busy ticks must not queue or overlap another publish');
+    } finally { release(); hold = null; }
+    await until(async () => finished === 3, 'held backup finishes');
+    assert.equal(started, 3, 'skipped ticks are not replayed after the held publish');
+    assert.equal(await generation(), 'third synthetic generation');
     failNext = true;
     f.db.exec("UPDATE a_timer SET value='fourth synthetic generation'");
-    t.mock.timers.tick(600_000);
-    await until(async () => started === 2, 'failed backup attempted');
-    await new Promise<void>(resolve => setImmediate(resolve));
+    await oneInterval(4, 'failed backup attempted');
+    assert.equal(started, 4);
     assert.equal(await generation(), 'third synthetic generation', 'failed backup preserves the previous snapshot');
-    t.mock.timers.tick(600_000);
-    await until(async () => await generation() === 'fourth synthetic generation', 'timer recovers after backup failure');
+    await oneInterval(5, 'timer recovers after backup failure');
+    assert.equal(await generation(), 'fourth synthetic generation');
     assert.equal(Number(f.db.prepare('SELECT count(*) FROM raw_db_autoload').pluck().get()), 0);
-  } finally { await application.close(); }
+  } finally {
+    // After a failed check a publish may still run (held, or not yet at its backup); stop the timer, then let every
+    // started publish end before teardown removes its folder. The test's own failure stays the reported one.
+    release(); hold = null; failNext = false;
+    await application.close();
+    const snapshotDir = path.dirname(snapshotPath(f));
+    const idle = async () => publishers.size === 0 &&
+      !(await fs.readdir(snapshotDir).catch(() => [] as string[])).some(name => name.startsWith('.tmp-'));
+    const settled = async () => await idle() && await new Promise<boolean>(resolve => setTimeout(() => resolve(idle()), 100));
+    await until(settled, 'publishes drained').catch(() => undefined);
+  }
 });
