@@ -50,7 +50,11 @@ function Invoke-Rollback {
     $pin = Get-Content -LiteralPath $stableJson -Raw | ConvertFrom-Json
     $sha = (Get-FileHash -LiteralPath $stableExe -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($sha -ne $pin.sha256) { Stop-WithError "stable app sha256 does not match stable.json; rollback refused" }
-    Get-Process -Name 'TDN-Shopee-Flow' -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false
+    # Only the app that runs from this folder; another copy elsewhere keeps running.
+    $full = [IO.Path]::GetFullPath($exe)
+    Get-Process -Name 'TDN-Shopee-Flow' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and [IO.Path]::GetFullPath($_.Path) -ieq $full } |
+        Stop-Process -Force -Confirm:$false
     Start-Sleep -Seconds 2
     if (Test-Path -LiteralPath $exe) { Copy-Item -LiteralPath $exe -Destination $backupExe -Force -Confirm:$false }
     Copy-Item -LiteralPath $stableExe -Destination $exe -Force -Confirm:$false
