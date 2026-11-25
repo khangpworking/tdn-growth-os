@@ -6263,6 +6263,7 @@ test('a failed read of the result download data names the download, not the hidd
     doc.querySelector<HTMLButtonElement>('#resultRunList button')!.click();
     await waitFor(() => doc.getElementById('resultInsightsError') !== null, 'error card');
     assert.equal(element(doc, 'resultInsightsError').textContent, 'Chưa tải được phần tải bình luận. Có thể thử lại sau.');
+    assert.equal(element(doc, 'resultInsightsError').querySelector('.errbar')!.title, '', 'no error code in the hover text');
     assert.doesNotMatch(element(doc, 'resultDetail').textContent!, /AI|nhãn chủ đề/);
   } finally { dom.window.close(); }
 });
