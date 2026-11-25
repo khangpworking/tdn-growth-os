@@ -88,7 +88,7 @@ class RunViewBridgeTest(unittest.TestCase):
         with self.subTest('with --result'):
             self.answer = view(PARTS)
             result = self.api.runView(RUN, True)
-            self.assertEqual(self.calls[-1], ('runView', RUN, ('--result',)))
+            self.assertEqual(self.calls[-1], ('runView', RUN, ('--result', '--points')))
             self.assertEqual(result['data']['parts']['insights'], {'ok': True, 'data': INSIGHTS_V2})
             self.assertEqual(result['data']['parts']['stats'], {'ok': True, 'data': PARTS['stats']})
         with self.subTest('a part in errors'):
@@ -115,7 +115,7 @@ class RunViewBridgeTest(unittest.TestCase):
     def test_insights_summary_and_comments(self):
         """| call                                   | reply                          | page gets                  |
         |----------------------------------------|--------------------------------|----------------------------|
-        | reviewInsightsSummary                  | v2                             | ok, asked with --summary   |
+        | reviewInsightsSummary                  | v2                             | ok, --summary --points     |
         | reviewInsightsSummary                  | v1 (comment lists)             | REMOTE_OUTPUT_INVALID      |
         | reviewInsightComments bucket + theme   | its list                       | ok, --bucket and --theme   |
         | reviewInsightComments                  | another theme echoed back      | REMOTE_OUTPUT_INVALID      |
@@ -123,7 +123,7 @@ class RunViewBridgeTest(unittest.TestCase):
         """
         self.answer = {'ok': True, 'data': INSIGHTS_V2}
         self.assertTrue(self.api.reviewInsightsSummary(RUN)['ok'])
-        self.assertEqual(self.calls[-1], ('reviewInsightsSummary', RUN, ('--summary',)))
+        self.assertEqual(self.calls[-1], ('reviewInsightsSummary', RUN, ('--summary', '--points')))
         self.answer = {'ok': True, 'data': INSIGHTS_V1}
         self.assertEqual(self.api.reviewInsightsSummary(RUN)['error']['code'], 'REMOTE_OUTPUT_INVALID')
         reply = {'format': 'review-insight-comments-v1', 'bucket': SHA + ':all', 'theme': 'T-CONGDUNG', 'comments': [COMMENT]}

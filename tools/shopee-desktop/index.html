@@ -179,6 +179,15 @@ table.wide-products td.pname, table.wide-products td.pcat { white-space: normal;
 .theme-meta { display: flex; flex-wrap: wrap; gap: 5px 12px; align-items: center; color: var(--muted); font-size: 12px; }
 .theme-ai { margin: 0 12px 12px; }
 .theme-ai h4 { margin: 0; font-size: 14px; }
+.theme-ai-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.theme-kept { cursor: help; }
+.theme-kept:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-points { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; line-height: 1.6; }
+.point-count { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.point-count:hover { text-decoration: underline; }
+.point-count:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.point-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.point-filter .abtn { padding: 4px 10px; font-size: 12.5px; }
 .theme-comments { border-top: 1px solid var(--line); }
 .theme-comments > summary { cursor: pointer; list-style: none; padding: 9px 12px; color: var(--accent); font-size: 13px; font-weight: 700; }
 .theme-comments > summary::-webkit-details-marker { display: none; }
@@ -2272,17 +2281,19 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       return { status: 'EMPTY', text: null, model: null, generatedAt: null };
     }
 
+    // Like the server (jev-grouped-theme-v1): up to 3 points here, each citing the listed comments it groups.
     function mockThemeSummary(definition, examples, total) {
       if (!total || !examples.length) return emptyInsightSummary();
-      var quotes = examples.slice(0, 2).map(function (comment) {
-        var tag = comment.tags.find(function (item) { return item.code === definition.code; });
-        var polarity = tag && tag.polarity === 'khen' ? 'khen' : tag && tag.polarity === 'che' ? 'chê' : 'trung lập';
-        return '“' + comment.text + '” (' + polarity + ')';
-      }).join('; ');
+      var size = Math.min(3, examples.length);
+      var points = examples.slice(0, size).map(function (comment, index) {
+        var ids = examples.filter(function (item, at) { return at % size === index; }).map(function (item) { return item.id; });
+        return { text: comment.text, count: ids.length, commentIds: ids };
+      }).sort(function (a, b) { return b.count - a.count; });
       return {
         status: 'READY',
-        text: 'Nội dung mẫu tiêu biểu từ các bình luận đã gắn nhãn cho chủ đề này: ' + quotes + '.',
-        model: 'mock-ai-v1', generatedAt: '2026-11-05T20:30:00+07:00'
+        text: points.map(function (point) { return point.text; }).join('; '),
+        model: 'mock-ai-v1', generatedAt: '2026-11-05T20:30:00+07:00',
+        points: points
       };
     }
 
@@ -3247,6 +3258,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     runViewSupported: null,   // false after an older server answered USAGE to run-view
     insightComments: {},      // runId -> 'bucketKey|theme' -> { status: loading|ok|error, comments, error }
     insightOpen: {},          // runId -> 'bucketKey|theme' -> true while its comments are open
+    insightPointFilter: {},   // runId -> 'bucketKey|theme' -> index of the summary point whose comments are shown
     insightBucketSeq: {},     // runId -> bucket key -> times that bucket changed; a change empties its comments
     runViewInFlight: {},      // runId -> { promise, withResult, viewSeq } of the run-view read on its way (loadInfo)
     runViewAgain: {},         // runId -> { promise, resolve } of the one follow-up read asked while it was out
@@ -6356,16 +6368,50 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return card;
   }
 
-  function themeSummaryBlock(theme) {
+  // The grouped points of a READY summary (app 1.4.0); an older server sends none.
+  function themeSummaryPoints(summary) {
+    if (!summary || summary.status !== 'READY' || !Array.isArray(summary.points)) return [];
+    return summary.points.filter(function (point) {
+      return point && typeof point.text === 'string' && point.text && Array.isArray(point.commentIds);
+    });
+  }
+
+  // Owner F697–F699: 3–5 short points, each with its count; a click on a count shows only that point's comments
+  // (`onPoint(index)`). A READY summary without points (older server) keeps its text paragraph.
+  function themeSummaryBlock(theme, onPoint) {
     var summary = theme && theme.summary ? theme.summary : { status: 'EMPTY', text: null };
     var box = h('div', 'insight-summary theme-ai');
     box.dataset.state = String(summary.status || 'EMPTY').toLowerCase();
     box.dataset.themeCode = theme && theme.code ? theme.code : '';
-    box.appendChild(h('h4', null, 'AI Tóm tắt chủ đề'));
-    if (summary.status === 'READY' && summary.text) {
-      box.appendChild(h('p', null, summary.text));
+    var head = h('div', 'theme-ai-head');
+    head.appendChild(h('h4', null, 'AI Tóm tắt chủ đề'));
+    box.appendChild(head);
+    var points = themeSummaryPoints(summary);
+    if (summary.status === 'READY' && (points.length || summary.text)) {
       var kept = Math.max(0, Number(theme.count || 0) - Number(theme.unclearCount || 0));
-      box.appendChild(h('p', 'meta', 'Dựa trên ' + fmtInt(kept) + ' nhãn đã giữ cho chủ đề này; không dùng dòng chưa gắn nhãn hoặc nhãn “không rõ phân loại”.'));
+      var tip = 'Tóm tắt dựa trên ' + fmtInt(kept) + ' nhãn đã giữ cho chủ đề này. Không dùng dòng chưa gắn nhãn hoặc nhãn “không rõ phân loại”.';
+      var chip = h('span', 'chip s-ready theme-kept', fmtInt(kept) + ' nhãn');
+      chip.title = tip;
+      chip.tabIndex = 0;
+      chip.setAttribute('role', 'note');
+      chip.setAttribute('aria-label', fmtInt(kept) + ' nhãn. ' + tip);
+      head.appendChild(chip);
+      if (points.length) {
+        var list = h('ul', 'theme-points');
+        points.forEach(function (point, index) {
+          var item = h('li');
+          item.appendChild(document.createTextNode(point.text + ' '));
+          var count = h('button', 'point-count', '(' + fmtInt(point.commentIds.length) + ' bình luận)');
+          count.type = 'button';
+          if (onPoint) count.addEventListener('click', function () { onPoint(index); });
+          else count.disabled = true;
+          item.appendChild(count);
+          list.appendChild(item);
+        });
+        box.appendChild(list);
+      } else {
+        box.appendChild(h('p', null, summary.text));
+      }
     } else if (summary.status === 'UNAVAILABLE') {
       box.appendChild(h('p', null, 'Chưa đọc được nhãn Jev để tóm tắt chủ đề này.'));
       box.appendChild(h('p', 'meta', 'Phần đếm và bình luận bên dưới vẫn dựa trên dữ liệu đã tải của lượt này.'));
@@ -6397,7 +6443,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       if (before[key] !== after[key]) changed[key] = true;
     });
     Object.keys(changed).forEach(function (key) { seqs[key] = (seqs[key] || 0) + 1; });
-    [state.insightComments[runId], state.insightOpen[runId]].forEach(function (map) {
+    [state.insightComments[runId], state.insightOpen[runId], state.insightPointFilter[runId]].forEach(function (map) {
       Object.keys(map || {}).forEach(function (entryKey) {
         var bucketKey = entryKey.slice(0, entryKey.lastIndexOf('|'));
         if (changed[bucketKey] || !(bucketKey in after)) delete map[entryKey];
@@ -6431,6 +6477,15 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function insightThemeComments(runId, bucket, theme) {
     var key = bucket.key + '|' + theme.code;
     return { key: key, entry: (state.insightComments[runId] || {})[key] || null };
+  }
+
+  // After a redraw: bring one theme card's comment section into view and move the focus there.
+  function focusThemeComments(code, selector) {
+    var card = document.querySelector('#resultThemeTags .theme-card[data-theme-code="' + code + '"]');
+    var target = card && card.querySelector(selector);
+    if (!target) return;
+    if (target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
+    target.focus({ preventScroll: true });
   }
 
   function insightThemeCard(bucket, runId) {
@@ -6482,18 +6537,47 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       if (theme.unclearCount) meta.appendChild(h('span', null, 'Không rõ phân loại ' + fmtInt(theme.unclearCount)));
       themeHead.appendChild(meta);
       article.appendChild(themeHead);
-      article.appendChild(themeSummaryBlock(theme));
+      var onDemand = typeof theme.commentCount === 'number' && bucket && typeof bucket.key === 'string';
+      var listed = onDemand ? insightThemeComments(runId, bucket, theme) : null;
+      var points = themeSummaryPoints(theme.summary);
+      var pointIndex = onDemand ? (state.insightPointFilter[runId] || {})[listed.key] : undefined;
+      var point = typeof pointIndex === 'number' ? points[pointIndex] || null : null;
+      // A count click opens the section, reads the comments as a click on it does, and shows that point's comments.
+      var showPoint = onDemand ? function (index) {
+        (state.insightPointFilter[runId] || (state.insightPointFilter[runId] = {}))[listed.key] = index;
+        (state.insightOpen[runId] || (state.insightOpen[runId] = {}))[listed.key] = true;
+        var now = insightThemeComments(runId, bucket, theme).entry;
+        var reading = !now || now.status === 'error' ? loadInsightComments(runId, bucket.key, theme.code) : null;
+        if (!reading) renderResult();
+        focusThemeComments(theme.code, '.point-all');
+        // The read's answer redraws the card: put the focus back unless the user moved it meanwhile.
+        if (reading) reading.then(function () {
+          if (!document.activeElement || document.activeElement === document.body) focusThemeComments(theme.code, '.point-all');
+        });
+      } : null;
+      article.appendChild(themeSummaryBlock(theme, showPoint));
       var details = document.createElement('details');
       details.className = 'theme-comments';
       var toggle = document.createElement('summary');
-      var onDemand = typeof theme.commentCount === 'number' && bucket && typeof bucket.key === 'string';
-      var listed = onDemand ? insightThemeComments(runId, bucket, theme) : null;
       var examples = onDemand ? (listed.entry && listed.entry.status === 'ok' ? listed.entry.comments : [])
         : (Array.isArray(theme.comments) ? theme.comments : []);
       var sampleCount = onDemand ? theme.commentCount : examples.length;
       toggle.textContent = sampleCount ? 'Xem ' + fmtInt(sampleCount) + ' bình luận mẫu' : 'Chưa có bình luận mẫu';
       details.appendChild(toggle);
       var body = h('div', 'theme-body');
+      if (point && sampleCount) {
+        var filterBar = h('div', 'point-filter');
+        filterBar.appendChild(h('span', null, 'Đang xem ' + fmtInt(point.commentIds.length) + ' bình luận của ý này.'));
+        var showAll = h('button', 'abtn point-all', 'Hiện tất cả');
+        showAll.type = 'button';
+        showAll.addEventListener('click', function () {
+          delete (state.insightPointFilter[runId] || {})[listed.key];
+          renderResult();
+          focusThemeComments(theme.code, '.theme-comments > summary');
+        });
+        filterBar.appendChild(showAll);
+        body.appendChild(filterBar);
+      }
       if (onDemand && sampleCount) {
         // Read only on the user's click: a section restored open after a redraw never reads by itself, and a
         // failed read is tried again only on the next click that opens it.
@@ -6514,6 +6598,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         var failed = h('p', 'theme-note', 'Chưa tải được bình luận mẫu. Đóng rồi mở lại để thử lại.');
         failed.title = errorCode(listed.entry.error);
         body.appendChild(failed);
+      } else if (point && examples.length) {
+        body.appendChild(commentList(examples.filter(function (comment) { return point.commentIds.indexOf(comment.id) !== -1; })));
       } else if (examples.length) {
         body.appendChild(commentList(examples, 8));
         if (theme.count > examples.length) {

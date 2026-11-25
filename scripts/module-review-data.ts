@@ -44,7 +44,9 @@ type InsightTag = { code:string; name:string; polarity:InsightPolarity; status:'
 type InsightComment = { id:string; text:string; rating:number|null; date:string|null; productName:string|null; url:string|null; tags:InsightTag[] };
 type InsightTheme = { code:string; name:string; count:number; unclearCount:number; share:number;
   polarityCounts:Record<InsightPolarity,number>; summary:InsightSummary; comments:InsightComment[] };
-type InsightSummary = { status:'READY'|'EMPTY'|'UNAVAILABLE'; text:string|null; model:string|null; generatedAt:string|null };
+type InsightPoint = { text:string; count:number; commentIds:string[] };
+type InsightSummary = { status:'READY'|'EMPTY'|'UNAVAILABLE'; text:string|null; model:string|null; generatedAt:string|null;
+  points?:InsightPoint[] };
 type InsightBucket = { summary:InsightSummary; themes:InsightTheme[]; comments:InsightComment[] };
 
 const INSIGHT_MAX_COMMENTS = 200;
@@ -131,15 +133,11 @@ function insightComment(row:ModuleReviewRow, sourceSha256:string, index:number, 
     date:row.createdAt ?? row.postedAtLocal ?? null, productName, url:row.sourceUrl, tags };
 }
 
-const INSIGHT_POLARITY_LABELS:Record<InsightPolarity,string> = {
-  khen:'khen', che:'chê', ke:'trung lập', khong_ro_huong:'không rõ hướng',
-};
-
-const INSIGHT_THEME_MODEL = 'jev-extractive-theme-v1';
-const INSIGHT_THEME_MAX_SENTENCES = 3;
-const INSIGHT_SENTENCE_MAX_CHARS = 160;
+const INSIGHT_THEME_MODEL = 'jev-grouped-theme-v1';
+const INSIGHT_THEME_MAX_POINTS = 5;
+const INSIGHT_POINT_MAX_WORDS = 20;
+const INSIGHT_POINT_MAX_CHARS = 160;
 const INSIGHT_SENTENCE_MIN_CHARS = 4;
-const INSIGHT_NEAR_DUPLICATE = 0.85;
 // Function words only: sentiment and product terms stay in the recurrence score.
 const INSIGHT_STOPWORDS = new Set(['la','và','của','có','cho','với','không','được','rất','này','những','các','một',
   'mình','thấy','thì','mà','khi','nếu','nhưng','để','từ','đến','trong','ngoài','trên','dưới','ra','vào','lên','xuống',
@@ -147,7 +145,8 @@ const INSIGHT_STOPWORDS = new Set(['la','và','của','có','cho','với','khôn
   'kia','ấy','tôi','bạn','em','anh','chị','họ','nó','vậy','thế','rồi','chứ','như','theo','về','giữa','sau','trước',
   'mỗi','mọi','ai','gì','nào','sao','ok','oke','okela','đi','nhá','đấy','ơi','à','ừ','vâng','dạ']);
 
-type InsightSentence = { text:string; key:string; tokens:Set<string>; polarity:InsightPolarity; commentIndex:number; score:number };
+type InsightSentence = { text:string; key:string; tokens:Set<string>; score:number };
+type InsightPointComment = { id:string; index:number; sentences:InsightSentence[] };
 
 function insightFlatten(text:string):string {
   return text.replace(/\s+/g,' ').trim();
@@ -173,92 +172,99 @@ function insightSentences(text:string):string[] {
   return sentences;
 }
 
-function insightBoundText(text:string,max:number):string {
-  const flat = insightFlatten(text);
-  if (flat.length <= max) return flat;
-  const cut = flat.slice(0,max), boundary = cut.lastIndexOf(' ');
-  return `${(boundary >= Math.floor(max * 0.6) ? cut.slice(0,boundary) : cut).trimEnd()}…`;
+const insightCompare = (left:string, right:string):number => left < right ? -1 : left > right ? 1 : 0;
+
+/** Recurrence score: how often a sentence's content words appear across the given comments, length-normalised. */
+function insightRecurrence(tokens:Set<string>, frequency:Map<string,number>):number {
+  return [...tokens].reduce((total,token) => total + (frequency.get(token) ?? 0),0) / Math.sqrt(Math.max(1,tokens.size));
 }
 
-function insightRank(left:InsightSentence,right:InsightSentence):number {
-  return right.score - left.score || left.commentIndex - right.commentIndex ||
-    (left.key < right.key ? -1 : left.key > right.key ? 1 : 0);
+function insightFrequency(groups:Iterable<Set<string>>):Map<string,number> {
+  const frequency = new Map<string,number>();
+  for (const tokens of groups) for (const token of tokens) frequency.set(token,(frequency.get(token) ?? 0) + 1);
+  return frequency;
 }
 
-/** Scores deduplicated sentences by how often their content words recur across the theme's kept comments. */
-function insightEvidence(definition:LabelCodebook['core'][number], entry:{ comments:InsightComment[] }): { usable:number; sentences:InsightSentence[] } {
-  const byComment = new Map<string,{ polarity:InsightPolarity; index:number; sentences:{ text:string; key:string; tokens:Set<string> }[] }>();
-  entry.comments.forEach((comment,index) => {
-    if (byComment.has(comment.id)) return;
-    const tag = comment.tags.find(item => item.code === definition.code && item.status === 'kept');
-    if (!tag) return;
+/** The theme's kept, listed comments with their scored sentences (best first); unclear tags are never evidence. */
+function insightPointComments(code:string, listed:InsightComment[]):InsightPointComment[] {
+  const seen = new Set<string>();
+  const parsed:{ id:string; index:number; sentences:{ text:string; key:string; tokens:Set<string> }[] }[] = [];
+  listed.forEach((comment,index) => {
+    if (seen.has(comment.id) || !comment.tags.some(tag => tag.code === code && tag.status === 'kept')) return;
+    seen.add(comment.id);
     const sentences = insightSentences(comment.text).map(text => ({ text, key:insightSentenceKey(text), tokens:insightTokens(text) }));
-    if (sentences.length) byComment.set(comment.id,{ polarity:tag.polarity, index, sentences });
+    if (sentences.length) parsed.push({ id:comment.id, index, sentences });
   });
-  const documentFrequency = new Map<string,number>();
-  for (const group of byComment.values()) {
-    const tokens = new Set(group.sentences.flatMap(sentence => [...sentence.tokens]));
-    for (const token of tokens) documentFrequency.set(token,(documentFrequency.get(token) ?? 0) + 1);
-  }
-  const seen = new Set<string>(), sentences:InsightSentence[] = [];
-  for (const group of byComment.values()) {
-    for (const sentence of group.sentences) {
-      if (seen.has(sentence.key)) continue;
-      seen.add(sentence.key);
-      const recurrence = [...sentence.tokens].reduce((total,token) => total + (documentFrequency.get(token) ?? 0),0);
-      sentences.push({ text:sentence.text, key:sentence.key, tokens:sentence.tokens, polarity:group.polarity,
-        commentIndex:group.index, score:recurrence / Math.sqrt(Math.max(1,sentence.tokens.size)) });
-    }
-  }
-  sentences.sort(insightRank);
-  return { usable:byComment.size, sentences };
+  const frequency = insightFrequency(parsed.map(comment => new Set(comment.sentences.flatMap(sentence => [...sentence.tokens]))));
+  return parsed.map(comment => ({ id:comment.id, index:comment.index,
+    sentences:comment.sentences.map(sentence => ({ ...sentence, score:insightRecurrence(sentence.tokens,frequency) }))
+      .sort((left,right) => right.score - left.score || insightCompare(left.key,right.key)) }));
 }
 
-function insightSameContent(left:InsightSentence,right:InsightSentence):boolean {
+/** Two sentences say the same thing when they share enough content words (or are the same text). */
+function insightSimilar(left:InsightSentence, right:InsightSentence):boolean {
   if (left.key === right.key) return true;
-  if (!left.tokens.size || !right.tokens.size) return false;
+  const small = Math.min(left.tokens.size,right.tokens.size), large = Math.max(left.tokens.size,right.tokens.size);
+  if (!small) return false;
   let shared = 0;
   for (const token of left.tokens) if (right.tokens.has(token)) shared++;
-  return shared / (left.tokens.size + right.tokens.size - shared) >= INSIGHT_NEAR_DUPLICATE;
+  return shared >= Math.min(2,small) && shared / small >= 0.5 && shared / large >= 0.25;
 }
 
-/** Picks the strongest recurring sentences, then fills remaining slots by rank, keeping content near-duplicates out. */
-function insightSelectSentences(sentences:InsightSentence[], keptPolarityCounts:Record<InsightPolarity,number>):InsightSentence[] {
-  const selected:InsightSentence[] = [];
-  const accepts = (candidate:InsightSentence) => !selected.includes(candidate) &&
-    !selected.some(item => item.key === candidate.key || insightSameContent(item,candidate));
-  const top = sentences[0]?.score ?? 0;
-  for (const polarity of INSIGHT_POLARITIES) {
-    if (selected.length >= INSIGHT_THEME_MAX_SENTENCES) break;
-    if (!keptPolarityCounts[polarity]) continue;
-    const candidate = sentences.find(item => item.polarity === polarity && item.score >= top * 0.5 && accepts(item));
-    if (candidate) selected.push(candidate);
+/** A customer sentence cut to 20 words and 160 characters, «…» when cut; no quotes added. */
+function insightPointText(text:string):string {
+  const words = insightFlatten(text).replace(/^["“”'‘’]+|["“”'‘’]+$/gu,'').split(' ').filter(Boolean);
+  let chars = [...words.slice(0,INSIGHT_POINT_MAX_WORDS).join(' ')];
+  let cut = words.length > INSIGHT_POINT_MAX_WORDS;
+  if (chars.length > INSIGHT_POINT_MAX_CHARS - 1) {
+    chars = chars.slice(0,INSIGHT_POINT_MAX_CHARS - 1);
+    const boundary = chars.lastIndexOf(' ');
+    if (boundary >= Math.floor((INSIGHT_POINT_MAX_CHARS - 1) * 0.6)) chars = chars.slice(0,boundary);
+    cut = true;
   }
-  for (const candidate of sentences) {
-    if (selected.length >= INSIGHT_THEME_MAX_SENTENCES) break;
-    if (accepts(candidate)) selected.push(candidate);
-  }
-  selected.sort(insightRank);
-  return selected;
+  const flat = chars.join('');
+  return cut ? `${flat.replace(/[\s,;:.…\-–—]+$/u,'') || flat}…` : flat;
 }
 
-/** A theme summary extracts representative kept evidence; unclear labels are counted but never used or quoted. */
-function insightThemeSummary(definition:LabelCodebook['core'][number], entry:{ keptCount:number; unclearCount:number;
-  keptPolarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] }, available:boolean,
-  generatedAt:string|null):InsightSummary {
+/**
+ * Up to 5 points per theme, grouped by shared content words without a model call. Comments are taken in recurrence
+ * order; each one joins the first group whose leading sentence it resembles, or leads a new group. A group's point is
+ * its most recurring member sentence. Same input, same points.
+ */
+function insightThemePoints(code:string, listed:InsightComment[]):InsightPoint[] {
+  const comments = insightPointComments(code,listed).sort((left,right) =>
+    right.sentences[0]!.score - left.sentences[0]!.score || left.index - right.index || insightCompare(left.id,right.id));
+  type Member = { comment:InsightPointComment; sentence:InsightSentence };
+  const groups:{ leader:InsightSentence; order:number; members:Member[] }[] = [];
+  for (const comment of comments) {
+    const group = groups.find(item => comment.sentences.some(sentence => insightSimilar(item.leader,sentence)));
+    if (group) group.members.push({ comment, sentence:comment.sentences.find(sentence => insightSimilar(group.leader,sentence))! });
+    else groups.push({ leader:comment.sentences[0]!, order:groups.length, members:[{ comment, sentence:comment.sentences[0]! }] });
+  }
+  return groups.sort((left,right) => right.members.length - left.members.length || left.order - right.order)
+    .slice(0,INSIGHT_THEME_MAX_POINTS).map(group => {
+      const frequency = insightFrequency(group.members.map(member => member.sentence.tokens));
+      const best = group.members.map(member => ({ member, score:insightRecurrence(member.sentence.tokens,frequency) }))
+        .sort((left,right) => right.score - left.score || right.member.sentence.score - left.member.sentence.score ||
+          left.member.comment.index - right.member.comment.index ||
+          insightCompare(left.member.sentence.key,right.member.sentence.key))[0]!;
+      const commentIds = group.members.map(member => member.comment.id);
+      return { text:insightPointText(best.member.sentence.text), count:commentIds.length, commentIds };
+    });
+}
+
+/**
+ * A theme summary groups the kept comments among the theme's listed comments into points; unclear labels are counted
+ * but never used. `points` go only to a reader that asks for them; `text` (the points joined) is for older readers.
+ */
+function insightThemeSummary(definition:LabelCodebook['core'][number], entry:{ keptCount:number }, listed:InsightComment[],
+  available:boolean, generatedAt:string|null, withPoints:boolean):InsightSummary {
   if (!available) return { status:'UNAVAILABLE', text:null, model:null, generatedAt:null };
   if (!entry.keptCount) return { status:'EMPTY', text:null, model:null, generatedAt:null };
-  const evidence = insightEvidence(definition,entry);
-  if (!evidence.usable) return { status:'EMPTY', text:null, model:null, generatedAt:null };
-  const quote = (sentence:InsightSentence) =>
-    `“${insightBoundText(sentence.text,INSIGHT_SENTENCE_MAX_CHARS)}” (${INSIGHT_POLARITY_LABELS[sentence.polarity]})`;
-  if (evidence.usable === 1) {
-    return { status:'READY', model:INSIGHT_THEME_MODEL, generatedAt,
-      text:`Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: ${quote(evidence.sentences[0]!)}.` };
-  }
-  const selected = insightSelectSentences(evidence.sentences,entry.keptPolarityCounts);
-  return { status:'READY', model:INSIGHT_THEME_MODEL, generatedAt,
-    text:`Nội dung tiêu biểu từ các bình luận đã gắn nhãn cho chủ đề này: ${selected.map(quote).join('; ')}.` };
+  const points = insightThemePoints(definition.code,listed);
+  if (!points.length) return { status:'EMPTY', text:null, model:null, generatedAt:null };
+  const summary:InsightSummary = { status:'READY', text:points.map(point => point.text).join('; '), model:INSIGHT_THEME_MODEL, generatedAt };
+  return withPoints ? { ...summary, points } : summary;
 }
 
 function insightSummary(rows:number, read:number, comments:number, themes:InsightTheme[], generatedAt:string|null, available:boolean):InsightSummary {
@@ -280,7 +286,7 @@ function insightSummary(rows:number, read:number, comments:number, themes:Insigh
 
 type LabelCoverage = Awaited<ReturnType<typeof reviewProcessLabelCoverage>>;
 function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:LabelCodebook['core'], labelStore:InsightLabelStore, generatedAt:string|null,
-  coverage:LabelCoverage):InsightBucket {
+  coverage:LabelCoverage, withPoints:boolean):InsightBucket {
   type ThemeAccumulator = { count:number; unclearCount:number; keptCount:number;
     polarityCounts:Record<InsightPolarity,number>; keptPolarityCounts:Record<InsightPolarity,number>; comments:InsightComment[] };
   const byTheme = new Map<string,ThemeAccumulator>(definitions.map(theme => [theme.code,{ count:0, unclearCount:0, keptCount:0,
@@ -311,10 +317,12 @@ function insightBucket(rows:ModuleReviewRow[], sourceSha256:string, definitions:
   const total = readOf;
   const themes = definitions.map(definition => {
     const entry = byTheme.get(definition.code)!;
+    // Points cite only listed comments, so every id is in the list the comments read returns.
+    const listed = entry.comments.slice(0,INSIGHT_MAX_COMMENTS);
     return { code:definition.code, name:definition.name, count:entry.count, unclearCount:entry.unclearCount,
       share:total ? entry.count / total : 0, polarityCounts:entry.polarityCounts,
-      summary:insightThemeSummary(definition,entry,labelStore.available,generatedAt),
-      comments:entry.comments.slice(0,INSIGHT_MAX_COMMENTS) };
+      summary:insightThemeSummary(definition,entry,listed,labelStore.available,generatedAt,withPoints),
+      comments:listed };
   });
   return { summary:insightSummary(readOf,read,comments.length,themes,generatedAt,labelStore.available), themes,
     comments:comments.slice(0,INSIGHT_MAX_COMMENTS) };
@@ -346,7 +354,7 @@ type InsightSourceView = { sourceSha256:string; kind:VerifiedModuleReviewCollect
   links:{ shopId:string; itemId:string; url:string; insights:InsightBucket }[] };
 
 /** Discover once and build every bucket; callers that already verified the sources pass them in. */
-async function insightSources(run:string, discovered?:VerifiedModuleReviewCollection[]) {
+async function insightSources(run:string, discovered?:VerifiedModuleReviewCollection[], withPoints = false) {
   const book = parseLabelCodebook(await readFile(DEFAULT_CODEBOOK_FILE,'utf8'));
   const sources = discovered ?? await discoverModuleReviewSources(run);
   const labelStore = runInsightLabels(sources,book);
@@ -356,10 +364,10 @@ async function insightSources(run:string, discovered?:VerifiedModuleReviewCollec
     const links = source.links.map(link => {
       const rows = source.rows.filter(row => row.shopId === link.shopId && row.itemId === link.itemId);
       return { shopId:link.shopId, itemId:link.itemId, url:link.url,
-        insights:insightBucket(rows,source.sourceSha256,book.core,labelStore,source.completedAt,coverage) };
+        insights:insightBucket(rows,source.sourceSha256,book.core,labelStore,source.completedAt,coverage,withPoints) };
     });
     sourceViews.push({ sourceSha256:source.sourceSha256, kind:source.kind, status:source.status, completedAt:source.completedAt,
-      all:insightBucket(source.rows,source.sourceSha256,book.core,labelStore,source.completedAt,coverage), links });
+      all:insightBucket(source.rows,source.sourceSha256,book.core,labelStore,source.completedAt,coverage,withPoints), links });
   }
   return { book, sourceViews };
 }
@@ -380,9 +388,13 @@ export function insightBucketKey(sourceSha256:string, link:{ shopId:string; item
   return INSIGHT_ID.test(natural) ? natural : `${sourceSha256}:link${index}`;
 }
 
-/** v2 keeps every number of v1 and replaces each comment list with its size; `key` is how the UI asks for that list. */
-export function reviewInsightsSummaryView(run:string, discovered?:VerifiedModuleReviewCollection[]):Promise<unknown> {
-  return insightSources(run,discovered).then(({ book, sourceViews }) => {
+/**
+ * v2 keeps every number of v1 and replaces each comment list with its size; `key` is how the UI asks for that list.
+ * `withPoints` (app 1.4.0 asks with --points) adds `points` to each READY theme summary; without it the shape stays
+ * the one app 1.3.0 checks key by key.
+ */
+export function reviewInsightsSummaryView(run:string, discovered?:VerifiedModuleReviewCollection[], withPoints = false):Promise<unknown> {
+  return insightSources(run,discovered,withPoints).then(({ book, sourceViews }) => {
     const bucket = (value:InsightBucket, key:string) => ({ key, summary:value.summary,
       themes:value.themes.map(({ comments, ...theme }) => ({ ...theme, commentCount:comments.length })),
       commentCount:value.comments.length });
@@ -446,7 +458,7 @@ export async function reviewDataCommand(args:string[]):Promise<unknown> {
   if(action==='view'&&!extra.length)return reviewDataView(run);
   if(action==='stats'&&!extra.length)return reviewStatsView(run);
   if(action==='insights'&&!extra.length)return reviewInsightsView(run);
-  if(action==='insights-summary'&&!extra.length)return reviewInsightsSummaryView(run);
+  if(action==='insights-summary'&&(!extra.length||extra.length===1&&extra[0]==='--points'))return reviewInsightsSummaryView(run,undefined,extra[0]==='--points');
   if(action==='insight-comments'&&(extra.length===1||extra.length===2))return reviewInsightCommentsView(run,extra[0]!,extra[1]??null);
   if(action==='save'&&!extra.length){const value=validateReviewData<ReviewDataSaveInput>('saveInput',await input());return saveModuleReviewData(run,value.sourceSha256);}
   if(action==='export'&&!extra.length){const value=validateReviewData<ReviewDataExportInput>('exportInput',await input());

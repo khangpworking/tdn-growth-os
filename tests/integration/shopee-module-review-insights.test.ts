@@ -122,12 +122,11 @@ test('insights aggregate ten themes, polarities, comments and per-link buckets',
 
   assert.deepEqual(themeOf(all, 'T-CONGDUNG'), { code: 'T-CONGDUNG', name: 'Kết quả sau khi dùng', count: 1,
     unclearCount: 0, share: 1 / 3, polarityCounts: { khen: 1, che: 0, ke: 0, khong_ro_huong: 0 },
-    summary: { status: 'READY', model: 'jev-extractive-theme-v1', generatedAt: '2026-11-10T00:05:00.000Z',
-      text: 'Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: “Kem thấm nhanh” (khen).' },
+    summary: { status: 'READY', model: 'jev-grouped-theme-v1', generatedAt: '2026-11-10T00:05:00.000Z',
+      text: 'Kem thấm nhanh' },
     comments: [first] });
   assert.equal(themeOf(all, 'T-GIA').polarityCounts.che, 1);
-  assert.equal(themeOf(all, 'T-GIA').summary.text,
-    'Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: “Kem thấm nhanh” (chê).');
+  assert.equal(themeOf(all, 'T-GIA').summary.text, 'Kem thấm nhanh');
   assert.equal(themeOf(all, 'T-THIETKE').polarityCounts.khen, 1);
   assert.equal(themeOf(all, 'T-NHUCAU').polarityCounts.ke, 1);
   const unclear = themeOf(all, 'T-TRAINGHIEM');
@@ -160,7 +159,7 @@ test('insights aggregate ten themes, polarities, comments and per-link buckets',
   assert.equal(themeOf(linkA.insights, 'T-THIETKE').summary.status, 'EMPTY');
   assert.deepEqual(linkB.insights.comments.map((comment: any) => comment.id), ['review-b1']);
   assert.equal(themeOf(linkB.insights, 'T-THIETKE').count, 1);
-  assert.ok(themeOf(linkB.insights, 'T-THIETKE').summary.text.includes('“Hộp đẹp, dùng tiện” (khen)'));
+  assert.equal(themeOf(linkB.insights, 'T-THIETKE').summary.text, 'Hộp đẹp, dùng tiện');
   assert.ok(!themeOf(linkA.insights, 'T-THIETKE').summary.text?.includes('Hộp đẹp'), 'no cross-link quote');
   assert.ok(linkB.insights.summary.text.startsWith('Jev đã đọc 1/1 bình luận; 1 bình luận có ít nhất 1 chủ đề.'), linkB.insights.summary.text);
   assert.deepEqual(await fs.readFile(database), databaseBytes, 'review-insights must not write the application database');
@@ -213,7 +212,7 @@ test('a stale text hash suppresses the whole label group without hiding other co
   assert.equal(themeOf(all, 'T-THIETKE').count, 1);
   assert.equal(themeOf(all, 'T-CONGDUNG').summary.status, 'EMPTY');
   assert.equal(themeOf(all, 'T-GIA').summary.status, 'EMPTY');
-  assert.ok(themeOf(all, 'T-THIETKE').summary.text.includes('“Nội dung còn khớp” (khen)'));
+  assert.equal(themeOf(all, 'T-THIETKE').summary.text, 'Nội dung còn khớp');
   assert.ok(!themeOf(all, 'T-THIETKE').summary.text.includes('Đã đổi nội dung'));
   assert.equal(all.summary.status, 'READY');
   assert.ok(all.summary.text.startsWith('Jev đã đọc 1/2 bình luận; 1 bình luận có ít nhất 1 chủ đề.'), all.summary.text);
@@ -285,7 +284,7 @@ test('label batches read every wanted id and keep stale groups suppressed across
   assert.equal(themeOf(all, 'T-GIA').count, 0);
   assert.equal(themeOf(all, 'T-GIA').summary.status, 'EMPTY');
   assert.ok(!themeOf(all, 'T-CONGDUNG').summary.text.includes('Ngoài lượt'), 'labels outside the run are not evidence');
-  assert.ok(themeOf(all, 'T-CONGDUNG').summary.text.startsWith('Nội dung tiêu biểu từ các bình luận'));
+  assert.ok(!themeOf(all, 'T-CONGDUNG').summary.text.includes('“'), 'points are not quoted');
   assert.ok(themeOf(all, 'T-CONGDUNG').summary.text.includes('Bình luận batch'));
   assert.equal(all.summary.status, 'READY');
   assert.ok(all.summary.text.startsWith('Jev đã đọc 599/600 bình luận; 598 bình luận có ít nhất 1 chủ đề. ' +
@@ -313,8 +312,7 @@ test('the overall and per-theme comment cap keeps the first 200 labelled comment
   assert.equal(theme.comments.length, 200);
   assert.equal(theme.share, 1);
   assert.equal(theme.summary.status, 'READY');
-  assert.ok(theme.summary.text.startsWith('Nội dung tiêu biểu từ các bình luận'));
-  assert.ok(theme.summary.text.includes('“Bình luận 0” (khen)'));
+  assert.equal(theme.summary.text, 'Bình luận 0');
 
   const again = await reviewInsightsView(run.runDir);
   assert.deepEqual(again, view, 'theme summaries must be deterministic');
@@ -373,21 +371,19 @@ test('theme summaries synthesise kept evidence per theme and keep sources isolat
 
   const legacyTheme = themeOf(legacy.all, 'T-CONGDUNG');
   assert.equal(legacyTheme.summary.status, 'READY');
-  assert.equal(legacyTheme.summary.text,
-    'Nội dung tiêu biểu từ các bình luận đã gắn nhãn cho chủ đề này: ' +
-    '“Dùng hằng ngày tiện” (trung lập); “Kem thấm nhanh” (khen); “Mùi hơi nồng” (chê).');
+  assert.equal(legacyTheme.summary.text, 'Dùng hằng ngày tiện; Kem thấm nhanh; Mùi hơi nồng');
   assert.ok(!legacyTheme.summary.text.includes('Nguồn custom A'), 'no cross-source quote');
   assert.ok(!legacyTheme.summary.text.includes('Chưa rõ kết quả'), 'unclear comments never become evidence');
   assert.equal(themeOf(legacy.all, 'T-TRAINGHIEM').summary.status, 'EMPTY');
-  assert.ok(themeOf(legacy.all, 'T-GIA').summary.text.includes('“Kem thấm nhanh” (chê)'));
-  assert.ok(themeOf(legacy.all, 'T-NHUCAU').summary.text.includes('“Dùng hằng ngày tiện” (trung lập)'));
+  assert.equal(themeOf(legacy.all, 'T-GIA').summary.text, 'Kem thấm nhanh');
+  assert.equal(themeOf(legacy.all, 'T-NHUCAU').summary.text, 'Dùng hằng ngày tiện');
   assert.equal(themeOf(legacyB.insights, 'T-CONGDUNG').summary.status, 'EMPTY');
-  assert.ok(themeOf(legacyB.insights, 'T-THIETKE').summary.text.includes('“Hộp đẹp” (khen)'));
+  assert.equal(themeOf(legacyB.insights, 'T-THIETKE').summary.text, 'Hộp đẹp');
   assert.equal(themeOf(legacyA.insights, 'T-THIETKE').summary.status, 'EMPTY');
 
   const customTheme = themeOf(custom.all, 'T-CONGDUNG');
   assert.equal(customTheme.summary.status, 'READY');
-  assert.ok(customTheme.summary.text.includes('“Nguồn custom A” (chê)'));
+  assert.equal(customTheme.summary.text, 'Nguồn custom A');
   assert.ok(!customTheme.summary.text.includes('Kem thấm nhanh'), 'legacy quotes stay out of the custom source');
 
   assert.deepEqual(await reviewInsightsView(run.runDir), view);
@@ -409,11 +405,10 @@ test('a later, recurring sentence outranks an earlier generic comment', async t 
   const view = await reviewInsightsView(run.runDir) as any;
   const summary = themeOf(view.sources[0].all, 'T-CONGDUNG').summary;
   assert.equal(summary.status, 'READY');
-  assert.ok(summary.text.startsWith('Nội dung tiêu biểu từ các bình luận'), summary.text);
   assert.ok(!summary.text.includes('khen, 1 chê'), 'polarity counts belong to the bar, not the summary');
-  const quotes = [...summary.text.matchAll(/“([^”]+)”/g)].map(match => match[1]);
-  assert.equal(quotes[0], 'Kem thấm nhanh, mùi thơm dễ chịu', 'the later recurring sentence must outrank the generic opener');
-  assert.ok(quotes.includes('Mình thấy sản phẩm này cũng được'));
+  const points = summary.text.split('; ');
+  assert.equal(points[0], 'Kem thấm nhanh, mùi thơm dễ chịu', 'the later recurring sentence must outrank the generic opener');
+  assert.ok(points.includes('Mình thấy sản phẩm này cũng được'));
   assert.deepEqual(await reviewInsightsView(run.runDir), view);
 });
 
@@ -431,9 +426,8 @@ test('a single kept comment gets cautious evidence wording, not a trend claim', 
 
   const view = await reviewInsightsView(run.runDir) as any;
   const summary = themeOf(view.sources[0].all, 'T-CONGDUNG').summary;
-  assert.equal(summary.model, 'jev-extractive-theme-v1');
-  assert.equal(summary.text,
-    'Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: “Kem thấm nhanh sau vài ngày” (khen).');
+  assert.equal(summary.model, 'jev-grouped-theme-v1');
+  assert.equal(summary.text, 'Kem thấm nhanh sau vài ngày');
   assert.ok(!summary.text.includes('Nội dung tiêu biểu'));
   assert.ok(!summary.text.includes('các bình luận'));
   assert.deepEqual(await reviewInsightsView(run.runDir), view);
@@ -457,8 +451,7 @@ test('normalised duplicate sentences are quoted once', async t => {
   assert.equal(summary.status, 'READY');
   assert.equal((summary.text.match(/thấm nhanh/gi) ?? []).length, 1, 'normalised duplicates must be quoted once');
   assert.ok(!summary.text.includes('KEM THẤM'));
-  assert.ok(summary.text.includes('“Kem thấm nhanh, mùi thơm nhẹ” (khen)'));
-  assert.ok(summary.text.includes('“Hộp chắc chắn, dễ mở” (khen)'));
+  assert.equal(summary.text, 'Kem thấm nhanh, mùi thơm nhẹ; Hộp chắc chắn, dễ mở');
 });
 
 test('blank rows fall back to attributes and never become blank quotes', async t => {
@@ -485,8 +478,8 @@ test('blank rows fall back to attributes and never become blank quotes', async t
   const summary = themeOf(all, 'T-CONGDUNG').summary;
   assert.equal(summary.status, 'READY');
   assert.ok(!summary.text.includes('“”'), 'blank rows must not become blank quotes');
-  assert.ok(summary.text.includes('“Kem thấm nhanh” (khen)'));
-  assert.ok(summary.text.includes('“Phân loại: Hộp 50ml” (khen)'));
+  assert.ok(summary.text.split('; ').includes('Kem thấm nhanh'));
+  assert.ok(summary.text.split('; ').includes('Phân loại: Hộp 50ml'));
   const blankOnly = themeOf(all, 'T-GIA');
   assert.equal(blankOnly.count, 1);
   assert.deepEqual(blankOnly.summary, { status: 'EMPTY', text: null, model: null, generatedAt: null });
@@ -508,11 +501,10 @@ test('extracted theme summaries stay bounded for long comments', async t => {
   const view = await reviewInsightsView(run.runDir) as any;
   const summary = themeOf(view.sources[0].all, 'T-CONGDUNG').summary;
   assert.equal(summary.status, 'READY');
-  assert.ok(summary.text.length < 1000, `summary must stay bounded, got ${summary.text.length}`);
-  const quotes = [...summary.text.matchAll(/“([^”]+)”/g)].map(match => match[1]);
-  assert.equal(quotes.length, 3);
-  assert.ok(quotes.every(quote => quote.length <= 161), JSON.stringify(quotes.map(quote => quote.length)));
-  assert.ok(quotes.every(quote => quote.endsWith('…')));
+  // The three comments share their content words: one point, cut to 20 words.
+  assert.ok(summary.text.length <= 160, `summary must stay bounded, got ${summary.text.length}`);
+  assert.ok(summary.text.endsWith('…'), summary.text);
+  assert.ok(summary.text.split(' ').length <= 20, summary.text);
 });
 
 test('the labelled comments download holds every collected row with its current Jev tags', async t => {

@@ -2129,6 +2129,8 @@ def cmd_review_data(ns):
             if len(payload) > 65536:
                 raise ModuleFailure('REVIEW_DATA_INVALID', 2)
         args = [*command, str(repo / 'scripts/module-review-data.ts'), action, str(run)]
+        if ns.cmd == 'review-insights' and ns.summary and ns.points:
+            args.append('--points')       # app 1.4.0: theme summaries with their grouped points
         if ns.cmd == 'review-insight-comments':
             args.append(ns.bucket)
             if ns.theme is not None:
@@ -3682,7 +3684,7 @@ _RUN_VIEW_UNAVAILABLE = {                               # node cannot be started
 }
 
 
-def review_run_view_script(repo, config, run, result, on_sampling):
+def review_run_view_script(repo, config, run, result, on_sampling, points=False):
     """One node process streams one JSON line per finished part; a slow part never discards the
     parts already received. `outputs` keeps the bound its single command has: it is counted from
     the node launch, a missing line by launch + MODULE_OUTPUT_TIMEOUT_SECONDS is the timeout error
@@ -3700,7 +3702,8 @@ def review_run_view_script(repo, config, run, result, on_sampling):
         return parts, {name: {'code': 'NODE_COMMAND_INVALID', 'message': 'NODE_COMMAND_INVALID',
                               'exitCode': 2 if name in ('reviewData', 'process', 'stats', 'insights') else 20}
                        for name in names}
-    args = [*command, str(repo / 'scripts/module-run-view.ts'), str(run), *(['--result'] if result else [])]
+    args = [*command, str(repo / 'scripts/module-run-view.ts'), str(run), *(['--result'] if result else []),
+            *(['--points'] if result and points else [])]
     launched = time.monotonic()
     try:
         child = subprocess.Popen(args, cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -3776,7 +3779,7 @@ def cmd_run_view(ns):
 
         if not gate_path(run, 'm3-custom').exists():
             held['info'] = flow_run_info(run, config)
-        parts, errors = review_run_view_script(repo, config, run, ns.result, on_sampling)
+        parts, errors = review_run_view_script(repo, config, run, ns.result, on_sampling, ns.points)
         info = held.get('info')
         if info is None:
             error = errors.get('sampling') or {}
@@ -3949,11 +3952,13 @@ def main():
             x.add_argument('--export-sha256', required=True)
         if name == 'review-insights':
             x.add_argument('--summary', action='store_true')
+            x.add_argument('--points', action='store_true')    # app 1.4.0; app 1.3.0 never sends it
         x.set_defaults(f=cmd_review_data)
     x = sp.add_parser('review-insight-comments'); x.add_argument('--run', dest='run_id', required=True)
     x.add_argument('--bucket', required=True); x.add_argument('--theme')
     x.set_defaults(f=cmd_review_data)
     x = sp.add_parser('run-view'); x.add_argument('--run', dest='run_id', required=True); x.add_argument('--result', action='store_true')
+    x.add_argument('--points', action='store_true')
     x.set_defaults(f=cmd_run_view)
     for module in ('m1', 'm2', 'm3', 'run'):
         x = sp.add_parser(module); x.add_argument('--run', dest='run_id', required=True)
