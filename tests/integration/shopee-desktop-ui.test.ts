@@ -2908,6 +2908,8 @@ test('B3: the results tab shows numbers for the run and changes them per product
     assert.equal(doc.getElementById('resultAiSummary'), null, 'app 1.3.3: no «AI Tóm tắt» card');
     assert.equal(doc.getElementById('resultThemeTags'), null, 'app 1.3.3: no «10 nhãn chủ đề» card');
     assert.notEqual(doc.getElementById('resultCommentDrilldown'), null, 'the comment download stays');
+    assert.equal(element(doc, 'resultInsights').getAttribute('aria-label'), 'Tải bình luận');
+    assert.doesNotMatch(detail.textContent!, /AI Tóm tắt|nhãn chủ đề|10 chủ đề/, 'app 1.3.3: no AI card text on the result page');
 
     resultButton('run-empty').click();
     await waitFor(() => doc.getElementById('resultEmpty') !== null, 'empty run');
@@ -6240,5 +6242,27 @@ test('step 1 rows read as business text, and step 2 shows «Đang chạy» while
     await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-m2-failed'), 'failed run');
     await waitFor(() => doc.getElementById('moM2Chip')?.textContent === 'Không đạt kiểm tra', '7: a real failure still shows');
     assert.match(element(doc, 'moM2Chip').closest('article')!.textContent!, /Bước 2 chưa có kết quả đã lưu/, '7: the failure reason shows');
+  } finally { dom.window.close(); }
+});
+
+// Owner 25/11 (side chat «thế chắc chốt là chỉ ẩn trên app đi»): with the AI cards hidden, a failed read of the
+// download data names the download, not «AI và nhãn chủ đề».
+test('a failed read of the result download data names the download, not the hidden AI cards', async () => {
+  const runId = 'run-synthetic';
+  const { dom, doc } = harness({
+    runs: [{ runId, product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+    runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+    moduleOutputsResult: (id) => ({ ok: true, data: moduleOutputView(id) }),
+    reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 12) }),
+    reviewInsightsResult: () => ({ ok: false, error: { code: 'SSH_TIMEOUT', message: 'SSH_TIMEOUT' } }),
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+    [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+    await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 1, 'result run list');
+    doc.querySelector<HTMLButtonElement>('#resultRunList button')!.click();
+    await waitFor(() => doc.getElementById('resultInsightsError') !== null, 'error card');
+    assert.equal(element(doc, 'resultInsightsError').textContent, 'Chưa tải được phần tải bình luận. Có thể thử lại sau.');
+    assert.doesNotMatch(element(doc, 'resultDetail').textContent!, /AI|nhãn chủ đề/);
   } finally { dom.window.close(); }
 });
