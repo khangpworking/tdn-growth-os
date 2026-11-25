@@ -228,6 +228,21 @@ class MetricShotTest(unittest.TestCase):
         self.assertEqual(old.read_bytes(), original)
         self.assertFalse((self.run / 'metric-shot-r2.json').exists(), 'an old record is never copied or moved')
 
+    def test_a_valid_new_record_wins_and_a_damaged_one_falls_back_to_the_old_place(self):
+        old = self.record(where='old', uploadedAt='2099-01-02T00:00:00Z', deleteAfter='2099-01-12T00:00:00Z')
+        new = self.record(where='new')
+        self.head()
+        self.assertEqual(self.command('metric-shot-view-url')[1]['uploadedAt'], new['uploadedAt'])
+        for damaged in ('not json', [], {'key': 'x'}, dict(new, contentType=['image/webp']),
+                        dict(new, contentType={'image/webp': 1}), dict(new, sha256=7)):
+            with self.subTest(damaged=damaged):
+                text = damaged if isinstance(damaged, str) else json.dumps(damaged)
+                (self.run / 'metric-shot-r2.json').write_text(text, encoding='utf-8')
+                self.head()
+                code, output = self.command('metric-shot-view-url')
+                self.assertEqual((code, output['state'], output['uploadedAt']),
+                                 (0, 'AVAILABLE', old['uploadedAt']), output)
+
     def test_confirm_never_changes_the_step_one_folder(self):
         # Step 2 compares a hash of the whole m1/ folder with gates/m1.json (run d6b4b951, 25/11).
         if os.name != 'posix':

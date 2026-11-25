@@ -3322,7 +3322,7 @@ def _metric_shot_record_at(run, relative):
         return None
     if (not isinstance(record, dict) or
             set(record) != {'key', 'sha256', 'byteSize', 'contentType', 'uploadedAt', 'deleteAfter'} or
-            record['contentType'] not in METRIC_SHOT_TYPES or
+            not isinstance(record['contentType'], str) or record['contentType'] not in METRIC_SHOT_TYPES or
             not isinstance(record['sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', record['sha256']) or
             record['key'] != metric_shot_key(run.name, record['contentType'], record['sha256'])):
         return None

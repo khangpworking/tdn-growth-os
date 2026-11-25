@@ -99,11 +99,17 @@ class DeleteRunTest(unittest.TestCase):
 
         # R2 cleanup is part of this deletion contract; it cannot change the receipt above.
         # Execute in-process so the actual urllib HTTP layer is replaced, including on failure.
-        cases = [(case, where) for case in ('deleted', 'http failure', 'not configured') for where in ('new', 'old')]
+        cases = [(case, where) for case in ('deleted', 'http failure', 'not configured')
+                 for where in ('new', 'old', 'damaged new + old')]
         for case, where in cases:
             with self.subTest(r2=case, record=where):
                 run_id = 'run-r2'
                 run = self.make_run(run_id)
+                if where == 'damaged new + old':
+                    write_json(run / 'metric-shot-r2.json', {  # every field, wrong type: must not stop the fallback
+                        'key': f'metric-shots/{run_id}/{"0" * 64}.webp', 'sha256': '0' * 64, 'byteSize': 23,
+                        'contentType': ['image/webp'], 'uploadedAt': '2099-01-01T00:00:00Z',
+                        'deleteAfter': '2099-01-11T00:00:00Z'})
                 # new: <run>/metric-shot-r2.json; old: <run>/m1/ (runs of 24–25/11)
                 write_json(run / 'metric-shot-r2.json' if where == 'new' else run / 'm1' / 'metric-shot-r2.json', {
                     'key': f'metric-shots/{run_id}/{"0" * 64}.webp', 'sha256': '0' * 64, 'byteSize': 23,
