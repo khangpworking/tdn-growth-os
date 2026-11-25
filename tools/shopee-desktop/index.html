@@ -3451,7 +3451,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return CHECK_LABELS[check.id] || ('Điều kiện ' + check.id);
   }
 
-  function entrySummaryCard(slip) {
+  // userPage: a run made from the user's Metric page has no capture specs by design, so no capture-spec section.
+  function entrySummaryCard(slip, userPage) {
     var card = h('article', 'gate entry-summary');
     var head = h('div', 'gh');
     head.appendChild(h('h3', null, GATE_TITLES.entry));
@@ -3481,8 +3482,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       });
       card.appendChild(list);
     }
-    var capture = captureSpecVerification(slip);
-    if (capture.passed) {
+    var capture = userPage ? { failed: [], missing: [], passed: true } : captureSpecVerification(slip);
+    if (userPage) {
+      // nothing: the box «Bộ lọc đã lấy trên Metric» below the card shows what Metric was asked
+    } else if (capture.passed) {
       card.appendChild(h('p', 'capture-ok', 'Thông tin bạn nhập đã được nạp chính xác vào capture specs.'));
     } else {
       if (capture.failed.length) {
@@ -3522,8 +3525,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return card;
   }
 
-  function gateCard(key, slip) {
-    if (key === 'entry') return entrySummaryCard(slip);
+  function gateCard(key, slip, userPage) {
+    if (key === 'entry') return entrySummaryCard(slip, userPage);
     var card = h('article', 'gate');
     var head = h('div', 'gh');
     head.appendChild(h('h3', null, GATE_TITLES[key] || key));
@@ -6081,15 +6084,16 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     };
     var start = win && win.period ? win.period.startDate : compact(scope.start_date);
     var end = win && win.period ? win.period.endDate : compact(scope.end_date);
-    var keywords = request.preset && Array.isArray(request.preset.keywords) && request.preset.keywords.length
-      ? request.preset.keywords
-      : scope.include_query && Array.isArray(scope.include_query.queries) ? scope.include_query.queries : [];
-    var platforms = Array.isArray(scope.platforms) ? scope.platforms.map(function (id) {
+    // request.preset.keywords holds the run name here; the Metric keywords and platforms are in include_query.
+    var query = scope.include_query && typeof scope.include_query === 'object' ? scope.include_query : {};
+    var keywords = Array.isArray(query.queries) ? query.queries : [];
+    var platformIds = Array.isArray(query.platforms) ? query.platforms : Array.isArray(scope.platforms) ? scope.platforms : [];
+    var platforms = platformIds.map(function (id) {
       return METRIC_PLATFORM_NAMES[id] || ('Sàn khác (' + id + ')');
-    }) : [];
+    });
     var facts = h('dl', 'gkv');
     facts.appendChild(kvRow('Khoảng thời gian', start && end ? fmtDateRange(start, end) : 'Chưa có'));
-    facts.appendChild(kvRow('Từ khóa', keywords.length ? keywords.join(' · ') : 'Chưa có'));
+    facts.appendChild(kvRow('Từ khóa', keywords.length ? keywords.join(' · ') : 'Không có (chỉ lọc theo ngành hàng)'));
     facts.appendChild(kvRow('Sàn', platforms.length ? platforms.join(' · ') : 'Chưa có'));
     box.appendChild(facts);
     var runId = info.runId;
@@ -6107,7 +6111,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function gateStepNode(key, info) {
     if (key === 'entry') {
       var entryWrap = h('div');
-      entryWrap.appendChild(gateCard('entry', info.gates ? info.gates.entry : null));
+      entryWrap.appendChild(gateCard('entry', info.gates ? info.gates.entry : null, userPageRequest(info.request)));
       if (info.runId && userPageRequest(info.request)) {
         entryWrap.appendChild(userPageFilterNode(info));
       } else if (info.runId) {
