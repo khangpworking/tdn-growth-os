@@ -3475,7 +3475,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       ids.forEach(function (id) {
         var li = h('li', 'ck ' + cls);
         li.appendChild(h('span', 'ci', icon));
-        var body = h('div', null, entryCheckText({ id: id }));
+        var body = h('div', null, userPage ? (CHECK_LABELS[id] || 'Điều kiện kiểm tra') : entryCheckText({ id: id }));
         if (note) body.appendChild(h('div', 'warnnote', note));
         li.appendChild(body);
         list.appendChild(li);
@@ -3511,7 +3511,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         (check.id === 'collection_policy' || check.id === 'review_cap_1_300' || check.id === 'review_gate');
     }).map(function (check) { return check.id; });
     if (policyFailed.length) {
-      card.appendChild(h('p', 'muted', 'Điều kiện thu bình luận của bước 3 chưa đạt (tách khỏi capture specs):'));
+      card.appendChild(h('p', 'muted', userPage ? 'Điều kiện thu bình luận của bước 3 chưa đạt:'
+        : 'Điều kiện thu bình luận của bước 3 chưa đạt (tách khỏi capture specs):'));
       appendCheckList(policyFailed, '✕', 'c-fail', null);
     }
     if (readonlyFailed) {
@@ -3520,7 +3521,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       card.appendChild(h('p', 'rs-note', 'Đang có tiến trình khác chạy cho lượt này. Chờ tiến trình đó kết thúc rồi kiểm tra lại.'));
     } else if (verdict !== 'PASS' && slip.errorCode &&
         !capture.failed.length && !capture.missing.length && !otherFailed.length && !policyFailed.length) {
-      card.appendChild(h('p', 'muted', 'Mã kiểm tra: ' + slip.errorCode));
+      card.appendChild(h('p', 'muted', userPage ? (ERROR_TEXT[slip.errorCode] || 'Kiểm tra ' + GATE_NAMES.entry + ' không đạt.')
+        : 'Mã kiểm tra: ' + slip.errorCode));
     }
     return card;
   }
@@ -6053,12 +6055,13 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         var view = moduleExecution(info, step.key.toUpperCase());
         slip = view ? view.currentGate : null;
         // A run made from the user's Metric page has no step 1 execution: its step 1 check is the saved slip.
-        if (!slip && step.key === 'm1' && (!view || !view.status || view.status === 'UNKNOWN') && info.gates && info.gates.m1) {
+        if (!slip && step.key === 'm1' && userPageRequest(info.request) &&
+            (!view || !view.status || view.status === 'UNKNOWN') && info.gates && info.gates.m1) {
           slip = info.gates.m1;
         }
       }
       c.appendChild(h('b', null, GATE_TITLES[step.key]));
-      c.appendChild(h('span', null, slip ? slip.verdict : 'Chưa có phiếu'));
+      c.appendChild(h('span', null, slip ? (VERDICT_LABEL[slip.verdict] || VERDICT_LABEL.FAIL) : 'Chưa có phiếu'));
     } else {
       var mod = (info.modules || []).find(function (m) { return m.id === step.id; });
       c.appendChild(h('b', null, step.id));
@@ -6090,14 +6093,15 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var end = win && win.period ? win.period.endDate : compact(scope.end_date);
     // request.preset.keywords holds the run name here; the Metric keywords and platforms are in include_query.
     var query = scope.include_query && typeof scope.include_query === 'object' ? scope.include_query : {};
-    var keywords = Array.isArray(query.queries) ? query.queries : [];
+    var keywords = Array.isArray(query.queries) ? query.queries : null;
     var platformIds = Array.isArray(query.platforms) ? query.platforms : Array.isArray(scope.platforms) ? scope.platforms : [];
     var platforms = platformIds.map(function (id) {
-      return METRIC_PLATFORM_NAMES[id] || ('Sàn khác (' + id + ')');
-    });
+      return METRIC_PLATFORM_NAMES[id] || 'Sàn khác';
+    }).filter(function (name, i, all) { return all.indexOf(name) === i; });
     var facts = h('dl', 'gkv');
     facts.appendChild(kvRow('Khoảng thời gian', start && end ? fmtDateRange(start, end) : 'Chưa có'));
-    facts.appendChild(kvRow('Từ khóa', keywords.length ? keywords.join(' · ') : 'Không có (chỉ lọc theo ngành hàng)'));
+    facts.appendChild(kvRow('Từ khóa', !keywords ? 'Chưa có'
+      : keywords.length ? keywords.join(' · ') : 'Không có (chỉ lọc theo ngành hàng)'));
     facts.appendChild(kvRow('Sàn', platforms.length ? platforms.join(' · ') : 'Chưa có'));
     box.appendChild(facts);
     var runId = info.runId;
@@ -6129,15 +6133,16 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     }
     var view = moduleExecution(info, key.toUpperCase());
     if (view && view.currentGate) return gateCard(key, view.currentGate);
+    // A run made from the user's Metric page has no step 1 execution: its step 1 check is the saved slip.
+    if (key === 'm1' && userPageRequest(info.request) &&
+        (!view || !view.status || view.status === 'UNKNOWN') && info.gates && info.gates.m1) {
+      return gateCard(key, info.gates.m1);
+    }
     if (view && view.historicalGate) {
       var wrap = h('div', 'previous-gate');
       wrap.appendChild(h('p', 'muted', 'Kết quả lần trước'));
       wrap.appendChild(gateCard(key, view.historicalGate));
       return wrap;
-    }
-    // A run made from the user's Metric page has no step 1 execution: its step 1 check is the saved slip.
-    if (key === 'm1' && (!view || !view.status || view.status === 'UNKNOWN') && info.gates && info.gates.m1) {
-      return gateCard(key, info.gates.m1);
     }
     return gateCard(key, null);
   }
