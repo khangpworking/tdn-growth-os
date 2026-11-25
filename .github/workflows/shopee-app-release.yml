@@ -104,6 +104,14 @@ jobs:
             echo '```'
           } > notes.md
           if gh release view "$TAG" > /dev/null 2>&1; then
+            # The repository is public: never add files to a published release.
+            if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != "true" ]; then
+              echo "Release $TAG exists and is not a draft; refusing to upload."; exit 1
+            fi
+            # A rerun would pair a new EXE with the old installer and drop its checksum.
+            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -q '^Cai-dat-'; then
+              echo "Release $TAG has an installer attached; delete the draft or bump the version to rebuild."; exit 1
+            fi
             gh release upload "$TAG" "$exe" SHA256SUMS.txt --clobber
           else
             gh release create "$TAG" "$exe" SHA256SUMS.txt --verify-tag \

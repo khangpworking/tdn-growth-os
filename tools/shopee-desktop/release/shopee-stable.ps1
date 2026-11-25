@@ -31,25 +31,39 @@ function Stop-WithError([string]$Message) {
     exit 1
 }
 
+function Get-Sha256([string]$Path) {
+    (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
 function Invoke-Pin {
     if ($Version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { Stop-WithError "-Version must be X.Y.Z, got '$Version'" }
     if (-not (Test-Path -LiteralPath $exe)) { Stop-WithError "no app at $exe" }
     if (-not (Test-Path -LiteralPath $installer)) { Stop-WithError "no shared installer at $installer" }
-    Copy-Item -LiteralPath $exe -Destination $stableExe -Force -Confirm:$false
-    $sha = (Get-FileHash -LiteralPath $stableExe -Algorithm SHA256).Hash.ToLowerInvariant()
-    [ordered]@{ version = $Version; sha256 = $sha; pinnedAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') } |
-        ConvertTo-Json | Set-Content -LiteralPath $stableJson -Encoding utf8NoBOM -Confirm:$false
-    Copy-Item -LiteralPath $installer -Destination $stableInstaller -Force -Confirm:$false
-    Write-Output "pinned ${Version}: $stableExe (sha256 $sha)"
-    Write-Output "stable installer: $stableInstaller"
+    # Stage both files under temp names first. stable.json goes last; rollback checks both hashes against it.
+    $tmpExe = "$stableExe.tmp"
+    $tmpInstaller = "$stableInstaller.tmp"
+    Copy-Item -LiteralPath $exe -Destination $tmpExe -Force -Confirm:$false
+    Copy-Item -LiteralPath $installer -Destination $tmpInstaller -Force -Confirm:$false
+    $exeSha = Get-Sha256 $tmpExe
+    $installerSha = Get-Sha256 $tmpInstaller
+    Move-Item -LiteralPath $tmpExe -Destination $stableExe -Force -Confirm:$false
+    Move-Item -LiteralPath $tmpInstaller -Destination $stableInstaller -Force -Confirm:$false
+    $tmpJson = "$stableJson.tmp"
+    [ordered]@{ version = $Version; sha256 = $exeSha; installerSha256 = $installerSha
+        pinnedAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') } |
+        ConvertTo-Json | Set-Content -LiteralPath $tmpJson -Encoding utf8NoBOM -Confirm:$false
+    Move-Item -LiteralPath $tmpJson -Destination $stableJson -Force -Confirm:$false
+    Write-Output "pinned ${Version}: $stableExe (sha256 $exeSha)"
+    Write-Output "stable installer: $stableInstaller (sha256 $installerSha)"
 }
 
 function Invoke-Rollback {
     if (-not (Test-Path -LiteralPath $stableJson)) { Stop-WithError "no stable pin ($stableJson missing); rollback refused" }
     if (-not (Test-Path -LiteralPath $stableExe)) { Stop-WithError "no stable app ($stableExe missing); rollback refused" }
+    if (-not (Test-Path -LiteralPath $stableInstaller)) { Stop-WithError "no stable installer ($stableInstaller missing); rollback refused" }
     $pin = Get-Content -LiteralPath $stableJson -Raw | ConvertFrom-Json
-    $sha = (Get-FileHash -LiteralPath $stableExe -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($sha -ne $pin.sha256) { Stop-WithError "stable app sha256 does not match stable.json; rollback refused" }
+    if ((Get-Sha256 $stableExe) -ne $pin.sha256) { Stop-WithError "stable app sha256 does not match stable.json; rollback refused" }
+    if ((Get-Sha256 $stableInstaller) -ne $pin.installerSha256) { Stop-WithError "stable installer sha256 does not match stable.json; rollback refused" }
     # Only the app that runs from this folder; another copy elsewhere keeps running.
     $full = [IO.Path]::GetFullPath($exe)
     Get-Process -Name 'TDN-Shopee-Flow' -ErrorAction SilentlyContinue |
@@ -60,13 +74,9 @@ function Invoke-Rollback {
     Copy-Item -LiteralPath $stableExe -Destination $exe -Force -Confirm:$false
     Start-Process -FilePath $exe
     Write-Output "app rolled back to $($pin.version); old app saved as $backupExe"
-    if (Test-Path -LiteralPath $stableInstaller) {
-        if (Test-Path -LiteralPath $installer) { Copy-Item -LiteralPath $installer -Destination $backupInstaller -Force -Confirm:$false }
-        Copy-Item -LiteralPath $stableInstaller -Destination $installer -Force -Confirm:$false
-        Write-Output "shared installer rolled back; old installer saved as $backupInstaller"
-    } else {
-        Write-Output "no stable installer at $stableInstaller; shared installer not changed"
-    }
+    if (Test-Path -LiteralPath $installer) { Copy-Item -LiteralPath $installer -Destination $backupInstaller -Force -Confirm:$false }
+    Copy-Item -LiteralPath $stableInstaller -Destination $installer -Force -Confirm:$false
+    Write-Output "shared installer rolled back; old installer saved as $backupInstaller"
 }
 
 function Invoke-Shortcut {

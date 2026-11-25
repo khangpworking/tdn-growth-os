@@ -46,12 +46,25 @@ json_field() { # file field
   python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$1" "$2"
 }
 
+# Return 0 if a run is active, 1 if no run is active, 2 if the check cannot complete.
 run_active() {
-  if pgrep -af "candidate/installation" | grep -qE "shopee_flow.py|capture-metric-preset|shopee-cli.py"; then
+  local procs rc=0
+  procs="$(pgrep -af "candidate/installation")" || rc=$?
+  [ "$rc" -le 1 ] || return 2
+  if printf '%s\n' "$procs" | grep -qE "shopee_flow.py|capture-metric-preset|shopee-cli.py"; then
     return 0
   fi
-  if [ -d "$RUNS" ] && grep -lsE '"status"[[:space:]]*:[[:space:]]*"RUNNING"' "$RUNS"/*/state.json > /dev/null; then
-    return 0
+  local files=()
+  if [ -d "$RUNS" ]; then
+    shopt -s nullglob
+    files=("$RUNS"/*/state.json)
+    shopt -u nullglob
+  fi
+  if [ "${#files[@]}" -gt 0 ]; then
+    rc=0
+    grep -qE '"status"[[:space:]]*:[[:space:]]*"RUNNING"' "${files[@]}" || rc=$?
+    [ "$rc" -ne 0 ] || return 0
+    [ "$rc" -eq 1 ] || return 2
   fi
   return 1
 }
@@ -76,9 +89,10 @@ cmd_pin() {
   live_version="$(tr -d '\r\n' < "$vfile")"
   [ "$live_version" = "$version" ] || die "live VERSION is $live_version, not $version; pin refused"
   mkdir -p "$STATE"
-  link_atomic "$STABLE" "$lane"
+  # The record goes first. Rollback refuses if the link does not match the record.
   printf '{"version":"%s","tag":"%s","lane":"%s","pinnedAt":"%s"}\n' \
     "$version" "$tag" "$lane" "$(now_utc)" | write_atomic "$STABLE_JSON"
+  link_atomic "$STABLE" "$lane"
   echo "pinned $tag: $STABLE -> $lane"
   echo "app-stable.json: $(cat "$STABLE_JSON")"
 }
@@ -86,11 +100,19 @@ cmd_pin() {
 cmd_rollback() {
   [ -f "$STABLE_JSON" ] || die "no stable pin ($STABLE_JSON missing); rollback refused"
   [ -L "$STABLE" ] || die "no stable link ($STABLE missing); rollback refused"
-  if run_active; then die "a run is active; rollback refused"; fi
-  local version stable_lane old_live
+  local active=0
+  run_active || active=$?
+  [ "$active" -ne 0 ] || die "a run is active; rollback refused"
+  [ "$active" -eq 1 ] || die "cannot check for active runs; rollback refused"
+  local version json_lane stable_lane old_live lane_version
   version="$(json_field "$STABLE_JSON" version)"
+  json_lane="$(json_field "$STABLE_JSON" lane)"
   stable_lane="$(readlink -f "$STABLE")"
   [ -d "$stable_lane" ] || die "stable target $stable_lane does not exist; rollback refused"
+  [ "$stable_lane" = "$json_lane" ] || die "stable link $stable_lane does not match app-stable.json lane $json_lane; rollback refused"
+  lane_version="$(tr -d '\r\n' < "$stable_lane/source/tools/shopee-desktop/VERSION")" \
+    || die "cannot read VERSION in $stable_lane; rollback refused"
+  [ "$lane_version" = "$version" ] || die "stable lane VERSION is $lane_version, not $version; rollback refused"
   old_live="$(target_of "$LIVE")"
   printf '%s\n%s\n' "$old_live" "$(now_utc)" | write_atomic "$LIVE.before-rollback"
   link_atomic "$LIVE" "$stable_lane"

@@ -26,11 +26,11 @@ merge PR (VERSION X.Y.Z)
 2. The workflow `.github/workflows/shopee-app-release.yml` checks that `VERSION` equals the tag.
 3. It installs `requirements.txt` only. It builds the EXE with the spec.
 4. The build fails if PyInstaller reports `missing module named websocket`. It also fails if `websocket/_core` is not in the xref file.
-5. The workflow makes a **draft** pre-release. The draft holds `TDN-Shopee-Flow-X.Y.Z.exe` and `SHA256SUMS.txt`. If the draft exists, the workflow replaces the files.
+5. The workflow makes a **draft** pre-release. The draft holds `TDN-Shopee-Flow-X.Y.Z.exe` and `SHA256SUMS.txt`. If the draft exists, the workflow replaces the files. The workflow fails if the release is not a draft. It also fails if the draft has an installer: delete the draft or raise the version to rebuild.
 
 The repository is public. A published Release is public too. A draft is visible only to people with write access. So the workflow never publishes a Release, and nobody publishes one unless the owner says so.
 
-The installer is not built in CI. It embeds a user access token. Build it on the owner PC from the Release EXE: `build_installer.py chung --app <exe>`. Then add it to the draft as `Cai-dat-TDN-Shopee-chung-X.Y.Z.exe` with `gh release upload app-vX.Y.Z <file>`, and add its line to `SHA256SUMS.txt` (`--clobber`). The owner approved this on 25/11. The draft stays a draft: only people with write access can download the installer.
+The installer is not built in CI. It embeds a user access token. Build it on the owner PC from the Release EXE: `build_installer.py chung --app <exe>`. Then add it to the draft with `pwsh -File tools/shopee-desktop/release/upload-installer.ps1 -Tag app-vX.Y.Z -Installer <file>`. The script refuses if the release is not a draft. It uploads the installer as `Cai-dat-TDN-Shopee-chung-X.Y.Z.exe` and a new `SHA256SUMS.txt` with both files. Then it checks again that the release is a draft. The owner approved this on 25/11. The draft stays a draft: only people with write access can download the installer.
 
 ## Deploy
 
@@ -55,16 +55,16 @@ Then do these steps:
 
 The pin does not publish the Release and does not mark it Latest. The repository is public, so the Release stays a draft. The force push applies to the tag `app-stable` only. All other Releases stay draft pre-releases.
 
-The Fedora pin refuses if the live `VERSION` is not X.Y.Z. It does not change live. The PC pin copies the installed EXE to `TDN-Shopee-Flow.stable.exe` and records its sha256 in `stable.json`. It also copies the shared installer to `Cai-dat-TDN-Shopee-chung-stable.exe`. `shopee-stable.ps1 shortcut` adds the desktop shortcut «TDN Shopee (bản ổn định)».
+The Fedora pin refuses if the live `VERSION` is not X.Y.Z. It writes `app-stable.json` first and then moves the stable link. It does not change live. The PC pin copies the installed EXE to `TDN-Shopee-Flow.stable.exe` and the shared installer to `Cai-dat-TDN-Shopee-chung-stable.exe`. It writes `stable.json` last, with the sha256 of both files. `shopee-stable.ps1 shortcut` adds the desktop shortcut «TDN Shopee (bản ổn định)».
 
 ## Rollback
 
 When the owner says «rollback», roll back the server and the app together, as one pair:
 
-1. Fedora: `shopee-stable.sh rollback`. It refuses if no pin exists or if a run is active. It points `~/lanes/shopee-live` at the stable lane. It sets `app-latest.json` to the stable version. It saves the old values with the suffix `.before-rollback`.
-2. Owner PC: `shopee-stable.ps1 rollback`. It stops the app, saves the current EXE, copies the stable EXE over it and starts it. It also restores the stable shared installer.
+1. Fedora: `shopee-stable.sh rollback`. It refuses if no pin exists, if a run is active, or if it cannot check for runs. It also refuses if the stable link or the lane `VERSION` does not match `app-stable.json`. It points `~/lanes/shopee-live` at the stable lane. It sets `app-latest.json` to the stable version. It saves the old values with the suffix `.before-rollback`.
+2. Owner PC: `shopee-stable.ps1 rollback`. It stops the app, saves the current EXE, copies the stable EXE over it and starts it. It also restores the stable shared installer. It checks both sha256 values before it changes anything.
 
-Runs made on newer versions stay in place.
+Runs made on newer versions stay in place. Run rollback only when nobody is starting a run.
 
 ## Current state
 
