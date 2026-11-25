@@ -1946,7 +1946,7 @@ class Api:
         return (isinstance(value['text'], str) and 1 <= len(value['text']) <= 200 and
                 type(value['count']) is int and value['count'] >= 1 and
                 isinstance(ids, list) and len(ids) == value['count'] and
-                all(isinstance(item, str) and 1 <= len(item) <= 200 for item in ids) and len(set(ids)) == len(ids))
+                all(isinstance(item, str) and 1 <= len(item) <= 256 for item in ids) and len(set(ids)) == len(ids))
 
     @classmethod
     def _review_insights_summary(cls, value):

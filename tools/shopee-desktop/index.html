@@ -6262,6 +6262,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     select.value = picked ? picked.url : '';
     select.addEventListener('change', function () {
       state.resultLink[runId] = select.value || null;
+      delete state.insightPointFilter[runId];   // another bucket: no point filter carries over
       renderResult();
       var again = $('resultLinkSelect');
       if (again) again.focus();
