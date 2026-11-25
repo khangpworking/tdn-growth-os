@@ -163,65 +163,11 @@ table.wide-products td.pname, table.wide-products td.pcat { white-space: normal;
 .kd-legend em::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
 .insight-card { display: grid; gap: 10px; }
 .insight-lead { color: var(--muted); font-size: 13px; }
-.insight-summary { border-left: 4px solid var(--accent); background: var(--accent-tint); padding: 12px 14px; border-radius: 7px; display: grid; gap: 6px; }
-.insight-summary h4 { margin: 0; font-size: 14px; }
-.insight-summary p { margin: 0; font-size: 14px; line-height: 1.65; }
-.insight-summary .meta { color: var(--muted); font-size: 12px; }
-.insight-summary[data-state="empty"], .insight-summary[data-state="unavailable"] { border-left-color: var(--need); background: var(--need-tint); }
-.theme-grid { display: grid; gap: 10px; }
-.theme-card { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }
-.theme-head { padding: 10px 12px; display: grid; gap: 8px; }
-.theme-head-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 14px; }
-.theme-title { display: flex; flex-wrap: wrap; gap: 7px; align-items: baseline; min-width: 0; }
-.theme-title strong { font-size: 14px; }
-.theme-code { color: var(--muted); font: 600 11px/1.4 var(--mono); }
-.theme-count { text-align: right; white-space: nowrap; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.theme-meta { display: flex; flex-wrap: wrap; gap: 5px 12px; align-items: center; color: var(--muted); font-size: 12px; }
-.theme-ai { margin: 0 12px 12px; }
-.theme-ai h4 { margin: 0; font-size: 14px; }
-.theme-comments { border-top: 1px solid var(--line); }
-.theme-comments > summary { cursor: pointer; list-style: none; padding: 9px 12px; color: var(--accent); font-size: 13px; font-weight: 700; }
-.theme-comments > summary::-webkit-details-marker { display: none; }
-.theme-comments > summary::after { content: "+"; margin-left: 6px; font-size: 16px; line-height: 1; }
-.theme-comments[open] > summary::after { content: "−"; }
-.theme-comments > summary:hover { background: var(--accent-tint); }
-.theme-comments > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.theme-bar { height: 8px; border-radius: 99px; background: var(--band); overflow: hidden; display: flex; flex: 1 1 180px; min-width: 120px; }
-.theme-bar i { display: block; height: 100%; min-width: 0; }
-.theme-bar i:first-child { border-radius: 99px 0 0 99px; }
-.theme-bar i:last-child { border-radius: 0 99px 99px 0; }
-.theme-bar i[data-polarity="khen"] { background: var(--ok); }
-.theme-bar i[data-polarity="che"] { background: var(--stop); }
-.theme-bar i[data-polarity="trung-lap"] { background: var(--need); }
-.theme-legend { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: 12px; }
-.theme-legend-item { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
-.theme-legend-item i { width: 8px; height: 8px; border-radius: 2px; background: var(--band); }
-.theme-legend-item[data-polarity="khen"] i { background: var(--ok); }
-.theme-legend-item[data-polarity="che"] i { background: var(--stop); }
-.theme-legend-item[data-polarity="trung-lap"] i { background: var(--need); }
-.theme-body { border-top: 1px solid var(--line); padding: 10px 12px 12px; display: grid; gap: 9px; }
-.theme-note { color: var(--muted); font-size: 12px; }
-.comment-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.comment-row { border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px; display: grid; gap: 6px; background: var(--panel); }
-.comment-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; align-items: center; }
-.comment-rating { color: var(--need); font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
-.comment-rating b { color: var(--fg); letter-spacing: 0; margin-left: 5px; }
-.comment-date, .comment-product { color: var(--muted); font-size: 12px; }
-.comment-text { margin: 0; font-size: 13px; line-height: 1.6; }
-.comment-tags { display: flex; flex-wrap: wrap; gap: 5px; }
-.tag-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; background: var(--band); color: var(--fg); }
-.tag-chip[data-polarity="khen"] { color: var(--ok); background: var(--ok-tint); }
-.tag-chip[data-polarity="che"] { color: var(--stop); background: var(--stop-tint); }
-.tag-chip[data-polarity="ke"], .tag-chip[data-polarity="khong_ro_huong"] { color: var(--need); background: var(--need-tint); }
 .drilldown { border-top: 1px solid var(--line); padding-top: 10px; }
 .drilldown > summary { cursor: pointer; color: var(--accent); font-size: 13px; font-weight: 700; width: fit-content; }
 .drilldown > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .drilldown[open] > summary { margin-bottom: 9px; }
 .insight-error { margin: 0; }
-@media (max-width: 560px) {
-  .theme-head-top { align-items: flex-start; }
-  .theme-count { text-align: left; }
-}
 table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 13px; }
 th, td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); }
 th { font-size: 11.5px; font-weight: 600; color: var(--muted); }
@@ -343,7 +289,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .update-bar span { flex: 1; }
 .update-bar button { border: 0; background: none; color: var(--accent); font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; }
 /* Owner 25/11: text can be selected and copied (text_select=True); controls stay non-selectable. */
-button, [role="tab"], summary, .abtn, .runbtn, .pill, .chip, .tag-chip, .sort-pill, .chrome-pill, .codechip, .seqch, .st-link,
+button, [role="tab"], summary, .abtn, .runbtn, .pill, .chip, .sort-pill, .chrome-pill, .codechip, .seqch, .st-link,
 .notice-close { -webkit-user-select: none; user-select: none; }
 .app-ver { position: fixed; right: 8px; bottom: 4px; font-size: 11px; color: var(--muted); pointer-events: none; }
 .capture-spec-review { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
@@ -3220,19 +3166,6 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     };
   })();
 
-  var RESULT_THEME_DEFINITIONS = [
-    { code: 'T-CONGDUNG', name: 'Kết quả sau khi dùng' },
-    { code: 'T-PHANUNG', name: 'Phản ứng cơ thể' },
-    { code: 'T-TRAINGHIEM', name: 'Cảm nhận khi dùng' },
-    { code: 'T-CHATLUONG', name: 'Hoàn thiện, độ bền, lỗi' },
-    { code: 'T-THIETKE', name: 'Vẻ ngoài' },
-    { code: 'T-GIA', name: 'Giá, ưu đãi, quà kèm' },
-    { code: 'T-MOTA', name: 'Khớp ảnh, mô tả, quảng cáo' },
-    { code: 'T-NIEMTIN', name: 'Tin hay nghi về hàng' },
-    { code: 'T-NHUCAU', name: 'Ai dùng, để làm gì' },
-    { code: 'T-CHONMUA', name: 'Vì sao chọn, qua đâu' }
-  ];
-
   var state = {
     presets: [],
     runs: [],
@@ -3245,9 +3178,6 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     loadingRunId: null,
     listPending: 0,      // listings on their way («Đang cập nhật…»)
     runViewSupported: null,   // false after an older server answered USAGE to run-view
-    insightComments: {},      // runId -> 'bucketKey|theme' -> { status: loading|ok|error, comments, error }
-    insightOpen: {},          // runId -> 'bucketKey|theme' -> true while its comments are open
-    insightBucketSeq: {},     // runId -> bucket key -> times that bucket changed; a change empties its comments
     runViewInFlight: {},      // runId -> { promise, withResult, viewSeq } of the run-view read on its way (loadInfo)
     runViewAgain: {},         // runId -> { promise, resolve } of the one follow-up read asked while it was out
     runViewSent: {},          // runId -> run-view calls started
@@ -4730,9 +4660,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         typeof res.data.codebookVersion !== 'string' || !Array.isArray(res.data.sources)) {
       state.reviewInsightsErrors[runId] = { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' };
     } else {
-      var before = insightBucketTexts(state.reviewInsights[runId]);
       state.reviewInsights[runId] = res.data;
-      forgetChangedBuckets(runId, before, insightBucketTexts(res.data));
       delete state.reviewInsightsErrors[runId];
       if (live) markLive(runId, 'insights', live);
     }
@@ -6350,263 +6278,6 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return pool.slice().sort(function (left, right) { return stamp(right) - stamp(left); })[0] || null;
   }
 
-  function insightBucket(source, runId) {
-    if (!source) return null;
-    var pickedUrl = state.resultLink[runId];
-    var link = (source.links || []).find(function (item) { return item.url === pickedUrl; });
-    return link && link.insights ? link.insights : source.all;
-  }
-
-  function normalizedInsightThemes(bucket) {
-    var byCode = {};
-    (bucket && Array.isArray(bucket.themes) ? bucket.themes : []).forEach(function (theme) {
-      if (theme && typeof theme.code === 'string') byCode[theme.code] = theme;
-    });
-    return RESULT_THEME_DEFINITIONS.map(function (definition) {
-      return byCode[definition.code] || {
-        code: definition.code, name: definition.name, count: 0, unclearCount: 0, share: 0,
-        polarityCounts: { khen: 0, che: 0, ke: 0, khong_ro_huong: 0 },
-        summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, comments: []
-      };
-    });
-  }
-
-  function commentRow(comment) {
-    var row = h('li', 'comment-row');
-    var head = h('div', 'comment-head');
-    var rating = h('span', 'comment-rating');
-    if (typeof comment.rating === 'number') {
-      rating.textContent = '★★★★★';
-      rating.setAttribute('aria-label', comment.rating + ' trên 5 sao');
-      rating.style.backgroundImage = 'linear-gradient(90deg,var(--need) ' + (comment.rating / 5 * 100) + '%,var(--line) ' + (comment.rating / 5 * 100) + '%)';
-      rating.style.webkitBackgroundClip = 'text';
-      rating.style.backgroundClip = 'text';
-      rating.style.color = 'transparent';
-      rating.appendChild(h('b', null, comment.rating + '/5'));
-    } else {
-      rating.textContent = 'Chưa có số sao';
-    }
-    head.appendChild(rating);
-    head.appendChild(h('span', 'comment-date', comment.date ? vnStamp(comment.date).slice(0, 10) : 'Ngày chưa có'));
-    row.appendChild(head);
-    if (comment.productName) row.appendChild(h('div', 'comment-product', comment.productName));
-    row.appendChild(h('p', 'comment-text', comment.text || 'Bình luận không có phần chữ.'));
-    var tags = h('div', 'comment-tags');
-    (comment.tags || []).forEach(function (tag) {
-      var chip = h('span', 'tag-chip', tag.name || tag.code);
-      chip.dataset.polarity = tag.polarity || 'khong_ro_huong';
-      var chipPolarity = tag.polarity === 'khen' ? 'Khen' : tag.polarity === 'che' ? 'Chê' : 'Trung lập';
-      chip.title = tag.code + ' · ' + chipPolarity + (tag.status === 'unclear' ? ' · không rõ phân loại' : '');
-      tags.appendChild(chip);
-    });
-    if (tags.childNodes.length) row.appendChild(tags);
-    return row;
-  }
-
-  function commentList(comments, limit) {
-    var list = h('ul', 'comment-list');
-    var rows = Array.isArray(comments) ? comments.slice(0, limit || comments.length) : [];
-    rows.forEach(function (comment) { list.appendChild(commentRow(comment)); });
-    return list;
-  }
-
-  function insightSummaryCard(bucket) {
-    var summary = bucket && bucket.summary ? bucket.summary : { status: 'EMPTY', text: null };
-    var card = h('article', 'mod insight-card');
-    card.id = 'resultAiSummary';
-    var head = h('div', 'mh');
-    head.appendChild(h('h3', null, 'AI Tóm tắt'));
-    head.appendChild(h('span', 'chip s-ready', 'Tổng hợp từ nhãn Jev'));
-    card.appendChild(head);
-    var box = h('div', 'insight-summary');
-    box.dataset.state = String(summary.status || 'EMPTY').toLowerCase();
-    if (summary.status === 'READY' && summary.text) {
-      box.appendChild(h('p', null, summary.text));
-      box.appendChild(h('p', 'meta', 'Tóm tắt chỉ phản ánh các bình luận đã được gắn nhãn trong lượt này.'));
-    } else if (summary.status === 'UNAVAILABLE') {
-      box.appendChild(h('p', null, 'Chưa tạo được tóm tắt AI cho lượt này.'));
-      box.appendChild(h('p', 'meta', 'Các nhãn Jev và phần bình luận vẫn có thể xem bên dưới.'));
-    } else {
-      box.appendChild(h('p', null, 'Chưa có đủ bình luận để tạo tóm tắt AI.'));
-    }
-    card.appendChild(box);
-    return card;
-  }
-
-  function themeSummaryBlock(theme) {
-    var summary = theme && theme.summary ? theme.summary : { status: 'EMPTY', text: null };
-    var box = h('div', 'insight-summary theme-ai');
-    box.dataset.state = String(summary.status || 'EMPTY').toLowerCase();
-    box.dataset.themeCode = theme && theme.code ? theme.code : '';
-    box.appendChild(h('h4', null, 'AI Tóm tắt chủ đề'));
-    if (summary.status === 'READY' && summary.text) {
-      box.appendChild(h('p', null, summary.text));
-      var kept = Math.max(0, Number(theme.count || 0) - Number(theme.unclearCount || 0));
-      box.appendChild(h('p', 'meta', 'Dựa trên ' + fmtInt(kept) + ' nhãn đã giữ cho chủ đề này; không dùng dòng chưa gắn nhãn hoặc nhãn “không rõ phân loại”.'));
-    } else if (summary.status === 'UNAVAILABLE') {
-      box.appendChild(h('p', null, 'Chưa đọc được nhãn Jev để tóm tắt chủ đề này.'));
-      box.appendChild(h('p', 'meta', 'Phần đếm và bình luận bên dưới vẫn dựa trên dữ liệu đã tải của lượt này.'));
-    } else {
-      box.appendChild(h('p', null, 'Chưa có đủ bình luận đã gắn nhãn để tóm tắt chủ đề này.'));
-      box.appendChild(h('p', 'meta', 'Chỉ các nhãn đã giữ mới được dùng làm bằng chứng tóm tắt.'));
-    }
-    return box;
-  }
-
-  // Every bucket of an insights view (each source's whole result and each link), by its key, as JSON text.
-  function insightBucketTexts(view) {
-    var texts = {};
-    ((view && view.sources) || []).forEach(function (source) {
-      [source && source.all].concat((source && source.links || []).map(function (link) { return link && link.insights; }))
-        .forEach(function (bucket) {
-          if (bucket && typeof bucket.key === 'string') texts[bucket.key] = JSON.stringify(bucket);
-        });
-    });
-    return texts;
-  }
-
-  // A new summary keeps the read comments and the open sections of each bucket that is equal to the one before;
-  // a changed (or gone) bucket loses them, and a comment read still out for it is dropped.
-  function forgetChangedBuckets(runId, before, after) {
-    var seqs = state.insightBucketSeq[runId] || (state.insightBucketSeq[runId] = {});
-    var changed = {};
-    Object.keys(before).concat(Object.keys(after)).forEach(function (key) {
-      if (before[key] !== after[key]) changed[key] = true;
-    });
-    Object.keys(changed).forEach(function (key) { seqs[key] = (seqs[key] || 0) + 1; });
-    [state.insightComments[runId], state.insightOpen[runId]].forEach(function (map) {
-      Object.keys(map || {}).forEach(function (entryKey) {
-        var bucketKey = entryKey.slice(0, entryKey.lastIndexOf('|'));
-        if (changed[bucketKey] || !(bucketKey in after)) delete map[entryKey];
-      });
-    });
-  }
-
-  // A v2 theme's comments, read on a click and kept while its bucket in the summary stays the same.
-  async function loadInsightComments(runId, bucketKey, theme) {
-    var cache = state.insightComments[runId] || (state.insightComments[runId] = {});
-    var key = bucketKey + '|' + theme;
-    var bucketSeq = (state.insightBucketSeq[runId] || {})[bucketKey] || 0;
-    var entry = { status: 'loading', comments: null };
-    cache[key] = entry;
-    renderResult();
-    var res = await api.reviewInsightComments(runId, bucketKey, theme);
-    if (isGone(runId)) return;   // a late reply for a deleted run
-    if (((state.insightBucketSeq[runId] || {})[bucketKey] || 0) !== bucketSeq) return;   // its bucket changed
-    if (!state.insightComments[runId] || state.insightComments[runId][key] !== entry) return;
-    if (res.ok && res.data && res.data.format === 'review-insight-comments-v1' && res.data.bucket === bucketKey &&
-        res.data.theme === theme && Array.isArray(res.data.comments)) {
-      entry.status = 'ok';
-      entry.comments = res.data.comments;
-    } else {
-      entry.status = 'error';
-      entry.error = res.ok ? { code: 'REMOTE_OUTPUT_INVALID', message: 'REMOTE_OUTPUT_INVALID' } : res.error;
-    }
-    if (state.selectedRunId === runId) renderResult();
-  }
-
-  function insightThemeComments(runId, bucket, theme) {
-    var key = bucket.key + '|' + theme.code;
-    return { key: key, entry: (state.insightComments[runId] || {})[key] || null };
-  }
-
-  function insightThemeCard(bucket, runId) {
-    var card = h('article', 'mod insight-card');
-    card.id = 'resultThemeTags';
-    var head = h('div', 'mh');
-    head.appendChild(h('h3', null, '10 nhãn chủ đề'));
-    head.appendChild(h('span', 'chip s-ready', 'Jev'));
-    card.appendChild(head);
-    card.appendChild(h('p', 'insight-lead', 'Mỗi chủ đề có tóm tắt AI riêng, chỉ dựa trên các bình luận đã gắn nhãn Jev. Mở phần bình luận mẫu để xem bằng chứng chi tiết.'));
-    var grid = h('div', 'theme-grid');
-    normalizedInsightThemes(bucket).forEach(function (theme) {
-      var article = h('article', 'theme-card');
-      article.dataset.themeCode = theme.code;
-      var themeHead = h('div', 'theme-head');
-      var headTop = h('div', 'theme-head-top');
-      var title = h('div', 'theme-title');
-      title.appendChild(h('strong', null, theme.name));
-      title.appendChild(h('span', 'theme-code', theme.code));
-      headTop.appendChild(title);
-      headTop.appendChild(h('span', 'theme-count', fmtInt(theme.count) + ' bình luận'));
-      themeHead.appendChild(headTop);
-      var meta = h('div', 'theme-meta');
-      var bar = h('span', 'theme-bar');
-      var polarity = theme.polarityCounts || {};
-      var khen = Math.max(0, Number(polarity.khen || 0));
-      var che = Math.max(0, Number(polarity.che || 0));
-      var trungLap = Math.max(0, Number(polarity.ke || 0)) + Math.max(0, Number(polarity.khong_ro_huong || 0));
-      var polarityTotal = khen + che + trungLap;
-      [['khen', khen], ['che', che], ['trung-lap', trungLap]].forEach(function (part) {
-        var fill = h('i');
-        fill.dataset.polarity = part[0];
-        fill.style.width = (polarityTotal ? part[1] / polarityTotal * 100 : 0) + '%';
-        bar.appendChild(fill);
-      });
-      bar.setAttribute('role', 'img');
-      bar.setAttribute('aria-label', 'Khen ' + fmtInt(khen) + ', Chê ' + fmtInt(che) + ', Trung lập ' + fmtInt(trungLap));
-      meta.appendChild(bar);
-      meta.appendChild(h('span', (Number(theme.share || 0) * 100).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + '%'));
-      var polarityLegend = h('span', 'theme-legend');
-      [['khen', 'Khen', khen], ['che', 'Chê', che], ['trung-lap', 'Trung lập', trungLap]].forEach(function (part) {
-        var item = h('span', 'theme-legend-item');
-        item.dataset.polarity = part[0];
-        item.appendChild(h('i'));
-        item.appendChild(h('span', null, part[1] + ' ' + fmtInt(part[2])));
-        polarityLegend.appendChild(item);
-      });
-      meta.appendChild(polarityLegend);
-      if (theme.unclearCount) meta.appendChild(h('span', null, 'Không rõ phân loại ' + fmtInt(theme.unclearCount)));
-      themeHead.appendChild(meta);
-      article.appendChild(themeHead);
-      article.appendChild(themeSummaryBlock(theme));
-      var details = document.createElement('details');
-      details.className = 'theme-comments';
-      var toggle = document.createElement('summary');
-      var onDemand = typeof theme.commentCount === 'number' && bucket && typeof bucket.key === 'string';
-      var listed = onDemand ? insightThemeComments(runId, bucket, theme) : null;
-      var examples = onDemand ? (listed.entry && listed.entry.status === 'ok' ? listed.entry.comments : [])
-        : (Array.isArray(theme.comments) ? theme.comments : []);
-      var sampleCount = onDemand ? theme.commentCount : examples.length;
-      toggle.textContent = sampleCount ? 'Xem ' + fmtInt(sampleCount) + ' bình luận mẫu' : 'Chưa có bình luận mẫu';
-      details.appendChild(toggle);
-      var body = h('div', 'theme-body');
-      if (onDemand && sampleCount) {
-        // Read only on the user's click: a section restored open after a redraw never reads by itself, and a
-        // failed read is tried again only on the next click that opens it.
-        details.open = !!(state.insightOpen[runId] || {})[listed.key];
-        toggle.addEventListener('click', function (ev) {
-          ev.preventDefault();
-          var opening = !details.open;
-          details.open = opening;
-          var open = state.insightOpen[runId] || (state.insightOpen[runId] = {});
-          if (opening) open[listed.key] = true; else delete open[listed.key];
-          var now = insightThemeComments(runId, bucket, theme).entry;
-          if (opening && (!now || now.status === 'error')) loadInsightComments(runId, bucket.key, theme.code);
-        });
-      }
-      if (onDemand && sampleCount && (!listed.entry || listed.entry.status === 'loading')) {
-        body.appendChild(h('p', 'theme-note', 'Đang tải bình luận mẫu…'));
-      } else if (onDemand && sampleCount && listed.entry.status === 'error') {
-        var failed = h('p', 'theme-note', 'Chưa tải được bình luận mẫu. Đóng rồi mở lại để thử lại.');
-        failed.title = errorCode(listed.entry.error);
-        body.appendChild(failed);
-      } else if (examples.length) {
-        body.appendChild(commentList(examples, 8));
-        if (theme.count > examples.length) {
-          body.appendChild(h('p', 'theme-note', 'Đang hiển thị ' + fmtInt(examples.length) + ' bình luận mẫu trong tổng ' + fmtInt(theme.count) + ' bình luận của nhãn này.'));
-        }
-      } else {
-        body.appendChild(h('p', 'theme-note', theme.count ? 'Chưa có bình luận mẫu để hiển thị.' : 'Chưa có bình luận nào được gắn nhãn này.'));
-      }
-      details.appendChild(body);
-      article.appendChild(details);
-      grid.appendChild(article);
-    });
-    card.appendChild(grid);
-    return card;
-  }
-
   // The whole comment list of the shown result is a download, not an on-screen sample.
   // The count is the collected total of that result from the result numbers (review-stats).
   function insightCommentDownload(runId, source) {
@@ -6649,12 +6320,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
 
   function reviewInsightsPanel(view, runId) {
     var source = resultInsightsSource(view, runId);
-    var bucket = insightBucket(source, runId);
     var wrap = h('section', 'insight-card');
     wrap.id = 'resultInsights';
-    wrap.setAttribute('aria-label', 'Phân tích AI và nhãn chủ đề');
-    wrap.appendChild(insightSummaryCard(bucket));
-    wrap.appendChild(insightThemeCard(bucket, runId));
+    wrap.setAttribute('aria-label', 'Tải bình luận');
     wrap.appendChild(insightCommentDownload(runId, source));
     return wrap;
   }
@@ -6662,7 +6330,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function reviewInsightsErrorCard(error) {
     var card = h('article', 'mod insight-card');
     card.id = 'resultInsightsError';
-    var bar = h('p', 'errbar local-error insight-error', 'Chưa tải được phần AI và nhãn chủ đề. Có thể thử lại sau.');
+    var bar = h('p', 'errbar local-error insight-error', 'Chưa tải được phần tải bình luận. Có thể thử lại sau.');
     bar.title = errorCode(error);
     card.appendChild(bar);
     return card;
@@ -7033,15 +6701,15 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var line = null;
     if (kind === 'fail') {
       var label = source.stages.label;
-      line = h('p', 'errbar local-error', 'Bước 4 dừng giữa chừng: 10 chủ đề bên dưới mới có ' +
+      line = h('p', 'errbar local-error', 'Bước 4 dừng giữa chừng: mới gắn chủ đề cho ' +
         (present(label.total) ? fmtInt(label.done) + '/' + fmtInt(label.total) + ' bình luận' : 'một phần bình luận') + '. ' +
         (source.canResume ? 'Mở «Chi tiết lịch sử lượt chạy» để chạy tiếp.' : 'Mở «Chi tiết lịch sử lượt chạy» để xem lý do.'));
     } else if (kind === 'running') {
-      line = h('p', 'progress', 'Bước 4 đang chạy: 10 chủ đề bên dưới mới có một phần bình luận. Số liệu đủ khi bước 4 xong.');
+      line = h('p', 'progress', 'Bước 4 đang chạy: mới gắn chủ đề cho một phần bình luận. Số liệu đủ khi bước 4 xong.');
     } else if (kind === 'old') {
       line = h('p', 'progress', 'Lượt cũ: chủ đề chỉ có cho những bình luận đã được gắn từ trước.');
     } else if (kind === 'idle') {
-      line = h('p', 'progress', 'Bước 4 chưa chạy: 10 chủ đề bên dưới mới có một phần bình luận. Số liệu đủ khi bước 4 xong.');
+      line = h('p', 'progress', 'Bước 4 chưa chạy: mới gắn chủ đề cho một phần bình luận. Số liệu đủ khi bước 4 xong.');
     }
     if (line) line.id = 'step4ResultLine';
     return line;
@@ -7454,7 +7122,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         panelReadError(root, insightsBar, true, null);
       }
       if (!insights) {
-        root.appendChild(h('p', 'muted', 'Đang tải AI và nhãn chủ đề…'));
+        root.appendChild(h('p', 'muted', 'Đang tải…'));
         return;
       }
       root.appendChild(reviewInsightsPanel(insights, runId));

@@ -2905,8 +2905,9 @@ test('B3: the results tab shows numbers for the run and changes them per product
     assert.deepEqual([...detail.querySelectorAll<HTMLElement>('.kd-bar i')].map((segment) => segment.style.width), ['100%', '0%', '0%']);
     assert.equal(detail.querySelector('.kd-score b')!.textContent, '5,0');
     await waitFor(() => doc.getElementById('resultInsights') !== null, 'result insights');
-    assert.equal(doc.getElementById('resultAiSummary')!.querySelector('h3')!.textContent, 'AI Tóm tắt');
-    assert.equal(doc.getElementById('resultThemeTags')!.querySelector('h3')!.textContent, '10 nhãn chủ đề');
+    assert.equal(doc.getElementById('resultAiSummary'), null, 'app 1.3.3: no «AI Tóm tắt» card');
+    assert.equal(doc.getElementById('resultThemeTags'), null, 'app 1.3.3: no «10 nhãn chủ đề» card');
+    assert.notEqual(doc.getElementById('resultCommentDrilldown'), null, 'the comment download stays');
 
     resultButton('run-empty').click();
     await waitFor(() => doc.getElementById('resultEmpty') !== null, 'empty run');
@@ -3376,8 +3377,8 @@ test('the results tab says in one line when step 4 is not done', async () => {
     await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 4, 'result run list');
     const resultLine = () => doc.getElementById('step4ResultLine');
     for (const [runId, text] of [
-      ['run-running', 'Bước 4 đang chạy: 10 chủ đề bên dưới mới có một phần bình luận. Số liệu đủ khi bước 4 xong.'],
-      ['run-fail', 'Bước 4 dừng giữa chừng: 10 chủ đề bên dưới mới có 312/498 bình luận. Mở «Chi tiết lịch sử lượt chạy» để chạy tiếp.'],
+      ['run-running', 'Bước 4 đang chạy: mới gắn chủ đề cho một phần bình luận. Số liệu đủ khi bước 4 xong.'],
+      ['run-fail', 'Bước 4 dừng giữa chừng: mới gắn chủ đề cho 312/498 bình luận. Mở «Chi tiết lịch sử lượt chạy» để chạy tiếp.'],
       ['run-old', 'Lượt cũ: chủ đề chỉ có cho những bình luận đã được gắn từ trước.'],
       ['run-pass', null],
     ] as const) {
@@ -5135,12 +5136,11 @@ test('the sort save keeps the last click and the refresh mark follows only the l
 // | # | situation                                                         | expected                                                  |
 // |---|-------------------------------------------------------------------|-----------------------------------------------------------|
 // | 1 | open a settled run on «Chi tiết lịch sử lượt chạy»                | one run-view, with --result; run-info asked once          |
-// | 2 | open it on «Kết quả chạy»                                         | its themes at once (same read); no comment list read yet  |
-// | 3 | open «Xem 2 bình luận mẫu» of a theme, close, open again          | its comments read once (bucket key + theme), then kept    |
+// | 2 | open it on «Kết quả chạy»                                         | its result parts at once (same read); no comment list read |
 // | 4 | the outputs part fails                                            | the same panel text as the single call's failure          |
-// | 5 | an older server (USAGE)                                           | the single calls; run-view not asked again; v1 inline     |
+// | 5 | an older server (USAGE)                                           | the single calls; run-view not asked again                |
 // | 6 | a running run's 10 s poll                                         | run-view again                                            |
-test('a run opens with one run-view, insights summary first and theme comments on demand', async () => {
+test('a run opens with one run-view, insights summary first', async () => {
   const runId = 'run-w2';
   const sha = 'c'.repeat(64);
   const comment = (id: string, text: string) => ({ id, text, rating: 5, date: null, productName: null,
@@ -5154,8 +5154,7 @@ test('a run opens with one run-view, insights summary first and theme comments o
     all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, themes: [theme],
       comments: theme.comments }, links: [] }] };
   const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
-  const themeDetails = (doc: Document) =>
-    doc.querySelector<HTMLDetailsElement>('#resultThemeTags [data-theme-code="T-CONGDUNG"] details.theme-comments');
+  const download = (doc: Document) => doc.getElementById('resultCommentDrilldown');
   const setup = (extra: Record<string, any> = {}) => harness({
     runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }, { runId: 'run-other', product: 'Khác', status: 'DONE' }],
     runInfoByRun: { [runId]: syntheticRunInfo(runId), 'run-other': syntheticRunInfo('run-other') },
@@ -5173,22 +5172,9 @@ test('a run opens with one run-view, insights summary first and theme comments o
     assert.deepEqual(run.state.runViewCalls, [{ runId, result: true }], '1: one run-view (--result: a settled run)');
     assert.deepEqual(run.state.statusCalls, [runId], '1: run-info once, inside it');
     tab(run.doc, 2);
-    assert.notEqual(themeDetails(run.doc), null, '2: themes at once, from the --result read of the open');
+    assert.notEqual(download(run.doc), null, '2: result parts at once, from the --result read of the open');
     assert.ok(run.state.runViewCalls.every((call) => call.result), '2: --result on «Kết quả chạy»');
-    assert.deepEqual(run.state.insightCommentCalls, [], '2: no comment list yet');
-    // 3
-    const summaryOf = () => themeDetails(run.doc)!.querySelector<HTMLElement>('summary')!;
-    assert.equal(summaryOf().textContent, 'Xem 2 bình luận mẫu');
-    summaryOf().click();
-    await waitFor(() => themeDetails(run.doc)!.querySelectorAll('.comment-row').length === 2, '3: comments shown');
-    assert.deepEqual(run.state.insightCommentCalls, [{ runId, bucket: sha + ':all', theme: 'T-CONGDUNG' }]);
-    assert.equal(themeDetails(run.doc)!.open, true, '3: stays open after the redraw');
-    summaryOf().click();
-    assert.equal(themeDetails(run.doc)!.open, false);
-    summaryOf().click();
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    assert.equal(run.state.insightCommentCalls.length, 1, '3: kept for this run');
-    assert.equal(themeDetails(run.doc)!.querySelectorAll('.comment-row').length, 2);
+    assert.deepEqual(run.state.insightCommentCalls, [], '2: no comment list');
   } finally { run.dom.window.close(); }
 
   // 4
@@ -5208,9 +5194,7 @@ test('a run opens with one run-view, insights summary first and theme comments o
   run = setup({ oldServer: true });
   try {
     tab(run.doc, 2);
-    await waitFor(() => themeDetails(run.doc) !== null, '5: themes shown');
-    assert.equal(themeDetails(run.doc)!.querySelector('summary')!.textContent, 'Xem 2 bình luận mẫu');
-    assert.equal(themeDetails(run.doc)!.querySelectorAll('.comment-row').length, 2, '5: v1 comments inline');
+    await waitFor(() => download(run.doc) !== null, '5: result parts shown');
     const asked = run.state.runViewCalls.length;
     [...run.doc.querySelectorAll<HTMLButtonElement>('#resultRunList button')]
       .find((button) => button.title.includes('run-other'))!.click();
@@ -5232,16 +5216,13 @@ test('a run opens with one run-view, insights summary first and theme comments o
 // #516 Terra r1, one row each:
 // | # | situation                                                                   | expected                                        |
 // |---|-----------------------------------------------------------------------------|-------------------------------------------------|
-// | 1 | a theme's comments fail to load                                             | one read per opening click, never a retry loop  |
-// | 2 | a new insights summary (run-view --result) after the comments were read     | comments emptied, section closed, new count;    |
-// |   | … and a read asked before it answers after it                               | that late answer is dropped                     |
 // | 3 | sampling and step 4 finish, seen by their own polls, while a refresh is out | ONE run-view at a time, no separate part calls  |
-test('theme comments load on a click only, follow the latest summary, and a change asks one run-view', async () => {
+test('a change of sampling and step 4 asks one run-view at a time', async () => {
   const runId = 'run-r1';
   const sha = 'd'.repeat(64);
   const comment = (id: string) => ({ id, text: 'Bình luận ' + id, rating: 5, date: null, productName: null,
     url: 'https://shopee.vn/product/801/100', tags: [] });
-  let themeComments = [comment('r1'), comment('r2')];
+  const themeComments = [comment('r1'), comment('r2')];
   const insights = () => ({ format: 'review-insights-v1', runId, codebookVersion: 'synthetic', sources: [{
     sourceSha256: sha, kind: 'legacy', status: 'SUCCEEDED', completedAt: '2026-11-11T08:00:00Z',
     all: { summary: { status: 'EMPTY', text: null, model: null, generatedAt: null },
@@ -5250,9 +5231,7 @@ test('theme comments load on a click only, follow the latest summary, and a chan
         summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, comments: themeComments }],
       comments: themeComments }, links: [] }] });
   const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
-  const details = (doc: Document) =>
-    doc.querySelector<HTMLDetailsElement>('#resultThemeTags [data-theme-code="T-CONGDUNG"] details.theme-comments');
-  const summaryOf = (doc: Document) => details(doc)!.querySelector<HTMLElement>('summary')!;
+  const download = (doc: Document) => doc.getElementById('resultCommentDrilldown');
   const base = (extra: Record<string, any> = {}) => harness({
     runs: [{ runId, product: 'Sản phẩm', status: 'DONE' }],
     runInfoByRun: { [runId]: syntheticRunInfo(runId) },
@@ -5261,53 +5240,6 @@ test('theme comments load on a click only, follow the latest summary, and a chan
     reviewInsightsResult: () => ({ ok: true, data: insights() }),
     ...extra,
   });
-
-  // 1
-  let run = base({ insightCommentsError: true });
-  try {
-    tab(run.doc, 2);
-    await waitFor(() => details(run.doc) !== null, '1: themes');
-    summaryOf(run.doc).click();
-    await waitFor(() => /Chưa tải được bình luận mẫu/.test(details(run.doc)!.textContent || ''), '1: error shown');
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    assert.equal(run.state.insightCommentCalls.length, 1, '1: no retry by itself');
-    assert.equal(details(run.doc)!.open, true);
-    summaryOf(run.doc).click();                          // close: nothing read
-    summaryOf(run.doc).click();                          // open again: one more read
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    assert.equal(run.state.insightCommentCalls.length, 2, '1: one read per opening click');
-  } finally { run.dom.window.close(); }
-
-  // 2
-  let hold: Deferred<void> | null = null;
-  themeComments = [comment('r1'), comment('r2')];
-  run = base({ insightCommentsHold: () => hold?.promise });
-  try {
-    tab(run.doc, 2);
-    await waitFor(() => details(run.doc) !== null, '2: themes');
-    summaryOf(run.doc).click();
-    await waitFor(() => details(run.doc)!.querySelectorAll('.comment-row').length === 2, '2: comments read');
-    themeComments = [comment('r3')];                     // the labels changed on the server
-    tab(run.doc, 1);
-    tab(run.doc, 2);                                     // a new run-view --result: a new summary
-    await waitFor(() => summaryOf(run.doc).textContent === 'Xem 1 bình luận mẫu', '2: the new count');
-    assert.equal(details(run.doc)!.open, false, '2: closed until the next click');
-    assert.equal(run.state.insightCommentCalls.length, 1, '2: nothing read by itself');
-    hold = deferred<void>();
-    summaryOf(run.doc).click();                          // a read for this summary, held
-    await waitFor(() => run.state.insightCommentCalls.length === 2, '2: read asked');
-    themeComments = [comment('r4'), comment('r5')];
-    tab(run.doc, 1);
-    tab(run.doc, 2);                                     // another summary while the read is out
-    await waitFor(() => summaryOf(run.doc).textContent === 'Xem 2 bình luận mẫu', '2: newer count');
-    hold.resolve();
-    hold = null;
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    assert.equal(details(run.doc)!.querySelectorAll('.comment-row').length, 0, '2: the late answer is dropped');
-    summaryOf(run.doc).click();
-    await waitFor(() => details(run.doc)!.querySelectorAll('.comment-row').length === 2, '2: read again on click');
-    assert.match(details(run.doc)!.textContent || '', /Bình luận r4/);
-  } finally { run.dom.window.close(); }
 
   // 3
   const attempt = {
@@ -5318,7 +5250,7 @@ test('theme comments load on a click only, follow the latest summary, and a chan
   let step4 = 'RUNNING' as 'RUNNING' | 'PASS';
   let statsCalls = 0;
   let statusHold: Deferred<void> | null = null;
-  run = base({
+  const run = base({
     samplingByRun: { [runId]: syntheticSampling({ runId, attempts: [attempt] }) },
     reviewProcessResult: (id: string) => reviewProcessReply(id, step4),
     reviewStatsResult: () => { statsCalls += 1; return { ok: true, data: syntheticReviewStats(runId, 2) }; },
@@ -5328,7 +5260,7 @@ test('theme comments load on a click only, follow the latest summary, and a chan
   try {
     await booted(run.doc);                               // connected: the step 4 poll starts on the next open
     tab(run.doc, 2);
-    await waitFor(() => details(run.doc) !== null && (run.state.reviewSamplingCallsByRun[runId] || 0) >= 3 &&
+    await waitFor(() => download(run.doc) !== null && (run.state.reviewSamplingCallsByRun[runId] || 0) >= 3 &&
       run.state.reviewProcessCalls.length >= 3, '3: open, sampling and step 4 polls running');
     const before = { views: run.state.runViewCalls.length, data: run.state.reviewDataCallsByRun[runId] || 0,
       outputs: run.state.moduleOutputsCalls.length, stats: statsCalls };
@@ -5568,8 +5500,6 @@ test('a read asked while a run-view is out is answered by the follow-up', async 
 // |---|---------------------------------------------------------------------------------|--------------------------------------------|
 // | A | «Kết quả chạy» clicked while a read without --result (a run in progress) is out | the --result read is sent at once; its     |
 // |   |                                                                                 | parts show before the older read answers   |
-// | B | a new summary whose bucket is equal to the one before, after its comments were  | the comments and the open section stay; no |
-// |   | read                                                                            | comment read again                         |
 // | C | one run-view answer                                                             | one redraw of the open run                 |
 // | 1 | a read fails (its answer cannot be drawn) while another read waits behind it    | the waiting read is still sent             |
 // | 2 | the connection is made again while the first run-view is out and a notice waits | the notice goes on once that read answers  |
@@ -5581,7 +5511,7 @@ test('a read asked while a run-view is out is answered by the follow-up', async 
 // | 6 | a run-view fails with a non-transport error (REMOTE_OUTPUT_INVALID) after a     | the run detail stays; the error line shows |
 // |   | good open                                                                       |                                            |
 // | 7 | after a good open, a run-view answers good info but an outputs error            | the last outputs stay, with the error mark |
-test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal comments, redraws once and survives failures', async () => {
+test('wave 3: the open run reads at once on «Kết quả chạy», redraws once and survives failures', async () => {
   const runId = 'run-w3';
   const sha = 'e'.repeat(64);
   const comment = (id: string) => ({ id, text: 'Bình luận ' + id, rating: 5, date: null, productName: null,
@@ -5594,8 +5524,7 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
         summary: { status: 'EMPTY', text: null, model: null, generatedAt: null }, comments: [comment('a'), comment('b')] }],
       comments: [comment('a'), comment('b')] }, links: [] }] });
   const tab = (doc: Document, index: number) => [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][index]!.click();
-  const details = (doc: Document) =>
-    doc.querySelector<HTMLDetailsElement>('#resultThemeTags [data-theme-code="T-CONGDUNG"] details.theme-comments');
+  const download = (doc: Document) => doc.getElementById('resultCommentDrilldown');
   let hold: Deferred<void> | null = null;
   let holdTrackOnly = false;
   const base = (extra: Record<string, any> = {}) => harness({
@@ -5621,31 +5550,13 @@ test('wave 3: the open run reads at once on «Kết quả chạy», keeps equal 
     runListButton(run.doc, runId).click();                // a track read, held
     await waitFor(() => run.state.runViewCalls.length === views + 1, 'A: a track read out');
     tab(run.doc, 2);
-    await waitFor(() => details(run.doc) !== null, 'A: the result parts, before the track read answers');
+    await waitFor(() => download(run.doc) !== null, 'A: the result parts, before the track read answers');
     assert.deepEqual(run.state.runViewCalls.slice(views).map((call) => call.result), [false, true]);
     release();
     await new Promise((resolve) => setTimeout(resolve, 60));
-    assert.notEqual(details(run.doc), null, 'A: the older answer draws nothing over them');
+    assert.notEqual(download(run.doc), null, 'A: the older answer draws nothing over them');
     assert.equal(run.state.runViewCalls.length, views + 2, 'A: nothing more');
   } finally { release(); holdTrackOnly = false; run.dom.window.close(); }
-
-  // B
-  run = base();
-  try {
-    tab(run.doc, 2);
-    await waitFor(() => details(run.doc) !== null, 'B: themes');
-    details(run.doc)!.querySelector<HTMLElement>('summary')!.click();
-    await waitFor(() => details(run.doc)!.querySelectorAll('.comment-row').length === 2, 'B: comments read');
-    const views = run.state.runViewCalls.length;
-    tab(run.doc, 1);
-    tab(run.doc, 2);                                      // a new --result read: the same summary
-    await waitFor(() => run.state.runViewCalls.filter((call) => call.result).length >= 2 &&
-      run.state.runViewCalls.length > views, 'B: read again');
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    assert.equal(details(run.doc)!.open, true, 'B: still open');
-    assert.equal(details(run.doc)!.querySelectorAll('.comment-row').length, 2, 'B: comments kept');
-    assert.equal(run.state.insightCommentCalls.length, 1, 'B: not read again');
-  } finally { run.dom.window.close(); }
 
   // C
   run = base();
