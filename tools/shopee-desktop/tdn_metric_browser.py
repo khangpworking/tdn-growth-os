@@ -594,14 +594,21 @@ class MetricListener:
             pass
 
     def _detach(self, target_id, tab=None, away=False):
-        """Stop the target's connection (or the given stale one). Never blocks on CDP."""
+        """Stop the target's connection (or the given stale one). Never blocks on CDP.
+
+        One rule for every caller: when the connection being detached is the target's current one and its
+        socket already died by itself, the link is recorded as lost (``_mark_lost_link``), not «away», in
+        the same step that clears the entry. A live connection is detached as before."""
         with self._lock:
             entry = self._tabs.get(target_id)
             if entry is None or (tab is not None and entry.tab is not tab):
                 tab_to_stop = tab
             else:
                 tab_to_stop = entry.tab
-                if entry.phase == 'attached':
+                if entry.phase == 'attached' and self._link_lost(entry.tab):
+                    self._mark_lost_link(target_id, entry.tab)
+                    away = False
+                elif entry.phase == 'attached':
                     entry.tab = None
                     entry.phase = None
                 if away:
@@ -756,16 +763,8 @@ class MetricListener:
         request = event.get('request') if isinstance(event.get('request'), dict) else {}
         if event.get('type') == 'Document' and event.get('frameId') == target_id:
             if not is_metric_page(request.get('url'), self.hosts):
-                # The event can be handled after the socket died but before poll saw it: then the link
-                # is lost, not «away». Check and record in one step, as poll does.
-                with self._lock:
-                    lost = self._link_lost(tab)
-                    if lost:
-                        self._mark_lost_link(target_id, tab)
-                if lost:
-                    self._stop_tab(tab)
-                else:
-                    self._detach(target_id, tab, away=True)
+                # A dead socket here is recorded as lost, not «away», by _detach itself.
+                self._detach(target_id, tab, away=True)
             return
         if request.get('method') != 'POST' or request.get('url') != self.products_url:
             return
