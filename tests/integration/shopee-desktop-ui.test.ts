@@ -3310,6 +3310,31 @@ test('step 4 card with several sources: any stop wins and resumes that source, �
   } finally { dom.window.close(); }
 });
 
+// Owner 25/11 (app 1.3.0): the window allows text selection; controls stay non-selectable.
+// | rendered element                                      | user-select   |
+// |-------------------------------------------------------|---------------|
+// | button, tab, summary, status chip, step chip (.seqch) | none          |
+// | heading, lead text, check heading in the log, input   | not none      |
+test('controls are not selectable while text and inputs are', async () => {
+  const { dom, doc } = step4Harness();
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 4, 'run list');
+    runListButton(doc, 'run-fail').click();
+    await waitFor(() => !!step4Card(doc)?.querySelector('#s4Resume') && doc.querySelectorAll('#techDetails .seqch').length > 0,
+      'run view with step chips');
+    const style = (el: Element) => dom.window.getComputedStyle(el).userSelect;
+    for (const selector of ['button', '[role="tab"]', 'summary', '.chip', '.seqch']) {
+      const found = [...doc.querySelectorAll(selector)];
+      assert.ok(found.length > 0, selector + ' is rendered');
+      assert.deepEqual([...new Set(found.map(style))], ['none'], selector);
+    }
+    for (const el of [doc.querySelector('h1'), doc.querySelector('p.lead'), doc.querySelector('#techDetails article.gate h3'), doc.querySelector('input')]) {
+      assert.ok(el, 'text element rendered');
+      assert.notEqual(style(el!), 'none', el!.outerHTML.slice(0, 60));
+    }
+  } finally { dom.window.close(); }
+});
+
 test('the technical log adds the step 4 chips after M3 and both step 4 checks with technical details', async () => {
   const { dom, doc } = step4Harness();
   try {
@@ -6094,7 +6119,7 @@ test('a newer app version on the server shows one banner, closed per version; an
   let run = await shown({ version: '1.9.0' }, latest('1.10.0'));
   try {
     assert.equal(run.doc.getElementById('appVer')!.textContent, 'v1.9.0');
-    assert.equal(bar(run.doc), 'Có bản mới 1.10.0. Liên hệ để lấy file cài.');
+    assert.equal(bar(run.doc), 'Có bản mới 1.10.0. Liên hệ IT để cập nhật.');
     run.doc.getElementById('updateClose')!.click();
     assert.equal(bar(run.doc), null, 'closed');
     await waitFor(() => run.state.dismissCalls.join(' ') === '1.10.0', 'the bridge keeps the closed version');
@@ -6102,7 +6127,7 @@ test('a newer app version on the server shows one banner, closed per version; an
 
   for (const [build, reply, expected] of [
     [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.10.0'), null],
-    [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.11.0'), 'Có bản mới 1.11.0. Liên hệ để lấy file cài.'],
+    [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.11.0'), 'Có bản mới 1.11.0. Liên hệ IT để cập nhật.'],
     [{ version: '1.10.0' }, latest('1.10.0'), null],
     [{ version: '1.10.0' }, latest('1.9.0'), null],
     [{ version: '1.10.0' }, latest(null), null],
