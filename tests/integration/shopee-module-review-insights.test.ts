@@ -686,3 +686,37 @@ test('EMPTY and UNAVAILABLE theme summaries carry no points; insights-summary ta
   assert.deepEqual(themeOf(unavailable.sources[0].all, 'T-CONGDUNG').summary,
     { status: 'UNAVAILABLE', text: null, model: null, generatedAt: null }, '5: UNAVAILABLE');
 });
+
+// Real-label check r1 (25/11): delivery talk in every theme became the top bullet of «Kết quả sau khi dùng».
+// | situation                                                       | expected                                        |
+// |-----------------------------------------------------------------|-------------------------------------------------|
+// | 3 themes; every comment also says «Giao hàng nhanh»             | no bullet of any theme is the delivery sentence  |
+// |                                                                 | each theme's bullet holds its own words          |
+test('grouped points: talk shared by every theme never becomes a bullet of a theme', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-shared', links: [link] });
+  const own: Record<string, string[]> = {
+    'T-GIA': ['Giá rẻ hợp lý', 'Giá rẻ, rất hợp lý', 'Giá rẻ hợp lý quá', 'Giá rẻ và hợp lý'],
+    'T-THIETKE': ['Hộp đẹp sang', 'Hộp rất đẹp, sang', 'Hộp đẹp sang trọng', 'Hộp đẹp và sang'],
+    'T-NIEMTIN': ['Có tem chính hãng', 'Có tem, hàng chính hãng', 'Tem chính hãng rõ', 'Có tem chính hãng đầy đủ'],
+  };
+  const rows = Object.entries(own).flatMap(([code, texts]) => texts.map((text, index) =>
+    ({ code, row: moduleRow(link, `sh-${code}-${index}`, { comment: `Giao hàng nhanh. ${text}` }) })));
+  await addLegacySource(run, { cap: rows.length, rowsByLink: [rows.map(item => item.row)] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(item =>
+    labelRow(item.row, 'Kem A', [{ code: item.code, polarity: 'khen', status: 'kept', choice: 'KHEN' }])));
+  useDatabase(t, database);
+
+  const all = (await reviewInsightsSummaryView(run.runDir, undefined, true) as any).sources[0].all;
+  const word: Record<string, RegExp> = { 'T-GIA': /giá rẻ/i, 'T-THIETKE': /hộp/i, 'T-NIEMTIN': /tem/i };
+  for (const code of Object.keys(own)) {
+    const points = pointsOf(all, code);
+    assert.ok(points.length >= 1, code);
+    for (const point of points) {
+      assert.ok(!/giao hàng/i.test(point.text), `${code}: «${point.text}» is the shared delivery talk`);
+      assert.match(point.text, word[code]!, `${code}: «${point.text}» holds the theme's own words`);
+    }
+  }
+});
