@@ -756,7 +756,16 @@ class MetricListener:
         request = event.get('request') if isinstance(event.get('request'), dict) else {}
         if event.get('type') == 'Document' and event.get('frameId') == target_id:
             if not is_metric_page(request.get('url'), self.hosts):
-                self._detach(target_id, tab, away=True)
+                # The event can be handled after the socket died but before poll saw it: then the link
+                # is lost, not «away». Check and record in one step, as poll does.
+                with self._lock:
+                    lost = self._link_lost(tab)
+                    if lost:
+                        self._mark_lost_link(target_id, tab)
+                if lost:
+                    self._stop_tab(tab)
+                else:
+                    self._detach(target_id, tab, away=True)
             return
         if request.get('method') != 'POST' or request.get('url') != self.products_url:
             return
