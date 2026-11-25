@@ -1,0 +1,111 @@
+name: Shopee app release
+
+# Builds TDN-Shopee-Flow.exe from a tag app-vX.Y.Z and attaches it to a DRAFT pre-release.
+# The repository is public, so the release stays a draft (visible only with write access).
+# The installer is not built here: it embeds a user access token (tools/shopee-desktop/RELEASES.md).
+on:
+  push:
+    tags:
+      - 'app-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag, for example app-v1.3.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shopee-app-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Check VERSION matches tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$TAG" in app-v*) ;; *) echo "Tag $TAG does not start with app-v"; exit 1 ;; esac
+          want="${TAG#app-v}"
+          have="$(tr -d '\r\n' < tools/shopee-desktop/VERSION)"
+          if [ "$have" != "$want" ]; then
+            echo "VERSION is $have but tag is $TAG"; exit 1
+          fi
+          echo "VERSION=$have" >> "$GITHUB_ENV"
+          echo "COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install build requirements
+        shell: bash
+        run: python -m pip install -r tools/shopee-desktop/requirements.txt
+
+      - name: Build EXE
+        shell: bash
+        working-directory: tools/shopee-desktop
+        run: python -m PyInstaller --noconfirm --clean TDN-Shopee-Flow.spec
+
+      - name: Check websocket is bundled
+        shell: bash
+        working-directory: tools/shopee-desktop
+        run: |
+          set -euo pipefail
+          warn=build/TDN-Shopee-Flow/warn-TDN-Shopee-Flow.txt
+          xref=build/TDN-Shopee-Flow/xref-TDN-Shopee-Flow.html
+          missing="$(grep -ci 'missing module named websocket' "$warn" || true)"
+          echo "missing module named websocket: $missing"
+          if [ "$missing" != "0" ]; then exit 1; fi
+          if ! grep -q 'websocket/_core' "$xref"; then
+            echo "websocket/_core is not in $xref"; exit 1
+          fi
+
+      - name: Name EXE and write SHA256SUMS
+        shell: bash
+        working-directory: tools/shopee-desktop/dist
+        run: |
+          set -euo pipefail
+          exe="TDN-Shopee-Flow-$VERSION.exe"
+          cp TDN-Shopee-Flow.exe "$exe"
+          sha256sum "$exe" | sed 's/ \*/  /' > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create or update GitHub Release
+        shell: bash
+        working-directory: tools/shopee-desktop/dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          exe="TDN-Shopee-Flow-$VERSION.exe"
+          {
+            echo "Version: $VERSION"
+            echo "Commit: $COMMIT"
+            echo
+            echo "Bộ cài (có mã truy cập) không nằm ở đây; lấy từ máy chủ dự án."
+            echo
+            echo "SHA256:"
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "$exe" SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" "$exe" SHA256SUMS.txt --verify-tag \
+              --title "TDN Shopee app $VERSION" --notes-file notes.md --draft --prerelease
+          fi
