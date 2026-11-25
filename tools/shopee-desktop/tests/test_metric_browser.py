@@ -1910,6 +1910,22 @@ class LostLinkTest(unittest.TestCase):
     # | 10  | the link died, no poll yet, then the click                       | refused at freeze; the dead link is dropped    |
     # | 11  | drop and reconnect between freeze and the Metric request         | refused; nothing sent on the new link          |
     # | 12  | freeze, drop, reconnect not done yet                             | METRIC_FILTER_UNAVAILABLE, not METRIC_TAB_GONE |
+    # | 13  | «left Metric» event handled after the socket died, tab back  | the old filter is still refused after reattach |
+    def test_row13_a_late_navigation_event_from_a_dead_link_keeps_the_old_filter_refused(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        self.a.lost = True
+        self.a.emit(requestId='nav', type='Document', frameId='a',
+                    request={'url': 'https://accounts.google.com/', 'method': 'GET'})
+        self.world.now += 60
+        self.listener.poll()
+        self.assertEqual(self.listener.attached_ids(), ['a', 'b'])
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.evaluated, [])
+        live = self.world.live('a')[0]
+        live.emit(requestId='nav2', type='Document', frameId='a',
+                  request={'url': 'https://accounts.google.com/', 'method': 'GET'})
+        self.assertEqual(self.listener.attached_ids(), ['b'], 'a live link still leaves as «away»')
+
     def test_row9_a_held_click_record_from_a_dropped_link_is_refused(self):
         self.a.products_request(self.FILTER_OLD, request_id='old', timestamp=1.0)
         held = self.listener.click_record()
