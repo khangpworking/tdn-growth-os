@@ -234,7 +234,11 @@ class MetricShotTest(unittest.TestCase):
         self.head()
         self.assertEqual(self.command('metric-shot-view-url')[1]['uploadedAt'], new['uploadedAt'])
         for damaged in ('not json', [], {'key': 'x'}, dict(new, contentType=['image/webp']),
-                        dict(new, contentType={'image/webp': 1}), dict(new, sha256=7)):
+                        dict(new, contentType={'image/webp': 1}), dict(new, sha256=7),
+                        dict(new, deleteAfter=None), dict(new, uploadedAt=5), dict(new, deleteAfter='not a date'),
+                        dict(new, deleteAfter='2099-13-40T00:00:00Z'), dict(new, uploadedAt='2099-01-01'),
+                        dict(new, byteSize='23'), dict(new, byteSize=True), dict(new, byteSize=0),
+                        dict(new, byteSize=33554433)):
             with self.subTest(damaged=damaged):
                 text = damaged if isinstance(damaged, str) else json.dumps(damaged)
                 (self.run / 'metric-shot-r2.json').write_text(text, encoding='utf-8')

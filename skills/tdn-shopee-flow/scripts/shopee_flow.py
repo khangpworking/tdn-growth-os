@@ -3324,9 +3324,22 @@ def _metric_shot_record_at(run, relative):
             set(record) != {'key', 'sha256', 'byteSize', 'contentType', 'uploadedAt', 'deleteAfter'} or
             not isinstance(record['contentType'], str) or record['contentType'] not in METRIC_SHOT_TYPES or
             not isinstance(record['sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', record['sha256']) or
-            record['key'] != metric_shot_key(run.name, record['contentType'], record['sha256'])):
+            record['key'] != metric_shot_key(run.name, record['contentType'], record['sha256']) or
+            type(record['byteSize']) is not int or not 0 < record['byteSize'] <= METRIC_SHOT_MAX_BYTES or
+            not all(_metric_shot_time_ok(record[name]) for name in ('uploadedAt', 'deleteAfter'))):
         return None
     return record
+
+
+def _metric_shot_time_ok(value):
+    """The exact shape _utc_text() writes (YYYY-MM-DDTHH:MM:SSZ) and a real UTC time."""
+    if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', value):
+        return False
+    try:
+        dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        return False
+    return True
 
 
 def metric_shot_record_create(run, record):
