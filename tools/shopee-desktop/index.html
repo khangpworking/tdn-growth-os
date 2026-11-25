@@ -6331,7 +6331,6 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var card = h('article', 'mod insight-card');
     card.id = 'resultInsightsError';
     var bar = h('p', 'errbar local-error insight-error', 'Chưa tải được phần tải bình luận. Có thể thử lại sau.');
-    bar.title = errorCode(error);
     card.appendChild(bar);
     return card;
   }
@@ -7118,7 +7117,6 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
           return;
         }
         var insightsBar = h('p', 'errbar local-error', plainError(insightsFailure));
-        insightsBar.title = insightsFailure.code || '';
         panelReadError(root, insightsBar, true, null);
       }
       if (!insights) {
