@@ -603,6 +603,31 @@ class MetricListener:
         if tab_to_stop is not None:
             self._stop_tab(tab_to_stop)
 
+    @staticmethod
+    def _link_lost(tab):
+        """The tab's socket died by itself (not stopped by the app). Never raises."""
+        try:
+            return tab is not None and tab.connection_lost() is True
+        except Exception:
+            return False
+
+    def _drop_lost_link(self, target_id, tab):
+        """The link to this tab died: detach it (not «away») and forget its filter. While the link was
+        dead the user may have changed the filter on Metric, so nothing seen before the drop is frozen:
+        the tab's last body and order key go, and its newest click record (if it is still the newest one)
+        is marked failed, so ``freeze()`` raises METRIC_FILTER_UNAVAILABLE until a new request arrives."""
+        with self._lock:   # one step: a late body of the dead tab can no longer be published
+            entry = self._tabs.get(target_id)
+            if entry is not None and entry.tab is tab:
+                if entry.phase == 'attached':
+                    entry.tab = None
+                    entry.phase = None
+                entry.last = None
+                self._tab_newest.pop(target_id, None)
+                if self._newest is not None and self._newest['targetId'] == target_id:
+                    self._settle(self._newest, 'failed')
+        self._stop_tab(tab)
+
     def attach_blank_and_open(self, start_url=START_URL):
         """Fresh Chrome: attach to its about:blank page, then navigate it to Metric."""
         with self._discovery:
@@ -624,6 +649,13 @@ class MetricListener:
                 self.stop_all()
                 return False
             self.chrome_open = True
+            # A dead link never stays 'attached': detach it here; the loop below attaches again when
+            # the target is still listed and on Metric.
+            with self._lock:
+                lost = [(tid, entry.tab) for tid, entry in self._tabs.items()
+                        if entry.phase == 'attached' and self._link_lost(entry.tab)]
+            for target_id, tab in lost:
+                self._drop_lost_link(target_id, tab)
             now = self._clock()
             live = {}
             for target in targets if isinstance(targets, list) else []:
@@ -853,6 +885,10 @@ class MetricListener:
             tab = entry.tab if entry is not None and entry.phase == 'attached' else None
             if tab is None:
                 raise MetricFailure('METRIC_TAB_GONE')
+        if self._link_lost(tab):
+            self._drop_lost_link(frozen['targetId'], tab)
+            raise self._failure(screenshot_saved, 'METRIC_FILTER_UNAVAILABLE')
+        with self._lock:
             # Unique per call and never reused, so it can stay listed: a late queued event of
             # this call is still recognised, and no user request ever carries it.
             self._app_scripts.append(script)
@@ -860,6 +896,9 @@ class MetricListener:
             answer = tab.call_method('Runtime.evaluate', expression=evaluate_expression(source, request, script),
                                      awaitPromise=True, returnByValue=True, _timeout=EVALUATE_TIMEOUT)
         except Exception:
+            if self._link_lost(tab):
+                self._drop_lost_link(frozen['targetId'], tab)
+                raise self._failure(screenshot_saved, 'METRIC_FILTER_UNAVAILABLE') from None
             raise self._failure(screenshot_saved, 'METRIC_EVALUATE_FAILED') from None
         result = answer.get('result') if isinstance(answer, dict) else None
         value = result.get('value') if isinstance(result, dict) else None
