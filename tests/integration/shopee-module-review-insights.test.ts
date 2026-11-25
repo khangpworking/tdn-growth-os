@@ -603,7 +603,7 @@ test('grouped points: similar kept comments share one point, unclear and other-t
     unclear: 'Kem thấm nhanh không bết dính', other: 'Kem thấm nhanh nhưng giá cao',
   };
   const rows = Object.entries(texts).map(([id, comment]) => moduleRow(link, `pt-${id}`, { comment }));
-  await addLegacySource(run, { rowsByLink: [rows] });
+  await addLegacySource(run, { cap: rows.length, rowsByLink: [rows] });
   const database = path.join(base, 'app.db');
   createInsightDatabase(database, rows.map(row => labelRow(row, 'Kem A',
     row.reviewId === 'pt-unclear' ? [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'unclear', choice: null }]
@@ -634,7 +634,7 @@ test('grouped points: at most 5, the smallest group left out', async t => {
     ['Giá rẻ hợp lý', 'Giá rẻ rất hợp lý'], ['Mùi thơm dễ chịu', 'Mùi thơm rất dễ chịu'], ['Kem thấm êm', 'Kem thấm rất êm']];
   const rows = [...pairs.flatMap((pair, group) => pair.map((comment, index) => moduleRow(link, `five-${group}-${index}`, { comment }))),
     moduleRow(link, 'five-single', { comment: 'Hộp móp méo' })];
-  await addLegacySource(run, { rowsByLink: [rows] });
+  await addLegacySource(run, { cap: rows.length, rowsByLink: [rows] });
   const database = path.join(base, 'app.db');
   createInsightDatabase(database, rows.map(row =>
     labelRow(row, 'Kem A', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'KHEN' }])));
