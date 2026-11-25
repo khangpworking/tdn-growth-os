@@ -953,10 +953,11 @@ class MetricSession:
         return self.launcher.is_alive(self.launcher.saved_port())
 
     def open_metric(self):
-        opened = self.launcher.open_chrome('about:blank')
-        with self._lock:
+        with self._lock:   # before Chrome opens: a state read during the opening never auto-attaches
             self._gen += 1
             self._auto = False   # from now on the user drives listening
+        opened = self.launcher.open_chrome('about:blank')
+        with self._lock:
             if self.listener is not None and (self.listener.closed or self.listener.port != opened['port']):
                 self.listener.stop_all()
                 self.listener = None

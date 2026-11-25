@@ -378,6 +378,18 @@ class AutoWatchTest(unittest.TestCase):
         self.session.view()
         self.assertEqual(self.made, [])
 
+    def test_a_state_read_while_open_metric_opens_chrome_never_auto_attaches(self):
+        seen = []
+
+        def slow_open(url):                                  # the page polls while Chrome is opening
+            seen.append((self.session.view()['listening'], len(self.made)))
+            return {'port': self.port, 'browserName': 'Google Chrome', 'reused': False}
+        self.session.launcher.open_chrome.side_effect = slow_open
+        self.session.open_metric()
+        self.assertEqual(seen, [(False, 0)])
+        self.assertEqual(len(self.made), 1)                  # only «Mở Metric»'s own listener
+        self.assertTrue(self.session.view()['listening'])
+
     def test_open_metric_after_auto_watch_keeps_the_same_listener(self):
         self.session.view()
         self.session.open_metric()
