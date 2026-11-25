@@ -426,6 +426,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
 .chrome-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .chrome-pill.on { background: var(--ok-tint); color: var(--ok); }
 .chrome-pill.on i { background: var(--ok); }
+.chrome-pill.warn { background: var(--need-tint); color: var(--need); }
+.chrome-pill.warn i { background: var(--need); }
 .metric-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .metric-step { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; align-content: start; }
 .metric-step .step-head { display: flex; align-items: center; gap: 8px; font-weight: 700; }
@@ -3069,7 +3071,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         return Promise.resolve(ok({ format: 'library-v1', modules: clone(MOCK_MODULES), skills: clone(MOCK_SKILLS) }));
       },
       metricBrowserState: function () {
-        return Promise.resolve(ok({ chromeOpen: false, listening: false, seen: false,
+        // ?case=metric_chrome_open | metric_listening | metric_seen: the chip and hint states.
+        var chromeOpen = mockCase === 'metric_chrome_open' || mockCase === 'metric_listening' || mockCase === 'metric_seen';
+        var listening = mockCase === 'metric_listening' || mockCase === 'metric_seen';
+        return Promise.resolve(ok({ chromeOpen: chromeOpen, listening: listening, seen: mockCase === 'metric_seen',
           busy: false, pending: null }));
       },
       openMetric: function () { return Promise.resolve(err('CHROME_NOT_FOUND', 'Trang thử không mở Chrome.')); },
@@ -9834,8 +9839,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function renderMetricCard() {
     var view = state.metricView || {};
     var pill = $('chromeState');
-    pill.className = 'chrome-pill ' + (view.chromeOpen ? 'on' : 'off');
-    pill.querySelector('b').textContent = view.chromeOpen ? 'Chrome đang mở' : 'Chrome chưa mở';
+    var watching = !!view.chromeOpen && !!view.listening;
+    pill.className = 'chrome-pill ' + (watching ? 'on' : view.chromeOpen ? 'warn' : 'off');
+    pill.querySelector('b').textContent = watching ? 'Đang theo dõi Metric'
+      : view.chromeOpen ? 'Chưa mở Metric' : 'Chrome chưa mở';
     var pending = view.pending || null;
     var busy = !!state.metricBusy || !!view.busy;
     $('btnOpenMetric').disabled = !!state.metricOpening || busy;
@@ -9853,6 +9860,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       ' chưa gửi xong lên máy chủ. Bấm «Gửi lại» để gửi đúng gói này, không cần xem lại Metric.';
     else if (!state.connected) hint = 'Chưa kết nối máy chủ.';
     else if (state.readonly) hint = 'Hệ thống đang tạm dừng lấy dữ liệu.';
+    else if (!view.seen && watching) hint = 'Bấm F5 trên trang Metric hoặc đổi bộ lọc.';
     else if (!view.seen) hint = 'Nút này bấm được sau khi app thấy bạn xem số liệu trên Metric.';
     else if (policy.error) hint = policy.error;
     else if (selection.error) hint = selection.error;

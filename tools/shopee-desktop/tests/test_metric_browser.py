@@ -257,6 +257,193 @@ class LifecycleTest(unittest.TestCase):
         self.assertTrue(all(tab.stopped for tab in world.tabs if tab.started))
 
 
+class AutoWatchTest(unittest.TestCase):
+    """view() starts listening by itself once per app start, while nothing has listened yet."""
+
+    def setUp(self):
+        self.world = World([target('a', 'https://metric.vn/analytics')])
+        self.app_chrome = True
+        self.port = 9
+        self.made = []
+        self.poll_errors = []            # each /json/list raises the next one (OSError / ValueError: poll handles it)
+        self.on_identity = None          # runs inside is_app_chrome (the check before the attach)
+        self.listing = None              # (entered, release, error): the next /json/list waits, then raises / answers
+
+        def is_app_chrome(port):
+            if self.on_identity:
+                self.on_identity()
+            return self.app_chrome
+        launcher = mock.Mock(is_alive=lambda port: True, saved_port=lambda: self.port, is_app_chrome=is_app_chrome)
+        launcher.open_chrome.side_effect = lambda url: {'port': self.port, 'browserName': 'Google Chrome',
+                                                        'reused': True}
+
+        def list_targets():
+            if self.listing:
+                entered, release, error = self.listing
+                self.listing = None
+                entered.set()
+                release.wait(5)
+                if error:
+                    raise error
+            if self.poll_errors:
+                raise self.poll_errors.pop(0)
+            return self.world.targets
+
+        def factory(port):
+            listener = mb.MetricListener(port, tab_factory=self.world.factory, list_targets=list_targets,
+                                         clock=lambda: self.world.now)
+            self.made.append(listener)
+            return listener
+        self.session = mb.MetricSession(tempfile.gettempdir(), launcher=launcher, listener_factory=factory)
+        self.addCleanup(self.session.close)
+
+    def navigations(self):
+        return [c for tab in self.world.tabs for c in tab.calls if c[0] == 'Page.navigate']
+
+    def test_the_apps_open_chrome_is_watched_once_without_navigation(self):
+        first = self.session.view()
+        self.assertEqual(len(self.made), 1)
+        self.assertEqual(self.made[0].port, 9)
+        self.assertTrue(first['chromeOpen'])
+        self.assertTrue(first['listening'])
+        self.assertFalse(first['seen'])
+        self.assertEqual(self.navigations(), [])
+        self.world.tabs[0].products_request(page_body())
+        again = self.session.view()
+        self.assertEqual(len(self.made), 1)                 # later views reuse it
+        self.assertTrue(again['seen'])
+        self.assertEqual([t.methods() for t in self.world.tabs], [['Network.enable']])
+
+    def test_a_chrome_the_app_did_not_start_is_never_watched(self):
+        self.app_chrome = False
+        state = self.session.view()
+        self.assertEqual(self.made, [])
+        self.assertIsNone(self.session.listener)
+        self.assertFalse(state['listening'])
+        self.port = None                                     # no saved port at all
+        self.app_chrome = True
+        self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(self.made, [])
+
+    def test_after_a_run_is_created_only_open_metric_listens_again(self):
+        self.session.view()
+        self.session.confirmed()                             # listening stops once the run exists
+        for _ in range(3):
+            self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(len(self.made), 1)
+        self.session.open_metric()
+        self.assertEqual(len(self.made), 2)
+        self.assertTrue(self.session.view()['listening'])
+
+    def test_after_close_nothing_listens_again(self):
+        self.session.close()
+        self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(self.made, [])
+
+    def test_a_listener_that_stopped_itself_is_not_replaced(self):
+        self.session.view()
+        self.made[0].stop_all()                              # for example Chrome was closed
+        self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(len(self.made), 1)
+
+    def test_a_failed_start_is_not_retried_and_open_metric_then_listens(self):
+        cases = {'poll timeout (handled by poll)': lambda: self.poll_errors.append(OSError('timed out')),
+                 'poll bad answer (handled by poll)': lambda: self.poll_errors.append(ValueError('bad json')),
+                 'poll crash': lambda: self.poll_errors.append(RuntimeError('boom'))}
+        for name, arrange in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                arrange()
+                self.assertFalse(self.session.view()['listening'])
+                self.assertFalse(self.session.view()['listening'])   # one try per app start
+                self.assertEqual(len(self.made), 1)
+                self.session.open_metric()
+                self.assertTrue(self.session.view()['listening'])
+                self.assertEqual(self.navigations(), [])
+
+    def test_a_port_saved_during_the_check_is_not_attached(self):
+        def new_chrome():
+            self.on_identity = None
+            self.port = 10                                   # «Mở Metric» saved another Chrome meanwhile
+        self.on_identity = new_chrome
+        self.session.view()
+        self.assertEqual(self.made, [])
+        self.session.view()
+        self.assertEqual([listener.port for listener in self.made], [10])
+
+    def test_a_run_confirmed_during_the_check_is_not_attached(self):
+        self.on_identity = self.session.confirmed
+        self.session.view()
+        self.on_identity = None
+        self.session.view()
+        self.assertEqual(self.made, [])
+
+    def test_a_state_read_while_open_metric_opens_chrome_never_auto_attaches(self):
+        seen = []
+
+        def slow_open(url):                                  # the page polls while Chrome is opening
+            seen.append((self.session.view()['listening'], len(self.made)))
+            return {'port': self.port, 'browserName': 'Google Chrome', 'reused': False}
+        self.session.launcher.open_chrome.side_effect = slow_open
+        self.session.open_metric()
+        self.assertEqual(seen, [(False, 0)])
+        self.assertEqual(len(self.made), 1)                  # only «Mở Metric»'s own listener
+        self.assertTrue(self.session.view()['listening'])
+
+    def test_open_metric_after_auto_watch_keeps_the_same_listener(self):
+        self.session.view()
+        self.session.open_metric()
+        self.assertEqual(len(self.made), 1)
+        self.assertIs(self.session.listener, self.made[0])
+        self.assertEqual(self.navigations(), [])           # the Metric tab is already there: no about:blank
+        self.assertEqual(self.made[0].attached_ids(), ['a'])
+
+    def test_a_failing_auto_start_never_tears_down_what_open_metric_adopted(self):
+        entered, release, adopted = threading.Event(), threading.Event(), threading.Event()
+        self.listing = (entered, release, RuntimeError('boom'))
+        viewer = threading.Thread(target=self.session.view)
+        viewer.start()
+        self.assertTrue(entered.wait(5))                    # the auto-watch poll is waiting on /json/list
+        listener = self.made[0]
+        original = listener.attach_blank_and_open
+
+        def attach(url):                                     # open_metric() is past its creation step
+            adopted.set()
+            return original(url)
+        listener.attach_blank_and_open = attach
+        opener = threading.Thread(target=self.session.open_metric)
+        opener.start()
+        self.assertTrue(adopted.wait(5))
+        release.set()                                        # the auto-watch poll now fails
+        viewer.join(10)
+        opener.join(10)
+        self.assertFalse(viewer.is_alive() or opener.is_alive())
+        self.assertEqual(len(self.made), 1)
+        self.assertIs(self.session.listener, listener)
+        self.assertFalse(listener.closed)
+        self.assertEqual(listener.attached_ids(), ['a'])
+
+    def test_a_run_confirmed_or_app_closed_while_the_auto_start_runs_ends_auto_watch(self):
+        for name in ('confirmed', 'close'):
+            with self.subTest(name):
+                self.setUp()
+                entered, release = threading.Event(), threading.Event()
+                self.listing = (entered, release, None)      # the start-up poll then answers normally
+                viewer = threading.Thread(target=self.session.view)
+                viewer.start()
+                self.assertTrue(entered.wait(5))
+                getattr(self.session, name)()
+                release.set()
+                viewer.join(10)
+                self.assertFalse(viewer.is_alive())
+                self.assertIsNone(self.session.listener)
+                self.assertTrue(self.made[0].closed)
+                self.assertEqual(self.made[0].attached_ids(), [])
+                for _ in range(2):
+                    self.assertFalse(self.session.view()['listening'])
+                self.assertEqual(len(self.made), 1)
+
+
 class CaptureFreezeContractTest(unittest.TestCase):
     """MetricSession.capture() freezes exactly the newest request; never an older one.
 
@@ -1002,7 +1189,8 @@ class LauncherTest(unittest.TestCase):
 
 class FakeSession(mb.MetricSession):
     def __init__(self, folder):
-        super().__init__(folder, launcher=mock.Mock(is_alive=lambda port: True, saved_port=lambda: 1))
+        super().__init__(folder, launcher=mock.Mock(is_alive=lambda port: True, saved_port=lambda: 9,
+                                                     is_app_chrome=lambda port: True))
         self.fetches = 0
         self.rows = products(5)    # what Metric answers to the in-page top-100 request
         world = World([target('a', 'https://metric.vn/analytics')])

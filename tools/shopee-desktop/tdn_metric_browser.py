@@ -946,11 +946,16 @@ class MetricSession:
         self.pending_shot = None      # the full-page shot of that click (local path), for «Gửi lại»
         self.busy = threading.Lock()  # blocks double clicks
         self._lock = threading.Lock()
+        self._auto = True             # auto-watch allowed: once per app start, before anything listened
+        self._gen = 0                 # bumped by open_metric / confirmed / close
 
     def chrome_open(self):
         return self.launcher.is_alive(self.launcher.saved_port())
 
     def open_metric(self):
+        with self._lock:   # before Chrome opens: a state read during the opening never auto-attaches
+            self._gen += 1
+            self._auto = False   # from now on the user drives listening
         opened = self.launcher.open_chrome('about:blank')
         with self._lock:
             if self.listener is not None and (self.listener.closed or self.listener.port != opened['port']):
@@ -969,7 +974,38 @@ class MetricSession:
         listener.start()
         return dict(opened, navigated=navigated)
 
+    def _auto_watch(self):
+        """Once per app start, while nothing has listened yet: the app's own Chrome is already open on
+        its saved port (the app restarted after «Mở Metric»), so attach a listener to it. No navigation,
+        no new tab, Chrome never closed; another Chrome on that port is never attached. One try only:
+        it never replaces, stops or retries a listener. If the try fails, «Mở Metric» works as before
+        (it replaces a closed listener). Identity is checked by is_app_chrome() just before the attach,
+        the same window as open_metric()'s reuse."""
+        with self._lock:
+            if not self._auto or self.listener is not None:
+                return
+            gen = self._gen
+        port = self.launcher.saved_port()
+        if not port or not self.launcher.is_app_chrome(port):
+            return
+        with self._lock:
+            if (not self._auto or self.listener is not None or self._gen != gen
+                    or self.launcher.saved_port() != port):
+                return
+            self._auto = False
+            listener = self.listener = self._listener_factory(port)
+        listener.chrome_open = True
+        try:
+            if listener.poll():
+                listener.start()
+        except Exception:
+            pass   # not listening: the card shows «Chưa mở Metric» and «Mở Metric» takes over
+
     def view(self):
+        try:
+            self._auto_watch()
+        except Exception:
+            pass
         listener = self.listener
         latest = listener.latest() if listener is not None else None
         pending = self.pending
@@ -1052,12 +1088,16 @@ class MetricSession:
         self.pending = None
         self.pending_shot = None
         with self._lock:
+            self._gen += 1
+            self._auto = False
             listener, self.listener = self.listener, None
         if listener is not None:
             listener.stop_all()
 
     def close(self):
         with self._lock:
+            self._gen += 1
+            self._auto = False
             listener, self.listener = self.listener, None
         if listener is not None:
             listener.stop_all()

@@ -91,7 +91,7 @@ test('the open pill and one click send the frozen policy once, then step 2 is re
   const p = page([SEEN], async () => { await gate; return { ok: true, data: { runId: 'a1b2c3d4', reused: false, step2: { ok: true } } }; });
   try {
     await waitFor(() => p.$('btnTakeReviews').disabled === false, 'take enabled');
-    assert.match(p.$('chromeState').textContent!, /Chrome đang mở/);
+    assert.match(p.$('chromeState').textContent!, /Đang theo dõi Metric/);
     p.$('btnTakeReviews').click();
     p.$('btnTakeReviews').click();
     await waitFor(() => p.$('btnTakeReviews').disabled, 'blocked while busy');
@@ -212,6 +212,54 @@ test('«Sản phẩm bán chạy» sends Top N or all, opens with the last choic
     p.$('btnTakeReviews').click();
     await waitFor(() => p.calls.filter((c) => c.method === 'takeMetricReviews').length === 2, 'all sent');
     assert.deepEqual(p.calls.filter((c) => c.method === 'takeMetricReviews')[1]!.args[0].productSelection, { mode: 'all' });
+  } finally {
+    p.dom.window.close();
+  }
+});
+
+const OLD_HINT = 'Nút này bấm được sau khi app thấy bạn xem số liệu trên Metric.';
+const F5_HINT = 'Bấm F5 trên trang Metric hoặc đổi bộ lọc.';
+const OPEN_ONLY = { ...IDLE, chromeOpen: true };
+const WATCHING = { ...OPEN_ONLY, listening: true };
+
+async function settled(p: ReturnType<typeof page>): Promise<void> {
+  await waitFor(() => p.names().includes('connection') && p.names().includes('metricBrowserState') &&
+    p.$('metricTakeHint').textContent !== 'Chưa kết nối máy chủ.', 'boot');
+}
+
+test('the Metric chip and hint say whether the app is watching Metric', async () => {
+  const rows: [any, string, string, string | null][] = [
+    [IDLE, 'off', 'Chrome chưa mở', OLD_HINT],
+    [OPEN_ONLY, 'warn', 'Chưa mở Metric', OLD_HINT],
+    [WATCHING, 'on', 'Đang theo dõi Metric', F5_HINT],
+    [SEEN, 'on', 'Đang theo dõi Metric', null],
+  ];
+  for (const [view, kind, chip, hint] of rows) {
+    const p = page([view]);
+    try {
+      await settled(p);
+      await waitFor(() => p.$('chromeState').textContent === chip, chip);
+      assert.equal(p.$('chromeState').className, 'chrome-pill ' + kind, chip);
+      if (hint === null) assert.equal(p.$('metricTakeHint').hidden, true, chip);
+      else {
+        assert.equal(p.$('metricTakeHint').hidden, false, chip);
+        assert.equal(p.$('metricTakeHint').textContent, hint, chip);
+      }
+      assert.equal(p.$('btnTakeReviews').disabled, !view.seen, chip);
+    } finally {
+      p.dom.window.close();
+    }
+  }
+});
+
+test('after a restart the chip turns to watching on the next check, without «Mở Metric»', async () => {
+  const p = page([OPEN_ONLY, WATCHING]);
+  try {
+    await settled(p);
+    await waitFor(() => p.$('chromeState').textContent === 'Chưa mở Metric', 'not watching yet');
+    await waitFor(() => p.$('chromeState').textContent === 'Đang theo dõi Metric', 'watching', 8000);
+    assert.equal(p.$('metricTakeHint').textContent, F5_HINT);
+    assert.ok(!p.names().includes('openMetric'));
   } finally {
     p.dom.window.close();
   }
