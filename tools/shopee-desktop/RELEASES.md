@@ -14,7 +14,7 @@ This page tells how a version becomes a Release, a deploy, a stable pin and a ro
 merge PR (VERSION X.Y.Z)
   -> tag app-vX.Y.Z ............ push the tag
   -> workflow builds EXE ....... draft pre-release: EXE + SHA256SUMS.txt
-  -> owner PC builds installer . build_installer.py chung --app <Release EXE>
+  -> owner PC builds installer . build_installer.py chung --app <Release EXE>, uploads it to the draft
   -> Fedora lane deploy ........ app-latest.json = X.Y.Z
   -> real run passes whole flow + owner says «pin app-vX.Y.Z»
   -> stable pin (server + PC + tag app-stable)
@@ -30,7 +30,7 @@ merge PR (VERSION X.Y.Z)
 
 The repository is public. A published Release is public too. A draft is visible only to people with write access. So the workflow never publishes a Release, and nobody publishes one unless the owner says so.
 
-The installer is not built in CI. It embeds a user access token. Build it on the owner PC from the Release EXE: `build_installer.py chung --app <exe>`. The installer does not go to GitHub unless the owner says so.
+The installer is not built in CI. It embeds a user access token. Build it on the owner PC from the Release EXE: `build_installer.py chung --app <exe>`. Then add it to the draft as `Cai-dat-TDN-Shopee-chung-X.Y.Z.exe` with `gh release upload app-vX.Y.Z <file>`, and add its line to `SHA256SUMS.txt` (`--clobber`). The owner approved this on 25/11. The draft stays a draft: only people with write access can download the installer.
 
 ## Deploy
 
@@ -71,4 +71,5 @@ Runs made on newer versions stay in place.
 - Nothing is stable yet.
 - 1.2.0 to 1.2.2 shipped without websocket.
 - The last known real full pass is 1.1.0 (80bf7951).
+- `app-v1.2.4` (05d086a5) is a draft made by hand from the owner-PC build, before this workflow existed.
 - The first stable candidate is the first version whose real run passes the whole flow after #529.

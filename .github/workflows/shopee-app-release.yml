@@ -2,7 +2,7 @@ name: Shopee app release
 
 # Builds TDN-Shopee-Flow.exe from a tag app-vX.Y.Z and attaches it to a DRAFT pre-release.
 # The repository is public, so the release stays a draft (visible only with write access).
-# The installer is not built here: it embeds a user access token (tools/shopee-desktop/RELEASES.md).
+# The installer is not built here: it embeds a user access token. The owner PC adds it to the draft (RELEASES.md).
 on:
   push:
     tags:
@@ -96,7 +96,7 @@ jobs:
             echo "Version: $VERSION"
             echo "Commit: $COMMIT"
             echo
-            echo "Bộ cài (có mã truy cập) không nằm ở đây; lấy từ máy chủ dự án."
+            echo "Bộ cài (có mã truy cập) được thêm vào bản nháp này từ máy owner (RELEASES.md)."
             echo
             echo "SHA256:"
             echo '```'
