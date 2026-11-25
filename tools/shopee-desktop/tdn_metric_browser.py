@@ -946,6 +946,8 @@ class MetricSession:
         self.pending_shot = None      # the full-page shot of that click (local path), for «Gửi lại»
         self.busy = threading.Lock()  # blocks double clicks
         self._lock = threading.Lock()
+        self._auto = True             # auto-watch allowed: only once per app start, before anything listened
+        self._gen = 0                 # bumped by open_metric / confirmed / close
 
     def chrome_open(self):
         return self.launcher.is_alive(self.launcher.saved_port())
@@ -953,6 +955,8 @@ class MetricSession:
     def open_metric(self):
         opened = self.launcher.open_chrome('about:blank')
         with self._lock:
+            self._gen += 1
+            self._auto = False   # from now on the user drives listening
             if self.listener is not None and (self.listener.closed or self.listener.port != opened['port']):
                 self.listener.stop_all()
                 self.listener = None
@@ -969,42 +973,48 @@ class MetricSession:
         listener.start()
         return dict(opened, navigated=navigated)
 
-    @staticmethod
-    def _usable(listener, port):
-        return listener is not None and not listener.closed and listener.port == port
-
-    def _auto_watch(self, port):
-        """The app's Chrome is open on its saved port but nothing listens (app restarted after
-        «Mở Metric»): attach a listener to it. No navigation, no new tab, Chrome never closed.
-        A Chrome on that port that the app did not start is never attached. Never raises."""
-        if not port or self._usable(self.listener, port) or not self.launcher.is_app_chrome(port):
-            return
-        with self._lock:   # same creation lock and reuse rule as open_metric()
-            if self._usable(self.listener, port):
+    def _auto_watch(self):
+        """Once per app start, while nothing has listened yet: the app's Chrome is open on its saved
+        port (app restarted after «Mở Metric») so attach a listener to it. No navigation, no new tab,
+        Chrome never closed. After open_metric(), confirmed(), close() or one successful attach, only
+        «Mở Metric» starts listening. Never replaces or stops another listener.
+        Residual window: Chrome identity is checked by is_app_chrome() just before the attach, the
+        same as open_metric()'s reuse."""
+        with self._lock:
+            if not self._auto or self.listener is not None:
                 return
-            if self.listener is not None:
-                self.listener.stop_all()
-                self.listener = None
+            gen = self._gen
+        port = self.launcher.saved_port()
+        if not port or not self.launcher.is_app_chrome(port):
+            return
+        with self._lock:
+            if (not self._auto or self.listener is not None or self._gen != gen
+                    or self.launcher.saved_port() != port):
+                return
             listener = self.listener = self._listener_factory(port)
+            self._auto = False
         try:
             listener.chrome_open = True
             listener.poll()
             listener.start()
         except Exception:
-            with self._lock:   # drop it: the next view() retries
-                if self.listener is listener:
+            with self._lock:
+                mine = self.listener is listener and self._gen == gen
+                if mine:   # drop it: the next view() retries
                     self.listener = None
-            try:
-                listener.stop_all()
-            except Exception:
-                pass
+                    self._auto = True
+            if mine:
+                try:
+                    listener.stop_all()
+                except Exception:
+                    pass
 
     def view(self):
-        port = self.launcher.saved_port()
         try:
-            self._auto_watch(port)
+            self._auto_watch()
         except Exception:
             pass
+        port = self.launcher.saved_port()
         listener = self.listener
         latest = listener.latest() if listener is not None else None
         pending = self.pending
@@ -1087,12 +1097,16 @@ class MetricSession:
         self.pending = None
         self.pending_shot = None
         with self._lock:
+            self._gen += 1
+            self._auto = False
             listener, self.listener = self.listener, None
         if listener is not None:
             listener.stop_all()
 
     def close(self):
         with self._lock:
+            self._gen += 1
+            self._auto = False
             listener, self.listener = self.listener, None
         if listener is not None:
             listener.stop_all()

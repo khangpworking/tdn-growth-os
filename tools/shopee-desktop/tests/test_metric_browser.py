@@ -258,7 +258,7 @@ class LifecycleTest(unittest.TestCase):
 
 
 class AutoWatchTest(unittest.TestCase):
-    """view() starts listening by itself when the app's own Chrome is already open (app restarted)."""
+    """view() starts listening by itself once per app start, while nothing has listened yet."""
 
     def setUp(self):
         self.world = World([target('a', 'https://metric.vn/analytics')])
@@ -266,21 +266,38 @@ class AutoWatchTest(unittest.TestCase):
         self.port = 9
         self.made = []
         self.fail_polls = 0
-        launcher = mock.Mock(is_alive=lambda port: True, saved_port=lambda: self.port,
-                             is_app_chrome=lambda port: self.app_chrome)
+        self.fail_starts = 0
+        self.on_identity = None          # runs inside is_app_chrome (the check before the attach)
+        self.listing = None              # (entered, release): the next /json/list waits here, then raises
+
+        def is_app_chrome(port):
+            if self.on_identity:
+                self.on_identity()
+            return self.app_chrome
+        launcher = mock.Mock(is_alive=lambda port: True, saved_port=lambda: self.port, is_app_chrome=is_app_chrome)
         launcher.open_chrome.side_effect = lambda url: {'port': self.port, 'browserName': 'Google Chrome',
                                                         'reused': True}
 
         def list_targets():
+            if self.listing:
+                entered, release = self.listing
+                self.listing = None
+                entered.set()
+                release.wait(5)
+                raise RuntimeError('boom')
             if self.fail_polls:
                 self.fail_polls -= 1
                 raise RuntimeError('boom')
             return self.world.targets
 
         def factory(port):
-            self.made.append(mb.MetricListener(port, tab_factory=self.world.factory, list_targets=list_targets,
-                                               clock=lambda: self.world.now))
-            return self.made[-1]
+            listener = mb.MetricListener(port, tab_factory=self.world.factory, list_targets=list_targets,
+                                         clock=lambda: self.world.now)
+            if self.fail_starts:
+                self.fail_starts -= 1
+                listener.start = mock.Mock(side_effect=RuntimeError('boom'))
+            self.made.append(listener)
+            return listener
         self.session = mb.MetricSession(tempfile.gettempdir(), launcher=launcher, listener_factory=factory)
         self.addCleanup(self.session.close)
 
@@ -312,23 +329,55 @@ class AutoWatchTest(unittest.TestCase):
         self.assertFalse(self.session.view()['listening'])
         self.assertEqual(self.made, [])
 
-    def test_a_closed_listener_is_replaced_by_a_new_one(self):
+    def test_after_a_run_is_created_only_open_metric_listens_again(self):
         self.session.view()
-        old = self.made[0]
-        old.stop_all()
-        state = self.session.view()
+        self.session.confirmed()                             # listening stops once the run exists
+        for _ in range(3):
+            self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(len(self.made), 1)
+        self.session.open_metric()
         self.assertEqual(len(self.made), 2)
-        self.assertIs(self.session.listener, self.made[1])
-        self.assertTrue(state['listening'])
-
-    def test_a_failed_start_still_answers_and_the_next_view_retries(self):
-        self.fail_polls = 1
-        state = self.session.view()
-        self.assertFalse(state['listening'])
-        self.assertIsNone(self.session.listener)
-        self.assertTrue(self.made[0].closed)
         self.assertTrue(self.session.view()['listening'])
-        self.assertEqual(len(self.made), 2)
+
+    def test_after_close_nothing_listens_again(self):
+        self.session.close()
+        self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(self.made, [])
+
+    def test_a_listener_that_stopped_itself_is_not_replaced(self):
+        self.session.view()
+        self.made[0].stop_all()                              # for example Chrome was closed
+        self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(len(self.made), 1)
+
+    def test_a_failed_poll_or_start_still_answers_and_the_next_view_retries(self):
+        for knob in ('fail_polls', 'fail_starts'):
+            with self.subTest(knob):
+                self.setUp()
+                setattr(self, knob, 1)
+                state = self.session.view()
+                self.assertFalse(state['listening'])
+                self.assertIsNone(self.session.listener)
+                self.assertTrue(self.made[0].closed)
+                self.assertTrue(self.session.view()['listening'])
+                self.assertEqual(len(self.made), 2)
+
+    def test_a_port_saved_during_the_check_is_not_attached(self):
+        def new_chrome():
+            self.on_identity = None
+            self.port = 10                                   # «Mở Metric» saved another Chrome meanwhile
+        self.on_identity = new_chrome
+        self.session.view()
+        self.assertEqual(self.made, [])
+        self.session.view()
+        self.assertEqual([listener.port for listener in self.made], [10])
+
+    def test_a_run_confirmed_during_the_check_is_not_attached(self):
+        self.on_identity = self.session.confirmed
+        self.session.view()
+        self.on_identity = None
+        self.session.view()
+        self.assertEqual(self.made, [])
 
     def test_open_metric_after_auto_watch_keeps_the_same_listener(self):
         self.session.view()
@@ -337,6 +386,31 @@ class AutoWatchTest(unittest.TestCase):
         self.assertIs(self.session.listener, self.made[0])
         self.assertEqual(self.navigations(), [])           # the Metric tab is already there: no about:blank
         self.assertEqual(self.made[0].attached_ids(), ['a'])
+
+    def test_a_failing_auto_start_never_tears_down_what_open_metric_adopted(self):
+        entered, release, adopted = threading.Event(), threading.Event(), threading.Event()
+        self.listing = (entered, release)
+        viewer = threading.Thread(target=self.session.view)
+        viewer.start()
+        self.assertTrue(entered.wait(5))                    # the auto-watch poll is waiting on /json/list
+        listener = self.made[0]
+        original = listener.attach_blank_and_open
+
+        def attach(url):                                     # open_metric() is past its creation step
+            adopted.set()
+            return original(url)
+        listener.attach_blank_and_open = attach
+        opener = threading.Thread(target=self.session.open_metric)
+        opener.start()
+        self.assertTrue(adopted.wait(5))
+        release.set()                                        # the auto-watch poll now fails
+        viewer.join(10)
+        opener.join(10)
+        self.assertFalse(viewer.is_alive() or opener.is_alive())
+        self.assertEqual(len(self.made), 1)
+        self.assertIs(self.session.listener, listener)
+        self.assertFalse(listener.closed)
+        self.assertEqual(listener.attached_ids(), ['a'])
 
 
 class CaptureFreezeContractTest(unittest.TestCase):
