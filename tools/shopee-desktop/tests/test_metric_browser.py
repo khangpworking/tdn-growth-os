@@ -1903,6 +1903,61 @@ class LostLinkTest(unittest.TestCase):
         self.assertEqual(self.session.capture(POLICY)['scope']['start_date'], '20260901')
         self.assertNotIn('Runtime.evaluate', self.a.methods())
 
+    # Terra r1 on PR #536: the races around a drop.
+    # | row | situation                                                        | expected                                      |
+    # |-----|------------------------------------------------------------------|-----------------------------------------------|
+    # | 9   | click holds A's record, B sends a newer one, then A's link drops | A's record refused; B's filter still used      |
+    # | 10  | the link died, no poll yet, then the click                       | refused at freeze; the dead link is dropped    |
+    # | 11  | drop and reconnect between freeze and the Metric request         | refused; nothing sent on the new link          |
+    # | 12  | freeze, drop, reconnect not done yet                             | METRIC_FILTER_UNAVAILABLE, not METRIC_TAB_GONE |
+    def test_row9_a_held_click_record_from_a_dropped_link_is_refused(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old', timestamp=1.0)
+        held = self.listener.click_record()
+        self.b.products_request(self.FILTER_NEW, request_id='new', timestamp=2.0)
+        self.a.lost = True
+        self.listener.poll()
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.listener.freeze(held)
+        self.assertEqual(caught.exception.code, 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.listener.freeze()['body']['start_date'], '20260901')
+
+    def test_row10_a_link_that_died_before_the_poll_is_refused_at_the_click(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        self.a.lost = True
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertTrue(self.a.stopped)
+        self.assertEqual(self.evaluated, [])
+
+    def test_row11_a_reconnect_between_freeze_and_send_never_sends_the_old_filter(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        frozen = self.listener.freeze()
+        self.a.lost = True
+        self.listener.poll()
+        fresh = self.new_link('a')
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(caught.exception.code, 'METRIC_FILTER_UNAVAILABLE')
+        self.assertNotIn('Runtime.evaluate', fresh.methods())
+        self.assertEqual(self.evaluated, [])
+
+    def test_row12_a_send_while_the_reconnect_is_pending_names_the_filter(self):
+        self.a.products_request(self.FILTER_OLD, request_id='old')
+        frozen = self.listener.freeze()
+        self.a.lost = True
+        real_factory = self.listener._tab_factory
+
+        def refuse(t):
+            raise OSError('Chrome busy')
+        self.listener._tab_factory = refuse
+        self.listener.poll()
+        self.assertEqual(self.listener.attached_ids(), ['b'])
+        with self.assertRaises(mb.MetricFailure) as caught:
+            self.listener.fetch_top_products(frozen, 'async function requestV3InPage() {}')
+        self.assertEqual(caught.exception.code, 'METRIC_FILTER_UNAVAILABLE')
+        self.listener._tab_factory = real_factory
+        self.listener.poll()
+        self.assertEqual(self.listener.attached_ids(), ['a', 'b'])
+
     @unittest.skipUnless(importlib.util.find_spec('websocket'), 'needs websocket-client for the vendored Tab')
     def test_row8_the_vendored_tab_tells_a_dropped_socket_from_its_own_stop(self):
         import websocket
