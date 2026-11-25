@@ -33,6 +33,7 @@ _SHOP_ITEM_ID = re.compile(r'[1-9][0-9]{0,19}')
 _SHOPEE_LINK = re.compile(r"https://shopee\.vn/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{0,2000}")
 EXPORT_MAX_BYTES = 64 * 1024 * 1024
 EXPORT_ERROR_MAX_BYTES = 64 * 1024
+_MAX_RUN_LINKS = 100  # the server's productSelection.count limit (shopee_flow.py)
 _COMMANDS = {
     'connection': ('connection',),
     'presets': ('presets',),
@@ -1918,12 +1919,14 @@ class Api:
         return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
                 source['kind'] in ('legacy', 'custom') and source['status'] in ('SUCCEEDED', 'FAILED') and
                 (source['completedAt'] is None or isinstance(source['completedAt'], str)) and
-                self._review_stats_numbers(source['all']) and isinstance(links, list) and len(links) <= 5 and
+                self._review_stats_numbers(source['all']) and isinstance(links, list) and len(links) <= _MAX_RUN_LINKS and
                 all(self._review_stats_numbers(link, ('shopId', 'itemId', 'url')) and
                     all(isinstance(link[key], str) and _SHOP_ITEM_ID.fullmatch(link[key]) for key in ('shopId', 'itemId')) and
                     isinstance(link['url'], str) and len(link['url']) <= 2000 and
                     _SHOPEE_LINK.fullmatch(link['url']) is not None
-                    for link in links))
+                    for link in links) and
+                len({(link['shopId'], link['itemId']) for link in links}) == len(links) and
+                len({link['url'] for link in links}) == len(links))
 
     def reviewInsights(self, runId=None):
         return self._safe(lambda: self._review_insights(runId))
@@ -2021,12 +2024,14 @@ class Api:
         return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
                 source['kind'] in ('legacy', 'custom') and source['status'] in ('SUCCEEDED', 'FAILED') and
                 (source['completedAt'] is None or isinstance(source['completedAt'], str)) and
-                cls._review_insights_bucket(source['all'], summary) and isinstance(links, list) and len(links) <= 5 and
+                cls._review_insights_bucket(source['all'], summary) and isinstance(links, list) and len(links) <= _MAX_RUN_LINKS and
                 all(isinstance(link, dict) and set(link) == {'shopId', 'itemId', 'url', 'insights'} and
                     isinstance(link['shopId'], str) and _SHOP_ITEM_ID.fullmatch(link['shopId']) is not None and
                     isinstance(link['itemId'], str) and _SHOP_ITEM_ID.fullmatch(link['itemId']) is not None and
                     isinstance(link['url'], str) and _SHOPEE_LINK.fullmatch(link['url']) is not None and
-                    cls._review_insights_bucket(link['insights'], summary) for link in links))
+                    cls._review_insights_bucket(link['insights'], summary) for link in links) and
+                len({(link['shopId'], link['itemId']) for link in links}) == len(links) and
+                len({link['url'] for link in links}) == len(links))
 
     def reviewInsightsSummary(self, runId=None):
         return self._safe(lambda: self._review_insights_summary_view(runId))

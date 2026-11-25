@@ -113,7 +113,7 @@ class ReviewInsightsBridgeTests(unittest.TestCase):
             'empty codebook': lambda v: v.update(codebookVersion=''),
             'invalid source hash': lambda v: v['sources'][0].update(sourceSha256='g' * 64),
             'invalid kind': lambda v: v['sources'][0].update(kind='snapshot'),
-            'six links': lambda v: v['sources'][0].update(links=v['sources'][0]['links'] * 6),
+            '101 links': lambda v: v['sources'][0].update(links=v['sources'][0]['links'] * 101),
             'invalid polarity': lambda v: v['sources'][0]['all']['comments'][0]['tags'][0].update(polarity='positive'),
             'invalid tag status': lambda v: v['sources'][0]['all']['comments'][0]['tags'][0].update(status='uncertain'),
             'bad rating': lambda v: v['sources'][0]['all']['comments'][0].update(rating=6),
