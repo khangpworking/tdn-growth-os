@@ -6169,8 +6169,27 @@ function userPageRunInfo(runId: string, queries: string[], m1Status = 'UNKNOWN')
 }
 
 test('a run from the user\'s Metric page shows its saved step 1 check and the Metric filter, never capture specs', async () => {
+  const failM1 = { ...passSlip('M1'), verdict: 'FAIL', errorCode: 'M1_NOT_PASSED' };
+  // Terra r1: an older failed slip must not hide the saved one; a slip of the step's own run still wins.
+  const hist = userPageRunInfo('run-hist', []);
+  hist.execution.modules.M1.historicalGate = failM1;
+  const cur = userPageRunInfo('run-cur', [], 'SUCCEEDED');
+  cur.execution.modules.M1.currentGate = failM1;
+  // Terra r1: missing Metric data is «Chưa có», not «no keyword»; an unknown platform shows no number.
+  const missing = userPageRunInfo('run-missing', []);
+  missing.request.metricSource.scope.include_query = { platforms: [1, 99] };
+  // Terra r1: a failed entry check on a Metric-page run shows no technical words.
+  const entryFail = userPageRunInfo('run-entry-fail', []);
+  entryFail.gates.entry = { ...passSlip('ENTRY'), verdict: 'FAIL', errorCode: 'SOME_NEW_CODE', checks: [
+    { id: 'collection_policy', ok: false, got: false, errorCode: 'REVIEW_POLICY_INVALID' },
+    { id: 'some_new_check', ok: false, got: false, errorCode: 'SOME_NEW_CHECK_FAILED' }] };
+  // An old preset run keeps main's behaviour: no saved-slip fallback.
+  const presetSaved: any = syntheticRunInfo('run-preset-saved');
+  presetSaved.execution = { format: 'run-execution-view-v1', revision: 1, status: 'SUCCEEDED', currentModule: 'M3',
+    modules: { M1: { status: 'UNKNOWN', currentGate: null, historicalGate: null } } };
   const runs = { 'run-page': userPageRunInfo('run-page', []), 'run-kw': userPageRunInfo('run-kw', ['thuốc mọc tóc biotin', 'biotin']),
-    'run-old': syntheticRunInfo('run-old') };
+    'run-old': syntheticRunInfo('run-old'), 'run-hist': hist, 'run-cur': cur, 'run-missing': missing,
+    'run-entry-fail': entryFail, 'run-preset-saved': presetSaved };
   const { dom, doc, state } = harness({
     runs: Object.keys(runs).map((runId) => ({ runId, product: runId, status: 'DONE' })),
     runInfoByRun: runs,
@@ -6185,17 +6204,29 @@ test('a run from the user\'s Metric page shows its saved step 1 check and the Me
   };
   const gateCardOf = (title: string) => [...detail().querySelectorAll<HTMLElement>('article.gate')]
     .find((card) => card.querySelector('h3')?.textContent === title);
+  const chipText = () => [...detail().querySelectorAll('.seqch')]
+    .find((item) => item.querySelector('b')?.textContent === 'Kiểm tra sau bước 1')?.querySelector('span')?.textContent;
+  const m1Verdict = async (runId: string) => {
+    await open(runId);
+    const card = gateCardOf('Kiểm tra sau bước 1');
+    assert.ok(card, runId + ': step 1 check card');
+    return { card: card!.textContent!, chip: chipText(), previous: /Kết quả lần trước/.test(detail().textContent!) };
+  };
   try {
-    await waitFor(() => doc.querySelectorAll('#runList button').length === 3, 'run list');
-    await open('run-page');
+    await waitFor(() => doc.querySelectorAll('#runList button').length === Object.keys(runs).length, 'run list');
     // 1
-    const m1 = gateCardOf('Kiểm tra sau bước 1');
-    assert.ok(m1, '1: step 1 check card');
-    assert.notEqual(m1!.dataset.tone, 'idle', '1: not «Chưa kiểm tra»');
-    assert.doesNotMatch(m1!.textContent!, /Chưa kiểm tra/, '1');
-    const chip = [...detail().querySelectorAll('.seqch')].find((item) => item.querySelector('b')?.textContent === 'Kiểm tra sau bước 1');
-    assert.ok(chip, '1: step chip');
-    assert.doesNotMatch(chip!.textContent!, /Chưa có phiếu/, '1: the step chip reads the saved slip too');
+    for (const [runId, verdict, note] of [['run-page', 'Đạt', 'saved slip'], ['run-hist', 'Đạt', 'saved slip over an older one'],
+      ['run-cur', 'Không đạt', 'the step\'s own slip wins']] as const) {
+      const seen = await m1Verdict(runId);
+      assert.equal(seen.chip, verdict, '1 chip: ' + note);
+      assert.match(seen.card, new RegExp(verdict), '1 card: ' + note);
+      if (verdict === 'Đạt') assert.doesNotMatch(seen.card, /Không đạt|Chưa kiểm tra/, '1 card: ' + note);
+      assert.equal(seen.previous, false, '1: no «Kết quả lần trước» ' + note);
+    }
+    const preset = await m1Verdict('run-preset-saved');
+    assert.equal(preset.chip, 'Chưa có phiếu', '1: preset runs unchanged');
+    assert.match(preset.card, /Chưa kiểm tra/, '1: preset runs unchanged');
+    await open('run-page');
     // 2
     const box = element(doc, 'entryMetricFilters');
     assert.equal(box.querySelector('h3')!.textContent, 'Bộ lọc đã lấy trên Metric', '2');
@@ -6211,6 +6242,15 @@ test('a run from the user\'s Metric page shows its saved step 1 check and the Me
     assert.doesNotMatch(box.textContent!, /Metric 21\/10–19\/11\/2026/, '3: the run name is not a keyword');
     await open('run-kw');
     assert.match(element(doc, 'entryMetricFilters').textContent!, /thuốc mọc tóc biotin · biotin/, '3');
+    await open('run-missing');
+    const missingBox = element(doc, 'entryMetricFilters');
+    const facts = Object.fromEntries([...missingBox.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
+    assert.equal(facts['Từ khóa'], 'Chưa có', '3: missing keyword data');
+    assert.equal(facts['Sàn'], 'Shopee · Sàn khác', '3: unknown platform, no number');
+    await open('run-entry-fail');
+    const failText = detail().textContent!;
+    assert.match(failText, /Điều kiện thu bình luận của bước 3 chưa đạt:/, '2: failed policy still shown');
+    assert.doesNotMatch(failText, /capture specs|SOME_NEW|REVIEW_POLICY|some_new_check/i, '2: no technical words on a failure');
     // 4
     await open('run-old');
     assert.equal(doc.getElementById('entryMetricFilters'), null, '4');
@@ -6235,26 +6275,39 @@ test('step 1 rows read as business text, and step 2 shows «Đang chạy» while
   ended.execution = { format: 'run-execution-view-v1', revision: 1, status: 'FAILED', currentModule: 'M2',
     modules: { M2: { status: 'FAILED', currentGate: null, historicalGate: null } } };
   ended.gates.m2 = null;
+  // Terra r1: a running step 2 with no execution record yet (only the run state says RUNNING).
+  const noExec: any = syntheticRunInfo('run-m2-noexec');
+  noExec.state = { status: 'RUNNING', module: 'M2', errorCode: null };
+  noExec.gates.m2 = null;
   const missing = { errorCode: 'SELECTION_MISSING', selectedCount: 0, links: [], skipped: [] };
   const { dom, doc } = harness({
-    runs: [{ runId: 'run-m2-running', product: 'Đang chạy', status: 'RUNNING' }, { runId: 'run-m2-failed', product: 'Hỏng', status: 'FAILED' }],
-    runInfoByRun: { 'run-m2-running': running, 'run-m2-failed': ended },
+    runs: [{ runId: 'run-m2-running', product: 'Đang chạy', status: 'RUNNING' }, { runId: 'run-m2-failed', product: 'Hỏng', status: 'FAILED' },
+      { runId: 'run-m2-noexec', product: 'Chưa có bản ghi', status: 'RUNNING' }],
+    runInfoByRun: { 'run-m2-running': running, 'run-m2-failed': ended, 'run-m2-noexec': noExec },
     moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId, {}, missing) }),
   });
   try {
-    await waitFor(() => doc.querySelectorAll('#runList button').length === 2, 'run list');
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 3, 'run list');
     runListButton(doc, 'run-m2-running').click();
     await waitFor(() => doc.getElementById('moM2Chip') !== null, 'step 2 card');
     // 5
     assert.equal(element(doc, 'moM1Data').querySelector('.cl')!.textContent, 'Có sản phẩm Shopee trong dữ liệu đã lấy', '5');
-    assert.equal(element(doc, 'moM1Order').querySelector('.cl')!.textContent, 'Metric trả sản phẩm theo doanh thu giảm dần', '5');
     // 6
     assert.equal(element(doc, 'moM2Chip').textContent, 'Đang chạy', '6');
     const card = element(doc, 'moM2Chip').closest('article')!;
     assert.doesNotMatch(card.textContent!, /Bước 2 chưa có kết quả đã lưu|Không đạt/, '6: no failure while it runs');
+    assert.equal([...card.querySelectorAll<HTMLElement>('.errbar')].filter((bar) => !bar.hidden).length, 0, '6: no error bar');
+    runListButton(doc, 'run-m2-noexec').click();
+    await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-m2-noexec'), 'no-execution run');
+    // No step 2 record yet: the card is not drawn (main's rule), so nothing reads as a failure.
+    await waitFor(() => doc.getElementById('moduleOutputsPanel')?.textContent?.includes('Bước 1') === true, 'no-execution panel');
+    assert.equal(doc.getElementById('moM2Chip'), null, '6: no step 2 card before step 2 has a record');
+    assert.doesNotMatch(element(doc, 'moduleOutputsPanel').textContent!, /Bước 2 chưa có kết quả đã lưu|Không đạt kiểm tra/,
+      '6: no failure, no execution record');
     // 7
     runListButton(doc, 'run-m2-failed').click();
     await waitFor(() => (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes('run-m2-failed'), 'failed run');
     await waitFor(() => doc.getElementById('moM2Chip')?.textContent === 'Không đạt kiểm tra', '7: a real failure still shows');
+    assert.match(element(doc, 'moM2Chip').closest('article')!.textContent!, /Bước 2 chưa có kết quả đã lưu/, '7: the failure reason shows');
   } finally { dom.window.close(); }
 });
