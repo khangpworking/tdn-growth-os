@@ -1924,7 +1924,9 @@ class Api:
                     all(isinstance(link[key], str) and _SHOP_ITEM_ID.fullmatch(link[key]) for key in ('shopId', 'itemId')) and
                     isinstance(link['url'], str) and len(link['url']) <= 2000 and
                     _SHOPEE_LINK.fullmatch(link['url']) is not None
-                    for link in links))
+                    for link in links) and
+                len({(link['shopId'], link['itemId']) for link in links}) == len(links) and
+                len({link['url'] for link in links}) == len(links))
 
     def reviewInsights(self, runId=None):
         return self._safe(lambda: self._review_insights(runId))
@@ -2027,7 +2029,9 @@ class Api:
                     isinstance(link['shopId'], str) and _SHOP_ITEM_ID.fullmatch(link['shopId']) is not None and
                     isinstance(link['itemId'], str) and _SHOP_ITEM_ID.fullmatch(link['itemId']) is not None and
                     isinstance(link['url'], str) and _SHOPEE_LINK.fullmatch(link['url']) is not None and
-                    cls._review_insights_bucket(link['insights'], summary) for link in links))
+                    cls._review_insights_bucket(link['insights'], summary) for link in links) and
+                len({(link['shopId'], link['itemId']) for link in links}) == len(links) and
+                len({link['url'] for link in links}) == len(links))
 
     def reviewInsightsSummary(self, runId=None):
         return self._safe(lambda: self._review_insights_summary_view(runId))
