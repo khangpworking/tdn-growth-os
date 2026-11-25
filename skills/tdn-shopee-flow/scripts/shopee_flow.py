@@ -3190,7 +3190,10 @@ METRIC_SHOT_KEEP_DAYS = 10
 METRIC_SHOT_PUT_SECONDS = 600
 METRIC_SHOT_GET_SECONDS = 900
 METRIC_SHOT_HTTP_SECONDS = 20
-METRIC_SHOT_RECORD = 'm1/metric-shot-r2.json'
+# Top level of the run, never inside m1/: step 2's input is the hash of the whole m1/ folder, and the
+# app uploads the picture while step 2 may run (a record in m1/ gave M2 GATE_INPUT_CHANGED, 25/11).
+METRIC_SHOT_RECORD = 'metric-shot-r2.json'
+METRIC_SHOT_RECORD_OLD = 'm1/metric-shot-r2.json'   # runs from 24-25/11: read only, never written
 _EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
 
@@ -3303,8 +3306,14 @@ def metric_shot_key(run_id, content_type, sha256):
 
 
 def metric_shot_record(run):
-    """The run's R2 record (dict) or None. A record that is not the expected shape counts as none."""
-    path = gate_path(run, METRIC_SHOT_RECORD)
+    """The run's R2 record (dict) or None: the record at the top level if valid, else the old m1/ record
+    if valid (read only). A record that is not the expected shape counts as none."""
+    record = _metric_shot_record_at(run, METRIC_SHOT_RECORD)
+    return record if record is not None else _metric_shot_record_at(run, METRIC_SHOT_RECORD_OLD)
+
+
+def _metric_shot_record_at(run, relative):
+    path = gate_path(run, relative)
     if path.is_symlink() or not path.is_file():
         return None
     try:
@@ -3313,11 +3322,24 @@ def metric_shot_record(run):
         return None
     if (not isinstance(record, dict) or
             set(record) != {'key', 'sha256', 'byteSize', 'contentType', 'uploadedAt', 'deleteAfter'} or
-            record['contentType'] not in METRIC_SHOT_TYPES or
+            not isinstance(record['contentType'], str) or record['contentType'] not in METRIC_SHOT_TYPES or
             not isinstance(record['sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', record['sha256']) or
-            record['key'] != metric_shot_key(run.name, record['contentType'], record['sha256'])):
+            record['key'] != metric_shot_key(run.name, record['contentType'], record['sha256']) or
+            type(record['byteSize']) is not int or not 0 < record['byteSize'] <= METRIC_SHOT_MAX_BYTES or
+            not all(_metric_shot_time_ok(record[name]) for name in ('uploadedAt', 'deleteAfter'))):
         return None
     return record
+
+
+def _metric_shot_time_ok(value):
+    """The exact shape _utc_text() writes (YYYY-MM-DDTHH:MM:SSZ) and a real UTC time."""
+    if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', value):
+        return False
+    try:
+        dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        return False
+    return True
 
 
 def metric_shot_record_create(run, record):
@@ -3333,7 +3355,7 @@ def metric_shot_record_create(run, record):
         try:
             os.link(temp, path)
         except FileExistsError:
-            existing = metric_shot_record(run)
+            existing = _metric_shot_record_at(run, METRIC_SHOT_RECORD)
             if existing is None:
                 raise ModuleFailure('METRIC_SHOT_FAILED', 20)
             return existing
