@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import Database from 'better-sqlite3';
-import { prepareLabelledReviewExport, reviewInsightsView } from '../../scripts/module-review-data.js';
+import { prepareLabelledReviewExport, reviewDataCommand, reviewInsightsSummaryView, reviewInsightsView } from '../../scripts/module-review-data.js';
 import { readReviewExportBytes } from '../../src/modules/foundation/shopee-module-review-data.js';
 import { DEFAULT_CODEBOOK_FILE, codingText, parseLabelCodebook } from '../../src/modules/raw-db/review-labeller.js';
 import { LINKS, addCustomAttempt, addLegacySource, createModuleRun, moduleRow, sha256, type NativeRow } from '../fixtures/shopee-module-review-data.js';
@@ -122,12 +122,11 @@ test('insights aggregate ten themes, polarities, comments and per-link buckets',
 
   assert.deepEqual(themeOf(all, 'T-CONGDUNG'), { code: 'T-CONGDUNG', name: 'Kết quả sau khi dùng', count: 1,
     unclearCount: 0, share: 1 / 3, polarityCounts: { khen: 1, che: 0, ke: 0, khong_ro_huong: 0 },
-    summary: { status: 'READY', model: 'jev-extractive-theme-v1', generatedAt: '2026-11-10T00:05:00.000Z',
-      text: 'Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: “Kem thấm nhanh” (khen).' },
+    summary: { status: 'READY', model: 'jev-grouped-theme-v1', generatedAt: '2026-11-10T00:05:00.000Z',
+      text: 'Kem thấm nhanh' },
     comments: [first] });
   assert.equal(themeOf(all, 'T-GIA').polarityCounts.che, 1);
-  assert.equal(themeOf(all, 'T-GIA').summary.text,
-    'Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: “Kem thấm nhanh” (chê).');
+  assert.equal(themeOf(all, 'T-GIA').summary.text, 'Kem thấm nhanh');
   assert.equal(themeOf(all, 'T-THIETKE').polarityCounts.khen, 1);
   assert.equal(themeOf(all, 'T-NHUCAU').polarityCounts.ke, 1);
   const unclear = themeOf(all, 'T-TRAINGHIEM');
@@ -160,7 +159,7 @@ test('insights aggregate ten themes, polarities, comments and per-link buckets',
   assert.equal(themeOf(linkA.insights, 'T-THIETKE').summary.status, 'EMPTY');
   assert.deepEqual(linkB.insights.comments.map((comment: any) => comment.id), ['review-b1']);
   assert.equal(themeOf(linkB.insights, 'T-THIETKE').count, 1);
-  assert.ok(themeOf(linkB.insights, 'T-THIETKE').summary.text.includes('“Hộp đẹp, dùng tiện” (khen)'));
+  assert.equal(themeOf(linkB.insights, 'T-THIETKE').summary.text, 'Hộp đẹp, dùng tiện');
   assert.ok(!themeOf(linkA.insights, 'T-THIETKE').summary.text?.includes('Hộp đẹp'), 'no cross-link quote');
   assert.ok(linkB.insights.summary.text.startsWith('Jev đã đọc 1/1 bình luận; 1 bình luận có ít nhất 1 chủ đề.'), linkB.insights.summary.text);
   assert.deepEqual(await fs.readFile(database), databaseBytes, 'review-insights must not write the application database');
@@ -213,7 +212,7 @@ test('a stale text hash suppresses the whole label group without hiding other co
   assert.equal(themeOf(all, 'T-THIETKE').count, 1);
   assert.equal(themeOf(all, 'T-CONGDUNG').summary.status, 'EMPTY');
   assert.equal(themeOf(all, 'T-GIA').summary.status, 'EMPTY');
-  assert.ok(themeOf(all, 'T-THIETKE').summary.text.includes('“Nội dung còn khớp” (khen)'));
+  assert.equal(themeOf(all, 'T-THIETKE').summary.text, 'Nội dung còn khớp');
   assert.ok(!themeOf(all, 'T-THIETKE').summary.text.includes('Đã đổi nội dung'));
   assert.equal(all.summary.status, 'READY');
   assert.ok(all.summary.text.startsWith('Jev đã đọc 1/2 bình luận; 1 bình luận có ít nhất 1 chủ đề.'), all.summary.text);
@@ -285,7 +284,7 @@ test('label batches read every wanted id and keep stale groups suppressed across
   assert.equal(themeOf(all, 'T-GIA').count, 0);
   assert.equal(themeOf(all, 'T-GIA').summary.status, 'EMPTY');
   assert.ok(!themeOf(all, 'T-CONGDUNG').summary.text.includes('Ngoài lượt'), 'labels outside the run are not evidence');
-  assert.ok(themeOf(all, 'T-CONGDUNG').summary.text.startsWith('Nội dung tiêu biểu từ các bình luận'));
+  assert.ok(!themeOf(all, 'T-CONGDUNG').summary.text.includes('“'), 'points are not quoted');
   assert.ok(themeOf(all, 'T-CONGDUNG').summary.text.includes('Bình luận batch'));
   assert.equal(all.summary.status, 'READY');
   assert.ok(all.summary.text.startsWith('Jev đã đọc 599/600 bình luận; 598 bình luận có ít nhất 1 chủ đề. ' +
@@ -313,8 +312,7 @@ test('the overall and per-theme comment cap keeps the first 200 labelled comment
   assert.equal(theme.comments.length, 200);
   assert.equal(theme.share, 1);
   assert.equal(theme.summary.status, 'READY');
-  assert.ok(theme.summary.text.startsWith('Nội dung tiêu biểu từ các bình luận'));
-  assert.ok(theme.summary.text.includes('“Bình luận 0” (khen)'));
+  assert.equal(theme.summary.text, 'Bình luận 0');
 
   const again = await reviewInsightsView(run.runDir);
   assert.deepEqual(again, view, 'theme summaries must be deterministic');
@@ -373,21 +371,19 @@ test('theme summaries synthesise kept evidence per theme and keep sources isolat
 
   const legacyTheme = themeOf(legacy.all, 'T-CONGDUNG');
   assert.equal(legacyTheme.summary.status, 'READY');
-  assert.equal(legacyTheme.summary.text,
-    'Nội dung tiêu biểu từ các bình luận đã gắn nhãn cho chủ đề này: ' +
-    '“Dùng hằng ngày tiện” (trung lập); “Kem thấm nhanh” (khen); “Mùi hơi nồng” (chê).');
+  assert.equal(legacyTheme.summary.text, 'Dùng hằng ngày tiện; Kem thấm nhanh; Mùi hơi nồng');
   assert.ok(!legacyTheme.summary.text.includes('Nguồn custom A'), 'no cross-source quote');
   assert.ok(!legacyTheme.summary.text.includes('Chưa rõ kết quả'), 'unclear comments never become evidence');
   assert.equal(themeOf(legacy.all, 'T-TRAINGHIEM').summary.status, 'EMPTY');
-  assert.ok(themeOf(legacy.all, 'T-GIA').summary.text.includes('“Kem thấm nhanh” (chê)'));
-  assert.ok(themeOf(legacy.all, 'T-NHUCAU').summary.text.includes('“Dùng hằng ngày tiện” (trung lập)'));
+  assert.equal(themeOf(legacy.all, 'T-GIA').summary.text, 'Kem thấm nhanh');
+  assert.equal(themeOf(legacy.all, 'T-NHUCAU').summary.text, 'Dùng hằng ngày tiện');
   assert.equal(themeOf(legacyB.insights, 'T-CONGDUNG').summary.status, 'EMPTY');
-  assert.ok(themeOf(legacyB.insights, 'T-THIETKE').summary.text.includes('“Hộp đẹp” (khen)'));
+  assert.equal(themeOf(legacyB.insights, 'T-THIETKE').summary.text, 'Hộp đẹp');
   assert.equal(themeOf(legacyA.insights, 'T-THIETKE').summary.status, 'EMPTY');
 
   const customTheme = themeOf(custom.all, 'T-CONGDUNG');
   assert.equal(customTheme.summary.status, 'READY');
-  assert.ok(customTheme.summary.text.includes('“Nguồn custom A” (chê)'));
+  assert.equal(customTheme.summary.text, 'Nguồn custom A');
   assert.ok(!customTheme.summary.text.includes('Kem thấm nhanh'), 'legacy quotes stay out of the custom source');
 
   assert.deepEqual(await reviewInsightsView(run.runDir), view);
@@ -409,11 +405,10 @@ test('a later, recurring sentence outranks an earlier generic comment', async t 
   const view = await reviewInsightsView(run.runDir) as any;
   const summary = themeOf(view.sources[0].all, 'T-CONGDUNG').summary;
   assert.equal(summary.status, 'READY');
-  assert.ok(summary.text.startsWith('Nội dung tiêu biểu từ các bình luận'), summary.text);
   assert.ok(!summary.text.includes('khen, 1 chê'), 'polarity counts belong to the bar, not the summary');
-  const quotes = [...summary.text.matchAll(/“([^”]+)”/g)].map(match => match[1]);
-  assert.equal(quotes[0], 'Kem thấm nhanh, mùi thơm dễ chịu', 'the later recurring sentence must outrank the generic opener');
-  assert.ok(quotes.includes('Mình thấy sản phẩm này cũng được'));
+  const points = summary.text.split('; ');
+  assert.equal(points[0], 'Kem thấm nhanh, mùi thơm dễ chịu', 'the later recurring sentence must outrank the generic opener');
+  assert.ok(points.includes('Mình thấy sản phẩm này cũng được'));
   assert.deepEqual(await reviewInsightsView(run.runDir), view);
 });
 
@@ -431,9 +426,8 @@ test('a single kept comment gets cautious evidence wording, not a trend claim', 
 
   const view = await reviewInsightsView(run.runDir) as any;
   const summary = themeOf(view.sources[0].all, 'T-CONGDUNG').summary;
-  assert.equal(summary.model, 'jev-extractive-theme-v1');
-  assert.equal(summary.text,
-    'Chỉ có 1 bình luận đủ bằng chứng cho chủ đề này: “Kem thấm nhanh sau vài ngày” (khen).');
+  assert.equal(summary.model, 'jev-grouped-theme-v1');
+  assert.equal(summary.text, 'Kem thấm nhanh sau vài ngày');
   assert.ok(!summary.text.includes('Nội dung tiêu biểu'));
   assert.ok(!summary.text.includes('các bình luận'));
   assert.deepEqual(await reviewInsightsView(run.runDir), view);
@@ -457,8 +451,7 @@ test('normalised duplicate sentences are quoted once', async t => {
   assert.equal(summary.status, 'READY');
   assert.equal((summary.text.match(/thấm nhanh/gi) ?? []).length, 1, 'normalised duplicates must be quoted once');
   assert.ok(!summary.text.includes('KEM THẤM'));
-  assert.ok(summary.text.includes('“Kem thấm nhanh, mùi thơm nhẹ” (khen)'));
-  assert.ok(summary.text.includes('“Hộp chắc chắn, dễ mở” (khen)'));
+  assert.equal(summary.text, 'Kem thấm nhanh, mùi thơm nhẹ; Hộp chắc chắn, dễ mở');
 });
 
 test('blank rows fall back to attributes and never become blank quotes', async t => {
@@ -485,8 +478,8 @@ test('blank rows fall back to attributes and never become blank quotes', async t
   const summary = themeOf(all, 'T-CONGDUNG').summary;
   assert.equal(summary.status, 'READY');
   assert.ok(!summary.text.includes('“”'), 'blank rows must not become blank quotes');
-  assert.ok(summary.text.includes('“Kem thấm nhanh” (khen)'));
-  assert.ok(summary.text.includes('“Phân loại: Hộp 50ml” (khen)'));
+  assert.ok(summary.text.split('; ').includes('Kem thấm nhanh'));
+  assert.ok(summary.text.split('; ').includes('Phân loại: Hộp 50ml'));
   const blankOnly = themeOf(all, 'T-GIA');
   assert.equal(blankOnly.count, 1);
   assert.deepEqual(blankOnly.summary, { status: 'EMPTY', text: null, model: null, generatedAt: null });
@@ -508,11 +501,10 @@ test('extracted theme summaries stay bounded for long comments', async t => {
   const view = await reviewInsightsView(run.runDir) as any;
   const summary = themeOf(view.sources[0].all, 'T-CONGDUNG').summary;
   assert.equal(summary.status, 'READY');
-  assert.ok(summary.text.length < 1000, `summary must stay bounded, got ${summary.text.length}`);
-  const quotes = [...summary.text.matchAll(/“([^”]+)”/g)].map(match => match[1]);
-  assert.equal(quotes.length, 3);
-  assert.ok(quotes.every(quote => quote.length <= 161), JSON.stringify(quotes.map(quote => quote.length)));
-  assert.ok(quotes.every(quote => quote.endsWith('…')));
+  // The three comments share their content words: one point, cut to 20 words.
+  assert.ok(summary.text.length <= 160, `summary must stay bounded, got ${summary.text.length}`);
+  assert.ok(summary.text.endsWith('…'), summary.text);
+  assert.ok(summary.text.split(' ').length <= 20, summary.text);
 });
 
 test('the labelled comments download holds every collected row with its current Jev tags', async t => {
@@ -562,5 +554,169 @@ test('the download reads labels like the result tab when two results share a rev
     const inFile = file.comments.find((c: any) => c.id === 'review-shared').tags;
     assert.deepEqual(inFile, onScreen, source.kind + ': file and result tab agree');
     assert.deepEqual(inFile.map((tag: any) => tag.code), expected[source.kind], source.kind + ': the labelled text keeps its tag');
+  }
+});
+
+// Owner F697–F699 (app 1.4.0): theme summaries as grouped points, asked with --points. One row each:
+// | # | situation                                              | expected                                                       |
+// |---|--------------------------------------------------------|----------------------------------------------------------------|
+// | 1 | 4 kept groups (4, 3, 2, 1 comments) + unclear + other  | 4 points, counts 4,3,2,1; ids = that group's kept comments      |
+// | 2 | the same view without --points (app 1.3.0)             | summary keys are exactly the v2 four; text = the points joined |
+// | 3 | 6 groups                                               | 5 points; the smallest group is left out                       |
+// | 4 | 205 kept comments of one theme                         | every cited id is one of the 200 listed comments               |
+// | 5 | an EMPTY theme / no label database (UNAVAILABLE)       | no points key                                                  |
+// | 6 | insights-summary with --points / another extra word    | accepted / USAGE                                               |
+type Point = { text: string; count: number; commentIds: string[] };
+
+function pointsOf(bucket: any, code: string): Point[] {
+  const summary = themeOf(bucket, code).summary;
+  assert.equal(summary.status, 'READY');
+  assert.ok(Array.isArray(summary.points), `${code}: points`);
+  const cited = new Set<string>();
+  for (const point of summary.points as Point[]) {
+    assert.deepEqual(Object.keys(point).sort(), ['commentIds', 'count', 'text']);
+    assert.equal(point.count, point.commentIds.length, point.text);
+    for (const id of point.commentIds) {
+      assert.ok(!cited.has(id), `${id} is cited by one point only`);
+      cited.add(id);
+    }
+    assert.ok(point.text.length >= 1 && point.text.length <= 160, point.text);
+    assert.ok(point.text.split(' ').length <= 20, point.text);
+    assert.ok(!/[“”"]/.test(point.text), `no quotes: ${point.text}`);
+  }
+  assert.ok(summary.points.length <= 5);
+  const counts = summary.points.map((point: Point) => point.count);
+  assert.deepEqual(counts, [...counts].sort((a: number, b: number) => b - a), 'largest point first');
+  return summary.points;
+}
+
+test('grouped points: similar kept comments share one point, unclear and other-theme comments are never cited', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points', links: [link] });
+  const texts: Record<string, string> = {
+    'g1-1': 'Kem thấm nhanh, không bết', 'g1-2': 'Thấm nhanh lắm, không bết da', 'g1-3': 'Kem thấm rất nhanh không bết',
+    'g1-4': 'Thấm nhanh, da không bết dính',
+    'g2-1': 'Mùi thơm nhẹ dễ chịu', 'g2-2': 'Mùi thơm dịu, dễ chịu', 'g2-3': 'Thơm nhẹ, mùi dễ chịu',
+    'g3-1': 'Giá rẻ hơn ngoài tiệm', 'g3-2': 'Giá rẻ so với ngoài tiệm',
+    'g4-1': 'Hộp giao bị móp',
+    unclear: 'Kem thấm nhanh không bết dính', other: 'Kem thấm nhanh nhưng giá cao',
+  };
+  const rows = Object.entries(texts).map(([id, comment]) => moduleRow(link, `pt-${id}`, { comment }));
+  await addLegacySource(run, { cap: rows.length, rowsByLink: [rows] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(row => labelRow(row, 'Kem A',
+    row.reviewId === 'pt-unclear' ? [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'unclear', choice: null }]
+      : row.reviewId === 'pt-other' ? [{ code: 'T-GIA', polarity: 'che', status: 'kept', choice: 'CHE' }]
+        : [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'KHEN' }])));
+  useDatabase(t, database);
+
+  const view = await reviewInsightsSummaryView(run.runDir, undefined, true) as any;
+  const points = pointsOf(view.sources[0].all, 'T-CONGDUNG');
+  const group = (prefix: string) => rows.map(row => row.reviewId!).filter(id => id.startsWith(`pt-${prefix}-`)).sort();
+  assert.deepEqual(points.map(point => [...point.commentIds].sort()), [group('g1'), group('g2'), group('g3'), group('g4')], '1');
+  for (const point of points) {
+    assert.ok(point.commentIds.map(id => texts[id.slice(3)]).includes(point.text), `1: ${point.text} is a cited sentence`);
+  }
+  assert.deepEqual(await reviewInsightsSummaryView(run.runDir, undefined, true), view, '1: deterministic');
+
+  const old = await reviewInsightsSummaryView(run.runDir) as any;
+  const summary = themeOf(old.sources[0].all, 'T-CONGDUNG').summary;
+  assert.deepEqual(Object.keys(summary).sort(), ['generatedAt', 'model', 'status', 'text'], '2');
+  assert.equal(summary.text, points.map(point => point.text).join('; '), '2');
+});
+
+test('grouped points: at most 5, the smallest group left out', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-five', links: [link] });
+  const pairs = [['Giao hàng nhanh chóng', 'Giao hàng rất nhanh chóng'], ['Đóng gói cẩn thận', 'Đóng gói rất cẩn thận'],
+    ['Giá rẻ hợp lý', 'Giá rẻ rất hợp lý'], ['Mùi thơm dễ chịu', 'Mùi thơm rất dễ chịu'], ['Kem thấm êm', 'Kem thấm rất êm']];
+  const rows = [...pairs.flatMap((pair, group) => pair.map((comment, index) => moduleRow(link, `five-${group}-${index}`, { comment }))),
+    moduleRow(link, 'five-single', { comment: 'Hộp móp méo' })];
+  await addLegacySource(run, { cap: rows.length, rowsByLink: [rows] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(row =>
+    labelRow(row, 'Kem A', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'KHEN' }])));
+  useDatabase(t, database);
+
+  const points = pointsOf((await reviewInsightsSummaryView(run.runDir, undefined, true) as any).sources[0].all, 'T-CONGDUNG');
+  assert.equal(points.length, 5, '3');
+  assert.deepEqual(points.map(point => point.count), [2, 2, 2, 2, 2], '3');
+  assert.ok(!points.some(point => point.commentIds.includes('five-single')), '3: the 1-comment group is left out');
+});
+
+test('grouped points cite only the 200 listed comments of a theme', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-cap', links: [link] });
+  const rows = Array.from({ length: 205 }, (_, index) =>
+    moduleRow(link, `pcap-${String(index).padStart(3, '0')}`, { comment: `Kem thấm nhanh lần ${index}` }));
+  await addLegacySource(run, { cap: 205, rowsByLink: [rows] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(row =>
+    labelRow(row, 'Kem Cap', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'kept', choice: 'OK' }])));
+  useDatabase(t, database);
+
+  const points = pointsOf((await reviewInsightsSummaryView(run.runDir, undefined, true) as any).sources[0].all, 'T-CONGDUNG');
+  const listed = new Set(rows.slice(0, 200).map(row => row.reviewId));
+  const cited = points.flatMap(point => point.commentIds);
+  assert.ok(cited.length > 0);
+  assert.ok(cited.every(id => listed.has(id)), '4: only listed comments are cited');
+});
+
+test('EMPTY and UNAVAILABLE theme summaries carry no points; insights-summary takes only --points', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-empty', links: [link] });
+  const row = moduleRow(link, 'pe-1', { comment: 'Chưa rõ kết quả' });
+  await addLegacySource(run, { rowsByLink: [[row]] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, [labelRow(row, 'Kem A', [{ code: 'T-CONGDUNG', polarity: 'khen', status: 'unclear', choice: null }])]);
+  useDatabase(t, database);
+
+  const viaCommand = await reviewDataCommand(['insights-summary', run.runDir, '--points']) as any;
+  assert.deepEqual(themeOf(viaCommand.sources[0].all, 'T-CONGDUNG').summary,
+    { status: 'EMPTY', text: null, model: null, generatedAt: null }, '5: EMPTY');
+  await assert.rejects(reviewDataCommand(['insights-summary', run.runDir, '--other']), { code: 'USAGE' }, '6');
+  await assert.rejects(reviewDataCommand(['insights-summary', run.runDir, '--points', '--points']), { code: 'USAGE' }, '6');
+
+  useDatabase(t, null);
+  const unavailable = await reviewInsightsSummaryView(run.runDir, undefined, true) as any;
+  assert.deepEqual(themeOf(unavailable.sources[0].all, 'T-CONGDUNG').summary,
+    { status: 'UNAVAILABLE', text: null, model: null, generatedAt: null }, '5: UNAVAILABLE');
+});
+
+// Real-label check r1 (25/11): delivery talk in every theme became the top bullet of «Kết quả sau khi dùng».
+// | situation                                                       | expected                                        |
+// |-----------------------------------------------------------------|-------------------------------------------------|
+// | 3 themes; every comment also says «Giao hàng nhanh»             | no bullet of any theme is the delivery sentence  |
+// |                                                                 | each theme's bullet holds its own words          |
+test('grouped points: talk shared by every theme never becomes a bullet of a theme', async t => {
+  const base = await fixture(t);
+  const link = LINKS[0]!;
+  const run = await createModuleRun(base, { runId: 'run-points-shared', links: [link] });
+  const own: Record<string, string[]> = {
+    'T-GIA': ['Giá rẻ hợp lý', 'Giá rẻ, rất hợp lý', 'Giá rẻ hợp lý quá', 'Giá rẻ và hợp lý'],
+    'T-THIETKE': ['Hộp đẹp sang', 'Hộp rất đẹp, sang', 'Hộp đẹp sang trọng', 'Hộp đẹp và sang'],
+    'T-NIEMTIN': ['Có tem chính hãng', 'Có tem, hàng chính hãng', 'Tem chính hãng rõ', 'Có tem chính hãng đầy đủ'],
+  };
+  const rows = Object.entries(own).flatMap(([code, texts]) => texts.map((text, index) =>
+    ({ code, row: moduleRow(link, `sh-${code}-${index}`, { comment: `Giao hàng nhanh. ${text}` }) })));
+  await addLegacySource(run, { cap: rows.length, rowsByLink: [rows.map(item => item.row)] });
+  const database = path.join(base, 'app.db');
+  createInsightDatabase(database, rows.map(item =>
+    labelRow(item.row, 'Kem A', [{ code: item.code, polarity: 'khen', status: 'kept', choice: 'KHEN' }])));
+  useDatabase(t, database);
+
+  const all = (await reviewInsightsSummaryView(run.runDir, undefined, true) as any).sources[0].all;
+  const word: Record<string, RegExp> = { 'T-GIA': /giá rẻ/i, 'T-THIETKE': /hộp/i, 'T-NIEMTIN': /tem/i };
+  for (const code of Object.keys(own)) {
+    const points = pointsOf(all, code);
+    assert.ok(points.length >= 1, code);
+    for (const point of points) {
+      assert.ok(!/giao hàng/i.test(point.text), `${code}: «${point.text}» is the shared delivery talk`);
+      assert.match(point.text, word[code]!, `${code}: «${point.text}» holds the theme's own words`);
+    }
   }
 });

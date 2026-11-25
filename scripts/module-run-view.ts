@@ -36,7 +36,7 @@ async function bounded<T>(work:Promise<T>, code:string):Promise<T> {
   } finally { if (timer) clearTimeout(timer); }
 }
 
-export async function reviewRunView(runArg:string, result:boolean, emit:(line:RunViewLine) => void = () => {}) {
+export async function reviewRunView(runArg:string, result:boolean, emit:(line:RunViewLine) => void = () => {}, points = false) {
   const run = resolve(runArg);
   const parts:Record<string,unknown> = {}, errors:Record<string,PartError> = {};
   let discovered:ReturnType<typeof discoverModuleReviewSources>|null = null;
@@ -62,7 +62,7 @@ export async function reviewRunView(runArg:string, result:boolean, emit:(line:Ru
     reviewProcessView(run, await reviewProcessSettings(), await sources()));
   if (result) {
     start('stats','REVIEW_DATA_FAILED',20,async () => reviewStatsView(run, await sources()));
-    start('insights','REVIEW_DATA_FAILED',20,async () => reviewInsightsSummaryView(run, await sources()));
+    start('insights','REVIEW_DATA_FAILED',20,async () => reviewInsightsSummaryView(run, await sources(), points));
   }
   start('outputs','MODULE_OUTPUT_INVALID',20,() => bounded(moduleOutputs(run), 'MODULE_OUTPUT_TIMEOUT'));
   await Promise.all(pending);
@@ -71,7 +71,8 @@ export async function reviewRunView(runArg:string, result:boolean, emit:(line:Ru
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [runArg, ...flags] = process.argv.slice(2);
-  const unknown = flags.filter(flag => flag !== '--result');
+  // --points (app 1.4.0): theme summaries carry their grouped points; only with --result, where insights are read.
+  const unknown = flags.filter(flag => flag !== '--result' && !(flag === '--points' && flags.includes('--result')));
   let flushed:Promise<void> = Promise.resolve();
   const write = (line:unknown) => {
     flushed = flushed.then(() => new Promise<void>((resolveWrite, rejectWrite) => {
@@ -81,7 +82,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   void (async () => {
     try {
       if (!runArg || unknown.length) throw new ModuleError('USAGE', 2);
-      await reviewRunView(runArg, flags.includes('--result'), write);
+      await reviewRunView(runArg, flags.includes('--result'), write, flags.includes('--points'));
     } catch (error) {
       const code = error instanceof ModuleError ? error.code : 'REVIEW_VIEW_FAILED';
       process.exitCode = error instanceof ModuleError ? error.exitCode : 20;

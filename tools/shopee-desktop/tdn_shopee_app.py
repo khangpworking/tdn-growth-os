@@ -1938,13 +1938,28 @@ class Api:
         return self._check_review_insights(run_id, self._remote('reviewInsights', run_id=run_id))
 
     @staticmethod
-    def _review_insights_summary(value):
-        if not isinstance(value, dict) or set(value) != {'status', 'text', 'model', 'generatedAt'}:
+    def _review_insights_point(value):
+        """One grouped point of a theme summary (app 1.4.0): its text and the listed comments it cites."""
+        if not isinstance(value, dict) or set(value) != {'text', 'count', 'commentIds'}:
             return False
+        ids = value['commentIds']
+        return (isinstance(value['text'], str) and 1 <= len(value['text']) <= 200 and
+                type(value['count']) is int and value['count'] >= 1 and
+                isinstance(ids, list) and len(ids) == value['count'] and
+                all(isinstance(item, str) and 1 <= len(item) <= 256 for item in ids) and len(set(ids)) == len(ids))
+
+    @classmethod
+    def _review_insights_summary(cls, value):
+        """`points` is optional: a server that predates them (or a summary of a whole result) has none."""
+        if not isinstance(value, dict) or set(value) - {'points'} != {'status', 'text', 'model', 'generatedAt'}:
+            return False
+        points = value.get('points')
         return (value['status'] in ('READY', 'EMPTY', 'UNAVAILABLE') and
                 (value['text'] is None or (isinstance(value['text'], str) and len(value['text']) <= 4000)) and
                 (value['model'] is None or (isinstance(value['model'], str) and len(value['model']) <= 200)) and
-                (value['generatedAt'] is None or (isinstance(value['generatedAt'], str) and len(value['generatedAt']) <= 128)))
+                (value['generatedAt'] is None or (isinstance(value['generatedAt'], str) and len(value['generatedAt']) <= 128)) and
+                ('points' not in value or (value['status'] == 'READY' and isinstance(points, list) and len(points) <= 5 and
+                                           all(cls._review_insights_point(point) for point in points))))
 
     @staticmethod
     def _review_insights_comment_tag(value):
@@ -2032,7 +2047,7 @@ class Api:
         return self._safe(lambda: self._review_insights_summary_view(runId))
 
     def _review_insights_summary_view(self, run_id):
-        result = self._remote('reviewInsightsSummary', run_id=run_id, flags=('--summary',))
+        result = self._remote('reviewInsightsSummary', run_id=run_id, flags=('--summary', '--points'))
         return self._check_review_insights(run_id, result, summary=True)
 
     def _check_review_insights(self, run_id, result, summary=False):
@@ -2129,7 +2144,7 @@ class Api:
                 del self._reads_out[run_id]
 
     def _read_run_view_now(self, run_id, with_result, generation, config, key):
-        reply = self._remote('runView', run_id=run_id, config=config, flags=('--result',) if with_result else ())
+        reply = self._remote('runView', run_id=run_id, config=config, flags=('--result', '--points') if with_result else ())
         if not reply['ok']:
             if reply['error'].get('code') == 'RUN_NOT_FOUND':
                 self._forget_copy(run_id)

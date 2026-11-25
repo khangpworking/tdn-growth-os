@@ -55,13 +55,13 @@ class ThemeSummaryRenderTest(unittest.TestCase):
     def test_all_ten_themes_render_a_summary_before_the_comment_expander(self):
         body = function_body(self.source, 'insightThemeCard')
         self.assertIn('normalizedInsightThemes(bucket).forEach', body)
-        self.assertIn('article.appendChild(themeSummaryBlock(theme));', body)
+        self.assertIn('article.appendChild(themeSummaryBlock(theme, showPoint));', body)
         self.assertNotIn("details.className = 'theme-card'", body)
         self.assertIn("details.className = 'theme-comments'", body)
-        self.assertLess(body.index('article.appendChild(themeSummaryBlock(theme))'),
+        self.assertLess(body.index('article.appendChild(themeSummaryBlock(theme, showPoint))'),
                         body.index("details.className = 'theme-comments'"))
         self.assertGreater(body.index('article.appendChild(details)'),
-                           body.index('article.appendChild(themeSummaryBlock(theme))'))
+                           body.index('article.appendChild(themeSummaryBlock(theme, showPoint))'))
 
     def test_ten_theme_definitions_remain(self):
         start = self.source.index('var RESULT_THEME_DEFINITIONS = [')
@@ -75,9 +75,8 @@ class ThemeSummaryRenderTest(unittest.TestCase):
         self.assertIn('box.dataset.themeCode', body)
         self.assertIn('Chưa có đủ bình luận đã gắn nhãn để tóm tắt chủ đề này.', body)
         self.assertIn('Chưa đọc được nhãn Jev để tóm tắt chủ đề này.', body)
-        self.assertIn('Dựa trên ', body)
-        self.assertIn('không dùng dòng chưa gắn nhãn hoặc nhãn “không rõ phân loại”', body)
-        self.assertIn("if (summary.status === 'READY' && summary.text)", body)
+        self.assertIn("'Tóm tắt dựa trên ' + fmtInt(kept) + ' nhãn đã giữ cho chủ đề này. Không dùng dòng chưa gắn nhãn hoặc nhãn “không rõ phân loại”.'", body)
+        self.assertIn("if (summary.status === 'READY' && (points.length || summary.text))", body)
 
     def test_supporting_comment_evidence_stays_expandable(self):
         body = function_body(self.source, 'insightThemeCard')
