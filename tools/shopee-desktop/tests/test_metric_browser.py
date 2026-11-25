@@ -208,6 +208,33 @@ class LifecycleTest(unittest.TestCase):
                                      clock=lambda: world.now)
         return world, listener, listing, release
 
+    def test_a_second_stop_all_returns_only_after_the_first_has_stopped_every_connection(self):
+        world = World([target('a', 'https://metric.vn/analytics')])
+        listener = world.listener()
+        listener.poll()
+        tab = world.tabs[0]
+        entered, release = threading.Event(), threading.Event()
+        original = tab.stop
+
+        def slow_stop():
+            entered.set()
+            release.wait(5)
+            original()
+        tab.stop = slow_stop
+        first = threading.Thread(target=listener.stop_all)
+        first.start()
+        self.assertTrue(entered.wait(5))                     # the first call claimed the tab and is stopping it
+        second = threading.Thread(target=listener.stop_all)
+        second.start()
+        second.join(0.3)
+        self.assertTrue(second.is_alive())                   # it waits instead of returning at once
+        release.set()
+        for thread in (first, second):
+            thread.join(10)
+            self.assertFalse(thread.is_alive())
+        self.assertTrue(tab.stopped)
+        listener.stop_all()                                  # a later call returns at once
+
     def test_a_poll_in_flight_cannot_attach_after_stop_all(self):
         world, listener, listing, release = self.blocked_world()
         listener.start(interval=0.01)
@@ -270,6 +297,8 @@ class AutoWatchTest(unittest.TestCase):
         self.on_identity = None          # runs inside is_app_chrome (the check before the attach)
         self.listing = None              # (entered, release, error): the next /json/list waits, then raises / answers
         self.stopping = None             # (entered, release): the first listener's first stop_all() waits here
+        self.tab_stop = None             # (entered, release): the first tab's real stop() waits here
+        self.events = []                 # 'tab <n> created' / 'tab <n> stopped', in order
 
         def is_app_chrome(port):
             if self.on_identity:
@@ -291,8 +320,24 @@ class AutoWatchTest(unittest.TestCase):
                 raise self.poll_errors.pop(0)
             return self.world.targets
 
+        def tab_factory(t):
+            tab = self.world.factory(t)
+            number = len(self.world.tabs)
+            self.events.append(f'tab {number} created')
+            original = tab.stop
+
+            def stop():
+                if number == 1 and self.tab_stop:
+                    entered, release = self.tab_stop
+                    entered.set()
+                    release.wait(5)
+                original()
+                self.events.append(f'tab {number} stopped')
+            tab.stop = stop
+            return tab
+
         def factory(port):
-            listener = mb.MetricListener(port, tab_factory=self.world.factory, list_targets=list_targets,
+            listener = mb.MetricListener(port, tab_factory=tab_factory, list_targets=list_targets,
                                          clock=lambda: self.world.now)
             if self.fail_starts:
                 self.fail_starts -= 1
@@ -485,6 +530,33 @@ class AutoWatchTest(unittest.TestCase):
         self.assertEqual(self.made[1].attached_ids(), ['a'])
         self.session.view()
         self.assertEqual(len(self.made), 2)                  # «Mở Metric» drives it now: no auto retry
+
+    def test_open_metric_waits_for_the_old_connection_to_stop_and_never_blocks_the_card(self):
+        entered, release = threading.Event(), threading.Event()
+        self.tab_stop = (entered, release)
+        self.fail_starts = 1                                 # the start-up poll attaches tab 1, then start() fails
+        viewer = threading.Thread(target=self.session.view)
+        viewer.start()
+        self.assertTrue(entered.wait(5))                     # tab 1's real stop() is in flight
+        opener = threading.Thread(target=self.session.open_metric)
+        opener.start()
+        opener.join(0.3)
+        self.assertTrue(opener.is_alive())                   # «Mở Metric» waits for the old connection
+        self.assertEqual(self.events, ['tab 1 created'])     # and opened no new one meanwhile
+        answered = []
+        card = threading.Thread(target=lambda: answered.append(self.session.view()))
+        card.start()
+        card.join(2)
+        self.assertFalse(card.is_alive())                    # the card's state read is not blocked
+        self.assertFalse(answered[0]['listening'])
+        release.set()
+        for thread in (viewer, opener):
+            thread.join(10)
+            self.assertFalse(thread.is_alive())
+        self.assertEqual(self.events, ['tab 1 created', 'tab 1 stopped', 'tab 2 created'])
+        self.assertEqual(len(self.made), 2)
+        self.assertIs(self.session.listener, self.made[1])
+        self.assertEqual(self.made[1].attached_ids(), ['a'])
 
 
 class CaptureFreezeContractTest(unittest.TestCase):

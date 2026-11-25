@@ -510,6 +510,8 @@ class MetricListener:
         self._frozen = None
         self._thread = None
         self._stop = threading.Event()
+        self._stop_owner = None              # the thread of the first stop_all() call
+        self._stop_done = threading.Event()  # set when that first call has finished
         self._bodies = queue.Queue()
         self._worker = None
         self.chrome_open = True
@@ -671,10 +673,31 @@ class MetricListener:
 
     def stop_all(self, wait_seconds=10):
         """Final: no new connection, attachments in progress finished, poll and body worker
-        drained, every connection stopped. Chrome and its tabs stay open."""
+        drained, every connection stopped. Chrome and its tabs stay open.
+        Only the first call does the work; every other call (concurrent or later) waits until
+        that work is finished (at most ``wait_seconds``), so a returned stop_all() means the
+        listener has stopped. A call on the thread that runs the first call, or on the poll thread
+        or body worker (which the first call joins), returns at once."""
         self._stop.set()
         with self._lock:
             self._closed = True
+            first = self._stop_owner is None
+            if first:
+                self._stop_owner = threading.current_thread()
+            owner = self._stop_owner
+        if not first:
+            current = threading.current_thread()
+            # The first call joins the poll thread and the body worker: they must not wait for it.
+            if current is not owner and current is not self._thread and current is not self._worker:
+                self._stop_done.wait(wait_seconds)
+            return
+        try:
+            self._stop_work(wait_seconds)
+        finally:
+            self._stop_done.set()
+
+    def _stop_work(self, wait_seconds):
+        with self._lock:
             stopping = []
             for entry in self._tabs.values():
                 if entry.phase == 'attached':
@@ -955,13 +978,17 @@ class MetricSession:
 
     def open_metric(self):
         opened = self.launcher.open_chrome('about:blank')
+        old = None
         with self._lock:
             self._gen += 1
             self._auto = False   # from now on the user drives listening
             if self.listener is not None and (self.listener.closed or self.listener.port != opened['port']
                                               or self.listener is self._failed):
-                self.listener.stop_all()
+                old = self.listener
                 self.listener = None
+        if old is not None:
+            old.stop_all()   # never under self._lock; returns only after old has stopped
+        with self._lock:
             if self.listener is None:
                 self.listener = self._listener_factory(opened['port'])
             listener = self.listener
