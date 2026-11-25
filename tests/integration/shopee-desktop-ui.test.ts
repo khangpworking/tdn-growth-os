@@ -6094,7 +6094,7 @@ test('a newer app version on the server shows one banner, closed per version; an
   let run = await shown({ version: '1.9.0' }, latest('1.10.0'));
   try {
     assert.equal(run.doc.getElementById('appVer')!.textContent, 'v1.9.0');
-    assert.equal(bar(run.doc), 'Có bản mới 1.10.0. Liên hệ để lấy file cài.');
+    assert.equal(bar(run.doc), 'Có bản mới 1.10.0. Liên hệ IT để cập nhật.');
     run.doc.getElementById('updateClose')!.click();
     assert.equal(bar(run.doc), null, 'closed');
     await waitFor(() => run.state.dismissCalls.join(' ') === '1.10.0', 'the bridge keeps the closed version');
@@ -6102,7 +6102,7 @@ test('a newer app version on the server shows one banner, closed per version; an
 
   for (const [build, reply, expected] of [
     [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.10.0'), null],
-    [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.11.0'), 'Có bản mới 1.11.0. Liên hệ để lấy file cài.'],
+    [{ version: '1.9.0', dismissed: '1.10.0' }, latest('1.11.0'), 'Có bản mới 1.11.0. Liên hệ IT để cập nhật.'],
     [{ version: '1.10.0' }, latest('1.10.0'), null],
     [{ version: '1.10.0' }, latest('1.9.0'), null],
     [{ version: '1.10.0' }, latest(null), null],

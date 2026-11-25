@@ -338,10 +338,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 /* Plain-language surfaces: local errors, technical disclosures, progress and confirmation. */
 .local-error { margin: 0; }
 .errbar.stale-error { padding: 4px 10px; font-size: 12px; font-weight: 500; }
-.update-bar { display: flex; align-items: center; gap: 10px; background: var(--band); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px 4px 12px; font-size: 13px; }
+.update-bar { display: flex; align-items: center; gap: 10px; background: var(--accent-tint); color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 8px 8px 14px; font-size: 14px; font-weight: 600; }
 .update-bar[hidden] { display: none; }
 .update-bar span { flex: 1; }
-.update-bar button { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; cursor: pointer; }
+.update-bar button { border: 0; background: none; color: var(--accent); font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; }
+/* Owner 25/11: text can be selected and copied (text_select=True); controls stay non-selectable. */
+button, [role="tab"], .abtn, .runbtn, .pill, .chip, .tag-chip, .sort-pill, .chrome-pill, .codechip { -webkit-user-select: none; user-select: none; }
 .app-ver { position: fixed; right: 8px; bottom: 4px; font-size: 11px; color: var(--muted); pointer-events: none; }
 .capture-spec-review { margin-top: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .capture-spec-review > summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--accent); width: fit-content; }
@@ -10074,7 +10076,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
 
   function renderUpdateBar() {
     var show = !!app.latest && app.latest !== app.dismissed;
-    $('updateText').textContent = show ? 'Có bản mới ' + app.latest + '. Liên hệ để lấy file cài.' : '';
+    $('updateText').textContent = show ? 'Có bản mới ' + app.latest + '. Liên hệ IT để cập nhật.' : '';
     $('updateBar').hidden = !show;
   }
 
