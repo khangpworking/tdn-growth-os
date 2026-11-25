@@ -948,6 +948,7 @@ class MetricSession:
         self._lock = threading.Lock()
         self._auto = True             # auto-watch allowed: only once per app start, before anything listened
         self._gen = 0                 # bumped by open_metric / confirmed / close
+        self._failed = None           # a failed auto-watch listener that is still stopping
 
     def chrome_open(self):
         return self.launcher.is_alive(self.launcher.saved_port())
@@ -957,7 +958,8 @@ class MetricSession:
         with self._lock:
             self._gen += 1
             self._auto = False   # from now on the user drives listening
-            if self.listener is not None and (self.listener.closed or self.listener.port != opened['port']):
+            if self.listener is not None and (self.listener.closed or self.listener.port != opened['port']
+                                              or self.listener is self._failed):
                 self.listener.stop_all()
                 self.listener = None
             if self.listener is None:
@@ -995,19 +997,32 @@ class MetricSession:
             self._auto = False
         try:
             listener.chrome_open = True
-            listener.poll()
-            listener.start()
+            ok = listener.poll()   # False (listener closed) on a handled OSError/ValueError
+            if ok:
+                listener.start()
+            failed = (not ok) or listener.closed
         except Exception:
-            with self._lock:
-                mine = self.listener is listener and self._gen == gen
-                if mine:   # drop it: the next view() retries
-                    self.listener = None
-                    self._auto = True
+            failed = True
+        if not failed:
+            return
+        # A failed attach: keep it published until it has stopped, so no new listener overlaps it.
+        with self._lock:
+            mine = self.listener is listener and self._gen == gen
             if mine:
-                try:
-                    listener.stop_all()
-                except Exception:
-                    pass
+                self._failed = listener
+        if not mine:
+            return
+        try:
+            listener.stop_all()
+        except Exception:
+            pass
+        with self._lock:
+            if self.listener is listener:
+                self.listener = None
+            if self._failed is listener:
+                self._failed = None
+            if self._gen == gen:   # the next view() retries
+                self._auto = True
 
     def view(self):
         try:

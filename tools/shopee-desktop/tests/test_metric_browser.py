@@ -265,10 +265,11 @@ class AutoWatchTest(unittest.TestCase):
         self.app_chrome = True
         self.port = 9
         self.made = []
-        self.fail_polls = 0
+        self.poll_errors = []            # each /json/list raises the next one (OSError / ValueError: poll handles it)
         self.fail_starts = 0
         self.on_identity = None          # runs inside is_app_chrome (the check before the attach)
-        self.listing = None              # (entered, release): the next /json/list waits here, then raises
+        self.listing = None              # (entered, release, error): the next /json/list waits, then raises / answers
+        self.stopping = None             # (entered, release): the first listener's first stop_all() waits here
 
         def is_app_chrome(port):
             if self.on_identity:
@@ -280,14 +281,14 @@ class AutoWatchTest(unittest.TestCase):
 
         def list_targets():
             if self.listing:
-                entered, release = self.listing
+                entered, release, error = self.listing
                 self.listing = None
                 entered.set()
                 release.wait(5)
-                raise RuntimeError('boom')
-            if self.fail_polls:
-                self.fail_polls -= 1
-                raise RuntimeError('boom')
+                if error:
+                    raise error
+            if self.poll_errors:
+                raise self.poll_errors.pop(0)
             return self.world.targets
 
         def factory(port):
@@ -296,6 +297,17 @@ class AutoWatchTest(unittest.TestCase):
             if self.fail_starts:
                 self.fail_starts -= 1
                 listener.start = mock.Mock(side_effect=RuntimeError('boom'))
+            if self.stopping and not self.made:
+                entered, release = self.stopping
+                original, calls = listener.stop_all, []
+
+                def stop_all(*args, **kwargs):
+                    calls.append(1)
+                    if len(calls) == 1:
+                        entered.set()
+                        release.wait(5)
+                    return original(*args, **kwargs)
+                listener.stop_all = stop_all
             self.made.append(listener)
             return listener
         self.session = mb.MetricSession(tempfile.gettempdir(), launcher=launcher, listener_factory=factory)
@@ -351,10 +363,14 @@ class AutoWatchTest(unittest.TestCase):
         self.assertEqual(len(self.made), 1)
 
     def test_a_failed_poll_or_start_still_answers_and_the_next_view_retries(self):
-        for knob in ('fail_polls', 'fail_starts'):
-            with self.subTest(knob):
+        cases = {'poll timeout (handled by poll)': lambda: self.poll_errors.append(OSError('timed out')),
+                 'poll bad answer (handled by poll)': lambda: self.poll_errors.append(ValueError('bad json')),
+                 'poll crash': lambda: self.poll_errors.append(RuntimeError('boom')),
+                 'start crash': lambda: setattr(self, 'fail_starts', 1)}
+        for name, arrange in cases.items():
+            with self.subTest(name):
                 self.setUp()
-                setattr(self, knob, 1)
+                arrange()
                 state = self.session.view()
                 self.assertFalse(state['listening'])
                 self.assertIsNone(self.session.listener)
@@ -389,7 +405,7 @@ class AutoWatchTest(unittest.TestCase):
 
     def test_a_failing_auto_start_never_tears_down_what_open_metric_adopted(self):
         entered, release, adopted = threading.Event(), threading.Event(), threading.Event()
-        self.listing = (entered, release)
+        self.listing = (entered, release, RuntimeError('boom'))
         viewer = threading.Thread(target=self.session.view)
         viewer.start()
         self.assertTrue(entered.wait(5))                    # the auto-watch poll is waiting on /json/list
@@ -411,6 +427,64 @@ class AutoWatchTest(unittest.TestCase):
         self.assertIs(self.session.listener, listener)
         self.assertFalse(listener.closed)
         self.assertEqual(listener.attached_ids(), ['a'])
+
+    def test_a_run_confirmed_or_app_closed_while_the_auto_start_runs_ends_auto_watch(self):
+        for name in ('confirmed', 'close'):
+            with self.subTest(name):
+                self.setUp()
+                entered, release = threading.Event(), threading.Event()
+                self.listing = (entered, release, None)      # the start-up poll then answers normally
+                viewer = threading.Thread(target=self.session.view)
+                viewer.start()
+                self.assertTrue(entered.wait(5))
+                getattr(self.session, name)()
+                release.set()
+                viewer.join(10)
+                self.assertFalse(viewer.is_alive())
+                self.assertIsNone(self.session.listener)
+                self.assertTrue(self.made[0].closed)
+                self.assertEqual(self.made[0].attached_ids(), [])
+                for _ in range(2):
+                    self.assertFalse(self.session.view()['listening'])
+                self.assertEqual(len(self.made), 1)
+
+    def failing_start_held_in_teardown(self):
+        """The start-up poll fails; that listener's stop_all() is held open. Returns (viewer, release)."""
+        entered, release = threading.Event(), threading.Event()
+        self.stopping = (entered, release)
+        self.poll_errors.append(RuntimeError('boom'))
+        viewer = threading.Thread(target=self.session.view)
+        viewer.start()
+        self.assertTrue(entered.wait(5))
+        return viewer, release
+
+    def test_no_new_listener_starts_while_a_failed_one_is_still_stopping(self):
+        viewer, release = self.failing_start_held_in_teardown()
+        state = self.session.view()                          # a second poll from the page meanwhile
+        self.assertFalse(state['listening'])
+        self.assertEqual(len(self.made), 1)
+        self.assertIs(self.session.listener, self.made[0])  # still published until it has stopped
+        release.set()
+        viewer.join(10)
+        self.assertFalse(viewer.is_alive())
+        self.assertIsNone(self.session.listener)
+        self.assertTrue(self.session.view()['listening'])   # stopped: the next view retries
+        self.assertEqual(len(self.made), 2)
+
+    def test_open_metric_never_adopts_a_failed_listener_that_is_stopping(self):
+        viewer, release = self.failing_start_held_in_teardown()
+        self.session.open_metric()                           # runs while the failed one is still stopping
+        self.assertEqual(len(self.made), 2)
+        self.assertIs(self.session.listener, self.made[1])
+        release.set()
+        viewer.join(10)
+        self.assertFalse(viewer.is_alive())
+        self.assertEqual(len(self.made), 2)
+        self.assertTrue(self.made[0].closed)
+        self.assertIs(self.session.listener, self.made[1])
+        self.assertEqual(self.made[1].attached_ids(), ['a'])
+        self.session.view()
+        self.assertEqual(len(self.made), 2)                  # «Mở Metric» drives it now: no auto retry
 
 
 class CaptureFreezeContractTest(unittest.TestCase):
