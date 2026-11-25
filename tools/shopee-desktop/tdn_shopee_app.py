@@ -3057,7 +3057,8 @@ def main():
     import webview
     folder = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
     api = Api()
-    webview.create_window('TDN Shopee Flow', url=str(folder / 'index.html'), js_api=api, width=1280, height=820)
+    webview.create_window('TDN Shopee Flow', url=str(folder / 'index.html'), js_api=api, width=1280, height=820,
+                          text_select=True)  # owner 25/11: text can be selected and copied
     try:
         webview.start()
     finally:
