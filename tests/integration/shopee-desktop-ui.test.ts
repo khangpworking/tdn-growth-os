@@ -2709,7 +2709,7 @@ test('B1: step 1 shows the revenue order line as passed, failed or unknown', asy
       const line = element(doc, 'moM1Order');
       assert.match(line.className, cls, runId);
       assert.equal(line.querySelector('.ci')!.textContent, icon, runId);
-      assert.equal(line.querySelector('.cl')!.textContent, 'Xếp doanh số top sản phẩm bán chạy theo thứ tự giảm dần');
+      assert.equal(line.querySelector('.cl')!.textContent, 'Metric trả sản phẩm theo doanh thu giảm dần');
       assert.equal(line.previousElementSibling!.id, 'moM1Data', 'third line, after the two existing lines');
     }
   } finally { dom.window.close(); }

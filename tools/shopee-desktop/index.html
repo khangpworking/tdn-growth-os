@@ -3912,10 +3912,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var rows = h('ul', 'cks');
     var captureRow = outputResultRow(capture, 'Đã thu thập dữ liệu Metric thành công');
     captureRow.id = 'moM1Capture';
-    var dataRow = outputResultRow(valid, 'Dữ liệu thu thập được đúng yêu cầu đầu vào');
+    var dataRow = outputResultRow(valid, 'Có sản phẩm Shopee trong dữ liệu đã lấy');
     dataRow.id = 'moM1Data';
     var orderRow = outputResultRow(m1.revenueOrderDescending,
-      'Xếp doanh số top sản phẩm bán chạy theo thứ tự giảm dần');
+      'Metric trả sản phẩm theo doanh thu giảm dần');
     orderRow.id = 'moM1Order';
     rows.appendChild(captureRow);
     rows.appendChild(dataRow);
@@ -4202,6 +4202,15 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return { all: all, explicit: !!selection, want: want, ok: check && typeof check.ok === 'boolean' ? check.ok : null };
   }
 
+  function moduleRunning(info, id) {
+    var view = moduleExecution(info, id);
+    if (view && view.status && view.status !== 'UNKNOWN') return view.status === 'RUNNING';
+    var exec = executionOf(info);
+    if (exec && exec.status === 'RUNNING' && exec.currentModule === id) return true;
+    var st = info && info.state || {};
+    return st.status === 'RUNNING' && st.module === id;
+  }
+
   function moduleM2Output(m2, runId, info) {
     m2 = m2 || {};
     var target = m2Target(info);
@@ -4214,7 +4223,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var unknownPolicy = !legacy && !v3 && m2.policy !== 'metric-products-unique-v1' && m2.policy !== 'metric-products-unique-v2';
     var legacyLabels = { PASS: 'Đạt', FAIL: 'Không đạt', WAIT_OWNER: 'Cần bạn xử lý' };
     var chipText, chipCls;
-    if (legacy) {
+    // While step 2 runs, its saved result may not exist yet: no failure until the step has ended.
+    var running = moduleRunning(info, 'M2');
+    if (running) {
+      chipText = 'Đang chạy';
+      chipCls = 's-run';
+    } else if (legacy) {
       chipText = 'Kiểm tra cũ: ' + (legacyLabels[m2.legacyVerdict] || 'Chưa có kết quả');
       chipCls = m2.legacyVerdict === 'PASS' ? 's-pass' : m2.legacyVerdict === 'FAIL' ? 's-fail'
         : m2.legacyVerdict === 'WAIT_OWNER' ? 's-warn' : 's-idle';
@@ -4284,7 +4298,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     }
 
     // FEWER_PRODUCTS_THAN_REQUESTED is also the shortage reason, but its own text (with N) is always shown.
-    if (m2.errorCode && (m2.errorCode !== m2.shortageReason || m2.errorCode === 'FEWER_PRODUCTS_THAN_REQUESTED')) {
+    if (!running && m2.errorCode && (m2.errorCode !== m2.shortageReason || m2.errorCode === 'FEWER_PRODUCTS_THAN_REQUESTED')) {
       var detail = m2.errorDetail || { requested: target.want };
       card.appendChild(outputErrorBar(m2.errorCode, v3 ? Object.assign({}, detail, { topV3: true }) : detail));
     }
@@ -6046,11 +6060,57 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return c;
   }
 
+  function userPageRequest(request) {
+    return !!(request && request.metricSource && request.metricSource.format === 'user-page-v1');
+  }
+
+  // A run made from the user's Metric page has no saved filter form: show what Metric was asked, and its picture.
+  var METRIC_PLATFORM_NAMES = { 1: 'Shopee', 2: 'Lazada', 3: 'Tiki', 8: 'TikTok Shop' };
+  function userPageFilterNode(info) {
+    var request = info.request || {};
+    var scope = request.metricSource.scope || {};
+    var box = h('section', 'gate user-page-filters');
+    box.id = 'entryMetricFilters';
+    var head = h('div', 'gh');
+    head.appendChild(h('h3', null, 'Bộ lọc đã lấy trên Metric'));
+    box.appendChild(head);
+    var win = Array.isArray(request.windows) && request.windows.length ? request.windows[0] : null;
+    var compact = function (value) {
+      return typeof value === 'string' && /^\d{8}$/.test(value)
+        ? value.slice(0, 4) + '-' + value.slice(4, 6) + '-' + value.slice(6) : null;
+    };
+    var start = win && win.period ? win.period.startDate : compact(scope.start_date);
+    var end = win && win.period ? win.period.endDate : compact(scope.end_date);
+    var keywords = request.preset && Array.isArray(request.preset.keywords) && request.preset.keywords.length
+      ? request.preset.keywords
+      : scope.include_query && Array.isArray(scope.include_query.queries) ? scope.include_query.queries : [];
+    var platforms = Array.isArray(scope.platforms) ? scope.platforms.map(function (id) {
+      return METRIC_PLATFORM_NAMES[id] || ('Sàn khác (' + id + ')');
+    }) : [];
+    var facts = h('dl', 'gkv');
+    facts.appendChild(kvRow('Khoảng thời gian', start && end ? fmtDateRange(start, end) : 'Chưa có'));
+    facts.appendChild(kvRow('Từ khóa', keywords.length ? keywords.join(' · ') : 'Chưa có'));
+    facts.appendChild(kvRow('Sàn', platforms.length ? platforms.join(' · ') : 'Chưa có'));
+    box.appendChild(facts);
+    var runId = info.runId;
+    var actions = h('div', 'rs-actions');
+    var btn = h('button', 'abtn', state.moduleEvidenceBusy[runId] ? 'Đang mở…' : 'Xem ảnh Metric');
+    btn.type = 'button';
+    btn.id = 'entryMetricShot';
+    btn.disabled = !(state.localShots[runId] === true || state.connected) || !!state.moduleEvidenceBusy[runId];
+    btn.addEventListener('click', function () { openShot(runId, null, false); });
+    actions.appendChild(btn);
+    box.appendChild(actions);
+    return box;
+  }
+
   function gateStepNode(key, info) {
     if (key === 'entry') {
       var entryWrap = h('div');
       entryWrap.appendChild(gateCard('entry', info.gates ? info.gates.entry : null));
-      if (info.runId) {
+      if (info.runId && userPageRequest(info.request)) {
+        entryWrap.appendChild(userPageFilterNode(info));
+      } else if (info.runId) {
         entryWrap.appendChild(captureSpecReviewNode(makeCaptureSpecContext(
           function () { return state.selectedRunId === info.runId ? info.runId : null; },
           function () { return state.selectionSeq; },
@@ -6066,6 +6126,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       wrap.appendChild(h('p', 'muted', 'Kết quả lần trước'));
       wrap.appendChild(gateCard(key, view.historicalGate));
       return wrap;
+    }
+    // A run made from the user's Metric page has no step 1 execution: its step 1 check is the saved slip.
+    if (key === 'm1' && (!view || !view.status || view.status === 'UNKNOWN') && info.gates && info.gates.m1) {
+      return gateCard(key, info.gates.m1);
     }
     return gateCard(key, null);
   }
