@@ -158,11 +158,14 @@ test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and 
   };
   try {
     await new Promise<void>(resolve => setImmediate(resolve));
-    t.mock.timers.tick(600_000);
-    await until(async () => await generation() === 'first synthetic generation', 'ten-minute snapshot');
+    // The snapshot file changes at the rename; the publish is still "running" until its folder fsync ends, and a
+    // tick in that window is skipped by design. Each wait ticks again only while its check is still false, so no extra
+    // publish starts after the check holds.
+    const tickUntil = (check: () => Promise<boolean>, description: string) =>
+      until(async () => { if (await check()) return true; t.mock.timers.tick(600_000); return false; }, description);
+    await tickUntil(async () => await generation() === 'first synthetic generation', 'ten-minute snapshot');
     f.db.exec("UPDATE a_timer SET value='second synthetic generation'");
-    t.mock.timers.tick(600_000);
-    await until(async () => await generation() === 'second synthetic generation', 'next ten-minute snapshot');
+    await tickUntil(async () => await generation() === 'second synthetic generation', 'next ten-minute snapshot');
     const backup = Database.prototype.backup;
     let started = 0, release!: () => void, failNext = false;
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -174,8 +177,7 @@ test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and 
     });
     f.db.exec("UPDATE a_timer SET value='third synthetic generation'");
     try {
-      t.mock.timers.tick(600_000);
-      await until(async () => started === 1, 'backup starts');
+      await tickUntil(async () => started === 1, 'backup starts');
       t.mock.timers.tick(1_200_000);
       await new Promise<void>(resolve => setImmediate(resolve));
       assert.equal(started, 1, 'busy ticks must not queue or overlap another publish');
@@ -183,12 +185,10 @@ test('RAWDB-A periodic snapshot: every ten minutes, skipping busy publishes and 
     await until(async () => await generation() === 'third synthetic generation', 'held backup finishes');
     failNext = true;
     f.db.exec("UPDATE a_timer SET value='fourth synthetic generation'");
-    t.mock.timers.tick(600_000);
-    await until(async () => started === 2, 'failed backup attempted');
+    await tickUntil(async () => started === 2, 'failed backup attempted');
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal(await generation(), 'third synthetic generation', 'failed backup preserves the previous snapshot');
-    t.mock.timers.tick(600_000);
-    await until(async () => await generation() === 'fourth synthetic generation', 'timer recovers after backup failure');
+    await tickUntil(async () => await generation() === 'fourth synthetic generation', 'timer recovers after backup failure');
     assert.equal(Number(f.db.prepare('SELECT count(*) FROM raw_db_autoload').pluck().get()), 0);
   } finally { await application.close(); }
 });
