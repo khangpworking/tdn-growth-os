@@ -7,6 +7,13 @@ import re
 import subprocess
 
 here = SPECPATH
+
+# vendor_pychrome needs websocket-client. Without it PyInstaller only warns, and the EXE can never
+# attach to a Metric tab (1.2.1 and 1.2.2 shipped like that). Stop the build instead.
+try:
+    import websocket  # noqa: F401
+except ImportError:
+    raise SystemExit('Build stopped: websocket-client is missing. Run: python -m pip install -r requirements.txt')
 shared_js = os.path.normpath(os.path.join(here, '../opencli-metric/clis/metric/request-in-page.js'))
 
 # F654: this EXE's version (the VERSION file) and the short git sha, baked in as app-version.json.

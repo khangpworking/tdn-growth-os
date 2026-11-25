@@ -969,12 +969,47 @@ class MetricSession:
         listener.start()
         return dict(opened, navigated=navigated)
 
+    @staticmethod
+    def _usable(listener, port):
+        return listener is not None and not listener.closed and listener.port == port
+
+    def _auto_watch(self, port):
+        """The app's Chrome is open on its saved port but nothing listens (app restarted after
+        «Mở Metric»): attach a listener to it. No navigation, no new tab, Chrome never closed.
+        A Chrome on that port that the app did not start is never attached. Never raises."""
+        if not port or self._usable(self.listener, port) or not self.launcher.is_app_chrome(port):
+            return
+        with self._lock:   # same creation lock and reuse rule as open_metric()
+            if self._usable(self.listener, port):
+                return
+            if self.listener is not None:
+                self.listener.stop_all()
+                self.listener = None
+            listener = self.listener = self._listener_factory(port)
+        try:
+            listener.chrome_open = True
+            listener.poll()
+            listener.start()
+        except Exception:
+            with self._lock:   # drop it: the next view() retries
+                if self.listener is listener:
+                    self.listener = None
+            try:
+                listener.stop_all()
+            except Exception:
+                pass
+
     def view(self):
+        port = self.launcher.saved_port()
+        try:
+            self._auto_watch(port)
+        except Exception:
+            pass
         listener = self.listener
         latest = listener.latest() if listener is not None else None
         pending = self.pending
         return {
-            'chromeOpen': self.chrome_open(),
+            'chromeOpen': self.launcher.is_alive(port),
             'listening': bool(listener is not None and listener.attached_ids()),
             'seen': latest is not None,
             'busy': self.busy.locked(),

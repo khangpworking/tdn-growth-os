@@ -257,6 +257,88 @@ class LifecycleTest(unittest.TestCase):
         self.assertTrue(all(tab.stopped for tab in world.tabs if tab.started))
 
 
+class AutoWatchTest(unittest.TestCase):
+    """view() starts listening by itself when the app's own Chrome is already open (app restarted)."""
+
+    def setUp(self):
+        self.world = World([target('a', 'https://metric.vn/analytics')])
+        self.app_chrome = True
+        self.port = 9
+        self.made = []
+        self.fail_polls = 0
+        launcher = mock.Mock(is_alive=lambda port: True, saved_port=lambda: self.port,
+                             is_app_chrome=lambda port: self.app_chrome)
+        launcher.open_chrome.side_effect = lambda url: {'port': self.port, 'browserName': 'Google Chrome',
+                                                        'reused': True}
+
+        def list_targets():
+            if self.fail_polls:
+                self.fail_polls -= 1
+                raise RuntimeError('boom')
+            return self.world.targets
+
+        def factory(port):
+            self.made.append(mb.MetricListener(port, tab_factory=self.world.factory, list_targets=list_targets,
+                                               clock=lambda: self.world.now))
+            return self.made[-1]
+        self.session = mb.MetricSession(tempfile.gettempdir(), launcher=launcher, listener_factory=factory)
+        self.addCleanup(self.session.close)
+
+    def navigations(self):
+        return [c for tab in self.world.tabs for c in tab.calls if c[0] == 'Page.navigate']
+
+    def test_the_apps_open_chrome_is_watched_once_without_navigation(self):
+        first = self.session.view()
+        self.assertEqual(len(self.made), 1)
+        self.assertEqual(self.made[0].port, 9)
+        self.assertTrue(first['chromeOpen'])
+        self.assertTrue(first['listening'])
+        self.assertFalse(first['seen'])
+        self.assertEqual(self.navigations(), [])
+        self.world.tabs[0].products_request(page_body())
+        again = self.session.view()
+        self.assertEqual(len(self.made), 1)                 # later views reuse it
+        self.assertTrue(again['seen'])
+        self.assertEqual([t.methods() for t in self.world.tabs], [['Network.enable']])
+
+    def test_a_chrome_the_app_did_not_start_is_never_watched(self):
+        self.app_chrome = False
+        state = self.session.view()
+        self.assertEqual(self.made, [])
+        self.assertIsNone(self.session.listener)
+        self.assertFalse(state['listening'])
+        self.port = None                                     # no saved port at all
+        self.app_chrome = True
+        self.assertFalse(self.session.view()['listening'])
+        self.assertEqual(self.made, [])
+
+    def test_a_closed_listener_is_replaced_by_a_new_one(self):
+        self.session.view()
+        old = self.made[0]
+        old.stop_all()
+        state = self.session.view()
+        self.assertEqual(len(self.made), 2)
+        self.assertIs(self.session.listener, self.made[1])
+        self.assertTrue(state['listening'])
+
+    def test_a_failed_start_still_answers_and_the_next_view_retries(self):
+        self.fail_polls = 1
+        state = self.session.view()
+        self.assertFalse(state['listening'])
+        self.assertIsNone(self.session.listener)
+        self.assertTrue(self.made[0].closed)
+        self.assertTrue(self.session.view()['listening'])
+        self.assertEqual(len(self.made), 2)
+
+    def test_open_metric_after_auto_watch_keeps_the_same_listener(self):
+        self.session.view()
+        self.session.open_metric()
+        self.assertEqual(len(self.made), 1)
+        self.assertIs(self.session.listener, self.made[0])
+        self.assertEqual(self.navigations(), [])           # the Metric tab is already there: no about:blank
+        self.assertEqual(self.made[0].attached_ids(), ['a'])
+
+
 class CaptureFreezeContractTest(unittest.TestCase):
     """MetricSession.capture() freezes exactly the newest request; never an older one.
 
@@ -1002,7 +1084,8 @@ class LauncherTest(unittest.TestCase):
 
 class FakeSession(mb.MetricSession):
     def __init__(self, folder):
-        super().__init__(folder, launcher=mock.Mock(is_alive=lambda port: True, saved_port=lambda: 1))
+        super().__init__(folder, launcher=mock.Mock(is_alive=lambda port: True, saved_port=lambda: 9,
+                                                     is_app_chrome=lambda port: True))
         self.fetches = 0
         self.rows = products(5)    # what Metric answers to the in-page top-100 request
         world = World([target('a', 'https://metric.vn/analytics')])
