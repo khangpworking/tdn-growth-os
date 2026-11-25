@@ -88,12 +88,13 @@ class MetricShotTest(unittest.TestCase):
     def error(self, result, code, exit_code=20):
         self.assertEqual(result, (exit_code, {'format': 'error-v1', 'code': code, 'message': code}))
 
-    def record(self, **overrides):
+    def record(self, where='new', **overrides):
+        """Write a stored record: 'new' = <run>/metric-shot-r2.json, 'old' = <run>/m1/ (runs of 24–25/11)."""
         value = dict(key=f'metric-shots/{RUN_ID}/{DIGEST}.webp', sha256=DIGEST, byteSize=23,
                      contentType='image/webp', uploadedAt='2099-01-01T00:00:00Z',
                      deleteAfter='2099-01-11T00:00:00Z')
         value.update(overrides)
-        path = self.run / 'm1' / 'metric-shot-r2.json'
+        path = self.run / 'metric-shot-r2.json' if where == 'new' else self.run / 'm1' / 'metric-shot-r2.json'
         path.parent.mkdir(exist_ok=True)
         path.write_text(json.dumps(value), encoding='utf-8')
         return value
@@ -135,7 +136,7 @@ class MetricShotTest(unittest.TestCase):
 
     def test_confirm_contract(self):
         flags = dict(key=f'metric-shots/{RUN_ID}/{DIGEST}.webp', bytes=23, sha256=DIGEST)
-        path = self.run / 'm1' / 'metric-shot-r2.json'
+        path = self.run / 'metric-shot-r2.json'
         # Refusals and existing-record cases run on Windows; new records need directory fsync on Linux.
         for label, status, size, error in (('missing', 404, 23, 'METRIC_SHOT_NOT_FOUND'),
                                           ('wrong size', 200, 22, 'METRIC_SHOT_SIZE_MISMATCH')):
@@ -208,7 +209,41 @@ class MetricShotTest(unittest.TestCase):
         self.assertEqual(first[0][0], 0, first)
         self.assertEqual(json.loads(path.read_text(encoding='utf-8')),
                          {k: v for k, v in first[0][1].items() if k not in ('format', 'runId')})
-        self.assertEqual(list(path.parent.iterdir()), [path], 'no incomplete confirmation file remains')
+        self.assertEqual([p for p in self.run.iterdir() if p.name.startswith('metric-shot-r2')], [path],
+                         'no incomplete confirmation file remains')
+
+    def test_a_record_at_the_old_place_is_still_the_runs_record(self):
+        stored = self.record(where='old')
+        old = self.run / 'm1' / 'metric-shot-r2.json'
+        original = old.read_bytes()
+        flags = dict(key=f'metric-shots/{RUN_ID}/{DIGEST}.webp', bytes=23, sha256=DIGEST)
+        self.error(self.command('metric-shot-upload-url', content_type='image/webp', bytes=23, sha256=DIGEST),
+                   'METRIC_SHOT_ALREADY_UPLOADED')
+        self.head()
+        self.assertEqual(self.command('metric-shot-confirm', **flags),
+                         (0, dict(format='metric-shot-r2-v1', runId=RUN_ID, **stored)))
+        self.head()
+        code, output = self.command('metric-shot-view-url')
+        self.assertEqual((code, output['state']), (0, 'AVAILABLE'), output)
+        self.assertEqual(old.read_bytes(), original)
+        self.assertFalse((self.run / 'metric-shot-r2.json').exists(), 'an old record is never copied or moved')
+
+    def test_confirm_never_changes_the_step_one_folder(self):
+        # Step 2 compares a hash of the whole m1/ folder with gates/m1.json (run d6b4b951, 25/11).
+        if os.name != 'posix':
+            self.skipTest('new-record persistence needs Linux directory fsync')
+        (self.run / 'm1' / 'selected').mkdir(parents=True)
+        (self.run / 'm1' / 'manifest.json').write_text('{}', encoding='utf-8')
+        (self.run / 'm1' / 'selected' / 'raw-responses.json').write_text('[]', encoding='utf-8')
+        before = self.flow.gate_hash(self.run, 'm1/')
+        names = sorted(p.relative_to(self.run).as_posix() for p in (self.run / 'm1').rglob('*'))
+        self.head()
+        code, output = self.command('metric-shot-confirm', key=f'metric-shots/{RUN_ID}/{DIGEST}.webp',
+                                    bytes=23, sha256=DIGEST)
+        self.assertEqual(code, 0, output)
+        self.assertTrue((self.run / 'metric-shot-r2.json').is_file())
+        self.assertEqual(sorted(p.relative_to(self.run).as_posix() for p in (self.run / 'm1').rglob('*')), names)
+        self.assertEqual(self.flow.gate_hash(self.run, 'm1/'), before)
 
     def test_view_url_contract(self):
         self.credentials.unlink()
