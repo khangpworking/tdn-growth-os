@@ -1926,6 +1926,32 @@ class LostLinkTest(unittest.TestCase):
                   request={'url': 'https://accounts.google.com/', 'method': 'GET'})
         self.assertEqual(self.listener.attached_ids(), ['b'], 'a live link still leaves as «away»')
 
+    # | 14  | a link dies while it is being set up, after a filter was seen | the filter stays refused after the reconnect |
+    def test_row14_a_link_that_dies_during_its_setup_keeps_its_filter_refused(self):
+        holder = {}
+
+        def enable():
+            tab = holder['tab']
+            tab.products_request(self.FILTER_OLD, request_id='early')
+            tab.lost = True
+            raise RuntimeError('socket closed')
+        real_factory = self.listener._tab_factory
+
+        def factory(t):
+            tab = FakeTab(t, {**self.answers, 'Network.enable': enable})
+            holder['tab'] = tab
+            self.world.tabs.append(tab)
+            return tab
+        self.world.targets = self.world.targets + [target('c', 'https://metric.vn/analytics')]
+        self.listener._tab_factory = factory
+        self.listener.poll()
+        self.assertNotIn('c', self.listener.attached_ids())
+        self.listener._tab_factory = real_factory
+        self.listener.poll()
+        self.assertIn('c', self.listener.attached_ids())
+        self.assertEqual(self.capture_code(), 'METRIC_FILTER_UNAVAILABLE')
+        self.assertEqual(self.evaluated, [])
+
     def test_row9_a_held_click_record_from_a_dropped_link_is_refused(self):
         self.a.products_request(self.FILTER_OLD, request_id='old', timestamp=1.0)
         held = self.listener.click_record()
