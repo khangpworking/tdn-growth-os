@@ -46,6 +46,16 @@ function Invoke-Pin {
     Copy-Item -LiteralPath $installer -Destination $tmpInstaller -Force -Confirm:$false
     $exeSha = Get-Sha256 $tmpExe
     $installerSha = Get-Sha256 $tmpInstaller
+    # Keep the current stable set in stable-prev (next to each file), so a pin that stops halfway can be undone.
+    $prevApp = Join-Path $AppDir 'stable-prev'
+    $prevInstaller = Join-Path $InstallerDir 'stable-prev'
+    foreach ($dir in @($prevApp, $prevInstaller) | Select-Object -Unique) {
+        if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force -Confirm:$false }
+        New-Item -ItemType Directory -Path $dir | Out-Null
+    }
+    foreach ($pair in @(@($stableExe, $prevApp), @($stableJson, $prevApp), @($stableInstaller, $prevInstaller))) {
+        if (Test-Path -LiteralPath $pair[0]) { Move-Item -LiteralPath $pair[0] -Destination $pair[1] -Force -Confirm:$false }
+    }
     Move-Item -LiteralPath $tmpExe -Destination $stableExe -Force -Confirm:$false
     Move-Item -LiteralPath $tmpInstaller -Destination $stableInstaller -Force -Confirm:$false
     $tmpJson = "$stableJson.tmp"

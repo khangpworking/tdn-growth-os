@@ -34,8 +34,16 @@ $installerName = "Cai-dat-TDN-Shopee-chung-$version.exe"
 $work = Join-Path ([IO.Path]::GetTempPath()) ("tdn-release-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
-    gh release download $Tag --pattern $exeName --dir $work
-    if ($LASTEXITCODE -ne 0) { Stop-WithError "cannot download $exeName from $Tag" }
+    $dl = Join-Path $work 'download'
+    gh release download $Tag --pattern $exeName --pattern 'SHA256SUMS.txt' --dir $dl
+    if ($LASTEXITCODE -ne 0) { Stop-WithError "cannot download $exeName and SHA256SUMS.txt from $Tag" }
+    # The EXE must be the one the workflow built: its hash must match its line in the release SHA256SUMS.txt.
+    $exeSha = (Get-FileHash -LiteralPath (Join-Path $dl $exeName) -Algorithm SHA256).Hash.ToLowerInvariant()
+    $listed = Get-Content -LiteralPath (Join-Path $dl 'SHA256SUMS.txt') |
+        Where-Object { $_ -match "^([0-9a-fA-F]{64})  $([regex]::Escape($exeName))$" } |
+        ForEach-Object { $Matches[1].ToLowerInvariant() }
+    if (@($listed).Count -ne 1 -or $listed -ne $exeSha) { Stop-WithError "$exeName sha256 does not match SHA256SUMS.txt in $Tag; refusing" }
+    Move-Item -LiteralPath (Join-Path $dl $exeName) -Destination (Join-Path $work $exeName)
     Copy-Item -LiteralPath $Installer -Destination (Join-Path $work $installerName)
     $lines = foreach ($name in @($exeName, $installerName)) {
         $hash = (Get-FileHash -LiteralPath (Join-Path $work $name) -Algorithm SHA256).Hash.ToLowerInvariant()

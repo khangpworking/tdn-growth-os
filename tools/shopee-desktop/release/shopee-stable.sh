@@ -54,11 +54,12 @@ run_active() {
   if printf '%s\n' "$procs" | grep -qE "shopee_flow.py|capture-metric-preset|shopee-cli.py"; then
     return 0
   fi
-  local files=()
-  if [ -d "$RUNS" ]; then
-    shopt -s nullglob
-    files=("$RUNS"/*/state.json)
-    shopt -u nullglob
+  local files=() list
+  if [ -e "$RUNS" ]; then
+    # An unreadable runs tree must not look like "no run".
+    [ -d "$RUNS" ] && [ -r "$RUNS" ] && [ -x "$RUNS" ] || return 2
+    list="$(find "$RUNS" -mindepth 2 -maxdepth 2 -name state.json)" || return 2
+    [ -z "$list" ] || mapfile -t files <<< "$list"
   fi
   if [ "${#files[@]}" -gt 0 ]; then
     rc=0
@@ -89,6 +90,9 @@ cmd_pin() {
   live_version="$(tr -d '\r\n' < "$vfile")"
   [ "$live_version" = "$version" ] || die "live VERSION is $live_version, not $version; pin refused"
   mkdir -p "$STATE"
+  # Keep the previous pin, so a pin that stops halfway can be undone by hand (RELEASES.md).
+  if [ -f "$STABLE_JSON" ]; then cp -p "$STABLE_JSON" "$STABLE_JSON.prev"; fi
+  if [ -L "$STABLE" ]; then readlink -f "$STABLE" | write_atomic "$STATE/app-stable.prev-lane"; fi
   # The record goes first. Rollback refuses if the link does not match the record.
   printf '{"version":"%s","tag":"%s","lane":"%s","pinnedAt":"%s"}\n' \
     "$version" "$tag" "$lane" "$(now_utc)" | write_atomic "$STABLE_JSON"
