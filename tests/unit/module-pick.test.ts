@@ -442,7 +442,8 @@ test('a retry drops the previous selection before it starts a fresh log', async 
     const first = await main(dir, { jev: () => fakeJev(v2Answers(5)).jev, sleep: noWait, linkCollector: () => healthy });
     assert.equal(first.verdict, 'PASS');
     assert.ok(JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8')).entries.length > 0);
-    // The retry stops on its first check, so it never publishes a replacement selection.
+    // Without a saved basis the retry starts fresh; it stops on its first check, so it never publishes a replacement selection.
+    await rm(join(dir, 'm2/link-check-basis.json'));
     let during: { selection: boolean; entries: unknown[] } | undefined;
     const { collector: stopping } = fakeLinkCollector(() => {
       during = { selection: existsSync(join(dir, 'm2/selection.json')),
@@ -589,8 +590,8 @@ test('the step-2 link-check budget stops with LINK_CHECK_FAILED before another c
   const dir = await runDir();
   try {
     assert.equal(LINK_CHECK_BUDGET_MS, 600_000, 'owner decision: 10 minutes for all count work of one attempt');
-    // F644: max(10 min, links × 15 s), capped at 30 min.
-    assert.deepEqual([5, 8, 40, 41, 100].map(linkCheckBudgetMs), [600_000, 600_000, 600_000, 615_000, 1_500_000]);
+    // F644: max(10 min, links × 30 s), capped at 60 min.
+    assert.deepEqual([5, 20, 21, 100, 130].map(linkCheckBudgetMs), [600_000, 600_000, 630_000, 3_000_000, 3_600_000]);
     const start = Date.parse('2026-11-18T03:00:00.000Z');
     let clock = start;
     const { collector, asked } = fakeLinkCollector();
@@ -906,3 +907,47 @@ test('readPickSource refuses a user-page run after one changed file', async t =>
       error instanceof ModuleError && error.code === code, name);
   }
 });
+
+// Live 26/11 (run d1f5756d): a 100-link «Tất cả» walk stopped at its deadline after 67 good verdicts, and a retry
+// checked all 67 again. A retry on the same step-1 data and stars keeps every verdict and checks only the rest.
+async function firstAttemptStopsAt(dir: string, rows: Record<string, unknown>[], stopAt: number) {
+  const blocked = rowUrl(rows[stopAt]!);
+  const { collector, asked } = fakeLinkCollector(url => url === blocked ? { errorCode: 'HUMAN_LOGIN_REQUIRED' } : {});
+  await assert.rejects(main(dir, { linkCollector: () => collector }),
+    (error: unknown) => error instanceof ModuleError && error.code === 'HUMAN_LOGIN_REQUIRED');
+  assert.deepEqual(asked, rows.slice(0, stopAt + 1).map(rowUrl), 'the first attempt stops while checking that link');
+  return JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8')).entries as any[];
+}
+
+test('a step-2 retry on the same step-1 data and stars reuses the earlier verdicts and checks only the rest', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['9601', '9602', '9603', '9604', '9605']);
+    await writeV2Run(dir, rows, { mode: 'all' });
+    const before = await firstAttemptStopsAt(dir, rows, 3);
+    assert.equal(before.length, 3, 'three verdicts were made before the stop');
+    const { collector, asked } = fakeLinkCollector();
+    const result = await main(dir, { linkCollector: () => collector });
+    assert.equal(result.verdict, 'PASS');
+    assert.deepEqual(asked, [rowUrl(rows[3]!), rowUrl(rows[4]!)], 'the stopped link and the unchecked link only; a stop is never reused');
+    const log = JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8'));
+    assert.deepEqual(log.entries.map((entry: any) => entry.productBaseId), rows.map(row => row.product_base_id), 'walk order kept');
+    assert.deepEqual(log.entries.slice(0, 3), before, 'reused verdicts keep their original check time');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a step-2 retry after step 1 captured other data checks every link again', async () => {
+  const dir = await runDir();
+  try {
+    const rows = v2Rows(['9611', '9612', '9613', '9614']);
+    await writeV2Run(dir, rows, { mode: 'all' });
+    await firstAttemptStopsAt(dir, rows, 2);
+    const newer = v2Rows(['9611', '9612', '9613', '9614', '9615']); // step 1 ran again: another capture, another input
+    await writeV2Run(dir, newer, { mode: 'all' });
+    const { collector, asked } = fakeLinkCollector();
+    const result = await main(dir, { linkCollector: () => collector });
+    assert.equal(result.verdict, 'PASS');
+    assert.deepEqual(asked, newer.map(rowUrl), 'no verdict made on the old capture is reused');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+

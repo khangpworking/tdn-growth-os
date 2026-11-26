@@ -8,9 +8,10 @@ import { validateReviewCounts, type ReviewCounts, type ReviewLink } from '../src
 
 /** Owner decision: one clock for all count work of one M2 attempt, reconciliation and waits included. */
 export const LINK_CHECK_BUDGET_MS = 10 * 60_000;
-export const LINK_CHECK_PER_LINK_MS = 15_000;
-export const LINK_CHECK_BUDGET_MAX_MS = 30 * 60_000;
-/** Contract F644: max(10 minutes, linksToCheck × 15 s), capped at 30 minutes; one shared deadline. */
+export const LINK_CHECK_PER_LINK_MS = 30_000;
+export const LINK_CHECK_BUDGET_MAX_MS = 60 * 60_000;
+/** Contract F644 (measured 26/11: about 20 s per link): max(10 minutes, linksToCheck × 30 s), capped at 60 minutes;
+ *  one shared deadline, sized for the whole walk also on a retry. */
 export const linkCheckBudgetMs = (linksToCheck: number): number =>
   Math.min(LINK_CHECK_BUDGET_MAX_MS, Math.max(LINK_CHECK_BUDGET_MS, linksToCheck * LINK_CHECK_PER_LINK_MS));
 
@@ -97,7 +98,8 @@ export async function reconcileLinkJournals(options: { collector: LinkCollector;
  * The caller's deadline bounds every wait; expiry stops step 2 without a verdict and keeps the journal.
  */
 export function createM2LinkCheck(options: { collector: LinkCollector; policy: { mode: string; stars: readonly number[] } | null;
-  journalDir: string; deadline: number; now?: () => Date; publish?: (entries: readonly LinkCheckEntry[]) => Promise<void> }) {
+  journalDir: string; deadline: number; now?: () => Date; publish?: (entries: readonly LinkCheckEntry[]) => Promise<void>;
+  reuse?: ReadonlyMap<string, LinkCheckEntry> }) {
   const entries: LinkCheckEntry[] = [];
   const clock = () => (options.now?.() ?? new Date()).getTime();
   const checkedAt = () => new Date(clock()).toISOString();
@@ -108,6 +110,14 @@ export function createM2LinkCheck(options: { collector: LinkCollector; policy: {
     return result === 'ok' ? { result: 'ok' as const, starCounts } : { result: 'rejected' as const, reason: reason! };
   };
   const check: LinkCheck = async ({ productBaseId, shopId, itemId, url }) => {
+    // A verdict an earlier attempt made on the same basis is published again as is (original checkedAt), with no count job.
+    const earlier = options.reuse?.get(productBaseId);
+    if (earlier && earlier.url === url) {
+      entries.push(earlier);
+      if (options.publish) await options.publish(entries);
+      return earlier.result === 'ok' ? { result: 'ok' as const, starCounts: earlier.starCounts }
+        : { result: 'rejected' as const, reason: earlier.reason! };
+    }
     const remaining = options.deadline - clock();
     if (remaining <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
     const link: ReviewLink = { shopId, itemId, url };
