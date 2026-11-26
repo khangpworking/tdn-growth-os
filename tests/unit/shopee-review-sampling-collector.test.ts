@@ -97,7 +97,7 @@ function busyService(otherActive: () => boolean, options: { runningReads?: numbe
       log.lists++;
       return response([{ ...other, state: otherActive() ? 'running' : 'succeeded' }, ...[...jobs.values()].map(entry => entry.job)]);
     }
-    if (route === '/jobs' && init?.method === 'POST') {
+    if ((route === '/jobs' || route === '/count-jobs') && init?.method === 'POST') {
       log.posts++;
       if (otherActive() || [...jobs.values()].some(entry => isActive(entry.job.state))) log.postsWhileBusy++;
       const id = `00000000-0000-4000-8000-${String(jobs.size + 1).padStart(12, '0')}`;
