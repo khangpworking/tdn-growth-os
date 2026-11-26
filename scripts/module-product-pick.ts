@@ -89,11 +89,14 @@ const selectionLimit = (selection: ProductSelection | undefined) =>
 export const selectionRequested = (selection: ProductSelection | undefined) =>
   selection?.mode === 'all' ? 1 : selection?.count ?? 5;
 /** How many link checks the attempt may run: N for top N, the Shopee product count (at most 100) for "all". */
-export function linksToCheckCount(raw: unknown, part: Row, selection: ProductSelection | undefined): number {
-  if (selection?.mode !== 'all') return selectionLimit(selection);
-  const ids = new Set(rankedMetricProducts(raw, part).rows.flatMap(row =>
-    typeof row.product_base_id === 'string' && row.product_base_id.startsWith('1__') ? [row.product_base_id] : []));
-  return Math.min(ids.size, PRODUCT_SELECTION_ALL_MAX);
+/** `reused` holds the verdicts a retry already has (by product id); those links cost no new check. */
+export function linksToCheckCount(raw: unknown, part: Row, selection: ProductSelection | undefined,
+    reused: ReadonlyMap<string, 'ok' | 'rejected'> = new Map()): number {
+  if (selection?.mode !== 'all')
+    return Math.max(0, selectionLimit(selection) - [...reused.values()].filter(result => result === 'ok').length);
+  const ids = [...new Set(rankedMetricProducts(raw, part).rows.flatMap(row =>
+    typeof row.product_base_id === 'string' && row.product_base_id.startsWith('1__') ? [row.product_base_id] : []))];
+  return ids.slice(0, PRODUCT_SELECTION_ALL_MAX).filter(id => !reused.has(id)).length;
 }
 export type PickDecision = { sourceRank: number; productBaseId: string; choice: string; probabilities: Record<string, number>;
   outcome: 'PICKED' | 'DUPLICATE' | 'UNSURE' };

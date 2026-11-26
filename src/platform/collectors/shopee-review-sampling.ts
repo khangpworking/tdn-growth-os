@@ -220,7 +220,7 @@ export class ShopeeReviewSamplingCollector {
           if(job.state==='succeeded'&&!j.result)j.errorCode='REVIEW_SOURCE_INVALID';
           await save();return j;
         }
-        await this.#sleep(Math.min(3000,left()),signal);
+        await this.#sleep(Math.min('kind' in request?1000:3000,left()),signal); // count jobs are short: poll each 1 s
       }
     } catch(error) {
       j.errorCode=error instanceof ReviewSamplingError?error.code:'REVIEW_SOURCE_INVALID';

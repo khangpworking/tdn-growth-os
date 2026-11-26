@@ -268,6 +268,49 @@ export function auditMaskedRows(raw: unknown, links: readonly { revenue: number 
   }
   return { maskedRows, maskedAboveLowestPick };
 }
+const LINK_CHECK_BASIS = 'm2/link-check-basis.json';
+type LinkCheckBasis = { metricInputSha256: string; policySha256: string };
+/** The collection policy part that changes a link verdict: mode and stars. */
+export const linkPolicySha256 = (policy: { mode: string; stars: readonly number[] } | null): string =>
+  sha256(canonicalJson(policy ? { mode: policy.mode, stars: [...policy.stars] } : null));
+async function readLinkVerdicts(run: string, name: string): Promise<LinkCheckEntry[] | null> {
+  try {
+    const value = object(await readJson(run, name));
+    const log = { format: 'link-check-log-v1', runId: value.runId, entries: value.entries };
+    await validateModuleValue('link-check-log-v1', log);
+    return log.runId === basename(run) ? log.entries as LinkCheckEntry[] : null;
+  } catch { return null; }
+}
+/**
+ * Sidecar `m2/link-check-basis.json` (link-check-basis-v1) names the basis every entry in `m2/link-checks.json`
+ * was made on, and keeps the verdicts of earlier attempts on that basis. Invariant: while the sidecar names basis X,
+ * every log entry was made on X. Same basis: save the union first, then reset the log. Other basis: reset the log
+ * first, then name the new basis. Only verdicts are ever logged, so stops (login, verification, failure, deadline)
+ * are never reused.
+ */
+async function prepareLinkCheckRetry(run: string, basis: LinkCheckBasis, resetLog: () => Promise<void>):
+    Promise<Map<string, LinkCheckEntry>> {
+  let saved: Record<string, unknown> | null;
+  try { saved = object(await readJson(run, LINK_CHECK_BASIS)); } catch { saved = null; }
+  const same = saved?.format === 'link-check-basis-v1' && saved.runId === basename(run) &&
+    saved.metricInputSha256 === basis.metricInputSha256 && saved.policySha256 === basis.policySha256;
+  const reuse = new Map<string, LinkCheckEntry>();
+  if (same) {
+    for (const entry of [...(await readLinkVerdicts(run, LINK_CHECK_BASIS) ?? []), ...(await readLinkVerdicts(run, 'm2/link-checks.json') ?? [])])
+      reuse.set(entry.productBaseId, entry);
+  }
+  const writeBasis = async () => {
+    const entries = [...reuse.values()];
+    await validateModuleValue('link-check-log-v1', { format: 'link-check-log-v1', runId: basename(run), entries });
+    await atomicJson(run, LINK_CHECK_BASIS, { format: 'link-check-basis-v1', runId: basename(run), ...basis, entries });
+  };
+  await unlink(await safePath(run, 'm2/selection.json')).catch(error => {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  });
+  if (same) { await writeBasis(); await resetLog(); }
+  else { await resetLog(); await writeBasis(); }
+  return reuse;
+}
 /** `jev` gives the Jev client for a v2 run; only the command line below builds the real one. */
 export async function main(runDir: string, options: { jev?: () => PickJev; sleep?: (ms: number) => Promise<void>;
     linkCollector?: () => LinkCollector } = {}) {
@@ -288,22 +331,22 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
         };
         // A retry drops the previous selection before starting a fresh log, so the two are never out of
         // step: a crash between them leaves an unbound log, never an old selection bound to an empty one.
-        await unlink(await safePath(run, 'm2/selection.json')).catch(error => {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        });
-        await publishLog([]);
+        // Verdicts made on the same basis (step-1 input and collection policy) are kept for reuse first.
+        const reuse = await prepareLinkCheckRetry(run, { metricInputSha256, policySha256: linkPolicySha256(request.collectionPolicy) },
+          () => publishLog([]));
         const clock = () => new Date();
         // One deadline for this attempt's whole count work, reconciliation included. Contract F644 scales it
-        // with the number of links this selection may check; an absent productSelection stays at five.
+        // with the number of links this selection may still check; an absent productSelection stays at five.
         const selection = request.productSelection;
-        const deadline = clock().getTime() + linkCheckBudgetMs(linksToCheckCount(source.raw, source.part, selection));
+        const reusedResults = new Map([...reuse].map(([id, entry]) => [id, entry.result]));
+        const deadline = clock().getTime() + linkCheckBudgetMs(linksToCheckCount(source.raw, source.part, selection, reusedResults));
         const collector = options.linkCollector ? options.linkCollector() : null;
         if (!collector) throw new ModuleError('LINK_CHECK_FAILED');
         // Count-job journals live with the run: an unresolved one is reconciled here before any new submission.
         const journalDir = join(run, 'm2/link-check-journal');
         await reconcileLinkJournals({ collector, journalDir, deadline, now: clock });
         // Each completed verdict is published before the next check starts, so an interrupted walk keeps it.
-        const { check } = createM2LinkCheck({ collector, policy: request.collectionPolicy, journalDir, deadline, now: clock, publish: publishLog });
+        const { check } = createM2LinkCheck({ collector, policy: request.collectionPolicy, journalDir, deadline, now: clock, publish: publishLog, reuse });
         // v3 (contract F656): no Jev and no duplicate filter, so it never needs the Jev key.
         if (request.selectionPolicy === MODULE_PICK_POLICY_V3)
           picked = await deriveTopProductPick(source.raw, source.part, sha256(source.rawBytes), check, selection);

@@ -442,7 +442,8 @@ test('a retry drops the previous selection before it starts a fresh log', async 
     const first = await main(dir, { jev: () => fakeJev(v2Answers(5)).jev, sleep: noWait, linkCollector: () => healthy });
     assert.equal(first.verdict, 'PASS');
     assert.ok(JSON.parse(await readFile(join(dir, 'm2/link-checks.json'), 'utf8')).entries.length > 0);
-    // The retry stops on its first check, so it never publishes a replacement selection.
+    // Without a saved basis the retry starts fresh; it stops on its first check, so it never publishes a replacement selection.
+    await rm(join(dir, 'm2/link-check-basis.json'));
     let during: { selection: boolean; entries: unknown[] } | undefined;
     const { collector: stopping } = fakeLinkCollector(() => {
       during = { selection: existsSync(join(dir, 'm2/selection.json')),
@@ -589,8 +590,8 @@ test('the step-2 link-check budget stops with LINK_CHECK_FAILED before another c
   const dir = await runDir();
   try {
     assert.equal(LINK_CHECK_BUDGET_MS, 600_000, 'owner decision: 10 minutes for all count work of one attempt');
-    // F644: max(10 min, links × 15 s), capped at 30 min.
-    assert.deepEqual([5, 8, 40, 41, 100].map(linkCheckBudgetMs), [600_000, 600_000, 600_000, 615_000, 1_500_000]);
+    // F644: max(10 min, links × 30 s), capped at 60 min.
+    assert.deepEqual([5, 20, 21, 100, 130].map(linkCheckBudgetMs), [600_000, 600_000, 630_000, 3_000_000, 3_600_000]);
     const start = Date.parse('2026-11-18T03:00:00.000Z');
     let clock = start;
     const { collector, asked } = fakeLinkCollector();
