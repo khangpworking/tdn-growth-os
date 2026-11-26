@@ -9,7 +9,9 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import {
   reviewPolicy, samplingDigest, starTargets,
 } from '../../src/modules/foundation/shopee-review-sampling.js';
-import { ShopeeReviewSamplingCollector } from '../../src/platform/collectors/shopee-review-sampling.js';
+import { ShopeeReviewSamplingCollector, readSamplingJournal } from '../../src/platform/collectors/shopee-review-sampling.js';
+import { createM2LinkCheck, LinkCheckStop } from '../../scripts/module-link-check.js';
+import { readdir } from 'node:fs/promises';
 
 const TOKEN = 'synthetic-token';
 const LINK = { shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200' };
@@ -82,7 +84,7 @@ function collector(fetchImpl: typeof fetch, options: Partial<ConstructorParamete
 }
 
 /** A local review service: one job per POST, `running` for `runningReads` status reads, then `succeeded`. */
-function busyService(otherActive: () => boolean, options: { runningReads?: number; postDelayMs?: number } = {}) {
+function busyService(otherActive: () => boolean, options: { runningReads?: number; postDelayMs?: number; clock?: () => Date } = {}) {
   const created = AT.toISOString();
   const other = { id: '00000000-0000-4000-8000-0000000000f0', request: { url: 'https://shopee.vn/product/9/9', max_comments: 1 },
     created_at: created, updated_at: created, result_available: false };
@@ -92,7 +94,7 @@ function busyService(otherActive: () => boolean, options: { runningReads?: numbe
   const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     const route = url.pathname + url.search;
-    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: created });
+    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: (options.clock?.() ?? AT).toISOString() });
     if (route === '/jobs?limit=100') {
       log.lists++;
       return response([{ ...other, state: otherActive() ? 'running' : 'succeeded' }, ...[...jobs.values()].map(entry => entry.job)]);
@@ -451,4 +453,50 @@ test('a running count job is polled each 1 s; a running step-3 sampling job keep
     });
     assert.deepEqual(pollSleeps, [expected, expected], `${name}: two waits while the job was running`);
   }
+});
+
+const COUNT_LINK = { productBaseId: '1__200__100', shopId: '100', itemId: '200', url: LINK.url };
+
+test('#2: a run that waited 30 minutes for another run still checks its step-2 links; each count job gets its 2 minutes from submission', async () => {
+  let clock = AT.getTime();
+  const now = () => new Date(clock), otherUntil = clock + 30 * 60_000;
+  const { fakeFetch, log } = busyService(() => clock < otherUntil, { clock: now, runningReads: 1 });
+  await withDir(async (dir) => {
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check } = createM2LinkCheck({ collector: collector(fakeFetch, { now, sleep: async (ms: number) => { clock += ms; } }),
+      policy: null, journalDir, deadline: clock + 10 * 60_000, now });
+    assert.equal((await check(COUNT_LINK)).result, 'ok', 'the 30-minute wait used neither the 2-minute nor the step-2 limit');
+    assert.equal((await check(COUNT_LINK)).result, 'ok', 'the step-2 limit moved by the wait');
+    for (const name of await readdir(journalDir)) {
+      const journal = (await readSamplingJournal(path.join(journalDir, name)))!;
+      assert.equal(Date.parse(journal.deadline) - Date.parse(journal.intentAt!), 120_000);
+    }
+  });
+  assert.deepEqual([log.posts, log.postsWhileBusy], [2, 0]);
+});
+
+test('#9: the step-2 time limit ends a running count job as DEADLINE in its file, not as a stop by the owner', async () => {
+  const stamp = () => new Date().toISOString();
+  let job: Record<string, unknown> | null = null;
+  const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input)), route = url.pathname + url.search;
+    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: stamp() });
+    if (route === '/jobs?limit=100') return response(job ? [job] : []);
+    if (route === '/count-jobs' && init?.method === 'POST') {
+      job = { id: '00000000-0000-4000-8000-000000000001', request: JSON.parse(String(init.body)), state: 'running',
+        created_at: stamp(), updated_at: stamp(), result_available: false };
+      return response(job, 202);
+    }
+    if (route.endsWith('/cancel')) { job = { ...job!, state: 'cancelled', updated_at: stamp() }; return response(job); }
+    // The status read never answers: only a time limit ends it.
+    return new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+  }) as typeof fetch;
+  await withDir(async (dir) => {
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check } = createM2LinkCheck({ collector: new ShopeeReviewSamplingCollector({ token: TOKEN, fetch: fakeFetch, submitLockFile: LOCK }),
+      policy: null, journalDir, deadline: Date.now() + 400 });
+    await assert.rejects(check(COUNT_LINK), (error: unknown) => error instanceof LinkCheckStop && error.code === 'LINK_CHECK_FAILED');
+    const [name] = await readdir(journalDir);
+    assert.equal((await readSamplingJournal(path.join(journalDir, name!)))!.errorCode, 'DEADLINE');
+  });
 });

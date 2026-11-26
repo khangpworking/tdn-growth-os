@@ -159,6 +159,20 @@ test('custom pass with a no-text review link skips it and offers the collected l
   assert.deepEqual(source.links.map(link => [link.actual, link.status]), [[0, 'exhausted'], [1, 'exhausted']]);
 });
 
+test('#1 1A: step 4 reads a passing attempt where one product could not be read', async t => {
+  const base = await fixture(t);
+  const run = await createModuleRun(base, { runId: 'run-custom-unreadable' });
+  await addCustomAttempt(run, {
+    rowsByLink: [[], [moduleRow(LINKS[1]!, 'kept-b')]],
+    unreadableLinks: [0],
+  });
+
+  const [source] = await discoverModuleReviewSources(run.runDir);
+  assert.ok(source, 'the attempt is offered to step 4');
+  assert.equal(source.status, 'SUCCEEDED');
+  assert.deepEqual(source.rows.map(row => row.reviewId), ['kept-b'], 'the unreadable product contributes no rows');
+});
+
 test('custom terminal partial keeps retained rows, not the empty publication', async t => {
   const base = await fixture(t);
   const run = await createModuleRun(base, { runId: 'run-custom-partial' });

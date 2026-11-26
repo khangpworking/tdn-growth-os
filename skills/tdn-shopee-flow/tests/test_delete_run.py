@@ -473,5 +473,31 @@ class DeleteRunTest(unittest.TestCase):
         self.assertTrue((self.runs / '.imports').is_dir(), 'the .imports folder must stay')
 
 
+    def test_each_delete_is_recorded_with_time_app_version_machine_and_run(self):
+        """#6: the runs root keeps one line per deletion; an older app (no note) is recorded with nulls."""
+        self.make_run('run-c3')
+        self.make_run('run-d4')
+        note = json.dumps({'format': 'run-delete-source-v1', 'appVersion': '1.3.5', 'machine': 'PC-KHO-01'})
+        proc = subprocess.run([sys.executable, str(SCRIPT), 'delete-run', '--run', 'run-c3', '--stdin'], input=note,
+                              capture_output=True, text=True, env=self.env(), timeout=60)
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(json.loads(proc.stdout), {'format': 'run-delete-v1', 'runId': 'run-c3', 'deleted': True})
+        rc, out = self.command('delete-run', '--run', 'run-d4')
+        self.assertEqual(rc, 0, out)
+        rc, out = self.command('delete-run', '--run', 'run-missing')
+        self.assertEqual(out['code'], 'RUN_NOT_FOUND')
+        log = self.runs / '.deletions.jsonl'
+        lines = [json.loads(line) for line in log.read_text(encoding='ascii').splitlines()]
+        for line in lines:
+            self.assertRegex(line.pop('at'), r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
+        self.assertEqual(lines, [
+            {'event': 'delete', 'runId': 'run-c3', 'appVersion': '1.3.5', 'machine': 'PC-KHO-01'},
+            {'event': 'delete', 'runId': 'run-d4', 'appVersion': None, 'machine': None}])
+        self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+        rc, out = self.command('runs')
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out['runs'], [], 'the record file is never listed as a run')
+
+
 if __name__ == '__main__':
     unittest.main()

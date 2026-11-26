@@ -37,6 +37,11 @@ export interface SamplingCollectorOptions {
 }
 /** Owner L4: a run whose step 3 finds the service busy with another run waits, polling the job list. */
 const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
+/** Count job (#2): its 2-minute limit starts at submission; the wait for another run's job before it has its own cap. */
+export const COUNT_JOB_MS = 120_000, COUNT_WAIT_MAX_MS = 2 * 60 * 60_000;
+/** Caller limits of one run() call. `budgetMs` is the caller's remaining time. For a new count job it starts at
+ *  submission (waiting for the service is free); otherwise it starts at the call. Expiry ends the job as DEADLINE. */
+export interface SamplingRunLimits { budgetMs?: number }
 const defaultSubmitLock = () => path.join(process.env.SHOPEE_FLOW_STATE ?? path.join(os.homedir(), '.local/state/tdn-growth-os'),
   'shopee-flow', 'review-submit.lock');
 type LockDatabase = { exec(sql: string): unknown; close(): unknown };
@@ -74,19 +79,22 @@ export class ShopeeReviewSamplingCollector {
     this.#sleep = options.sleep ?? ((ms,signal) => delay(ms, undefined, {signal}));
     this.#lock = options.submitLockFile ?? defaultSubmitLock();
   }
-  async run(file: string, request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan | null, reconcileOnly = false, signal?: AbortSignal): Promise<SamplingJournal> {
+  async run(file: string, request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan | null, reconcileOnly = false, signal?: AbortSignal, limits: SamplingRunLimits = {}): Promise<SamplingJournal> {
     validateSampling('jobInput',request);
     if (plan) validateReviewPlan(plan, 'sampling' in request ? request.sampling.planSha256 : undefined);
     const digest = samplingDigest(request), existing = await readSamplingJournal(file);
     if (existing && (existing.inputSha256 !== digest || canonicalJson(existing.request) !== canonicalJson(request))) throw new ReviewSamplingError('REVIEW_JOURNAL_CHANGED');
     if (!existing && reconcileOnly) throw new ReviewSamplingError('REVIEW_ATTEMPT_NOT_FOUND');
     const j: SamplingJournal = existing ?? { format:'shopee-sampling-journal-v1', inputSha256:digest, request, intentAt:null,
-      deadline:new Date(this.#now().getTime() + ('sampling' in request ? 40 * 60_000 : 120_000)).toISOString(), baselineIds:[], job:null,
+      deadline:new Date(this.#now().getTime() + ('sampling' in request ? 40 * 60_000 : COUNT_WAIT_MAX_MS)).toISOString(), baselineIds:[], job:null,
       result:null, resultSha256:null, terminal:false, errorCode:null, requestCount:0, requestCountUncertain:false, cancelIntent:false };
     const save = () => { j.resultSha256=j.result ? samplingDigest(j.result) : null; return writeSamplingJournal(file,j); };
     if (j.terminal) return j;
     await save();
-    const left = () => Date.parse(j.deadline) - this.#now().getTime();
+    const budget = limits.budgetMs, isCount = 'kind' in request;
+    // A new count job takes the caller's budget at submission; every other call is bounded from now.
+    const cap = budget === undefined || isCount && !j.intentAt ? Infinity : this.#now().getTime() + budget;
+    const left = () => Math.min(Date.parse(j.deadline), cap) - this.#now().getTime();
     let recoveryDeadline:number|null=null;
     const call = async (method: 'GET'|'POST', route: string, body?: unknown, cleanup = false, timeout = 10_000): Promise<unknown> => {
       if(reconcileOnly && method==='POST' && ['/jobs','/count-jobs'].includes(route))throw new ReviewSamplingError('REVIEW_RESUBMIT_REFUSED');
@@ -193,7 +201,9 @@ export class ShopeeReviewSamplingCollector {
             busy=all.some(raw=>active(String(object(raw).state)));
             if(!busy) {
               j.baselineIds=all.map(raw=>String(object(raw).id));
-              j.intentAt=this.#now().toISOString();await save(); // Durable one-use submission permission.
+              j.intentAt=this.#now().toISOString();
+              if(isCount)j.deadline=new Date(Date.parse(j.intentAt)+Math.min(COUNT_JOB_MS,budget??COUNT_JOB_MS)).toISOString();
+              await save(); // Durable one-use submission permission.
               try { j.job=parseJob(await call('POST','kind' in request ? '/count-jobs' : '/jobs',request));await save(); }
               catch(error) {
                 if(error instanceof ReviewSamplingError && /^REVIEW_HTTP_4\d\d$/.test(error.code)) { j.terminal=true;throw error; }

@@ -3467,6 +3467,39 @@ def metric_shot_delete_quietly(record):
         pass
 
 
+RUN_DELETE_LOG = '.deletions.jsonl'      # #6: one line per run deletion, in the runs root (never listed as a run)
+RUN_DELETE_MACHINE = re.compile(r'[A-Za-z0-9._-]{1,64}')
+
+
+def flow_delete_source(ns):
+    """#6: the app version and machine name the app sent with delete-run (stdin JSON). An older app sends
+    nothing and a malformed note is not trusted: both are recorded as null, the delete itself is unchanged."""
+    none = {'appVersion': None, 'machine': None}
+    if not getattr(ns, 'stdin', False):
+        return none
+    try:
+        value = json.loads(sys.stdin.buffer.read(4097).decode('utf8'))
+    except (OSError, ValueError):
+        return none
+    if (not isinstance(value, dict) or set(value) != {'format', 'appVersion', 'machine'} or
+            value['format'] != 'run-delete-source-v1' or not isinstance(value['appVersion'], str) or
+            not APP_SEMVER.fullmatch(value['appVersion']) or not isinstance(value['machine'], str) or
+            not RUN_DELETE_MACHINE.fullmatch(value['machine'])):
+        return none
+    return {'appVersion': value['appVersion'], 'machine': value['machine']}
+
+
+def flow_delete_record(root, entry):
+    """Append one line to the deletion log (caller holds the imports lock). Raises OSError on failure."""
+    fd = os.open(root / RUN_DELETE_LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    try:
+        os.write(fd, (json.dumps(entry, ensure_ascii=True, separators=(',', ':')) + '
+').encode('ascii'))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def cmd_delete_run(ns):
     """Delete one run folder and the .imports records that point at it, under the imports lock.
     The run's own module admission lock is taken non-blockingly, so no module, count refresh or
@@ -3478,6 +3511,7 @@ def cmd_delete_run(ns):
         if module_readonly():
             raise ModuleFailure('READONLY_ON', 20)
         run_id = ns.run_id
+        source = flow_delete_source(ns)
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,127}', run_id):
             raise ModuleFailure('RUN_NOT_FOUND', 2)
         root = pathlib.Path(os.environ.get('SHOPEE_FLOW_RUNS', str(MODULE_DATA / 'runs'))).expanduser().resolve()
@@ -3534,6 +3568,11 @@ def cmd_delete_run(ns):
                                     os.close(fd)
                             if isinstance(record, dict) and record.get('runId') == run_id:
                                 records.append((entry.name, info.st_dev, info.st_ino))
+                # #6: the record is written before anything moves; no record, no delete.
+                try:
+                    flow_delete_record(root, {'event': 'delete', 'at': flow_now(), 'runId': run_id, **source})
+                except OSError:
+                    raise ModuleFailure('RUN_DELETE_FAILED', 20)
                 deleted = root / f'.deleted-{run_id}-{int(time.time())}'
                 os.rename(run, deleted)
                 moved, deleted_fd = [], None
@@ -3569,6 +3608,10 @@ def cmd_delete_run(ns):
                     else:
                         try:
                             os.rename(deleted, run)
+                        except OSError:
+                            pass
+                        try:
+                            flow_delete_record(root, {'event': 'delete-undone', 'at': flow_now(), 'runId': run_id, **source})
                         except OSError:
                             pass
                         raise ModuleFailure('RUN_DELETE_FAILED', 20)
@@ -3980,6 +4023,7 @@ def main():
     x = sp.add_parser('metric-date-availability'); x.add_argument('--end-date', required=True)
     x.set_defaults(f=cmd_flow_query)
     x = sp.add_parser('delete-run'); x.add_argument('--run', dest='run_id', required=True)
+    x.add_argument('--stdin', action='store_true')   # #6: app 1.3.5+ sends its version and machine name
     x.set_defaults(f=cmd_delete_run)
     for name in ('metric-shot-upload-url', 'metric-shot-confirm', 'metric-shot-view-url'):
         x = sp.add_parser(name); x.add_argument('--run', dest='run_id', required=True)

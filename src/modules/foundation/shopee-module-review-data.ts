@@ -7,7 +7,7 @@ import schema from '../../../contracts/foundation/shopee-module-review-data.sche
 import type { RunTracking, RunTrackingRecord, ReviewDataLink, ReviewDataExport, ModuleReviewArchive } from '../../../contracts/foundation/shopee-module-review-data.generated.js';
 import type { SamplingResult } from '../../../contracts/foundation/shopee-review-sampling.generated.js';
 import { canonicalJson } from './canonical-json.js';
-import { pagesPerLink, samplingDigest, validateSamplingResult } from './shopee-review-sampling.js';
+import { pagesPerLink, samplingDigest, skippedLinkReason, validateSamplingResult } from './shopee-review-sampling.js';
 import { readPublicReviewJournal, validatePublicEnvelope, PUBLIC_REVIEW_MAX_BYTES } from '../../platform/collectors/shopee-public-reviews.js';
 import { frozenAttemptProof, journalsFor, stateFor } from '../../../scripts/module-review-sampling.js';
 import { hashFile, hashFolder, ModuleError, object, safePath, validateModuleValue } from '../../../scripts/module-pick.js';
@@ -166,9 +166,8 @@ async function customSource(run: string, id: string): Promise<VerifiedModuleRevi
   const paths = [`${base}/attempt.json`,`${base}/state.json`,`${base}/gate.json`,`${base}/output/reviews.json`,`${base}/output/outcome.json`, `m3-custom/plans/${attempt.planSha256}.json`];
   const results: SamplingResult[] = [];
   const collectedAt = new Map<string,string>();
-  // A link is skipped on a product-level failure, or (F641) when its collection ended without an error code and saved no review.
-  const skipped = journals.map(journal => journal !== null && (journal.errorCode === 'PRODUCT_UNAVAILABLE' || journal.errorCode === 'RATINGS_MISSING' ||
-    (!journal.errorCode && journal.terminal && journal.result?.format === 'shopee-sampled-result-v1' && journal.result.rows.length === 0)));
+  // The same skip rule step 3 used (product-level code, F641 no text, #1 1A unreadable product).
+  const skipped = journals.map(journal => skippedLinkReason(journal) !== null);
   const links = attempt.links.map((link,index): ReviewDataLink => {
     const j = journals[index], result = j?.result?.format === 'shopee-sampled-result-v1' ? j.result : null;
     if (j) paths.push(`${base}/journal/${samplingDigest(link)}.json`);
