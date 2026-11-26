@@ -435,3 +435,20 @@ test('any other failed job keeps the SOURCE_JOB_FAILED mapping', async () => {
     assert.deepEqual([journal.errorCode, journal.terminal], ['SOURCE_JOB_FAILED', true]);
   });
 });
+
+test('a running count job is polled each 1 s; a running step-3 sampling job keeps 3 s', async () => {
+  const { plan, planSha256 } = planFixture();
+  const cases: [string, any, any, number][] = [
+    ['counts', { kind: 'counts', url: LINK.url, request_key: ATTEMPT }, null, 1_000],
+    ['sampling', requestFixture(planSha256), plan, 3_000],
+  ];
+  for (const [name, request, requestPlan, expected] of cases) {
+    const { fakeFetch, log } = busyService(() => false, { runningReads: 2 });
+    const pollSleeps: number[] = [];
+    const sleep = async (ms: number) => { if (log.posts > 0) pollSleeps.push(ms); };
+    await withDir(async (dir) => {
+      await collector(fakeFetch, { sleep }).run(path.join(dir, 'journal.json'), request, LINK, requestPlan);
+    });
+    assert.deepEqual(pollSleeps, [expected, expected], `${name}: two waits while the job was running`);
+  }
+});
