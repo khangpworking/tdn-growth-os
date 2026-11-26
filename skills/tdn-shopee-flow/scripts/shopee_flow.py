@@ -3493,8 +3493,7 @@ def flow_delete_record(root, entry):
     """Append one line to the deletion log (caller holds the imports lock). Raises OSError on failure."""
     fd = os.open(root / RUN_DELETE_LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
     try:
-        os.write(fd, (json.dumps(entry, ensure_ascii=True, separators=(',', ':')) + '
-').encode('ascii'))
+        os.write(fd, (json.dumps(entry, ensure_ascii=True, separators=(',', ':')) + '\n').encode('ascii'))
         os.fsync(fd)
     finally:
         os.close(fd)

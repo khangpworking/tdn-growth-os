@@ -239,8 +239,13 @@ for (const code of ['PRODUCT_UNAVAILABLE', 'RATINGS_MISSING'] as const) {
 
 test('#1 1A: a product whose reviews cannot be read is skipped with its reason; the other two are collected', () => withFixture(async ({ run }) => {
   const unreadable = 'https://shopee.vn/product/101/201';
+  // Each collected link keeps its own review ids.
+  const own = (journal: SamplingJournal, tag: string): SamplingJournal => {
+    const copy = JSON.parse(JSON.stringify(journal).replaceAll('"r1-', `"${tag}-`)) as SamplingJournal;
+    return { ...copy, resultSha256: samplingDigest(copy.result) };
+  };
   const { result, requests, gate, outcome } = await runLinks(run, (request, link, plan) =>
-    link.url === unreadable ? failedJournal(request, link, 'SOURCE_JOB_FAILED') : terminalJournal(request, link, plan!, 1, 'exhausted'));
+    link.url === unreadable ? failedJournal(request, link, 'SOURCE_JOB_FAILED') : own(terminalJournal(request, link, plan!, 1, 'exhausted'), `s${link.itemId}`));
   assert.equal(requests.length, 3, 'the third link is still read');
   assert.equal(result.status, 'SUCCEEDED');
   assert.equal(gate.verdict, 'PASS');
