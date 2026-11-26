@@ -336,10 +336,10 @@ export async function main(runDir: string, options: { jev?: () => PickJev; sleep
           () => publishLog([]));
         const clock = () => new Date();
         // One deadline for this attempt's whole count work, reconciliation included. Contract F644 scales it
-        // with the number of links this selection may still check; an absent productSelection stays at five.
+        // with the number of links this selection may check; an absent productSelection stays at five.
         const selection = request.productSelection;
-        const reusedResults = new Map([...reuse].map(([id, entry]) => [id, entry.result]));
-        const deadline = clock().getTime() + linkCheckBudgetMs(linksToCheckCount(source.raw, source.part, selection, reusedResults));
+        // The budget stays sized for the whole walk: a reused verdict costs no time, and the walk may still skip or replace it.
+        const deadline = clock().getTime() + linkCheckBudgetMs(linksToCheckCount(source.raw, source.part, selection));
         const collector = options.linkCollector ? options.linkCollector() : null;
         if (!collector) throw new ModuleError('LINK_CHECK_FAILED');
         // Count-job journals live with the run: an unresolved one is reconciled here before any new submission.

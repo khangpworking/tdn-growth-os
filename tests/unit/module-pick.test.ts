@@ -10,7 +10,6 @@ import { readSamplingJournal, ShopeeReviewSamplingCollector } from '../../src/pl
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
 import { pickJevFromEnvironment } from '../../scripts/module-product-pick-jev.js';
-import { linksToCheckCount } from '../../scripts/module-product-pick.js';
 import { answer, answersAfterRejection, fakeJev, noWait } from '../helpers/fake-pick-jev.js';
 import { fakeLinkCollector } from '../helpers/fake-link-collector.js';
 import { buildUserPageRun, jsonBytes } from '../helpers/user-page-run-fixture.js';
@@ -952,15 +951,3 @@ test('a step-2 retry after step 1 captured other data checks every link again', 
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('the step-2 budget counts only the links a retry still has to check', async () => {
-  const reused = new Map<string, 'ok' | 'rejected'>([['1__a__1', 'ok'], ['1__b__1', 'ok'], ['1__c__1', 'rejected']]);
-  // | selection | reused verdicts  | links still to check                                   |
-  // | Top 8     | none             | 8                                                      |
-  // | Top 8     | 2 ok, 1 rejected | 6 (a rejected link is replaced; an ok link is not rechecked) |
-  // | Top 2     | 2 ok, 1 rejected | 0                                                      |
-  assert.deepEqual([
-    linksToCheckCount(null, {} as any, { mode: 'top', count: 8 }),
-    linksToCheckCount(null, {} as any, { mode: 'top', count: 8 }, reused),
-    linksToCheckCount(null, {} as any, { mode: 'top', count: 2 }, reused),
-  ], [8, 6, 0]);
-});

@@ -11,7 +11,7 @@ export const LINK_CHECK_BUDGET_MS = 10 * 60_000;
 export const LINK_CHECK_PER_LINK_MS = 30_000;
 export const LINK_CHECK_BUDGET_MAX_MS = 60 * 60_000;
 /** Contract F644 (measured 26/11: about 20 s per link): max(10 minutes, linksToCheck × 30 s), capped at 60 minutes;
- *  one shared deadline. linksToCheck excludes the verdicts a retry reuses. */
+ *  one shared deadline, sized for the whole walk also on a retry. */
 export const linkCheckBudgetMs = (linksToCheck: number): number =>
   Math.min(LINK_CHECK_BUDGET_MAX_MS, Math.max(LINK_CHECK_BUDGET_MS, linksToCheck * LINK_CHECK_PER_LINK_MS));
 
