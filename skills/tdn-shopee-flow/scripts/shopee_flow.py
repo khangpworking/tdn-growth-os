@@ -3805,10 +3805,13 @@ def flow_app_latest():
     if len(raw) > APP_LATEST_MAX_BYTES:
         raise ValueError('app-latest too large')
     value = json.loads(raw.decode('utf-8'))
-    if (not isinstance(value, dict) or set(value) != {'version'} or not isinstance(value['version'], str) or
-            not APP_SEMVER.fullmatch(value['version'])):
+    # #3: an optional minimumVersion (<= version): an older app shows «Hãy cập nhật để xem kết quả».
+    if (not isinstance(value, dict) or set(value) not in ({'version'}, {'version', 'minimumVersion'}) or
+            not all(isinstance(v, str) and APP_SEMVER.fullmatch(v) for v in value.values()) or
+            'minimumVersion' in value and
+            tuple(map(int, value['minimumVersion'].split('.'))) > tuple(map(int, value['version'].split('.')))):
         raise ValueError('app-latest invalid')
-    return {'format': 'app-latest-v1', 'version': value['version']}
+    return {'format': 'app-latest-v1', **value}
 
 
 def cmd_flow_query(ns):

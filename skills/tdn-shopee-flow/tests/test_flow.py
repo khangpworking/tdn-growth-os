@@ -1372,7 +1372,9 @@ class ConnectionTests(FlowTest):
         |-----------------------------------------------------------|------------------------------------------|
         | missing                                                   | {"format":"app-latest-v1","version":null}|
         | {"version":"1.10.0"} (READONLY on too)                    | that version, exit 0                     |
+        | + "minimumVersion":"1.3.5" (#3)                          | both, exit 0                             |
         | bad JSON / "1.0" / "01.0.0" / an extra key / over 4 KB    | FLOW_INPUT_INVALID, exit 2               |
+        | minimumVersion above version / not X.Y.Z                  | FLOW_INPUT_INVALID, exit 2               |
         """
         env = self.env()
         env['HOME'] = env['USERPROFILE'] = self._tmp.name
@@ -1391,8 +1393,11 @@ class ConnectionTests(FlowTest):
         guard.parent.mkdir(parents=True, exist_ok=True)
         guard.write_text('on', encoding='utf8')
         self.assertEqual(app_latest(), (0, {'format': 'app-latest-v1', 'version': '1.10.0'}))
+        latest.write_text('{"version":"1.10.0","minimumVersion":"1.3.5"}', encoding='utf8')
+        self.assertEqual(app_latest(), (0, {'format': 'app-latest-v1', 'version': '1.10.0', 'minimumVersion': '1.3.5'}))
         for text in ('{"version":', '{"version":"1.0"}', '{"version":"01.0.0"}', '{"version":"1.0.0","x":1}',
-                     '{"version":"1.0.0"}' + ' ' * 4096):
+                     '{"version":"1.0.0"}' + ' ' * 4096, '{"version":"1.3.4","minimumVersion":"1.3.5"}',
+                     '{"version":"1.3.5","minimumVersion":"1.3"}'):
             with self.subTest(text[:30]):
                 latest.write_text(text, encoding='utf8')
                 rc, payload = app_latest()
