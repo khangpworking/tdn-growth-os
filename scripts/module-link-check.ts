@@ -124,13 +124,14 @@ export function createM2LinkCheck(options: { collector: LinkCollector; policy: {
     const started = clock(), remaining = deadline - started;
     if (remaining <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
     const link: ReviewLink = { shopId, itemId, url };
-    let journal: SamplingJournal;
+    let journal: SamplingJournal, waited = 0;
     try {
       journal = await options.collector.run(join(options.journalDir, `${randomUUID()}.json`),
-        { kind: 'counts', url, request_key: randomUUID() }, link, null, false, undefined, { budgetMs: remaining });
+        { kind: 'counts', url, request_key: randomUUID() }, link, null, false, undefined,
+        { budgetMs: remaining, onWait: ms => { waited += ms; } });
     } catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
-    // The wait before submission (another run held the review service) does not count toward step 2.
-    if (journal.intentAt) deadline += Math.max(0, Date.parse(journal.intentAt) - started);
+    // Only the wait for another run's job (the review service is busy) does not count toward step 2.
+    if (journal.intentAt) deadline += waited;
     const code = journal.errorCode;
     if (code === 'PRODUCT_UNAVAILABLE' || code === 'RATINGS_MISSING')
       return verdict({ productBaseId, url }, 'rejected', code, null);

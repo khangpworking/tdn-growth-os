@@ -44,7 +44,7 @@ const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
 export const COUNT_JOB_MS = 120_000, COUNT_WAIT_MAX_MS = 2 * 60 * 60_000;
 /** Caller limits of one run() call. `budgetMs` is the caller's remaining time. For a new count job it starts at
  *  submission (waiting for the service is free); otherwise it starts at the call. Expiry ends the job as DEADLINE. */
-export interface SamplingRunLimits { budgetMs?: number }
+export interface SamplingRunLimits { budgetMs?: number; /** Told each wait for another run's job or the submit lock. */ onWait?: (ms: number) => void }
 const defaultSubmitLock = () => path.join(process.env.SHOPEE_FLOW_STATE ?? path.join(os.homedir(), '.local/state/tdn-growth-os'),
   'shopee-flow', 'review-submit.lock');
 type LockDatabase = { exec(sql: string): unknown; close(): unknown };
@@ -189,7 +189,9 @@ export class ShopeeReviewSamplingCollector {
         const pause = async (ms:number) => {
           if(signal?.aborted)throw new ReviewSamplingError('OWNER_ABORTED');
           if(left()<=0)throw new ReviewSamplingError('DEADLINE');
-          await this.#sleep(Math.min(ms,left()),signal);
+          const before=this.#now().getTime();
+          try { await this.#sleep(Math.min(ms,left()),signal); }
+          finally { limits.onWait?.(Math.max(0,this.#now().getTime()-before)); }
         };
         while(!j.intentAt) {
           const session = await new ShopeePublicReviewSessionClient({token:this.options.token,baseUrl:this.#base,now:this.#now,
@@ -239,8 +241,11 @@ export class ShopeeReviewSamplingCollector {
         await this.#sleep(Math.min('kind' in request?1000:3000,left()),signal); // count jobs are short: poll each 1 s
       }
     } catch(error) {
+      // A cancel already sent keeps its reason across failed recoveries (#9); the recovery error is not kept.
+      const cancelReason=j.cancelIntent&&(j.errorCode==='DEADLINE'||j.errorCode==='OWNER_ABORTED')?j.errorCode:null;
       j.errorCode=error instanceof ReviewSamplingError?error.code:'REVIEW_SOURCE_INVALID';
       if(signal?.aborted||left()<=0) {j.errorCode=signal?.aborted?'OWNER_ABORTED':'DEADLINE';await cancel();}
+      if(cancelReason)j.errorCode=cancelReason;
       if(!j.intentAt || j.job && !pending(j.job.state))j.terminal=true;
       // An unresolved provider job or lost submit response stays nonterminal and blocks all policies.
       await save();return j;

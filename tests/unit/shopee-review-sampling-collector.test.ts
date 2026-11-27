@@ -526,3 +526,45 @@ test('#9: the step-2 time limit ends a running count job as DEADLINE in its file
     assert.equal((await readSamplingJournal(path.join(journalDir, name!)))!.errorCode, 'DEADLINE');
   });
 });
+
+test('#9: a deadline cancel keeps DEADLINE across a recovery that could not confirm it, then ends as DEADLINE', async () => {
+  const request = { kind: 'counts', url: LINK.url, request_key: ATTEMPT } as const;
+  const created = new Date(AT.getTime() - 60_000).toISOString();
+  const bound = { id: '00000000-0000-4000-8000-000000000009', request, state: 'running', created_at: created, updated_at: created,
+    result_available: false };
+  let state = 'running';
+  const fakeFetch = (async (input: string | URL | Request) => {
+    const route = new URL(String(input)).pathname;
+    if (route === `/jobs/${bound.id}`) return response({ ...bound, state, updated_at: AT.toISOString() });
+    throw new Error('unexpected synthetic route ' + route);
+  }) as typeof fetch;
+  await withDir(async (dir) => {
+    const file = path.join(dir, 'journal.json');
+    // The shared budget ran out before the job's own deadline: the cancel was sent with its reason.
+    await writeFile(file, canonicalJson({ format: 'shopee-sampling-journal-v1', inputSha256: samplingDigest(request), request,
+      intentAt: created, deadline: new Date(AT.getTime() + 60_000).toISOString(), baselineIds: [], job: bound, result: null,
+      resultSha256: null, terminal: false, errorCode: 'DEADLINE', requestCount: 2, requestCountUncertain: false, cancelIntent: true }), { mode: 0o600 });
+    const unconfirmed = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { budgetMs: 60_000 });
+    assert.deepEqual([unconfirmed.terminal, unconfirmed.errorCode], [false, 'DEADLINE'], 'the job still runs: the reason stays');
+    state = 'cancelled';
+    const ended = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { budgetMs: 60_000 });
+    assert.deepEqual([ended.terminal, ended.errorCode], [true, 'DEADLINE']);
+  });
+});
+
+test('#2: slow work before a submission with no other run is not added to the step-2 limit', async () => {
+  let clock = AT.getTime(), sessions = 0;
+  const now = () => new Date(clock);
+  const { fakeFetch } = busyService(() => false, { clock: now });
+  const slowFirstSession = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === '/session' && sessions++ === 0) clock += 7 * 60_000;
+    return fakeFetch(input, init);
+  }) as typeof fetch;
+  await withDir(async (dir) => {
+    const { check } = createM2LinkCheck({ collector: collector(slowFirstSession, { now, sleep: async (ms: number) => { clock += ms; } }),
+      policy: null, journalDir: path.join(dir, 'link-check-journal'), deadline: clock + 6 * 60_000, now });
+    assert.equal((await check(COUNT_LINK)).result, 'ok');
+    await assert.rejects(check(COUNT_LINK), (error: unknown) => error instanceof LinkCheckStop && error.code === 'LINK_CHECK_FAILED',
+      'the 7 slow minutes were not a wait for another run');
+  });
+});
