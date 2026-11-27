@@ -806,8 +806,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   };
   function moduleTitle(id, fallback) { return MODULE_TITLES[id] || fallback || id; }
   // #5: a server value that is only shown as text and is new to this app version reads «Khác».
-  function displayText(map, key) {
-    return typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : 'Khác';
+  function displayText(map, key) { return ownValue(map, key, 'Khác'); }
+  // A server name is looked up only among the map's own names («constructor» is not one of them).
+  function ownValue(map, key, fallback) {
+    return typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : fallback;
   }
 
   var STATUS = {
@@ -3952,7 +3954,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   }
 
   function linkIssueText(item) {
-    var text = LINK_ISSUE_REASON[item.reason] || 'Link không dùng được';
+    var text = ownValue(LINK_ISSUE_REASON, item.reason, 'Link không dùng được');
     if (item.stage === 'm2' && typeof item.replacedBy === 'string' && item.replacedBy) text += ', đã thay bằng link khác';
     return text;
   }
@@ -4834,7 +4836,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         note.appendChild(h('div', 'rs-stars-cell', detail));
       }
       if (link.stopReason) {
-        note.appendChild(h('div', 'rs-stop', 'Dừng vì: ' + (RS_STOP_TEXT[link.stopReason] || RS_STOP_UNKNOWN)));
+        note.appendChild(h('div', 'rs-stop', 'Dừng vì: ' + ownValue(RS_STOP_TEXT, link.stopReason, RS_STOP_UNKNOWN)));
       }
       row.appendChild(note);
       tbody.appendChild(row);
@@ -6429,7 +6431,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function step4SourcesNote(view, source) {
     var sources = view.sources;
     if (sources.length < 2) return null;
-    var counts = {};
+    var counts = Object.create(null);
     sources.forEach(function (item) { counts[item.state] = (counts[item.state] || 0) + 1; });
     if (counts.PASS === sources.length) {
       return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận, cả ' + fmtInt(sources.length) +
@@ -6440,7 +6442,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       .map(function (key) { return fmtInt(counts[key]) + ' ' + STEP4_SOURCE_STATE_TEXT[key]; });
     if (other) parts.push(fmtInt(other) + ' khác');
     return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận: ' + parts.join(', ') +
-      '. Số liệu bên trên là của nguồn ' + (STEP4_SOURCE_STATE_TEXT[source.state] || 'khác') + '.';
+      '. Số liệu bên trên là của nguồn ' + ownValue(STEP4_SOURCE_STATE_TEXT, source.state, 'khác') + '.';
   }
 
   // pass | running | fail | old | idle, the five states of the approved card.
@@ -6449,7 +6451,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var source = step4Source(runId);
     if (!source) return view && !view.autoRun ? 'old' : 'idle';
     // #5: a step-4 state new to this app version reads «Khác», never «Chưa chạy».
-    return { PASS: 'pass', RUNNING: 'running', FAIL: 'fail', NOT_APPLICABLE: 'old', IDLE: 'idle' }[source.state] || 'other';
+    return ownValue({ PASS: 'pass', RUNNING: 'running', FAIL: 'fail', NOT_APPLICABLE: 'old', IDLE: 'idle' }, source.state, 'other');
   }
 
   function countOrUnknown(value) { return present(value) ? fmtInt(value) : 'chưa rõ'; }
