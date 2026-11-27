@@ -552,19 +552,37 @@ test('#9: a deadline cancel keeps DEADLINE across a recovery that could not conf
   });
 });
 
-test('#2: slow work before a submission with no other run is not added to the step-2 limit', async () => {
+test('#2: slow work before a submission with no other run uses the step-2 limit: nothing is submitted past it', async () => {
   let clock = AT.getTime(), sessions = 0;
   const now = () => new Date(clock);
-  const { fakeFetch } = busyService(() => false, { clock: now });
+  const { fakeFetch, log } = busyService(() => false, { clock: now });
   const slowFirstSession = (async (input: string | URL | Request, init?: RequestInit) => {
     if (new URL(String(input)).pathname === '/session' && sessions++ === 0) clock += 7 * 60_000;
     return fakeFetch(input, init);
   }) as typeof fetch;
   await withDir(async (dir) => {
-    const { check } = createM2LinkCheck({ collector: collector(slowFirstSession, { now, sleep: async (ms: number) => { clock += ms; } }),
-      policy: null, journalDir: path.join(dir, 'link-check-journal'), deadline: clock + 6 * 60_000, now });
-    assert.equal((await check(COUNT_LINK)).result, 'ok');
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check, entries } = createM2LinkCheck({ collector: collector(slowFirstSession, { now, sleep: async (ms: number) => { clock += ms; } }),
+      policy: null, journalDir, deadline: clock + 6 * 60_000, now });
     await assert.rejects(check(COUNT_LINK), (error: unknown) => error instanceof LinkCheckStop && error.code === 'LINK_CHECK_FAILED',
       'the 7 slow minutes were not a wait for another run');
+    assert.deepEqual([log.posts, entries.length], [0, 0], 'no submission and no verdict');
+    const [name] = await readdir(journalDir);
+    assert.equal((await readSamplingJournal(path.join(journalDir, name!)))!.errorCode, 'DEADLINE');
+  });
+});
+
+test('#2: a count job gets only what is left of the step-2 limit when that is under 2 minutes', async () => {
+  let clock = AT.getTime();
+  const now = () => new Date(clock);
+  const { fakeFetch } = busyService(() => false, { clock: now });
+  await withDir(async (dir) => {
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check } = createM2LinkCheck({ collector: collector(fakeFetch, { now, sleep: async (ms: number) => { clock += ms; } }),
+      policy: null, journalDir, deadline: clock + 45_000, now });
+    assert.equal((await check(COUNT_LINK)).result, 'ok');
+    const [name] = await readdir(journalDir);
+    const journal = (await readSamplingJournal(path.join(journalDir, name!)))!;
+    assert.equal(Date.parse(journal.deadline) - Date.parse(journal.intentAt!), 45_000);
   });
 });

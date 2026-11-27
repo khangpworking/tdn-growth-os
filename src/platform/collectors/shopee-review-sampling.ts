@@ -42,8 +42,9 @@ export interface SamplingCollectorOptions {
 const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
 /** Count job (#2): its 2-minute limit starts at submission; the wait for another run's job before it has its own cap. */
 export const COUNT_JOB_MS = 120_000, COUNT_WAIT_MAX_MS = 2 * 60 * 60_000;
-/** Caller limits of one run() call. `budgetMs` is the caller's remaining time. For a new count job it starts at
- *  submission (waiting for the service is free); otherwise it starts at the call. Expiry ends the job as DEADLINE. */
+/** Caller limits of one run() call. `budgetMs` is the caller's remaining time, from the call; waiting for another
+ *  run's job or the submit lock does not use it (each wait is reported through `onWait`). A count job submitted
+ *  gets min(2 minutes, what is left). Expiry ends the job as DEADLINE. */
 export interface SamplingRunLimits { budgetMs?: number; /** Told each wait for another run's job or the submit lock. */ onWait?: (ms: number) => void }
 const defaultSubmitLock = () => path.join(process.env.SHOPEE_FLOW_STATE ?? path.join(os.homedir(), '.local/state/tdn-growth-os'),
   'shopee-flow', 'review-submit.lock');
@@ -94,10 +95,11 @@ export class ShopeeReviewSamplingCollector {
     const save = () => { j.resultSha256=j.result ? samplingDigest(j.result) : null; return writeSamplingJournal(file,j); };
     if (j.terminal) return j;
     await save();
-    const budget = limits.budgetMs, isCount = 'kind' in request;
-    // A new count job takes the caller's budget at submission; every other call is bounded from now.
-    const cap = budget === undefined || isCount && !j.intentAt ? Infinity : this.#now().getTime() + budget;
-    const left = () => Math.min(Date.parse(j.deadline), cap) - this.#now().getTime();
+    const budget = limits.budgetMs, isCount = 'kind' in request, started = this.#now().getTime();
+    // The caller's budget runs from now; only waits for another run's job (or the submit lock) move it (#2).
+    let waited = 0;
+    const shared = () => budget === undefined ? Infinity : started + budget + waited;
+    const left = () => Math.min(Date.parse(j.deadline), shared()) - this.#now().getTime();
     let recoveryDeadline:number|null=null;
     const call = async (method: 'GET'|'POST', route: string, body?: unknown, cleanup = false, timeout = 10_000): Promise<unknown> => {
       if(reconcileOnly && method==='POST' && ['/jobs','/count-jobs'].includes(route))throw new ReviewSamplingError('REVIEW_RESUBMIT_REFUSED');
@@ -189,9 +191,10 @@ export class ShopeeReviewSamplingCollector {
         const pause = async (ms:number) => {
           if(signal?.aborted)throw new ReviewSamplingError('OWNER_ABORTED');
           if(left()<=0)throw new ReviewSamplingError('DEADLINE');
-          const before=this.#now().getTime();
-          try { await this.#sleep(Math.min(ms,left()),signal); }
-          finally { limits.onWait?.(Math.max(0,this.#now().getTime()-before)); }
+          // A count job's wait is free of the caller's budget, so it sleeps to its own wait cap, not to that budget.
+          const before=this.#now().getTime(),bound=isCount?Date.parse(j.deadline)-before:left();
+          try { await this.#sleep(Math.min(ms,bound),signal); }
+          finally { const slept=Math.max(0,this.#now().getTime()-before);waited+=slept;limits.onWait?.(slept); }
         };
         while(!j.intentAt) {
           const session = await new ShopeePublicReviewSessionClient({token:this.options.token,baseUrl:this.#base,now:this.#now,
@@ -205,9 +208,10 @@ export class ShopeeReviewSamplingCollector {
             if(all.some(raw=>['needs_login','needs_verification'].includes(String(object(raw).state)))) throw new ReviewSamplingError('HEALTH_NOT_READY');
             busy=all.some(raw=>active(String(object(raw).state)));
             if(!busy) {
+              if(left()<=0)throw new ReviewSamplingError('DEADLINE'); // nothing is submitted past the budget
               j.baselineIds=all.map(raw=>String(object(raw).id));
               j.intentAt=this.#now().toISOString();
-              if(isCount)j.deadline=new Date(Date.parse(j.intentAt)+Math.min(COUNT_JOB_MS,budget??COUNT_JOB_MS)).toISOString();
+              if(isCount)j.deadline=new Date(Date.parse(j.intentAt)+Math.min(COUNT_JOB_MS,shared()-Date.parse(j.intentAt))).toISOString();
               await save(); // Durable one-use submission permission.
               try { j.job=parseJob(await call('POST','kind' in request ? '/count-jobs' : '/jobs',request));await save(); }
               catch(error) {
