@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -9,7 +9,9 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import {
   reviewPolicy, samplingDigest, starTargets,
 } from '../../src/modules/foundation/shopee-review-sampling.js';
-import { ShopeeReviewSamplingCollector } from '../../src/platform/collectors/shopee-review-sampling.js';
+import { ShopeeReviewSamplingCollector, readSamplingJournal } from '../../src/platform/collectors/shopee-review-sampling.js';
+import { createM2LinkCheck, LinkCheckStop } from '../../scripts/module-link-check.js';
+import { readdir } from 'node:fs/promises';
 
 const TOKEN = 'synthetic-token';
 const LINK = { shopId: '100', itemId: '200', url: 'https://shopee.vn/product/100/200' };
@@ -82,7 +84,7 @@ function collector(fetchImpl: typeof fetch, options: Partial<ConstructorParamete
 }
 
 /** A local review service: one job per POST, `running` for `runningReads` status reads, then `succeeded`. */
-function busyService(otherActive: () => boolean, options: { runningReads?: number; postDelayMs?: number } = {}) {
+function busyService(otherActive: () => boolean, options: { runningReads?: number; postDelayMs?: number; clock?: () => Date } = {}) {
   const created = AT.toISOString();
   const other = { id: '00000000-0000-4000-8000-0000000000f0', request: { url: 'https://shopee.vn/product/9/9', max_comments: 1 },
     created_at: created, updated_at: created, result_available: false };
@@ -92,7 +94,7 @@ function busyService(otherActive: () => boolean, options: { runningReads?: numbe
   const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     const route = url.pathname + url.search;
-    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: created });
+    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: (options.clock?.() ?? AT).toISOString() });
     if (route === '/jobs?limit=100') {
       log.lists++;
       return response([{ ...other, state: otherActive() ? 'running' : 'succeeded' }, ...[...jobs.values()].map(entry => entry.job)]);
@@ -318,19 +320,27 @@ test('reconcile after a lost submit response and expired deadline reads, cancels
   const decoy = job(decoyId, decoyRequest, 'running', AT.toISOString());
   const cancelled = { ...candidate, state: 'cancelled', updated_at: new Date(AT.getTime() + 1000).toISOString() };
   const requests: { method: string; route: string }[] = [];
+  let journalFile = '';
+  const atCancel: unknown[] = [];
 
   const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     const route = url.pathname + url.search;
     requests.push({ method: init?.method ?? 'GET', route });
     if (route === '/jobs?limit=100') return response([candidate, decoy]);
-    if (route === `/jobs/${candidateId}/cancel`) return response({ state: 'cancelled' }, 202);
+    if (route === `/jobs/${candidateId}/cancel`) {
+      // What a crash right now would leave on disk: the cancel intent and its reason, saved together.
+      const saved = JSON.parse(await readFile(journalFile, 'utf8'));
+      atCancel.push([saved.cancelIntent, saved.errorCode]);
+      return response({ state: 'cancelled' }, 202);
+    }
     if (route === `/jobs/${candidateId}`) return response(cancelled);
     throw new Error('unexpected synthetic route ' + route);
   }) as typeof fetch;
 
   await withDir(async (dir) => {
     const file = path.join(dir, 'journal.json');
+    journalFile = file;
     const journal = {
       format: 'shopee-sampling-journal-v1', inputSha256: samplingDigest(request), request,
       intentAt: intentAt.toISOString(), deadline: deadline.toISOString(), baselineIds: [], job: null,
@@ -350,6 +360,11 @@ test('reconcile after a lost submit response and expired deadline reads, cancels
     assert.deepEqual(requests.filter((entry) => entry.method === 'POST'),
       [{ method: 'POST', route: `/jobs/${candidateId}/cancel` }], 'past the deadline only the same attempt is cancelled');
     assert.ok(!requests.some((entry) => entry.route.includes(decoyId)), 'the decoy job is never read or cancelled');
+    // #9: the same expired job reconciled with no owner stop is recorded as DEADLINE, not as a stop by the owner.
+    await writeFile(file, canonicalJson(journal), { mode: 0o600 });
+    const expired = await collector(fakeFetch).run(file, request, LINK, plan, true);
+    assert.deepEqual([expired.terminal, expired.errorCode], [true, 'DEADLINE']);
+    assert.deepEqual(atCancel, [[true, 'OWNER_ABORTED'], [true, 'DEADLINE']], 'the reason is on disk before the cancel is sent');
   });
 });
 
@@ -436,6 +451,19 @@ test('any other failed job keeps the SOURCE_JOB_FAILED mapping', async () => {
   });
 });
 
+test('#1 1A: only a step-3 reading whose product page did not behave as expected is REVIEWS_UNREADABLE; a service failure is not', async () => {
+  const { plan, planSha256 } = planFixture();
+  const cases: [string, string, any, any][] = [
+    ['CONTROL_CHANGED', 'REVIEWS_UNREADABLE', requestFixture(planSha256), plan],
+    ['SOURCE_ACTION_FAILED', 'SOURCE_JOB_FAILED', requestFixture(planSha256), plan],
+    ['CONTROL_CHANGED', 'SOURCE_JOB_FAILED', { kind: 'counts', url: LINK.url, request_key: ATTEMPT }, null],
+  ];
+  for (const [error, expected, request, requestPlan] of cases) await withDir(async (dir) => {
+    const journal = await collector(failedService(error)).run(path.join(dir, 'journal.json'), request, LINK, requestPlan);
+    assert.deepEqual([journal.errorCode, journal.terminal], [expected, true], `${error} / ${'kind' in request ? 'count' : 'step 3'}`);
+  });
+});
+
 test('a running count job is polled each 1 s; a running step-3 sampling job keeps 3 s', async () => {
   const { plan, planSha256 } = planFixture();
   const cases: [string, any, any, number][] = [
@@ -451,4 +479,124 @@ test('a running count job is polled each 1 s; a running step-3 sampling job keep
     });
     assert.deepEqual(pollSleeps, [expected, expected], `${name}: two waits while the job was running`);
   }
+});
+
+const COUNT_LINK = { productBaseId: '1__200__100', shopId: '100', itemId: '200', url: LINK.url };
+
+test('#2: a run that waited 30 minutes for another run still checks its step-2 links; each count job gets its 2 minutes from submission', async () => {
+  let clock = AT.getTime();
+  const now = () => new Date(clock), otherUntil = clock + 30 * 60_000;
+  const { fakeFetch, log } = busyService(() => clock < otherUntil, { clock: now, runningReads: 1 });
+  await withDir(async (dir) => {
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check } = createM2LinkCheck({ collector: collector(fakeFetch, { now, sleep: async (ms: number) => { clock += ms; } }),
+      policy: null, journalDir, deadline: clock + 10 * 60_000, now });
+    assert.equal((await check(COUNT_LINK)).result, 'ok', 'the 30-minute wait used neither the 2-minute nor the step-2 limit');
+    assert.equal((await check(COUNT_LINK)).result, 'ok', 'the step-2 limit moved by the wait');
+    for (const name of await readdir(journalDir)) {
+      const journal = (await readSamplingJournal(path.join(journalDir, name)))!;
+      assert.equal(Date.parse(journal.deadline) - Date.parse(journal.intentAt!), 120_000);
+    }
+  });
+  assert.deepEqual([log.posts, log.postsWhileBusy], [2, 0]);
+});
+
+test('#9: the step-2 time limit ends a running count job as DEADLINE in its file, not as a stop by the owner', async () => {
+  const stamp = () => new Date().toISOString();
+  let job: Record<string, unknown> | null = null;
+  const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input)), route = url.pathname + url.search;
+    if (route === '/session') return response({ state: 'ready', authenticated: true, checked_at: stamp() });
+    if (route === '/jobs?limit=100') return response(job ? [job] : []);
+    if (route === '/count-jobs' && init?.method === 'POST') {
+      job = { id: '00000000-0000-4000-8000-000000000001', request: JSON.parse(String(init.body)), state: 'running',
+        created_at: stamp(), updated_at: stamp(), result_available: false };
+      return response(job, 202);
+    }
+    if (route.endsWith('/cancel')) { job = { ...job!, state: 'cancelled', updated_at: stamp() }; return response(job); }
+    // The status read never answers: only a time limit ends it.
+    return new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+  }) as typeof fetch;
+  await withDir(async (dir) => {
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check } = createM2LinkCheck({ collector: new ShopeeReviewSamplingCollector({ token: TOKEN, fetch: fakeFetch, submitLockFile: LOCK }),
+      policy: null, journalDir, deadline: Date.now() + 400 });
+    await assert.rejects(check(COUNT_LINK), (error: unknown) => error instanceof LinkCheckStop && error.code === 'LINK_CHECK_FAILED');
+    const [name] = await readdir(journalDir);
+    assert.equal((await readSamplingJournal(path.join(journalDir, name!)))!.errorCode, 'DEADLINE');
+  });
+});
+
+test('#9: a deadline cancel keeps DEADLINE across a recovery that could not confirm it, then ends as DEADLINE', async () => {
+  const request = { kind: 'counts', url: LINK.url, request_key: ATTEMPT } as const;
+  const created = new Date(AT.getTime() - 60_000).toISOString();
+  const bound = { id: '00000000-0000-4000-8000-000000000009', request, state: 'running', created_at: created, updated_at: created,
+    result_available: false };
+  let state = 'running';
+  const fakeFetch = (async (input: string | URL | Request) => {
+    const route = new URL(String(input)).pathname;
+    if (route === `/jobs/${bound.id}`) return response({ ...bound, state, updated_at: AT.toISOString() });
+    throw new Error('unexpected synthetic route ' + route);
+  }) as typeof fetch;
+  await withDir(async (dir) => {
+    const file = path.join(dir, 'journal.json');
+    // The shared budget ran out before the job's own deadline: the cancel was sent with its reason.
+    await writeFile(file, canonicalJson({ format: 'shopee-sampling-journal-v1', inputSha256: samplingDigest(request), request,
+      intentAt: created, deadline: new Date(AT.getTime() + 60_000).toISOString(), baselineIds: [], job: bound, result: null,
+      resultSha256: null, terminal: false, errorCode: 'DEADLINE', requestCount: 2, requestCountUncertain: false, cancelIntent: true }), { mode: 0o600 });
+    const unconfirmed = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { deadline: AT.getTime() + 60_000 });
+    assert.deepEqual([unconfirmed.terminal, unconfirmed.errorCode], [false, 'DEADLINE'], 'the job still runs: the reason stays');
+    state = 'cancelled';
+    const ended = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { deadline: AT.getTime() + 60_000 });
+    assert.deepEqual([ended.terminal, ended.errorCode], [true, 'DEADLINE']);
+  });
+});
+
+test('#2: slow work before a submission with no other run uses the step-2 limit: nothing is submitted past it', async () => {
+  let clock = AT.getTime(), sessions = 0;
+  const now = () => new Date(clock);
+  const { fakeFetch, log } = busyService(() => false, { clock: now });
+  const slowFirstSession = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === '/session' && sessions++ === 0) clock += 7 * 60_000;
+    return fakeFetch(input, init);
+  }) as typeof fetch;
+  await withDir(async (dir) => {
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check, entries } = createM2LinkCheck({ collector: collector(slowFirstSession, { now, sleep: async (ms: number) => { clock += ms; } }),
+      policy: null, journalDir, deadline: clock + 6 * 60_000, now });
+    await assert.rejects(check(COUNT_LINK), (error: unknown) => error instanceof LinkCheckStop && error.code === 'LINK_CHECK_FAILED',
+      'the 7 slow minutes were not a wait for another run');
+    assert.deepEqual([log.posts, entries.length], [0, 0], 'no submission and no verdict');
+    const [name] = await readdir(journalDir);
+    assert.equal((await readSamplingJournal(path.join(journalDir, name!)))!.errorCode, 'DEADLINE');
+  });
+});
+
+test('#2: a count job gets only what is left of the step-2 limit when that is under 2 minutes', async () => {
+  let clock = AT.getTime(), sessions = 0;
+  const now = () => new Date(clock);
+  const { fakeFetch } = busyService(() => false, { clock: now });
+  const slowSession = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === '/session' && sessions++ === 0) clock += 20_000;   // 20 s of the 45 s used
+    return fakeFetch(input, init);
+  }) as typeof fetch;
+  await withDir(async (dir) => {
+    const journalDir = path.join(dir, 'link-check-journal');
+    const { check } = createM2LinkCheck({ collector: collector(slowSession, { now, sleep: async (ms: number) => { clock += ms; } }),
+      policy: null, journalDir, deadline: clock + 45_000, now });
+    assert.equal((await check(COUNT_LINK)).result, 'ok');
+    const [name] = await readdir(journalDir);
+    const journal = (await readSamplingJournal(path.join(journalDir, name!)))!;
+    assert.equal(Date.parse(journal.deadline) - Date.parse(journal.intentAt!), 25_000);
+  });
+});
+
+test('#2: a caller deadline already passed when run() starts its work means no submission', async () => {
+  const { fakeFetch, log } = busyService(() => false);
+  await withDir(async (dir) => {
+    const journal = await collector(fakeFetch).run(path.join(dir, 'journal.json'), { kind: 'counts', url: LINK.url, request_key: ATTEMPT },
+      LINK, null, false, undefined, { deadline: AT.getTime() - 1 });
+    assert.deepEqual([journal.errorCode, journal.terminal, journal.intentAt], ['DEADLINE', true, null]);
+  });
+  assert.equal(log.posts, 0);
 });

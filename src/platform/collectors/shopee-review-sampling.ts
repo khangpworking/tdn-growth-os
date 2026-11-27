@@ -16,13 +16,16 @@ const object = (value: unknown): Record<string, unknown> => {
 };
 const active = (state: string) => ['queued','running'].includes(state);
 const pending = (state: string) => active(state) || ['needs_login','needs_verification'].includes(state);
-/** A failed job with this error means the link is dead for this run; every other failure stays SOURCE_JOB_FAILED. */
-const terminalErrorCode = (state: SamplingJob['state'], error: unknown): string | null => {
+/** A failed job with this error means the link is dead for this run; every other failure stays SOURCE_JOB_FAILED.
+ *  #1 1A: a step-3 reading whose page of this product did not behave as expected (service error CONTROL_CHANGED,
+ *  session still ready) is REVIEWS_UNREADABLE; a service-side failure (SOURCE_ACTION_FAILED, ...) is not. */
+const terminalErrorCode = (state: SamplingJob['state'], error: unknown, sampling = false): string | null => {
   if (state === 'succeeded' || state === 'partial') return null;
   if (state === 'needs_login') return 'HUMAN_LOGIN_REQUIRED';
   if (state === 'needs_verification') return 'HUMAN_VERIFICATION_REQUIRED';
   if (state === 'cancelled') return 'OWNER_ABORTED';
   if (state === 'failed' && (error === 'PRODUCT_UNAVAILABLE' || error === 'RATINGS_MISSING')) return error;
+  if (state === 'failed' && sampling && error === 'CONTROL_CHANGED') return 'REVIEWS_UNREADABLE';
   return 'SOURCE_JOB_FAILED';
 };
 const utc = (value: unknown): string => {
@@ -37,6 +40,12 @@ export interface SamplingCollectorOptions {
 }
 /** Owner L4: a run whose step 3 finds the service busy with another run waits, polling the job list. */
 const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
+/** Count job (#2): its 2-minute limit starts at submission; the wait for another run's job before it has its own cap. */
+export const COUNT_JOB_MS = 120_000, COUNT_WAIT_MAX_MS = 2 * 60 * 60_000;
+/** Caller limits of one run() call. `deadline` is the caller's absolute deadline (epoch ms, this collector's clock);
+ *  waiting for another run's job or the submit lock moves it (each wait is reported through `onWait`). Nothing is
+ *  submitted after it; a count job submitted gets min(2 minutes, what is left). Expiry ends the job as DEADLINE. */
+export interface SamplingRunLimits { deadline?: number; /** Told each wait for another run's job or the submit lock. */ onWait?: (ms: number) => void }
 const defaultSubmitLock = () => path.join(process.env.SHOPEE_FLOW_STATE ?? path.join(os.homedir(), '.local/state/tdn-growth-os'),
   'shopee-flow', 'review-submit.lock');
 type LockDatabase = { exec(sql: string): unknown; close(): unknown };
@@ -74,19 +83,23 @@ export class ShopeeReviewSamplingCollector {
     this.#sleep = options.sleep ?? ((ms,signal) => delay(ms, undefined, {signal}));
     this.#lock = options.submitLockFile ?? defaultSubmitLock();
   }
-  async run(file: string, request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan | null, reconcileOnly = false, signal?: AbortSignal): Promise<SamplingJournal> {
+  async run(file: string, request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan | null, reconcileOnly = false, signal?: AbortSignal, limits: SamplingRunLimits = {}): Promise<SamplingJournal> {
     validateSampling('jobInput',request);
     if (plan) validateReviewPlan(plan, 'sampling' in request ? request.sampling.planSha256 : undefined);
     const digest = samplingDigest(request), existing = await readSamplingJournal(file);
     if (existing && (existing.inputSha256 !== digest || canonicalJson(existing.request) !== canonicalJson(request))) throw new ReviewSamplingError('REVIEW_JOURNAL_CHANGED');
     if (!existing && reconcileOnly) throw new ReviewSamplingError('REVIEW_ATTEMPT_NOT_FOUND');
     const j: SamplingJournal = existing ?? { format:'shopee-sampling-journal-v1', inputSha256:digest, request, intentAt:null,
-      deadline:new Date(this.#now().getTime() + ('sampling' in request ? 40 * 60_000 : 120_000)).toISOString(), baselineIds:[], job:null,
+      deadline:new Date(this.#now().getTime() + ('sampling' in request ? 40 * 60_000 : COUNT_WAIT_MAX_MS)).toISOString(), baselineIds:[], job:null,
       result:null, resultSha256:null, terminal:false, errorCode:null, requestCount:0, requestCountUncertain:false, cancelIntent:false };
     const save = () => { j.resultSha256=j.result ? samplingDigest(j.result) : null; return writeSamplingJournal(file,j); };
     if (j.terminal) return j;
     await save();
-    const left = () => Date.parse(j.deadline) - this.#now().getTime();
+    const isCount = 'kind' in request;
+    // The caller's deadline is absolute; only waits for another run's job (or the submit lock) move it (#2).
+    let waited = 0;
+    const shared = () => limits.deadline === undefined ? Infinity : limits.deadline + waited;
+    const left = () => Math.min(Date.parse(j.deadline), shared()) - this.#now().getTime();
     let recoveryDeadline:number|null=null;
     const call = async (method: 'GET'|'POST', route: string, body?: unknown, cleanup = false, timeout = 10_000): Promise<unknown> => {
       if(reconcileOnly && method==='POST' && ['/jobs','/count-jobs'].includes(route))throw new ReviewSamplingError('REVIEW_RESUBMIT_REFUSED');
@@ -178,7 +191,10 @@ export class ShopeeReviewSamplingCollector {
         const pause = async (ms:number) => {
           if(signal?.aborted)throw new ReviewSamplingError('OWNER_ABORTED');
           if(left()<=0)throw new ReviewSamplingError('DEADLINE');
-          await this.#sleep(Math.min(ms,left()),signal);
+          // A count job's wait is free of the caller's budget, so it sleeps to its own wait cap, not to that budget.
+          const before=this.#now().getTime(),bound=isCount?Date.parse(j.deadline)-before:left();
+          try { await this.#sleep(Math.min(ms,bound),signal); }
+          finally { const slept=Math.max(0,this.#now().getTime()-before);waited+=slept;limits.onWait?.(slept); }
         };
         while(!j.intentAt) {
           const session = await new ShopeePublicReviewSessionClient({token:this.options.token,baseUrl:this.#base,now:this.#now,
@@ -192,8 +208,11 @@ export class ShopeeReviewSamplingCollector {
             if(all.some(raw=>['needs_login','needs_verification'].includes(String(object(raw).state)))) throw new ReviewSamplingError('HEALTH_NOT_READY');
             busy=all.some(raw=>active(String(object(raw).state)));
             if(!busy) {
+              if(left()<=0)throw new ReviewSamplingError('DEADLINE'); // nothing is submitted past the budget
               j.baselineIds=all.map(raw=>String(object(raw).id));
-              j.intentAt=this.#now().toISOString();await save(); // Durable one-use submission permission.
+              j.intentAt=this.#now().toISOString();
+              if(isCount)j.deadline=new Date(Date.parse(j.intentAt)+Math.min(COUNT_JOB_MS,shared()-Date.parse(j.intentAt))).toISOString();
+              await save(); // Durable one-use submission permission.
               try { j.job=parseJob(await call('POST','kind' in request ? '/count-jobs' : '/jobs',request));await save(); }
               catch(error) {
                 if(error instanceof ReviewSamplingError && /^REVIEW_HTTP_4\d\d$/.test(error.code)) { j.terminal=true;throw error; }
@@ -206,9 +225,12 @@ export class ShopeeReviewSamplingCollector {
       } else if(!j.job) await reconcile();
       // A same-attempt reconcile can read/cancel after acquisition deadline, never acquire again.
       if(signal?.aborted || left()<=0 || j.cancelIntent) {
+        // The reason is fixed before cancel() sets cancelIntent (#9): a deadline cancel stays DEADLINE.
+        const reason=signal?.aborted||j.cancelIntent&&j.errorCode!=='DEADLINE'?'OWNER_ABORTED':'DEADLINE';
+        j.errorCode=reason; // saved together with cancelIntent by cancel(), so an interrupted recovery keeps it
         await cancel();
         const status=parseJob(await call('GET',`/jobs/${j.job!.id}`,undefined,true));j.job=status;
-        if(!pending(status.state)) {j.terminal=true;j.errorCode=signal?.aborted||j.cancelIntent?'OWNER_ABORTED':'DEADLINE';await save();return j;}
+        if(!pending(status.state)) {j.terminal=true;j.errorCode=reason;await save();return j;}
         throw new ReviewSamplingError('CANCELLATION_UNCONFIRMED');
       }
       while(true) {
@@ -216,15 +238,18 @@ export class ShopeeReviewSamplingCollector {
         const raw=await call('GET',`/jobs/${j.job!.id}`),job=parseJob(raw);j.job=job;await save();
         await retainResult(job);
         if(!active(job.state)) {
-          j.terminal=!pending(job.state);j.errorCode=terminalErrorCode(job.state,object(raw).error);
+          j.terminal=!pending(job.state);j.errorCode=terminalErrorCode(job.state,object(raw).error,'sampling' in request);
           if(job.state==='succeeded'&&!j.result)j.errorCode='REVIEW_SOURCE_INVALID';
           await save();return j;
         }
         await this.#sleep(Math.min('kind' in request?1000:3000,left()),signal); // count jobs are short: poll each 1 s
       }
     } catch(error) {
+      // A cancel already sent keeps its reason across failed recoveries (#9); the recovery error is not kept.
+      const cancelReason=j.cancelIntent&&(j.errorCode==='DEADLINE'||j.errorCode==='OWNER_ABORTED')?j.errorCode:null;
       j.errorCode=error instanceof ReviewSamplingError?error.code:'REVIEW_SOURCE_INVALID';
       if(signal?.aborted||left()<=0) {j.errorCode=signal?.aborted?'OWNER_ABORTED':'DEADLINE';await cancel();}
+      if(cancelReason)j.errorCode=cancelReason;
       if(!j.intentAt || j.job && !pending(j.job.state))j.terminal=true;
       // An unresolved provider job or lost submit response stays nonterminal and blocks all policies.
       await save();return j;

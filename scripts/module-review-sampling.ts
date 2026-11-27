@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AutomaticReviewBinding, ReviewSamplingAttempt, ReviewSamplingAttemptState, SamplingJournal, SamplingResult, SamplingJobInput } from '../contracts/foundation/shopee-review-sampling.generated.js';
-import { pagesPerLink, reviewPolicy, samplingDigest, validateReviewPlan, validateSampling, validateReviewCounts, validateSamplingResult, starTargets, ReviewSamplingError,
+import { pagesPerLink, skippedLinkReason, reviewPolicy, samplingDigest, validateReviewPlan, validateSampling, validateReviewCounts, validateSamplingResult, starTargets, ReviewSamplingError,
   type ReviewLink, type ShopeeReviewPlan, type ReviewCounts } from '../src/modules/foundation/shopee-review-sampling.js';
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 import { ShopeeReviewSamplingCollector, readSamplingJournal } from '../src/platform/collectors/shopee-review-sampling.js';
@@ -18,9 +18,6 @@ const hex = /^[a-f0-9]{64}$/;
 /** Product-level reason codes: this link is dead for the run, so step 3 skips it and keeps collecting. */
 const PRODUCT_LEVEL_CODES = new Set(['PRODUCT_UNAVAILABLE','RATINGS_MISSING']);
 const skippedJournal = (journal:SamplingJournal|null):boolean => journal !== null && PRODUCT_LEVEL_CODES.has(journal.errorCode ?? '');
-/** F641: a link whose collection ended without an error code but saved no review is dead for the run too. */
-const noTextJournal = (journal:SamplingJournal|null):boolean => journal !== null && journal.terminal && !journal.errorCode &&
-  journal.result?.format === 'shopee-sampled-result-v1' && journal.result.rows.length === 0;
 type Kind = 'counts'|'custom';
 const attemptRoot = (kind:Kind) => kind === 'counts' ? 'review-counts' : 'm3-custom/attempts';
 function attemptPath(kind:Kind,id:string):string {if(!uuid.test(id))throw new ModuleError('REVIEW_ATTEMPT_INVALID',2);return `${attemptRoot(kind)}/${id}`;}
@@ -212,11 +209,13 @@ export async function stopReviewAttempt(run:string,kind:Kind,id:string){
   return {format:'review-attempt-control-v1',runId:basename(run),kind,attemptId:id,status:'STOP_REQUESTED',pid:null,errorCode:null};
 }
 function summarizeLink(link:ReviewLink,plan:ShopeeReviewPlan|null,journal:SamplingJournal|null,custom=false){
-  const result=journal?.result?.format==='shopee-sampled-result-v1'?journal.result:null,noText=custom&&noTextJournal(journal);
+  // A custom attempt skips by the shared rule (F641 no text, #1 1A unreadable product); counts keep the product-level codes.
+  const result=journal?.result?.format==='shopee-sampled-result-v1'?journal.result:null,skip=custom?skippedLinkReason(journal):null;
+  const extra=skip==='NO_TEXT_REVIEWS'||skip==='REVIEWS_UNREADABLE'?skip:null;
   // Pages mode has no comment target, so requested/shortfall stay null.
   const actual=result&&result.pages.length>0?result.rows.length:null,requested=plan&&pagesPerLink(plan.policy)!==null?null:plan?.policy.totalPerLink??0;
-  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null||requested===null?null:requested-actual,skipped:skippedJournal(journal)||noText,
-    stopReason:noText?'NO_TEXT_REVIEWS':result?.stopReason??(journal?.errorCode??'not_started'),
+  return {shopId:link.shopId,itemId:link.itemId,requested,actual,shortfall:actual===null||requested===null?null:requested-actual,skipped:skip!==null||skippedJournal(journal),
+    stopReason:extra??result?.stopReason??(journal?.errorCode??'not_started'),
     stars:plan?.policy.mode==='stars'?plan.policy.stars.map(star=>{const target=plan.targets.find(q=>q.star===star)?.target??null;
       const groupObserved=result?.pages.some(page=>page.filter===String(star))??false;
       const got=groupObserved?result!.rows.filter(row=>row.ratingStar===star).length:null;
@@ -292,8 +291,11 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
       if(deps.reconcileOnly&&await readSamplingJournal(file)===null)continue;
       const request=jobRequest(link,attempt,plan);
       journals[index]=await collector.run(file,request,link,plan,deps.reconcileOnly,controller.signal);
-      // Only a custom M3 attempt skips a dead product and keeps collecting; session, other codes and count refreshes stop as today.
-      if(journals[index]!.errorCode&&!(deps.kind==='custom'&&PRODUCT_LEVEL_CODES.has(journals[index]!.errorCode!))){errorCode=journals[index]!.errorCode;break;}
+      // Only a custom M3 attempt skips a dead or unreadable product and keeps collecting (#1 1A); session, other codes and count refreshes stop as today.
+      if(journals[index]!.errorCode&&!(deps.kind==='custom'&&skippedLinkReason(journals[index]!)!==null)){errorCode=journals[index]!.errorCode;break;}
+      // The service's CONTROL_CHANGED is not proof the cause is this product: two unreadable products in a row
+      // look like a service-wide problem, so step 3 stops instead of skipping again.
+      if(index>0&&skippedLinkReason(journals[index]!)==='REVIEWS_UNREADABLE'&&skippedLinkReason(journals[index-1]!)==='REVIEWS_UNREADABLE'){errorCode='REVIEWS_UNREADABLE_REPEATED';break;}
     }
   }catch(error){errorCode=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_ATTEMPT_FAILED';}
   finally{clearInterval(timer);process.removeListener('SIGTERM',onStop);process.removeListener('SIGINT',onStop);}

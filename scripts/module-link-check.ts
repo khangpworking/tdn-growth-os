@@ -82,7 +82,8 @@ export async function reconcileLinkJournals(options: { collector: LinkCollector;
     const link = linkFromUrl(journal.request.url);
     if (!link) throw new LinkCheckStop('LINK_CHECK_FAILED');
     let reconciled: SamplingJournal;
-    try { reconciled = await options.collector.run(file, journal.request, link, null, true, AbortSignal.timeout(remaining)); }
+    // The step deadline is a time limit, not an owner stop (#9): the journal records DEADLINE.
+    try { reconciled = await options.collector.run(file, journal.request, link, null, true, undefined, { deadline: options.deadline }); }
     catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
     // The job can stop on a session that still needs the owner: keep that wait instead of a generic failure.
     if (reconciled.errorCode === 'HUMAN_LOGIN_REQUIRED' || reconciled.errorCode === 'HUMAN_VERIFICATION_REQUIRED')
@@ -95,12 +96,14 @@ export async function reconcileLinkJournals(options: { collector: LinkCollector;
  * One count job per accepted candidate, through the same collector client and `/count-jobs` route as review-counts.
  * Every candidate with a verdict (ok or a product-level rejection) appends its entry in walk order and is handed
  * to `publish` before the next check starts, so an interrupted walk keeps every completed verdict.
- * The caller's deadline bounds every wait; expiry stops step 2 without a verdict and keeps the journal.
+ * The caller's deadline bounds the count work; expiry stops step 2 without a verdict and keeps the journal.
+ * Time spent waiting for another run's job before a submission does not use it (#2): the deadline moves by that wait.
  */
 export function createM2LinkCheck(options: { collector: LinkCollector; policy: { mode: string; stars: readonly number[] } | null;
   journalDir: string; deadline: number; now?: () => Date; publish?: (entries: readonly LinkCheckEntry[]) => Promise<void>;
   reuse?: ReadonlyMap<string, LinkCheckEntry> }) {
   const entries: LinkCheckEntry[] = [];
+  let deadline = options.deadline;
   const clock = () => (options.now?.() ?? new Date()).getTime();
   const checkedAt = () => new Date(clock()).toISOString();
   const verdict = async (pick: Pick<LinkCheckInput, 'productBaseId' | 'url'>, result: 'ok' | 'rejected',
@@ -118,14 +121,16 @@ export function createM2LinkCheck(options: { collector: LinkCollector; policy: {
       return earlier.result === 'ok' ? { result: 'ok' as const, starCounts: earlier.starCounts }
         : { result: 'rejected' as const, reason: earlier.reason! };
     }
-    const remaining = options.deadline - clock();
-    if (remaining <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
+    if (deadline - clock() <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
     const link: ReviewLink = { shopId, itemId, url };
-    let journal: SamplingJournal;
+    let journal: SamplingJournal, waited = 0;
     try {
       journal = await options.collector.run(join(options.journalDir, `${randomUUID()}.json`),
-        { kind: 'counts', url, request_key: randomUUID() }, link, null, false, AbortSignal.timeout(remaining));
+        { kind: 'counts', url, request_key: randomUUID() }, link, null, false, undefined,
+        { deadline, onWait: ms => { waited += ms; } });
     } catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
+    // Only the wait for another run's job (the review service is busy) does not count toward step 2.
+    if (journal.intentAt) deadline += waited;
     const code = journal.errorCode;
     if (code === 'PRODUCT_UNAVAILABLE' || code === 'RATINGS_MISSING')
       return verdict({ productBaseId, url }, 'rejected', code, null);
