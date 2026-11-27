@@ -304,7 +304,7 @@ export async function addCustomAttempt(run: ModuleRun, options: {
       job: { id: jobId, request: input, state: journalPass ? 'succeeded' : 'failed',
         created_at: INTENT_AT, updated_at: jobUpdatedAt, result_available: !skipped, collected: skipped ? 0 : rows.length },
       result: skipped ? null : result, terminal: true,
-      errorCode: journalPass ? null : unreadable ? 'SOURCE_JOB_FAILED' : skipped ? 'PRODUCT_UNAVAILABLE' : options.errorCode ?? 'SOURCE_JOB_FAILED',
+      errorCode: journalPass ? null : unreadable ? 'REVIEWS_UNREADABLE' : skipped ? 'PRODUCT_UNAVAILABLE' : options.errorCode ?? 'SOURCE_JOB_FAILED',
       requestCount: 2, requestCountUncertain: false, cancelIntent: false, resultSha256: skipped ? null : samplingDigest(result),
     };
     await writeCanonical(path.join(runDir, base, 'journal', `${samplingDigest(link)}.json`), journal, 0o600);

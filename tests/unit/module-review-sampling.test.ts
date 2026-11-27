@@ -245,7 +245,7 @@ test('#1 1A: a product whose reviews cannot be read is skipped with its reason; 
     return { ...copy, resultSha256: samplingDigest(copy.result) };
   };
   const { result, requests, gate, outcome } = await runLinks(run, (request, link, plan) =>
-    link.url === unreadable ? failedJournal(request, link, 'SOURCE_JOB_FAILED') : own(terminalJournal(request, link, plan!, 1, 'exhausted'), `s${link.itemId}`));
+    link.url === unreadable ? failedJournal(request, link, 'REVIEWS_UNREADABLE') : own(terminalJournal(request, link, plan!, 1, 'exhausted'), `s${link.itemId}`));
   assert.equal(requests.length, 3, 'the third link is still read');
   assert.equal(result.status, 'SUCCEEDED');
   assert.equal(gate.verdict, 'PASS');
@@ -254,6 +254,16 @@ test('#1 1A: a product whose reviews cannot be read is skipped with its reason; 
   assert.equal(outcome.verdict, 'PARTIAL_LINKS');
   assert.deepEqual(outcome.links.map((link: { skipped: boolean; stopReason: string }) => [link.skipped, link.stopReason]),
     [[false, 'exhausted'], [true, 'REVIEWS_UNREADABLE'], [false, 'exhausted']]);
+}, COUNT_INPUT, 3));
+
+test('#1 1A: a service-side failure on one link still stops the attempt; later links are not started', () => withFixture(async ({ run }) => {
+  const { result, requests, outcome } = await runLinks(run, (request, link, plan) =>
+    link.url === 'https://shopee.vn/product/100/200' ? terminalJournal(request, link, plan!, 1, 'exhausted')
+      : failedJournal(request, link, 'SOURCE_JOB_FAILED'));
+  assert.equal(requests.length, 2, 'the third link is never started');
+  assert.deepEqual([result.status, result.errorCode], ['FAILED', 'SOURCE_JOB_FAILED']);
+  assert.equal(outcome.verdict, 'FAILED');
+  assert.deepEqual(outcome.links.map((link: { skipped: boolean }) => link.skipped), [false, false, false]);
 }, COUNT_INPUT, 3));
 
 test('a session code still stops the attempt and leaves later links unstarted', () => withFixture(async ({ run }) => {

@@ -3493,7 +3493,12 @@ def flow_delete_record(root, entry):
     """Append one line to the deletion log (caller holds the imports lock). Raises OSError on failure."""
     fd = os.open(root / RUN_DELETE_LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
     try:
-        os.write(fd, (json.dumps(entry, ensure_ascii=True, separators=(',', ':')) + '\n').encode('ascii'))
+        data = (json.dumps(entry, ensure_ascii=True, separators=(',', ':')) + '\n').encode('ascii')
+        while data:   # os.write may write fewer bytes: the whole line is written or OSError stops the delete
+            written = os.write(fd, data)
+            if written <= 0:
+                raise OSError('deletion record not written')
+            data = data[written:]
         os.fsync(fd)
     finally:
         os.close(fd)
@@ -3573,7 +3578,14 @@ def cmd_delete_run(ns):
                 except OSError:
                     raise ModuleFailure('RUN_DELETE_FAILED', 20)
                 deleted = root / f'.deleted-{run_id}-{int(time.time())}'
-                os.rename(run, deleted)
+                try:
+                    os.rename(run, deleted)
+                except OSError:
+                    try:
+                        flow_delete_record(root, {'event': 'delete-undone', 'at': flow_now(), 'runId': run_id, **source})
+                    except OSError:
+                        pass
+                    raise ModuleFailure('RUN_DELETE_FAILED', 20)
                 moved, deleted_fd = [], None
                 try:
                     # Move the reservations into the renamed folder (same filesystem, through the

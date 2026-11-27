@@ -352,6 +352,10 @@ test('reconcile after a lost submit response and expired deadline reads, cancels
     assert.deepEqual(requests.filter((entry) => entry.method === 'POST'),
       [{ method: 'POST', route: `/jobs/${candidateId}/cancel` }], 'past the deadline only the same attempt is cancelled');
     assert.ok(!requests.some((entry) => entry.route.includes(decoyId)), 'the decoy job is never read or cancelled');
+    // #9: the same expired job reconciled with no owner stop is recorded as DEADLINE, not as a stop by the owner.
+    await writeFile(file, canonicalJson(journal), { mode: 0o600 });
+    const expired = await collector(fakeFetch).run(file, request, LINK, plan, true);
+    assert.deepEqual([expired.terminal, expired.errorCode], [true, 'DEADLINE']);
   });
 });
 
@@ -435,6 +439,19 @@ test('any other failed job keeps the SOURCE_JOB_FAILED mapping', async () => {
   await withDir(async (dir) => {
     const journal = await collector(failedService('SERVICE_RESTARTED')).run(path.join(dir, 'journal.json'), requestFixture(planSha256), LINK, plan);
     assert.deepEqual([journal.errorCode, journal.terminal], ['SOURCE_JOB_FAILED', true]);
+  });
+});
+
+test('#1 1A: only a step-3 reading whose product page did not behave as expected is REVIEWS_UNREADABLE; a service failure is not', async () => {
+  const { plan, planSha256 } = planFixture();
+  const cases: [string, string, any, any][] = [
+    ['CONTROL_CHANGED', 'REVIEWS_UNREADABLE', requestFixture(planSha256), plan],
+    ['SOURCE_ACTION_FAILED', 'SOURCE_JOB_FAILED', requestFixture(planSha256), plan],
+    ['CONTROL_CHANGED', 'SOURCE_JOB_FAILED', { kind: 'counts', url: LINK.url, request_key: ATTEMPT }, null],
+  ];
+  for (const [error, expected, request, requestPlan] of cases) await withDir(async (dir) => {
+    const journal = await collector(failedService(error)).run(path.join(dir, 'journal.json'), request, LINK, requestPlan);
+    assert.deepEqual([journal.errorCode, journal.terminal], [expected, true], `${error} / ${'kind' in request ? 'count' : 'step 3'}`);
   });
 });
 

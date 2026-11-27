@@ -98,13 +98,13 @@ export function validateSamplingResult(value: unknown, plan: ShopeeReviewPlan, p
 
 /** Why step 3 (a custom attempt) skips this link for the run, or null. One rule for step 3 and the step-4 reader:
  *  a product-level code; F641 a collection that ended clean but saved no review; #1 1A a reading of this product
- *  that ended failed (the job of this link failed), so the other products are still read. */
+ *  whose page did not behave as expected (collector code REVIEWS_UNREADABLE); a service-side failure still stops. */
 export type SkippedLinkReason = 'PRODUCT_UNAVAILABLE' | 'RATINGS_MISSING' | 'NO_TEXT_REVIEWS' | 'REVIEWS_UNREADABLE';
 export function skippedLinkReason(journal: SamplingJournal | null): SkippedLinkReason | null {
   if (!journal) return null;
   if (journal.errorCode === 'PRODUCT_UNAVAILABLE' || journal.errorCode === 'RATINGS_MISSING') return journal.errorCode;
   if (!journal.terminal) return null;
-  if (journal.errorCode === 'SOURCE_JOB_FAILED' && journal.job?.state === 'failed') return 'REVIEWS_UNREADABLE';
+  if (journal.errorCode === 'REVIEWS_UNREADABLE' && journal.job?.state === 'failed') return 'REVIEWS_UNREADABLE';
   if (!journal.errorCode && journal.result?.format === 'shopee-sampled-result-v1' && journal.result.rows.length === 0) return 'NO_TEXT_REVIEWS';
   return null;
 }

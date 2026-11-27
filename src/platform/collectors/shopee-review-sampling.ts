@@ -16,13 +16,16 @@ const object = (value: unknown): Record<string, unknown> => {
 };
 const active = (state: string) => ['queued','running'].includes(state);
 const pending = (state: string) => active(state) || ['needs_login','needs_verification'].includes(state);
-/** A failed job with this error means the link is dead for this run; every other failure stays SOURCE_JOB_FAILED. */
-const terminalErrorCode = (state: SamplingJob['state'], error: unknown): string | null => {
+/** A failed job with this error means the link is dead for this run; every other failure stays SOURCE_JOB_FAILED.
+ *  #1 1A: a step-3 reading whose page of this product did not behave as expected (service error CONTROL_CHANGED,
+ *  session still ready) is REVIEWS_UNREADABLE; a service-side failure (SOURCE_ACTION_FAILED, ...) is not. */
+const terminalErrorCode = (state: SamplingJob['state'], error: unknown, sampling = false): string | null => {
   if (state === 'succeeded' || state === 'partial') return null;
   if (state === 'needs_login') return 'HUMAN_LOGIN_REQUIRED';
   if (state === 'needs_verification') return 'HUMAN_VERIFICATION_REQUIRED';
   if (state === 'cancelled') return 'OWNER_ABORTED';
   if (state === 'failed' && (error === 'PRODUCT_UNAVAILABLE' || error === 'RATINGS_MISSING')) return error;
+  if (state === 'failed' && sampling && error === 'CONTROL_CHANGED') return 'REVIEWS_UNREADABLE';
   return 'SOURCE_JOB_FAILED';
 };
 const utc = (value: unknown): string => {
@@ -216,9 +219,11 @@ export class ShopeeReviewSamplingCollector {
       } else if(!j.job) await reconcile();
       // A same-attempt reconcile can read/cancel after acquisition deadline, never acquire again.
       if(signal?.aborted || left()<=0 || j.cancelIntent) {
+        // The reason is fixed before cancel() sets cancelIntent (#9): a deadline cancel stays DEADLINE.
+        const reason=signal?.aborted||j.cancelIntent&&j.errorCode!=='DEADLINE'?'OWNER_ABORTED':'DEADLINE';
         await cancel();
         const status=parseJob(await call('GET',`/jobs/${j.job!.id}`,undefined,true));j.job=status;
-        if(!pending(status.state)) {j.terminal=true;j.errorCode=signal?.aborted||j.cancelIntent?'OWNER_ABORTED':'DEADLINE';await save();return j;}
+        if(!pending(status.state)) {j.terminal=true;j.errorCode=reason;await save();return j;}
         throw new ReviewSamplingError('CANCELLATION_UNCONFIRMED');
       }
       while(true) {
@@ -226,7 +231,7 @@ export class ShopeeReviewSamplingCollector {
         const raw=await call('GET',`/jobs/${j.job!.id}`),job=parseJob(raw);j.job=job;await save();
         await retainResult(job);
         if(!active(job.state)) {
-          j.terminal=!pending(job.state);j.errorCode=terminalErrorCode(job.state,object(raw).error);
+          j.terminal=!pending(job.state);j.errorCode=terminalErrorCode(job.state,object(raw).error,'sampling' in request);
           if(job.state==='succeeded'&&!j.result)j.errorCode='REVIEW_SOURCE_INVALID';
           await save();return j;
         }
