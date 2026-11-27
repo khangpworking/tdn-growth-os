@@ -83,7 +83,7 @@ export async function reconcileLinkJournals(options: { collector: LinkCollector;
     if (!link) throw new LinkCheckStop('LINK_CHECK_FAILED');
     let reconciled: SamplingJournal;
     // The step deadline is a time limit, not an owner stop (#9): the journal records DEADLINE.
-    try { reconciled = await options.collector.run(file, journal.request, link, null, true, undefined, { budgetMs: remaining }); }
+    try { reconciled = await options.collector.run(file, journal.request, link, null, true, undefined, { deadline: options.deadline }); }
     catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
     // The job can stop on a session that still needs the owner: keep that wait instead of a generic failure.
     if (reconciled.errorCode === 'HUMAN_LOGIN_REQUIRED' || reconciled.errorCode === 'HUMAN_VERIFICATION_REQUIRED')
@@ -121,14 +121,13 @@ export function createM2LinkCheck(options: { collector: LinkCollector; policy: {
       return earlier.result === 'ok' ? { result: 'ok' as const, starCounts: earlier.starCounts }
         : { result: 'rejected' as const, reason: earlier.reason! };
     }
-    const started = clock(), remaining = deadline - started;
-    if (remaining <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
+    if (deadline - clock() <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
     const link: ReviewLink = { shopId, itemId, url };
     let journal: SamplingJournal, waited = 0;
     try {
       journal = await options.collector.run(join(options.journalDir, `${randomUUID()}.json`),
         { kind: 'counts', url, request_key: randomUUID() }, link, null, false, undefined,
-        { budgetMs: remaining, onWait: ms => { waited += ms; } });
+        { deadline, onWait: ms => { waited += ms; } });
     } catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
     // Only the wait for another run's job (the review service is busy) does not count toward step 2.
     if (journal.intentAt) deadline += waited;

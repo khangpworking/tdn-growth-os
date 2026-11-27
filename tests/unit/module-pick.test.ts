@@ -571,10 +571,10 @@ test('one step-2 deadline covers reconciliation; an expired one keeps the unreso
     const atMs = Date.parse(at);
     let reconciliation = false, newChecks = 0;
     const recovering = () => ({ run: async (file: string, _request: unknown, _link: unknown, _plan: unknown,
-        reconcileOnly?: boolean, _signal?: AbortSignal, limits?: { budgetMs?: number }) => {
+        reconcileOnly?: boolean, _signal?: AbortSignal, limits?: { deadline?: number }) => {
       if (!reconcileOnly) { newChecks++; throw new Error('synthetic: no count job after the shared deadline'); }
       reconciliation = true;
-      assert.ok(typeof limits?.budgetMs === 'number' && limits.budgetMs > 0, 'the recovery runs under the shared deadline');
+      assert.ok(typeof limits?.deadline === 'number' && limits.deadline > Date.now(), 'the recovery runs under the shared deadline');
       // Recovery spends the whole shared budget; the attempt's own clock is the mocked wall clock.
       t.mock.timers.setTime(atMs + LINK_CHECK_BUDGET_MS);
       return { ...(await readSamplingJournal(file))!, terminal: true };

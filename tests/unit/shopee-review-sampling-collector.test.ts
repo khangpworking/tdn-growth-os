@@ -544,10 +544,10 @@ test('#9: a deadline cancel keeps DEADLINE across a recovery that could not conf
     await writeFile(file, canonicalJson({ format: 'shopee-sampling-journal-v1', inputSha256: samplingDigest(request), request,
       intentAt: created, deadline: new Date(AT.getTime() + 60_000).toISOString(), baselineIds: [], job: bound, result: null,
       resultSha256: null, terminal: false, errorCode: 'DEADLINE', requestCount: 2, requestCountUncertain: false, cancelIntent: true }), { mode: 0o600 });
-    const unconfirmed = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { budgetMs: 60_000 });
+    const unconfirmed = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { deadline: AT.getTime() + 60_000 });
     assert.deepEqual([unconfirmed.terminal, unconfirmed.errorCode], [false, 'DEADLINE'], 'the job still runs: the reason stays');
     state = 'cancelled';
-    const ended = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { budgetMs: 60_000 });
+    const ended = await collector(fakeFetch).run(file, request, LINK, null, true, undefined, { deadline: AT.getTime() + 60_000 });
     assert.deepEqual([ended.terminal, ended.errorCode], [true, 'DEADLINE']);
   });
 });
@@ -573,16 +573,30 @@ test('#2: slow work before a submission with no other run uses the step-2 limit:
 });
 
 test('#2: a count job gets only what is left of the step-2 limit when that is under 2 minutes', async () => {
-  let clock = AT.getTime();
+  let clock = AT.getTime(), sessions = 0;
   const now = () => new Date(clock);
   const { fakeFetch } = busyService(() => false, { clock: now });
+  const slowSession = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === '/session' && sessions++ === 0) clock += 20_000;   // 20 s of the 45 s used
+    return fakeFetch(input, init);
+  }) as typeof fetch;
   await withDir(async (dir) => {
     const journalDir = path.join(dir, 'link-check-journal');
-    const { check } = createM2LinkCheck({ collector: collector(fakeFetch, { now, sleep: async (ms: number) => { clock += ms; } }),
+    const { check } = createM2LinkCheck({ collector: collector(slowSession, { now, sleep: async (ms: number) => { clock += ms; } }),
       policy: null, journalDir, deadline: clock + 45_000, now });
     assert.equal((await check(COUNT_LINK)).result, 'ok');
     const [name] = await readdir(journalDir);
     const journal = (await readSamplingJournal(path.join(journalDir, name!)))!;
-    assert.equal(Date.parse(journal.deadline) - Date.parse(journal.intentAt!), 45_000);
+    assert.equal(Date.parse(journal.deadline) - Date.parse(journal.intentAt!), 25_000);
   });
+});
+
+test('#2: a caller deadline already passed when run() starts its work means no submission', async () => {
+  const { fakeFetch, log } = busyService(() => false);
+  await withDir(async (dir) => {
+    const journal = await collector(fakeFetch).run(path.join(dir, 'journal.json'), { kind: 'counts', url: LINK.url, request_key: ATTEMPT },
+      LINK, null, false, undefined, { deadline: AT.getTime() - 1 });
+    assert.deepEqual([journal.errorCode, journal.terminal, journal.intentAt], ['DEADLINE', true, null]);
+  });
+  assert.equal(log.posts, 0);
 });

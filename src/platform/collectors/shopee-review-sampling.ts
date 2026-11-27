@@ -42,10 +42,10 @@ export interface SamplingCollectorOptions {
 const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
 /** Count job (#2): its 2-minute limit starts at submission; the wait for another run's job before it has its own cap. */
 export const COUNT_JOB_MS = 120_000, COUNT_WAIT_MAX_MS = 2 * 60 * 60_000;
-/** Caller limits of one run() call. `budgetMs` is the caller's remaining time, from the call; waiting for another
- *  run's job or the submit lock does not use it (each wait is reported through `onWait`). A count job submitted
- *  gets min(2 minutes, what is left). Expiry ends the job as DEADLINE. */
-export interface SamplingRunLimits { budgetMs?: number; /** Told each wait for another run's job or the submit lock. */ onWait?: (ms: number) => void }
+/** Caller limits of one run() call. `deadline` is the caller's absolute deadline (epoch ms, this collector's clock);
+ *  waiting for another run's job or the submit lock moves it (each wait is reported through `onWait`). Nothing is
+ *  submitted after it; a count job submitted gets min(2 minutes, what is left). Expiry ends the job as DEADLINE. */
+export interface SamplingRunLimits { deadline?: number; /** Told each wait for another run's job or the submit lock. */ onWait?: (ms: number) => void }
 const defaultSubmitLock = () => path.join(process.env.SHOPEE_FLOW_STATE ?? path.join(os.homedir(), '.local/state/tdn-growth-os'),
   'shopee-flow', 'review-submit.lock');
 type LockDatabase = { exec(sql: string): unknown; close(): unknown };
@@ -95,10 +95,10 @@ export class ShopeeReviewSamplingCollector {
     const save = () => { j.resultSha256=j.result ? samplingDigest(j.result) : null; return writeSamplingJournal(file,j); };
     if (j.terminal) return j;
     await save();
-    const budget = limits.budgetMs, isCount = 'kind' in request, started = this.#now().getTime();
-    // The caller's budget runs from now; only waits for another run's job (or the submit lock) move it (#2).
+    const isCount = 'kind' in request;
+    // The caller's deadline is absolute; only waits for another run's job (or the submit lock) move it (#2).
     let waited = 0;
-    const shared = () => budget === undefined ? Infinity : started + budget + waited;
+    const shared = () => limits.deadline === undefined ? Infinity : limits.deadline + waited;
     const left = () => Math.min(Date.parse(j.deadline), shared()) - this.#now().getTime();
     let recoveryDeadline:number|null=null;
     const call = async (method: 'GET'|'POST', route: string, body?: unknown, cleanup = false, timeout = 10_000): Promise<unknown> => {
