@@ -221,6 +221,7 @@ export class ShopeeReviewSamplingCollector {
       if(signal?.aborted || left()<=0 || j.cancelIntent) {
         // The reason is fixed before cancel() sets cancelIntent (#9): a deadline cancel stays DEADLINE.
         const reason=signal?.aborted||j.cancelIntent&&j.errorCode!=='DEADLINE'?'OWNER_ABORTED':'DEADLINE';
+        j.errorCode=reason; // saved together with cancelIntent by cancel(), so an interrupted recovery keeps it
         await cancel();
         const status=parseJob(await call('GET',`/jobs/${j.job!.id}`,undefined,true));j.job=status;
         if(!pending(status.state)) {j.terminal=true;j.errorCode=reason;await save();return j;}

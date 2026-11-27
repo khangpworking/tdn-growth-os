@@ -3510,6 +3510,11 @@ def flow_delete_record(root, entry):
                     raise OSError('deletion record not written')
                 data = data[written:]
             os.fsync(fd)
+            directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)   # a new log file's name is durable too
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
         except OSError:
             os.ftruncate(fd, size)   # never leave half a line; if this fails too, the OSError still stops the delete
             raise
