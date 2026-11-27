@@ -41,7 +41,7 @@ export interface SamplingCollectorOptions {
 /** Owner L4: a run whose step 3 finds the service busy with another run waits, polling the job list. */
 const BUSY_POLL_MS = 10_000, LOCK_POLL_MS = 1_000;
 /** Count job (#2): its 2-minute limit starts at submission; the wait for another run's job before it has its own cap. */
-export const COUNT_JOB_MS = 120_000, COUNT_WAIT_MAX_MS = 2 * 60 * 60_000;
+export const COUNT_JOB_MS = 120_000, COUNT_WAIT_MAX_MS = 20 * 60_000;   // owner 27/11: wait at most 20 minutes
 /** Caller limits of one run() call. `deadline` is the caller's absolute deadline (epoch ms, this collector's clock);
  *  waiting for another run's job or the submit lock moves it (each wait is reported through `onWait`). Nothing is
  *  submitted after it; a count job submitted gets min(2 minutes, what is left). Expiry ends the job as DEADLINE. */

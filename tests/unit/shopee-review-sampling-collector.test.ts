@@ -483,15 +483,15 @@ test('a running count job is polled each 1 s; a running step-3 sampling job keep
 
 const COUNT_LINK = { productBaseId: '1__200__100', shopId: '100', itemId: '200', url: LINK.url };
 
-test('#2: a run that waited 30 minutes for another run still checks its step-2 links; each count job gets its 2 minutes from submission', async () => {
+test('#2: a run that waited 15 minutes for another run still checks its step-2 links; each count job gets its 2 minutes from submission', async () => {
   let clock = AT.getTime();
-  const now = () => new Date(clock), otherUntil = clock + 30 * 60_000;
+  const now = () => new Date(clock), otherUntil = clock + 15 * 60_000;
   const { fakeFetch, log } = busyService(() => clock < otherUntil, { clock: now, runningReads: 1 });
   await withDir(async (dir) => {
     const journalDir = path.join(dir, 'link-check-journal');
     const { check } = createM2LinkCheck({ collector: collector(fakeFetch, { now, sleep: async (ms: number) => { clock += ms; } }),
       policy: null, journalDir, deadline: clock + 10 * 60_000, now });
-    assert.equal((await check(COUNT_LINK)).result, 'ok', 'the 30-minute wait used neither the 2-minute nor the step-2 limit');
+    assert.equal((await check(COUNT_LINK)).result, 'ok', 'the 15-minute wait used neither the 2-minute nor the step-2 limit');
     assert.equal((await check(COUNT_LINK)).result, 'ok', 'the step-2 limit moved by the wait');
     for (const name of await readdir(journalDir)) {
       const journal = (await readSamplingJournal(path.join(journalDir, name)))!;
@@ -599,4 +599,17 @@ test('#2: a caller deadline already passed when run() starts its work means no s
     assert.deepEqual([journal.errorCode, journal.terminal, journal.intentAt], ['DEADLINE', true, null]);
   });
   assert.equal(log.posts, 0);
+});
+
+test('#2: the wait for another run ends at 20 minutes as DEADLINE, with nothing submitted', async () => {
+  let clock = AT.getTime();
+  const now = () => new Date(clock), otherUntil = clock + 25 * 60_000;
+  const { fakeFetch, log } = busyService(() => clock < otherUntil, { clock: now });
+  await withDir(async (dir) => {
+    const journal = await collector(fakeFetch, { now, sleep: async (ms: number) => { clock += ms; } })
+      .run(path.join(dir, 'journal.json'), { kind: 'counts', url: LINK.url, request_key: ATTEMPT }, LINK, null);
+    assert.deepEqual([journal.errorCode, journal.terminal, journal.intentAt], ['DEADLINE', true, null]);
+  });
+  assert.equal(log.posts, 0);
+  assert.ok(clock - AT.getTime() <= 20 * 60_000 + 15_000, 'stopped at the 20-minute cap');
 });
