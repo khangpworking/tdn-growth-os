@@ -465,6 +465,148 @@ test('a filter that returns cards of the wrong rating still fails closed', async
   } finally { dom.window.close(); }
 });
 
+/** Star filters; a click on a key in `boxes` shows the «No ratings yet» box, on a key in `lists` its cards, on a key in neither nothing. */
+function starPage(labels: Record<string, number>, active: string, boxes: string[], lists: Record<string, string>) {
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'All', 3)}${filter('with-comments', 'With Comments', 3)}
+      ${['1', '2', '3', '4', '5'].map(star => filter(star, `${star} Star`, labels[star] ?? 0, star === active)).join('')}
+      <div class="product-ratings__list" style="opacity:1">${lists[active] ?? ''}</div>
+    </div>`);
+  const window = dom.window as any;
+  const root = window.document.querySelector('.product-ratings');
+  for (const element of root.querySelectorAll('.product-rating-overview__filter')) {
+    const key = element.dataset.key;
+    if (!boxes.includes(key) && !(key in lists)) continue;
+    element.addEventListener('click', () => {
+      for (const other of root.querySelectorAll('.product-rating-overview__filter'))
+        other.classList.toggle('product-rating-overview__filter--active', other === element);
+      root.querySelector('.product-ratings__list')?.remove();
+      root.querySelector('.product-ratings-comments-view__no-data')?.remove();
+      root.insertAdjacentHTML('beforeend', boxes.includes(key)
+        ? '<div class="product-ratings-comments-view__no-data"><div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>'
+        : `<div class="product-ratings__list" style="opacity:1">${lists[key]}</div>`);
+    });
+  }
+  return dom;
+}
+
+test('#1 1B: a star whose label counts reviews but whose filter shows a stable «No ratings yet» box is exhausted; the other stars are read', async () => {
+  // Live 26/11 (run 6e35d532): «3 Star (1)», and the 3-star filter shows the box.
+  const dom = starPage({ '1': 1, '3': 1, '5': 1 }, '1', ['3'], { '1': card('s1', 1, 'Một sao'), '5': card('s5', 5, 'Năm sao') });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'stars', stars: [1, 3, 5], totalPerLink: 10, allocation: 'pooled' }));
+    assert.deepEqual([result.stop_reason, result.error], ['exhausted', null], 'the run does not fail');
+    assert.deepEqual(json(result.groups), [
+      { filter: '1', stopReason: 'exhausted' }, { filter: '3', stopReason: 'exhausted' }, { filter: '5', stopReason: 'exhausted' },
+    ]);
+    assert.deepEqual(json(result.records.map((row: any) => row.review_id)), ['s1', 's5'], 'the 3-star group has 0 rows');
+  } finally { dom.window.close(); }
+});
+
+/** «With Comments (count)»: pages of cards; next goes one page further while `pages` has one, and the bar shows `barPages`.
+ *  An empty page shows an empty loaded list or, for `emptyAs: 'box'`, only the «No ratings yet» box. */
+async function hiddenReviewsCrawl(count: number, pages: string[][], barPages: number, emptyAs: 'list' | 'box' = 'list') {
+  const dom = boot(`
+    <div class="product-ratings">
+      ${filter('all', 'All', count)}
+      ${filter('with-comments', 'With Comments', count, true)}
+      <div class="product-ratings__list" style="opacity:1">${pages[0]!.join('')}</div>
+      <div class="controller">${controller(1, barPages)}</div>
+    </div>`);
+  const window = dom.window as any;
+  const root = window.document.querySelector('.product-ratings');
+  const holder = window.document.querySelector('.controller');
+  let page = 1, nextClicks = 0;
+  holder.addEventListener('click', (event: any) => {
+    if (!event.target.closest('.shopee-icon-button--right')) return;
+    nextClicks++;
+    if (page >= pages.length) return; // the pager does not move
+    page++;
+    const cards = pages[page - 1]!;
+    root.querySelector('.product-ratings__list')?.remove();
+    holder.insertAdjacentHTML('beforebegin', !cards.length && emptyAs === 'box'
+      ? '<div class="product-ratings-comments-view__no-data"><div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>'
+      : `<div class="product-ratings__list" style="opacity:1">${cards.join('')}</div>`);
+    holder.innerHTML = controller(page, barPages);
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'with-comments', stars: [], totalPerLink: 50, allocation: 'pooled' }));
+    return { result, nextClicks };
+  } finally { dom.window.close(); }
+}
+const seventeen = [0, 1, 2].map(p => Array.from({ length: p === 2 ? 5 : 6 }, (_, i) => card(`h${p * 6 + i + 1}`, 5, `Bình luận ${p * 6 + i + 1}`)));
+
+test('#1 1B: an empty page that the pager reached ends the group with the reviews already read', async () => {
+  // Live 27/11 (runs 8d61990a): «With Comments (24)», 17 reviews on pages 1–3, next still enabled, page 4 empty.
+  for (const emptyAs of ['list', 'box'] as const) {
+    const { result, nextClicks } = await hiddenReviewsCrawl(24, [...seventeen, []], 5, emptyAs);
+    assert.deepEqual([result.stop_reason, result.error], ['exhausted', null], emptyAs);
+    assert.deepEqual(json(result.groups), [{ filter: 'with-comments', stopReason: 'exhausted' }], emptyAs);
+    assert.deepEqual(json(result.records.map((row: any) => row.review_id)),
+      Array.from({ length: 17 }, (_, i) => `h${i + 1}`), `${emptyAs}: the 17 rows are kept`);
+    assert.equal(nextClicks, 3, emptyAs);
+  }
+});
+
+test('#1 1B guards: a pager that does not move after next, or a filter that never becomes active, still fails closed', async () => {
+  const { result, nextClicks } = await hiddenReviewsCrawl(24, seventeen, 5);
+  assert.deepEqual([result.stop_reason, result.error, nextClicks], ['control_changed', 'CONTROL_CHANGED', 3], 'the active page stays 3');
+  // A click on 3 Star changes nothing: the 1-star filter stays active.
+  const dom = starPage({ '1': 1, '3': 1 }, '1', [], { '1': card('s1', 1, 'Một sao') });
+  try {
+    const stuck = await crawl(dom, reviewPolicy({ mode: 'stars', stars: [1, 3], totalPerLink: 10, allocation: 'pooled' }));
+    assert.deepEqual([stuck.stop_reason, stuck.error], ['control_changed', 'CONTROL_CHANGED'], 'a filter that never becomes active');
+  } finally { dom.window.close(); }
+});
+
+test('#1 1B: a no-data box left from the previous filter for less than 3 s does not end the next filter early', async () => {
+  // 2 Star (0) shows the box; after the click on 3 Star (1) Shopee keeps the same box node until the cards arrive.
+  const dom = starPage({ '3': 1 }, '2', [], {});
+  const window = dom.window as any;
+  const root = window.document.querySelector('.product-ratings');
+  root.querySelector('.product-ratings__list').remove();
+  root.insertAdjacentHTML('beforeend', '<div class="product-ratings-comments-view__no-data"><div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>');
+  const three = root.querySelector('[data-key="3"]');
+  const now = window.Date.now;
+  let loadAt: number | null = null;
+  window.Date.now = () => {
+    const time = now();
+    if (loadAt !== null && time >= loadAt) {
+      loadAt = null;
+      root.querySelector('.product-ratings-comments-view__no-data').remove();
+      root.insertAdjacentHTML('beforeend', `<div class="product-ratings__list" style="opacity:1">${card('s3', 3, 'Ba sao')}</div>`);
+    }
+    return time;
+  };
+  three.addEventListener('click', () => {
+    root.querySelector('[data-key="2"]').classList.remove('product-rating-overview__filter--active');
+    three.classList.add('product-rating-overview__filter--active');
+    loadAt = now() + 6000; // after the 3.5 s post-click pause the old box is still seen for about 2.5 s
+  });
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'stars', stars: [2, 3], totalPerLink: 10, allocation: 'pooled' }));
+    assert.deepEqual([result.stop_reason, result.error], ['exhausted', null]);
+    assert.deepEqual(json(result.records.map((row: any) => [row.review_id, row.stars])), [['s3', 3]], 'the 3-star filter is read');
+    assert.deepEqual(json(result.pages.map((page: any) => [page.filter, page.cards])), [['2', 0], ['3', 1]]);
+  } finally { dom.window.close(); }
+});
+
+test('#1 1B: a count job still reads only the labels, also when a star shows the no-data box', async () => {
+  const dom = starPage({ '1': 1, '3': 1 }, '3', [], {});
+  const root = (dom.window as any).document.querySelector('.product-ratings');
+  root.querySelector('.product-ratings__list').remove();
+  root.insertAdjacentHTML('beforeend', '<div class="product-ratings-comments-view__no-data"><div class="product-ratings-comments-view__no-data__text">No ratings yet</div></div>');
+  try {
+    const result = await crawl(dom, reviewPolicy({ mode: 'with-comments', stars: [], totalPerLink: 10, allocation: 'pooled' }), 'counts');
+    const observed = (value: number) => ({ status: 'observed', value });
+    assert.deepEqual(json({ kind: result.kind, counts: result.source_counts }), { kind: 'counts', counts: {
+      stars: { '1': observed(1), '2': observed(0), '3': observed(1), '4': observed(0), '5': observed(0) }, withComments: observed(3),
+    } });
+    assert.deepEqual(Object.keys(result).sort(), ['kind', 'source_counts', 'source_counts_observed_at']);
+  } finally { dom.window.close(); }
+});
+
 test('missing native filter controls fail closed', async () => {
   const dom = boot(`
     <div class="product-ratings">
