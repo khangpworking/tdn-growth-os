@@ -207,17 +207,20 @@
   // Shopee's empty filter has no list at all, only its visible "No ratings yet" box (live 17/11).
   const noDataShown = () => [...root.querySelectorAll('.product-ratings__list')].filter(visible).length === 0 &&
     [...root.querySelectorAll('.product-ratings-comments-view__no-data')].filter(visible).length === 1;
-  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 &&
-    (loadedList() && (noPagination() || activePage() === 1) || noDataShown() && noPagination()); // live: the box never has a page bar
+  // #1 1B: the stable no-data box ends a group whatever its label count says (live 26/11: «3 Star (1)» shows the box), and
+  // an empty page that the pager reached ends a group early (live 27/11: «With Comments (24)» shows 17 reviews on 3 pages).
+  const verifiedEmpty = (key, page = 1) => isActive(key) && cards().length === 0 && (page === 1
+    ? observedZero(key) && loadedList() && (noPagination() || activePage() === 1) || noDataShown() && noPagination() // live: the box never has a page bar
+    : activePage() === page && (loadedList() || noDataShown()));
   // The no-data box can be stale from the previous empty filter (Shopee keeps the same node on 0 -> 0).
   // Accept it only after the same box and the same empty state hold for 3 s of continuous sampling.
   const EMPTY_STABLE_MS = 3000;
   const noDataBox = () => [...root.querySelectorAll('.product-ratings-comments-view__no-data')].find(visible) || null;
   const emptyWatch = () => {
     let since = null, box = null;
-    return key => {
-      if (!verifiedEmpty(key)) { since = null; box = null; return false; }
-      if (loadedList()) return true; // A loaded empty list keeps its immediate acceptance.
+    return (key, page) => {
+      if (!verifiedEmpty(key, page)) { since = null; box = null; return false; }
+      if (page === 1 && loadedList()) return true; // A loaded empty first page under a zero label keeps its immediate acceptance.
       const current = noDataBox(), now = Date.now();
       if (since === null || current !== box) { since = now; box = current; return false; }
       return now - since >= EMPTY_STABLE_MS;
@@ -250,7 +253,7 @@
     const end = Math.min(deadline, Date.now() + 20_000), stableEmpty = emptyWatch();
     while (Date.now() < end) {
       check();
-      if (page === 1 && stableEmpty(key)) return;
+      if (stableEmpty(key, page)) return;
       const ready = loadedList() && cards().length > 0;
       const pageMatches = activePage() === page || page === 1 && singlePage(key);
       if (isActive(key) && pageMatches && ready && (!changed || signature() !== old || transition?.completed())) return;
@@ -323,7 +326,7 @@
         if (pages.length >= Math.min(config.maxPages,500)) { stopReason='page_limit';break; }
         if (!isActive(state.key)) failure('CONTROL_CHANGED');
         const current=cards(),ids=signature();
-        if (!current.length && !verifiedEmpty(state.key)) failure('CONTROL_CHANGED');
+        if (!current.length && !verifiedEmpty(state.key, state.page)) failure('CONTROL_CHANGED');
         if (state.signatures.has(ids)) failure('CONTROL_CHANGED');
         state.signatures.add(ids);
         // Validate every visible rating before retaining any candidate from this page.
