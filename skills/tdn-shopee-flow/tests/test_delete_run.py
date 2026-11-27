@@ -473,5 +473,80 @@ class DeleteRunTest(unittest.TestCase):
         self.assertTrue((self.runs / '.imports').is_dir(), 'the .imports folder must stay')
 
 
+    def test_each_delete_is_recorded_with_time_app_version_machine_and_run(self):
+        """#6: the runs root keeps one line per deletion; an older app (no note) is recorded with nulls."""
+        self.make_run('run-c3')
+        self.make_run('run-d4')
+        note = json.dumps({'format': 'run-delete-source-v1', 'appVersion': '1.3.5', 'machine': 'PC-KHO-01'})
+        proc = subprocess.run([sys.executable, str(SCRIPT), 'delete-run', '--run', 'run-c3', '--stdin'], input=note,
+                              capture_output=True, text=True, env=self.env(), timeout=60)
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertEqual(json.loads(proc.stdout), {'format': 'run-delete-v1', 'runId': 'run-c3', 'deleted': True})
+        rc, out = self.command('delete-run', '--run', 'run-d4')
+        self.assertEqual(rc, 0, out)
+        rc, out = self.command('delete-run', '--run', 'run-missing')
+        self.assertEqual(out['code'], 'RUN_NOT_FOUND')
+        log = self.runs / '.deletions.jsonl'
+        lines = [json.loads(line) for line in log.read_text(encoding='ascii').splitlines()]
+        for line in lines:
+            self.assertRegex(line.pop('at'), r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
+        self.assertEqual(lines, [
+            {'event': 'delete', 'runId': 'run-c3', 'appVersion': '1.3.5', 'machine': 'PC-KHO-01'},
+            {'event': 'deleted', 'runId': 'run-c3', 'appVersion': '1.3.5', 'machine': 'PC-KHO-01'},
+            {'event': 'delete', 'runId': 'run-d4', 'appVersion': None, 'machine': None},
+            {'event': 'deleted', 'runId': 'run-d4', 'appVersion': None, 'machine': None}])
+        self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+        rc, out = self.command('runs')
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(out['runs'], [], 'the record file is never listed as a run')
+
+    def _delete_in_process(self, run_id, write):
+        """delete-run in this process with os.write replaced only for the deletion record file."""
+        output, real_write, record_fds = io.StringIO(), os.write, set()
+        real_open = os.open
+
+        def tracked_open(path, *args, **kwargs):
+            fd = real_open(path, *args, **kwargs)
+            if str(path).endswith('.deletions.jsonl'):
+                record_fds.add(fd)
+            return fd
+
+        def patched_write(fd, data):
+            return write(real_write, fd, data) if fd in record_fds else real_write(fd, data)
+
+        with mock.patch.dict(os.environ, self.env(), clear=True):
+            spec = importlib.util.spec_from_file_location('delete_run_record', SCRIPT)
+            flow = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(flow)
+            with mock.patch('os.open', tracked_open), mock.patch('os.write', patched_write),                     mock.patch.object(sys, 'argv', [str(SCRIPT), 'delete-run', '--run', run_id]),                     contextlib.redirect_stdout(output):
+                try:
+                    flow.main()
+                except SystemExit:
+                    pass
+        return json.loads(output.getvalue())
+
+    def test_a_short_write_still_records_the_whole_line_and_a_failed_record_stops_the_delete(self):
+        """#6: no record, no delete; a partial os.write, alone or followed by an error, never leaves half a line."""
+        kept = self.make_run('run-e5')
+        out = self._delete_in_process('run-e5', lambda write, fd, data: (_ for _ in ()).throw(OSError('disk full')))
+        self.assertEqual(out['code'], 'RUN_DELETE_FAILED')
+        self.assertTrue(kept.exists(), 'without a record the run stays')
+        calls = []
+
+        def short_then_error(write, fd, data):
+            calls.append(len(data))
+            if len(calls) > 1:
+                raise OSError('disk full')
+            return write(fd, data[:7])
+        out = self._delete_in_process('run-e5', short_then_error)
+        self.assertEqual(out['code'], 'RUN_DELETE_FAILED')
+        self.assertTrue(kept.exists(), 'a half-written record stops the delete too')
+        self.make_run('run-f6')
+        out = self._delete_in_process('run-f6', lambda write, fd, data: write(fd, data[:7]))
+        self.assertEqual(out, {'format': 'run-delete-v1', 'runId': 'run-f6', 'deleted': True})
+        lines = [json.loads(line) for line in (self.runs / '.deletions.jsonl').read_text(encoding='ascii').splitlines()]
+        self.assertEqual([(line['event'], line['runId']) for line in lines], [('delete', 'run-f6'), ('deleted', 'run-f6')])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -149,7 +149,8 @@
             "PRODUCT_UNAVAILABLE",
             "RATINGS_MISSING",
             "NO_TARGET_STAR_REVIEWS",
-            "NO_TEXT_REVIEWS"
+            "NO_TEXT_REVIEWS",
+            "REVIEWS_UNREADABLE"
           ]
         },
         "at": {
