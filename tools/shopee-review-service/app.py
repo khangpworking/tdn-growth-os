@@ -316,14 +316,18 @@ class BrowserWorker:
         context = self.context
         try:
             if context is not None:
+                # A hung close is left running, never awaited: the worker is free after 10 s and the kill.
+                task = asyncio.ensure_future(context.close())
                 try:
-                    await asyncio.wait_for(context.close(), timeout=10)
-                    return
+                    await asyncio.wait({task}, timeout=10)
                 except asyncio.CancelledError:
+                    task.add_done_callback(lambda done: done.cancelled() or done.exception())
                     await self.kill_profile_browsers()
                     raise
-                except Exception:
-                    pass
+                if not task.done():
+                    task.add_done_callback(lambda done: done.cancelled() or done.exception())
+                elif not task.cancelled() and task.exception() is None:
+                    return
             await self.kill_profile_browsers()
         finally:
             if self.context is context:
@@ -583,7 +587,11 @@ class BrowserWorker:
                 elif item['kind'] == 'job':
                     # Between jobs only: the next job launches a fresh browser.
                     if self.browser_due():
-                        await self.reset_browser()
+                        try:
+                            await self.reset_browser()
+                        except Exception as error:
+                            # The job still runs; its own ensure_browser handles a launch error.
+                            print(f'[browser] renew failed: {type(error).__name__}: {str(error)[:400]}', flush=True)
                     await self.run_job(item['job_id'])
                 else:
                     await self.ensure_browser()

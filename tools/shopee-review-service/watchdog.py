@@ -3,7 +3,7 @@
 Run by the systemd user timer shopee-review-watchdog.timer (every 2 minutes). It reads
 SHOPEE_API_TOKEN from its environment and keeps its counter in a small state file.
 A browser that fails while idle is recovered by the service's own worker, not here: any answer
-resets the counter. A missing or refused token is a configuration error: it never counts and
+resets the counter. A missing or refused token is a configuration error: it resets the counter and
 never restarts.
 """
 import json
@@ -34,9 +34,7 @@ def probe(token):
 
 
 def next_failures(previous, result):
-    """New no-answer count and whether to restart now."""
-    if result == 'config':
-        return previous, False
+    """New no-answer count and whether to restart now; any answer or a configuration error resets it."""
     if result != 'no_answer':
         return 0, False
     count = previous + 1
