@@ -293,6 +293,9 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
       journals[index]=await collector.run(file,request,link,plan,deps.reconcileOnly,controller.signal);
       // Only a custom M3 attempt skips a dead or unreadable product and keeps collecting (#1 1A); session, other codes and count refreshes stop as today.
       if(journals[index]!.errorCode&&!(deps.kind==='custom'&&skippedLinkReason(journals[index]!)!==null)){errorCode=journals[index]!.errorCode;break;}
+      // The service's CONTROL_CHANGED is not proof the cause is this product: two unreadable products in a row
+      // look like a service-wide problem, so step 3 stops instead of skipping again.
+      if(index>0&&skippedLinkReason(journals[index]!)==='REVIEWS_UNREADABLE'&&skippedLinkReason(journals[index-1]!)==='REVIEWS_UNREADABLE'){errorCode='REVIEWS_UNREADABLE_REPEATED';break;}
     }
   }catch(error){errorCode=error instanceof ModuleError||error instanceof ReviewSamplingError?error.code:'REVIEW_ATTEMPT_FAILED';}
   finally{clearInterval(timer);process.removeListener('SIGTERM',onStop);process.removeListener('SIGINT',onStop);}

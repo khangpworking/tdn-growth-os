@@ -256,6 +256,14 @@ test('#1 1A: a product whose reviews cannot be read is skipped with its reason; 
     [[false, 'exhausted'], [true, 'REVIEWS_UNREADABLE'], [false, 'exhausted']]);
 }, COUNT_INPUT, 3));
 
+test('#1 1A: two unreadable products in a row stop step 3 as a likely service-wide problem', () => withFixture(async ({ run }) => {
+  const { result, requests, gate } = await runLinks(run, (request, link, plan) =>
+    link.url === 'https://shopee.vn/product/102/202' ? terminalJournal(request, link, plan!, 1, 'exhausted')
+      : failedJournal(request, link, 'REVIEWS_UNREADABLE'));
+  assert.equal(requests.length, 2, 'the third link is never started');
+  assert.deepEqual([result.status, result.errorCode, gate.verdict], ['FAILED', 'REVIEWS_UNREADABLE_REPEATED', 'FAIL']);
+}, COUNT_INPUT, 3));
+
 test('#1 1A: a service-side failure on one link still stops the attempt; later links are not started', () => withFixture(async ({ run }) => {
   const { result, requests, outcome } = await runLinks(run, (request, link, plan) =>
     link.url === 'https://shopee.vn/product/100/200' ? terminalJournal(request, link, plan!, 1, 'exhausted')

@@ -492,7 +492,9 @@ class DeleteRunTest(unittest.TestCase):
             self.assertRegex(line.pop('at'), r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
         self.assertEqual(lines, [
             {'event': 'delete', 'runId': 'run-c3', 'appVersion': '1.3.5', 'machine': 'PC-KHO-01'},
-            {'event': 'delete', 'runId': 'run-d4', 'appVersion': None, 'machine': None}])
+            {'event': 'deleted', 'runId': 'run-c3', 'appVersion': '1.3.5', 'machine': 'PC-KHO-01'},
+            {'event': 'delete', 'runId': 'run-d4', 'appVersion': None, 'machine': None},
+            {'event': 'deleted', 'runId': 'run-d4', 'appVersion': None, 'machine': None}])
         self.assertEqual(log.stat().st_mode & 0o777, 0o600)
         rc, out = self.command('runs')
         self.assertEqual(rc, 0, out)
@@ -524,16 +526,26 @@ class DeleteRunTest(unittest.TestCase):
         return json.loads(output.getvalue())
 
     def test_a_short_write_still_records_the_whole_line_and_a_failed_record_stops_the_delete(self):
-        """#6: no record, no delete; a partial os.write never leaves half a line."""
+        """#6: no record, no delete; a partial os.write, alone or followed by an error, never leaves half a line."""
         kept = self.make_run('run-e5')
         out = self._delete_in_process('run-e5', lambda write, fd, data: (_ for _ in ()).throw(OSError('disk full')))
         self.assertEqual(out['code'], 'RUN_DELETE_FAILED')
         self.assertTrue(kept.exists(), 'without a record the run stays')
+        calls = []
+
+        def short_then_error(write, fd, data):
+            calls.append(len(data))
+            if len(calls) > 1:
+                raise OSError('disk full')
+            return write(fd, data[:7])
+        out = self._delete_in_process('run-e5', short_then_error)
+        self.assertEqual(out['code'], 'RUN_DELETE_FAILED')
+        self.assertTrue(kept.exists(), 'a half-written record stops the delete too')
         self.make_run('run-f6')
         out = self._delete_in_process('run-f6', lambda write, fd, data: write(fd, data[:7]))
         self.assertEqual(out, {'format': 'run-delete-v1', 'runId': 'run-f6', 'deleted': True})
-        line = json.loads((self.runs / '.deletions.jsonl').read_text(encoding='ascii'))
-        self.assertEqual([line['event'], line['runId']], ['delete', 'run-f6'])
+        lines = [json.loads(line) for line in (self.runs / '.deletions.jsonl').read_text(encoding='ascii').splitlines()]
+        self.assertEqual([(line['event'], line['runId']) for line in lines], [('delete', 'run-f6'), ('deleted', 'run-f6')])
 
 
 if __name__ == '__main__':

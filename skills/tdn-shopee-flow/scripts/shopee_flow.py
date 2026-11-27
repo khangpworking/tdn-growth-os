@@ -3491,15 +3491,28 @@ def flow_delete_source(ns):
 
 def flow_delete_record(root, entry):
     """Append one line to the deletion log (caller holds the imports lock). Raises OSError on failure."""
-    fd = os.open(root / RUN_DELETE_LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    fd = os.open(root / RUN_DELETE_LOG, os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
     try:
+        size = os.fstat(fd).st_size
+        if size and os.pread(fd, 1, size - 1) != b'\n':
+            # An earlier writer died mid-line: cut the file back to its last whole line first.
+            start = max(0, size - 65536)
+            tail = os.pread(fd, size - start, start)
+            if b'\n' not in tail and start:
+                raise OSError('deletion record tail unreadable')
+            size = start + tail.rfind(b'\n') + 1 if b'\n' in tail else 0
+            os.ftruncate(fd, size)
         data = (json.dumps(entry, ensure_ascii=True, separators=(',', ':')) + '\n').encode('ascii')
-        while data:   # os.write may write fewer bytes: the whole line is written or OSError stops the delete
-            written = os.write(fd, data)
-            if written <= 0:
-                raise OSError('deletion record not written')
-            data = data[written:]
-        os.fsync(fd)
+        try:
+            while data:   # os.write may write fewer bytes: the whole line is written or OSError stops the delete
+                written = os.write(fd, data)
+                if written <= 0:
+                    raise OSError('deletion record not written')
+                data = data[written:]
+            os.fsync(fd)
+        except OSError:
+            os.ftruncate(fd, size)   # never leave half a line; if this fails too, the OSError still stops the delete
+            raise
     finally:
         os.close(fd)
 
@@ -3617,18 +3630,26 @@ def cmd_delete_run(ns):
                             except OSError:
                                 pass
                     else:
+                        restored = False
                         try:
                             os.rename(deleted, run)
+                            restored = True
                         except OSError:
                             pass
-                        try:
-                            flow_delete_record(root, {'event': 'delete-undone', 'at': flow_now(), 'runId': run_id, **source})
-                        except OSError:
-                            pass
+                        if restored:   # only a confirmed restore is recorded as undone
+                            try:
+                                flow_delete_record(root, {'event': 'delete-undone', 'at': flow_now(), 'runId': run_id, **source})
+                            except OSError:
+                                pass
                         raise ModuleFailure('RUN_DELETE_FAILED', 20)
                 finally:
                     if deleted_fd is not None:
                         os.close(deleted_fd)
+                # Completion line: a 'delete' without 'deleted' or 'delete-undone' is an interrupted delete.
+                try:
+                    flow_delete_record(root, {'event': 'deleted', 'at': flow_now(), 'runId': run_id, **source})
+                except OSError:
+                    pass   # the run is already gone; its 'delete' line stays
             finally:
                 os.close(module_lock)
                 if imports_fd is not None:
