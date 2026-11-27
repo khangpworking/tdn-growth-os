@@ -10,6 +10,7 @@ import pathlib
 import stat
 import sys
 import tempfile
+import time
 import types
 import unittest
 from unittest import mock
@@ -307,6 +308,24 @@ class ReviewDataBridgeTest(unittest.TestCase):
                     self.assertEqual(result, {'ok': False, 'error': {'code': code, 'message': code}})
                     self.assertEqual(self.destination.read_bytes(), b'old')
                 self.assert_no_temp()
+
+    def test_a_slow_disk_after_the_last_block_does_not_cancel_a_finished_download(self):
+        """#4: the no-data limit counts only while data is expected; saving the last block may take longer."""
+        config = self.base / 'config.json'
+        config.write_text(json.dumps(dict(json.loads(config.read_text(encoding='utf-8')), timeoutSeconds=1)),
+                          encoding='utf-8')
+        real_fsync = os.fsync
+
+        def slow_fsync(fd):
+            time.sleep(1.6)
+            return real_fsync(fd)
+        self.destination.write_bytes(b'old')
+        os.environ['BRIDGE_RAW_MODE'] = ''
+        self.choose_path(str(self.destination))
+        with mock.patch.object(tdn_shopee_app, 'EXPORT_IDLE_SECONDS', 1),                 mock.patch.object(tdn_shopee_app.os, 'fsync', slow_fsync):
+            result = self.api.exportReviewData('run-1', {'sourceSha256': SOURCE, 'format': 'json'})
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(self.destination.read_bytes(), BODY)
 
     def test_download_size_limit_is_one_gigabyte(self):
         """#4: a 100 MB file is offered for saving; above 1 GB the answer is refused before any transfer."""

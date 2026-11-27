@@ -2756,19 +2756,26 @@ class Api:
                 raise _BridgeFailure('SSH_FAILED') from None
 
             # #4: 40 s (or a longer `timeoutSeconds`) is the longest wait WITHOUT data; each block starts it again.
+            # One lock decides between «a block arrived», «the stream ended» and «too long without data».
+            idle_limit = max(EXPORT_IDLE_SECONDS, config['timeoutSeconds'])
+            idle_lock = threading.Lock()
             last_data = [time.monotonic()]
 
             def stop_when_idle():
                 while not watch_done.wait(0.2):
-                    if time.monotonic() - last_data[0] >= max(EXPORT_IDLE_SECONDS, config['timeoutSeconds']):
-                        timed_out.append(True)
-                        try:
-                            process.kill()
-                        except OSError:
-                            pass
-                        return
+                    with idle_lock:
+                        if watch_done.is_set():
+                            return
+                        if time.monotonic() - last_data[0] >= idle_limit:
+                            timed_out.append(True)
+                            try:
+                                process.kill()
+                            except OSError:
+                                pass
+                            return
 
-            threading.Thread(target=stop_when_idle, name='tdn-export-idle', daemon=True).start()
+            watchdog = threading.Thread(target=stop_when_idle, name='tdn-export-idle', daemon=True)
+            watchdog.start()
             total = 0
             hasher = hashlib.sha256()
             while True:
@@ -2777,9 +2784,11 @@ class Api:
                 except OSError:
                     self._invalidate_native(token)
                     raise _BridgeFailure('SSH_FAILED') from None
-                if not chunk:
-                    break
-                last_data[0] = time.monotonic()
+                with idle_lock:
+                    if not chunk or timed_out:
+                        watch_done.set()   # the stream ended (or was cut): the watchdog decides nothing more
+                        break
+                    last_data[0] = time.monotonic()
                 total += len(chunk)
                 if total > byte_size or total > EXPORT_MAX_BYTES:
                     process.kill()
@@ -2796,8 +2805,13 @@ class Api:
             except OSError:
                 raise _BridgeFailure('SAVE_FAILED') from None
             out = None
-            returncode = process.wait()
-            watch_done.set()
+            watchdog.join()
+            try:
+                # Stdout is closed; a process that does not exit within the idle limit is stopped.
+                returncode = process.wait(timeout=idle_limit)
+            except subprocess.TimeoutExpired:
+                timed_out.append(True)
+                returncode = None
             if timed_out:
                 self._invalidate_native(token)
                 raise _BridgeFailure('SSH_TIMEOUT')
