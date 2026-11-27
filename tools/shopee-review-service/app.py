@@ -204,12 +204,18 @@ def read_cmdlines():
 
 
 def signal_profile_browser(pid, sig):
-    """Signal the PID only if /proc still shows it as this profile's browser right now."""
-    if profile_browser(read_cmdline(pid), PROFILE):
-        try:
-            os.kill(pid, sig)
-        except OSError:
-            pass
+    """Hold the PID with a pidfd, then signal it only if /proc still shows it as this profile's browser."""
+    try:
+        fd = os.pidfd_open(pid)
+    except OSError:
+        return
+    try:
+        if profile_browser(read_cmdline(pid), PROFILE):
+            signal.pidfd_send_signal(fd, sig)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 @contextmanager
@@ -565,7 +571,10 @@ class BrowserWorker:
                 if observed['state'] in WAITING:
                     state = observed['state']
             except Exception:
-                await self.reset_browser()
+                try:
+                    await self.reset_browser()
+                except Exception as reset_error:
+                    print(f'[browser] reset failed: {type(reset_error).__name__}: {str(reset_error)[:400]}', flush=True)
             update_job(job_id, state=state, error='SOURCE_ACTION_FAILED' if job['request'].get('sampling') or job['request'].get('kind') == 'counts' else f'{type(error).__name__}: {str(error)[:400]}')
         finally:
             self.active_job = None

@@ -1,9 +1,0 @@
-[Unit]
-Description=Run the Shopee review service watchdog every 2 minutes
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=2min
-
-[Install]
-WantedBy=timers.target
