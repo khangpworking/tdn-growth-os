@@ -284,17 +284,18 @@ class ReviewDataBridgeTest(unittest.TestCase):
                 self.assert_no_temp()
 
     def test_download_time_limit_counts_only_time_without_data(self):
-        """#4, `timeoutSeconds` = 1:
-        | the file arrives                                  | result                                  |
-        |---------------------------------------------------|-----------------------------------------|
-        | 3 blocks, 0.7 s apart (1.4 s in all)              | saved, exact bytes                      |
-        | 1 block, then 2 s with no data                    | SSH_TIMEOUT, the old file stays         |
+        """#4, `timeoutSeconds` = 1; the no-data floor (40 s in the app) scaled down for the test:
+        | floor | the file arrives                         | result                                  |
+        |-------|------------------------------------------|-----------------------------------------|
+        | 1 s   | 3 blocks, 0.7 s apart (1.4 s in all)     | saved, exact bytes                      |
+        | 1 s   | 1 block, then 2 s with no data           | SSH_TIMEOUT, the old file stays         |
+        | 2.5 s | 1 block, then 2 s with no data           | saved: a shorter setting never cuts it  |
         """
         config = self.base / 'config.json'
         config.write_text(json.dumps(dict(json.loads(config.read_text(encoding='utf-8')), timeoutSeconds=1)),
                           encoding='utf-8')
-        for mode, code in (('slow', None), ('stall', 'SSH_TIMEOUT')):
-            with self.subTest(mode=mode):
+        for floor, mode, code in ((1, 'slow', None), (1, 'stall', 'SSH_TIMEOUT'), (2.5, 'stall', None)):
+            with self.subTest(floor=floor, mode=mode), mock.patch.object(tdn_shopee_app, 'EXPORT_IDLE_SECONDS', floor):
                 self.destination.write_bytes(b'old')
                 os.environ['BRIDGE_RAW_MODE'] = mode
                 self.choose_path(str(self.destination))

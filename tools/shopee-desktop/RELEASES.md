@@ -78,3 +78,9 @@ Runs made on newer versions stay in place. Run rollback only when nobody is star
 - The last known real full pass is 1.1.0 (80bf7951).
 - `app-v1.2.4` (05d086a5) is a draft made by hand from the owner-PC build, before this workflow existed.
 - The first stable candidate is the first version whose real run passes the whole flow after #529.
+
+## Bản tối thiểu (`minimumVersion`, từ 1.3.5)
+
+- `app-latest.json` trên máy chủ có thể có thêm `"minimumVersion": "X.Y.Z"` (không lớn hơn `version`). App từ 1.3.5 trở lên, nếu cũ hơn bản này, hiện «Hãy cập nhật để xem kết quả.» ở tab «Kết quả chạy».
+- App 1.3.4 trở về trước không biết khóa này: khi có `minimumVersion`, các app đó coi câu trả lời là lỗi và **thôi hiện thanh «Có bản mới»** (tab kết quả không đổi). Vì vậy chỉ đặt `minimumVersion` khi đã chấp nhận điều đó, ví dụ sau khi bản ổn định là 1.3.5 trở lên.
+- Đặt hay bỏ `minimumVersion` cần chủ đồng ý, như ghim bản ổn định.

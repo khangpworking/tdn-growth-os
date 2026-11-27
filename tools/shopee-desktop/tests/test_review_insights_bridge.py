@@ -154,6 +154,12 @@ class ReviewInsightsBridgeTests(unittest.TestCase):
         value = invalid(mutate)
         self.assertEqual(self.call(value), {'ok': True, 'data': value})
 
+    def test_a_topic_missing_one_of_its_four_counts_is_rejected(self):
+        """#5: new count names may be added, but khen / che / ke / khong_ro_huong must all be there."""
+        for missing in ('khen', 'che', 'ke', 'khong_ro_huong'):
+            with self.subTest(missing=missing):
+                self.assert_invalid(invalid(lambda value: value['sources'][0]['all']['themes'][0]['polarityCounts'].pop(missing)))
+
     def test_more_than_two_hundred_comments_are_rejected(self):
         def mutate(value):
             value['sources'][0]['all']['comments'] = [comment(f'review-{index}') for index in range(201)]

@@ -104,6 +104,8 @@ _RUN_VIEW_RESULT_PARTS = ('stats', 'insights')
 _DISPLAY_NAME = re.compile(r'[A-Za-z][A-Za-z0-9_-]{0,63}')
 _MAX_THEMES = 50          # topics per bucket (was 10)
 _MAX_COMMENT_TAGS = 50    # topic labels on one comment (was 10)
+_POLARITY_KEYS = frozenset({'khen', 'che', 'ke', 'khong_ro_huong'})   # counts that must always be there
+EXPORT_IDLE_SECONDS = 40  # #4: the longest wait with no data during a download
 # The known step 4 states: a new state is shown as «Khác».
 _STEP4_STATES = frozenset({'IDLE', 'RUNNING', 'PASS', 'FAIL'})
 _STEP4_SOURCE_STATES = _STEP4_STATES | {'NOT_APPLICABLE'}
@@ -158,6 +160,10 @@ def _machine_name():
         name = ''
     name = re.sub(r'[^A-Za-z0-9._-]', '', name or os.environ.get('COMPUTERNAME', ''))[:64]
     return name or 'unknown'
+
+
+def _version_key(text):
+    return tuple(int(part) for part in text.split('.'))
 
 
 def _display_name(value):
@@ -2032,7 +2038,8 @@ class Api:
                     type(theme['unclearCount']) is not int or theme['unclearCount'] < 0 or
                     not (isinstance(theme['share'], (int, float)) and 0 <= theme['share'] <= 1) or
                     not cls._review_insights_summary(theme['summary']) or
-                    not isinstance(polarity, dict) or not all(_display_name(key) for key in polarity) or
+                    not isinstance(polarity, dict) or not _POLARITY_KEYS <= set(polarity) or
+                    not all(_display_name(key) for key in polarity) or
                     any(type(count) is not int or count < 0 for count in polarity.values()) or
                     not isinstance(theme['comments'], list) or
                     (comments is not None and len(theme['comments']) > len(comments)) or
@@ -2748,12 +2755,12 @@ class Api:
                 self._invalidate_native(token)
                 raise _BridgeFailure('SSH_FAILED') from None
 
-            # #4: `timeoutSeconds` is the longest wait WITHOUT data; each received block starts it again.
+            # #4: 40 s (or a longer `timeoutSeconds`) is the longest wait WITHOUT data; each block starts it again.
             last_data = [time.monotonic()]
 
             def stop_when_idle():
                 while not watch_done.wait(0.2):
-                    if time.monotonic() - last_data[0] >= config['timeoutSeconds']:
+                    if time.monotonic() - last_data[0] >= max(EXPORT_IDLE_SECONDS, config['timeoutSeconds']):
                         timed_out.append(True)
                         try:
                             process.kill()
@@ -2937,7 +2944,8 @@ class Api:
                 data['format'] != 'app-latest-v1' or
                 not (version is None or (isinstance(version, str) and _SEMVER.fullmatch(version))) or
                 ('minimumVersion' in data and not (isinstance(data['minimumVersion'], str) and
-                                                   _SEMVER.fullmatch(data['minimumVersion'])))):
+                                                   _SEMVER.fullmatch(data['minimumVersion']) and version is not None and
+                                                   _version_key(data['minimumVersion']) <= _version_key(version)))):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return result
 

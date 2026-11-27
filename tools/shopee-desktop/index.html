@@ -6396,9 +6396,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   };
   var STEP4_CHIP = {
     pass: ['s-pass', 'Đạt kiểm tra'], running: ['s-run', 'Đang chạy'], fail: ['s-fail', 'Dừng vì lỗi'],
-    old: ['s-idle', 'Không tự chạy'], idle: ['s-idle', 'Chưa chạy']
+    old: ['s-idle', 'Không tự chạy'], idle: ['s-idle', 'Chưa chạy'], other: ['s-warn', 'Khác']
   };
-  var STEP4_MODULE_TEXT = { pass: 'Hoàn tất', running: 'Đang chạy', fail: 'Dừng vì lỗi', old: 'Không tự chạy', idle: 'Chưa chạy' };
+  var STEP4_MODULE_TEXT = { pass: 'Hoàn tất', running: 'Đang chạy', fail: 'Dừng vì lỗi', old: 'Không tự chạy', idle: 'Chưa chạy', other: 'Khác' };
   var PROGRESS_POLL_MS = 15000;
   var MOCK_EVENT_MS = 1000;
   var STEP4_POLL_MS = 10000;
@@ -6448,7 +6448,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var view = state.reviewProcess[runId];
     var source = step4Source(runId);
     if (!source) return view && !view.autoRun ? 'old' : 'idle';
-    return { PASS: 'pass', RUNNING: 'running', FAIL: 'fail', NOT_APPLICABLE: 'old' }[source.state] || 'idle';
+    // #5: a step-4 state new to this app version reads «Khác», never «Chưa chạy».
+    return { PASS: 'pass', RUNNING: 'running', FAIL: 'fail', NOT_APPLICABLE: 'old', IDLE: 'idle' }[source.state] || 'other';
   }
 
   function countOrUnknown(value) { return present(value) ? fmtInt(value) : 'chưa rõ'; }
@@ -6463,7 +6464,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     if (!fee) return 'Chưa có';
     return 'khoảng ' + usdText(fee.total) + ' USD (lọc ' + usdText(fee.filter) + ' + gắn chủ đề ' + usdText(fee.label) + ')';
   }
-  function step4ErrorText(code) { return STEP4_ERROR_TEXT[code] || 'có lỗi chưa xác định'; }
+  function step4ErrorText(code) { return displayText(STEP4_ERROR_TEXT, code); }
   function upperFirst(text) { return text.charAt(0).toUpperCase() + text.slice(1); }
   function clockText(value) { return vnStamp(value).slice(11); }
 
@@ -6672,7 +6673,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var list = h('ul', 'cks');
     gate.checks.forEach(function (check) {
       var tone = check.ok ? 'ok' : check.level === 'warn' ? 'warn' : 'fail';
-      list.appendChild(step4Check(tone, STEP4_CHECK_LABELS[check.id] || 'Điều kiện kiểm tra', null, check.id, check.got));
+      list.appendChild(step4Check(tone, displayText(STEP4_CHECK_LABELS, check.id), null, check.id, check.got));
     });
     if (gate.checks.length) card.appendChild(list);
     else card.appendChild(h('p', 'muted', 'Chưa có nội dung kiểm tra.'));
@@ -9870,9 +9871,9 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var res = await api.appLatest();
     var latest = res && res.ok && res.data ? res.data.version : null;
     app.latest = newerVersion(latest, app.own) ? latest : null;
-    var minimum = res && res.ok && res.data && semver(res.data.minimumVersion) ? res.data.minimumVersion : null;
     var wasOld = appTooOld();
-    app.minimum = minimum;
+    // A failed check keeps the last known minimum; only a good answer without one clears it.
+    if (res && res.ok && res.data) app.minimum = semver(res.data.minimumVersion) ? res.data.minimumVersion : null;
     renderUpdateBar();
     if (appTooOld() !== wasOld && state.screen === 'result') renderResult();
   }

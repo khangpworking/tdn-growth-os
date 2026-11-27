@@ -6352,3 +6352,19 @@ test('app 1.3.5: an app older than the server minimum shows «Hãy cập nhật 
     } finally { dom.window.close(); }
   }
 });
+
+test('app 1.3.5: a step-4 state new to this app shows «Khác» on the step 4 card, not «Chưa chạy»', async () => {
+  const { dom, doc } = step4Harness({
+    reviewProcessResult: (runId) => {
+      const reply = reviewProcessReply(runId, 'PASS');
+      reply.data.sources = reply.data.sources.map((source: any) => ({ ...source, state: 'DONE' }));
+      return reply;
+    },
+  });
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 4, 'run list');
+    runListButton(doc, 'run-pass').click();
+    await waitFor(() => step4Card(doc)?.querySelector('.mh .chip')?.textContent === 'Khác', 'step 4 chip');
+    assert.doesNotMatch(doc.getElementById('moduleOutputsPanel')!.textContent || '', /Máy chủ trả về dữ liệu lỗi/);
+  } finally { dom.window.close(); }
+});
