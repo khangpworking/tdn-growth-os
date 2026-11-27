@@ -64,7 +64,8 @@ class WatchdogTests(unittest.TestCase):
         for code in (401, 403):
             with self.subTest(refused=code):
                 self.assertEqual(restarts([refused(code)] * 4), [], 'a refused token never restarts')
-                self.assertEqual(restarts([no_answer, no_answer, refused(code)]), [], 'a refused token never counts')
+                self.assertEqual(restarts([no_answer, no_answer, refused(code), no_answer]), [],
+                                 'a refused token breaks the run: the no-answers around it are not three in a row')
         self.assertEqual(restarts([no_answer] * 4, token=''), [], 'a missing token never counts and never restarts')
 
 

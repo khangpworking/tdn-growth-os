@@ -135,6 +135,19 @@ class FakeContext:
             raise self.close_error
 
 
+class StubbornContext(FakeContext):
+    """A close that never finishes and swallows every cancel until the test sets `released`."""
+    released = False
+
+    async def close(self):
+        self.closes += 1
+        while not self.released:
+            try:
+                await asyncio.sleep(0.01)
+            except asyncio.CancelledError:
+                pass
+
+
 def fake_cloakbrowser(launch):
     module = types.ModuleType('cloakbrowser')
     module.launch_persistent_context_async = launch
@@ -397,9 +410,9 @@ class ServiceTests(unittest.TestCase):
     # Browser recovery (live 27/11: a job failed, the session check after it failed too, and the old Chrome kept the profile).
     COUNTS = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
 
-    def failed_job_with_broken_session_check(self, context):
+    def failed_job_with_broken_session_check(self, context, worker=None):
         """A count job fails, then the session check after it raises; returns the worker."""
-        worker = self.app.BrowserWorker()
+        worker = worker or self.app.BrowserWorker()
         worker.context = context
 
         def broken(_job_id):
@@ -434,38 +447,92 @@ class ServiceTests(unittest.TestCase):
                    mock.patch.object(app.os, 'kill', kill))
         return kills, patches
 
-    def test_a_close_that_fails_or_hangs_ends_only_the_browser_processes_of_this_profile(self):
-        app, profile = self.app, self.app.DATA / 'profile'
+    def test_a_close_that_fails_ends_only_the_browser_processes_of_this_profile(self):
+        profile = self.app.DATA / 'profile'
         flag = f'--user-data-dir={profile}'
+        table = {101: ['/opt/cloakbrowser/chrome', flag, '--headless=new'],
+                 102: ['/usr/bin/python3', 'helper.py', flag],                       # not a browser
+                 103: ['/opt/cloakbrowser/chrome', flag],                            # PID reused before the kill
+                 104: ['/opt/cloakbrowser/chrome', f'{flag}-old'],
+                 105: ['/opt/cloakbrowser/chrome', '--user-data-dir=/tmp/another-profile'],
+                 106: ['bash'], 107: []}
+        kills, patches = self.processes(table, changed={103: ['/usr/bin/sleep', '1000']})
+        started = time.monotonic()
+        with patches[0], patches[1], patches[2]:
+            worker = self.failed_job_with_broken_session_check(FakeContext(close_error=RuntimeError('synthetic close failure')))
+        self.assertEqual(kills, [(101, signal.SIGTERM)], 'only a Chromium binary that still has the exact profile argument is signalled')
+        self.assertIsNone(worker.context)
+        self.assertLess(time.monotonic() - started, 1)
 
-        async def hang(awaitable, timeout):
-            awaitable.close()
-            raise asyncio.TimeoutError()
-        for case in ('fails', 'hangs'):
-            with self.subTest(case=case):
-                table = {101: ['/opt/cloakbrowser/chrome', flag, '--headless=new'],
-                         102: ['/usr/bin/python3', 'helper.py', flag],                       # not a browser
-                         103: ['/opt/cloakbrowser/chrome', flag],                            # PID reused before the kill
-                         104: ['/opt/cloakbrowser/chrome', f'{flag}-old'],
-                         105: ['/opt/cloakbrowser/chrome', '--user-data-dir=/tmp/another-profile'],
-                         106: ['bash'], 107: []}
-                kills, patches = self.processes(table, changed={103: ['/usr/bin/sleep', '1000']})
-                context = FakeContext(close_error=RuntimeError('synthetic close failure') if case == 'fails' else None)
-                timeout = mock.patch.object(app.asyncio, 'wait_for', hang) if case == 'hangs' else suppress()
-                started = time.monotonic()
-                with patches[0], patches[1], patches[2], timeout:
-                    worker = self.failed_job_with_broken_session_check(context)
-                self.assertEqual(kills, [(101, signal.SIGTERM)],
-                                 'only a Chromium binary that still has the exact profile argument is signalled')
-                self.assertIsNone(worker.context)
-                self.assertLess(time.monotonic() - started, 1)
+    def test_a_close_that_ignores_cancellation_still_frees_the_worker_within_the_limit(self):
+        app, profile = self.app, self.app.DATA / 'profile'
+        kills, patches = self.processes({101: ['/opt/cloakbrowser/chrome', f'--user-data-dir={profile}']})
+        real_wait, real_wait_for, limit = asyncio.wait, asyncio.wait_for, 0.05
+
+        # The 10 s close limit, shortened so the test is fast; the close never finishes and swallows every cancel.
+        async def wait(fs, *, timeout=None, return_when=asyncio.ALL_COMPLETED):
+            return await real_wait(fs, timeout=limit if timeout is None else min(timeout, limit), return_when=return_when)
+
+        async def wait_for(awaitable, timeout):
+            return await real_wait_for(awaitable, limit if timeout is None else min(timeout, limit))
+        context, worker, freed = StubbornContext(), app.BrowserWorker(), []
+        original = worker.run_job
+
+        async def timed(job_id):
+            started = time.monotonic()
+            try:
+                await original(job_id)
+            finally:
+                freed.append(time.monotonic() - started)
+                context.released = True
+        worker.run_job = timed
+        started = time.monotonic()
+        with patches[0], patches[1], patches[2], mock.patch.object(app.asyncio, 'wait', wait), \
+                mock.patch.object(app.asyncio, 'wait_for', wait_for):
+            self.failed_job_with_broken_session_check(context, worker)
+        self.assertEqual(context.closes, 1)
+        self.assertLess(freed[0], 1, 'the worker does not wait for a close that ignores cancellation')
+        self.assertEqual(kills, [(101, signal.SIGTERM)], 'the browser of this profile is killed instead')
+        self.assertIsNone(worker.context)
+        self.assertLess(time.monotonic() - started, 2)
 
     def test_a_close_cancelled_midway_still_ends_this_profiles_browser_and_the_cancel_propagates(self):
         profile = self.app.DATA / 'profile'
         kills, patches = self.processes({101: ['/opt/cloakbrowser/chrome', f'--user-data-dir={profile}']})
+        context, worker = StubbornContext(), self.app.BrowserWorker()
+        original = worker.run_job
+
+        async def cancelled_during_close(job_id):
+            task = asyncio.ensure_future(original(job_id))
+            try:
+                for _ in range(100):
+                    if context.closes or task.done():
+                        break
+                    await asyncio.sleep(0.01)
+                task.cancel()   # the service shuts down while the close runs
+                await task
+            finally:
+                context.released = True
+        worker.run_job = cancelled_during_close
         with patches[0], patches[1], patches[2], self.assertRaises(asyncio.CancelledError):
-            self.failed_job_with_broken_session_check(FakeContext(close_error=asyncio.CancelledError()))
+            self.failed_job_with_broken_session_check(context, worker)
         self.assertEqual(kills, [(101, signal.SIGTERM)])
+
+    def test_a_renewal_that_raises_still_runs_the_dequeued_job(self):
+        app = self.app
+        worker = app.BrowserWorker()
+        worker.context = FakeContext(FakePage(self.RESULT), close_error=RuntimeError('synthetic close failure'))
+        worker.page = FakePage(self.RESULT)
+        worker.browser_started, worker.browser_jobs = time.monotonic(), 200
+        [job_id] = self.queue_jobs(worker, 1)
+
+        def scan_fails():
+            raise PermissionError('synthetic /proc scan failure')
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.drain_with_launches(worker, cmdlines=scan_fails)
+        self.assertIn(app.get_job(job_id)['state'], app.TERMINAL, 'the job ran to an end, it is not left queued')
+        self.assertIn('[browser] renew failed', output.getvalue())
 
     def test_a_stale_profile_lock_is_cleared_before_a_launch(self):
         app, profile, host = self.app, self.app.DATA / 'profile', socket.gethostname()
@@ -597,15 +664,17 @@ class ServiceTests(unittest.TestCase):
     RESULT = {'stop_reason': 'last_page', 'error': None, 'records': [], 'pages': [{'page': 1}]}
 
     def queue_jobs(self, worker, count):
-        app = self.app
+        app, ids = self.app, []
         for _ in range(count):
             job_id = str(uuid.uuid4())
             with app.db() as connection:
                 connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
                                    (job_id, json.dumps({'url': URL}), 'queued', app.now(), app.now()))
             worker.queue.put_nowait({'kind': 'job', 'job_id': job_id})
+            ids.append(job_id)
+        return ids
 
-    def drain_with_launches(self, worker):
+    def drain_with_launches(self, worker, cmdlines=lambda: {}):
         """Runs the worker until its queue is empty; each launch gives a new FakeContext. Returns (launched, seen)."""
         app, launched, seen = self.app, [], []
 
@@ -627,7 +696,7 @@ class ServiceTests(unittest.TestCase):
                 task.cancel()
                 with suppress(asyncio.CancelledError):
                     await task
-        with fake_cloakbrowser(launch), mock.patch.object(app, 'read_cmdlines', lambda: {}, create=True):
+        with fake_cloakbrowser(launch), mock.patch.object(app, 'read_cmdlines', cmdlines, create=True):
             asyncio.run(scenario())
         return launched, seen
 
