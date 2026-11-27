@@ -64,7 +64,7 @@ holdout, baseline comparison and business-reviewed labels remain open.
 ## Verification and remaining work
 
 - Windows project tests, builds, typecheck and contract generation were not run.
-- SSH works using the authorised key in WSL `OpenClawGateway`, after checking
+- SSH works using the authorised key in WSL `<wsl-distro>`, after checking
   the pinned Fedora host fingerprint. Only the existing disposable Linux
   checkout was used; the active operator/database were untouched.
 - Linux generation exposed tuple typing and strict-null errors in Claude's

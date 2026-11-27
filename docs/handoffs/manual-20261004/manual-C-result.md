@@ -40,8 +40,8 @@ The kernel (`synthesis-execution.ts`) stores prompt bytes content-addressed at n
 
 ## 5. Actual checks (Linux; disposable snapshot separate from A)
 
-- Snapshot: `/home/pkhang/.cache/tdn-c-insight-prompt-20261004/snapshot` (fresh dir, sole writer this task; excludes `.git`, `node_modules`, runtime/private data, secrets). Source tarball SHA-256 `ef7ee2858a888038b52402ed231f1740053a1935ce6a4ade8232fb5c1c68c0e2`; pre-run manifest `../snapshot-manifest.sha256` (SHA-256 `2306d1b4ee1d9bc7b9c74f5b8007cd936c47d35dff1b25034053060a27031729`, 800 files). The test file was fixed after the manifest; the final synced bytes of both changed files were re-hashed on Fedora and match the table in §2 (`e73a69b8…`, `0cfb1755…`).
-- Toolchain: `/home/pkhang/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin` — node v24.15.0, npm 11.12.1. `npm ci` from lockfile (147 packages).
+- Snapshot: `<c-scratch-dir>/snapshot` (fresh dir, sole writer this task; excludes `.git`, `node_modules`, runtime/private data, secrets). Source tarball SHA-256 `ef7ee2858a888038b52402ed231f1740053a1935ce6a4ade8232fb5c1c68c0e2`; pre-run manifest `../snapshot-manifest.sha256` (SHA-256 `2306d1b4ee1d9bc7b9c74f5b8007cd936c47d35dff1b25034053060a27031729`, 800 files). The test file was fixed after the manifest; the final synced bytes of both changed files were re-hashed on Fedora and match the table in §2 (`e73a69b8…`, `0cfb1755…`).
+- Toolchain: `<node24-toolchain>/bin` — node v24.15.0, npm 11.12.1. `npm ci` from lockfile (147 packages).
 - `npm run typecheck` — **PASS** (after fixing two type errors in my new test; snapshot error output retained in run history).
 - `node --import tsx --test tests/unit/research-semantic-coding-response.test.ts` — **2/2 PASS**.
 - `node --import tsx --test tests/integration/research-insight-prompt-retention.test.ts` (new) — **1/1 PASS**. Verifies with synthetic transport only: dispatch under the revised prompt reaches VALID; claimed HUMAN_REVIEWED/adjudicated provenance is forced back to `PENDING_AI`/null while source-bound disagreement is preserved; the retained prompt artifact at `prompt_sha256` equals the dispatched systemText; an exact retry with no transport returns the identical proposal (`exactRetry: true`) with zero new calls and zero DB mutations (`total_changes()` unchanged); an invented-quote payload settles INVALID and replays INVALID with zero mutations.
@@ -78,6 +78,6 @@ Protocol: freeze the benchmark spec and synthetic fixtures with hashes before an
 
 - The revised generic prompt at the hashes in §2 affects **new** insight preparations only; retained executions/retries replay from stored bytes (verified by test, synthetic transport, zero live calls).
 - `semantic-coding-response.ts` and all A/B-owned/shared files are untouched; ownership of `insight-model-execution.ts` is released back to the coordinator.
-- The disposable snapshot `/home/pkhang/.cache/tdn-c-insight-prompt-20261004` is mine; safe to delete after review. A's scratch was never touched.
+- The disposable snapshot `<c-scratch-dir>` is mine; safe to delete after review. A's scratch was never touched.
 - Private audit material was read at the exact permitted paths, hashes verified, and nothing private (raw source, reference rows, audit text) was copied into the repository.
 - Next precise step: coordinator approves/adjusts the §6 benchmark spec, then runs the bounded fresh-model comparison; nothing in this handoff claims semantic improvement of a fresh model run.
