@@ -31,7 +31,7 @@ _REMOTE_PATH = re.compile(r'(\$HOME/)?[A-Za-z0-9_./-]+')
 _STATIC_ERROR = re.compile(r'[A-Z][A-Z0-9_]{0,63}')
 _SHOP_ITEM_ID = re.compile(r'[1-9][0-9]{0,19}')
 _SHOPEE_LINK = re.compile(r"https://shopee\.vn/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{0,2000}")
-EXPORT_MAX_BYTES = 64 * 1024 * 1024
+EXPORT_MAX_BYTES = 1024 * 1024 * 1024   # #4: 1 GB; the size and hash checks stay exact
 EXPORT_ERROR_MAX_BYTES = 64 * 1024
 _MAX_RUN_LINKS = 100  # the server's productSelection.count limit (shopee_flow.py)
 _COMMANDS = {
@@ -99,12 +99,16 @@ _UTC_TEXT = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z'
 _RUN_VIEW_PARTS = ('info', 'sampling', 'reviewData', 'outputs', 'process')
 _RUN_VIEW_RESULT_PARTS = ('stats', 'insights')
 # Step 4 formats (review-process-view-v1, review-process-start-v1, runs-progress-v1).
+# #5: a value that is only shown as text (a status, a check name, an error code, a label kind) may be new to this
+# app version: any short name passes here and the page shows «Khác». Links, ids, sizes and hashes stay exact.
+_DISPLAY_NAME = re.compile(r'[A-Za-z][A-Za-z0-9_-]{0,63}')
+_MAX_THEMES = 50          # topics per bucket (was 10)
+_MAX_COMMENT_TAGS = 50    # topic labels on one comment (was 10)
+_POLARITY_KEYS = frozenset({'khen', 'che', 'ke', 'khong_ro_huong'})   # counts that must always be there
+EXPORT_IDLE_SECONDS = 40  # #4: the longest wait with no data during a download
+# The known step 4 states: a new state is shown as «Khác».
 _STEP4_STATES = frozenset({'IDLE', 'RUNNING', 'PASS', 'FAIL'})
 _STEP4_SOURCE_STATES = _STEP4_STATES | {'NOT_APPLICABLE'}
-_STEP4_ERRORS = frozenset({
-    'JEV_CALL_FAILED', 'JEV_DISABLED', 'REVIEW_SOURCE_CHANGED', 'DB_IMPORT_CONFLICT',
-    'PRODUCT_NAME_PROVENANCE_MISSING', 'APP_DB_NOT_CONFIGURED', 'READONLY_ON', 'GATE_FAILED',
-})
 _STEP4_GATE_CHECKS = {
     'in': ('source_unchanged', 'review_ids_valid', 'not_saved_twice', 'jev_ready_versions_fixed',
            'fee_estimate_recorded'),
@@ -146,6 +150,25 @@ class _BridgeFailure(Exception):
 
 def _error(code, message=None):
     return {'ok': False, 'error': {'code': code, 'message': code if message is None else message}}
+
+
+def _machine_name():
+    """This computer's name for the server's delete record: [A-Za-z0-9._-] only, at most 64, else 'unknown'."""
+    try:
+        name = socket.gethostname()
+    except OSError:
+        name = ''
+    name = re.sub(r'[^A-Za-z0-9._-]', '', name or os.environ.get('COMPUTERNAME', ''))[:64]
+    return name or 'unknown'
+
+
+def _version_key(text):
+    return tuple(int(part) for part in text.split('.'))
+
+
+def _display_name(value):
+    """#5: a display-only server name (status, check, error code, label kind): known or not, a short name passes."""
+    return isinstance(value, str) and _DISPLAY_NAME.fullmatch(value) is not None
 
 
 # Download formats -> file extension. 'labelled-json' = every collected comment with its Jev labels.
@@ -895,7 +918,8 @@ class Api:
                       'metricShotUploadUrl', 'metricShotConfirm', 'metricShotViewUrl'):
             words.append(self._run_id(run_id))
         words.extend(flags)              # wave 2 flags, built and checked by the caller
-        if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData'):
+        if action in ('saveReviewPlan', 'saveReviewData', 'exportReviewData') or (
+                action == 'deleteRun' and payload is not None):
             words.append('--stdin')
         if action in ('stopReviewAttempt', 'reconcileReviewAttempt'):
             words.extend(['--kind', kind, '--attempt', attempt_id])
@@ -921,7 +945,8 @@ class Api:
         if env_file is not None:
             lines.append(f'if [ -f "{env_file}" ]; then set -a; . "{env_file}"; set +a; fi')
         command = f'python3 "{config["remoteScript"]}" ' + ' '.join(words)
-        if action in ('new', 'addProduct', 'm1Import', 'saveReviewPlan', 'saveReviewData', 'exportReviewData'):
+        if action in ('new', 'addProduct', 'm1Import', 'saveReviewPlan', 'saveReviewData', 'exportReviewData') or (
+                action == 'deleteRun' and payload is not None):
             encoded = base64.b64encode(json.dumps(payload, ensure_ascii=False, allow_nan=False,
                                                   separators=(',', ':')).encode('utf-8')).decode('ascii')
             command = f"printf '%s' '{encoded}' | base64 -d | " + command
@@ -1543,7 +1568,13 @@ class Api:
 
     def _delete_run(self, run_id):
         run_id = self._run_id(run_id)
-        result = self._remote('deleteRun', run_id=run_id)
+        # #6: the server records which app version and computer sent the delete. An older server without
+        # `--stdin` on delete-run answers USAGE (nothing deleted): the plain command is sent once more.
+        source = {'format': 'run-delete-source-v1', 'appVersion': _app_build()['version'] or 'unknown',
+                  'machine': _machine_name()}
+        result = self._remote('deleteRun', run_id=run_id, payload=source)
+        if not result['ok'] and result['error'].get('code') == 'USAGE':
+            result = self._remote('deleteRun', run_id=run_id)
         if not result['ok']:
             return result
         data = result['data']
@@ -1917,7 +1948,7 @@ class Api:
             return False
         links = source['links']
         return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
-                source['kind'] in ('legacy', 'custom') and source['status'] in ('SUCCEEDED', 'FAILED') and
+                _display_name(source['kind']) and _display_name(source['status']) and
                 (source['completedAt'] is None or isinstance(source['completedAt'], str)) and
                 self._review_stats_numbers(source['all']) and isinstance(links, list) and len(links) <= _MAX_RUN_LINKS and
                 all(self._review_stats_numbers(link, ('shopId', 'itemId', 'url')) and
@@ -1944,7 +1975,7 @@ class Api:
     def _review_insights_summary(value):
         if not isinstance(value, dict) or set(value) != {'status', 'text', 'model', 'generatedAt'}:
             return False
-        return (value['status'] in ('READY', 'EMPTY', 'UNAVAILABLE') and
+        return (_display_name(value['status']) and
                 (value['text'] is None or (isinstance(value['text'], str) and len(value['text']) <= 4000)) and
                 (value['model'] is None or (isinstance(value['model'], str) and len(value['model']) <= 200)) and
                 (value['generatedAt'] is None or (isinstance(value['generatedAt'], str) and len(value['generatedAt']) <= 128)))
@@ -1955,8 +1986,7 @@ class Api:
             return False
         return (isinstance(value['code'], str) and re.fullmatch(r'T-[A-Z0-9]+', value['code']) is not None and
                 isinstance(value['name'], str) and bool(value['name']) and
-                value['polarity'] in ('khen', 'che', 'ke', 'khong_ro_huong') and
-                value['status'] in ('kept', 'unclear') and
+                _display_name(value['polarity']) and _display_name(value['status']) and
                 (value['choice'] is None or isinstance(value['choice'], str)))
 
     @classmethod
@@ -1969,7 +1999,7 @@ class Api:
                 (value['date'] is None or isinstance(value['date'], str)) and
                 (value['productName'] is None or isinstance(value['productName'], str)) and
                 (value['url'] is None or (_SHOPEE_LINK.fullmatch(value['url']) is not None and len(value['url']) <= 2000)) and
-                isinstance(value['tags'], list) and len(value['tags']) <= 10 and
+                isinstance(value['tags'], list) and len(value['tags']) <= _MAX_COMMENT_TAGS and
                 all(cls._review_insights_comment_tag(tag) for tag in value['tags']))
 
     @classmethod
@@ -1991,7 +2021,7 @@ class Api:
             list_key = 'comments'
             if not isinstance(comments, list) or len(comments) > 200:
                 return False
-        if not isinstance(themes, list) or len(themes) > 10:
+        if not isinstance(themes, list) or len(themes) > _MAX_THEMES:
             return False
         for theme in themes:
             if (not isinstance(theme, dict) or
@@ -2008,7 +2038,8 @@ class Api:
                     type(theme['unclearCount']) is not int or theme['unclearCount'] < 0 or
                     not (isinstance(theme['share'], (int, float)) and 0 <= theme['share'] <= 1) or
                     not cls._review_insights_summary(theme['summary']) or
-                    not isinstance(polarity, dict) or set(polarity) != {'khen', 'che', 'ke', 'khong_ro_huong'} or
+                    not isinstance(polarity, dict) or not _POLARITY_KEYS <= set(polarity) or
+                    not all(_display_name(key) for key in polarity) or
                     any(type(count) is not int or count < 0 for count in polarity.values()) or
                     not isinstance(theme['comments'], list) or
                     (comments is not None and len(theme['comments']) > len(comments)) or
@@ -2022,7 +2053,7 @@ class Api:
             return False
         links = source['links']
         return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
-                source['kind'] in ('legacy', 'custom') and source['status'] in ('SUCCEEDED', 'FAILED') and
+                _display_name(source['kind']) and _display_name(source['status']) and
                 (source['completedAt'] is None or isinstance(source['completedAt'], str)) and
                 cls._review_insights_bucket(source['all'], summary) and isinstance(links, list) and len(links) <= _MAX_RUN_LINKS and
                 all(isinstance(link, dict) and set(link) == {'shopId', 'itemId', 'url', 'insights'} and
@@ -2480,14 +2511,15 @@ class Api:
                 value['verdict'] not in ('PASS', 'FAIL') or not isinstance(value['checks'], list)):
             return False
         if not all(isinstance(check, dict) and set(check) == {'id', 'ok', 'level', 'got'} and
-                   check['id'] in allowed and type(check['ok']) is bool and
-                   check['level'] in ('error', 'warn') and
+                   _display_name(check['id']) and type(check['ok']) is bool and
+                   _display_name(check['level']) and
                    isinstance(check['got'], str) and len(check['got']) <= 200
                    for check in value['checks']):
             return False
-        # Contract order, each id at most once.
-        order = [allowed.index(check['id']) for check in value['checks']]
-        return all(a < b for a, b in zip(order, order[1:]))
+        # Each id at most once; the known ids in contract order (a new id may stand anywhere).
+        ids = [check['id'] for check in value['checks']]
+        order = [allowed.index(check_id) for check_id in ids if check_id in allowed]
+        return len(set(ids)) == len(ids) and all(a < b for a, b in zip(order, order[1:]))
 
     @classmethod
     def _review_process_source(cls, source):
@@ -2501,13 +2533,14 @@ class Api:
         for name, counts in _STEP4_STAGE_COUNTS.items():
             stage = stages[name]
             if (not isinstance(stage, dict) or set(stage) != {'state', 'done', *counts} or
-                    stage['state'] not in _STEP4_STATES or not cls._count(stage['done'], nullable=False) or
+                    not _display_name(stage['state']) or not cls._count(stage['done'], nullable=False) or
                     not all(cls._count(stage[key]) for key in counts)):
                 return False
         state = source['state']
         return (isinstance(source['sourceSha256'], str) and _PLAN_SHA.fullmatch(source['sourceSha256']) is not None and
-                state in _STEP4_SOURCE_STATES and
-                (source['errorCode'] in _STEP4_ERRORS if state == 'FAIL' else source['errorCode'] is None) and
+                _display_name(state) and
+                (_display_name(source['errorCode']) if state == 'FAIL' else source['errorCode'] is None or
+                 (state not in _STEP4_SOURCE_STATES and _display_name(source['errorCode']))) and
                 cls._stamp(source['startedAt']) and cls._stamp(source['finishedAt']) and
                 cls._count(source['retries'], nullable=False) and type(source['canResume']) is bool and
                 (not source['canResume'] or state in ('FAIL', 'NOT_APPLICABLE')) and
@@ -2707,7 +2740,7 @@ class Api:
         process = None
         stderr = None
         timed_out = []
-        timer = None
+        watch_done = threading.Event()
         succeeded = False
         try:
             stderr = tempfile.TemporaryFile()
@@ -2722,25 +2755,42 @@ class Api:
                 self._invalidate_native(token)
                 raise _BridgeFailure('SSH_FAILED') from None
 
-            def stop_for_timeout():
-                timed_out.append(True)
-                try:
-                    process.kill()
-                except OSError:
-                    pass
+            # #4: 40 s (or a longer `timeoutSeconds`) is the longest wait WITHOUT data; each block starts it again.
+            # One lock decides between «a block arrived», «the stream ended» and «too long without data».
+            idle_limit = max(EXPORT_IDLE_SECONDS, config['timeoutSeconds'])
+            idle_lock = threading.Lock()
+            last_data = [time.monotonic()]
+            saving = [False]   # this app is writing a block to disk: that time is not «no data»
 
-            timer = threading.Timer(config['timeoutSeconds'], stop_for_timeout)
-            timer.start()
+            def stop_when_idle():
+                while not watch_done.wait(0.2):
+                    with idle_lock:
+                        if watch_done.is_set():
+                            return
+                        if not saving[0] and time.monotonic() - last_data[0] >= idle_limit:
+                            timed_out.append(True)
+                            try:
+                                process.kill()
+                            except OSError:
+                                pass
+                            return
+
+            watchdog = threading.Thread(target=stop_when_idle, name='tdn-export-idle', daemon=True)
+            watchdog.start()
             total = 0
             hasher = hashlib.sha256()
             while True:
                 try:
-                    chunk = process.stdout.read(1024 * 1024)
+                    chunk = process.stdout.read1(1024 * 1024)
                 except OSError:
                     self._invalidate_native(token)
                     raise _BridgeFailure('SSH_FAILED') from None
-                if not chunk:
-                    break
+                with idle_lock:
+                    if not chunk or timed_out:
+                        watch_done.set()   # the stream ended (or was cut): the watchdog decides nothing more
+                        break
+                    last_data[0] = time.monotonic()
+                    saving[0] = True
                 total += len(chunk)
                 if total > byte_size or total > EXPORT_MAX_BYTES:
                     process.kill()
@@ -2750,6 +2800,9 @@ class Api:
                     out.write(chunk)
                 except OSError:
                     raise _BridgeFailure('SAVE_FAILED') from None
+                with idle_lock:   # the clock for «no data» starts again after the local write
+                    saving[0] = False
+                    last_data[0] = time.monotonic()
             try:
                 out.flush()
                 os.fsync(out.fileno())
@@ -2757,9 +2810,13 @@ class Api:
             except OSError:
                 raise _BridgeFailure('SAVE_FAILED') from None
             out = None
-            returncode = process.wait()
-            timer.cancel()
-            timer = None
+            watchdog.join()
+            try:
+                # Stdout is closed; a process that does not exit within the idle limit is stopped.
+                returncode = process.wait(timeout=idle_limit)
+            except subprocess.TimeoutExpired:
+                timed_out.append(True)
+                returncode = None
             if timed_out:
                 self._invalidate_native(token)
                 raise _BridgeFailure('SSH_TIMEOUT')
@@ -2785,8 +2842,7 @@ class Api:
                 raise _BridgeFailure('SAVE_FAILED') from None
             succeeded = True
         finally:
-            if timer is not None:
-                timer.cancel()
+            watch_done.set()
             if out is not None:
                 try:
                     out.close()
@@ -2902,8 +2958,13 @@ class Api:
             return result
         data = result['data']
         version = data.get('version')
-        if (set(data) != {'format', 'version'} or data['format'] != 'app-latest-v1' or
-                not (version is None or (isinstance(version, str) and _SEMVER.fullmatch(version)))):
+        # #3: `minimumVersion` is present only when the server sets one; an older app than it shows no results.
+        if (set(data) not in ({'format', 'version'}, {'format', 'version', 'minimumVersion'}) or
+                data['format'] != 'app-latest-v1' or
+                not (version is None or (isinstance(version, str) and _SEMVER.fullmatch(version))) or
+                ('minimumVersion' in data and not (isinstance(data['minimumVersion'], str) and
+                                                   _SEMVER.fullmatch(data['minimumVersion']) and version is not None and
+                                                   _version_key(data['minimumVersion']) <= _version_key(version)))):
             raise _BridgeFailure('REMOTE_OUTPUT_INVALID')
         return result
 

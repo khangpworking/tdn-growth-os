@@ -41,11 +41,23 @@ class AppVersionTest(unittest.TestCase):
         """| app-latest prints                                  | appLatest gives               |
         |---------------------------------------------------|-------------------------------|
         | {"format":"app-latest-v1","version":"1.10.0"/null} | that reply                    |
-        | a non-semver version / an extra key / another form | REMOTE_OUTPUT_INVALID         |
+        | the same + "minimumVersion":"1.3.5" (#3)           | that reply                    |
+        | a non-semver version or minimumVersion / an extra  | REMOTE_OUTPUT_INVALID         |
+        | minimumVersion above version, or with no version   | REMOTE_OUTPUT_INVALID         |
+        | key / another form                                 |                               |
         """
         api = tdn_shopee_app.Api()
         for data, code in (({'format': 'app-latest-v1', 'version': '1.10.0'}, None),
                            ({'format': 'app-latest-v1', 'version': None}, None),
+                           ({'format': 'app-latest-v1', 'version': '1.10.0', 'minimumVersion': '1.3.5'}, None),
+                           ({'format': 'app-latest-v1', 'version': '1.10.0', 'minimumVersion': None},
+                            'REMOTE_OUTPUT_INVALID'),
+                           ({'format': 'app-latest-v1', 'version': '1.10.0', 'minimumVersion': '1.3'},
+                            'REMOTE_OUTPUT_INVALID'),
+                           ({'format': 'app-latest-v1', 'version': '1.3.4', 'minimumVersion': '1.3.5'},
+                            'REMOTE_OUTPUT_INVALID'),
+                           ({'format': 'app-latest-v1', 'version': None, 'minimumVersion': '1.3.5'},
+                            'REMOTE_OUTPUT_INVALID'),
                            ({'format': 'app-latest-v1', 'version': 'v1.10.0'}, 'REMOTE_OUTPUT_INVALID'),
                            ({'format': 'app-latest-v1', 'version': '1.0.0', 'url': 'x'}, 'REMOTE_OUTPUT_INVALID'),
                            ({'format': 'app-latest-v2', 'version': '1.0.0'}, 'REMOTE_OUTPUT_INVALID')):

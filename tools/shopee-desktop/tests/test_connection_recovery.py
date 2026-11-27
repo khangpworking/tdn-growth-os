@@ -54,7 +54,7 @@ class Proc:
         self.stderr = io.BytesIO()
         self.returncode = returncode
 
-    def wait(self):
+    def wait(self, timeout=None):   # same signature as subprocess.Popen.wait
         return self.returncode
 
     def poll(self):
