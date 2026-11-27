@@ -177,21 +177,39 @@ def lock_pid(target, host):
     return int(pid) if name == host and pid.isdigit() else None
 
 
+BROWSER_BINARIES = {'chrome', 'chromium', 'chromium-browser', 'headless_shell'}
+
+
+def profile_browser(args, profile):
+    """A Chromium browser binary (argv[0] basename) with the exact argument --user-data-dir=<profile>."""
+    return bool(args) and os.path.basename(args[0]) in BROWSER_BINARIES and f'--user-data-dir={profile}' in args
+
+
 def profile_pids(cmdlines, profile):
-    """PIDs whose command line has the exact argument --user-data-dir=<profile>; no other process is ever picked."""
-    flag = f'--user-data-dir={profile}'
-    return sorted(pid for pid, args in cmdlines.items() if flag in args)
+    """PIDs of this profile's browser processes; no other process is ever picked."""
+    return sorted(pid for pid, args in cmdlines.items() if profile_browser(args, profile))
+
+
+def read_cmdline(pid):
+    """Command line of one process (Linux /proc); empty for a gone process or a zombie."""
+    try:
+        return Path(f'/proc/{pid}/cmdline').read_bytes().decode(errors='replace').split('\0')
+    except OSError:
+        return []
 
 
 def read_cmdlines():
-    """Command line of each running process (Linux /proc); a zombie has an empty one."""
-    values = {}
-    for entry in Path('/proc').glob('[0-9]*'):
+    """Command line of each running process."""
+    return {int(entry.name): read_cmdline(entry.name) for entry in Path('/proc').glob('[0-9]*') if entry.name.isdigit()}
+
+
+def signal_profile_browser(pid, sig):
+    """Signal the PID only if /proc still shows it as this profile's browser right now."""
+    if profile_browser(read_cmdline(pid), PROFILE):
         try:
-            values[int(entry.name)] = (entry / 'cmdline').read_bytes().decode(errors='replace').split('\0')
-        except (OSError, ValueError):
+            os.kill(pid, sig)
+        except OSError:
             pass
-    return values
 
 
 @contextmanager
@@ -278,37 +296,39 @@ class BrowserWorker:
         self.browser_error = None
         self.browser_started = None
         self.browser_jobs = 0
+        self.recover_pending = False
 
     async def kill_profile_browsers(self):
         """End the browser processes of this profile: SIGTERM, then SIGKILL after 5 s."""
         pids = profile_pids(read_cmdlines(), PROFILE)
         for pid in pids:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except OSError:
-                pass
+            signal_profile_browser(pid, signal.SIGTERM)
         for _ in range(20):
             if not pids:
                 return
             await asyncio.sleep(0.25)
             pids = profile_pids(read_cmdlines(), PROFILE)
         for pid in pids:
-            try:
-                os.kill(pid, getattr(signal, 'SIGKILL', signal.SIGTERM))
-            except OSError:
-                pass
+            signal_profile_browser(pid, getattr(signal, 'SIGKILL', signal.SIGTERM))
 
     async def reset_browser(self):
         """Close this browser (10 s limit); if close fails or hangs, kill this profile's browser processes."""
-        context, self.context, self.page = self.context, None, None
-        self.browser_started, self.browser_jobs = None, 0
-        if context is not None:
-            try:
-                await asyncio.wait_for(context.close(), timeout=10)
-                return
-            except Exception:
-                pass
-        await self.kill_profile_browsers()
+        context = self.context
+        try:
+            if context is not None:
+                try:
+                    await asyncio.wait_for(context.close(), timeout=10)
+                    return
+                except asyncio.CancelledError:
+                    await self.kill_profile_browsers()
+                    raise
+                except Exception:
+                    pass
+            await self.kill_profile_browsers()
+        finally:
+            if self.context is context:
+                self.context, self.page = None, None
+                self.browser_started, self.browser_jobs = None, 0
 
     async def clear_profile_lock(self):
         """Before a launch: end a browser that still holds the profile lock, or remove a lock left by a dead one."""
@@ -355,16 +375,27 @@ class BrowserWorker:
             time.monotonic() - self.browser_started > BROWSER_MAX_AGE_S or self.browser_jobs >= BROWSER_MAX_JOBS)
 
     async def deep_check(self):
-        """Probe the open browser without opening any Shopee page."""
+        """Probe the open browser without opening any Shopee page; a failed idle probe queues one recovery."""
         if self.active_job:
             return {'deep': 'busy'}
         if self.context is None or self.page is None:
-            return {'deep': 'failed' if self.browser_error else 'ok'}
-        try:
-            await asyncio.wait_for(self.page.evaluate('1'), timeout=10)
-            return {'deep': 'ok'}
-        except Exception as error:
-            return {'deep': 'failed', 'deep_error': f'{type(error).__name__}: {str(error)[:300]}'}
+            value = {'deep': 'failed' if self.browser_error else 'ok'}
+        else:
+            try:
+                await asyncio.wait_for(self.page.evaluate('1'), timeout=10)
+                value = {'deep': 'ok'}
+            except Exception as error:
+                value = {'deep': 'failed', 'deep_error': f'{type(error).__name__}: {str(error)[:300]}'}
+            # A job that started during the probe may have caused the failure.
+            if self.active_job:
+                return {'deep': 'busy'}
+        if value['deep'] == 'failed' and not self.recover_pending:
+            try:
+                self.queue.put_nowait({'kind': 'recover'})
+                self.recover_pending = True
+            except asyncio.QueueFull:
+                pass
+        return value
 
     async def launch_browser(self):
         await self.clear_profile_lock()
@@ -441,7 +472,6 @@ class BrowserWorker:
         if job['state'] != 'queued':
             return
         self.active_job = job_id
-        self.browser_jobs += 1
         update_job(job_id, state='running', error=None, cancel_requested=0)
         try:
             custom = bool(job['request'].get('sampling')) or job['request'].get('kind') == 'counts'
@@ -535,6 +565,7 @@ class BrowserWorker:
             update_job(job_id, state=state, error='SOURCE_ACTION_FAILED' if job['request'].get('sampling') or job['request'].get('kind') == 'counts' else f'{type(error).__name__}: {str(error)[:400]}')
         finally:
             self.active_job = None
+            self.browser_jobs += 1
 
     async def run(self):
         try:
@@ -544,7 +575,12 @@ class BrowserWorker:
         while True:
             item = await self.queue.get()
             try:
-                if item['kind'] == 'job':
+                if item['kind'] == 'recover':
+                    # Recovery after a failed idle probe, serialized with job admission.
+                    self.recover_pending = False
+                    await self.reset_browser()
+                    await self.ensure_browser()
+                elif item['kind'] == 'job':
                     # Between jobs only: the next job launches a fresh browser.
                     if self.browser_due():
                         await self.reset_browser()
@@ -588,8 +624,7 @@ async def lifespan(app):
         await task
     except asyncio.CancelledError:
         pass
-    if worker.context:
-        await worker.reset_browser()
+    await worker.reset_browser()
 
 
 app = FastAPI(title='Shopee Private API', version='1.0.0', description='Private single-browser job API. Access through an SSH tunnel. Authentication is required for every endpoint.',

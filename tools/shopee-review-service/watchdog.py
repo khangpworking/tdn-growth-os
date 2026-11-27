@@ -1,39 +1,46 @@
-"""Restart the review service after 3 failed deep health checks in a row.
+"""Restart the review service after 3 deep health checks in a row get no answer (the service process is hung).
 
 Run by the systemd user timer shopee-review-watchdog.timer (every 2 minutes). It reads
-SHOPEE_API_TOKEN from its environment and keeps its failure counter in a small state file.
-A check during an active job ('busy') neither counts nor resets the counter.
+SHOPEE_API_TOKEN from its environment and keeps its counter in a small state file.
+A browser that fails while idle is recovered by the service's own worker, not here: any answer
+resets the counter. A missing or refused token is a configuration error: it never counts and
+never restarts.
 """
 import json
 import os
 import subprocess
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 URL = os.environ.get('SHOPEE_SERVICE_URL', 'http://127.0.0.1:8877').rstrip('/') + '/health?deep=1'
 STATE = Path(os.environ.get('WATCHDOG_STATE', Path.home() / '.local/state/tdn-shopee-review-service/watchdog.json'))
-FAILURES_TO_RESTART = 3
+NO_ANSWERS_TO_RESTART = 3
 
 
 def probe(token):
-    """'ok', 'busy' or 'failed'; no answer within 20 s is a failure."""
+    """'answered', 'no_answer' (timeout or connection error) or 'config' (missing or refused token)."""
+    if not token:
+        return 'config'
     request = urllib.request.Request(URL, headers={'Authorization': f'Bearer {token}'})
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            value = json.load(response)
+            response.read()
+    except urllib.error.HTTPError as error:
+        return 'config' if error.code in {401, 403} else 'answered'
     except Exception:
-        return 'failed'
-    return value.get('deep') if value.get('deep') in {'ok', 'busy'} else 'failed'
+        return 'no_answer'
+    return 'answered'
 
 
 def next_failures(previous, result):
-    """New failure count and whether to restart now."""
-    if result == 'ok':
-        return 0, False
-    if result == 'busy':
+    """New no-answer count and whether to restart now."""
+    if result == 'config':
         return previous, False
+    if result != 'no_answer':
+        return 0, False
     count = previous + 1
-    return (0, True) if count >= FAILURES_TO_RESTART else (count, False)
+    return (0, True) if count >= NO_ANSWERS_TO_RESTART else (count, False)
 
 
 def main():
@@ -42,8 +49,10 @@ def main():
     except (OSError, ValueError, KeyError, TypeError):
         previous = 0
     result = probe(os.environ.get('SHOPEE_API_TOKEN', ''))
+    if result == 'config':
+        print('[watchdog] configuration error: SHOPEE_API_TOKEN is missing or refused', flush=True)
     failures, restart = next_failures(previous, result)
-    print(f'[watchdog] deep={result} failures={failures} restart={restart}', flush=True)
+    print(f'[watchdog] result={result} failures={failures} restart={restart}', flush=True)
     if restart:
         subprocess.run(['systemctl', '--user', 'restart', 'shopee-private-api'], check=False)
     STATE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)

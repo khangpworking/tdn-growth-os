@@ -12,7 +12,6 @@ import { ShopeeReviewSamplingCollector, readSamplingJournal } from '../src/platf
 import { shopeePublicReviewConfigFromEnv } from '../src/modules/analysis/research-automation/providers.js';
 import { atomicJson, hashFile, hashFolder, ModuleError, object, prerequisite, readJson, readRequest, safePath, validateModuleValue } from './module-pick.js';
 import { compileAll } from '../src/platform/lazy-validator.js';
-import { LINK_RETRY_WAIT_MS, sourceJobFailed } from './module-link-check.js';
 
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
 const hex = /^[a-f0-9]{64}$/;
@@ -268,12 +267,6 @@ export interface SamplingExecutionDependencies {
   runDir:string;kind:Kind;attemptId:string;reconcileOnly?:boolean;
   collector?:Pick<ShopeeReviewSamplingCollector,'run'>;
 }
-/** True after `ms`; false as soon as the stop signal fires. */
-const waitUnlessStopped=(ms:number,signal:AbortSignal)=>new Promise<boolean>(done=>{
-  if(signal.aborted){done(false);return;}
-  const stop=()=>{clearTimeout(timer);done(false);},timer=setTimeout(()=>{signal.removeEventListener('abort',stop);done(true);},ms);
-  signal.addEventListener('abort',stop,{once:true});
-});
 export async function executeSamplingAttempt(deps:SamplingExecutionDependencies){
   const run=resolve(deps.runDir),{attempt,plan}=await frozenAttemptProof(run,deps.kind,deps.attemptId),base=attemptPath(deps.kind,deps.attemptId),prior=await stateFor(run,deps.kind,deps.attemptId);
   if(prior.status!=='RUNNING'&&prior.status!=='UNCERTAIN')return {format:'review-attempt-control-v1',runId:basename(run),kind:deps.kind,attemptId:deps.attemptId,status:prior.status,pid:null,errorCode:prior.errorCode};
@@ -298,13 +291,6 @@ export async function executeSamplingAttempt(deps:SamplingExecutionDependencies)
       if(deps.reconcileOnly&&await readSamplingJournal(file)===null)continue;
       const request=jobRequest(link,attempt,plan);
       journals[index]=await collector.run(file,request,link,plan,deps.reconcileOnly,controller.signal);
-      // A service-side failure gets one more job for the same link after 30 s, inside the link's own time limit.
-      // The failed journal is kept beside it; the retry takes the link's journal path. A stop ends the wait.
-      const first=journals[index]!;
-      if(deps.kind==='custom'&&!deps.reconcileOnly&&sourceJobFailed(first)&&Date.parse(first.deadline)-Date.now()>LINK_RETRY_WAIT_MS&&await waitUnlessStopped(LINK_RETRY_WAIT_MS,controller.signal)){
-        await rename(file,file.replace(/\.json$/,'.failed.json'));
-        journals[index]=await collector.run(file,request,link,plan,false,controller.signal,{deadline:Date.parse(first.deadline)});
-      }
       // Only a custom M3 attempt skips a dead or unreadable product and keeps collecting (#1 1A); session, other codes and count refreshes stop as today.
       if(journals[index]!.errorCode&&!(deps.kind==='custom'&&skippedLinkReason(journals[index]!)!==null)){errorCode=journals[index]!.errorCode;break;}
       // The service's CONTROL_CHANGED is not proof the cause is this product: two unreadable products in a row
