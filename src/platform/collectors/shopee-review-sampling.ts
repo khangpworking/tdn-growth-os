@@ -198,7 +198,13 @@ export class ShopeeReviewSamplingCollector {
         };
         while(!j.intentAt) {
           const session = await new ShopeePublicReviewSessionClient({token:this.options.token,baseUrl:this.#base,now:this.#now,
-            dispatch:async(method,route,timeout)=>({status:200,value:await call(method,route,undefined,false,timeout)})}).check(signal);
+            // The 409 status reaches the session client, which reads it as COLLECTOR_BUSY.
+            dispatch:async(method,route,timeout)=>{
+              try { return {status:200,value:await call(method,route,undefined,false,timeout)}; }
+              catch(error) { if(error instanceof ReviewSamplingError&&error.code==='REVIEW_HTTP_409')return {status:409,value:null}; throw error; }
+            }}).check(signal);
+          // A 409 on the session check means another run is using the service: wait as for a busy job list.
+          if(session.state==='COLLECTOR_BUSY') { await pause(BUSY_POLL_MS); continue; }
           if(session.state!=='READY') throw new ReviewSamplingError(session.state==='LOGIN_REQUIRED'?'HUMAN_LOGIN_REQUIRED':session.state==='VERIFICATION_REQUIRED'?'HUMAN_VERIFICATION_REQUIRED':'HEALTH_NOT_READY');
           // One run at a time checks "free" and submits, so two waiting runs never submit together.
           const release=await acquireSubmitLock(this.#lock,()=>pause(LOCK_POLL_MS));
