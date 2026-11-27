@@ -1364,10 +1364,15 @@ class BridgeTest(unittest.TestCase):
         | another shape                         | REMOTE_OUTPUT_INVALID                    | stays              |
         | run-delete-v1, deleted, leftover true | ok (F644 §2 round 3)                     | deleted            |
         | leftover false or not a boolean       | REMOTE_OUTPUT_INVALID                    | stays              |
-        The command is `delete-run --run <id>`, not detached."""
+        | USAGE (older server), then deleted    | ok, after one plain `delete-run` (#6)    | deleted            |
+        The command is `delete-run --run <id> --stdin` with run-delete-source-v1 (#6), not detached."""
         picture = self.shots / 'a1b2c3d4-metric-full-page.png'
         deleted = {'format': 'run-delete-v1', 'runId': 'a1b2c3d4', 'deleted': True}
+        usage = {'ok': False, 'error': {'code': 'USAGE', 'message': 'Invalid command arguments.'}}
+        source = {'format': 'run-delete-source-v1', 'appVersion': tdn_shopee_app._app_build()['version'],
+                  'machine': 'PC-Lan_01.x'}
         for label, answer, code in (
+                ('older server', [usage, {'ok': True, 'data': dict(deleted)}], None),
                 ('RUN_ACTIVE', {'ok': False, 'error': {'code': 'RUN_ACTIVE', 'message': 'RUN_ACTIVE'}}, 'RUN_ACTIVE'),
                 ('shape', {'ok': True, 'data': dict(deleted, deleted=False)}, 'REMOTE_OUTPUT_INVALID'),
                 ('leftover false', {'ok': True, 'data': dict(deleted, leftover=False)}, 'REMOTE_OUTPUT_INVALID'),
@@ -1377,18 +1382,26 @@ class BridgeTest(unittest.TestCase):
             with self.subTest(label):
                 self.shots.mkdir(exist_ok=True)
                 picture.write_bytes(b'\x89PNG')
-                self.answers = [answer]
+                self.answers = list(answer) if isinstance(answer, list) else [answer]
                 self.remote_calls = []
-                result = self.api.deleteRun('a1b2c3d4')
-                self.assertEqual(self.remote_calls, [('deleteRun', 'a1b2c3d4', None)])
+                with mock.patch.object(tdn_shopee_app.socket, 'gethostname', return_value='PC-Lan_01.x <ổ>'):
+                    result = self.api.deleteRun('a1b2c3d4')
+                self.assertEqual(self.remote_calls, [('deleteRun', 'a1b2c3d4', source)] + (
+                    [('deleteRun', 'a1b2c3d4', None)] if isinstance(answer, list) else []))
                 if code is None:
-                    self.assertEqual(result, {'ok': True, 'data': dict(answer['data'], localShotDeleted=True)})
+                    last = answer[-1] if isinstance(answer, list) else answer
+                    self.assertEqual(result, {'ok': True, 'data': dict(last['data'], localShotDeleted=True)})
                     self.assertFalse(picture.exists())
                 else:
                     self.assertEqual(result['error']['code'], code)
                     self.assertTrue(picture.exists())
         _, lines = tdn_shopee_app.Api._remote_plan(self.api, 'deleteRun', run_id='a1b2c3d4', config=dict(self.CONFIG))
         self.assertTrue(lines[-1].endswith('shopee_flow.py" delete-run --run a1b2c3d4'))
+        _, lines = tdn_shopee_app.Api._remote_plan(self.api, 'deleteRun', run_id='a1b2c3d4', payload=source,
+                                                   config=dict(self.CONFIG))
+        encoded = base64.b64encode(json.dumps(source, separators=(',', ':')).encode('utf-8')).decode('ascii')
+        self.assertEqual(lines[-1], "printf '%s' '" + encoded + "' | base64 -d | python3 \"" +
+                         self.CONFIG['remoteScript'] + '" delete-run --run a1b2c3d4 --stdin')
 
     def test_save_metric_picture_rows(self):
         """CONTRACT-F644 §3, one row each:

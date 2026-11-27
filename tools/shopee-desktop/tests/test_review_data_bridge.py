@@ -100,6 +100,14 @@ if action == 'read-review-export':
         sys.stderr.write('x' * (2 * 1024 * 1024))
         sys.stderr.write('\nEXPORT_SOURCE_CHANGED\n')
         raise SystemExit(3)
+    if mode in ('slow', 'stall'):
+        import time
+        for index, part in enumerate((BODY[:20], BODY[20:40], BODY[40:])):
+            sys.stdout.buffer.write(part)
+            sys.stdout.buffer.flush()
+            if index < 2:
+                time.sleep(0.7 if mode == 'slow' else 2.0 if index == 0 else 0)
+        raise SystemExit(0)
     if mode == 'wrong_hash':
         altered = bytearray(BODY)
         altered[-1] = ord('!')
@@ -274,6 +282,44 @@ class ReviewDataBridgeTest(unittest.TestCase):
                 self.assertEqual(result, {'ok': False, 'error': {'code': code, 'message': code}})
                 self.assertEqual(self.destination.read_bytes(), b'old')
                 self.assert_no_temp()
+
+    def test_download_time_limit_counts_only_time_without_data(self):
+        """#4, `timeoutSeconds` = 1:
+        | the file arrives                                  | result                                  |
+        |---------------------------------------------------|-----------------------------------------|
+        | 3 blocks, 0.7 s apart (1.4 s in all)              | saved, exact bytes                      |
+        | 1 block, then 2 s with no data                    | SSH_TIMEOUT, the old file stays         |
+        """
+        config = self.base / 'config.json'
+        config.write_text(json.dumps(dict(json.loads(config.read_text(encoding='utf-8')), timeoutSeconds=1)),
+                          encoding='utf-8')
+        for mode, code in (('slow', None), ('stall', 'SSH_TIMEOUT')):
+            with self.subTest(mode=mode):
+                self.destination.write_bytes(b'old')
+                os.environ['BRIDGE_RAW_MODE'] = mode
+                self.choose_path(str(self.destination))
+                result = self.api.exportReviewData('run-1', {'sourceSha256': SOURCE, 'format': 'json'})
+                if code is None:
+                    self.assertTrue(result['ok'], result)
+                    self.assertEqual(self.destination.read_bytes(), BODY)
+                else:
+                    self.assertEqual(result, {'ok': False, 'error': {'code': code, 'message': code}})
+                    self.assertEqual(self.destination.read_bytes(), b'old')
+                self.assert_no_temp()
+
+    def test_download_size_limit_is_one_gigabyte(self):
+        """#4: a 100 MB file is offered for saving; above 1 GB the answer is refused before any transfer."""
+        receipt = {'format': 'review-data-export-v1', 'runId': 'run-1', 'sourceSha256': SOURCE,
+                   'exportFormat': 'json', 'exportVersion': 'module-review-export-v1', 'exportSha256': DIGEST,
+                   'fileName': 'shopee-run-1.json', 'rowCount': 3, 'reused': False}
+        self.choose_path(None)
+        for size, ok in ((100 * 1024 * 1024, True), (1024 * 1024 * 1024 + 1, False)):
+            with self.subTest(size=size), mock.patch.object(
+                    self.api, '_remote', return_value={'ok': True, 'data': dict(receipt, byteSize=size)}):
+                result = self.api.exportReviewData('run-1', {'sourceSha256': SOURCE, 'format': 'json'})
+                self.assertEqual(result['ok'], ok, result)
+                if not ok:
+                    self.assertEqual(result['error']['code'], 'REMOTE_OUTPUT_INVALID')
 
     def test_remote_static_error_is_reported_after_a_bounded_stderr_read(self):
         self.destination.write_bytes(b'old')

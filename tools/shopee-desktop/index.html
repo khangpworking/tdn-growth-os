@@ -805,6 +805,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     M3: 'Bước 3 Lấy bình luận'
   };
   function moduleTitle(id, fallback) { return MODULE_TITLES[id] || fallback || id; }
+  // #5: a server value that is only shown as text and is new to this app version reads «Khác».
+  function displayText(map, key) {
+    return typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : 'Khác';
+  }
 
   var STATUS = {
     IDLE: { label: 'Chưa chạy', cls: 's-idle' },
@@ -3378,7 +3382,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   }
 
   function entryCheckText(check) {
-    return CHECK_LABELS[check.id] || ('Điều kiện ' + check.id);
+    return displayText(CHECK_LABELS, check.id);
   }
 
   // userPage: a run made from the user's Metric page has no capture specs by design, so no capture-spec section.
@@ -3531,6 +3535,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   }
 
   function moduleStateText(info, mod) {
+    if (userPageStep1Passed(info, mod.id)) return USER_PAGE_STEP1_TEXT;
     var view = moduleExecution(info, mod.id);
     if (view && view.status) {
       if (view.status === 'IDLE') return mod.canRun ? 'Có thể chạy' : 'Chờ bước trước';
@@ -3544,6 +3549,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     return 'Chờ bước trước';
   }
   function moduleStateCls(info, mod) {
+    if (userPageStep1Passed(info, mod.id)) return 's-pass';
     var view = moduleExecution(info, mod.id);
     if (view && view.status) {
       if (view.status === 'RUNNING') return 's-run';
@@ -3858,7 +3864,10 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     card.appendChild(rows);
 
     var facts = h('dl', 'gkv');
-    facts.appendChild(kvRow('Từ khóa', outputKeywordsText(m1.keywords)));
+    // #7: a run made from the user's Metric page keeps its run name in m1.keywords; its keywords are the Metric ones.
+    var pageKeywords = userPageRequest(info && info.request) ? userPageKeywords(info.request) : undefined;
+    facts.appendChild(kvRow('Từ khóa', pageKeywords === undefined ? outputKeywordsText(m1.keywords)
+      : !pageKeywords ? 'Chưa có' : pageKeywords.length ? pageKeywords.join(', ') : 'Không có'));
     facts.appendChild(kvRow('Khoảng thời gian', outputPeriodText(m1.period)));
     facts.appendChild(kvRow('Số dòng sản phẩm Shopee đã thu',
       m1.shopeeRowCount === null || m1.shopeeRowCount === undefined ? 'Chưa có' : fmtInt(m1.shopeeRowCount)));
@@ -3906,7 +3915,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     PRODUCT_UNAVAILABLE: 'Sản phẩm không còn trên Shopee',
     RATINGS_MISSING: 'Trang sản phẩm không có phần đánh giá',
     NO_TARGET_STAR_REVIEWS: 'Không có đánh giá ở các mức sao cần lấy',
-    NO_TEXT_REVIEWS: 'Không có bình luận có chữ trong phạm vi thu'
+    NO_TEXT_REVIEWS: 'Không có bình luận có chữ trong phạm vi thu',
+    REVIEWS_UNREADABLE: 'Không đọc được bình luận của sản phẩm này'
   };
   var OUTCOME_VERDICT_TEXT = { PARTIAL_LINKS: 'Xong, có link bị bỏ' };
 
@@ -4360,7 +4370,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     last_page: 'đã xem hết số trang có đánh giá', not_started: 'chưa bắt đầu',
     total_limit: 'đã đạt giới hạn chung của lượt', cancelled: 'đã dừng',
     timeout: 'quá thời gian cho phép', control_changed: 'bộ lọc trên Shopee thay đổi giữa chừng',
-    human_stop: 'bạn đã bấm dừng'
+    human_stop: 'bạn đã bấm dừng',
+    REVIEWS_UNREADABLE: 'Không đọc được bình luận của sản phẩm này'
   };
   var RS_STOP_UNKNOWN = 'Chưa rõ lý do';
   var RD_STOP_TEXT = {
@@ -4776,7 +4787,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     head.appendChild(h('h4', null, 'Lần lấy gần nhất'));
     var status = latest.status || 'UNCERTAIN';
     head.appendChild(h('span', 'chip ' + (status === 'SUCCEEDED' ? 's-pass' : status === 'RUNNING' ? 's-run'
-      : status === 'FAILED' ? 's-fail' : 's-warn'), RS_ATTEMPT_TEXT[status] || status));
+      : status === 'FAILED' ? 's-fail' : 's-warn'), displayText(RS_ATTEMPT_TEXT, status)));
     block.appendChild(head);
 
     var collected = h('p', 'rs-summary');
@@ -5932,7 +5943,8 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var view = moduleExecution(info, mod.id);
     if (view) {
       var line = h('p', 'execution-line');
-      line.appendChild(document.createTextNode(MODULE_STATUS[view.status] || 'Chưa chạy'));
+      line.appendChild(document.createTextNode(userPageStep1Passed(info, mod.id) ? USER_PAGE_STEP1_TEXT
+        : MODULE_STATUS[view.status] || 'Chưa chạy'));
       if (view.sequence) line.appendChild(document.createTextNode(' · lần chạy ' + fmtInt(view.sequence)));
       if (view.errorCode) line.title = view.errorCode;
       card.appendChild(line);
@@ -6001,6 +6013,20 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
   function userPageRequest(request) {
     return !!(request && request.metricSource && request.metricSource.format === 'user-page-v1');
   }
+  // The Metric keywords of a run made from the user's Metric page ([] = none), or null when not saved.
+  function userPageKeywords(request) {
+    var scope = request.metricSource.scope || {};
+    var query = scope.include_query && typeof scope.include_query === 'object' ? scope.include_query : {};
+    return Array.isArray(query.queries) ? query.queries : null;
+  }
+  // #8: step 1 of such a run has no execution record (status UNKNOWN or none); its saved step 1 check passed.
+  function userPageStep1Passed(info, id) {
+    if (id !== 'M1' || !userPageRequest(info && info.request)) return false;
+    var view = moduleExecution(info, 'M1');
+    return (!view || !view.status || view.status === 'UNKNOWN') &&
+      !!(info.gates && info.gates.m1 && info.gates.m1.verdict === 'PASS');
+  }
+  var USER_PAGE_STEP1_TEXT = 'Đã lấy từ trang Metric đang mở';
 
   // A run made from the user's Metric page has no saved filter form: show what Metric was asked, and its picture.
   var METRIC_PLATFORM_NAMES = { 1: 'Shopee', 2: 'Lazada', 3: 'Tiki', 8: 'TikTok Shop' };
@@ -6021,7 +6047,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var end = win && win.period ? win.period.endDate : compact(scope.end_date);
     // request.preset.keywords holds the run name here; the Metric keywords and platforms are in include_query.
     var query = scope.include_query && typeof scope.include_query === 'object' ? scope.include_query : {};
-    var keywords = Array.isArray(query.queries) ? query.queries : null;
+    var keywords = userPageKeywords(request);
     var platformIds = Array.isArray(query.platforms) ? query.platforms : Array.isArray(scope.platforms) ? scope.platforms : [];
     var platforms = platformIds.map(function (id) {
       return METRIC_PLATFORM_NAMES[id] || 'Sàn khác';
@@ -6409,10 +6435,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận, cả ' + fmtInt(sources.length) +
         ' đều đạt kiểm tra. Số liệu bên trên là của nguồn đầu tiên.';
     }
+    var other = sources.length - Object.keys(STEP4_SOURCE_STATE_TEXT).reduce(function (sum, key) { return sum + (counts[key] || 0); }, 0);
     var parts = ['FAIL', 'RUNNING', 'IDLE', 'NOT_APPLICABLE', 'PASS'].filter(function (key) { return counts[key]; })
       .map(function (key) { return fmtInt(counts[key]) + ' ' + STEP4_SOURCE_STATE_TEXT[key]; });
+    if (other) parts.push(fmtInt(other) + ' khác');
     return 'Lượt này có ' + fmtInt(sources.length) + ' nguồn bình luận: ' + parts.join(', ') +
-      '. Số liệu bên trên là của nguồn ' + STEP4_SOURCE_STATE_TEXT[source.state] + '.';
+      '. Số liệu bên trên là của nguồn ' + (STEP4_SOURCE_STATE_TEXT[source.state] || 'khác') + '.';
   }
 
   // pass | running | fail | old | idle, the five states of the approved card.
@@ -6460,7 +6488,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
         (source.retries ? ' sau ' + fmtInt(source.retries) + ' lần tự thử lại' : '') + ': ' +
         step4ErrorText(source.errorCode) + '.';
     }
-    return step4IdleNote(def.key);
+    return stage.state === 'IDLE' ? step4IdleNote(def.key) : 'Khác.';
   }
   function step4IdleNote(key) {
     if (key === 'filter') return 'Chưa chạy. Bắt đầu khi phần lưu xong.';
@@ -7087,6 +7115,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
       head.appendChild(h('h2', null, runDisplayName(tracking, item.product || meta.product || ('Lượt ' + runId))));
       head.appendChild(statusChip(effectiveStatus(runId, exec ? exec.status : (info.state && info.state.status)), tracking));
       root.appendChild(head);
+      if (appTooOld()) {
+        var old = h('p', 'muted', 'Hãy cập nhật để xem kết quả.');
+        old.id = 'resultUpdate';
+        root.appendChild(old);
+        return;
+      }
       var step4Line = step4ResultLine(runId);
       if (step4Line) root.appendChild(step4Line);
 
@@ -8681,7 +8715,7 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
 
   function captureSpecCheckText(check) {
     if (!check || !check.id) return 'Điều kiện capture specs chưa đạt';
-    return CHECK_LABELS[check.id] || ('Điều kiện ' + check.id);
+    return displayText(CHECK_LABELS, check.id);
   }
 
   function renderCaptureSpecInto(details, body, ctx) {
@@ -9790,7 +9824,12 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
 
   // ---- F654: the version label, and «Có bản mới» (notify only: nothing is downloaded) ----
   var APP_LATEST_MS = 30 * 60 * 1000;
-  var app = { asked: null, own: null, dismissed: null, latest: null, timer: null };
+  var app = { asked: null, own: null, dismissed: null, latest: null, minimum: null, timer: null };
+
+  // #3: the server's lowest app version that may show results; this app is older.
+  function appTooOld() {
+    return !!app.minimum && !!app.own && newerVersion(app.minimum, app.own);
+  }
 
   function semver(value) {
     var m = typeof value === 'string' ? /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/.exec(value) : null;
@@ -9831,7 +9870,11 @@ dialog.shot-dialog[open] { display: flex; flex-direction: column; }
     var res = await api.appLatest();
     var latest = res && res.ok && res.data ? res.data.version : null;
     app.latest = newerVersion(latest, app.own) ? latest : null;
+    var minimum = res && res.ok && res.data && semver(res.data.minimumVersion) ? res.data.minimumVersion : null;
+    var wasOld = appTooOld();
+    app.minimum = minimum;
     renderUpdateBar();
+    if (appTooOld() !== wasOld && state.screen === 'result') renderResult();
   }
 
   function startAppLatest() {           // after the first connect, then every 30 minutes

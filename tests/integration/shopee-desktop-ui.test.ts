@@ -6267,3 +6267,88 @@ test('a failed read of the result download data names the download, not the hidd
     assert.doesNotMatch(element(doc, 'resultDetail').textContent!, /AI|nhãn chủ đề/);
   } finally { dom.window.close(); }
 });
+
+// App 1.3.5 (tdn-shopee-app #7, #8), a run made from the user's Metric page. Its m1.keywords holds the run name.
+// | # | run                                         | expected                                                        |
+// |---|---------------------------------------------|-----------------------------------------------------------------|
+// | 1 | Metric page run, no Metric keyword          | step 1 results «Từ khóa» = «Không có» (not the run name)        |
+// | 2 | Metric page run, keywords «a», «b»          | «Từ khóa» = «a, b»                                             |
+// | 3 | old preset run                              | «Từ khóa» = its saved keyword, unchanged                         |
+// | 4 | Metric page run, step 1 UNKNOWN, slip PASS  | step 1 chip «Đã lấy từ trang Metric đang mở»                    |
+// | 5 | old preset run, step 1 UNKNOWN              | chip «Chưa xác định được trạng thái», unchanged                 |
+test('app 1.3.5: a Metric page run shows its Metric keywords and «Đã lấy từ trang Metric đang mở» on step 1', async () => {
+  const runName = 'Metric 21/10–19/11/2026';
+  const page = userPageRunInfo('run-page', []);
+  const kw = userPageRunInfo('run-kw', ['thuốc mọc tóc biotin', 'biotin']);
+  for (const info of [page, kw]) info.request.preset.keywords = [runName];
+  const preset: any = syntheticRunInfo('run-preset');
+  preset.execution = { format: 'run-execution-view-v1', revision: 1, status: 'SUCCEEDED', currentModule: 'M3',
+    modules: { M1: { status: 'UNKNOWN', currentGate: null, historicalGate: null } } };
+  const runs: Record<string, any> = { 'run-page': page, 'run-kw': kw, 'run-preset': preset };
+  const { dom, doc } = harness({
+    runs: Object.keys(runs).map((runId) => ({ runId, product: runId, status: 'DONE' })),
+    runInfoByRun: runs,
+    moduleOutputsResult: (runId) => ({ ok: true, data: moduleOutputView(runId,
+      runId === 'run-preset' ? {} : { keywords: [runName] }) }),
+  });
+  const seen = async (runId: string) => {
+    runListButton(doc, runId).click();
+    await waitFor(() => doc.getElementById('moM1Capture') !== null &&
+      (doc.querySelector('#runList button.on')?.getAttribute('title') || '').includes(runId), runId);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const card = element(doc, 'moM1Capture').closest('article')!;
+    const facts = Object.fromEntries([...card.querySelectorAll('dt')].map((dt) => [dt.textContent, dt.nextElementSibling?.textContent]));
+    const moduleCard = [...doc.querySelectorAll<HTMLElement>('#runDetail article.mod')]
+      .find((item) => item.querySelector('h3')?.textContent === 'Bước 1 Lấy số liệu bán hàng' && !item.querySelector('#moM1Capture'));
+    return { keyword: facts['Từ khóa'], chip: moduleCard?.querySelector('.mh .chip')?.textContent };
+  };
+  try {
+    await waitFor(() => doc.querySelectorAll('#runList button').length === 3, 'run list');
+    const seenPage = await seen('run-page');
+    assert.equal(seenPage.keyword, 'Không có', '1');
+    assert.equal(seenPage.chip, 'Đã lấy từ trang Metric đang mở', '4');
+    assert.doesNotMatch(element(doc, 'runDetail').textContent!, /Chưa xác định được trạng thái/, '4: nowhere in the detail');
+    assert.equal((await seen('run-kw')).keyword, 'thuốc mọc tóc biotin, biotin', '2');
+    const seenPreset = await seen('run-preset');
+    assert.equal(seenPreset.keyword, 'kẽm', '3');
+    assert.equal(seenPreset.chip, 'Chưa xác định được trạng thái', '5');
+  } finally { dom.window.close(); }
+});
+
+// App 1.3.5 (tdn-shopee-app #3): app-latest-v1 may carry `minimumVersion`.
+// | own   | app-latest                              | «Kết quả chạy» of a run with comments        |
+// |-------|-----------------------------------------|-----------------------------------------------|
+// | 1.3.4 | version 1.3.5, minimumVersion 1.3.5     | «Hãy cập nhật để xem kết quả.», no overview    |
+// | 1.3.5 | version 1.3.5, minimumVersion 1.3.5     | the overview                                  |
+// | 1.3.4 | version 1.3.5, no minimumVersion        | the overview                                  |
+test('app 1.3.5: an app older than the server minimum shows «Hãy cập nhật để xem kết quả.» on the result tab', async () => {
+  const runId = 'run-synthetic';
+  for (const [own, minimum, blocked] of [['1.3.4', '1.3.5', true], ['1.3.5', '1.3.5', false], ['1.3.4', null, false]] as const) {
+    const { dom, doc, state } = harness({
+      appBuild: { version: own },
+      appLatestResult: () => ({ ok: true, data: { format: 'app-latest-v1', version: '1.3.5',
+        ...(minimum ? { minimumVersion: minimum } : {}) } }),
+      runs: [{ runId, product: 'Sản phẩm tổng hợp', status: 'DONE' }],
+      runInfoByRun: { [runId]: syntheticRunInfo(runId) },
+      moduleOutputsResult: (id) => ({ ok: true, data: moduleOutputView(id) }),
+      reviewStatsResult: () => ({ ok: true, data: syntheticReviewStats(runId, 12) }),
+    });
+    const label = own + ' / ' + minimum;
+    try {
+      await waitFor(() => doc.querySelectorAll('#runList button').length === 1, 'run list');
+      await waitFor(() => state.appLatestCalls > 0, 'the check after the connect');
+      [...doc.querySelectorAll<HTMLButtonElement>('.tabs button')][2]!.click();
+      await waitFor(() => doc.querySelectorAll('#resultRunList button').length === 1, 'result run list');
+      doc.querySelector<HTMLButtonElement>('#resultRunList button')!.click();
+      await waitFor(() => doc.getElementById(blocked ? 'resultUpdate' : 'resultOverview') !== null, label);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      if (blocked) {
+        assert.equal(element(doc, 'resultUpdate').textContent, 'Hãy cập nhật để xem kết quả.', label);
+        assert.equal(doc.getElementById('resultOverview'), null, label + ': no results');
+        assert.doesNotMatch(element(doc, 'resultDetail').textContent!, /Máy chủ trả về dữ liệu lỗi/, label);
+      } else {
+        assert.equal(doc.getElementById('resultUpdate'), null, label);
+      }
+    } finally { dom.window.close(); }
+  }
+});

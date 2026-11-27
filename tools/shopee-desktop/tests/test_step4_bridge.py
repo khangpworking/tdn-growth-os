@@ -76,14 +76,27 @@ class Step4BridgeTest(unittest.TestCase):
             self.assertEqual(answering(changed).reviewProcess('a1b2c3d4')['error']['code'], 'REMOTE_OUTPUT_INVALID')
 
     def test_review_process_rejects_values_outside_the_contract_enums(self):
-        for change in (lambda s: s.update(state='DONE'),
-                       lambda s: s.update(state='FAIL', errorCode='LABELS_BUSY'),
+        checks = lambda s: s['gates']['in']['checks']
+        for change in (lambda s: s.update(state='DO NE'),
+                       lambda s: s.update(state='FAIL', errorCode=None),
                        lambda s: s.update(canResume=True),
                        lambda s: s['fee'].update(basis='INVOICE'),
-                       lambda s: s['gates']['in']['checks'][0].update(id='kept_all_labelled')):
+                       lambda s: checks(s).append(dict(checks(s)[0])),
+                       lambda s: checks(s).insert(0, dict(checks(s)[0], id='review_ids_valid'))):   # known ids out of order
             value = review_process_view()
             change(value['sources'][0])
             self.assertEqual(answering(value).reviewProcess('a1b2c3d4')['error']['code'], 'REMOTE_OUTPUT_INVALID')
+
+    def test_review_process_shows_step4_names_new_to_this_app(self):
+        """#5: a new source/stage state, error code or check name keeps the step 4 card (the page shows «Khác»)."""
+        for change in (lambda s: s.update(state='DONE'),
+                       lambda s: s.update(state='FAIL', errorCode='LABELS_BUSY'),
+                       lambda s: s['stages']['label'].update(state='WAITING'),
+                       lambda s: s['gates']['in']['checks'].insert(0, dict(s['gates']['in']['checks'][0],
+                                                                           id='new_check', level='info'))):
+            value = review_process_view()
+            change(value['sources'][0])
+            self.assertEqual(answering(value).reviewProcess('a1b2c3d4'), {'ok': True, 'data': value})
 
     def test_resume_sends_the_exact_source_detached_and_validates_the_start_reply(self):
         api = app.Api()

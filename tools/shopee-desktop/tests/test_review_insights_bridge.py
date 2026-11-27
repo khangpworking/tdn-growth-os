@@ -112,21 +112,23 @@ class ReviewInsightsBridgeTests(unittest.TestCase):
             'run id mismatch': lambda v: v.update(runId='45a1797c'),
             'empty codebook': lambda v: v.update(codebookVersion=''),
             'invalid source hash': lambda v: v['sources'][0].update(sourceSha256='g' * 64),
-            'invalid kind': lambda v: v['sources'][0].update(kind='snapshot'),
+            'kind not a name': lambda v: v['sources'][0].update(kind='snap shot'),
             '101 links': lambda v: v['sources'][0].update(links=v['sources'][0]['links'] * 101),
-            'invalid polarity': lambda v: v['sources'][0]['all']['comments'][0]['tags'][0].update(polarity='positive'),
-            'invalid tag status': lambda v: v['sources'][0]['all']['comments'][0]['tags'][0].update(status='uncertain'),
+            'polarity not a name': lambda v: v['sources'][0]['all']['comments'][0]['tags'][0].update(polarity=None),
+            'tag status not a name': lambda v: v['sources'][0]['all']['comments'][0]['tags'][0].update(status=''),
             'bad rating': lambda v: v['sources'][0]['all']['comments'][0].update(rating=6),
             'bad comment url': lambda v: v['sources'][0]['all']['comments'][0].update(url='https://example.com/x'),
             'extra tag field': lambda v: v['sources'][0]['all']['comments'][0]['tags'][0].update(extra=1),
-            'eleven themes': lambda v: v['sources'][0]['all'].update(themes=v['sources'][0]['all']['themes'] * 11),
+            '51 themes': lambda v: v['sources'][0]['all'].update(themes=v['sources'][0]['all']['themes'] * 51),
+            '51 tags on a comment': lambda v: v['sources'][0]['all']['comments'][0].update(
+                tags=v['sources'][0]['all']['comments'][0]['tags'] * 51),
             'share above one': lambda v: v['sources'][0]['all']['themes'][0].update(share=2),
-            'summary status': lambda v: v['sources'][0]['all']['summary'].update(status='DONE'),
+            'summary status not a name': lambda v: v['sources'][0]['all']['summary'].update(status=1),
             'summary text too long': lambda v: v['sources'][0]['all']['summary'].update(text='x' * 4001),
             'theme summary missing': lambda v: v['sources'][0]['all']['themes'][0].pop('summary'),
             'theme summary not an object': lambda v: v['sources'][0]['all']['themes'][0].update(summary=[]),
             'theme summary extra key': lambda v: v['sources'][0]['all']['themes'][0]['summary'].update(extra=1),
-            'theme summary status': lambda v: v['sources'][0]['all']['themes'][0]['summary'].update(status='DONE'),
+            'theme summary status not a name': lambda v: v['sources'][0]['all']['themes'][0]['summary'].update(status='DO NE'),
             'theme summary text too long': lambda v: v['sources'][0]['all']['themes'][0]['summary'].update(text='x' * 4001),
             'theme summary model too long': lambda v: v['sources'][0]['all']['themes'][0]['summary'].update(model='x' * 201),
             'theme summary generatedAt too long': lambda v: v['sources'][0]['all']['themes'][0]['summary'].update(generatedAt='x' * 129),
@@ -135,6 +137,22 @@ class ReviewInsightsBridgeTests(unittest.TestCase):
         for name, mutate in cases.items():
             with self.subTest(name):
                 self.assert_invalid(invalid(mutate))
+
+    def test_display_only_values_new_to_this_app_and_50_topics_pass(self):
+        """#5: a new label kind / status / source kind, or up to 50 topics and 50 labels, keeps the result tab."""
+        def mutate(value):
+            source = value['sources'][0]
+            source.update(kind='snapshot', status='PARTIAL')
+            tag = source['all']['comments'][0]['tags'][0]
+            tag.update(polarity='positive', status='uncertain')
+            source['all']['comments'][0]['tags'] = [dict(tag, code='T-N%d' % index) for index in range(50)]
+            source['all']['summary']['status'] = 'DONE'
+            theme = source['all']['themes'][0]
+            theme['summary']['status'] = 'DONE'
+            theme['polarityCounts']['trung_lap'] = 0
+            source['all']['themes'] = [dict(theme, code='T-N%d' % index) for index in range(50)]
+        value = invalid(mutate)
+        self.assertEqual(self.call(value), {'ok': True, 'data': value})
 
     def test_more_than_two_hundred_comments_are_rejected(self):
         def mutate(value):
