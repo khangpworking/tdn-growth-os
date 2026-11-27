@@ -498,6 +498,43 @@ class DeleteRunTest(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertEqual(out['runs'], [], 'the record file is never listed as a run')
 
+    def _delete_in_process(self, run_id, write):
+        """delete-run in this process with os.write replaced only for the deletion record file."""
+        output, real_write, record_fds = io.StringIO(), os.write, set()
+        real_open = os.open
+
+        def tracked_open(path, *args, **kwargs):
+            fd = real_open(path, *args, **kwargs)
+            if str(path).endswith('.deletions.jsonl'):
+                record_fds.add(fd)
+            return fd
+
+        def patched_write(fd, data):
+            return write(real_write, fd, data) if fd in record_fds else real_write(fd, data)
+
+        with mock.patch.dict(os.environ, self.env(), clear=True):
+            spec = importlib.util.spec_from_file_location('delete_run_record', SCRIPT)
+            flow = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(flow)
+            with mock.patch('os.open', tracked_open), mock.patch('os.write', patched_write),                     mock.patch.object(sys, 'argv', [str(SCRIPT), 'delete-run', '--run', run_id]),                     contextlib.redirect_stdout(output):
+                try:
+                    flow.main()
+                except SystemExit:
+                    pass
+        return json.loads(output.getvalue())
+
+    def test_a_short_write_still_records_the_whole_line_and_a_failed_record_stops_the_delete(self):
+        """#6: no record, no delete; a partial os.write never leaves half a line."""
+        kept = self.make_run('run-e5')
+        out = self._delete_in_process('run-e5', lambda write, fd, data: (_ for _ in ()).throw(OSError('disk full')))
+        self.assertEqual(out['code'], 'RUN_DELETE_FAILED')
+        self.assertTrue(kept.exists(), 'without a record the run stays')
+        self.make_run('run-f6')
+        out = self._delete_in_process('run-f6', lambda write, fd, data: write(fd, data[:7]))
+        self.assertEqual(out, {'format': 'run-delete-v1', 'runId': 'run-f6', 'deleted': True})
+        line = json.loads((self.runs / '.deletions.jsonl').read_text(encoding='ascii'))
+        self.assertEqual([line['event'], line['runId']], ['delete', 'run-f6'])
+
 
 if __name__ == '__main__':
     unittest.main()
