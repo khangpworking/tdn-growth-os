@@ -207,25 +207,28 @@
   // Shopee's empty filter has no list at all, only its visible "No ratings yet" box (live 17/11).
   const noDataShown = () => [...root.querySelectorAll('.product-ratings__list')].filter(visible).length === 0 &&
     [...root.querySelectorAll('.product-ratings-comments-view__no-data')].filter(visible).length === 1;
-  // #1 1B: the stable no-data box ends a group whatever its label count says (live 26/11: «3 Star (1)» shows the box), and
-  // an empty page that the pager reached ends a group early (live 27/11: «With Comments (24)» shows 17 reviews on 3 pages).
-  const verifiedEmpty = (key, page = 1) => isActive(key) && cards().length === 0 && (page === 1
-    ? observedZero(key) && loadedList() && (noPagination() || activePage() === 1) || noDataShown() && noPagination() // live: the box never has a page bar
-    : activePage() === page && (loadedList() || noDataShown()));
+  const verifiedEmpty = key => isActive(key) && observedZero(key) && cards().length === 0 &&
+    (loadedList() && (noPagination() || activePage() === 1) || noDataShown() && noPagination()); // live: the box never has a page bar
   // The no-data box can be stale from the previous empty filter (Shopee keeps the same node on 0 -> 0).
   // Accept it only after the same box and the same empty state hold for 3 s of continuous sampling.
   const EMPTY_STABLE_MS = 3000;
   const noDataBox = () => [...root.querySelectorAll('.product-ratings-comments-view__no-data')].find(visible) || null;
   const emptyWatch = () => {
     let since = null, box = null;
-    return (key, page) => {
-      if (!verifiedEmpty(key, page)) { since = null; box = null; return false; }
-      if (page === 1 && loadedList()) return true; // A loaded empty first page under a zero label keeps its immediate acceptance.
+    return key => {
+      if (!verifiedEmpty(key)) { since = null; box = null; return false; }
+      if (loadedList()) return true; // A loaded empty list keeps its immediate acceptance.
       const current = noDataBox(), now = Date.now();
       if (since === null || current !== box) { since = now; box = current; return false; }
       return now - since >= EMPTY_STABLE_MS;
     };
   };
+  // #1 1B: Shopee can hide reviews that its label counts (live 26/11: «3 Star (1)» shows the no-data box; live 27/11:
+  // «With Comments (24)» shows 17 reviews on pages 1-3 and an empty page 4). Such a group ends as exhausted only when
+  // this evidence holds for the full settle limit; any card or other state on the way still fails.
+  const hiddenEmpty = (key, page) => isActive(key) && cards().length === 0 && (page === 1
+    ? noDataShown() && noPagination()
+    : activePage() === page && (loadedList() || noDataShown()));
   const singlePage = key => { const count=sourceCount(key); return noPagination() && count.status === 'observed' && count.value > 0 && count.value === cards().length; };
   const observeFilterTransition = () => {
     const initialCards = new Set(root.querySelectorAll('[data-cmtid]'));
@@ -251,14 +254,18 @@
   };
   const settle = async (key, page, old, changed, transition = null) => {
     const end = Math.min(deadline, Date.now() + 20_000), stableEmpty = emptyWatch();
+    let held = true;
     while (Date.now() < end) {
       check();
-      if (stableEmpty(key, page)) return;
+      if (page === 1 && stableEmpty(key)) return false;
+      held &&= hiddenEmpty(key, page);
       const ready = loadedList() && cards().length > 0;
       const pageMatches = activePage() === page || page === 1 && singlePage(key);
-      if (isActive(key) && pageMatches && ready && (!changed || signature() !== old || transition?.completed())) return;
+      if (isActive(key) && pageMatches && ready && (!changed || signature() !== old || transition?.completed())) return false;
       await pause(300);
     }
+    check();
+    if (held) return true; // The group is empty: the hidden-empty evidence held for the whole 20 s.
     failure('CONTROL_CHANGED');
   };
   const clickFirst = async key => {
@@ -272,11 +279,11 @@
       const old=signature(),transition=observeFilterTransition();
       try {
         nativeControl(state.key).click();await pause(3500);
-        await settle(state.key,1,old,true,transition);
+        if (state.emptyHeld = await settle(state.key,1,old,true,transition)) return;
       } finally { transition.disconnect(); }
     }
     if (activePage() !== 1 && !noPagination()) await clickFirst(state.key);
-    await settle(state.key,1,'',false);
+    state.emptyHeld = await settle(state.key,1,'',false);
   };
   const nextControl = () => {
     const buttons=[...root.querySelectorAll('.shopee-page-controller .shopee-icon-button--right')].filter(visible);
@@ -285,7 +292,7 @@
   const disabled = button => button.disabled || button.getAttribute('aria-disabled') === 'true' || button.classList.contains('shopee-icon-button--disabled');
   const nextPage = async state => {
     const old=signature(),button=nextControl();if(disabled(button))failure('CONTROL_CHANGED');
-    button.click();await pause(3500);await settle(state.key,state.page,old,true);
+    button.click();await pause(3500);state.emptyHeld=await settle(state.key,state.page,old,true);
   };
   const meaningful = value => /[\p{L}\p{N}]/u.test(value);
   const extract = (card, state) => {
@@ -326,7 +333,7 @@
         if (pages.length >= Math.min(config.maxPages,500)) { stopReason='page_limit';break; }
         if (!isActive(state.key)) failure('CONTROL_CHANGED');
         const current=cards(),ids=signature();
-        if (!current.length && !verifiedEmpty(state.key, state.page)) failure('CONTROL_CHANGED');
+        if (!current.length && !verifiedEmpty(state.key) && !(state.emptyHeld && hiddenEmpty(state.key, state.page))) failure('CONTROL_CHANGED');
         if (state.signatures.has(ids)) failure('CONTROL_CHANGED');
         state.signatures.add(ids);
         // Validate every visible rating before retaining any candidate from this page.
