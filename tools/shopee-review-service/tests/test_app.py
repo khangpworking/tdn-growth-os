@@ -5,7 +5,7 @@ requirements.lock.txt). No browser, Shopee page or network is used: the worker
 gets a fake page that records the crawler config and returns a fixed result.
 """
 import asyncio
-from contextlib import redirect_stdout, suppress
+from contextlib import ExitStack, redirect_stdout, suppress
 import gc
 import hashlib
 import importlib
@@ -411,62 +411,88 @@ class ServiceTests(unittest.TestCase):
     COUNTS = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
 
     def failed_job_with_broken_session_check(self, context, worker=None):
-        """A count job fails, then the session check after it raises; returns the worker."""
+        """A count job fails, then the session check after it raises; returns the worker and the job."""
         worker = worker or self.app.BrowserWorker()
         worker.context = context
 
         def broken(_job_id):
             raise RuntimeError('synthetic session check failure')
-        self.run_job_with_page(self.COUNTS, FakePage({}, wait_error=RuntimeError('synthetic failure')),
-                               during_observe=broken, worker=worker)
-        return worker
+        job = self.run_job_with_page(self.COUNTS, FakePage({}, wait_error=RuntimeError('synthetic failure')),
+                                     during_observe=broken, worker=worker)
+        return worker, job
 
     def test_a_failed_job_whose_session_check_also_fails_closes_the_old_browser(self):
         context = FakeContext()
-        worker = self.failed_job_with_broken_session_check(context)
+        worker, _job = self.failed_job_with_broken_session_check(context)
         self.assertEqual(context.closes, 1, 'the old browser is closed, not just dropped')
         self.assertIsNone(worker.context)
 
-    def processes(self, table, changed=None):
-        """Patches /proc reads and os.kill: `table` is what a scan sees; `changed` is a PID's command line by signal time."""
-        app, kills, changed = self.app, [], changed or {}
+    def processes(self, table, reused_on_open=None, observe=tuple):
+        """Patches /proc reads, pidfds and os.kill. `table` is what /proc shows now; a PID in `reused_on_open`
+        gets that command line right after its pidfd opens. Each signal is logged as (pid, sig, 'pidfd'|'kill', *observe())."""
+        app, kills, held, closed, reused = self.app, [], {}, set(), reused_on_open or {}
+        real_close = os.close
+
+        def pidfd_open(pid, *_flags):
+            if pid not in table:
+                raise ProcessLookupError(pid)
+            fd = os.open(os.devnull, os.O_RDONLY)
+            held[fd] = pid
+            if pid in reused:
+                table[pid] = reused[pid]
+            return fd
+
+        def pidfd_send_signal(fd, sig, *_rest):
+            kills.append((held[fd], sig, 'pidfd', *observe()))
+            table.pop(held[fd], None)
 
         def kill(pid, sig):
-            kills.append((pid, sig))
+            kills.append((pid, sig, 'kill', *observe()))
             table.pop(pid, None)
 
-        def read_cmdline(pid):
-            return changed.get(int(pid), table.get(int(pid), []))
+        def close(fd):
+            if fd in held:
+                closed.add(fd)
+            real_close(fd)
+        stack = ExitStack()
+        for target, name, value in ((app, 'read_cmdlines', lambda: dict(table)),
+                                    (app, 'read_cmdline', lambda pid: list(table.get(int(pid), []))),
+                                    (app.os, 'pidfd_open', pidfd_open), (signal, 'pidfd_send_signal', pidfd_send_signal),
+                                    (app.os, 'kill', kill), (app.os, 'close', close)):
+            stack.enter_context(mock.patch.object(target, name, value, create=True))
+        self.addCleanup(lambda: self.assertEqual(set(held), closed, 'every pidfd is closed'))
+        return kills, stack
 
-        def read_cmdlines():
-            snapshot = dict(table)
-            table.update({pid: args for pid, args in changed.items() if pid in table})
-            return snapshot
-        patches = (mock.patch.object(app, 'read_cmdlines', read_cmdlines, create=True),
-                   mock.patch.object(app, 'read_cmdline', read_cmdline, create=True),
-                   mock.patch.object(app.os, 'kill', kill))
-        return kills, patches
-
-    def test_a_close_that_fails_ends_only_the_browser_processes_of_this_profile(self):
+    def test_a_close_that_fails_signals_only_this_profiles_browser_through_its_pidfd(self):
         profile = self.app.DATA / 'profile'
         flag = f'--user-data-dir={profile}'
         table = {101: ['/opt/cloakbrowser/chrome', flag, '--headless=new'],
                  102: ['/usr/bin/python3', 'helper.py', flag],                       # not a browser
-                 103: ['/opt/cloakbrowser/chrome', flag],                            # PID reused before the kill
+                 103: ['/opt/cloakbrowser/chrome', flag],                            # PID reused after its pidfd opened
                  104: ['/opt/cloakbrowser/chrome', f'{flag}-old'],
                  105: ['/opt/cloakbrowser/chrome', '--user-data-dir=/tmp/another-profile'],
                  106: ['bash'], 107: []}
-        kills, patches = self.processes(table, changed={103: ['/usr/bin/sleep', '1000']})
+        kills, patched = self.processes(table, reused_on_open={103: ['/usr/bin/sleep', '1000']})
         started = time.monotonic()
-        with patches[0], patches[1], patches[2]:
-            worker = self.failed_job_with_broken_session_check(FakeContext(close_error=RuntimeError('synthetic close failure')))
-        self.assertEqual(kills, [(101, signal.SIGTERM)], 'only a Chromium binary that still has the exact profile argument is signalled')
+        with patched:
+            worker, _job = self.failed_job_with_broken_session_check(FakeContext(close_error=RuntimeError('synthetic close failure')))
+        self.assertEqual(kills, [(101, signal.SIGTERM, 'pidfd')],
+                         'only a Chromium binary with the exact profile argument, checked after its pidfd opened, is signalled')
         self.assertIsNone(worker.context)
         self.assertLess(time.monotonic() - started, 1)
 
+    def test_a_failed_cleanup_after_a_failed_job_still_ends_the_job_failed(self):
+        def scan_fails():
+            raise PermissionError('synthetic /proc scan failure')
+        output = io.StringIO()
+        with mock.patch.object(self.app, 'read_cmdlines', scan_fails, create=True), redirect_stdout(output):
+            _worker, job = self.failed_job_with_broken_session_check(FakeContext(close_error=RuntimeError('synthetic close failure')))
+        self.assertEqual((job['state'], job['error']), ('failed', 'SOURCE_ACTION_FAILED'), 'the job is not left running')
+        self.assertIn('[browser] reset failed: PermissionError: synthetic /proc scan failure', output.getvalue())
+
     def test_a_close_that_ignores_cancellation_still_frees_the_worker_within_the_limit(self):
         app, profile = self.app, self.app.DATA / 'profile'
-        kills, patches = self.processes({101: ['/opt/cloakbrowser/chrome', f'--user-data-dir={profile}']})
+        kills, patched = self.processes({101: ['/opt/cloakbrowser/chrome', f'--user-data-dir={profile}']})
         real_wait, real_wait_for, limit = asyncio.wait, asyncio.wait_for, 0.05
 
         # The 10 s close limit, shortened so the test is fast; the close never finishes and swallows every cancel.
@@ -487,18 +513,18 @@ class ServiceTests(unittest.TestCase):
                 context.released = True
         worker.run_job = timed
         started = time.monotonic()
-        with patches[0], patches[1], patches[2], mock.patch.object(app.asyncio, 'wait', wait), \
+        with patched, mock.patch.object(app.asyncio, 'wait', wait), \
                 mock.patch.object(app.asyncio, 'wait_for', wait_for):
             self.failed_job_with_broken_session_check(context, worker)
         self.assertEqual(context.closes, 1)
         self.assertLess(freed[0], 1, 'the worker does not wait for a close that ignores cancellation')
-        self.assertEqual(kills, [(101, signal.SIGTERM)], 'the browser of this profile is killed instead')
+        self.assertEqual(kills, [(101, signal.SIGTERM, 'pidfd')], 'the browser of this profile is killed instead')
         self.assertIsNone(worker.context)
         self.assertLess(time.monotonic() - started, 2)
 
     def test_a_close_cancelled_midway_still_ends_this_profiles_browser_and_the_cancel_propagates(self):
         profile = self.app.DATA / 'profile'
-        kills, patches = self.processes({101: ['/opt/cloakbrowser/chrome', f'--user-data-dir={profile}']})
+        kills, patched = self.processes({101: ['/opt/cloakbrowser/chrome', f'--user-data-dir={profile}']})
         context, worker = StubbornContext(), self.app.BrowserWorker()
         original = worker.run_job
 
@@ -514,9 +540,9 @@ class ServiceTests(unittest.TestCase):
             finally:
                 context.released = True
         worker.run_job = cancelled_during_close
-        with patches[0], patches[1], patches[2], self.assertRaises(asyncio.CancelledError):
+        with patched, self.assertRaises(asyncio.CancelledError):
             self.failed_job_with_broken_session_check(context, worker)
-        self.assertEqual(kills, [(101, signal.SIGTERM)])
+        self.assertEqual(kills, [(101, signal.SIGTERM, 'pidfd')])
 
     def test_a_renewal_that_raises_still_runs_the_dequeued_job(self):
         app = self.app
@@ -548,24 +574,19 @@ class ServiceTests(unittest.TestCase):
                 os.symlink('/tmp/synthetic-socket', profile / 'SingletonSocket')
                 pid = int(target.rsplit('-', 1)[1])
                 table = {pid: ['chrome', f'--user-data-dir={profile}']} if live else {}
-                kills, at_launch = [], {}
-
-                def kill(killed, sig):
-                    kills.append((killed, sig, os.path.lexists(profile / 'SingletonLock')))
-                    table.pop(killed, None)
+                kills, patched = self.processes(table, observe=lambda: (os.path.lexists(profile / 'SingletonLock'),))
+                at_launch = {}
 
                 async def launch(_path, **_):
                     at_launch.update({name: os.path.lexists(profile / name) for name in names})
                     return FakeContext(FakePage({}))
-                with fake_cloakbrowser(launch), mock.patch.object(app, 'read_cmdlines', lambda: dict(table), create=True), \
-                        mock.patch.object(app, 'read_cmdline', lambda p: table.get(int(p), []), create=True), \
-                        mock.patch.object(app.os, 'kill', kill):
+                with fake_cloakbrowser(launch), patched:
                     asyncio.run(app.BrowserWorker().ensure_browser())
                 if case == 'another host':
                     self.assertEqual((kills, at_launch), ([], dict.fromkeys(names, True)), 'a lock from another host is left alone')
                 else:
                     self.assertEqual(at_launch, dict.fromkeys(names, False), 'the lock files are gone before the launch')
-                    self.assertEqual(kills, [(pid, signal.SIGTERM, True)] if live else [],
+                    self.assertEqual(kills, [(pid, signal.SIGTERM, 'pidfd', True)] if live else [],
                                      'a live holder of this profile is ended first, then the files go')
         shutil.rmtree(profile, ignore_errors=True)
 
