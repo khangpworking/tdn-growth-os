@@ -2760,13 +2760,14 @@ class Api:
             idle_limit = max(EXPORT_IDLE_SECONDS, config['timeoutSeconds'])
             idle_lock = threading.Lock()
             last_data = [time.monotonic()]
+            saving = [False]   # this app is writing a block to disk: that time is not «no data»
 
             def stop_when_idle():
                 while not watch_done.wait(0.2):
                     with idle_lock:
                         if watch_done.is_set():
                             return
-                        if time.monotonic() - last_data[0] >= idle_limit:
+                        if not saving[0] and time.monotonic() - last_data[0] >= idle_limit:
                             timed_out.append(True)
                             try:
                                 process.kill()
@@ -2789,6 +2790,7 @@ class Api:
                         watch_done.set()   # the stream ended (or was cut): the watchdog decides nothing more
                         break
                     last_data[0] = time.monotonic()
+                    saving[0] = True
                 total += len(chunk)
                 if total > byte_size or total > EXPORT_MAX_BYTES:
                     process.kill()
@@ -2798,6 +2800,9 @@ class Api:
                     out.write(chunk)
                 except OSError:
                     raise _BridgeFailure('SAVE_FAILED') from None
+                with idle_lock:   # the clock for «no data» starts again after the local write
+                    saving[0] = False
+                    last_data[0] = time.monotonic()
             try:
                 out.flush()
                 os.fsync(out.fileno())

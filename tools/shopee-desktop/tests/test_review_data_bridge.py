@@ -327,6 +327,34 @@ class ReviewDataBridgeTest(unittest.TestCase):
         self.assertTrue(result['ok'], result)
         self.assertEqual(self.destination.read_bytes(), BODY)
 
+    def test_a_slow_disk_write_between_blocks_does_not_count_as_no_data(self):
+        """#4: the first block takes 1.6 s to save while more data waits; the no-data limit (1 s here) is not used up."""
+        config = self.base / 'config.json'
+        config.write_text(json.dumps(dict(json.loads(config.read_text(encoding='utf-8')), timeoutSeconds=1)),
+                          encoding='utf-8')
+        real_fdopen = os.fdopen
+
+        class SlowFirstWrite:
+            def __init__(self, inner):
+                self.inner, self.writes = inner, 0
+
+            def write(self, data):
+                self.writes += 1
+                if self.writes == 1:
+                    time.sleep(1.6)
+                return self.inner.write(data)
+
+            def __getattr__(self, name):
+                return getattr(self.inner, name)
+
+        self.destination.write_bytes(b'old')
+        os.environ['BRIDGE_RAW_MODE'] = 'slow'
+        self.choose_path(str(self.destination))
+        with mock.patch.object(tdn_shopee_app, 'EXPORT_IDLE_SECONDS', 1),                 mock.patch.object(tdn_shopee_app.os, 'fdopen', lambda *a, **k: SlowFirstWrite(real_fdopen(*a, **k))):
+            result = self.api.exportReviewData('run-1', {'sourceSha256': SOURCE, 'format': 'json'})
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(self.destination.read_bytes(), BODY)
+
     def test_download_size_limit_is_one_gigabyte(self):
         """#4: a 100 MB file is offered for saving; above 1 GB the answer is refused before any transfer."""
         receipt = {'format': 'review-data-export-v1', 'runId': 'run-1', 'sourceSha256': SOURCE,
