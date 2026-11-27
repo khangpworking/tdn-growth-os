@@ -5,15 +5,21 @@ requirements.lock.txt). No browser, Shopee page or network is used: the worker
 gets a fake page that records the crawler config and returns a fixed result.
 """
 import asyncio
-from contextlib import suppress
+from contextlib import redirect_stdout, suppress
 import gc
 import hashlib
 import importlib
+import io
 import json
 import os
 import pathlib
+import shutil
+import signal
+import socket
 import sys
 import tempfile
+import time
+import types
 import unittest
 import uuid
 import warnings
@@ -109,6 +115,30 @@ class FakePage:
             self.crawls += 1
             return self.result
         return None
+
+    def is_closed(self):
+        return False
+
+    def set_default_timeout(self, _ms):
+        return None
+
+
+class FakeContext:
+    """A browser context that counts its closes; `close_error` makes the close fail."""
+
+    def __init__(self, page=None, close_error=None):
+        self.pages, self.closes, self.close_error = [page] if page else [], 0, close_error
+
+    async def close(self):
+        self.closes += 1
+        if self.close_error:
+            raise self.close_error
+
+
+def fake_cloakbrowser(launch):
+    module = types.ModuleType('cloakbrowser')
+    module.launch_persistent_context_async = launch
+    return mock.patch.dict(sys.modules, {'cloakbrowser': module})
 
 
 class ServiceTests(unittest.TestCase):
@@ -217,7 +247,7 @@ class ServiceTests(unittest.TestCase):
         config, state = self.run_job({'url': URL, 'max_comments': 20}, result)
         self.assertEqual((config['maxPages'], state), (500, 'partial'), 'existing callers keep 500 pages and partial')
 
-    def run_job_with_page(self, payload, page, during_wait=None, during_observe=None, during_title_check=None):
+    def run_job_with_page(self, payload, page, during_wait=None, during_observe=None, during_title_check=None, worker=None):
         app, job_id = self.app, str(uuid.uuid4())
         with app.db() as connection:
             connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
@@ -228,7 +258,7 @@ class ServiceTests(unittest.TestCase):
             page.during_observe = lambda: during_observe(job_id)
         if during_title_check is not None:
             page.during_title_check = lambda: during_title_check(job_id)
-        worker = app.BrowserWorker()
+        worker = worker or app.BrowserWorker()
         worker.page = page
 
         async def ready(_url):
@@ -363,6 +393,171 @@ class ServiceTests(unittest.TestCase):
                 self.assertFalse((app.DATA / 'results' / f"{cancelled['id']}.json").exists())
 
         asyncio.run(scenario())
+
+    # Browser recovery (live 27/11: a job failed, the session check after it failed too, and the old Chrome kept the profile).
+    COUNTS = {'kind': 'counts', 'url': URL, 'request_key': ATTEMPT}
+
+    def failed_job_with_broken_session_check(self, context):
+        """A count job fails, then the session check after it raises; returns the worker."""
+        worker = self.app.BrowserWorker()
+        worker.context = context
+
+        def broken(_job_id):
+            raise RuntimeError('synthetic session check failure')
+        self.run_job_with_page(self.COUNTS, FakePage({}, wait_error=RuntimeError('synthetic failure')),
+                               during_observe=broken, worker=worker)
+        return worker
+
+    def test_a_failed_job_whose_session_check_also_fails_closes_the_old_browser(self):
+        context = FakeContext()
+        worker = self.failed_job_with_broken_session_check(context)
+        self.assertEqual(context.closes, 1, 'the old browser is closed, not just dropped')
+        self.assertIsNone(worker.context)
+
+    def test_a_close_that_fails_or_hangs_ends_only_the_processes_of_this_profile(self):
+        app, profile = self.app, self.app.DATA / 'profile'
+
+        async def hang(awaitable, timeout):
+            awaitable.close()
+            raise asyncio.TimeoutError()
+        for case in ('fails', 'hangs'):
+            with self.subTest(case=case):
+                table = {101: ['chrome', f'--user-data-dir={profile}'],
+                         102: ['chrome', f'--user-data-dir={profile}-old'],
+                         103: ['chrome', '--user-data-dir=/tmp/another-profile'],
+                         104: ['bash'], 105: []}
+                kills = []
+
+                def kill(pid, sig):
+                    kills.append((pid, sig))
+                    table.pop(pid, None)
+                context = FakeContext(close_error=RuntimeError('synthetic close failure') if case == 'fails' else None)
+                timeout = mock.patch.object(app.asyncio, 'wait_for', hang) if case == 'hangs' else suppress()
+                started = time.monotonic()
+                with mock.patch.object(app, 'read_cmdlines', lambda: dict(table), create=True), \
+                        mock.patch.object(app.os, 'kill', kill), timeout:
+                    worker = self.failed_job_with_broken_session_check(context)
+                self.assertEqual(kills, [(101, signal.SIGTERM)], 'only the exact --user-data-dir of this profile is signalled')
+                self.assertIsNone(worker.context)
+                self.assertLess(time.monotonic() - started, 1)
+
+    def test_a_stale_profile_lock_is_cleared_before_a_launch(self):
+        app, profile, host = self.app, self.app.DATA / 'profile', socket.gethostname()
+        names = ('SingletonLock', 'SingletonCookie', 'SingletonSocket')
+        for case, target, live in (('dead pid on this host', f'{host}-424242', False),
+                                   ('live browser of this profile', f'{host}-424243', True),
+                                   ('another host', 'another-host-424244', False)):
+            with self.subTest(case=case):
+                shutil.rmtree(profile, ignore_errors=True)
+                profile.mkdir(parents=True)
+                os.symlink(target, profile / 'SingletonLock')
+                os.symlink('synthetic-cookie', profile / 'SingletonCookie')
+                os.symlink('/tmp/synthetic-socket', profile / 'SingletonSocket')
+                pid = int(target.rsplit('-', 1)[1])
+                table = {pid: ['chrome', f'--user-data-dir={profile}']} if live else {}
+                kills, at_launch = [], {}
+
+                def kill(killed, sig):
+                    kills.append((killed, sig, os.path.lexists(profile / 'SingletonLock')))
+                    table.pop(killed, None)
+
+                async def launch(_path, **_):
+                    at_launch.update({name: os.path.lexists(profile / name) for name in names})
+                    return FakeContext(FakePage({}))
+                with fake_cloakbrowser(launch), mock.patch.object(app, 'read_cmdlines', lambda: dict(table), create=True), \
+                        mock.patch.object(app.os, 'kill', kill):
+                    asyncio.run(app.BrowserWorker().ensure_browser())
+                if case == 'another host':
+                    self.assertEqual((kills, at_launch), ([], dict.fromkeys(names, True)), 'a lock from another host is left alone')
+                else:
+                    self.assertEqual(at_launch, dict.fromkeys(names, False), 'the lock files are gone before the launch')
+                    self.assertEqual(kills, [(pid, signal.SIGTERM, True)] if live else [],
+                                     'a live holder of this profile is ended first, then the files go')
+        shutil.rmtree(profile, ignore_errors=True)
+
+    def test_an_old_or_busy_browser_is_replaced_between_jobs_and_a_young_one_is_kept(self):
+        app = self.app
+        result = {'stop_reason': 'last_page', 'error': None, 'records': [], 'pages': [{'page': 1}]}
+
+        async def scenario(started_ago, jobs_before, job_count):
+            worker, old = app.BrowserWorker(), FakeContext()
+            worker.context, worker.page = old, FakePage(result)
+            worker.browser_started, worker.browser_jobs = time.monotonic() - started_ago, jobs_before
+            seen = []
+
+            async def navigate(_url):
+                await worker.ensure_browser()
+                seen.append(('old' if worker.context is old else 'new', old.closes))
+                return {'state': 'ready'}
+            worker.navigate_product = navigate
+
+            async def launch(_path, **_):
+                return FakeContext(FakePage(result))
+            for _ in range(job_count):
+                job_id = str(uuid.uuid4())
+                with app.db() as connection:
+                    connection.execute('INSERT INTO jobs (id,payload,state,created_at,updated_at) VALUES (?,?,?,?,?)',
+                                       (job_id, json.dumps({'url': URL}), 'queued', app.now(), app.now()))
+                worker.queue.put_nowait({'kind': 'job', 'job_id': job_id})
+            with fake_cloakbrowser(launch), mock.patch.object(app, 'read_cmdlines', lambda: {}, create=True):
+                task = asyncio.create_task(worker.run())
+                try:
+                    await asyncio.wait_for(worker.queue.join(), 5)
+                finally:
+                    task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await task
+            return seen
+        hours = 3600
+        self.assertEqual(asyncio.run(scenario(6 * hours + 60, 0, 1)), [('new', 1)], 'older than 6 h: replaced before the job')
+        self.assertEqual(asyncio.run(scenario(60, 199, 2)), [('old', 0), ('new', 1)],
+                         'the 200th job runs on the open browser; it is replaced before the next job, never during one')
+        self.assertEqual(asyncio.run(scenario(60, 0, 2)), [('old', 0), ('old', 0)], 'a young browser is kept')
+
+    def test_a_failed_count_job_logs_its_real_exception_and_keeps_the_public_error(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            job = self.run_job_with_page(self.COUNTS, FakePage({}, wait_error=RuntimeError('synthetic failure')))
+        self.assertIn(f"[job] {job['id']} RuntimeError: synthetic failure\n", output.getvalue())
+        self.assertEqual((job['state'], job['error']), ('failed', 'SOURCE_ACTION_FAILED'))
+
+    def test_deep_health_probes_the_open_browser_and_plain_health_keeps_its_keys(self):
+        from fastapi.testclient import TestClient
+        app, client = self.app, TestClient(self.app.app)
+        auth = {'Authorization': f'Bearer {app.TOKEN}'}
+
+        def health(worker, query='?deep=1'):
+            with mock.patch.object(app, 'worker', worker):
+                return client.get('/health' + query, headers=auth).json()
+
+        def open_worker(page):
+            worker = app.BrowserWorker()
+            worker.context, worker.page = FakeContext(page), page
+            return worker
+
+        class BrokenPage(FakePage):
+            async def evaluate(self, expression, arg=None):
+                raise RuntimeError('synthetic dead page')
+
+        self.assertEqual(client.get('/health?deep=1').status_code, 401, 'the deep check needs the token')
+        busy = open_worker(FakePage({}))
+        busy.active_job = 'job-active'
+        self.assertEqual(health(busy).get('deep'), 'busy')
+
+        async def refuse(_path, **_):
+            raise RuntimeError('synthetic launch failure')
+        failed = app.BrowserWorker()
+        with fake_cloakbrowser(refuse), mock.patch.object(app, 'read_cmdlines', lambda: {}, create=True):
+            with self.assertRaises(RuntimeError):
+                asyncio.run(failed.ensure_browser())
+        value = health(failed)
+        self.assertEqual(value.get('deep'), 'failed')
+        self.assertIn('RuntimeError: synthetic launch failure', value.get('browser_error') or '')
+        self.assertEqual(health(open_worker(FakePage({}))).get('deep'), 'ok')
+        self.assertEqual(health(open_worker(BrokenPage({}))).get('deep'), 'failed')
+        plain = health(open_worker(FakePage({})), '')
+        self.assertLessEqual({'status', 'browser', 'active_job', 'queued'}, set(plain))
+        self.assertNotIn('deep', plain, 'plain /health does not probe the browser')
 
 
 if __name__ == '__main__':

@@ -4,12 +4,13 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { Readable } from 'node:stream';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import { ModuleError } from '../../scripts/module-pick.js';
-import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingCommand, reviewSamplingView, samplingContext, saveReviewPlan } from '../../scripts/module-review-sampling.js';
+import { executeSamplingAttempt, reserveAttempt, reserveConfiguredAttempt, reviewSamplingCommand, reviewSamplingView, samplingContext, saveReviewPlan, stopReviewAttempt } from '../../scripts/module-review-sampling.js';
 import { reviewPolicy, samplingDigest, validateSamplingResult, ReviewSamplingError, type ShopeeReviewPlan } from '../../src/modules/foundation/shopee-review-sampling.js';
 import type { SamplingJobInput, SamplingJournal, SamplingResult, ReviewLink } from '../../contracts/foundation/shopee-review-sampling.generated.js';
 import { moduleRow } from '../fixtures/shopee-module-review-data.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 
 const POLICY_INPUT = { mode: 'stars' as const, stars: [2, 3], totalPerLink: 500, allocation: 'pooled' as const };
 const COUNT_INPUT = { mode: 'with-comments' as const, stars: [], totalPerLink: 300, allocation: 'pooled' as const };
@@ -273,6 +274,69 @@ test('#1 1A: a service-side failure on one link still stops the attempt; later l
   assert.equal(outcome.verdict, 'FAILED');
   assert.deepEqual(outcome.links.map((link: { skipped: boolean }) => link.skipped), [false, false, false]);
 }, COUNT_INPUT, 3));
+
+/** Runs one attempt; the collector saves each answer at its journal path, as the real collector does. */
+function startAttempt(run: string, kind: 'custom' | 'counts', attemptId: string,
+    answer: (job: number, request: SamplingJobInput, link: ReviewLink, plan: ShopeeReviewPlan | null) => SamplingJournal) {
+  const files: string[] = [], answered: SamplingJournal[] = [];
+  const outcome = executeSamplingAttempt({ runDir: run, kind, attemptId, collector: {
+    run: async (file, request, link, plan) => {
+      files.push(file);
+      const journal = answer(files.length, request, link, plan ?? null);
+      await mkdir(join(file, '..'), { recursive: true });
+      await writeFile(file, canonicalJson(journal), { mode: 0o600 });
+      answered.push(journal);
+      return journal;
+    },
+  } });
+  outcome.catch(() => {});
+  return { files, answered, outcome };
+}
+const settle = () => new Promise(resolve => setImmediate(resolve));
+const untilAnswered = async (answered: unknown[], count: number) => {
+  for (let turn = 0; answered.length < count && turn < 10_000; turn++) await settle();
+  await settle(); await settle();
+};
+/** A service-side failure with time left on the link's own limit. */
+const serviceFailure = (request: SamplingJobInput, link: ReviewLink): SamplingJournal =>
+  ({ ...failedJournal(request, link, 'SOURCE_JOB_FAILED'), deadline: new Date(Date.now() + 10 * 60_000).toISOString() });
+
+test('step 3: a custom link whose job failed on the service side gets one more job after 30 s; a stop or a count refresh gets none', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    await withFixture(async ({ run }) => {
+      const started = await reserveConfiguredAttempt(run, { executionId: EXECUTION, sequence: 1 });
+      const { files, answered, outcome } = startAttempt(run, 'custom', started.attemptId, (job, request, link, plan) =>
+        job === 1 ? serviceFailure(request, link) : terminalJournal(request, link, plan!, 1, 'exhausted'));
+      await untilAnswered(answered, 1);
+      assert.equal(files.length, 1, 'the second job waits 30 s');
+      mock.timers.tick(30_000);
+      const result = await outcome;
+      assert.deepEqual([result.status, files.length, files[1]], ['SUCCEEDED', 2, files[0]], 'the second job gives the link its result');
+      assert.deepEqual(JSON.parse(await readFile(files[0]!.replace(/\.json$/, '.failed.json'), 'utf8')), answered[0],
+        'the first journal is kept as <name>.failed.json');
+    }, COUNT_INPUT, 1);
+
+    await withFixture(async ({ run }) => {
+      const started = await reserveConfiguredAttempt(run, { executionId: EXECUTION, sequence: 1 });
+      const { files, answered, outcome } = startAttempt(run, 'custom', started.attemptId, (_job, request, link) => serviceFailure(request, link));
+      await untilAnswered(answered, 1);
+      await stopReviewAttempt(run, 'custom', started.attemptId);
+      await outcome;
+      assert.equal(files.length, 1, 'a stop during the wait ends it with no second job');
+      assert.deepEqual((await readdir(join(files[0]!, '..'))).filter(name => name.endsWith('.failed.json')), []);
+    }, COUNT_INPUT, 1);
+
+    await withFixture(async ({ run }) => {
+      const started = await reserveAttempt(run, 'counts');
+      const { files, answered, outcome } = startAttempt(run, 'counts', started.attemptId, (_job, request, link) => serviceFailure(request, link));
+      await untilAnswered(answered, 1);
+      mock.timers.tick(30_000);
+      const result = await outcome;
+      assert.deepEqual([result.status, result.errorCode, files.length], ['FAILED', 'SOURCE_JOB_FAILED', 1], 'a count refresh is not retried');
+    }, COUNT_INPUT, 1);
+  } finally { mock.timers.reset(); }
+});
 
 test('a session code still stops the attempt and leaves later links unstarted', () => withFixture(async ({ run }) => {
   const { result, requests, gate, outcome } = await runLinks(run, (request, link, plan) =>
