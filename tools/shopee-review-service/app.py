@@ -5,6 +5,8 @@ import hmac
 import json
 import os
 import re
+import signal
+import socket
 import sqlite3
 import time
 import uuid
@@ -29,6 +31,10 @@ if len(TOKEN) < 32:
 os.environ.setdefault('CLOAKBROWSER_CACHE_DIR', str(DATA / 'browser-cache'))
 os.environ.setdefault('CLOAKBROWSER_AUTO_UPDATE', 'false')
 DEFAULT_PRODUCT = os.environ.get('SHOPEE_SESSION_CHECK_URL', 'https://shopee.vn/')
+PROFILE = DATA / 'profile'
+# A browser this old or with this many jobs is replaced between jobs; the persistent profile keeps the login.
+BROWSER_MAX_AGE_S = 6 * 3600
+BROWSER_MAX_JOBS = 200
 TERMINAL = {'succeeded', 'partial', 'failed', 'cancelled', 'interrupted'}
 WAITING = {'needs_login', 'needs_verification'}
 bearer = HTTPBearer(auto_error=False)
@@ -165,6 +171,53 @@ def crawl_state(request, result):
     return 'partial'
 
 
+def lock_pid(target, host):
+    """PID of a Chrome profile lock link '<host>-<pid>' made on this host; None for another host or another shape."""
+    name, _, pid = target.rpartition('-')
+    return int(pid) if name == host and pid.isdigit() else None
+
+
+BROWSER_BINARIES = {'chrome', 'chromium', 'chromium-browser', 'headless_shell'}
+
+
+def profile_browser(args, profile):
+    """A Chromium browser binary (argv[0] basename) with the exact argument --user-data-dir=<profile>."""
+    return bool(args) and os.path.basename(args[0]) in BROWSER_BINARIES and f'--user-data-dir={profile}' in args
+
+
+def profile_pids(cmdlines, profile):
+    """PIDs of this profile's browser processes; no other process is ever picked."""
+    return sorted(pid for pid, args in cmdlines.items() if profile_browser(args, profile))
+
+
+def read_cmdline(pid):
+    """Command line of one process (Linux /proc); empty for a gone process or a zombie."""
+    try:
+        return Path(f'/proc/{pid}/cmdline').read_bytes().decode(errors='replace').split('\0')
+    except OSError:
+        return []
+
+
+def read_cmdlines():
+    """Command line of each running process."""
+    return {int(entry.name): read_cmdline(entry.name) for entry in Path('/proc').glob('[0-9]*') if entry.name.isdigit()}
+
+
+def signal_profile_browser(pid, sig):
+    """Hold the PID with a pidfd, then signal it only if /proc still shows it as this profile's browser."""
+    try:
+        fd = os.pidfd_open(pid)
+    except OSError:
+        return
+    try:
+        if profile_browser(read_cmdline(pid), PROFILE):
+            signal.pidfd_send_signal(fd, sig)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
 @contextmanager
 def db():
     # sqlite3's own context manager only commits or rolls back; it never closes the connection.
@@ -245,6 +298,66 @@ class BrowserWorker:
         self.active_job = None
         self.headless = os.environ.get('APP_HEADLESS', '1') == '1'
         self.status = {'state': 'starting', 'authenticated': None}
+        # Last launch failure ('<type>: <msg>'), cleared on a good launch; reported by /health only.
+        self.browser_error = None
+        self.browser_started = None
+        self.browser_jobs = 0
+        self.recover_pending = False
+
+    async def kill_profile_browsers(self):
+        """End the browser processes of this profile: SIGTERM, then SIGKILL after 5 s."""
+        pids = profile_pids(read_cmdlines(), PROFILE)
+        for pid in pids:
+            signal_profile_browser(pid, signal.SIGTERM)
+        for _ in range(20):
+            if not pids:
+                return
+            await asyncio.sleep(0.25)
+            pids = profile_pids(read_cmdlines(), PROFILE)
+        for pid in pids:
+            signal_profile_browser(pid, getattr(signal, 'SIGKILL', signal.SIGTERM))
+
+    async def reset_browser(self):
+        """Close this browser (10 s limit); if close fails or hangs, kill this profile's browser processes."""
+        context = self.context
+        try:
+            if context is not None:
+                # A hung close is left running, never awaited: the worker is free after 10 s and the kill.
+                task = asyncio.ensure_future(context.close())
+                try:
+                    await asyncio.wait({task}, timeout=10)
+                except asyncio.CancelledError:
+                    task.add_done_callback(lambda done: done.cancelled() or done.exception())
+                    await self.kill_profile_browsers()
+                    raise
+                if not task.done():
+                    task.add_done_callback(lambda done: done.cancelled() or done.exception())
+                elif not task.cancelled() and task.exception() is None:
+                    return
+            await self.kill_profile_browsers()
+        finally:
+            if self.context is context:
+                self.context, self.page = None, None
+                self.browser_started, self.browser_jobs = None, 0
+
+    async def clear_profile_lock(self):
+        """Before a launch: end a browser that still holds the profile lock, or remove a lock left by a dead one."""
+        try:
+            target = os.readlink(PROFILE / 'SingletonLock')
+        except OSError:
+            return
+        pid = lock_pid(target, socket.gethostname())
+        if pid is None:
+            return
+        # Only called with no current context, so a live browser on this profile is never ours.
+        if pid in profile_pids(read_cmdlines(), PROFILE):
+            await self.kill_profile_browsers()
+        if pid not in profile_pids(read_cmdlines(), PROFILE):
+            for name in ('SingletonLock', 'SingletonCookie', 'SingletonSocket'):
+                try:
+                    (PROFILE / name).unlink()
+                except FileNotFoundError:
+                    pass
 
     async def ensure_browser(self):
         if self.context is not None:
@@ -253,12 +366,52 @@ class BrowserWorker:
                     return
             except Exception:
                 pass
+            await self.reset_browser()
+        try:
+            await self.launch_browser()
+        except Exception:
+            # One clean recovery and one more launch, then fail.
+            await self.reset_browser()
             try:
-                await self.context.close()
-            except Exception:
+                await self.launch_browser()
+            except Exception as error:
+                self.browser_error = f'{type(error).__name__}: {str(error)[:300]}'
+                raise
+        self.browser_error = None
+
+    def browser_due(self):
+        """The open browser is old enough or has run enough jobs to be replaced before the next job."""
+        return self.context is not None and self.browser_started is not None and (
+            time.monotonic() - self.browser_started > BROWSER_MAX_AGE_S or self.browser_jobs >= BROWSER_MAX_JOBS)
+
+    async def deep_check(self):
+        """Probe the open browser without opening any Shopee page; a failed idle probe queues one recovery."""
+        if self.active_job:
+            return {'deep': 'busy'}
+        if self.context is None or self.page is None:
+            value = {'deep': 'failed' if self.browser_error else 'ok'}
+        else:
+            try:
+                await asyncio.wait_for(self.page.evaluate('1'), timeout=10)
+                value = {'deep': 'ok'}
+            except Exception as error:
+                value = {'deep': 'failed', 'deep_error': f'{type(error).__name__}: {str(error)[:300]}'}
+            # A job that started during the probe may have caused the failure.
+            if self.active_job:
+                return {'deep': 'busy'}
+        if value['deep'] == 'failed' and not self.recover_pending:
+            try:
+                self.queue.put_nowait({'kind': 'recover'})
+                self.recover_pending = True
+            except asyncio.QueueFull:
                 pass
+        return value
+
+    async def launch_browser(self):
+        await self.clear_profile_lock()
         from cloakbrowser import launch_persistent_context_async
-        self.context = await launch_persistent_context_async(str(DATA / 'profile'), headless=self.headless, locale='en-US')
+        self.context = await launch_persistent_context_async(str(PROFILE), headless=self.headless, locale='en-US')
+        self.browser_started, self.browser_jobs = time.monotonic(), 0
         self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
         self.page.set_default_timeout(20000)
         bootstrap = DATA / 'import-session.private.json'
@@ -411,16 +564,21 @@ class BrowserWorker:
             save_result(job_id, result)
             update_job(job_id, state=state, collected=len(result['records']), page=result['pages'][-1]['page'] if result['pages'] else 0, error=result.get('error'))
         except Exception as error:
+            print(f'[job] {job_id} {type(error).__name__}: {str(error)[:400]}', flush=True)
             state = 'failed'
             try:
                 observed = await self.observe_session()
                 if observed['state'] in WAITING:
                     state = observed['state']
             except Exception:
-                self.context = None
+                try:
+                    await self.reset_browser()
+                except Exception as reset_error:
+                    print(f'[browser] reset failed: {type(reset_error).__name__}: {str(reset_error)[:400]}', flush=True)
             update_job(job_id, state=state, error='SOURCE_ACTION_FAILED' if job['request'].get('sampling') or job['request'].get('kind') == 'counts' else f'{type(error).__name__}: {str(error)[:400]}')
         finally:
             self.active_job = None
+            self.browser_jobs += 1
 
     async def run(self):
         try:
@@ -430,15 +588,26 @@ class BrowserWorker:
         while True:
             item = await self.queue.get()
             try:
-                if item['kind'] == 'job':
+                if item['kind'] == 'recover':
+                    # Recovery after a failed idle probe, serialized with job admission.
+                    self.recover_pending = False
+                    await self.reset_browser()
+                    await self.ensure_browser()
+                elif item['kind'] == 'job':
+                    # Between jobs only: the next job launches a fresh browser.
+                    if self.browser_due():
+                        try:
+                            await self.reset_browser()
+                        except Exception as error:
+                            # The job still runs; its own ensure_browser handles a launch error.
+                            print(f'[browser] renew failed: {type(error).__name__}: {str(error)[:400]}', flush=True)
                     await self.run_job(item['job_id'])
                 else:
                     await self.ensure_browser()
                     if item['kind'] in {'login', 'background'}:
                         desired_headless = item['kind'] == 'background'
                         if self.headless != desired_headless:
-                            await self.context.close()
-                            self.context = None
+                            await self.reset_browser()
                             self.headless = desired_headless
                             await self.ensure_browser()
                     if item['kind'] == 'login':
@@ -472,8 +641,7 @@ async def lifespan(app):
         await task
     except asyncio.CancelledError:
         pass
-    if worker.context:
-        await worker.context.close()
+    await worker.reset_browser()
 
 
 app = FastAPI(title='Shopee Private API', version='1.0.0', description='Private single-browser job API. Access through an SSH tunnel. Authentication is required for every endpoint.',
@@ -481,8 +649,13 @@ app = FastAPI(title='Shopee Private API', version='1.0.0', description='Private 
 
 
 @app.get('/health', tags=['service'])
-def health():
-    return {'status': 'ok', 'browser': worker.status['state'], 'active_job': worker.active_job, 'queued': worker.queue.qsize()}
+async def health(deep: bool = False):
+    """deep=1 also probes the open browser (10 s limit) when no job is active; it opens no Shopee page."""
+    value = {'status': 'ok', 'browser': worker.status['state'], 'active_job': worker.active_job, 'queued': worker.queue.qsize(),
+             'browser_error': worker.browser_error}
+    if deep:
+        value.update(await worker.deep_check())
+    return value
 
 
 @app.get('/docs', include_in_schema=False)

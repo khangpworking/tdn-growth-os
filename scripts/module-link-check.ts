@@ -15,6 +15,12 @@ export const LINK_CHECK_BUDGET_MAX_MS = 60 * 60_000;
 export const linkCheckBudgetMs = (linksToCheck: number): number =>
   Math.min(LINK_CHECK_BUDGET_MAX_MS, Math.max(LINK_CHECK_BUDGET_MS, linksToCheck * LINK_CHECK_PER_LINK_MS));
 
+/** A job that ended failed on the service side (SOURCE_JOB_FAILED) is retried once after this wait. */
+export const LINK_RETRY_WAIT_MS = 30_000;
+/** Only a terminal job the service marked failed; login/verification stops, cancels and deadlines never match. */
+export const sourceJobFailed = (journal: SamplingJournal): boolean =>
+  journal.terminal && journal.errorCode === 'SOURCE_JOB_FAILED' && journal.job?.state === 'failed';
+
 /** Contract names (owner F640): one closed list shared by steps 2 and 3. */
 export const PRODUCT_LEVEL_CODES = ['PRODUCT_UNAVAILABLE', 'RATINGS_MISSING'] as const;
 export const LINK_REJECT_CODES = [...PRODUCT_LEVEL_CODES, 'NO_TARGET_STAR_REVIEWS'] as const;
@@ -123,14 +129,23 @@ export function createM2LinkCheck(options: { collector: LinkCollector; policy: {
     }
     if (deadline - clock() <= 0) throw new LinkCheckStop('LINK_CHECK_FAILED');
     const link: ReviewLink = { shopId, itemId, url };
-    let journal: SamplingJournal, waited = 0;
-    try {
-      journal = await options.collector.run(join(options.journalDir, `${randomUUID()}.json`),
-        { kind: 'counts', url, request_key: randomUUID() }, link, null, false, undefined,
-        { deadline, onWait: ms => { waited += ms; } });
-    } catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
-    // Only the wait for another run's job (the review service is busy) does not count toward step 2.
-    if (journal.intentAt) deadline += waited;
+    const submit = async (): Promise<SamplingJournal> => {
+      let journal: SamplingJournal, waited = 0;
+      try {
+        journal = await options.collector.run(join(options.journalDir, `${randomUUID()}.json`),
+          { kind: 'counts', url, request_key: randomUUID() }, link, null, false, undefined,
+          { deadline, onWait: ms => { waited += ms; } });
+      } catch { throw new LinkCheckStop('LINK_CHECK_FAILED'); }
+      // Only the wait for another run's job (the review service is busy) does not count toward step 2.
+      if (journal.intentAt) deadline += waited;
+      return journal;
+    };
+    let journal = await submit();
+    // A service-side failure gets one more job for the same link after 30 s; that wait uses the step-2 budget.
+    if (sourceJobFailed(journal) && deadline - clock() > LINK_RETRY_WAIT_MS) {
+      await new Promise(done => setTimeout(done, LINK_RETRY_WAIT_MS));
+      journal = await submit();
+    }
     const code = journal.errorCode;
     if (code === 'PRODUCT_UNAVAILABLE' || code === 'RATINGS_MISSING')
       return verdict({ productBaseId, url }, 'rejected', code, null);

@@ -613,3 +613,46 @@ test('#2: the wait for another run ends at 20 minutes as DEADLINE, with nothing 
   assert.equal(log.posts, 0);
   assert.ok(clock - AT.getTime() <= 20 * 60_000 + 15_000, 'stopped at the 20-minute cap');
 });
+
+test('part 7: a 409 on the session check while another run is busy is waited for; a 5xx or login answer stops as today', async () => {
+  const count = { kind: 'counts', url: LINK.url, request_key: ATTEMPT } as const;
+  /** The cached session is never fresh, so every check asks POST /session/check, which answers `checkAnswer`. */
+  const withSessionCheck = (busyMinutes: number, checkAnswer: (busy: boolean, at: Date) => Response) => {
+    let clock = AT.getTime();
+    const now = () => new Date(clock), otherUntil = clock + busyMinutes * 60_000;
+    const { fakeFetch, log } = busyService(() => clock < otherUntil, { clock: now });
+    let checks = 0, waited = 0;
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      const route = new URL(String(input)).pathname;
+      if (route === '/session') return response({ state: 'ready', authenticated: null, checked_at: now().toISOString() });
+      if (route === '/session/check' && init?.method === 'POST') { checks++; return checkAnswer(clock < otherUntil, now()); }
+      return fakeFetch(input, init);
+    }) as typeof fetch;
+    const run = () => withDir(dir => collector(fetchImpl, { now, sleep: async (ms: number) => { clock += ms; } })
+      .run(path.join(dir, 'journal.json'), count, LINK, null, false, undefined, { onWait: ms => { waited += ms; } }));
+    return { run, log, checks: () => checks, waited: () => waited, elapsed: () => clock - AT.getTime() };
+  };
+  const busyThenReady = (busy: boolean, at: Date) => busy ? response({ detail: 'Browser is busy.' }, 409)
+    : response({ state: 'ready', authenticated: true, checked_at: at.toISOString() });
+
+  const waiting = withSessionCheck(5, busyThenReady);
+  const submitted = await waiting.run();
+  assert.deepEqual([submitted.errorCode, submitted.terminal], [null, true], 'the waiting run submits after the other run ends');
+  assert.deepEqual([waiting.log.posts, waiting.log.postsWhileBusy], [1, 0]);
+  assert.ok(waiting.checks() > 2, 'it polls the session check while busy');
+  assert.ok(waiting.waited() >= 5 * 60_000, 'the 409 wait is reported as a wait for another run');
+
+  const capped = withSessionCheck(25, busyThenReady);
+  const ended = await capped.run();
+  assert.deepEqual([ended.errorCode, ended.intentAt, capped.log.posts], ['DEADLINE', null, 0], 'the 409 wait counts toward the 20-minute cap');
+  assert.ok(capped.elapsed() <= 20 * 60_000 + 15_000);
+
+  for (const [name, answer, code] of [
+    ['5xx', () => response({ detail: 'synthetic' }, 503), 'HEALTH_NOT_READY'],
+    ['login', (_busy: boolean, at: Date) => response({ state: 'needs_login', authenticated: false, checked_at: at.toISOString() }), 'HUMAN_LOGIN_REQUIRED'],
+  ] as const) {
+    const today = withSessionCheck(5, answer);
+    const journal = await today.run();
+    assert.deepEqual([journal.errorCode, today.log.posts, today.checks(), today.waited()], [code, 0, 1, 0], `${name}: stops as today`);
+  }
+});

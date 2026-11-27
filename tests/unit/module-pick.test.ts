@@ -3,9 +3,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import { auditMaskedRows, derivePickCandidate, hashFolder, main, ModuleError, pickRaw, readPickSource, readRequest, sha256 } from '../../scripts/module-pick.js';
-import { createM2LinkCheck, LINK_CHECK_BUDGET_MS, linkCheckBudgetMs, LinkCheckStop, reconcileLinkJournals } from '../../scripts/module-link-check.js';
+import { createM2LinkCheck, LINK_CHECK_BUDGET_MS, linkCheckBudgetMs, LinkCheckStop, reconcileLinkJournals, type LinkCollector } from '../../scripts/module-link-check.js';
+import type { SamplingJob } from '../../contracts/foundation/shopee-review-sampling.generated.js';
 import { readSamplingJournal, ShopeeReviewSamplingCollector } from '../../src/platform/collectors/shopee-review-sampling.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { ReviewSamplingError } from '../../src/modules/foundation/shopee-review-sampling.js';
@@ -604,6 +605,74 @@ test('the step-2 link-check budget stops with LINK_CHECK_FAILED before another c
     assert.deepEqual(asked, [link('9001').url], 'no count job starts after the budget');
     assert.equal(entries.length, 1, 'the refused check records no verdict');
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+/** Count jobs answered in order: 'ok' has counts; an object ends the job with that code and job state. */
+function scriptedLinkCollector(answers: ('ok' | { errorCode: string; state: SamplingJob['state'] | null })[]) {
+  const { collector: counts } = fakeLinkCollector();
+  let jobs = 0;
+  const collector: LinkCollector = {
+    run: async (...args: Parameters<LinkCollector['run']>) => {
+      const answer = answers[jobs++] ?? 'ok', journal = await counts.run(...args);
+      if (answer === 'ok') return journal;
+      const job = answer.state === null ? null : { id: `90000000-0000-4000-8000-${String(jobs).padStart(12, '0')}`, request: journal.request,
+        state: answer.state, created_at: journal.intentAt!, updated_at: journal.intentAt!, result_available: false };
+      return { ...journal, job, result: null, resultSha256: null, errorCode: answer.errorCode };
+    },
+  };
+  return { collector, jobs: () => jobs };
+}
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('step 2: a link whose job failed on the service side gets one more job after 30 s; nothing else is retried', async () => {
+  const dir = await runDir();
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const start = Date.parse('2026-11-18T03:00:00.000Z');
+    const link = { productBaseId: '1__9101__801', shopId: '801', itemId: '9101', url: 'https://shopee.vn/product/801/9101' };
+    const failed = { errorCode: 'SOURCE_JOB_FAILED', state: 'failed' } as const;
+    const begin = (answers: Parameters<typeof scriptedLinkCollector>[0], deadline = start + LINK_CHECK_BUDGET_MS) => {
+      const scripted = scriptedLinkCollector(answers);
+      const { check, entries } = createM2LinkCheck({ collector: scripted.collector, policy: null,
+        journalDir: join(dir, 'm2/link-check-journal'), now: () => new Date(start), deadline });
+      return { ...scripted, entries, outcome: check(link).then(value => ({ value, error: null }), (error: unknown) => ({ value: null, error })) };
+    };
+    const stopCode = (error: unknown) => error instanceof LinkCheckStop ? error.code : error;
+
+    const retried = begin([failed, 'ok']);
+    await settle(); await settle();
+    assert.equal(retried.jobs(), 1, 'the second job waits');
+    mock.timers.tick(29_999); await settle();
+    assert.equal(retried.jobs(), 1, 'the second job waits the full 30 s');
+    mock.timers.tick(1);
+    const first = await retried.outcome;
+    assert.deepEqual([first.value?.result, retried.jobs(), retried.entries.length], ['ok', 2, 1], 'the second job gives the verdict');
+
+    const twice = begin([failed, failed]);
+    await settle(); await settle();
+    mock.timers.tick(30_000);
+    const second = await twice.outcome;
+    assert.deepEqual([stopCode(second.error), twice.jobs()], ['LINK_CHECK_FAILED', 2], 'two failures stop step 2 as today');
+
+    for (const [answer, code] of [[{ errorCode: 'HUMAN_LOGIN_REQUIRED', state: 'needs_login' }, 'HUMAN_LOGIN_REQUIRED'],
+      [{ errorCode: 'HUMAN_VERIFICATION_REQUIRED', state: 'needs_verification' }, 'HUMAN_VERIFICATION_REQUIRED'],
+      [{ errorCode: 'DEADLINE', state: 'cancelled' }, 'LINK_CHECK_FAILED']] as const) {
+      const once = begin([answer, 'ok']);
+      await settle(); await settle();
+      mock.timers.tick(30_000);
+      const value = await once.outcome;
+      assert.deepEqual([stopCode(value.error), once.jobs()], [code, 1], `${answer.errorCode} is never retried`);
+    }
+
+    const late = begin([failed, 'ok'], start + 30_000);
+    await settle(); await settle();
+    mock.timers.tick(30_000);
+    const third = await late.outcome;
+    assert.deepEqual([stopCode(third.error), late.jobs()], ['LINK_CHECK_FAILED', 1], 'no retry with 30 s or less left');
+  } finally {
+    mock.timers.reset();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('a rejected link with no later candidate leaves the existing four-pick shortage', async () => {
